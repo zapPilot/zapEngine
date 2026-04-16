@@ -1,0 +1,22 @@
+{
+    "$schema": "https://unpkg.com/knip@latest/schema.json",
+    "entry": [
+        "src/main.ts",
+        "src/**/*.module.ts",
+        "src/**/*.controller.ts",
+        "src/modules/**/*.processor.ts"
+    ],
+    "project": [
+        "src/**/*.ts"
+    ],
+    "ignore": [
+        "**/*.spec.ts",
+        "**/*.e2e-spec.ts",
+        "test/**",
+        "scripts/**",
+        "src/test-utils/**",
+        "jest.setup.ts",
+        "nest-cli.json",
+        "eslint.config.mjs"
+    ]
+}

@@ -1,0 +1,350 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot for error toast 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-red-600/30 bg-red-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-error"
+        >
+          Error Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot for info toast 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-blue-600/30 bg-blue-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-info"
+        >
+          Info Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot for success toast 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-green-600/30 bg-green-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-success"
+        >
+          Success Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot for warning toast 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-amber-500/30 bg-amber-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-warning"
+        >
+          Warning Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot with action button 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-green-600/30 bg-green-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-success"
+        >
+          Success Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+          <button
+            class="mt-2 w-full px-3 py-1.5 text-sm rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition font-medium"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot with link 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-green-600/30 bg-green-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-success"
+        >
+          Success Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+          <a
+            class="inline-flex items-center gap-1 mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors break-words"
+            href="https://example.com"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <span
+              class="break-all"
+            >
+              View details
+            </span>
+            <span
+              data-testid="external-link-icon"
+            >
+              Link
+            </span>
+          </a>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match snapshot with message 1`] = `
+<div
+  class="
+        mb-3 w-96 max-w-sm rounded-lg border backdrop-blur-sm transition-all duration-300 ease-out
+        border-green-600/30 bg-green-900/20
+        translate-x-0 opacity-100
+      "
+>
+  <div
+    class="p-4"
+  >
+    <div
+      class="flex items-start justify-between"
+    >
+      <div
+        class="flex items-start gap-3 flex-1"
+      >
+        <span
+          data-testid="icon-success"
+        >
+          Success Icon
+        </span>
+        <div
+          class="flex-1 min-w-0"
+        >
+          <h4
+            class="font-semibold text-white text-sm break-words leading-tight"
+          >
+            Test Title
+          </h4>
+          <p
+            class="text-xs text-gray-300 mt-1 break-words leading-relaxed whitespace-normal"
+          >
+            This is a detailed message
+          </p>
+        </div>
+      </div>
+      <button
+        class="text-gray-400 hover:text-white transition-colors ml-2"
+      >
+        <span
+          data-testid="close-icon"
+        >
+          X
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+`;

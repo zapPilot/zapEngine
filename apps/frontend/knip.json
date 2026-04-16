@@ -1,0 +1,48 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+
+  "entry": ["src/app/**/page.tsx", "src/app/**/layout.tsx", "scripts/**/*.{js,ts}"],
+
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}"],
+
+  "ignore": [
+    "tests/**",
+    "**/index.ts",
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    "postcss.config.mjs",
+    "src/config/chains/definitions.ts",
+    "src/shims/emptyModule.ts"
+  ],
+
+  "ignoreDependencies": [
+    "@types/*",
+    "tailwindcss",
+    "eslint-plugin-jsx-a11y",
+    "eslint-plugin-react",
+    "eslint-plugin-react-hooks",
+    "pino-pretty",
+    "postcss"
+  ],
+
+  "ignoreIssues": {
+    "src/lib/errors/ServiceError.ts": ["exports"]
+  },
+
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+
+  "includeEntryExports": true,
+
+  "vitest": {
+    "config": ["vitest.config.ts"],
+    "entry": ["tests/**/*.{test,spec}.{ts,tsx}"]
+  },
+
+  "playwright": {
+    "config": ["playwright.config.ts"]
+  }
+}

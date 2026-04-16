@@ -1,0 +1,49 @@
+<svg width="1024" height="1024" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient -->
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Lightning gradient -->
+    <linearGradient id="iconLightningGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="iconGlow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background Circle -->
+  <circle cx="24" cy="24" r="20" fill="url(#iconGradient)" filter="url(#iconGlow)"/>
+  
+  <!-- Lightning Bolt -->
+  <path d="M16 14 L28 14 L24 24 L32 24 L24 34 L20 24 L16 24 Z" 
+        fill="url(#iconLightningGradient)" 
+        stroke="white" 
+        stroke-width="1.5" 
+        stroke-linejoin="round"/>
+  
+  <!-- Circuit nodes -->
+  <g opacity="0.4" fill="white">
+    <circle cx="14" cy="16" r="1"/>
+    <circle cx="34" cy="20" r="0.8"/>
+    <circle cx="30" cy="32" r="0.8"/>
+  </g>
+  
+  <!-- Circuit connections -->
+  <g opacity="0.3" stroke="white" stroke-width="0.8" fill="none">
+    <line x1="14" y1="16" x2="18" y2="18"/>
+    <line x1="30" y1="22" x2="34" y2="20"/>
+    <line x1="26" y1="30" x2="30" y2="32"/>
+  </g>
+</svg>

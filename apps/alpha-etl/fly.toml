@@ -1,0 +1,29 @@
+# fly.toml app configuration file generated for alpha-etl on 2025-08-13T06:14:26Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'alpha-etl'
+primary_region = 'sin'
+
+[build]
+
+[http_service]
+  internal_port = 3003
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+  [[http_service.checks]]
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '30s'
+    path = '/health'
+
+[[vm]]
+  memory = '1024mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024

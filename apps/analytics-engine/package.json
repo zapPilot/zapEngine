@@ -1,0 +1,20 @@
+{
+  "name": "analytics-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeFi portfolio analytics backend (Python FastAPI)",
+  "scripts": {
+    "build": "uv sync --locked",
+    "dev": "uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload",
+    "start": "uv run uvicorn src.main:app --host 0.0.0.0 --port 8001",
+    "lint": "uv run ruff check src tests && uv run mypy src",
+    "lint:fix": "uv run ruff check --fix src tests",
+    "type-check": "uv run mypy src",
+    "test": "uv run pytest tests -v",
+    "test:coverage": "uv run pytest tests --cov=src --cov-report=html --cov-fail-under=99",
+    "format": "uv run ruff format src tests",
+    "format:check": "uv run ruff format --check src tests",
+    "deadcode": "uv run vulture src vulture_whitelist.py --min-confidence 80",
+    "clean": "rm -rf .venv .coverage htmlcov .pytest_cache .mypy_cache .ruff_cache"
+  }
+}

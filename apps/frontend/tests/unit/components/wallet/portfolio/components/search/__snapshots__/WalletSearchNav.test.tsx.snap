@@ -1,0 +1,139 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WalletSearchNav Component > renders correctly (snapshot) 1`] = `
+<div>
+  <button
+    aria-label="Open search"
+    class="md:hidden p-2 text-gray-400 hover:text-white transition-colors block "
+    type="button"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-search w-5 h-5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m21 21-4.34-4.34"
+      />
+      <circle
+        cx="11"
+        cy="11"
+        r="8"
+      />
+    </svg>
+  </button>
+  <form
+    class="relative flex items-center transition-all duration-300 ease-in-out hidden md:flex h-10 md:w-64 "
+  >
+    <div
+      class="relative flex items-center w-full h-full bg-gray-900/50 hover:bg-gray-900/80 border border-gray-800 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/20 rounded-xl transition-all"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-search absolute w-4 h-4 pointer-events-none transition-colors duration-200 left-3 text-gray-500"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m21 21-4.34-4.34"
+        />
+        <circle
+          cx="11"
+          cy="11"
+          r="8"
+        />
+      </svg>
+      <input
+        class="w-full bg-transparent border-none text-white text-sm placeholder-gray-500 focus:ring-0 focus:outline-none transition-all pl-9 pr-8 h-full "
+        placeholder="Search address..."
+        type="text"
+        value=""
+      />
+    </div>
+  </form>
+</div>
+`;
+
+exports[`WalletSearchNav Component > renders with custom placeholder 1`] = `
+<div>
+  <button
+    aria-label="Open search"
+    class="md:hidden p-2 text-gray-400 hover:text-white transition-colors block "
+    type="button"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-search w-5 h-5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m21 21-4.34-4.34"
+      />
+      <circle
+        cx="11"
+        cy="11"
+        r="8"
+      />
+    </svg>
+  </button>
+  <form
+    class="relative flex items-center transition-all duration-300 ease-in-out hidden md:flex h-10 md:w-64 "
+  >
+    <div
+      class="relative flex items-center w-full h-full bg-gray-900/50 hover:bg-gray-900/80 border border-gray-800 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/20 rounded-xl transition-all"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-search absolute w-4 h-4 pointer-events-none transition-colors duration-200 left-3 text-gray-500"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m21 21-4.34-4.34"
+        />
+        <circle
+          cx="11"
+          cy="11"
+          r="8"
+        />
+      </svg>
+      <input
+        class="w-full bg-transparent border-none text-white text-sm placeholder-gray-500 focus:ring-0 focus:outline-none transition-all pl-9 pr-8 h-full "
+        placeholder="Custom placeholder"
+        type="text"
+        value=""
+      />
+    </div>
+  </form>
+</div>
+`;

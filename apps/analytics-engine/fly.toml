@@ -1,0 +1,33 @@
+# fly.toml app configuration file generated for analytics-engine-xws3ra on 2025-08-26T05:54:26Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'analytics-engine-xws3ra'
+primary_region = 'hkg'
+
+[build]
+
+[http_service]
+  internal_port = 8001
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/healthz"
+
+  [http_service.http_options]
+    idle_timeout = 600
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

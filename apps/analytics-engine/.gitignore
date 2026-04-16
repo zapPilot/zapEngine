@@ -1,0 +1,132 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# FastAPI
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Docker
+.dockerignore
+
+# Alembic
+migrations/versions/*.py
+!migrations/versions/__init__.py
+
+# Redis
+dump.rdb
+
+# Temporary files
+tmp/
+temp/
+
+# Bats test framework
+tests/scripts/.bats-*
+tests/scripts/bats-run-*
+
+# serena
+.serena/cache/
+
+gitdiff
+
+# claude code usage
+uploads/
+usage_tracking2.json
+
+# claude hooks dependencies
+.claude/hooks/node_modules/
+.claude/hooks/package-lock.json
+.claude/plans/
+.plan
+notes.md
+task_plan.md
+TODO.md
+coverage.json
+.sisyphus
+results
+coverage.*.json
+
+# backtesting script
+scripts/out/
+
+# claude
+.claude/worktrees/
+2025-03-09-04-22.json

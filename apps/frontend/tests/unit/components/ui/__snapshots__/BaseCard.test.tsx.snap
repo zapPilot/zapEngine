@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`BaseCard > Snapshot Tests - UI Design Freeze > should match snapshot with different padding options 1`] = `
+<div
+  class="glass-morphism p-4 rounded-3xl border border-gray-800"
+  data-testid="card"
+>
+  Small padding
+</div>
+`;
+
+exports[`BaseCard > Snapshot Tests - UI Design Freeze > should match snapshot with empty variant 1`] = `
+<div
+  class="glass-morphism text-center p-6 rounded-3xl border border-gray-800"
+  data-testid="card"
+>
+  Empty state content
+</div>
+`;
+
+exports[`BaseCard > Snapshot Tests - UI Design Freeze > should match snapshot with error variant 1`] = `
+<div
+  class="glass-morphism p-6 rounded-3xl border border-gray-800"
+  data-testid="card"
+>
+  Error content
+</div>
+`;
+
+exports[`BaseCard > Snapshot Tests - UI Design Freeze > should match snapshot with glass variant (default) 1`] = `
+<div
+  class="glass-morphism p-6 rounded-3xl border border-gray-800"
+  data-testid="card"
+>
+  Glass content
+</div>
+`;
+
+exports[`BaseCard > Snapshot Tests - UI Design Freeze > should match snapshot with solid variant 1`] = `
+<div
+  class="bg-gray-900/50 p-6 rounded-3xl border border-gray-800"
+  data-testid="card"
+>
+  Solid content
+</div>
+`;

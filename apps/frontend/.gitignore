@@ -1,0 +1,79 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# build artifacts
+.vitest-reports/
+
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# commit msg
+gitdiff
+
+# playwright
+playwright-report
+test-results
+public/sw.js
+public/workbox-4754cb34.js
+
+# claude
+uploads/
+usage_tracking2.json
+
+# log
+dev-webpack-fixed.log
+dev-webpack.log
+dev.log
+
+# serena
+.serena/cache
+
+.jscpd/
+.claude/tsc-cache/
+
+# claude hooks dependencies
+.claude/hooks/node_modules/
+.claude/hooks/package-lock.json
+zen_generated.code
+jscpd-report/
+jscpd-analysis/
+jscpd-report.json
+.playwright-mcp/
+.pre-commit.log
+deadcode-analysis.json
+*.txt
+.sisyphus/
+*.lcov

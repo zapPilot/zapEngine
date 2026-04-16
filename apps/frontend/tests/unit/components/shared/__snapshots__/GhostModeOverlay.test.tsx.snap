@@ -1,0 +1,59 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GhostModeOverlay > Snapshot Tests - UI Design Freeze > should match snapshot when disabled 1`] = `
+<div
+  data-testid="test-content"
+>
+  Test Content
+</div>
+`;
+
+exports[`GhostModeOverlay > Snapshot Tests - UI Design Freeze > should match snapshot when enabled with CTA 1`] = `
+<div
+  class="relative"
+>
+  <div
+    class="blur-[2px] pointer-events-none select-none opacity-70"
+  >
+    <div
+      data-testid="test-content"
+    >
+      Test Content
+    </div>
+  </div>
+  <div
+    class="absolute inset-0 flex items-center justify-center bg-gray-950/20 backdrop-blur-[1px] rounded-2xl"
+  >
+    <div
+      class="flex flex-col items-center gap-3"
+    >
+      <span
+        class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase tracking-wider rounded-full border border-purple-500/30"
+      >
+        Preview
+      </span>
+      <button
+        data-testid="connect-wallet-button"
+      >
+        Connect Wallet
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`GhostModeOverlay > Snapshot Tests - UI Design Freeze > should match snapshot when enabled without CTA 1`] = `
+<div
+  class="relative"
+>
+  <div
+    class="blur-[2px] pointer-events-none select-none opacity-70"
+  >
+    <div
+      data-testid="test-content"
+    >
+      Test Content
+    </div>
+  </div>
+</div>
+`;

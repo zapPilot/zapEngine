@@ -1,0 +1,47 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`StickyBannerShell > Snapshot Tests - UI Design Freeze > should match snapshot with custom className 1`] = `
+<div
+  class="sticky top-16 z-40 mx-4 lg:mx-8 mt-4"
+>
+  <div
+    class="border-indigo-500/30 bg-indigo-950/40 px-4 py-3 text-indigo-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 custom-class"
+    data-testid="base-card"
+  >
+    <span>
+      Custom Content
+    </span>
+  </div>
+</div>
+`;
+
+exports[`StickyBannerShell > Snapshot Tests - UI Design Freeze > should match snapshot with data-testid 1`] = `
+<div
+  class="sticky top-16 z-40 mx-4 lg:mx-8 mt-4"
+  data-testid="my-banner"
+>
+  <div
+    class="border-indigo-500/30 bg-indigo-950/40 px-4 py-3 text-indigo-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+    data-testid="base-card"
+  >
+    <span>
+      Test Content
+    </span>
+  </div>
+</div>
+`;
+
+exports[`StickyBannerShell > Snapshot Tests - UI Design Freeze > should match snapshot with default props 1`] = `
+<div
+  class="sticky top-16 z-40 mx-4 lg:mx-8 mt-4"
+>
+  <div
+    class="border-indigo-500/30 bg-indigo-950/40 px-4 py-3 text-indigo-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+    data-testid="base-card"
+  >
+    <span>
+      Banner Content
+    </span>
+  </div>
+</div>
+`;

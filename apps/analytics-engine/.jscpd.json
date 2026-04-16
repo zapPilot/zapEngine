@@ -1,0 +1,14 @@
+{
+    "threshold": 3,
+    "reporters": [
+        "console"
+    ],
+    "ignore": [
+        "src/services/interfaces.py",
+        "src/tests/**",
+        "**/__pycache__/**"
+    ],
+    "format": [
+        "python"
+    ]
+}

@@ -1,0 +1,17 @@
+node_modules
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+dist
+.env
+.env.local
+.env.production
+logs
+coverage
+*.log
+.husky
+.claude
+GEMINI.md
+CLAUDE.md

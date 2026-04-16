@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zap Pilot Weekly Report</title>
+    <style>
+      {{CSS_STYLES}}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>📊 Weekly Portfolio Report</h1>
+        <p>Your DeFi performance insights</p>
+      </div>
+
+      <div class="content">
+        <div class="address-section">
+          <a
+            href="https://v2.zap-pilot.org/bundle?userId={{USER_ID}}"
+            class="dashboard-btn"
+          >
+            View Dashboard →
+          </a>
+        </div>
+
+        <div class="chart-section">
+          <h2>Portfolio Balance History</h2>
+          <div class="chart-container">
+            <img src="cid:{{BALANCE_CHART_CID}}" alt="Historical Balance Chart" />
+          </div>
+        </div>
+
+        <div class="metrics-grid" style="grid-template-columns: 1fr">
+          <div class="metric-card">
+            <div class="metric-label">Current Portfolio Value</div>
+            <div class="metric-value neutral">{{CURRENT_BALANCE}}</div>
+            <div class="metric-subtitle">Latest update</div>
+          </div>
+        </div>
+
+        <div class="pnl-hero {{PNL_HERO_CLASS}}">
+          <div class="pnl-content">
+            <div class="pnl-label">Estimated APR</div>
+            <div class="pnl-amount {{APR_CLASS}}">{{ESTIMATED_APR}}</div>
+            <div class="pnl-percentage {{APR_CLASS}}">
+              Based on {{DATA_POINTS_USED}} data points
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>
+          This automated report is generated for your Zap Pilot account.<br />
+          Questions? Contact us at
+          <a href="mailto:davidtnfsh@gmail.com">davidtnfsh@gmail.com</a>
+        </p>
+
+        <p>
+          <a
+            href="https://app.zap-pilot.org/unsubscribe?email={{ENCODED_EMAIL}}&address={{ENCODED_ADDRESS}}"
+            >Unsubscribe</a
+          >
+        </p>
+
+        <div class="social-links">
+          <a href="https://x.com/zapPilot" target="_blank">X/Twitter</a>
+          <a href="https://discord.gg/sNsMmtsCCV" target="_blank">Discord</a>
+          <a href="https://docs.zap-pilot.org/" target="_blank">Documentation</a>
+          <a href="https://x.com/fromfedtochain" target="_blank">Podcast</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

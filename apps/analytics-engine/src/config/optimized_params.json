@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "generated_at": "2026-02-10T07:46:08.679349+00:00",
+    "token": "BTC",
+    "timeframes_days": [
+      300,
+      500,
+      800,
+      1200
+    ],
+    "ranking_metric": "weighted_calmar",
+    "total_combinations_tested": 512,
+    "script_version": "2.0.0"
+  },
+  "presets": {
+    "dma_gated_fgi_default": {
+      "params": {
+        "cross_cooldown_days": 30,
+        "cross_on_touch": false,
+        "pacing_k": 3.0,
+        "pacing_r_max": 1.0,
+        "buy_sideways_window_days": 5,
+        "buy_sideways_max_range": 0.04,
+        "buy_leg_caps": [
+          0.05,
+          0.1,
+          0.2
+        ]
+      },
+      "performance": {
+        "weighted_calmar": 0.974,
+        "mean_roi": 56.5619,
+        "mean_sharpe": 1.0988,
+        "mean_sortino": 1.3241,
+        "mean_mdd": -27.7008
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "threshold": 3,
+  "reporters": [
+    "console",
+    "html",
+    "json"
+  ],
+  "ignore": [
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/test/**",
+    "**/test-utils/**",
+    "**/database.types.ts",
+    "dist/**",
+    "node_modules/**",
+    "coverage/**",
+    ".husky/**",
+    "scripts/**"
+  ],
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
+  ],
+  "absolute": true,
+  "gitignore": true,
+  "mode": "strict",
+  "format": [
+    "typescript"
+  ],
+  "minLines": 5,
+  "minTokens": 50,
+  "output": "./reports/jscpd",
+  "exitCode": 1
+}

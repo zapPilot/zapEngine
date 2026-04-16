@@ -1,0 +1,8 @@
+name = "zap-assets-worker"
+main = "./index.js"
+compatibility_date = "2024-07-21"
+
+[[r2_buckets]]
+binding = "ZAP_BUCKET"         
+bucket_name = "zappilot"
+preview_bucket_name = "zappilot"

@@ -1,0 +1,77 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SectionWrapper > Snapshot Tests - UI Design Freeze > should match snapshot in data state 1`] = `
+<div
+  class=""
+>
+  <div>
+    <div
+      data-testid="content"
+    >
+      Test data
+    </div>
+  </div>
+</div>
+`;
+
+exports[`SectionWrapper > Snapshot Tests - UI Design Freeze > should match snapshot in error state 1`] = `
+<div
+  class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3 "
+>
+  <span
+    data-testid="alert-icon"
+  >
+    Alert
+  </span>
+  <div
+    class="flex-1 min-w-0"
+  >
+    <p
+      class="text-sm font-medium text-red-200"
+    >
+      Failed to load section
+    </p>
+    <p
+      class="text-xs text-red-400 mt-0.5 truncate"
+    >
+      Test error message
+    </p>
+  </div>
+  <button
+    class="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+    title="Retry"
+  >
+    <span
+      data-testid="refresh-icon"
+    >
+      Refresh
+    </span>
+  </button>
+</div>
+`;
+
+exports[`SectionWrapper > Snapshot Tests - UI Design Freeze > should match snapshot in loading state with custom skeleton 1`] = `
+<div
+  class=""
+>
+  <div>
+    <div
+      class="custom-skeleton"
+    >
+      Loading...
+    </div>
+  </div>
+</div>
+`;
+
+exports[`SectionWrapper > Snapshot Tests - UI Design Freeze > should match snapshot in loading state with default skeleton 1`] = `
+<div
+  class=""
+>
+  <div>
+    <div
+      class="animate-pulse bg-gray-800/50 rounded-xl h-48 w-full border border-gray-700/50"
+    />
+  </div>
+</div>
+`;
