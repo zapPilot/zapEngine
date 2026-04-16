@@ -11,6 +11,9 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "deadcode": "turbo run deadcode",
+    "dup:check": "turbo run dup:check",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },

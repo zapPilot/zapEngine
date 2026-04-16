@@ -67,6 +67,18 @@ jobs:
       - name: Run affected type-check
         run: pnpm turbo run type-check --affected
 
+      - name: Run affected format check
+        run: pnpm turbo run format:check --affected
+
+      - name: Run affected deadcode check
+        run: pnpm turbo run deadcode --affected
+
+      - name: Run affected dup check
+        run: pnpm turbo run dup:check --affected
+
+      - name: Node security audit
+        run: pnpm audit --audit-level=moderate
+
       - name: Run affected tests
         run: pnpm turbo run test --affected
         env:

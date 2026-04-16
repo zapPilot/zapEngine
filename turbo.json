@@ -36,6 +36,18 @@
       "outputs": [],
       "cache": false
     },
+    "format:check": {
+      "inputs": ["src/**", "tests/**", "*.config.*", ".prettierrc*", ".prettierignore", "pyproject.toml"],
+      "outputs": []
+    },
+    "deadcode": {
+      "inputs": ["src/**", "tests/**", "knip.json", "knip.production.json", "vulture_whitelist.py"],
+      "outputs": []
+    },
+    "dup:check": {
+      "inputs": ["src/**", ".jscpd.json"],
+      "outputs": []
+    },
     "clean": {
       "cache": false
     }
