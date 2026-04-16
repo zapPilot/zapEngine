@@ -1,10 +1,7 @@
 import { HttpStatus } from '@common/http';
 import { Logger } from '@common/logger';
 import { ConfigService } from '@config/config.service';
-import {
-  type EtlJobStatus,
-  EtlJobStatusSchema,
-} from '@zapengine/types/etl';
+import { type EtlJobStatus, EtlJobStatusSchema } from '@zapengine/types/etl';
 
 import { ServiceLayerException } from '../exceptions';
 import { getErrorMessage, truncateForLog } from '../utils';
@@ -184,7 +181,7 @@ export class AlphaEtlHttpService {
       }
 
       // Validate response data against contract schema
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+
       const validated = EtlJobStatusSchema.parse(apiResponse.data);
 
       return validated;

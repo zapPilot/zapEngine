@@ -112,7 +112,7 @@ export class TelegramService {
     this.setupCommands();
   }
 
-  async start(): Promise<void> {
+  start(): void {
     if (!this.bot) return;
 
     const usePolling =

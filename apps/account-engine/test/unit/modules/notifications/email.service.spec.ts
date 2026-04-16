@@ -16,7 +16,7 @@ const mockVerify = jest.fn();
 function createService(env: Record<string, string> = {}) {
   const defaults = {
     EMAIL_USER: 'test@example.com',
-    // eslint-disable-next-line sonarjs/no-hardcoded-passwords
+
     EMAIL_APP_PASSWORD: 'secret',
     NOTIFICATIONS_TEST_RECIPIENT: 'qa@example.com',
     ...env,

@@ -16,6 +16,8 @@ jobs:
       analytics-engine: ${{ steps.filter.outputs.analytics-engine }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -37,6 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Enable corepack
         run: corepack enable && corepack prepare pnpm@10.30.3 --activate

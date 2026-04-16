@@ -119,8 +119,8 @@ export function createContainer(
   };
 }
 
-export async function startServices(services: AppServices): Promise<void> {
-  await services.telegramService.start();
+export function startServices(services: AppServices): void {
+  services.telegramService.start();
   services.jobProcessorService.start();
 }
 

@@ -102,9 +102,9 @@ describe('TelegramService', () => {
   });
 
   describe('start / stop', () => {
-    it('starts in webhook mode for non-development', async () => {
+    it('starts in webhook mode for non-development', () => {
       const { service } = createMocks({ NODE_ENV: 'production' });
-      await service.start(); // should not throw
+      service.start(); // should not throw
     });
 
     it('stops gracefully', async () => {
@@ -509,19 +509,19 @@ describe('TelegramService', () => {
   });
 
   describe('start() in development mode (polling)', () => {
-    it('calls bot.launch() when NODE_ENV is development', async () => {
+    it('calls bot.launch() when NODE_ENV is development', () => {
       const { service } = createMocks({ NODE_ENV: 'development' });
       const bot = getLatestBotMock();
-      await service.start();
+      service.start();
       expect(bot.launch).toHaveBeenCalled();
     });
 
-    it('logs error when bot.launch() fails', async () => {
+    it('logs error when bot.launch() fails', () => {
       const { service } = createMocks({ NODE_ENV: 'development' });
       const bot = getLatestBotMock();
       bot.launch.mockRejectedValueOnce(new Error('launch failed'));
-      // should not throw
-      await expect(service.start()).resolves.toBeUndefined();
+      // should not throw - start() is sync, polling errors are caught internally
+      expect(() => service.start()).not.toThrow();
     });
   });
 

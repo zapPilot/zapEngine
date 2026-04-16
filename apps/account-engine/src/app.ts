@@ -61,9 +61,9 @@ export function createApp(services: AppServices) {
 }
 
 /* istanbul ignore next -- server bootstrap, not unit-testable */
-export async function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
+export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   const services = createContainer(rawEnv);
-  await startServices(services);
+  startServices(services);
 
   const app = createApp(services);
   const cleanupInterval = setInterval(
