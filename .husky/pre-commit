@@ -1,1 +1,21 @@
-pnpm test
+#!/usr/bin/env sh
+
+CHANGED=$(git diff --cached --name-only)
+
+run_if_changed() {
+  local app_path="$1"
+  if echo "$CHANGED" | grep -q "^${app_path}/"; then
+    echo "▶ Running pre-commit for ${app_path}..."
+    (cd "$app_path" && sh pre-commit)
+  fi
+}
+
+run_if_changed "apps/frontend"
+run_if_changed "apps/account-engine"
+run_if_changed "apps/alpha-etl"
+
+# Analytics Engine uses Python pre-commit framework
+if echo "$CHANGED" | grep -q "^apps/analytics-engine/"; then
+  echo "▶ Running pre-commit for apps/analytics-engine..."
+  (cd apps/analytics-engine && uv run pre-commit run --all-files)
+fi
