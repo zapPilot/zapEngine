@@ -1,15 +1,19 @@
 import { beforeAll, afterAll, vi } from 'vitest';
 import { config } from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import { Server as TlsServer } from 'tls';
 import { createRequire } from 'module';
 import request from '../utils/inMemoryRequest.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const TEST_HOST = '127.0.0.1';
 
 // Load test-specific environment variables before any test modules import app/config.
-config({ path: path.resolve(process.cwd(), '.env.test') });
+config({ path: path.resolve(__dirname, '../../.env.test') });
 
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error';

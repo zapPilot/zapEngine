@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+set -eu
+
+printf "\n🔎 Deadcode check\n"
+pnpm run deadcode
+
+printf "\n🔎 Duplicate check\n"
+pnpm run dup:check
+
+printf "\n🔎 ESLint\n"
+pnpm run lint
+
+printf "\n🧰 Type check (tsc)\n"
+pnpm run type-check
+
+printf "\n💰 Security audit\n"
+pnpm audit --audit-level=moderate
+
+printf "\n🧪 Tests (Vitest)\n"
+pnpm run test:coverage

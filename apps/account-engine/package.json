@@ -11,12 +11,14 @@
     "start": "node dist/main.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
-    "lint": "eslint src/ test/ --fix",
+    "lint": "eslint src/ test/",
+    "lint:fix": "eslint src/ test/ --fix",
     "type-check": "tsc --noEmit",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
     "deadcode": "knip --exports --dependencies",
+    "dup:check": "jscpd src --config .jscpd.json",
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
@@ -83,6 +85,7 @@
     "clearMocks": true,
     "restoreMocks": true,
     "moduleNameMapper": {
+      "^@zapengine/types/(.*)$": "<rootDir>/__mocks__/@zapengine/types/$1",
       "^@common/(.*)$": "<rootDir>/src/common/$1",
       "^@database/(.*)$": "<rootDir>/src/database/$1",
       "^@modules/(.*)$": "<rootDir>/src/modules/$1",

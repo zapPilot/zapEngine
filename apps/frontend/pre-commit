@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -eu
+pnpm run format:check
+pnpm run lint
+pnpm run type-check
+pnpm audit --audit-level=moderate
+pnpm run deadcode
+pnpm run dup:check
+pnpm run test:safeall
