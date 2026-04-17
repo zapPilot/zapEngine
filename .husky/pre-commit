@@ -1,21 +1,64 @@
 #!/usr/bin/env sh
+# Pre-commit orchestrator. For each app whose staged files changed, run that
+# app's pre-commit concurrently. Every app's log and exit code are collected
+# so a single commit surfaces all failures at once instead of stopping at the
+# first one.
 
 CHANGED=$(git diff --cached --name-only)
+LOG_DIR=$(mktemp -d)
+trap 'rm -rf "$LOG_DIR"' EXIT
 
-run_if_changed() {
-  local app_path="$1"
-  if echo "$CHANGED" | grep -q "^${app_path}/"; then
-    echo "▶ Running pre-commit for ${app_path}..."
-    (cd "$app_path" && sh pre-commit)
-  fi
+PIDS=""
+NAMES=""
+
+queue() {
+  local name=$1
+  local cmd=$2
+  echo "▶ Queued: $name"
+  sh -c "$cmd" >"$LOG_DIR/$name.log" 2>&1 &
+  PIDS="$PIDS $!"
+  NAMES="$NAMES $name"
 }
 
-run_if_changed "apps/frontend"
-run_if_changed "apps/account-engine"
-run_if_changed "apps/alpha-etl"
-
-# Analytics Engine uses Python pre-commit framework
-if echo "$CHANGED" | grep -q "^apps/analytics-engine/"; then
-  echo "▶ Running pre-commit for apps/analytics-engine..."
-  (cd apps/analytics-engine && uv run pre-commit run --all-files)
+if echo "$CHANGED" | grep -q "^apps/frontend/"; then
+  queue frontend         'cd apps/frontend && sh pre-commit'
 fi
+if echo "$CHANGED" | grep -q "^apps/account-engine/"; then
+  queue account-engine   'cd apps/account-engine && sh pre-commit'
+fi
+if echo "$CHANGED" | grep -q "^apps/alpha-etl/"; then
+  queue alpha-etl        'cd apps/alpha-etl && sh pre-commit'
+fi
+if echo "$CHANGED" | grep -q "^apps/analytics-engine/"; then
+  queue analytics-engine 'cd apps/analytics-engine && uv run pre-commit run --all-files'
+fi
+
+if [ -z "$NAMES" ]; then
+  exit 0
+fi
+
+FAILED=""
+set -- $PIDS
+i=1
+for n in $NAMES; do
+  eval "pid=\${$i}"
+  if ! wait "$pid"; then
+    FAILED="$FAILED $n"
+  fi
+  i=$((i + 1))
+done
+
+for n in $NAMES; do
+  case " $FAILED " in
+    *" $n "*) printf '\n========== %s [FAIL] ==========\n' "$n" ;;
+    *)        printf '\n========== %s [OK] ==========\n'   "$n" ;;
+  esac
+  cat "$LOG_DIR/$n.log"
+done
+
+if [ -n "$FAILED" ]; then
+  printf '\n❌ Pre-commit failed in:%s\n' "$FAILED"
+  exit 1
+fi
+
+printf '\n✅ All pre-commit checks passed\n'
