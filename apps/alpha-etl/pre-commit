@@ -1,17 +1,28 @@
 #!/usr/bin/env sh
 set -eu
+
+phase() {
+  printf '::phase::%s\n' "$1"
+}
+
+phase format
 pnpm run format
 printf "\n🔎 Deadcode check\n"
+phase deadcode
 pnpm run deadcode
 
 printf "\n🔎 Duplicate check\n"
+phase dup:check
 pnpm run dup:check
 
 printf "\n🔎 ESLint\n"
+phase lint
 pnpm run lint
 
 printf "\n🧰 Type check (tsc)\n"
+phase type-check
 pnpm run type-check
 
 printf "\n🧪 Tests (Vitest)\n"
+phase test:coverage
 pnpm run test:coverage

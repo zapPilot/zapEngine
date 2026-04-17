@@ -1,16 +1,14 @@
 {
+  "extends": "@zapengine/tsconfig/node.json",
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "resolvePackageJsonExports": true,
-    "esModuleInterop": true,
     "isolatedModules": true,
-    "declaration": true,
     "removeComments": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
-    "sourceMap": true,
-    "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
       "@common/*": ["src/common/*"],
@@ -24,8 +22,10 @@
       "@test-utils": ["test/test-utils/index.ts"]
     },
     "incremental": true,
-    "skipLibCheck": true,
+    "strict": false,
     "strictNullChecks": true,
-    "forceConsistentCasingInFileNames": true
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": false,
+    "noPropertyAccessFromIndexSignature": false
   }
 }

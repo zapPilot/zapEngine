@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Pre-commit orchestrator. For each app whose staged files changed, run that
-# app's pre-commit concurrently. Every app's log and exit code are collected
-# so a single commit surfaces all failures at once instead of stopping at the
-# first one.
+# Pre-commit orchestrator. For each app whose staged files changed, runs that
+# app's pre-commit concurrently and streams each line of output prefixed with
+# [name] so progress is visible live. Exit codes are collected so a single
+# commit attempt surfaces every failure instead of stopping at the first one.
 
 CHANGED=$(git diff --cached --name-only)
 LOG_DIR=$(mktemp -d)
@@ -12,22 +12,106 @@ PIDS=""
 NAMES=""
 
 queue() {
-  local name=$1
-  local cmd=$2
-  echo "▶ Queued: $name"
-  sh -c "$cmd" >"$LOG_DIR/$name.log" 2>&1 &
+  name=$1
+  cmd=$2
+  log_file="$LOG_DIR/$name.log"
+  phase_file="$LOG_DIR/$name.phase"
+  rc_file="$LOG_DIR/$name.rc"
+
+  printf '▶ Starting: %s\n' "$name"
+
+  (
+    (
+      set +e
+      sh -c "$cmd"
+      rc=$?
+      printf '%s\n' "$rc" >"$rc_file"
+      exit 0
+    ) 2>&1 | tee "$log_file" | while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        "::phase::"*)
+          printf '%s\n' "${line#::phase::}" >"$phase_file"
+          ;;
+        *)
+          printf '[%s] %s\n' "$name" "$line"
+          ;;
+      esac
+    done
+  ) &
+
   PIDS="$PIDS $!"
   NAMES="$NAMES $name"
 }
 
+extract_failed_hook() {
+  log_file=$1
+
+  if [ ! -f "$log_file" ]; then
+    return 0
+  fi
+
+  awk '
+    /^[^[:space:]].*Failed$/ {
+      line = $0
+      sub(/[.][.][.].*$/, "", line)
+      if (length(line) > 0) {
+        print line
+        exit
+      }
+    }
+  ' "$log_file"
+}
+
+resolve_failure_phase() {
+  name=$1
+  phase_file="$LOG_DIR/$name.phase"
+  log_file="$LOG_DIR/$name.log"
+
+  if [ -s "$phase_file" ]; then
+    cat "$phase_file"
+    return
+  fi
+
+  phase=$(extract_failed_hook "$log_file")
+  if [ -n "$phase" ]; then
+    printf '%s\n' "$phase"
+    return
+  fi
+
+  printf 'unknown\n'
+}
+
+print_failure_tail() {
+  name=$1
+  log_file="$LOG_DIR/$name.log"
+
+  if [ ! -f "$log_file" ]; then
+    printf '   (no output captured)\n'
+    return
+  fi
+
+  if [ "$name" = "analytics-engine" ]; then
+    tail_output=$(tail -n 20 "$log_file")
+  else
+    tail_output=$(sed '/^::phase::/d' "$log_file" | tail -n 20)
+  fi
+
+  if [ -z "$tail_output" ]; then
+    printf '   (no output captured)\n'
+    return
+  fi
+
+  printf '%s\n' "$tail_output" | sed 's/^/   /'
+}
+
 if echo "$CHANGED" | grep -q "^apps/frontend/"; then
-  queue frontend         'cd apps/frontend && sh pre-commit'
+  queue frontend 'cd apps/frontend && sh pre-commit'
 fi
 if echo "$CHANGED" | grep -q "^apps/account-engine/"; then
-  queue account-engine   'cd apps/account-engine && sh pre-commit'
+  queue account-engine 'cd apps/account-engine && sh pre-commit'
 fi
 if echo "$CHANGED" | grep -q "^apps/alpha-etl/"; then
-  queue alpha-etl        'cd apps/alpha-etl && sh pre-commit'
+  queue alpha-etl 'cd apps/alpha-etl && sh pre-commit'
 fi
 if echo "$CHANGED" | grep -q "^apps/analytics-engine/"; then
   queue analytics-engine 'cd apps/analytics-engine && uv run pre-commit run --all-files'
@@ -37,27 +121,28 @@ if [ -z "$NAMES" ]; then
   exit 0
 fi
 
-FAILED=""
-set -- $PIDS
-i=1
-for n in $NAMES; do
-  eval "pid=\${$i}"
-  if ! wait "$pid"; then
-    FAILED="$FAILED $n"
-  fi
-  i=$((i + 1))
+for pid in $PIDS; do
+  wait "$pid" || true
 done
 
+FAILED=""
 for n in $NAMES; do
-  case " $FAILED " in
-    *" $n "*) printf '\n========== %s [FAIL] ==========\n' "$n" ;;
-    *)        printf '\n========== %s [OK] ==========\n'   "$n" ;;
-  esac
-  cat "$LOG_DIR/$n.log"
+  rc=$(cat "$LOG_DIR/$n.rc" 2>/dev/null)
+  if [ "$rc" != "0" ]; then
+    FAILED="$FAILED $n"
+  fi
 done
 
 if [ -n "$FAILED" ]; then
-  printf '\n❌ Pre-commit failed in:%s\n' "$FAILED"
+  printf '\n❌ Pre-commit failed:\n'
+  for n in $FAILED; do
+    phase=$(resolve_failure_phase "$n")
+    printf '   %-16s → phase: %s\n' "$n" "$phase"
+  done
+  for n in $FAILED; do
+    printf '\n--- %s (last 20 lines) ---\n' "$n"
+    print_failure_tail "$n"
+  done
   exit 1
 fi
 

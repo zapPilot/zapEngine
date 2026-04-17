@@ -1,8 +1,21 @@
 #!/usr/bin/env sh
 set -eu
+
+phase() {
+  printf '::phase::%s\n' "$1"
+}
+
+phase format
 pnpm run format
+phase lint
 pnpm run lint
+phase type-check
 pnpm run type-check
+phase deadcode
 pnpm run deadcode
+phase dup:check
 pnpm run dup:check
-pnpm run test:safeall
+phase test:coverage
+pnpm run test:coverage
+phase test:e2e:safe
+pnpm run test:e2e:safe

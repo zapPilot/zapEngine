@@ -9,7 +9,6 @@ import { healthRouter } from "./routes/health.js";
 import { backfillRouter } from "./routes/backfill.js";
 import { startDatabaseHealthMonitor } from "./modules/core/healthMonitor.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-
 const app: express.Express = express();
 /* c8 ignore next */
 const defaultListenHost =
