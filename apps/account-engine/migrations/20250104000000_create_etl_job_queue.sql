@@ -26,25 +26,25 @@ CREATE TABLE IF NOT EXISTS alpha_raw.etl_job_queue (
 );
 
 -- Partial unique index: Only one pending/processing job per wallet at a time
-CREATE UNIQUE INDEX IF NOT EXISTS idx_etl_jobs_unique_pending_wallet 
-    ON alpha_raw.etl_job_queue (wallet_address) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_etl_jobs_unique_pending_wallet
+    ON alpha_raw.etl_job_queue (wallet_address)
     WHERE status IN ('pending', 'processing');
 
 -- Index for queue polling: Get pending jobs ordered by priority and scheduled time
-CREATE INDEX IF NOT EXISTS idx_etl_jobs_pending 
+CREATE INDEX IF NOT EXISTS idx_etl_jobs_pending
     ON alpha_raw.etl_job_queue (status, priority DESC, scheduled_at ASC)
     WHERE status = 'pending';
 
 -- Index for user-based rate limiting queries
-CREATE INDEX IF NOT EXISTS idx_etl_jobs_user_rate_limit 
+CREATE INDEX IF NOT EXISTS idx_etl_jobs_user_rate_limit
     ON alpha_raw.etl_job_queue (user_id, created_at DESC);
 
 -- Index for IP-based rate limiting queries
-CREATE INDEX IF NOT EXISTS idx_etl_jobs_ip_rate_limit 
+CREATE INDEX IF NOT EXISTS idx_etl_jobs_ip_rate_limit
     ON alpha_raw.etl_job_queue (ip_address, created_at DESC);
 
 -- Index for deduplication queries
-CREATE INDEX IF NOT EXISTS idx_etl_jobs_dedup 
+CREATE INDEX IF NOT EXISTS idx_etl_jobs_dedup
     ON alpha_raw.etl_job_queue (dedup_key, created_at DESC);
 
 -- Add comment for documentation

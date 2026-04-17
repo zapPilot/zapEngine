@@ -125,13 +125,13 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
-        q.id, 
-        q.job_type, 
-        q.user_id, 
+    SELECT
+        q.id,
+        q.job_type,
+        q.user_id,
         q.wallet_address,
-        q.status, 
-        q.retry_count, 
+        q.status,
+        q.retry_count,
         q.max_retries
     FROM alpha_raw.etl_job_queue q
     WHERE q.status = 'pending' AND q.scheduled_at <= NOW()

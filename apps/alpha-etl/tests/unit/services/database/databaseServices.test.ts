@@ -104,18 +104,18 @@ describe('Database Services', () => {
             // WalletBalanceWriter lines 45-50 log success. But where is catch?
             // WalletBalanceWriter.ts (Step 163) does NOT have try/catch block!
             // Line 37: `await this.withDatabaseClient...`
-            // BaseWriter.withDatabaseClient might handle it? 
+            // BaseWriter.withDatabaseClient might handle it?
             // Checking PoolWriter (Step 159), it DOES have try/catch blocks in writeBatch.
             // WalletBalanceWriter seems to rely on BaseWriter or caller handling?
             // If check line 48 was 'uncovered', and file ends at 55.
             // Line 48 is `duplicatesSkipped: result.duplicatesSkipped ?? 0,` inside logger.debug.
             // If coverage report says line 48 is uncovered, it means `writeBatch` success path logger was not hit?
             // Or maybe it is covered but I want to cover ERROR path?
-            // If there is no try/catch, error propagates. 
+            // If there is no try/catch, error propagates.
             // I will expect it to throw.
 
             // Wait, looking at Step 163 again... lines 52: return result.
-            // It seems WalletBalanceWriter implementation provided in Step 163 is different from others. 
+            // It seems WalletBalanceWriter implementation provided in Step 163 is different from others.
             // It does NOT catch errors. So it throws.
 
             const result = await writer.writeWalletBalanceSnapshots(

@@ -19,31 +19,31 @@ CREATE TABLE IF NOT EXISTS wallet_token_snapshots (
   snapshot_time TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
+
   -- Composite unique constraint to prevent duplicates
   UNIQUE(user_id, user_wallet_address, chain, token_address, source, snapshot_time)
 );
 
 -- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_user_latest 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_user_latest
   ON wallet_token_snapshots(user_id, snapshot_time DESC);
 
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_wallet_latest 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_wallet_latest
   ON wallet_token_snapshots(user_wallet_address, snapshot_time DESC);
 
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_chain_token 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_chain_token
   ON wallet_token_snapshots(chain, token_address);
 
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_value_usd 
-  ON wallet_token_snapshots(value_usd DESC) 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_value_usd
+  ON wallet_token_snapshots(value_usd DESC)
   WHERE value_usd IS NOT NULL AND value_usd > 0;
 
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_source_time 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_source_time
   ON wallet_token_snapshots(source, snapshot_time DESC);
 
 -- Partial index for non-zero balances (most common query)
-CREATE INDEX IF NOT EXISTS idx_wallet_balance_nonzero 
-  ON wallet_token_snapshots(user_id, user_wallet_address, chain, snapshot_time DESC) 
+CREATE INDEX IF NOT EXISTS idx_wallet_balance_nonzero
+  ON wallet_token_snapshots(user_id, user_wallet_address, chain, snapshot_time DESC)
   WHERE amount > 0;
 
 -- Comments for documentation
@@ -116,7 +116,7 @@ BEGIN
       AND wbs.amount > 0
     ORDER BY wbs.user_wallet_address, wbs.chain, wbs.token_address, wbs.snapshot_time DESC
   )
-  SELECT 
+  SELECT
     COALESCE(SUM(lb.value_usd), 0) as total_value_usd,
     COUNT(DISTINCT lb.user_wallet_address)::INTEGER as wallet_count,
     COUNT(DISTINCT lb.token_address)::INTEGER as token_count,

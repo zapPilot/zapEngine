@@ -10,7 +10,7 @@ Comprehensive test suite with **99.03% code coverage** covering:
 
 #### Core Functionality
 - **Batch upsert operations** - Tests PostgreSQL UPSERT with conflict resolution on composite keys
-- **Data validation** - Validates required fields (source, symbol, apr) before database insertion  
+- **Data validation** - Validates required fields (source, symbol, apr) before database insertion
 - **Connection pooling** - Tests client acquisition, release, and pool management
 - **Transaction management** - Tests error handling and rollback scenarios
 
@@ -18,7 +18,7 @@ Comprehensive test suite with **99.03% code coverage** covering:
 
 **Success Scenarios (5 tests)**
 - Empty array handling
-- Single batch writes with valid snapshots  
+- Single batch writes with valid snapshots
 - Large batch processing (1200+ records split into chunks)
 - SQL generation with proper parameterized queries
 - Null value handling in optional fields
@@ -30,7 +30,7 @@ Comprehensive test suite with **99.03% code coverage** covering:
 
 **Error Handling (4 tests)**
 - Database connection failures
-- SQL query errors  
+- SQL query errors
 - Batch processing failures
 - Mixed success/failure scenarios
 
@@ -76,7 +76,7 @@ Comprehensive test suite with **99.03% code coverage** covering:
 
 ### Production Scenarios
 - **High volume**: 1000+ records processed efficiently
-- **Concurrent access**: Multiple write operations simultaneously  
+- **Concurrent access**: Multiple write operations simultaneously
 - **Error recovery**: Partial failures don't corrupt entire batches
 - **Memory efficiency**: Large datasets processed in chunks
 
@@ -96,7 +96,7 @@ vi.mock('../../../../src/config/database.js')  // Pool client mocking
 ```
 
 **Logging**
-```typescript 
+```typescript
 vi.mock('../../../../src/utils/logger.js')     // Structured logging
 ```
 
@@ -109,7 +109,7 @@ vi.mock('../../../../src/config/environment.js') // Test configuration
 
 Leverages project test helpers from `tests/utils/testHelpers.ts`:
 - `expectToThrowWithMessage()` - Error assertion helper
-- `measureExecutionTime()` - Performance testing utility  
+- `measureExecutionTime()` - Performance testing utility
 - `deepClone()` - Test data isolation
 
 ## Running Tests
@@ -119,7 +119,7 @@ Leverages project test helpers from `tests/utils/testHelpers.ts`:
 npm test tests/unit/services/database/
 
 # Run with coverage
-npm run test:coverage tests/unit/services/database/poolWriter.test.ts  
+npm run test:coverage tests/unit/services/database/poolWriter.test.ts
 
 # Watch mode for development
 npm run test:watch tests/unit/services/database/poolWriter.test.ts

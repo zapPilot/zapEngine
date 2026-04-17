@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS alpha_raw.wallet_token_snapshots (
   amount NUMERIC,
   raw_amount NUMERIC,
   raw_amount_hex_str TEXT,
-  
+
   CONSTRAINT wallet_token_snapshots_pkey PRIMARY KEY (id),
-  CONSTRAINT wallet_token_snapshots_user_wallet_address_token_address_ch_key 
+  CONSTRAINT wallet_token_snapshots_user_wallet_address_token_address_ch_key
     UNIQUE (user_wallet_address, token_address, chain, inserted_at)
 );
 

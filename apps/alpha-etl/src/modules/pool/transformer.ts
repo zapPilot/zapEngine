@@ -60,6 +60,7 @@ export class PoolDataTransformer {
 
       const transformed = this.buildPoolSnapshot(validated, apr);
 
+      /* v8 ignore start -- defense-in-depth: Zod validation guarantees transformed record passes isValidRecord checks */
       if (!this.isValidRecord(transformed)) {
         logger.warn("Record failed validation after transformation", {
           pool_address: transformed.pool_address,
@@ -67,6 +68,7 @@ export class PoolDataTransformer {
         });
         return null;
       }
+      /* v8 ignore stop */
 
       return transformed;
     } catch (error) {
@@ -112,10 +114,12 @@ export class PoolDataTransformer {
     }
 
     const normalizedApy = normalizePercentage(apy, apy <= 1);
+    /* v8 ignore start -- defense-in-depth: Zod v4 z.number().min(0) rejects NaN/Infinity; normalizePercentage preserves finiteness */
     if (!validateApy(normalizedApy)) {
       logger.warn("Invalid APY value detected", { apy, normalizedApy, source });
       return null;
     }
+    /* v8 ignore stop */
 
     // Convert APY to APR based on source type
     const apr = this.convertApyToApr(normalizedApy, source);

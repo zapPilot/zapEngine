@@ -5,58 +5,58 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff-format
-        entry: bash -c 'UV_CACHE_DIR=/tmp/uv-cache uv run ruff format .'
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run ruff format .'
         language: system
         types: [python]
         pass_filenames: false
         always_run: true
       - id: ruff-check-fix
         name: ruff-check-fix
-        entry: bash -c 'UV_CACHE_DIR=/tmp/uv-cache uv run ruff check --fix . && uv run python scripts/audit_sql_params.py'
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run ruff check --fix . && uv run python scripts/audit_sql_params.py'
         language: system
         types: [python]
         pass_filenames: false
         always_run: true
       - id: ruff-check-validate
         name: ruff-check-validate
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run ruff check .
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run ruff check .'
         language: system
         types: [python]
         pass_filenames: false
       - id: mypy-validate
         name: mypy-validate
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run mypy --package src
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run mypy src/'
         language: system
         types: [python]
         pass_filenames: false
       - id: vulture-validate
         name: vulture-validate
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run vulture src/ vulture_whitelist.py --min-confidence 60
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run vulture src/ vulture_whitelist.py --min-confidence 60'
         language: system
         types: [python]
         pass_filenames: false
       - id: duplicate-code-check
         name: duplicate-code-check
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run python check_duplicates.py
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run python check_duplicates.py'
         language: system
         types: [python]
         pass_filenames: false
         always_run: true
       - id: service-reachability-check
         name: service-reachability-check
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/check_service_reachability.py
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/check_service_reachability.py'
         language: system
         types: [python]
         pass_filenames: false
       - id: pylint-duplicate-check
         name: pylint-duplicate-check
-        entry: env UV_CACHE_DIR=/tmp/uv-cache uv run pylint --jobs=1 --rcfile=pyproject.toml src/
+        entry: bash -c 'cd apps/analytics-engine && UV_CACHE_DIR=/tmp/uv-cache uv run pylint --jobs=1 --rcfile=pyproject.toml src/'
         language: system
         types: [python]
         pass_filenames: false
       - id: pytest-validate
         name: pytest-validate
-        entry: bash scripts/run-tests-precommit.sh
+        entry: bash -c 'cd apps/analytics-engine && bash scripts/run-tests-precommit.sh'
         language: system
         types: [python]
         pass_filenames: false

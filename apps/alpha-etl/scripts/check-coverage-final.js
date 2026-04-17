@@ -29,7 +29,7 @@ for (const [filePath, data] of Object.entries(coverage)) {
     const branchesPct = branchOutcomesTotal === 0 ? 100 : (branchOutcomesCovered / branchOutcomesTotal) * 100;
 
     // Lines - Istanbul usually uses 's' for statements which maps to lines often, but sometimes 'l' is present?
-    // coverage-final.json from v8 provider might be different. 
+    // coverage-final.json from v8 provider might be different.
     // vitest v8 provider produces a slightly different format sometimes?
     // Let's rely on statements, functions, branches for now which are core.
 

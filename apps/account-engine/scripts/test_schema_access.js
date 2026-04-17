@@ -11,7 +11,7 @@ async function test() {
     .from('etl_job_queue')
     .select('count')
     .limit(1);
-  
+
   if (error) {
     console.error('Error:', error);
   } else {

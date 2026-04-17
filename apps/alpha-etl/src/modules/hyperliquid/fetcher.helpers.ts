@@ -87,7 +87,9 @@ export const VaultDetailsResponseSchema = z.object({
   totalFollowers: z.number().optional(),
 
   // Historical data
-  portfolio: z.array(z.tuple([z.string(), z.record(z.string(), z.unknown())])).optional(),
+  portfolio: z
+    .array(z.tuple([z.string(), z.record(z.string(), z.unknown())]))
+    .optional(),
   allTime: z.record(z.string(), z.unknown()).optional(),
 });
 

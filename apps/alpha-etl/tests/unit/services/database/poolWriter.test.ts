@@ -48,7 +48,7 @@ describe('PoolWriter', () => {
 
   beforeEach(() => {
     poolWriter = new PoolWriter();
-    
+
     // Create mock database client
     mockQueryResult = {
       rows: [{ id: '1' }, { id: '2' }, { id: '3' }],
@@ -92,7 +92,7 @@ describe('PoolWriter', () => {
 
       it('should successfully write single batch of valid snapshots', async () => {
         const snapshots = mockDatabaseInserts.slice(0, 3);
-        
+
         const result = await poolWriter.writePoolSnapshots(snapshots);
 
         expect(result.success).toBe(true);
@@ -142,7 +142,7 @@ describe('PoolWriter', () => {
 
       it('should generate correct SQL with proper placeholders', async () => {
         const snapshots = [mockDatabaseInserts[0]];
-        
+
         await poolWriter.writePoolSnapshots(snapshots);
 
         const queryCall = (mockClient.query as unknown).mock.calls[0];
@@ -185,10 +185,10 @@ describe('PoolWriter', () => {
         const result = await poolWriter.writePoolSnapshots([snapshotWithNulls]);
 
         expect(result.success).toBe(true);
-        
+
         const queryCall = (mockClient.query as unknown).mock.calls[0];
         const [, values] = queryCall;
-        
+
         expect(values[0]).toBeNull(); // pool_address
         expect(values[1]).toBeNull(); // protocol_address
         expect(values[5]).toBeNull(); // symbols
@@ -203,7 +203,7 @@ describe('PoolWriter', () => {
             ...mockDatabaseInserts[0],
             source: undefined,
           },
-          // Missing symbol  
+          // Missing symbol
           {
             ...mockDatabaseInserts[0],
             symbol: undefined,
@@ -222,7 +222,7 @@ describe('PoolWriter', () => {
         expect(result.success).toBe(true);
         expect(result.recordsInserted).toBe(3); // Only 1 valid record, but mocked to return 3
         expect(result.errors).toHaveLength(3); // 3 validation errors
-        
+
         result.errors.forEach((error) => {
           expect(error).toContain('Invalid record: missing required fields');
         });

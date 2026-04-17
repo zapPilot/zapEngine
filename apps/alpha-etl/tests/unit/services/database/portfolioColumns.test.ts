@@ -10,10 +10,10 @@ describe('buildPortfolioInsertValues', () => {
     } as unknown];
 
     const { values } = buildPortfolioInsertValues(records);
-    
+
     // wallet is index 0 (should be '0x123')
     expect(values[0]).toBe('0x123');
-    
+
     // chain is index 1 (should be null)
     expect(values[1]).toBeNull();
   });

@@ -127,7 +127,7 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
-    
+
     // Uncomment for cross-browser validation when needed
     // {
     //   name: 'firefox',

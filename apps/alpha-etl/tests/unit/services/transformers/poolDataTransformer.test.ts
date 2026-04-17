@@ -303,7 +303,7 @@ describe('PoolDataTransformer', () => {
   describe('APR Conversion Integration', () => {
     it('should log conversion details for DeFiLlama', () => {
       const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      
+
       const inputData = createValidPoolData({
         source: 'defillama',
         apy: 0.10
@@ -313,7 +313,7 @@ describe('PoolDataTransformer', () => {
 
       // Note: The actual logger.debug might not be captured by console.debug
       // This test demonstrates the pattern - in practice you'd mock the logger
-      
+
       consoleSpy.mockRestore();
     });
 
@@ -330,7 +330,7 @@ describe('PoolDataTransformer', () => {
 
   describe('Performance and Memory', () => {
     it('should handle large batches efficiently', () => {
-      const largeDataSet = Array.from({ length: 1000 }, (_, i) => 
+      const largeDataSet = Array.from({ length: 1000 }, (_, i) =>
         createValidPoolData({
           symbol: `TOKEN${i}-ETH`,
           apy: 0.05 + (i * 0.001)
@@ -348,13 +348,13 @@ describe('PoolDataTransformer', () => {
     it('should not leak memory with repeated transformations', () => {
       // This test ensures objects are properly created and can be garbage collected
       const iterations = 100;
-      
+
       for (let i = 0; i < iterations; i++) {
         const inputData = createValidPoolData({ apy: Math.random() * 0.1 });
         const result = transformer.transform(inputData);
         expect(result).toBeTruthy();
       }
-      
+
       // If this test completes without running out of memory, it's passing
       expect(true).toBe(true);
     });
@@ -364,7 +364,7 @@ describe('PoolDataTransformer', () => {
     it('should validate against the Zod schema', () => {
       const validData = createValidPoolData();
       const result = transformer.transform(validData);
-      
+
       // If transformation succeeds, schema validation passed
       expect(result).toBeTruthy();
       expect(result).toMatchObject({

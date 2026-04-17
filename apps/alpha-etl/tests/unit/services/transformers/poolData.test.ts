@@ -95,7 +95,7 @@ describe('PoolDataTransformer', () => {
         validPoolDataSamples.forEach((sample, index) => {
           const result = transformer.transform(sample);
           expect(result).not.toBeNull();
-          
+
           // Basic validation
           expect(result!.chain).toBeTruthy();
           expect(result!.protocol).toBeTruthy();
@@ -165,7 +165,7 @@ describe('PoolDataTransformer', () => {
           ...baseData,
           source: 'defillama',
         });
-        
+
         // Other sources should use direct conversion
         const otherResult = transformer.transform({
           ...baseData,
@@ -174,7 +174,7 @@ describe('PoolDataTransformer', () => {
 
         expect(defiLlamaResult).not.toBeNull();
         expect(otherResult).not.toBeNull();
-        
+
         // DeFiLlama should have slightly lower APR due to daily compounding
         expect(defiLlamaResult!.apr).toBeLessThan(otherResult!.apr);
       });
@@ -195,7 +195,7 @@ describe('PoolDataTransformer', () => {
 
           const result = transformer.transform(data);
           expect(result).not.toBeNull();
-          
+
           if (expected === 'percentage') {
             // Should normalize to decimal first (divide by 100), then convert
             // For DeFiLlama, this means daily compounded conversion
@@ -299,7 +299,7 @@ describe('PoolDataTransformer', () => {
   describe('transformBatch', () => {
     it('should transform multiple valid records', () => {
       const results = transformer.transformBatch(validPoolDataSamples);
-      
+
       expect(results).toHaveLength(validPoolDataSamples.length);
       results.forEach((result) => {
         expect(result.chain).toBeTruthy();
@@ -312,7 +312,7 @@ describe('PoolDataTransformer', () => {
     it('should filter out invalid records', () => {
       const mixedData = [...validPoolDataSamples, ...invalidPoolDataSamples];
       const results = transformer.transformBatch(mixedData as PoolData[]);
-      
+
       // Should only return valid transformations
       expect(results).toHaveLength(validPoolDataSamples.length);
     });
@@ -324,7 +324,7 @@ describe('PoolDataTransformer', () => {
 
     it('should maintain performance with large batches', () => {
       const largeBatch = generateRandomPoolDataBatch(1000);
-      
+
       const startTime = performance.now();
       const results = transformer.transformBatch(largeBatch);
       const endTime = performance.now();
@@ -374,10 +374,10 @@ describe('PoolDataTransformer', () => {
 
       // Transform batch
       const transformed = transformer.transformBatch(mixedData as PoolData[]);
-      
+
       // Should only have valid transformations
       expect(transformed.length).toBe(validPoolDataSamples.length);
-      
+
       // Validate all results meet requirements
       transformed.forEach((record) => {
         expect(record.chain).toMatch(/^[a-z]+$/); // Lowercase chain names
@@ -399,13 +399,13 @@ describe('PoolDataTransformer', () => {
       expect(transformed!.chain).toBe(originalData.chain.toLowerCase());
       expect(transformed!.protocol).toBe(originalData.protocol.toLowerCase());
       expect(transformed!.source).toBe(originalData.source.toLowerCase());
-      
+
       // Numerical data should be preserved or correctly converted
       expect(transformed!.tvl_usd).toBe(originalData.tvl_usd);
       if (originalData.volume_usd_1d) {
         expect(transformed!.volume_usd_1d).toBe(originalData.volume_usd_1d);
       }
-      
+
       // APR should be converted from APY
       expect(transformed!.apr).toBeGreaterThan(0);
       expect(transformed!.apr).toBeLessThan(originalData.apy); // APR typically lower than APY
@@ -443,7 +443,7 @@ describe('PoolDataTransformer', () => {
           .build();
 
         const result = transformer.transform(data);
-        
+
         if (expected === null) {
           expect(result, `Case ${index}: apy=${apy}, tvl_usd=${tvl_usd} should be rejected`).toBeNull();
         } else if (expected === 0) {

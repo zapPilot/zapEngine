@@ -106,7 +106,7 @@ alpha-etl/
    ```bash
    npm run build
    npm start
-   
+
    # Or for development:
    npm run dev
    ```

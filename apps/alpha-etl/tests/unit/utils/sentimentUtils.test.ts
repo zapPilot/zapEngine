@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { 
-  normalizeSentimentClassification, 
-  isValidSentimentClassification 
+import {
+  normalizeSentimentClassification,
+  isValidSentimentClassification
 } from '../../../src/utils/sentimentUtils.js';
 
 describe('Sentiment Utils', () => {

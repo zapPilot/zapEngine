@@ -73,7 +73,7 @@ export const generateRandomPoolData = (overrides: Partial<PoolData> = {}): PoolD
   const randomProtocol = pickRandom(protocols);
   const symbol1 = pickRandom(symbols);
   const symbol2 = pickRandom(symbols);
-  
+
   return {
     pool_address: `0x${Math.random().toString(16).slice(2, 42).padStart(40, '0')}`,
     protocol_address: `0x${Math.random().toString(16).slice(2, 42).padStart(40, '0')}`,
