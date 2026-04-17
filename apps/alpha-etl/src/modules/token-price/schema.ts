@@ -14,6 +14,7 @@ import { z } from "zod";
  * Zod schema for CoinGecko Simple Price API response validation
  */
 export const CoinGeckoSimplePriceSchema = z.record(
+  z.string(),
   z.object({
     usd: z.number(),
     usd_market_cap: z.number().optional().nullable(),

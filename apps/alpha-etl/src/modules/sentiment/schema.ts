@@ -48,7 +48,7 @@ export const SentimentDataSchema = z.object({
     .transform(normalizeSentimentClassification)
     .pipe(
       z.enum(SENTIMENT_CLASSIFICATIONS, {
-        errorMap: () => ({ message: "Invalid classification value" }),
+        error: () => "Invalid classification value",
       }),
     ),
   timestamp: z

@@ -30,9 +30,9 @@ const poolDataSchema = z.object({
   volume_usd_1d: z.number().positive().nullable().optional(),
   exposure: z.enum(["single", "multi", "stable"]).nullable().optional(),
   reward_tokens: z.array(z.string().nullable()).nullable().optional(),
-  pool_meta: z.record(z.unknown()).nullable().optional(),
+  pool_meta: z.record(z.string(), z.unknown()).nullable().optional(),
   source: z.string().min(1, "Source is required"),
-  raw_data: z.record(z.unknown()).nullable().optional(),
+  raw_data: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 type ValidatedPoolData = z.infer<typeof poolDataSchema>;

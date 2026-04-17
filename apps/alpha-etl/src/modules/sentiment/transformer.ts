@@ -44,7 +44,7 @@ export class SentimentDataTransformer {
   private logTransformationError(error: unknown, rawData: SentimentData): void {
     if (error instanceof z.ZodError) {
       logger.error("Sentiment data validation failed", {
-        errors: error.errors,
+        errors: error.issues,
         rawData,
       });
       return;

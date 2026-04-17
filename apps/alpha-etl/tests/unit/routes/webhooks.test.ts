@@ -317,7 +317,7 @@ describe('Webhooks Router', () => {
 
       expect(response.body.success).toBe(false);
       // Zod error message join
-      expect(response.body.error.message).toContain('Expected array');
+      expect(response.body.error.message).toContain('expected array');
     });
 
     it('should handle job queue errors', async () => {
@@ -375,7 +375,7 @@ describe('Webhooks Router', () => {
         .send(payload)
         .expect(400);
 
-      expect(response.body.error.message).toContain('greater than 0');
+      expect(response.body.error.message).toContain('Too small');
     });
   });
 

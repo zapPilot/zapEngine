@@ -164,8 +164,7 @@ describe('Error Handling Middleware', () => {
                         issues: expect.arrayContaining([
                             expect.objectContaining({
                                 code: 'invalid_type',
-                                expected: 'number',
-                                received: 'string'
+                                expected: 'number'
                             })
                         ])
                     }

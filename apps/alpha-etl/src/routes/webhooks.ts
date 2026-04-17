@@ -132,7 +132,7 @@ router.post("/wallet-fetch", async (req, res) => {
         "VALIDATION_ERROR",
         "Invalid wallet fetch payload",
         requestId,
-        { errors: error.errors },
+        { errors: error.issues },
       );
       return res.status(400).json(response);
     }

@@ -52,7 +52,7 @@ export function resolveError(
         code: "VALIDATION_ERROR",
         message: "Invalid request payload",
         source: "system",
-        context: { issues: error.errors },
+        context: { issues: error.issues },
       },
     };
   }

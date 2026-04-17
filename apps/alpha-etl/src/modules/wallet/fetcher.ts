@@ -29,13 +29,13 @@ export interface DeBankTokenBalance {
 
 // Zod schema for DeBank complex protocol list validation
 const ProtocolItemSchema = z.object({
-  asset_dict: z.record(z.number()),
+  asset_dict: z.record(z.string(), z.number()),
   asset_token_list: z.array(z.unknown()),
-  detail: z.record(z.unknown()),
+  detail: z.record(z.string(), z.unknown()),
   detail_types: z.array(z.string()),
   name: z.string(),
-  pool: z.record(z.unknown()),
-  proxy_detail: z.record(z.unknown()).optional(),
+  pool: z.record(z.string(), z.unknown()),
+  proxy_detail: z.record(z.string(), z.unknown()).optional(),
   stats: z.object({
     asset_usd_value: z.number(),
     debt_usd_value: z.number(),

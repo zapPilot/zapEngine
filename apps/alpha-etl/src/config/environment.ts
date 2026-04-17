@@ -3,35 +3,27 @@ import { z } from "zod";
 
 config();
 
-type ParsedNumberSchema = z.ZodType<number, z.ZodTypeDef, unknown>;
-type ParsedOptionalStringSchema = z.ZodType<
-  string | undefined,
-  z.ZodTypeDef,
-  unknown
->;
-type ParsedBooleanSchema = z.ZodType<boolean, z.ZodTypeDef, unknown>;
-
 function parseBoolean(value: string): boolean {
   return value.toLowerCase() === "true";
 }
 
-function parsePort(defaultValue: string): ParsedNumberSchema {
+function parsePort(defaultValue: string) {
   return z
     .string()
+    .default(defaultValue)
     .transform(Number)
-    .pipe(z.number().int().min(1).max(65535))
-    .default(defaultValue);
+    .pipe(z.number().int().min(1).max(65535));
 }
 
-function parsePositiveInteger(defaultValue: string): ParsedNumberSchema {
+function parsePositiveInteger(defaultValue: string) {
   return z
     .string()
+    .default(defaultValue)
     .transform(Number)
-    .pipe(z.number().int().positive())
-    .default(defaultValue);
+    .pipe(z.number().int().positive());
 }
 
-function parseOptionalNonEmptyString(): ParsedOptionalStringSchema {
+function parseOptionalNonEmptyString() {
   return z.preprocess((value) => {
     if (typeof value === "string" && value.trim() === "") {
       return undefined;
@@ -40,12 +32,12 @@ function parseOptionalNonEmptyString(): ParsedOptionalStringSchema {
   }, z.string().min(1).optional());
 }
 
-function parseBooleanFlag(defaultValue: "true" | "false"): ParsedBooleanSchema {
+function parseBooleanFlag(defaultValue: "true" | "false") {
   return z
     .string()
+    .default(defaultValue)
     .transform(parseBoolean)
-    .pipe(z.boolean())
-    .default(defaultValue);
+    .pipe(z.boolean());
 }
 
 const envSchema = z.object({

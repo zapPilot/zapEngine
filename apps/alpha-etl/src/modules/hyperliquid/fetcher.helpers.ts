@@ -54,7 +54,7 @@ export const FollowerStateSchema = z.object({
 // Vault relationship schema
 export const VaultRelationshipSchema = z.object({
   type: z.enum(["parent", "follower"]),
-  data: z.record(z.unknown()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Main vault details response schema
@@ -87,8 +87,8 @@ export const VaultDetailsResponseSchema = z.object({
   totalFollowers: z.number().optional(),
 
   // Historical data
-  portfolio: z.array(z.tuple([z.string(), z.record(z.unknown())])).optional(),
-  allTime: z.record(z.unknown()).optional(),
+  portfolio: z.array(z.tuple([z.string(), z.record(z.string(), z.unknown())])).optional(),
+  allTime: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Export inferred TypeScript types (only VaultDetailsResponse is used externally)

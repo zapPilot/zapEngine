@@ -37,7 +37,7 @@ export function validateWalletFetchJob(job: ETLJob): WalletFetchJobMetadata {
 
   const parsed = WalletFetchJobMetadataSchema.safeParse(job.metadata);
   if (!parsed.success) {
-    if (containsWalletAddressValidationError(parsed.error.errors)) {
+    if (containsWalletAddressValidationError(parsed.error.issues)) {
       throw new Error("Wallet address missing from job metadata");
     }
     throw new Error("Invalid wallet_fetch metadata");
@@ -47,7 +47,7 @@ export function validateWalletFetchJob(job: ETLJob): WalletFetchJobMetadata {
 }
 
 function containsWalletAddressValidationError(
-  errors: { path: Array<string | number> }[],
+  errors: { path: PropertyKey[] }[],
 ): boolean {
   return errors.some((error) => error.path.includes("walletAddress"));
 }

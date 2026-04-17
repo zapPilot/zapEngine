@@ -24,7 +24,7 @@ export function buildValidationErrorApiResponse(
     code: "VALIDATION_ERROR",
     message: "Invalid request payload",
     source: "system",
-    context: { issues: zodError.errors },
+    context: { issues: zodError.issues },
   });
 }
 
