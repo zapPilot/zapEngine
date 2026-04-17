@@ -43,3 +43,6 @@ pnpm-debug.log*
 
 # Test
 coverage/
+
+# claude
+.claude/scheduled_tasks.lock
