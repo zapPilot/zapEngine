@@ -283,7 +283,20 @@ export async function triggerWalletDataFetch(
  */
 export async function getEtlJobStatus(jobId: string): Promise<EtlJobStatus> {
   return requestAndValidate(
-    () => getAccountResource<EtlJobStatus>(`/etl/jobs/${jobId}`),
-    response => etlJobStatusResponseSchema.parse(response)
+    () => getAccountResource<unknown>(`/etl/jobs/${jobId}`),
+    response => {
+      const raw = etlJobStatusResponseSchema.parse(response);
+      return {
+        jobId: raw.job_id,
+        status: raw.status,
+        trigger: raw.trigger ?? "manual",
+        createdAt: raw.created_at ?? "",
+        recordsProcessed: raw.records_processed,
+        recordsInserted: raw.records_inserted,
+        duration: raw.duration,
+        completedAt: raw.completed_at,
+        error: raw.error,
+      } satisfies EtlJobStatus;
+    }
   );
 }

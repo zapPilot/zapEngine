@@ -1,7 +1,7 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 function normalizeNumericValue(value: unknown): unknown {
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return value;
   }
 
@@ -22,7 +22,7 @@ export function createVaultRequestId(): string {
 }
 
 function parseFiniteNumericValue(value: number | string): number | null {
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
   }
 
@@ -31,7 +31,10 @@ function parseFiniteNumericValue(value: number | string): number | null {
 }
 
 const numeric = z.preprocess(normalizeNumericValue, z.number());
-const optionalNumeric = z.preprocess(normalizeOptionalNumericValue, z.number().optional());
+const optionalNumeric = z.preprocess(
+  normalizeOptionalNumericValue,
+  z.number().optional(),
+);
 
 // Follower state schema (user-specific vault position)
 export const FollowerStateSchema = z.object({
@@ -50,7 +53,7 @@ export const FollowerStateSchema = z.object({
 
 // Vault relationship schema
 export const VaultRelationshipSchema = z.object({
-  type: z.enum(['parent', 'follower']),
+  type: z.enum(["parent", "follower"]),
   data: z.record(z.unknown()).optional(),
 });
 
@@ -91,24 +94,31 @@ export const VaultDetailsResponseSchema = z.object({
 // Export inferred TypeScript types (only VaultDetailsResponse is used externally)
 export type VaultDetailsResponse = z.infer<typeof VaultDetailsResponseSchema>;
 
-export function parseVaultDetailsResponse(jsonData: unknown): VaultDetailsResponse {
+export function parseVaultDetailsResponse(
+  jsonData: unknown,
+): VaultDetailsResponse {
   return VaultDetailsResponseSchema.parse(jsonData);
 }
 
-export function resolveTotalFollowers(vaultDetails: VaultDetailsResponse): number | null {
+export function resolveTotalFollowers(
+  vaultDetails: VaultDetailsResponse,
+): number | null {
   return vaultDetails.totalFollowers ?? vaultDetails.followers?.length ?? null;
 }
 
 export function deriveTvlFromPortfolio(
-  portfolio?: VaultDetailsResponse['portfolio']
+  portfolio?: VaultDetailsResponse["portfolio"],
 ): number | null {
   if (!portfolio || portfolio.length === 0) {
     return null;
   }
 
-  const preferred = portfolio.find(([bucket]) => bucket === 'day') ?? portfolio[0];
+  const preferred =
+    portfolio.find(([bucket]) => bucket === "day") ?? portfolio[0];
 
-  const series = preferred[1] as { accountValueHistory?: Array<[number, number | string]> };
+  const series = preferred[1] as {
+    accountValueHistory?: Array<[number, number | string]>;
+  };
   const history = series.accountValueHistory;
   if (!Array.isArray(history) || history.length === 0) {
     return null;
@@ -123,8 +133,11 @@ export function deriveTvlFromPortfolio(
   return parseFiniteNumericValue(value);
 }
 
-export function resolveVaultValue(followerState: z.infer<typeof FollowerStateSchema>): number | null {
-  const vaultValue = followerState.totalAccountValue ?? followerState.vaultEquity;
+export function resolveVaultValue(
+  followerState: z.infer<typeof FollowerStateSchema>,
+): number | null {
+  const vaultValue =
+    followerState.totalAccountValue ?? followerState.vaultEquity;
   if (vaultValue === undefined || !Number.isFinite(vaultValue)) {
     return null;
   }

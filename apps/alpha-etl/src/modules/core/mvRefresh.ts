@@ -1,9 +1,9 @@
-import type { PoolClient } from 'pg';
-import { MV_REFRESH_CONFIG, getDbClient } from '../../config/database.js';
-import { env } from '../../config/environment.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { logger } from '../../utils/logger.js';
-import { withRetry } from '../../utils/retry.js';
+import type { PoolClient } from "pg";
+import { MV_REFRESH_CONFIG, getDbClient } from "../../config/database.js";
+import { env } from "../../config/environment.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { logger } from "../../utils/logger.js";
+import { withRetry } from "../../utils/retry.js";
 
 export interface MVRefreshResult {
   success: boolean;
@@ -21,7 +21,8 @@ export interface MVRefreshStats {
   skippedCount: number;
 }
 
-type MaterializedViewConfig = (typeof MV_REFRESH_CONFIG.MATERIALIZED_VIEWS)[number];
+type MaterializedViewConfig =
+  (typeof MV_REFRESH_CONFIG.MATERIALIZED_VIEWS)[number];
 
 /**
  * Materialized View Refresh Service
@@ -49,21 +50,21 @@ export class MaterializedViewRefresher {
    */
   async refreshAllViews(jobId: string): Promise<MVRefreshStats> {
     if (!env.ENABLE_MV_REFRESH) {
-      logger.debug('MV refresh disabled via configuration', { jobId });
+      logger.debug("MV refresh disabled via configuration", { jobId });
       return {
         totalDurationMs: 0,
         results: [],
         allSucceeded: true,
         failedCount: 0,
-        skippedCount: 0
+        skippedCount: 0,
       };
     }
 
     const mvConfigs = MV_REFRESH_CONFIG.MATERIALIZED_VIEWS;
-    logger.info('Starting materialized view refresh (sequential mode)', {
+    logger.info("Starting materialized view refresh (sequential mode)", {
       jobId,
       mvCount: mvConfigs.length,
-      mvNames: mvConfigs.map((mv) => mv.name)
+      mvNames: mvConfigs.map((mv) => mv.name),
     });
 
     const startTime = Date.now();
@@ -77,29 +78,30 @@ export class MaterializedViewRefresher {
       results,
       allSucceeded: failedCount === 0 && skippedCount === 0,
       failedCount,
-      skippedCount
+      skippedCount,
     };
 
-    logger.info('Materialized view refresh completed', {
+    logger.info("Materialized view refresh completed", {
       jobId,
       totalDurationMs: stats.totalDurationMs,
       allSucceeded: stats.allSucceeded,
       failedCount: stats.failedCount,
       skippedCount: stats.skippedCount,
-      successCount: stats.results.length - stats.failedCount - stats.skippedCount,
+      successCount:
+        stats.results.length - stats.failedCount - stats.skippedCount,
       results: stats.results.map((result) => ({
         mvName: result.mvName,
         success: result.success,
         skipped: result.skipped ?? false,
-        durationMs: result.durationMs
-      }))
+        durationMs: result.durationMs,
+      })),
     });
     return stats;
   }
 
   private async refreshViewsSequentially(
     jobId: string,
-    mvConfigs: readonly MaterializedViewConfig[]
+    mvConfigs: readonly MaterializedViewConfig[],
   ): Promise<MVRefreshResult[]> {
     const results: MVRefreshResult[] = [];
     let aborted = false;
@@ -114,7 +116,7 @@ export class MaterializedViewRefresher {
           mvName: mvConfig.name,
           durationMs: 0,
           skipped: true,
-          error: 'Skipped due to previous MV failure'
+          error: "Skipped due to previous MV failure",
         });
         continue;
       }
@@ -125,11 +127,11 @@ export class MaterializedViewRefresher {
       if (!result.success) {
         aborted = true;
         const remainingMvs = mvConfigs.slice(i + 1).map((mv) => mv.name);
-        logger.error('Aborting MV refresh chain due to failure', {
+        logger.error("Aborting MV refresh chain due to failure", {
           jobId,
           failedMv: mvConfig.name,
           remainingMvs,
-          reason: 'Subsequent MVs may depend on failed MV'
+          reason: "Subsequent MVs may depend on failed MV",
         });
       }
     }
@@ -146,32 +148,29 @@ export class MaterializedViewRefresher {
    */
   private async refreshViewWithRetry(
     mvName: string,
-    jobId: string
+    jobId: string,
   ): Promise<MVRefreshResult> {
     const maxAttempts = MV_REFRESH_CONFIG.MAX_RETRIES + 1;
 
     try {
-      return await withRetry(
-        () => this.refreshView(mvName, jobId),
-        {
-          maxAttempts,
-          baseDelayMs: MV_REFRESH_CONFIG.RETRY_BASE_DELAY_MS,
-          label: `MV refresh ${mvName}`
-        }
-      );
+      return await withRetry(() => this.refreshView(mvName, jobId), {
+        maxAttempts,
+        baseDelayMs: MV_REFRESH_CONFIG.RETRY_BASE_DELAY_MS,
+        label: `MV refresh ${mvName}`,
+      });
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      logger.error('MV refresh failed after all retries', {
+      logger.error("MV refresh failed after all retries", {
         jobId,
         mvName,
         maxRetries: maxAttempts,
-        error: errorMessage
+        error: errorMessage,
       });
       return {
         success: false,
         mvName,
         durationMs: 0,
-        error: `Failed after ${maxAttempts} attempts: ${errorMessage}`
+        error: `Failed after ${maxAttempts} attempts: ${errorMessage}`,
       };
     }
   }
@@ -190,15 +189,15 @@ export class MaterializedViewRefresher {
    */
   private async refreshView(
     mvName: string,
-    jobId: string
+    jobId: string,
   ): Promise<MVRefreshResult> {
     let client: PoolClient | null = null;
     const startTime = Date.now();
 
     try {
-      logger.debug('Refreshing materialized view', {
+      logger.debug("Refreshing materialized view", {
         jobId,
-        mvName
+        mvName,
       });
 
       client = await getDbClient();
@@ -207,31 +206,29 @@ export class MaterializedViewRefresher {
 
       const durationMs = Date.now() - startTime;
 
-      logger.info('Materialized view refreshed successfully', {
+      logger.info("Materialized view refreshed successfully", {
         jobId,
         mvName,
-        durationMs
+        durationMs,
       });
 
       return {
         success: true,
         mvName,
-        durationMs
+        durationMs,
       };
-
     } catch (error) {
       const durationMs = Date.now() - startTime;
       const errorMessage = toErrorMessage(error);
 
-      logger.error('Failed to refresh materialized view', {
+      logger.error("Failed to refresh materialized view", {
         jobId,
         mvName,
         durationMs,
-        error: errorMessage
+        error: errorMessage,
       });
 
       throw error;
-
     } finally {
       client?.release();
     }

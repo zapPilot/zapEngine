@@ -1,7 +1,7 @@
-import { logger } from '../../utils/logger.js';
-import { filterVipUsersByActivity } from './activityFiltering.js';
-import type { VipUserWithActivity } from '../../types/index.js';
-import type { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import { logger } from "../../utils/logger.js";
+import { filterVipUsersByActivity } from "./activityFiltering.js";
+import type { VipUserWithActivity } from "../../types/index.js";
+import type { SupabaseFetcher } from "../../modules/vip-users/supabaseFetcher.js";
 
 export interface VipUsersProcessingResult {
   usersToUpdate: VipUserWithActivity[];
@@ -12,7 +12,7 @@ export interface VipUsersProcessingResult {
 export async function fetchAndFilterVipUsersForProcessing(
   supabaseFetcher: SupabaseFetcher,
   jobId: string,
-  emptyUsersLogMessage: string
+  emptyUsersLogMessage: string,
 ): Promise<VipUsersProcessingResult> {
   const vipUsers = await supabaseFetcher.fetchVipUsersWithActivity();
 
@@ -21,9 +21,10 @@ export async function fetchAndFilterVipUsersForProcessing(
     return { usersToUpdate: [], vipUsersTotal: 0, costSavingsPercent: 0 };
   }
 
-  const { usersToUpdate, costSavingsPercent, stats } = filterVipUsersByActivity(vipUsers);
+  const { usersToUpdate, costSavingsPercent, stats } =
+    filterVipUsersByActivity(vipUsers);
 
-  logger.info('Users filtered by activity', {
+  logger.info("Users filtered by activity", {
     jobId,
     totalVipUsers: vipUsers.length,
     usersToUpdate: usersToUpdate.length,
@@ -33,7 +34,7 @@ export async function fetchAndFilterVipUsersForProcessing(
       neverUpdated: stats.neverUpdated,
       activeUsers: stats.activeUsers,
       inactiveUpdated: stats.inactiveUpdated,
-    }
+    },
   });
 
   return {
@@ -46,7 +47,7 @@ export async function fetchAndFilterVipUsersForProcessing(
 export async function updatePortfolioTimestampsNonFatal(
   supabaseFetcher: SupabaseFetcher,
   wallets: string[],
-  jobId: string
+  jobId: string,
 ): Promise<void> {
   if (wallets.length === 0) {
     return;
@@ -54,12 +55,15 @@ export async function updatePortfolioTimestampsNonFatal(
 
   try {
     await supabaseFetcher.batchUpdatePortfolioTimestamps(wallets);
-    logger.info('Portfolio timestamps updated', { jobId, walletsUpdated: wallets.length });
+    logger.info("Portfolio timestamps updated", {
+      jobId,
+      walletsUpdated: wallets.length,
+    });
   } catch (error) {
-    logger.error('Failed to batch update portfolio timestamps', {
+    logger.error("Failed to batch update portfolio timestamps", {
       jobId,
       walletsCount: wallets.length,
-      error
+      error,
     });
   }
 }

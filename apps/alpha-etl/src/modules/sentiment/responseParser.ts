@@ -2,32 +2,42 @@ import {
   CoinMarketCapFearGreedSchema,
   type CoinMarketCapFearGreedResponse,
   type SentimentData,
-} from '../../modules/sentiment/schema.js';
+} from "../../modules/sentiment/schema.js";
 
 function validateApiStatus(response: CoinMarketCapFearGreedResponse): void {
-  if (response.status.error_code !== '0') {
+  if (response.status.error_code !== "0") {
     throw new Error(
-      `CoinMarketCap API error (code ${response.status.error_code}): ${response.status.error_message || 'Unknown error'}`
+      `CoinMarketCap API error (code ${response.status.error_code}): ${response.status.error_message || "Unknown error"}`,
     );
   }
 }
 
-function extractDataEntry(response: CoinMarketCapFearGreedResponse): CoinMarketCapFearGreedResponse['data'] {
-  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
-    throw new Error('Invalid API response: missing or invalid data object');
+function extractDataEntry(
+  response: CoinMarketCapFearGreedResponse,
+): CoinMarketCapFearGreedResponse["data"] {
+  if (
+    !response.data ||
+    typeof response.data !== "object" ||
+    Array.isArray(response.data)
+  ) {
+    throw new Error("Invalid API response: missing or invalid data object");
   }
 
   return response.data;
 }
 
-function validateRequiredSentimentFields(entry: CoinMarketCapFearGreedResponse['data']): void {
+function validateRequiredSentimentFields(
+  entry: CoinMarketCapFearGreedResponse["data"],
+): void {
   if (
     entry.value === undefined ||
     entry.value === null ||
     !entry.value_classification ||
     !entry.update_time
   ) {
-    throw new Error('Invalid API response: missing required fields (value, value_classification, or update_time)');
+    throw new Error(
+      "Invalid API response: missing required fields (value, value_classification, or update_time)",
+    );
   }
 }
 
@@ -38,11 +48,11 @@ function validateSentimentRange(value: number): void {
 }
 
 export function validateAndExtractSentimentEntry(
-  response: CoinMarketCapFearGreedResponse
-): CoinMarketCapFearGreedResponse['data'] {
+  response: CoinMarketCapFearGreedResponse,
+): CoinMarketCapFearGreedResponse["data"] {
   const parsed = CoinMarketCapFearGreedSchema.safeParse(response);
   if (!parsed.success) {
-    throw new Error('Invalid API response: missing or invalid data object');
+    throw new Error("Invalid API response: missing or invalid data object");
   }
 
   validateApiStatus(response);
@@ -62,14 +72,14 @@ export function parseSentimentTimestamp(updateTime: string): number {
 }
 
 export function normalizeSentimentData(
-  sentimentEntry: CoinMarketCapFearGreedResponse['data'],
-  sourceName: string
+  sentimentEntry: CoinMarketCapFearGreedResponse["data"],
+  sourceName: string,
 ): SentimentData {
   const timestamp = parseSentimentTimestamp(sentimentEntry.update_time);
   return {
     value: Math.round(sentimentEntry.value),
     classification: sentimentEntry.value_classification,
     timestamp,
-    source: sourceName
+    source: sourceName,
   };
 }

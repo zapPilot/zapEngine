@@ -1,4 +1,7 @@
-import type { HyperliquidVaultAprSnapshotInsert, PortfolioItemSnapshotInsert } from '../../types/database.js';
+import type {
+  HyperliquidVaultAprSnapshotInsert,
+  PortfolioItemSnapshotInsert,
+} from "../../types/database.js";
 
 export interface HyperliquidTransformBatch {
   portfolioRecords: PortfolioItemSnapshotInsert[];
@@ -24,7 +27,7 @@ export interface HyperliquidProcessSummary {
 export function updateProcessSummary(
   summary: HyperliquidProcessSummary,
   usersProcessed: number,
-  batch: HyperliquidTransformBatch
+  batch: HyperliquidTransformBatch,
 ): void {
   summary.usersProcessed = usersProcessed;
   summary.positionsTransformed = batch.portfolioRecords.length;
@@ -36,7 +39,7 @@ export function collectUserTransformResult(
   positionRecords: PortfolioItemSnapshotInsert[],
   aprSnapshotsByVault: Map<string, HyperliquidVaultAprSnapshotInsert>,
   successfulWallets: string[],
-  errors: string[]
+  errors: string[],
 ): boolean {
   if (userResult.positionRecord) {
     positionRecords.push(userResult.positionRecord);
@@ -57,11 +60,14 @@ export function collectUserTransformResult(
 
 export function mergeLatestAprSnapshot(
   aprSnapshotsByVault: Map<string, HyperliquidVaultAprSnapshotInsert>,
-  aprSnapshot: HyperliquidVaultAprSnapshotInsert
+  aprSnapshot: HyperliquidVaultAprSnapshotInsert,
 ): void {
   const existing = aprSnapshotsByVault.get(aprSnapshot.vault_address);
-  if (!existing || new Date(aprSnapshot.snapshot_time).getTime() > new Date(existing.snapshot_time).getTime()) {
+  if (
+    !existing ||
+    new Date(aprSnapshot.snapshot_time).getTime() >
+      new Date(existing.snapshot_time).getTime()
+  ) {
     aprSnapshotsByVault.set(aprSnapshot.vault_address, aprSnapshot);
   }
 }
-

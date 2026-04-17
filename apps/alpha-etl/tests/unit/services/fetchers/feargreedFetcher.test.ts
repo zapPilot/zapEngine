@@ -288,6 +288,15 @@ describe('FearGreedFetcher', () => {
     expect(customFetcher).toBeInstanceOf(FearGreedFetcher);
   });
 
+  it('constructor uses default BASE_URL when no config or env var provided', () => {
+    // Clear env var to test fallback
+    delete process.env.COINMARKETCAP_API_URL;
+
+    const defaultFetcher = new FearGreedFetcher({ apiKey: 'test-key' });
+
+    expect(defaultFetcher).toBeInstanceOf(FearGreedFetcher);
+  });
+
   it('rounds fractional sentiment values to integers', async () => {
     vi.spyOn(fetcher as unknown, 'fetchJson').mockResolvedValue({
       ...mockSuccessResponse,

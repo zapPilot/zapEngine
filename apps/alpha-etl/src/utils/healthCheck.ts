@@ -1,7 +1,7 @@
-import { toErrorMessage } from './errors.js';
+import { toErrorMessage } from "./errors.js";
 
 export interface HealthCheckResult {
-  status: 'healthy' | 'unhealthy';
+  status: "healthy" | "unhealthy";
   details?: string;
 }
 
@@ -24,14 +24,14 @@ export interface HealthCheckResult {
  * ```
  */
 export async function wrapHealthCheck(
-  healthCheckFn: () => Promise<HealthCheckResult>
+  healthCheckFn: () => Promise<HealthCheckResult>,
 ): Promise<HealthCheckResult> {
   try {
     return await healthCheckFn();
   } catch (error) {
     return {
-      status: 'unhealthy',
-      details: toErrorMessage(error)
+      status: "unhealthy",
+      details: toErrorMessage(error),
     };
   }
 }
@@ -39,35 +39,42 @@ export async function wrapHealthCheck(
 export function formatHealthComponent(
   label: string,
   status: string,
-  details?: string
+  details?: string,
 ): string {
-  return `${label}: ${status}${details ? ` (${details})` : ''}`;
+  return `${label}: ${status}${details ? ` (${details})` : ""}`;
 }
 
 export async function wrapCompositeHealthCheck(
-  checks: Array<{ label: string; check: () => Promise<HealthCheckResult> }>
+  checks: Array<{ label: string; check: () => Promise<HealthCheckResult> }>,
 ): Promise<HealthCheckResult> {
   try {
     const results = await Promise.all(
-      checks.map(async ({ label, check }) => ({ label, result: await check() }))
+      checks.map(async ({ label, check }) => ({
+        label,
+        result: await check(),
+      })),
     );
 
-    const unhealthy = results.some(({ result }) => result.status === 'unhealthy');
+    const unhealthy = results.some(
+      ({ result }) => result.status === "unhealthy",
+    );
 
     if (!unhealthy) {
-      return { status: 'healthy' };
+      return { status: "healthy" };
     }
 
     return {
-      status: 'unhealthy',
+      status: "unhealthy",
       details: results
-        .map(({ label, result }) => formatHealthComponent(label, result.status, result.details))
-        .join(', ')
+        .map(({ label, result }) =>
+          formatHealthComponent(label, result.status, result.details),
+        )
+        .join(", "),
     };
   } catch (error) {
     return {
-      status: 'unhealthy',
-      details: toErrorMessage(error)
+      status: "unhealthy",
+      details: toErrorMessage(error),
     };
   }
 }

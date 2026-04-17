@@ -1,11 +1,14 @@
-import { z } from 'zod';
-import { RATE_LIMITS, TIMEOUTS } from '../../config/database.js';
-import { env } from '../../config/environment.js';
-import { BaseApiFetcher, type FetchOptions } from '../../core/fetchers/baseApiFetcher.js';
-import { APIError, toErrorMessage } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
-import { logger } from '../../utils/logger.js';
-import { withRetry } from '../../utils/retry.js';
+import { z } from "zod";
+import { RATE_LIMITS, TIMEOUTS } from "../../config/database.js";
+import { env } from "../../config/environment.js";
+import {
+  BaseApiFetcher,
+  type FetchOptions,
+} from "../../core/fetchers/baseApiFetcher.js";
+import { APIError, toErrorMessage } from "../../utils/errors.js";
+import { wrapHealthCheck } from "../../utils/healthCheck.js";
+import { logger } from "../../utils/logger.js";
+import { withRetry } from "../../utils/retry.js";
 import {
   FollowerStateSchema,
   type VaultDetailsResponse,
@@ -16,7 +19,7 @@ import {
   parseVaultDetailsResponse,
   resolveTotalFollowers,
   resolveVaultValue,
-} from './fetcher.helpers.js';
+} from "./fetcher.helpers.js";
 
 export {
   FollowerStateSchema,
@@ -32,7 +35,7 @@ export interface VaultPositionData {
   hlpBalance: number;
   vaultUsdValue: number;
   maxWithdrawable: number | null;
-  relationshipType: 'parent' | 'follower' | null;
+  relationshipType: "parent" | "follower" | null;
   leaderAddress?: string | null;
   vaultDescription?: string | null;
 }
@@ -52,12 +55,12 @@ export interface VaultAprData {
 
 function extractPositionData(
   vaultDetails: VaultDetailsResponse,
-  userWallet: string
+  userWallet: string,
 ): VaultPositionData | null {
   const followerState = vaultDetails.followerState;
 
   if (!followerState) {
-    logger.warn('No follower state in vault details', {
+    logger.warn("No follower state in vault details", {
       userWallet,
       vaultAddress: vaultDetails.vaultAddress,
     });
@@ -66,19 +69,20 @@ function extractPositionData(
 
   const vaultValue = resolveVaultValue(followerState);
   if (vaultValue === null) {
-    logger.warn('Hyperliquid follower state missing usable balance', {
+    logger.warn("Hyperliquid follower state missing usable balance", {
       userWallet,
       vaultAddress: vaultDetails.vaultAddress,
     });
     return null;
   }
 
-  const maxWithdrawable = followerState.maxWithdrawable ?? vaultDetails.maxWithdrawable ?? null;
+  const maxWithdrawable =
+    followerState.maxWithdrawable ?? vaultDetails.maxWithdrawable ?? null;
 
   return {
     userWallet,
     vaultAddress: vaultDetails.vaultAddress,
-    vaultName: vaultDetails.name || 'Hyperliquid Vault',
+    vaultName: vaultDetails.name || "Hyperliquid Vault",
     hlpBalance: vaultValue,
     vaultUsdValue: vaultValue,
     maxWithdrawable,
@@ -95,7 +99,7 @@ function extractAprData(vaultDetails: VaultDetailsResponse): VaultAprData {
 
   return {
     vaultAddress: vaultDetails.vaultAddress,
-    vaultName: vaultDetails.name || 'Hyperliquid Vault',
+    vaultName: vaultDetails.name || "Hyperliquid Vault",
     leaderAddress: vaultDetails.leader,
     apr: vaultDetails.apr,
     tvlUsd,
@@ -117,13 +121,20 @@ export interface HyperliquidConfig {
 
 export class HyperliquidFetcher extends BaseApiFetcher {
   private readonly config: Required<HyperliquidConfig>;
-  private readonly defaultVaultAddress = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';
+  private readonly defaultVaultAddress =
+    "0xdfc24b077bc1425ad1dea75bcb6f8158e10df303";
   private readonly infoEndpoint: string;
 
   constructor(config?: HyperliquidConfig) {
-    const baseUrl = config?.baseUrl ?? env.HYPERLIQUID_API_URL ?? 'https://api-ui.hyperliquid.xyz';
-    const rateLimitRpm = config?.rateLimitRpm ?? env.HYPERLIQUID_RATE_LIMIT_RPM ?? 60;
-    const rateLimitDelayMs = Math.ceil(RATE_LIMITS.MS_PER_MINUTE / rateLimitRpm);
+    const baseUrl =
+      config?.baseUrl ??
+      env.HYPERLIQUID_API_URL ??
+      "https://api-ui.hyperliquid.xyz";
+    const rateLimitRpm =
+      config?.rateLimitRpm ?? env.HYPERLIQUID_RATE_LIMIT_RPM ?? 60;
+    const rateLimitDelayMs = Math.ceil(
+      RATE_LIMITS.MS_PER_MINUTE / rateLimitRpm,
+    );
 
     super(baseUrl, rateLimitDelayMs);
 
@@ -136,7 +147,7 @@ export class HyperliquidFetcher extends BaseApiFetcher {
     };
     this.infoEndpoint = `${this.config.baseUrl}/info`;
 
-    logger.info('HyperliquidFetcher initialized', {
+    logger.info("HyperliquidFetcher initialized", {
       baseUrl: this.config.baseUrl,
       rateLimitRpm: this.config.rateLimitRpm,
       rateLimitDelayMs,
@@ -145,33 +156,34 @@ export class HyperliquidFetcher extends BaseApiFetcher {
 
   async getVaultDetails(
     userWallet: string,
-    vaultAddress: string = this.defaultVaultAddress
+    vaultAddress: string = this.defaultVaultAddress,
   ): Promise<VaultDetailsResponse> {
     const requestId = createVaultRequestId();
 
-    logger.debug('Fetching Hyperliquid vault details', {
+    logger.debug("Fetching Hyperliquid vault details", {
       requestId,
       userWallet,
       vaultAddress,
     });
 
     try {
-      const response = await this.fetchWithRetryAndBackoff(
-        this.infoEndpoint,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Origin': 'https://app.hyperliquid.xyz',
-          },
-          body: JSON.stringify({ type: 'vaultDetails', user: userWallet, vaultAddress }),
-          timeout: this.config.timeout,
-        }
-      );
+      const response = await this.fetchWithRetryAndBackoff(this.infoEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://app.hyperliquid.xyz",
+        },
+        body: JSON.stringify({
+          type: "vaultDetails",
+          user: userWallet,
+          vaultAddress,
+        }),
+        timeout: this.config.timeout,
+      });
 
       const validatedData = parseVaultDetailsResponse(await response.json());
 
-      logger.info('Successfully fetched vault details', {
+      logger.info("Successfully fetched vault details", {
         requestId,
         userWallet,
         vaultAddress,
@@ -181,7 +193,7 @@ export class HyperliquidFetcher extends BaseApiFetcher {
 
       return validatedData;
     } catch (error) {
-      logger.error('Failed to fetch Hyperliquid vault details', {
+      logger.error("Failed to fetch Hyperliquid vault details", {
         requestId,
         userWallet,
         vaultAddress,
@@ -193,7 +205,7 @@ export class HyperliquidFetcher extends BaseApiFetcher {
           `Invalid response from Hyperliquid API: ${error.message}`,
           500,
           this.infoEndpoint,
-          'HyperliquidFetcher'
+          "HyperliquidFetcher",
         );
       }
 
@@ -203,9 +215,9 @@ export class HyperliquidFetcher extends BaseApiFetcher {
 
   async getVaultDetailsForUsers(
     userWallets: string[],
-    vaultAddress: string = this.defaultVaultAddress
+    vaultAddress: string = this.defaultVaultAddress,
   ): Promise<VaultDetailsResponse[]> {
-    logger.info('Batch fetching vault details', {
+    logger.info("Batch fetching vault details", {
       userCount: userWallets.length,
       vaultAddress,
     });
@@ -219,7 +231,7 @@ export class HyperliquidFetcher extends BaseApiFetcher {
         results.push(vaultData);
       } catch (error) {
         const errorMessage = toErrorMessage(error);
-        logger.error('Failed to fetch vault details for user', {
+        logger.error("Failed to fetch vault details for user", {
           wallet,
           error: errorMessage,
         });
@@ -227,7 +239,7 @@ export class HyperliquidFetcher extends BaseApiFetcher {
       }
     }
 
-    logger.info('Batch fetch completed', {
+    logger.info("Batch fetch completed", {
       totalUsers: userWallets.length,
       successful: results.length,
       failed: errors.length,
@@ -238,14 +250,17 @@ export class HyperliquidFetcher extends BaseApiFetcher {
         `All vault detail fetches failed for ${userWallets.length} users`,
         500,
         this.infoEndpoint,
-        'HyperliquidFetcher'
+        "HyperliquidFetcher",
       );
     }
 
     return results;
   }
 
-  extractPositionData(vaultDetails: VaultDetailsResponse, userWallet: string): VaultPositionData | null {
+  extractPositionData(
+    vaultDetails: VaultDetailsResponse,
+    userWallet: string,
+  ): VaultPositionData | null {
     return extractPositionData(vaultDetails, userWallet);
   }
 
@@ -255,28 +270,27 @@ export class HyperliquidFetcher extends BaseApiFetcher {
 
   private async fetchWithRetryAndBackoff(
     url: string,
-    options: FetchOptions
+    options: FetchOptions,
   ): Promise<Response> {
-    return withRetry(
-      () => this.fetchWithRateLimit(url, options),
-      {
-        maxAttempts: this.config.maxRetries,
-        baseDelayMs: this.config.retryDelayMs,
-        label: `Hyperliquid API ${url}`
-      }
-    );
+    return withRetry(() => this.fetchWithRateLimit(url, options), {
+      maxAttempts: this.config.maxRetries,
+      baseDelayMs: this.config.retryDelayMs,
+      label: `Hyperliquid API ${url}`,
+    });
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details?: string }> {
+  async healthCheck(): Promise<{
+    status: "healthy" | "unhealthy";
+    details?: string;
+  }> {
     return wrapHealthCheck(async () => {
-      const testWallet = '0x0000000000000000000000000000000000000001';
+      const testWallet = "0x0000000000000000000000000000000000000001";
       await this.getVaultDetails(testWallet, this.defaultVaultAddress);
-      return { status: 'healthy' };
+      return { status: "healthy" };
     });
   }
 
   getDefaultVaultAddress(): string {
     return this.defaultVaultAddress;
   }
-
 }

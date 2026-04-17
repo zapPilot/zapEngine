@@ -1,5 +1,5 @@
 export function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 export function toFiniteNumberOrNull(value: unknown): number | null {

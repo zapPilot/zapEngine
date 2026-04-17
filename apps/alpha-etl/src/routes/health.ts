@@ -1,14 +1,22 @@
-import { Router, type Request, type Response } from 'express';
-import { logger } from '../utils/logger.js';
-import { DATA_SOURCES, type HealthCheckResponse, type DataSource, type SourceHealth } from '../types/index.js';
-import { getHealthState, type HealthDetailStatus } from '../modules/core/healthStatus.js';
+import { Router, type Request, type Response } from "express";
+import { logger } from "../utils/logger.js";
+import {
+  DATA_SOURCES,
+  type HealthCheckResponse,
+  type DataSource,
+  type SourceHealth,
+} from "../types/index.js";
+import {
+  getHealthState,
+  type HealthDetailStatus,
+} from "../modules/core/healthStatus.js";
 
 /**
  * Convert health details to sources record, filtering to only valid DataSource keys
  * Returns empty object if no details provided (for backwards compatibility)
  */
 function extractSourcesHealth(
-  details: Record<string, HealthDetailStatus | undefined> | undefined | null
+  details: Record<string, HealthDetailStatus | undefined> | undefined | null,
 ): Record<DataSource, SourceHealth> {
   const sources: Partial<Record<DataSource, SourceHealth>> = {};
 
@@ -19,7 +27,7 @@ function extractSourcesHealth(
         sources[source] = {
           status: sourceHealth.status,
           details: sourceHealth.details,
-          lastCheck: sourceHealth.lastCheck
+          lastCheck: sourceHealth.lastCheck,
         };
       }
     }
@@ -28,13 +36,14 @@ function extractSourcesHealth(
   return sources as Record<DataSource, SourceHealth>;
 }
 
-function buildHealthResponse(
-  cachedState: ReturnType<typeof getHealthState>
-): { response: HealthCheckResponse; isHealthy: boolean } {
-  const isHealthy = cachedState.status === 'healthy';
+function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
+  response: HealthCheckResponse;
+  isHealthy: boolean;
+} {
+  const isHealthy = cachedState.status === "healthy";
   const details = cachedState.details;
-  const dbHealthy = details?.database?.status === 'healthy';
-  const status = isHealthy ? 'healthy' : 'unhealthy';
+  const dbHealthy = details?.database?.status === "healthy";
+  const status = isHealthy ? "healthy" : "unhealthy";
   const now = new Date().toISOString();
 
   return {
@@ -44,36 +53,45 @@ function buildHealthResponse(
       data: {
         status,
         timestamp: now,
-        version: '1.0.0',
+        version: "1.0.0",
         database: dbHealthy,
         uptime: process.uptime(),
-        cached: cachedState.status !== 'initializing',
+        cached: cachedState.status !== "initializing",
         lastCheckedAt: cachedState.lastCheckedAt,
         message: cachedState.message,
-        sources: extractSourcesHealth(details)
+        sources: extractSourcesHealth(details),
       },
-      timestamp: now
-    }
+      timestamp: now,
+    },
   };
 }
 
 const router: Router = Router();
 
-router.get('/', (req: Request, res: Response) => {
+router.get("/", (req: Request, res: Response) => {
   const startTime = Date.now();
   const cachedState = getHealthState();
   const responseTime = Date.now() - startTime;
   const { response, isHealthy } = buildHealthResponse(cachedState);
 
   if (isHealthy) {
-    logger.info('Health check served healthy state from cache', { responseTime, lastCheckedAt: cachedState.lastCheckedAt });
+    logger.info("Health check served healthy state from cache", {
+      responseTime,
+      lastCheckedAt: cachedState.lastCheckedAt,
+    });
     return res.json(response);
   }
 
-  if (cachedState.status === 'initializing') {
-    logger.info('Health check requested during initialization window', { responseTime });
+  if (cachedState.status === "initializing") {
+    logger.info("Health check requested during initialization window", {
+      responseTime,
+    });
   } else {
-    logger.warn('Health check served unhealthy state from cache', { responseTime, lastCheckedAt: cachedState.lastCheckedAt, message: cachedState.message });
+    logger.warn("Health check served unhealthy state from cache", {
+      responseTime,
+      lastCheckedAt: cachedState.lastCheckedAt,
+      message: cachedState.message,
+    });
   }
 
   return res.status(503).json(response);

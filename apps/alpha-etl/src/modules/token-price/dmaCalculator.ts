@@ -1,7 +1,7 @@
 import type {
   TokenPairRatioDmaSnapshotInsert,
-  TokenPriceDmaSnapshotInsert
-} from '../../types/database.js';
+  TokenPriceDmaSnapshotInsert,
+} from "../../types/database.js";
 
 export interface PriceRow {
   token_symbol: string;
@@ -39,25 +39,25 @@ interface RollingDmaMetric {
 }
 
 export const DMA_WINDOW_SIZE = 200;
-export const DMA_SOURCE = 'coingecko';
+export const DMA_SOURCE = "coingecko";
 export const ETH_BTC_RATIO_CONTEXT: PairRatioContext = {
-  baseTokenSymbol: 'ETH',
-  baseTokenId: 'ethereum',
-  quoteTokenSymbol: 'BTC',
-  quoteTokenId: 'bitcoin'
+  baseTokenSymbol: "ETH",
+  baseTokenId: "ethereum",
+  quoteTokenSymbol: "BTC",
+  quoteTokenId: "bitcoin",
 };
 
 export function computeDma(
   prices: PriceRow[],
-  windowSize: number = DMA_WINDOW_SIZE
+  windowSize: number = DMA_WINDOW_SIZE,
 ): TokenPriceDmaSnapshotInsert[] {
   const now = new Date().toISOString();
   const metrics = computeRollingDmaMetrics(
     prices.map((row) => ({
       snapshot_date: row.snapshot_date,
-      value: row.price_usd
+      value: row.price_usd,
     })),
-    windowSize
+    windowSize,
   );
 
   return prices.map((row, index) => {
@@ -83,10 +83,10 @@ export function computeDma(
 export function buildAlignedPairRatioSeries(
   basePrices: PriceRow[],
   quotePrices: PriceRow[],
-  pairContext: PairRatioContext = ETH_BTC_RATIO_CONTEXT
+  pairContext: PairRatioContext = ETH_BTC_RATIO_CONTEXT,
 ): PairRatioRow[] {
   const quoteByDate = new Map(
-    quotePrices.map((row) => [row.snapshot_date, row])
+    quotePrices.map((row) => [row.snapshot_date, row]),
   );
 
   return basePrices.flatMap((baseRow) => {
@@ -95,28 +95,30 @@ export function buildAlignedPairRatioSeries(
       return [];
     }
 
-    return [{
-      base_token_symbol: pairContext.baseTokenSymbol,
-      base_token_id: pairContext.baseTokenId,
-      quote_token_symbol: pairContext.quoteTokenSymbol,
-      quote_token_id: pairContext.quoteTokenId,
-      snapshot_date: baseRow.snapshot_date,
-      ratio_value: baseRow.price_usd / quoteRow.price_usd
-    }];
+    return [
+      {
+        base_token_symbol: pairContext.baseTokenSymbol,
+        base_token_id: pairContext.baseTokenId,
+        quote_token_symbol: pairContext.quoteTokenSymbol,
+        quote_token_id: pairContext.quoteTokenId,
+        snapshot_date: baseRow.snapshot_date,
+        ratio_value: baseRow.price_usd / quoteRow.price_usd,
+      },
+    ];
   });
 }
 
 export function computeTokenPairRatioDma(
   ratios: PairRatioRow[],
-  windowSize: number = DMA_WINDOW_SIZE
+  windowSize: number = DMA_WINDOW_SIZE,
 ): TokenPairRatioDmaSnapshotInsert[] {
   const now = new Date().toISOString();
   const metrics = computeRollingDmaMetrics(
     ratios.map((row) => ({
       snapshot_date: row.snapshot_date,
-      value: row.ratio_value
+      value: row.ratio_value,
     })),
-    windowSize
+    windowSize,
   );
 
   return ratios.map((row, index) => {
@@ -143,7 +145,7 @@ export function computeTokenPairRatioDma(
 
 function computeRollingDmaMetrics(
   rows: RollingSeriesRow[],
-  windowSize: number
+  windowSize: number,
 ): RollingDmaMetric[] {
   return rows.map((row, index) => {
     const windowStart = Math.max(0, index - windowSize + 1);
@@ -155,12 +157,16 @@ function computeRollingDmaMetrics(
       dma200: dma,
       ratioVsDma: dma !== null ? row.value / dma : null,
       isAboveDma: dma !== null ? row.value > dma : null,
-      daysAvailable
+      daysAvailable,
     };
   });
 }
 
-function calculateDma(window: RollingSeriesRow[], daysAvailable: number, windowSize: number): number | null {
+function calculateDma(
+  window: RollingSeriesRow[],
+  daysAvailable: number,
+  windowSize: number,
+): number | null {
   if (daysAvailable < windowSize) {
     return null;
   }

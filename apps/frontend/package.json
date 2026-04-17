@@ -18,9 +18,10 @@
     "test:watch": "vitest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--max-old-space-size=1024 node scripts/run-sharded-coverage.js && node scripts/check-coverage.js",
     "test:e2e": "cross-env PLAYWRIGHT_PORT=3099 playwright test",
+    "test:e2e:safe": "cross-env PLAYWRIGHT_PORT=3099 node scripts/run-e2e-safe.js",
     "deadcode": "node scripts/run-deadcode.js default",
     "dup:check": "node scripts/run-dup-check.js",
-    "test:safeall": "cross-env NODE_OPTIONS=--max-old-space-size=1024 pnpm run test:coverage && pnpm run test:e2e",
+    "test:safeall": "cross-env NODE_OPTIONS=--max-old-space-size=1024 pnpm run test:coverage && pnpm run test:e2e:safe",
     "clean": "rm -rf dist coverage .vitest-reports"
   },
   "dependencies": {
@@ -44,7 +45,6 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@zapengine/tsconfig": "workspace:*",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.4",
@@ -77,7 +77,8 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "baseline-browser-mapping": "^2.0.0"
   },
   "engines": {
     "node": ">=22.0.0"

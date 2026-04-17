@@ -4,7 +4,7 @@
  * Zod schemas and TypeScript interfaces for CoinGecko API responses
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 // ============================================================================
 // Schemas
@@ -18,28 +18,34 @@ export const CoinGeckoSimplePriceSchema = z.record(
     usd: z.number(),
     usd_market_cap: z.number().optional().nullable(),
     usd_24h_vol: z.number().optional().nullable(),
-  })
+  }),
 );
 
 /**
  * Zod schema for CoinGecko Historical Price API response validation
  */
-export const CoinGeckoHistoricalSchema = z.object({
-  id: z.string().optional(),
-  symbol: z.string().optional(),
-  name: z.string().optional(),
-  market_data: z.object({
-    current_price: z.object({
-      usd: z.number(),
+export const CoinGeckoHistoricalSchema = z
+  .object({
+    id: z.string().optional(),
+    symbol: z.string().optional(),
+    name: z.string().optional(),
+    market_data: z.object({
+      current_price: z.object({
+        usd: z.number(),
+      }),
+      market_cap: z
+        .object({
+          usd: z.number().optional().nullable(),
+        })
+        .optional(),
+      total_volume: z
+        .object({
+          usd: z.number().optional().nullable(),
+        })
+        .optional(),
     }),
-    market_cap: z.object({
-      usd: z.number().optional().nullable(),
-    }).optional(),
-    total_volume: z.object({
-      usd: z.number().optional().nullable(),
-    }).optional(),
-  }),
-}).passthrough();
+  })
+  .passthrough();
 
 // ============================================================================
 // Interfaces

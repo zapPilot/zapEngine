@@ -55,11 +55,13 @@ export function generateDateRange(startDate: Date, endDate: Date): Date[] {
  */
 export function calculateMissingDates(
   allDates: Date[],
-  existingDates: string[]
+  existingDates: string[],
 ): Date[] {
   const existingSet = new Set(existingDates);
 
-  return allDates.filter((date) => !existingSet.has(formatDateToYYYYMMDD(date)));
+  return allDates.filter(
+    (date) => !existingSet.has(formatDateToYYYYMMDD(date)),
+  );
 }
 
 /**
@@ -75,7 +77,7 @@ export function calculateMissingDates(
  * // Returns: '2024-12-25'
  */
 export function formatDateToYYYYMMDD(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split("T")[0];
 }
 
 export interface SnapshotTimeContext {

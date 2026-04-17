@@ -1,15 +1,18 @@
-import type { WalletBalanceSnapshotInsert, PortfolioItemSnapshotInsert } from '../../types/database.js';
-import type { WalletBalanceTransformer } from './balanceTransformer.js';
-import type { WalletBalanceWriter } from './balanceWriter.js';
-import type { PortfolioItemWriter } from './portfolioWriter.js';
-import { logger } from '../../utils/logger.js';
+import type {
+  WalletBalanceSnapshotInsert,
+  PortfolioItemSnapshotInsert,
+} from "../../types/database.js";
+import type { WalletBalanceTransformer } from "./balanceTransformer.js";
+import type { WalletBalanceWriter } from "./balanceWriter.js";
+import type { PortfolioItemWriter } from "./portfolioWriter.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Merged record type for wallet and portfolio data in ETL pipeline
  */
 export type WalletETLRecord =
-  | { kind: 'wallet'; data: WalletBalanceSnapshotInsert }
-  | { kind: 'portfolio'; data: PortfolioItemSnapshotInsert };
+  | { kind: "wallet"; data: WalletBalanceSnapshotInsert }
+  | { kind: "portfolio"; data: PortfolioItemSnapshotInsert };
 
 interface SplitWalletETLRecordsResult {
   walletRecords: WalletBalanceSnapshotInsert[];
@@ -35,12 +38,15 @@ function createWalletLoadResult(
     recordsInserted: number;
     duplicatesSkipped?: number;
     errors: string[];
-  }
+  },
 ): WalletLoadResult {
-  const recordsInserted = balanceResult.recordsInserted + portfolioResult.recordsInserted;
+  const recordsInserted =
+    balanceResult.recordsInserted + portfolioResult.recordsInserted;
   const errors = [...balanceResult.errors, ...portfolioResult.errors];
   const success = balanceResult.success && portfolioResult.success;
-  const duplicatesSkipped = (balanceResult.duplicatesSkipped ?? 0) + (portfolioResult.duplicatesSkipped ?? 0);
+  const duplicatesSkipped =
+    (balanceResult.duplicatesSkipped ?? 0) +
+    (portfolioResult.duplicatesSkipped ?? 0);
 
   return {
     success,
@@ -50,12 +56,14 @@ function createWalletLoadResult(
   };
 }
 
-function splitWalletETLRecords(records: WalletETLRecord[]): SplitWalletETLRecordsResult {
+function splitWalletETLRecords(
+  records: WalletETLRecord[],
+): SplitWalletETLRecordsResult {
   const walletRecords: WalletBalanceSnapshotInsert[] = [];
   const portfolioRecords: PortfolioItemSnapshotInsert[] = [];
 
   for (const record of records) {
-    if (record.kind === 'wallet') {
+    if (record.kind === "wallet") {
       walletRecords.push(record.data);
       continue;
     }
@@ -67,11 +75,11 @@ function splitWalletETLRecords(records: WalletETLRecord[]): SplitWalletETLRecord
 
 function mergeWalletETLRecords(
   walletRecords: WalletBalanceSnapshotInsert[],
-  portfolioRecords: PortfolioItemSnapshotInsert[]
+  portfolioRecords: PortfolioItemSnapshotInsert[],
 ): WalletETLRecord[] {
   return [
-    ...walletRecords.map((data) => ({ kind: 'wallet' as const, data })),
-    ...portfolioRecords.map((data) => ({ kind: 'portfolio' as const, data })),
+    ...walletRecords.map((data) => ({ kind: "wallet" as const, data })),
+    ...portfolioRecords.map((data) => ({ kind: "portfolio" as const, data })),
   ];
 }
 
@@ -82,20 +90,27 @@ function mergeWalletETLRecords(
 export function createWalletTransformCallback(
   transformer: WalletBalanceTransformer,
   jobId: string,
-  logPrefix: string
+  logPrefix: string,
 ): (rawData: WalletETLRecord[]) => Promise<WalletETLRecord[]> {
   return async (rawData: WalletETLRecord[]) => {
     const { walletRecords, portfolioRecords } = splitWalletETLRecords(rawData);
 
-    logger.info(`${logPrefix} - Transforming wallet balance data`, { jobId, recordCount: walletRecords.length });
+    logger.info(`${logPrefix} - Transforming wallet balance data`, {
+      jobId,
+      recordCount: walletRecords.length,
+    });
 
     const transformedBalances = transformer.transformBatch(walletRecords);
 
     if (transformedBalances.length === 0) {
-      logger.warn('No valid data after wallet balance transformation', { jobId });
+      logger.warn("No valid data after wallet balance transformation", {
+        jobId,
+      });
     } else {
       logger.info(`${logPrefix} - Transformation completed`, {
-        jobId, originalCount: walletRecords.length, transformedCount: transformedBalances.length
+        jobId,
+        originalCount: walletRecords.length,
+        transformedCount: transformedBalances.length,
       });
     }
 
@@ -111,19 +126,27 @@ export function createWalletLoadCallback(
   writer: WalletBalanceWriter,
   portfolioWriter: PortfolioItemWriter,
   jobId: string,
-  logPrefix: string
+  logPrefix: string,
 ): (transformedData: WalletETLRecord[]) => Promise<WalletLoadResult> {
   return async (transformedData: WalletETLRecord[]) => {
-    const { walletRecords: walletData, portfolioRecords: portfolioData } = splitWalletETLRecords(transformedData);
+    const { walletRecords: walletData, portfolioRecords: portfolioData } =
+      splitWalletETLRecords(transformedData);
 
-    logger.info(`${logPrefix} - Writing data to database`, { jobId, walletRecords: walletData.length, portfolioRecords: portfolioData.length });
+    logger.info(`${logPrefix} - Writing data to database`, {
+      jobId,
+      walletRecords: walletData.length,
+      portfolioRecords: portfolioData.length,
+    });
 
     const portfolioResult = await portfolioWriter.writeSnapshots(portfolioData);
     const balanceResult = await writer.writeWalletBalanceSnapshots(walletData);
     const loadResult = createWalletLoadResult(balanceResult, portfolioResult);
 
     logger.info(`${logPrefix} - Database write completed`, {
-      jobId, recordsInserted: loadResult.recordsInserted, errors: loadResult.errors.length, success: loadResult.success
+      jobId,
+      recordsInserted: loadResult.recordsInserted,
+      errors: loadResult.errors.length,
+      success: loadResult.success,
     });
 
     return loadResult;
@@ -135,7 +158,7 @@ export function createWalletLoadCallback(
  */
 export function createMergedFetchResult(
   walletBalances: WalletBalanceSnapshotInsert[],
-  portfolioItems: PortfolioItemSnapshotInsert[]
+  portfolioItems: PortfolioItemSnapshotInsert[],
 ): WalletETLRecord[] {
   return mergeWalletETLRecords(walletBalances, portfolioItems);
 }

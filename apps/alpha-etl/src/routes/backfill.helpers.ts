@@ -1,15 +1,15 @@
-import { toErrorMessage } from '../utils/errors.js';
-import { logger } from '../utils/logger.js';
+import { toErrorMessage } from "../utils/errors.js";
+import { logger } from "../utils/logger.js";
 import {
   buildSuccessApiResponse,
   buildValidationErrorApiResponse,
   buildSystemErrorApiResponse,
-} from '../utils/apiResponse.js';
+} from "../utils/apiResponse.js";
 import type {
   ApiResponse,
   BackfillResult,
   BackfillTokenResultData,
-} from '../types/index.js';
+} from "../types/index.js";
 
 interface BackfillTokenConfig {
   tokenId: string;
@@ -35,25 +35,27 @@ export type DmaRetryResult =
 function buildBackfillFailureResult(
   tokenId: string,
   errorMessage: string,
-  context?: Partial<BackfillTokenResultData>
+  context?: Partial<BackfillTokenResultData>,
 ): BackfillResult {
   return {
     success: false,
     error: {
-      code: 'API_ERROR',
+      code: "API_ERROR",
       message: errorMessage,
-      source: 'system',
+      source: "system",
       context: {
         tokenId,
-        ...context
-      }
-    }
+        ...context,
+      },
+    },
   };
 }
 
-export { getRequestId } from '../utils/apiResponse.js';
+export { getRequestId } from "../utils/apiResponse.js";
 
-export function buildSuccessResponse(results: BackfillResult[]): ApiResponse<{ results: BackfillResult[] }> {
+export function buildSuccessResponse(
+  results: BackfillResult[],
+): ApiResponse<{ results: BackfillResult[] }> {
   return buildSuccessApiResponse({ results });
 }
 
@@ -63,7 +65,7 @@ export const buildApiErrorResponse = buildSystemErrorApiResponse;
 function createFailedBackfillContext(
   tokenConfig: BackfillTokenConfig,
   daysBack: number,
-  duration: number
+  duration: number,
 ): BackfillTokenResultData {
   return {
     tokenSymbol: tokenConfig.tokenSymbol,
@@ -77,7 +79,7 @@ function createFailedBackfillContext(
     dmaUpserted: 0,
     dmaRetries: 0,
     dmaSuccess: false,
-    dmaError: 'Backfill failed before DMA step'
+    dmaError: "Backfill failed before DMA step",
   };
 }
 
@@ -90,7 +92,7 @@ export function createSuccessfulBackfillContext(
     inserted: number;
   },
   duration: number,
-  dmaStatus: DmaRetryResult
+  dmaStatus: DmaRetryResult,
 ): BackfillTokenResultData {
   return {
     tokenSymbol: tokenConfig.tokenSymbol,
@@ -100,7 +102,7 @@ export function createSuccessfulBackfillContext(
     fetched: result.fetched,
     inserted: result.inserted,
     duration,
-    ...dmaStatus
+    ...dmaStatus,
   };
 }
 
@@ -114,15 +116,15 @@ export function createDmaFailureOutcome(
   },
   dmaStatus: Extract<DmaRetryResult, { dmaSuccess: false }>,
   tokenResultData: BackfillTokenResultData,
-  duration: number
+  duration: number,
 ): { success: boolean; result: BackfillResult } {
-  logger.error('Backfill completed but DMA update failed', {
+  logger.error("Backfill completed but DMA update failed", {
     requestId,
     tokenSymbol: tokenConfig.tokenSymbol,
     tokenId: tokenConfig.tokenId,
     ...result,
     ...dmaStatus,
-    duration
+    duration,
   });
 
   return {
@@ -130,8 +132,8 @@ export function createDmaFailureOutcome(
     result: buildBackfillFailureResult(
       tokenConfig.tokenId,
       `DMA update failed for ${tokenConfig.tokenSymbol} after ${dmaStatus.dmaRetries} retries: ${dmaStatus.dmaError}`,
-      tokenResultData
-    )
+      tokenResultData,
+    ),
   };
 }
 
@@ -140,16 +142,16 @@ export function createProcessingFailureOutcome(
   requestId: string,
   daysBack: number,
   startTime: number,
-  error: unknown
+  error: unknown,
 ): { success: boolean; result: BackfillResult } {
   const duration = Date.now() - startTime;
   const errorMessage = toErrorMessage(error);
 
-  logger.error('Backfill failed', {
+  logger.error("Backfill failed", {
     error,
     requestId,
     tokenSymbol: tokenConfig.tokenSymbol,
-    duration
+    duration,
   });
 
   return {
@@ -157,16 +159,16 @@ export function createProcessingFailureOutcome(
     result: buildBackfillFailureResult(
       tokenConfig.tokenId,
       errorMessage,
-      createFailedBackfillContext(tokenConfig, daysBack, duration)
-    )
+      createFailedBackfillContext(tokenConfig, daysBack, duration),
+    ),
   };
 }
 
 export function createSuccessfulTokenOutcome(
-  tokenResultData: BackfillTokenResultData
+  tokenResultData: BackfillTokenResultData,
 ): { success: boolean; result: BackfillResult } {
   return {
     success: true,
-    result: { success: true, data: tokenResultData }
+    result: { success: true, data: tokenResultData },
   };
 }

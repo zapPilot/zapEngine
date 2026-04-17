@@ -1,5 +1,8 @@
+import type {
+  BacktestTooltipPayloadEntry,
+  BacktestTooltipProps,
+} from "../utils/backtestTooltipDataTypes";
 import type { IndicatorKey } from "./backtestChartLegendData";
-import type { BacktestTooltipProps } from "./BacktestTooltip";
 
 export const AXIS_DEFAULTS = {
   tickLine: false,
@@ -12,14 +15,7 @@ export function axisTick(fill: string): { fontSize: number; fill: string } {
 
 export function buildBacktestTooltipProps(params: {
   active: boolean | undefined;
-  payload:
-    | readonly {
-        name?: string;
-        value?: number;
-        color?: string;
-        payload?: Record<string, unknown>;
-      }[]
-    | undefined;
+  payload: readonly BacktestTooltipPayloadEntry[] | undefined;
   label: string | number | undefined;
   sortedStrategyIds: string[];
   activeIndicators: Set<IndicatorKey>;

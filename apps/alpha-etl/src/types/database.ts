@@ -1,4 +1,4 @@
-import type { Nullable } from './index.js';
+import type { Nullable } from "./index.js";
 
 export interface PoolAprSnapshotInsert {
   pool_address: Nullable<string>;

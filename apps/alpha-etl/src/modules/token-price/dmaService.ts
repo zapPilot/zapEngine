@@ -11,12 +11,15 @@
  * Target: alpha_raw.token_price_dma_snapshots
  */
 
-import { Pool } from 'pg';
-import { logger } from '../../utils/logger.js';
-import { getDbPool, getTableName } from '../../config/database.js';
-import { TokenPriceDmaWriter } from '../../modules/token-price/dmaWriter.js';
-import { TokenPairRatioDmaWriter } from '../../modules/token-price/ratioDmaWriter.js';
-import type { TokenPairRatioDmaSnapshotInsert, TokenPriceDmaSnapshotInsert } from '../../types/database.js';
+import { Pool } from "pg";
+import { logger } from "../../utils/logger.js";
+import { getDbPool, getTableName } from "../../config/database.js";
+import { TokenPriceDmaWriter } from "../../modules/token-price/dmaWriter.js";
+import { TokenPairRatioDmaWriter } from "../../modules/token-price/ratioDmaWriter.js";
+import type {
+  TokenPairRatioDmaSnapshotInsert,
+  TokenPriceDmaSnapshotInsert,
+} from "../../types/database.js";
 import {
   buildAlignedPairRatioSeries,
   computeDma,
@@ -25,14 +28,14 @@ import {
   DMA_WINDOW_SIZE,
   ETH_BTC_RATIO_CONTEXT,
   type PairRatioContext,
-  type PriceRow
-} from './dmaCalculator.js';
+  type PriceRow,
+} from "./dmaCalculator.js";
 
 export {
   buildAlignedPairRatioSeries,
   computeDma,
-  computeTokenPairRatioDma
-} from './dmaCalculator.js';
+  computeTokenPairRatioDma,
+} from "./dmaCalculator.js";
 
 interface TokenContext {
   tokenSymbol: string;
@@ -72,33 +75,43 @@ export class TokenPriceDmaService {
   async updateDmaForToken(
     tokenSymbol: string,
     tokenId: string,
-    jobId?: string
+    jobId?: string,
   ): Promise<{ recordsInserted: number }> {
     const tokenContext = this.normalizeTokenContext(tokenSymbol, tokenId);
-    const correlationId = this.resolveCorrelationId(tokenContext.tokenSymbol, jobId);
+    const correlationId = this.resolveCorrelationId(
+      tokenContext.tokenSymbol,
+      jobId,
+    );
 
-    logger.info('Starting DMA computation post-step', {
+    logger.info("Starting DMA computation post-step", {
       jobId: correlationId,
       tokenSymbol: tokenContext.tokenSymbol,
-      tokenId: tokenContext.tokenId
+      tokenId: tokenContext.tokenId,
     });
 
-    const prices = await this.fetchPricesForToken(tokenContext.tokenSymbol, tokenContext.tokenId);
+    const prices = await this.fetchPricesForToken(
+      tokenContext.tokenSymbol,
+      tokenContext.tokenId,
+    );
     if (prices.length === 0) {
-      logger.info('No price history found for DMA computation', {
+      logger.info("No price history found for DMA computation", {
         jobId: correlationId,
         tokenSymbol: tokenContext.tokenSymbol,
-        tokenId: tokenContext.tokenId
+        tokenId: tokenContext.tokenId,
       });
       return { recordsInserted: 0 };
     }
 
-    const writeResult = await this.computeAndWriteDma(prices, correlationId, tokenContext.tokenSymbol);
+    const writeResult = await this.computeAndWriteDma(
+      prices,
+      correlationId,
+      tokenContext.tokenSymbol,
+    );
 
-    logger.info('DMA computation post-step completed', {
+    logger.info("DMA computation post-step completed", {
       jobId: correlationId,
       tokenSymbol: tokenContext.tokenSymbol,
-      recordsInserted: writeResult.recordsInserted
+      recordsInserted: writeResult.recordsInserted,
     });
 
     return { recordsInserted: writeResult.recordsInserted };
@@ -108,71 +121,88 @@ export class TokenPriceDmaService {
    * Get the latest DMA snapshot for a given token.
    * Delegates to the writer's database query.
    */
-  async getLatestDmaSnapshot(
-    tokenSymbol: string
-  ): Promise<{ date: string; price: number; dma200: number | null; isAboveDma: boolean | null } | null> {
+  async getLatestDmaSnapshot(tokenSymbol: string): Promise<{
+    date: string;
+    price: number;
+    dma200: number | null;
+    isAboveDma: boolean | null;
+  } | null> {
     return this.writer.getLatestDmaSnapshot(tokenSymbol);
   }
 
   /**
    * Update ETH/BTC pair-ratio DMA snapshots after BTC or ETH price/DMA changes.
    */
-  async updateEthBtcRatioDma(jobId?: string): Promise<{ recordsInserted: number }> {
-    const correlationId = this.resolvePairCorrelationId(ETH_BTC_RATIO_CONTEXT, jobId);
+  async updateEthBtcRatioDma(
+    jobId?: string,
+  ): Promise<{ recordsInserted: number }> {
+    const correlationId = this.resolvePairCorrelationId(
+      ETH_BTC_RATIO_CONTEXT,
+      jobId,
+    );
 
-    logger.info('Starting pair ratio DMA computation post-step', {
+    logger.info("Starting pair ratio DMA computation post-step", {
       jobId: correlationId,
       baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
-      quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol
+      quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
     });
 
     const [basePrices, quotePrices] = await Promise.all([
       this.fetchPricesForToken(
         ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
-        ETH_BTC_RATIO_CONTEXT.baseTokenId
+        ETH_BTC_RATIO_CONTEXT.baseTokenId,
       ),
       this.fetchPricesForToken(
         ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
-        ETH_BTC_RATIO_CONTEXT.quoteTokenId
-      )
+        ETH_BTC_RATIO_CONTEXT.quoteTokenId,
+      ),
     ]);
 
     if (basePrices.length === 0 || quotePrices.length === 0) {
-      logger.info('Insufficient price history found for pair ratio DMA computation', {
-        jobId: correlationId,
-        baseTokenRows: basePrices.length,
-        quoteTokenRows: quotePrices.length
-      });
+      logger.info(
+        "Insufficient price history found for pair ratio DMA computation",
+        {
+          jobId: correlationId,
+          baseTokenRows: basePrices.length,
+          quoteTokenRows: quotePrices.length,
+        },
+      );
       return { recordsInserted: 0 };
     }
 
     const ratioPrices = buildAlignedPairRatioSeries(
       basePrices,
       quotePrices,
-      ETH_BTC_RATIO_CONTEXT
+      ETH_BTC_RATIO_CONTEXT,
     );
 
     if (ratioPrices.length === 0) {
-      logger.info('No overlapping price history found for pair ratio DMA computation', {
-        jobId: correlationId,
-        baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
-        quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol
-      });
+      logger.info(
+        "No overlapping price history found for pair ratio DMA computation",
+        {
+          jobId: correlationId,
+          baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
+          quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
+        },
+      );
       return { recordsInserted: 0 };
     }
 
-    const ratioSnapshots = computeTokenPairRatioDma(ratioPrices, DMA_WINDOW_SIZE);
+    const ratioSnapshots = computeTokenPairRatioDma(
+      ratioPrices,
+      DMA_WINDOW_SIZE,
+    );
     const writeResult = await this.writeRatioDmaSnapshots(
       ratioSnapshots,
       correlationId,
-      ETH_BTC_RATIO_CONTEXT
+      ETH_BTC_RATIO_CONTEXT,
     );
 
-    logger.info('Pair ratio DMA computation post-step completed', {
+    logger.info("Pair ratio DMA computation post-step completed", {
       jobId: correlationId,
       baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
       quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
-      recordsInserted: writeResult.recordsInserted
+      recordsInserted: writeResult.recordsInserted,
     });
 
     return writeResult;
@@ -182,26 +212,33 @@ export class TokenPriceDmaService {
    * Fetch full price history for one token from the source table.
    * Retrieves prices ordered by date ascending (required for SMA computation).
    */
-  private async fetchPricesForToken(tokenSymbol: string, tokenId: string): Promise<PriceRow[]> {
+  private async fetchPricesForToken(
+    tokenSymbol: string,
+    tokenId: string,
+  ): Promise<PriceRow[]> {
     const query = `
       SELECT token_symbol, token_id,
              to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date,
              price_usd
-      FROM ${getTableName('TOKEN_PRICE_SNAPSHOTS')}
+      FROM ${getTableName("TOKEN_PRICE_SNAPSHOTS")}
       WHERE source = $1
         AND token_symbol = $2
         AND lower(token_id) = lower($3)
       ORDER BY snapshot_date ASC
     `;
 
-    const result = await this.pool.query(query, [DMA_SOURCE, tokenSymbol, tokenId]);
+    const result = await this.pool.query(query, [
+      DMA_SOURCE,
+      tokenSymbol,
+      tokenId,
+    ]);
 
     const rows = result.rows.map((row) => this.mapPriceRow(row));
 
-    logger.info('Fetched price history for DMA computation', {
+    logger.info("Fetched price history for DMA computation", {
       tokenSymbol,
       tokenId,
-      rowCount: rows.length
+      rowCount: rows.length,
     });
 
     return rows;
@@ -213,12 +250,12 @@ export class TokenPriceDmaService {
   private async writeDmaSnapshots(
     snapshots: TokenPriceDmaSnapshotInsert[],
     jobId: string,
-    tokenSymbol: string
+    tokenSymbol: string,
   ): Promise<{ recordsInserted: number }> {
-    logger.info('Writing DMA snapshots to database', {
+    logger.info("Writing DMA snapshots to database", {
       jobId,
       tokenSymbol,
-      recordCount: snapshots.length
+      recordCount: snapshots.length,
     });
 
     const result = await this.writer.writeDmaSnapshots(snapshots);
@@ -228,13 +265,13 @@ export class TokenPriceDmaService {
   private async writeRatioDmaSnapshots(
     snapshots: TokenPairRatioDmaSnapshotInsert[],
     jobId: string,
-    pairContext: PairRatioContext
+    pairContext: PairRatioContext,
   ): Promise<{ recordsInserted: number }> {
-    logger.info('Writing pair ratio DMA snapshots to database', {
+    logger.info("Writing pair ratio DMA snapshots to database", {
       jobId,
       baseTokenSymbol: pairContext.baseTokenSymbol,
       quoteTokenSymbol: pairContext.quoteTokenSymbol,
-      recordCount: snapshots.length
+      recordCount: snapshots.length,
     });
 
     const result = await this.ratioWriter.writeRatioDmaSnapshots(snapshots);
@@ -244,16 +281,19 @@ export class TokenPriceDmaService {
   private async computeAndWriteDma(
     prices: PriceRow[],
     correlationId: string,
-    tokenSymbol: string
+    tokenSymbol: string,
   ): Promise<{ recordsInserted: number }> {
     const dmaSnapshots = computeDma(prices, DMA_WINDOW_SIZE);
     return this.writeDmaSnapshots(dmaSnapshots, correlationId, tokenSymbol);
   }
 
-  private normalizeTokenContext(tokenSymbol: string, tokenId: string): TokenContext {
+  private normalizeTokenContext(
+    tokenSymbol: string,
+    tokenId: string,
+  ): TokenContext {
     return {
       tokenSymbol: tokenSymbol.trim().toUpperCase(),
-      tokenId: tokenId.trim().toLowerCase()
+      tokenId: tokenId.trim().toLowerCase(),
     };
   }
 
@@ -261,17 +301,27 @@ export class TokenPriceDmaService {
     return jobId ?? `dma-${tokenSymbol}-${Date.now()}`;
   }
 
-  private resolvePairCorrelationId(pairContext: PairRatioContext, jobId?: string): string {
-    return jobId ?? `dma-${pairContext.baseTokenSymbol}-${pairContext.quoteTokenSymbol}-${Date.now()}`;
+  private resolvePairCorrelationId(
+    pairContext: PairRatioContext,
+    jobId?: string,
+  ): string {
+    return (
+      jobId ??
+      `dma-${pairContext.baseTokenSymbol}-${pairContext.quoteTokenSymbol}-${Date.now()}`
+    );
   }
 
-  private mapPriceRow(row: { token_symbol: string; token_id: string; snapshot_date: string; price_usd: string | number }): PriceRow {
+  private mapPriceRow(row: {
+    token_symbol: string;
+    token_id: string;
+    snapshot_date: string;
+    price_usd: string | number;
+  }): PriceRow {
     return {
       token_symbol: row.token_symbol,
       token_id: row.token_id,
       snapshot_date: row.snapshot_date,
-      price_usd: Number(row.price_usd)
+      price_usd: Number(row.price_usd),
     };
   }
-
 }

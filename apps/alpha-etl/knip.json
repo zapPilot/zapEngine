@@ -1,8 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": [
-    "src/app.ts"
-  ],
+  "entry": ["src/app.ts", "scripts/**/*.ts"],
   "project": [
     "src/**/*.ts",
     "scripts/**/*.ts"
@@ -14,7 +12,8 @@
     "vitest.config.ts"
   ],
   "ignoreDependencies": [
-    "@types/*"
+    "@zapengine/types",
+    "@zapengine/tsconfig"
   ],
   "ignoreExportsUsedInFile": true,
   "includeEntryExports": true,

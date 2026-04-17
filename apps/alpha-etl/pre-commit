@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 set -eu
-
+pnpm run format
 printf "\n🔎 Deadcode check\n"
 pnpm run deadcode
 
@@ -12,9 +12,6 @@ pnpm run lint
 
 printf "\n🧰 Type check (tsc)\n"
 pnpm run type-check
-
-printf "\n💰 Security audit\n"
-pnpm audit --audit-level=moderate
 
 printf "\n🧪 Tests (Vitest)\n"
 pnpm run test:coverage

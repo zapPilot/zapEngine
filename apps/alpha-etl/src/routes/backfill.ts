@@ -1,13 +1,10 @@
-import { Router } from 'express';
-import { z } from 'zod';
-import { TokenPriceETLProcessor } from '../modules/token-price/index.js';
-import type {
-  BackfillPayload,
-  BackfillResult,
-} from '../types/index.js';
-import { toErrorMessage } from '../utils/errors.js';
-import { logger } from '../utils/logger.js';
-import { sleep } from '../utils/sleep.js';
+import { Router } from "express";
+import { z } from "zod";
+import { TokenPriceETLProcessor } from "../modules/token-price/index.js";
+import type { BackfillPayload, BackfillResult } from "../types/index.js";
+import { toErrorMessage } from "../utils/errors.js";
+import { logger } from "../utils/logger.js";
+import { sleep } from "../utils/sleep.js";
 import {
   type DmaRetryResult,
   buildApiErrorResponse,
@@ -18,7 +15,7 @@ import {
   createSuccessfulBackfillContext,
   createSuccessfulTokenOutcome,
   getRequestId,
-} from './backfill.helpers.js';
+} from "./backfill.helpers.js";
 
 const router: Router = Router();
 const processor = new TokenPriceETLProcessor();
@@ -29,12 +26,12 @@ const DMA_RETRY_DELAY_MS = 150;
 const tokenConfigSchema = z.object({
   tokenId: z.string().min(1),
   tokenSymbol: z.string().min(1).max(10),
-  daysBack: z.number().positive().max(365).optional()
+  daysBack: z.number().positive().max(365).optional(),
 });
 
 const backfillPayloadSchema = z.object({
-  tokens: z.array(tokenConfigSchema).min(1).max(10),  // Max 10 tokens per request
-  trigger: z.enum(['manual', 'scheduled'])
+  tokens: z.array(tokenConfigSchema).min(1).max(10), // Max 10 tokens per request
+  trigger: z.enum(["manual", "scheduled"]),
 });
 type TokenConfig = z.infer<typeof tokenConfigSchema>;
 
@@ -48,14 +45,14 @@ async function updateDmaWithRetry(
       const dmaResult = await processor.updateDmaForToken(
         tokenSymbol,
         tokenId,
-        `${requestId}:${tokenSymbol}:dma`
+        `${requestId}:${tokenSymbol}:dma`,
       );
 
       return {
         dmaAttempted: true,
         dmaUpserted: dmaResult.recordsInserted,
         dmaRetries: retries,
-        dmaSuccess: true
+        dmaSuccess: true,
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
@@ -66,20 +63,20 @@ async function updateDmaWithRetry(
           dmaUpserted: 0,
           dmaRetries: retries,
           dmaSuccess: false,
-          dmaError: errorMessage
+          dmaError: errorMessage,
         };
       }
 
       const nextRetry = retries + 1;
       const delay = DMA_RETRY_DELAY_MS * nextRetry;
 
-      logger.warn('DMA update failed, retrying', {
+      logger.warn("DMA update failed, retrying", {
         requestId,
         tokenSymbol,
         tokenId,
         retries: nextRetry,
         delayMs: delay,
-        error: errorMessage
+        error: errorMessage,
       });
 
       await sleep(delay);
@@ -87,39 +84,45 @@ async function updateDmaWithRetry(
   }
 
   /* c8 ignore start */
-  return Promise.reject(new Error('DMA retry loop exhausted unexpectedly'));
+  return Promise.reject(new Error("DMA retry loop exhausted unexpectedly"));
   /* c8 ignore stop */
 }
 
 async function processTokenBackfill(
   tokenConfig: TokenConfig,
-  requestId: string
+  requestId: string,
 ): Promise<{ success: boolean; result: BackfillResult }> {
   const startTime = Date.now();
   const daysBack = tokenConfig.daysBack ?? 30;
 
   try {
-    logger.info('Starting backfill', {
+    logger.info("Starting backfill", {
       requestId,
       tokenSymbol: tokenConfig.tokenSymbol,
       tokenId: tokenConfig.tokenId,
-      daysBack
+      daysBack,
     });
 
     const result = await processor.backfillHistory(
       daysBack,
       tokenConfig.tokenId,
-      tokenConfig.tokenSymbol
+      tokenConfig.tokenSymbol,
     );
 
     const dmaStatus = await updateDmaWithRetry(
       tokenConfig.tokenSymbol,
       tokenConfig.tokenId,
-      requestId
+      requestId,
     );
 
     const duration = Date.now() - startTime;
-    const tokenResultData = createSuccessfulBackfillContext(tokenConfig, daysBack, result, duration, dmaStatus);
+    const tokenResultData = createSuccessfulBackfillContext(
+      tokenConfig,
+      daysBack,
+      result,
+      duration,
+      dmaStatus,
+    );
 
     if (!dmaStatus.dmaSuccess) {
       return createDmaFailureOutcome(
@@ -128,28 +131,38 @@ async function processTokenBackfill(
         result,
         dmaStatus,
         tokenResultData,
-        duration
+        duration,
       );
     }
 
-    logger.info('Backfill completed', {
+    logger.info("Backfill completed", {
       requestId,
       tokenSymbol: tokenConfig.tokenSymbol,
       ...result,
       ...dmaStatus,
-      duration
+      duration,
     });
 
     return createSuccessfulTokenOutcome(tokenResultData);
   } catch (error) {
-    return createProcessingFailureOutcome(tokenConfig, requestId, daysBack, startTime, error);
+    return createProcessingFailureOutcome(
+      tokenConfig,
+      requestId,
+      daysBack,
+      startTime,
+      error,
+    );
   }
 }
 
 async function processBackfillTokens(
   tokens: TokenConfig[],
-  requestId: string
-): Promise<{ results: BackfillResult[]; successCount: number; failureCount: number }> {
+  requestId: string,
+): Promise<{
+  results: BackfillResult[];
+  successCount: number;
+  failureCount: number;
+}> {
   const results: BackfillResult[] = [];
   let successCount = 0;
   let failureCount = 0;
@@ -168,22 +181,25 @@ async function processBackfillTokens(
   return { results, successCount, failureCount };
 }
 
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
     const payload: BackfillPayload = backfillPayloadSchema.parse(req.body);
 
-    logger.info('Backfill request received', {
+    logger.info("Backfill request received", {
       requestId,
       trigger: payload.trigger,
-      tokenCount: payload.tokens.length
+      tokenCount: payload.tokens.length,
     });
 
-    const { results, successCount, failureCount } = await processBackfillTokens(payload.tokens, requestId);
+    const { results, successCount, failureCount } = await processBackfillTokens(
+      payload.tokens,
+      requestId,
+    );
 
     if (failureCount > 0 && successCount === 0) {
-      return res.json(buildApiErrorResponse('All backfill requests failed'));
+      return res.json(buildApiErrorResponse("All backfill requests failed"));
     }
 
     return res.json(buildSuccessResponse(results));
@@ -192,7 +208,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json(buildValidationErrorResponse(error));
     }
 
-    logger.error('Backfill request failed:', { error, requestId });
+    logger.error("Backfill request failed:", { error, requestId });
     return res.status(500).json(buildApiErrorResponse(toErrorMessage(error)));
   }
 });

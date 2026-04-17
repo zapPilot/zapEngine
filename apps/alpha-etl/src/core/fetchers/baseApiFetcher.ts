@@ -1,8 +1,8 @@
-import { APIError } from '../../utils/errors.js';
-import { RATE_LIMITS } from '../../config/database.js';
-import { logger } from '../../utils/logger.js';
-import { sleep } from '../../utils/sleep.js';
-import { withRetry } from '../../utils/retry.js';
+import { APIError } from "../../utils/errors.js";
+import { RATE_LIMITS } from "../../config/database.js";
+import { logger } from "../../utils/logger.js";
+import { sleep } from "../../utils/sleep.js";
+import { withRetry } from "../../utils/retry.js";
 
 export interface RequestStats {
   requestCount: number;
@@ -21,9 +21,12 @@ export abstract class BaseApiFetcher {
   protected requestCount = 0;
   protected lastRequestTime = 0;
   protected readonly rateLimitDelay: number;
-  protected readonly userAgent = 'alpha-etl/1.0.0';
+  protected readonly userAgent = "alpha-etl/1.0.0";
 
-  constructor(baseUrl: string, rateLimitDelay: number = RATE_LIMITS.DEBANK_DELAY_MS) {
+  constructor(
+    baseUrl: string,
+    rateLimitDelay: number = RATE_LIMITS.DEBANK_DELAY_MS,
+  ) {
     this.baseUrl = baseUrl;
     this.rateLimitDelay = rateLimitDelay;
   }
@@ -34,9 +37,9 @@ export abstract class BaseApiFetcher {
 
     if (timeSinceLastRequest < this.rateLimitDelay) {
       const delay = this.rateLimitDelay - timeSinceLastRequest;
-      logger.debug('Rate limiting API request', {
+      logger.debug("Rate limiting API request", {
         fetcher: this.constructor.name,
-        delay
+        delay,
       });
       await sleep(delay);
     }
@@ -47,21 +50,21 @@ export abstract class BaseApiFetcher {
 
   protected async fetchWithRateLimit(
     url: string,
-    options: FetchOptions = {}
+    options: FetchOptions = {},
   ): Promise<Response> {
     await this.enforceRateLimit();
 
     const headers = this.buildRequestHeaders(options.headers);
 
-    logger.debug('Making API request', {
+    logger.debug("Making API request", {
       fetcher: this.constructor.name,
       url,
-      requestCount: this.requestCount
+      requestCount: this.requestCount,
     });
 
     const response = await fetch(url, {
       ...options,
-      headers
+      headers,
     });
 
     if (!response.ok) {
@@ -69,7 +72,7 @@ export abstract class BaseApiFetcher {
         `${response.status} ${response.statusText}`,
         response.status,
         url,
-        this.constructor.name
+        this.constructor.name,
       );
     }
 
@@ -78,7 +81,7 @@ export abstract class BaseApiFetcher {
 
   protected async fetchJson<T>(
     url: string,
-    options: FetchOptions = {}
+    options: FetchOptions = {},
   ): Promise<T> {
     const response = await this.fetchWithRateLimit(url, options);
     return response.json() as Promise<T>;
@@ -91,7 +94,7 @@ export abstract class BaseApiFetcher {
     url: string,
     options: FetchOptions = {},
     maxRetries: number = 3,
-    baseDelayMs: number = 1000
+    baseDelayMs: number = 1000,
   ): Promise<T> {
     let attemptNum = 0;
     const maxAttempts = maxRetries + 1;
@@ -113,8 +116,8 @@ export abstract class BaseApiFetcher {
         {
           maxAttempts,
           baseDelayMs,
-          label: `Fetch ${url}`
-        }
+          label: `Fetch ${url}`,
+        },
       );
     } catch (error) {
       throw this.toErrorObject(error);
@@ -124,7 +127,7 @@ export abstract class BaseApiFetcher {
   public getRequestStats(): RequestStats {
     return {
       requestCount: this.requestCount,
-      lastRequestTime: this.lastRequestTime
+      lastRequestTime: this.lastRequestTime,
     };
   }
 
@@ -133,11 +136,13 @@ export abstract class BaseApiFetcher {
     this.lastRequestTime = 0;
   }
 
-  private buildRequestHeaders(customHeaders?: Record<string, string>): Record<string, string> {
+  private buildRequestHeaders(
+    customHeaders?: Record<string, string>,
+  ): Record<string, string> {
     return {
-      'User-Agent': this.userAgent,
-      'Accept': 'application/json',
-      ...customHeaders
+      "User-Agent": this.userAgent,
+      Accept: "application/json",
+      ...customHeaders,
     };
   }
 
@@ -150,16 +155,19 @@ export abstract class BaseApiFetcher {
     attempt: number,
     maxAttempts: number,
     errorMessage: string,
-    delayMs: number
+    delayMs: number,
   ): void {
     logger.warn(`Fetch attempt ${attempt}/${maxAttempts} failed, retrying`, {
       fetcher: this.constructor.name,
       url,
       error: errorMessage,
-      delayMs
+      delayMs,
     });
   }
 
   // Abstract method that subclasses must implement for health checks
-  abstract healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details?: string }>;
+  abstract healthCheck(): Promise<{
+    status: "healthy" | "unhealthy";
+    details?: string;
+  }>;
 }

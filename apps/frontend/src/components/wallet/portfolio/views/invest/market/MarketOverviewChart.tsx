@@ -29,7 +29,7 @@ interface MarketOverviewChartProps {
 }
 
 function formatTooltipValue(
-  value: string | number | (string | number)[] | undefined,
+  value: string | number | readonly (string | number)[] | undefined,
   name: string | number | undefined,
   props: {
     payload?: {

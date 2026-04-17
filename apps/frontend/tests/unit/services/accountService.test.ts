@@ -599,9 +599,17 @@ describe("accountService", () => {
       };
       vi.mocked(httpUtils.accountApi.get).mockResolvedValue(response);
 
-      await expect(accountService.getEtlJobStatus("job123")).resolves.toEqual(
-        response
-      );
+      await expect(accountService.getEtlJobStatus("job123")).resolves.toEqual({
+        jobId: "job123",
+        status: "completed",
+        trigger: "manual",
+        createdAt: "2024-01-01T00:00:00Z",
+        recordsProcessed: undefined,
+        recordsInserted: undefined,
+        duration: undefined,
+        completedAt: undefined,
+        error: undefined,
+      });
       expect(httpUtils.accountApi.get).toHaveBeenCalledWith("/etl/jobs/job123");
     });
 

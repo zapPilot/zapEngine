@@ -1,5 +1,5 @@
-import { APR_VALIDATION } from '../config/database.js';
-import { isFiniteNumber } from './numberUtils.js';
+import { APR_VALIDATION } from "../config/database.js";
+import { isFiniteNumber } from "./numberUtils.js";
 
 export function convertDailyCompoundedApyToApr(apy: number): number {
   if (apy <= 0) {
@@ -14,13 +14,20 @@ export function convertDailyCompoundedApyToApr(apy: number): number {
 }
 
 export function validateApr(apr: number): boolean {
-  return isFiniteNumber(apr) && apr >= APR_VALIDATION.MIN_APR && apr <= APR_VALIDATION.MAX_APR;
+  return (
+    isFiniteNumber(apr) &&
+    apr >= APR_VALIDATION.MIN_APR &&
+    apr <= APR_VALIDATION.MAX_APR
+  );
 }
 
 export function validateApy(apy: number): boolean {
   return isFiniteNumber(apy);
 }
 
-export function normalizePercentage(value: number, isDecimal: boolean = false): number {
+export function normalizePercentage(
+  value: number,
+  isDecimal: boolean = false,
+): number {
   return isDecimal ? value : value / 100;
 }

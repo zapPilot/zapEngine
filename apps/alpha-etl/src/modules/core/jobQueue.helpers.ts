@@ -1,13 +1,19 @@
-import { logger } from '../../utils/logger.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import type { ETLJob, ETLJobResult } from '../../types/index.js';
-import type { MVRefreshStats } from '../../modules/core/mvRefresh.js';
-import type { ETLJobProcessingResult } from './pipelineFactory.helpers.js';
-import { MV_REFRESH_CONFIG } from '../../config/constants.js';
+import { logger } from "../../utils/logger.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import type { ETLJob, ETLJobResult } from "../../types/index.js";
+import type { MVRefreshStats } from "../../modules/core/mvRefresh.js";
+import type { ETLJobProcessingResult } from "./pipelineFactory.helpers.js";
+import { MV_REFRESH_CONFIG } from "../../config/constants.js";
 
-export const MATERIALIZED_VIEW_NAMES = MV_REFRESH_CONFIG.MATERIALIZED_VIEWS.map((mv) => mv.name);
+export const MATERIALIZED_VIEW_NAMES = MV_REFRESH_CONFIG.MATERIALIZED_VIEWS.map(
+  (mv) => mv.name,
+);
 
-export type PersistedJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type PersistedJobStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed";
 
 export interface PersistJobMetadata {
   userId?: string;
@@ -29,7 +35,7 @@ interface ProcessedJobOutcomeLike {
 
 export function createPendingJob(
   jobId: string,
-  params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>
+  params: Pick<ETLJob, "trigger" | "sources" | "filters" | "metadata">,
 ): ETLJob {
   return {
     jobId,
@@ -38,11 +44,13 @@ export function createPendingJob(
     filters: params.filters,
     metadata: params.metadata,
     createdAt: new Date(),
-    status: 'pending'
+    status: "pending",
   };
 }
 
-export function createFailedMvRefreshStats(mvRefreshDurationMs: number): MVRefreshStats {
+export function createFailedMvRefreshStats(
+  mvRefreshDurationMs: number,
+): MVRefreshStats {
   const results = MATERIALIZED_VIEW_NAMES.map((mvName) => ({
     mvName,
     success: false,
@@ -59,38 +67,41 @@ export function createFailedMvRefreshStats(mvRefreshDurationMs: number): MVRefre
   };
 }
 
-export function shouldRefreshMaterializedViews(job: ETLJob, pipelineResult: ETLJobProcessingResult): boolean {
+export function shouldRefreshMaterializedViews(
+  job: ETLJob,
+  pipelineResult: ETLJobProcessingResult,
+): boolean {
   if (pipelineResult.recordsInserted > 0) {
     return true;
   }
 
-  const isWalletJob = job.metadata?.jobType === 'wallet_fetch';
+  const isWalletJob = job.metadata?.jobType === "wallet_fetch";
   return isWalletJob && pipelineResult.success;
 }
 
 export function resolveJobSuccess(
   job: ETLJob,
   pipelineResult: ETLJobProcessingResult,
-  mvRefreshStats?: MVRefreshStats
+  mvRefreshStats?: MVRefreshStats,
 ): boolean {
   if (!mvRefreshStats || mvRefreshStats.allSucceeded) {
     return pipelineResult.success;
   }
 
-  logger.warn('Job marked as failed due to MV refresh failure', {
+  logger.warn("Job marked as failed due to MV refresh failure", {
     jobId: job.jobId,
     etlSuccess: pipelineResult.success,
     mvFailedCount: mvRefreshStats.failedCount,
-    mvSkippedCount: mvRefreshStats.skippedCount
+    mvSkippedCount: mvRefreshStats.skippedCount,
   });
 
   return false;
 }
 
 export function getPersistedErrorMessage(
-  metadata: ETLJob['metadata'] | undefined,
+  metadata: ETLJob["metadata"] | undefined,
   jobSuccess: boolean,
-  mvRefreshStats?: MVRefreshStats
+  mvRefreshStats?: MVRefreshStats,
 ): string | undefined {
   if (!jobSuccess && mvRefreshStats && !mvRefreshStats.allSucceeded) {
     return `MV refresh failed: ${mvRefreshStats.failedCount} views failed, ${mvRefreshStats.skippedCount} skipped`;
@@ -101,7 +112,7 @@ export function getPersistedErrorMessage(
 export function createSuccessResult(
   job: ETLJob,
   outcome: ProcessedJobOutcomeLike,
-  finalStatus: 'completed' | 'failed'
+  finalStatus: "completed" | "failed",
 ): ETLJobResult {
   const { pipelineResult, totalDurationMs, mvRefreshStats } = outcome;
 
@@ -121,14 +132,17 @@ export function createSuccessResult(
         mvRefreshSuccess: mvRefreshStats.allSucceeded,
         mvRefreshFailedCount: mvRefreshStats.failedCount,
         mvRefreshSkippedCount: mvRefreshStats.skippedCount,
-        mvRefreshResults: mvRefreshStats.results
-      })
-    }
+        mvRefreshResults: mvRefreshStats.results,
+      }),
+    },
   };
 }
 
-export function logJobCompletion(job: ETLJob, outcome: ProcessedJobOutcomeLike): void {
-  logger.info('ETL job completed (including MV refresh)', {
+export function logJobCompletion(
+  job: ETLJob,
+  outcome: ProcessedJobOutcomeLike,
+): void {
+  logger.info("ETL job completed (including MV refresh)", {
     jobId: job.jobId,
     success: outcome.pipelineResult.success,
     recordsProcessed: outcome.pipelineResult.recordsProcessed,
@@ -136,36 +150,51 @@ export function logJobCompletion(job: ETLJob, outcome: ProcessedJobOutcomeLike):
     etlDurationMs: outcome.etlDurationMs,
     totalDurationMs: outcome.totalDurationMs,
     mvRefreshIncluded: !!outcome.mvRefreshStats,
-    errors: outcome.pipelineResult.errors.length
+    errors: outcome.pipelineResult.errors.length,
   });
 }
 
-export function shouldPersistJobStatus(metadata?: PersistJobMetadata): metadata is Required<Pick<PersistJobMetadata, 'userId'>> & PersistJobMetadata {
-  return typeof metadata?.userId === 'string' && metadata.userId.length > 0;
+export function shouldPersistJobStatus(
+  metadata?: PersistJobMetadata,
+): metadata is Required<Pick<PersistJobMetadata, "userId">> &
+  PersistJobMetadata {
+  return typeof metadata?.userId === "string" && metadata.userId.length > 0;
 }
 
-export function logPersistStatusFailure(jobId: string, status: PersistedJobStatus, error: unknown): void {
+export function logPersistStatusFailure(
+  jobId: string,
+  status: PersistedJobStatus,
+  error: unknown,
+): void {
   // Non-fatal error - log and continue
-  logger.warn('Failed to persist job status to database (non-fatal)', {
+  logger.warn("Failed to persist job status to database (non-fatal)", {
     jobId,
     status,
-    error: toErrorMessage(error)
+    error: toErrorMessage(error),
   });
 }
 
 export function buildPersistJobStatusQuery(
   jobId: string,
   status: PersistedJobStatus,
-  metadata: PersistJobMetadata
+  metadata: PersistJobMetadata,
 ): PersistJobQueryPayload {
-  const updateColumns: string[] = ['status = EXCLUDED.status', 'updated_at = NOW()'];
-  const values: unknown[] = [jobId, metadata.userId, metadata.walletAddress, status];
+  const updateColumns: string[] = [
+    "status = EXCLUDED.status",
+    "updated_at = NOW()",
+  ];
+  const values: unknown[] = [
+    jobId,
+    metadata.userId,
+    metadata.walletAddress,
+    status,
+  ];
 
-  if (status === 'processing') {
-    updateColumns.push('started_at = NOW()');
+  if (status === "processing") {
+    updateColumns.push("started_at = NOW()");
   }
-  if (status === 'completed' || status === 'failed') {
-    updateColumns.push('completed_at = NOW()');
+  if (status === "completed" || status === "failed") {
+    updateColumns.push("completed_at = NOW()");
   }
   if (metadata.errorMessage) {
     updateColumns.push(`error_message = $${values.length + 1}`);
@@ -178,7 +207,7 @@ export function buildPersistJobStatusQuery(
       VALUES ($1, $2, $3, 'wallet_onboarding', $4, NOW())
       ON CONFLICT (job_id)
       DO UPDATE SET
-        ${updateColumns.join(',\n        ')}
+        ${updateColumns.join(",\n        ")}
     `;
 
   return { query, params: values };

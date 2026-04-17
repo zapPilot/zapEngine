@@ -52,8 +52,8 @@ export interface ParsedTooltipData {
 }
 
 export interface BacktestTooltipPayloadEntry {
-  name?: string;
-  value?: number;
+  name?: string | number;
+  value?: string | number | readonly (string | number)[];
   color?: string;
   payload?: Record<string, unknown>;
 }

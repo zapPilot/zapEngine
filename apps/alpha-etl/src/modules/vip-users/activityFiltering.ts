@@ -1,7 +1,7 @@
-import { logger } from '../../utils/logger.js';
-import { maskWalletAddress } from '../../utils/mask.js';
-import type { VipUserWithActivity } from '../../types/index.js';
-import { TIME_CONSTANTS } from '../../config/database.js';
+import { logger } from "../../utils/logger.js";
+import { maskWalletAddress } from "../../utils/mask.js";
+import type { VipUserWithActivity } from "../../types/index.js";
+import { TIME_CONSTANTS } from "../../config/database.js";
 
 /**
  * Activity-based update frequency thresholds
@@ -65,8 +65,10 @@ interface ResolvedThresholds {
 
 function resolveThresholds(options: UserFilteringOptions): ResolvedThresholds {
   return {
-    inactivityThresholdMs: options.inactivityThresholdMs ?? ACTIVITY_THRESHOLDS.SEVEN_DAYS_MS,
-    updateThresholdMs: options.updateThresholdMs ?? ACTIVITY_THRESHOLDS.SEVEN_DAYS_MS,
+    inactivityThresholdMs:
+      options.inactivityThresholdMs ?? ACTIVITY_THRESHOLDS.SEVEN_DAYS_MS,
+    updateThresholdMs:
+      options.updateThresholdMs ?? ACTIVITY_THRESHOLDS.SEVEN_DAYS_MS,
   };
 }
 
@@ -86,12 +88,16 @@ function calculateDaysSince(date: Date | null, nowMs: number): number | null {
   return toElapsedDays(nowMs - date.getTime());
 }
 
-function isActiveWithinThreshold(lastActivity: Date | null, nowMs: number, thresholdMs: number): boolean {
+function isActiveWithinThreshold(
+  lastActivity: Date | null,
+  nowMs: number,
+  thresholdMs: number,
+): boolean {
   if (!lastActivity) {
     return false;
   }
 
-  return (nowMs - lastActivity.getTime()) < thresholdMs;
+  return nowMs - lastActivity.getTime() < thresholdMs;
 }
 
 /**
@@ -108,16 +114,17 @@ function isActiveWithinThreshold(lastActivity: Date | null, nowMs: number, thres
  */
 export function shouldUpdateUser(
   user: VipUserWithActivity,
-  options: UserFilteringOptions = {}
+  options: UserFilteringOptions = {},
 ): boolean {
-  const { inactivityThresholdMs, updateThresholdMs } = resolveThresholds(options);
+  const { inactivityThresholdMs, updateThresholdMs } =
+    resolveThresholds(options);
   const nowMs = Date.now();
   const lastActivity = parseTimestamp(user.last_activity_at);
   const lastUpdate = parseTimestamp(user.last_portfolio_update_at);
 
   // Always update if never updated before
   if (!lastUpdate) {
-    logger.debug('User has never been updated - scheduling update', {
+    logger.debug("User has never been updated - scheduling update", {
       userId: user.user_id,
       wallet: maskWalletAddress(user.wallet),
     });
@@ -125,9 +132,12 @@ export function shouldUpdateUser(
   }
 
   // Active user (activity within threshold): always update
-  if (lastActivity && isActiveWithinThreshold(lastActivity, nowMs, inactivityThresholdMs)) {
+  if (
+    lastActivity &&
+    isActiveWithinThreshold(lastActivity, nowMs, inactivityThresholdMs)
+  ) {
     const daysSinceActivity = calculateDaysSince(lastActivity, nowMs);
-    logger.debug('Active user - scheduling update', {
+    logger.debug("Active user - scheduling update", {
       userId: user.user_id,
       wallet: maskWalletAddress(user.wallet),
       daysSinceActivity,
@@ -142,13 +152,18 @@ export function shouldUpdateUser(
 
   const daysSinceActivity = calculateDaysSince(lastActivity, nowMs);
 
-  const thresholdDays = Math.round(updateThresholdMs / TIME_CONSTANTS.MS_PER_DAY);
-  const decisionMessage = buildInactiveDecisionLogMessage(shouldUpdate, thresholdDays);
+  const thresholdDays = Math.round(
+    updateThresholdMs / TIME_CONSTANTS.MS_PER_DAY,
+  );
+  const decisionMessage = buildInactiveDecisionLogMessage(
+    shouldUpdate,
+    thresholdDays,
+  );
   const decisionPayload = buildInactiveDecisionLogPayload(
     user,
     daysSinceActivity,
     daysSinceUpdate,
-    shouldUpdate
+    shouldUpdate,
   );
   logger.debug(decisionMessage, decisionPayload);
 
@@ -184,7 +199,7 @@ export function shouldUpdateUser(
  */
 export function filterVipUsersByActivity(
   users: VipUserWithActivity[],
-  options: UserFilteringOptions = {}
+  options: UserFilteringOptions = {},
 ): FilteringResult {
   const { inactivityThresholdMs } = resolveThresholds(options);
   const nowMs = Date.now();
@@ -204,14 +219,22 @@ export function filterVipUsersByActivity(
 
     if (shouldUpdate) {
       usersToUpdate.push(user);
-      updateFilteringStatsForScheduledUser(stats, user, nowMs, inactivityThresholdMs);
+      updateFilteringStatsForScheduledUser(
+        stats,
+        user,
+        nowMs,
+        inactivityThresholdMs,
+      );
     } else {
       usersSkipped.push(user);
       stats.inactiveSkipped++;
     }
   }
 
-  const costSavingsPercent = calculateCostSavingsPercent(users.length, usersSkipped.length);
+  const costSavingsPercent = calculateCostSavingsPercent(
+    users.length,
+    usersSkipped.length,
+  );
 
   return {
     usersToUpdate,
@@ -221,7 +244,10 @@ export function filterVipUsersByActivity(
   };
 }
 
-function calculateCostSavingsPercent(totalUsers: number, skippedUsers: number): number {
+function calculateCostSavingsPercent(
+  totalUsers: number,
+  skippedUsers: number,
+): number {
   if (totalUsers <= 0) {
     return 0;
   }
@@ -233,7 +259,7 @@ function updateFilteringStatsForScheduledUser(
   stats: FilteringStats,
   user: VipUserWithActivity,
   nowMs: number,
-  inactivityThresholdMs: number
+  inactivityThresholdMs: number,
 ): void {
   if (!user.last_portfolio_update_at) {
     stats.neverUpdated++;
@@ -241,7 +267,11 @@ function updateFilteringStatsForScheduledUser(
   }
 
   const lastActivity = parseTimestamp(user.last_activity_at);
-  const isActive = isActiveWithinThreshold(lastActivity, nowMs, inactivityThresholdMs);
+  const isActive = isActiveWithinThreshold(
+    lastActivity,
+    nowMs,
+    inactivityThresholdMs,
+  );
 
   if (isActive) {
     stats.activeUsers++;
@@ -251,7 +281,10 @@ function updateFilteringStatsForScheduledUser(
   stats.inactiveUpdated++;
 }
 
-function buildInactiveDecisionLogMessage(shouldUpdate: boolean, thresholdDays: number): string {
+function buildInactiveDecisionLogMessage(
+  shouldUpdate: boolean,
+  thresholdDays: number,
+): string {
   if (shouldUpdate) {
     return `Inactive user - scheduling update (>${thresholdDays} days since last update)`;
   }
@@ -263,18 +296,18 @@ function buildInactiveDecisionLogPayload(
   user: VipUserWithActivity,
   daysSinceActivity: number | null,
   daysSinceUpdate: number,
-  shouldUpdate: boolean
+  shouldUpdate: boolean,
 ): {
   userId: string;
   wallet: string;
-  daysSinceActivity: number | 'never';
+  daysSinceActivity: number | "never";
   daysSinceUpdate: number;
   shouldUpdate: boolean;
 } {
   return {
     userId: user.user_id,
     wallet: maskWalletAddress(user.wallet),
-    daysSinceActivity: daysSinceActivity ?? 'never',
+    daysSinceActivity: daysSinceActivity ?? "never",
     daysSinceUpdate,
     shouldUpdate,
   };

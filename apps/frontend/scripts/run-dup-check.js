@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require("node:child_process");
-const { existsSync, readFileSync } = require("node:fs");
-const path = require("node:path");
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
 
 const args = [
   "src",

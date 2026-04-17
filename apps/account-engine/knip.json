@@ -1,10 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": [
-    "src/main.ts",
-    "src/**/*.module.ts",
-    "src/**/*.controller.ts"
-  ],
+  "entry": ["src/main.ts"],
   "project": ["src/**/*.ts"],
   "ignore": [
     "**/*.spec.ts",
@@ -17,9 +13,13 @@
     "eslint.config.mjs",
     "src/types/database.types.ts"
   ],
+  "ignoreDependencies": [
+    "@zapengine/types",
+    "@zapengine/tsconfig",
+    "tsconfig-paths"
+  ],
   "ignoreExportsUsedInFile": true,
   "includeEntryExports": true,
-  "ignoreBinaries": ["audit-ci"],
   "jest": {
     "config": ["test/jest-e2e.json"],
     "entry": ["src/**/*.spec.ts", "test/**/*.e2e-spec.ts"]

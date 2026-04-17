@@ -1,4 +1,4 @@
-import { type EtlJobStatus } from "@zapengine/types/etl";
+import { EtlErrorCodeEnum, type EtlJobStatus } from "@zapengine/types/etl";
 import { z } from "zod";
 
 import { createValidator } from "@/schemas/schemaUtils";
@@ -122,7 +122,7 @@ const lenientEtlJobStatusSchema = z
     rate_limited: z.boolean().optional(),
     error: z
       .object({
-        code: z.string(),
+        code: EtlErrorCodeEnum,
         message: z.string(),
       })
       .optional(),

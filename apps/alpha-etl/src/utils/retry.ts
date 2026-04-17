@@ -1,5 +1,5 @@
-import { logger } from './logger.js';
-import { sleep } from './sleep.js';
+import { logger } from "./logger.js";
+import { sleep } from "./sleep.js";
 
 export interface RetryOptions {
   maxAttempts?: number;
@@ -20,13 +20,13 @@ export interface RetryOptions {
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  options: RetryOptions = {}
+  options: RetryOptions = {},
 ): Promise<T> {
   const {
     maxAttempts = 4,
     baseDelayMs = 1000,
     maxDelayMs,
-    label = 'Operation'
+    label = "Operation",
   } = options;
 
   let lastError: Error | null = null;
@@ -43,15 +43,18 @@ export async function withRetry<T>(
 
       const delayMs = Math.min(
         baseDelayMs * Math.pow(2, attempt),
-        maxDelayMs ?? Infinity
+        maxDelayMs ?? Infinity,
       );
 
-      logger.warn(`${label} attempt ${attempt + 1}/${maxAttempts} failed, retrying`, {
-        error: lastError.message,
-        delayMs
-      });
+      logger.warn(
+        `${label} attempt ${attempt + 1}/${maxAttempts} failed, retrying`,
+        {
+          error: lastError.message,
+          delayMs,
+        },
+      );
 
-      if (delayMs > 0 && process.env.NODE_ENV !== 'test') {
+      if (delayMs > 0 && process.env.NODE_ENV !== "test") {
         await sleep(delayMs);
       }
     }

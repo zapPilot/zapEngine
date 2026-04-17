@@ -1,11 +1,11 @@
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
 
 function removeWrapChar(symbol: string): string {
   return symbol
     .toLowerCase()
-    .replace(/[()[\]{}]/g, '')
-    .replace(/\bbridged\b/gi, '')
-    .replace(/\s+/g, '')
+    .replace(/[()[\]{}]/g, "")
+    .replace(/\bbridged\b/gi, "")
+    .replace(/\s+/g, "")
     .trim();
 }
 
@@ -18,33 +18,31 @@ export interface SymbolParseLogContext {
 }
 
 export const chainNameMapping: Record<string, string> = {
-  ethereum: 'ethereum',
-  arbitrum: 'arbitrum',
-  optimism: 'optimism',
-  polygon: 'polygon',
-  base: 'base',
-  avalanche: 'avax',
-  bsc: 'bsc',
-  fantom: 'fantom',
-  moonbeam: 'moonbeam',
-  gnosis: 'xdai',
-  aurora: 'aurora',
-  celo: 'celo',
-  harmony: 'harmony',
-  cronos: 'cronos',
-  metis: 'metis'
+  ethereum: "ethereum",
+  arbitrum: "arbitrum",
+  optimism: "optimism",
+  polygon: "polygon",
+  base: "base",
+  avalanche: "avax",
+  bsc: "bsc",
+  fantom: "fantom",
+  moonbeam: "moonbeam",
+  gnosis: "xdai",
+  aurora: "aurora",
+  celo: "celo",
+  harmony: "harmony",
+  cronos: "cronos",
+  metis: "metis",
 };
 
 export function normalizeSymbolList(symbols: string[]): string[] {
-  return symbols
-    .map(removeWrapChar)
-    .sort();
+  return symbols.map(removeWrapChar).sort();
 }
 
 export function checkSymbolListsEqual(
   list1: string[],
   list2: string[],
-  strict: boolean = false
+  strict: boolean = false,
 ): boolean {
   if (list1.length !== list2.length) {
     return false;
@@ -81,14 +79,16 @@ export function mapChainName(debankChain: string): string {
 
 export function parseSymbolsArray(
   symbol: string,
-  underlyingTokens?: string[] | null
+  underlyingTokens?: string[] | null,
 ): string[] | null {
   if (!symbol?.trim()) {
     return null;
   }
 
   const cleanSymbol = symbol.trim();
-  const symbolParts = cleanSymbol.split('-').filter((part) => part.trim().length > 0);
+  const symbolParts = cleanSymbol
+    .split("-")
+    .filter((part) => part.trim().length > 0);
 
   if (!underlyingTokens?.length) {
     return symbolParts.length > 1 ? symbolParts : [cleanSymbol];
@@ -103,34 +103,37 @@ export function parseSymbolsArray(
   if (symbolParts.length > expectedParts) {
     const uniqueParts = [...new Set(symbolParts)];
     if (uniqueParts.length <= expectedParts) {
-      logParseWarning('duplicates_removed', {
+      logParseWarning("duplicates_removed", {
         symbol: cleanSymbol,
         originalParts: symbolParts.length,
         uniqueParts: uniqueParts.length,
-        expectedParts
+        expectedParts,
       });
       return uniqueParts;
     }
   }
 
   if (symbolParts.length < expectedParts) {
-    logParseWarning('hyphenated_tokens', {
+    logParseWarning("hyphenated_tokens", {
       symbol: cleanSymbol,
       actualParts: symbolParts.length,
-      expectedParts
+      expectedParts,
     });
   }
 
   return symbolParts;
 }
 
-export function cleanRewardTokens(tokens?: (string | null)[] | null): string[] | null {
+export function cleanRewardTokens(
+  tokens?: (string | null)[] | null,
+): string[] | null {
   if (!tokens?.length) {
     return null;
   }
 
-  const cleanTokens = tokens.filter((token): token is string =>
-    typeof token === 'string' && token.trim().length > 0
+  const cleanTokens = tokens.filter(
+    (token): token is string =>
+      typeof token === "string" && token.trim().length > 0,
   );
 
   return cleanTokens.length > 0 ? cleanTokens : null;

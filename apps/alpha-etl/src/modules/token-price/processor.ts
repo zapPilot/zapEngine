@@ -1,21 +1,23 @@
-
-import type { Pool } from 'pg';
-import { getDbPool } from '../../config/database.js';
+import type { Pool } from "pg";
+import { getDbPool } from "../../config/database.js";
 import {
   executeETLFlow,
   withValidatedJob,
   type BaseETLProcessor,
   type ETLProcessResult,
-  type HealthCheckResult
-} from '../../core/processors/baseETLProcessor.js';
-import { CoinGeckoFetcher, type TokenPriceData } from '../../modules/token-price/fetcher.js';
+  type HealthCheckResult,
+} from "../../core/processors/baseETLProcessor.js";
+import {
+  CoinGeckoFetcher,
+  type TokenPriceData,
+} from "../../modules/token-price/fetcher.js";
 import {
   type BackfillDateRange,
   fetchMissingDateSnapshots,
   getExistingDates,
   getBackfillDateRange,
   logGapDetectionSummary,
-} from '../../modules/token-price/backfill.helpers.js';
+} from "../../modules/token-price/backfill.helpers.js";
 import {
   buildHealthCheckDetails,
   calculateSuccessRate,
@@ -23,17 +25,21 @@ import {
   resolveHealthStatus,
   updateStatsAfterProcess,
   writeSnapshotData,
-} from '../../modules/token-price/processor.helpers.js';
-import { TokenPriceWriter } from '../../modules/token-price/writer.js';
-import type { ETLJob } from '../../types/index.js';
-import { calculateMissingDates, generateDateRange, formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { logger } from '../../utils/logger.js';
-import { TokenPriceDmaService } from './dmaService.js';
+} from "../../modules/token-price/processor.helpers.js";
+import { TokenPriceWriter } from "../../modules/token-price/writer.js";
+import type { ETLJob } from "../../types/index.js";
+import {
+  calculateMissingDates,
+  generateDateRange,
+  formatDateToYYYYMMDD,
+} from "../../utils/dateUtils.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { logger } from "../../utils/logger.js";
+import { TokenPriceDmaService } from "./dmaService.js";
 
 export class TokenPriceETLProcessor implements BaseETLProcessor {
-  private static readonly DEFAULT_TOKEN_ID = 'bitcoin';
-  private static readonly DEFAULT_TOKEN_SYMBOL = 'BTC';
+  private static readonly DEFAULT_TOKEN_ID = "bitcoin";
+  private static readonly DEFAULT_TOKEN_SYMBOL = "BTC";
 
   private fetcher: CoinGeckoFetcher;
   private writer: TokenPriceWriter;
@@ -41,7 +47,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   private stats = {
     totalProcessed: 0,
     totalErrors: 0,
-    lastProcessedAt: null as Date | null
+    lastProcessedAt: null as Date | null,
   };
 
   constructor(pool?: Pool) {
@@ -56,8 +62,8 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    * Fetches current price for the default token (BTC) and stores it.
    */
   async process(job: ETLJob): Promise<ETLProcessResult> {
-    return withValidatedJob(job, 'token-price', async () => {
-      logger.info('Processing token price snapshot', { jobId: job.jobId });
+    return withValidatedJob(job, "token-price", async () => {
+      logger.info("Processing token price snapshot", { jobId: job.jobId });
 
       const result = await this.executeProcessFlow(job);
       updateStatsAfterProcess(this.stats, result.success);
@@ -65,9 +71,9 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
         await this.updateDmaAfterPriceWrite(job.jobId);
       }
 
-      logger.info('Token price snapshot processing completed', {
+      logger.info("Token price snapshot processing completed", {
         jobId: job.jobId,
-        recordsInserted: result.recordsInserted
+        recordsInserted: result.recordsInserted,
       });
 
       return result;
@@ -83,16 +89,16 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
       const dmaResult = await this.updateDmaForToken(
         TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
         TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-        jobId
-      );
-      logger.info('DMA post-step completed', {
         jobId,
-        dmaRecordsInserted: dmaResult.recordsInserted
+      );
+      logger.info("DMA post-step completed", {
+        jobId,
+        dmaRecordsInserted: dmaResult.recordsInserted,
       });
     } catch (error) {
-      logger.warn('DMA post-step failed (non-fatal)', {
+      logger.warn("DMA post-step failed (non-fatal)", {
         jobId,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
     }
   }
@@ -109,27 +115,30 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    */
   async processCurrentPrice(
     tokenId: string = TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL
+    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
   ): Promise<void> {
-    logger.info('Starting token price ETL job', { tokenId, tokenSymbol });
+    logger.info("Starting token price ETL job", { tokenId, tokenSymbol });
 
     try {
-      const priceData = await this.fetcher.fetchCurrentPrice(tokenId, tokenSymbol);
+      const priceData = await this.fetcher.fetchCurrentPrice(
+        tokenId,
+        tokenSymbol,
+      );
       await this.writer.insertSnapshot(priceData);
 
-      logger.info('Token price ETL completed successfully', {
+      logger.info("Token price ETL completed successfully", {
         tokenId,
         tokenSymbol,
         price: priceData.priceUsd,
         marketCap: priceData.marketCapUsd,
-        date: formatDateToYYYYMMDD(priceData.timestamp)
+        date: formatDateToYYYYMMDD(priceData.timestamp),
       });
     } catch (error) {
-      logger.error('Token price ETL failed', {
+      logger.error("Token price ETL failed", {
         tokenId,
         tokenSymbol,
         error: toErrorMessage(error),
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       });
       throw error;
     }
@@ -148,33 +157,60 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   async backfillHistory(
     daysBack: number = 30,
     tokenId: string = TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL
+    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
   ): Promise<{
     requested: number;
     existing: number;
     fetched: number;
     inserted: number;
   }> {
-    logger.info('Starting token price backfill', { daysBack, tokenId, tokenSymbol });
+    logger.info("Starting token price backfill", {
+      daysBack,
+      tokenId,
+      tokenSymbol,
+    });
 
-    const { startDate, endDate }: BackfillDateRange = getBackfillDateRange(daysBack);
-    const existingDates = await getExistingDates(this.writer, startDate, endDate, tokenSymbol, daysBack);
+    const { startDate, endDate }: BackfillDateRange =
+      getBackfillDateRange(daysBack);
+    const existingDates = await getExistingDates(
+      this.writer,
+      startDate,
+      endDate,
+      tokenSymbol,
+      daysBack,
+    );
 
     const allDates = generateDateRange(startDate, endDate);
     const missingDates = calculateMissingDates(allDates, existingDates);
-    logGapDetectionSummary(existingDates, missingDates, startDate, endDate, tokenSymbol, daysBack);
+    logGapDetectionSummary(
+      existingDates,
+      missingDates,
+      startDate,
+      endDate,
+      tokenSymbol,
+      daysBack,
+    );
 
-    const snapshots = await fetchMissingDateSnapshots(missingDates, tokenId, tokenSymbol, this.fetcher);
+    const snapshots = await fetchMissingDateSnapshots(
+      missingDates,
+      tokenId,
+      tokenSymbol,
+      this.fetcher,
+    );
     const inserted = await this.writer.insertBatch(snapshots);
 
     const result = {
       requested: daysBack,
       existing: existingDates.length,
       fetched: snapshots.length,
-      inserted
+      inserted,
     };
 
-    logger.info('Token price backfill completed', { ...result, tokenId, tokenSymbol });
+    logger.info("Token price backfill completed", {
+      ...result,
+      tokenId,
+      tokenSymbol,
+    });
     return result;
   }
 
@@ -187,9 +223,13 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   async updateDmaForToken(
     tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
     tokenId: string = TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-    jobId?: string
+    jobId?: string,
   ): Promise<{ recordsInserted: number }> {
-    const result = await this.dmaService.updateDmaForToken(tokenSymbol, tokenId, jobId);
+    const result = await this.dmaService.updateDmaForToken(
+      tokenSymbol,
+      tokenId,
+      jobId,
+    );
     await this.updateEthBtcRatioAfterDma(tokenSymbol, jobId);
     return result;
   }
@@ -209,8 +249,14 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
       const apiHealth = await this.fetcher.healthCheck(tokenId, tokenSymbol);
       const latestSnapshot = await this.writer.getLatestSnapshot(tokenSymbol);
       const totalSnapshots = await this.writer.getSnapshotCount(tokenSymbol);
-      const { status, freshness } = resolveHealthStatus(latestSnapshot?.date, apiHealth.status);
-      const dmaInfo = await getOptionalDmaHealthInfo(this.dmaService, tokenSymbol);
+      const { status, freshness } = resolveHealthStatus(
+        latestSnapshot?.date,
+        apiHealth.status,
+      );
+      const dmaInfo = await getOptionalDmaHealthInfo(
+        this.dmaService,
+        tokenSymbol,
+      );
 
       return {
         status,
@@ -221,19 +267,19 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
           latestSnapshot,
           totalSnapshots,
           freshness,
-          dmaInfo
-        )
+          dmaInfo,
+        ),
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      logger.error('Health check failed', {
+      logger.error("Health check failed", {
         tokenId,
         tokenSymbol,
-        error: errorMessage
+        error: errorMessage,
       });
       return {
-        status: 'unhealthy',
-        details: errorMessage
+        status: "unhealthy",
+        details: errorMessage,
       };
     }
   }
@@ -246,7 +292,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
       totalProcessed: this.stats.totalProcessed,
       totalErrors: this.stats.totalErrors,
       lastProcessedAt: this.stats.lastProcessedAt?.toISOString() || null,
-      successRate: calculateSuccessRate(this.stats)
+      successRate: calculateSuccessRate(this.stats),
     };
   }
 
@@ -254,48 +300,51 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    * Get the data source type this processor handles
    */
   getSourceType(): string {
-    return 'token-price';
+    return "token-price";
   }
 
   private async executeProcessFlow(job: ETLJob): Promise<ETLProcessResult> {
     return executeETLFlow<TokenPriceData, TokenPriceData>(
       job,
-      'token-price',
+      "token-price",
       async () => {
         const priceData = await this.fetcher.fetchCurrentPrice(
           TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-          TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL
+          TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
         );
         return [priceData];
       },
       async (rawData) => rawData,
-      async (data) => writeSnapshotData(data, this.writer)
+      async (data) => writeSnapshotData(data, this.writer),
     );
   }
 
-  private async updateEthBtcRatioAfterDma(tokenSymbol: string, jobId?: string): Promise<void> {
+  private async updateEthBtcRatioAfterDma(
+    tokenSymbol: string,
+    jobId?: string,
+  ): Promise<void> {
     if (!this.shouldRefreshEthBtcRatio(tokenSymbol)) {
       return;
     }
 
     try {
       const ratioResult = await this.dmaService.updateEthBtcRatioDma(jobId);
-      logger.info('ETH/BTC ratio DMA post-step completed', {
+      logger.info("ETH/BTC ratio DMA post-step completed", {
         jobId,
         tokenSymbol,
-        ratioRecordsInserted: ratioResult.recordsInserted
+        ratioRecordsInserted: ratioResult.recordsInserted,
       });
     } catch (error) {
-      logger.warn('ETH/BTC ratio DMA post-step failed (non-fatal)', {
+      logger.warn("ETH/BTC ratio DMA post-step failed (non-fatal)", {
         jobId,
         tokenSymbol,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
     }
   }
 
   private shouldRefreshEthBtcRatio(tokenSymbol: string): boolean {
     const normalizedSymbol = tokenSymbol.trim().toUpperCase();
-    return normalizedSymbol === 'BTC' || normalizedSymbol === 'ETH';
+    return normalizedSymbol === "BTC" || normalizedSymbol === "ETH";
   }
 }

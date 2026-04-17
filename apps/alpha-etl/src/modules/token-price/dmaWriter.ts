@@ -7,13 +7,16 @@
  * Target: token_price_dma_snapshots table
  */
 
-import { logger } from '../../utils/logger.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { BaseWriter, type WriteResult } from '../../core/database/baseWriter.js';
-import { getTableName } from '../../config/database.js';
-import { buildTokenPriceDmaInsertValues } from '../../core/database/columnDefinitions.js';
-import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
-import type { TokenPriceDmaSnapshotInsert } from '../../types/database.js';
+import { logger } from "../../utils/logger.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import {
+  BaseWriter,
+  type WriteResult,
+} from "../../core/database/baseWriter.js";
+import { getTableName } from "../../config/database.js";
+import { buildTokenPriceDmaInsertValues } from "../../core/database/columnDefinitions.js";
+import { formatDateToYYYYMMDD } from "../../utils/dateUtils.js";
+import type { TokenPriceDmaSnapshotInsert } from "../../types/database.js";
 
 interface LatestDmaSnapshotRow {
   snapshot_date: Date | string;
@@ -36,16 +39,16 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
    * @returns Combined write result from all batches
    */
   async writeDmaSnapshots(
-    snapshots: TokenPriceDmaSnapshotInsert[]
+    snapshots: TokenPriceDmaSnapshotInsert[],
   ): Promise<WriteResult> {
-    logger.debug('Starting DMA snapshots write', {
-      snapshotCount: snapshots.length
+    logger.debug("Starting DMA snapshots write", {
+      snapshotCount: snapshots.length,
     });
 
     return this.processBatches(
       snapshots,
       this.writeBatch.bind(this),
-      'DMA snapshots'
+      "DMA snapshots",
     );
   }
 
@@ -55,12 +58,15 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
    * @param tokenSymbol - Token symbol to look up (e.g., 'BTC')
    * @returns Latest DMA snapshot summary, or null if none exists
    */
-  async getLatestDmaSnapshot(
-    tokenSymbol: string
-  ): Promise<{ date: string; price: number; dma200: number | null; isAboveDma: boolean | null } | null> {
+  async getLatestDmaSnapshot(tokenSymbol: string): Promise<{
+    date: string;
+    price: number;
+    dma200: number | null;
+    isAboveDma: boolean | null;
+  } | null> {
     const query = `
       SELECT snapshot_date, price_usd, dma_200, is_above_dma
-      FROM ${getTableName('TOKEN_PRICE_DMA_SNAPSHOTS')}
+      FROM ${getTableName("TOKEN_PRICE_DMA_SNAPSHOTS")}
       WHERE source = $1
         AND token_symbol = $2
       ORDER BY snapshot_date DESC
@@ -69,7 +75,7 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
 
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, ['coingecko', tokenSymbol])
+        client.query(query, ["coingecko", tokenSymbol]),
       );
 
       if (result.rows.length === 0) {
@@ -78,17 +84,21 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
 
       const row = result.rows[0] as LatestDmaSnapshotRow;
       return {
-        date: row.snapshot_date instanceof Date
-          ? formatDateToYYYYMMDD(row.snapshot_date)
-          : String(row.snapshot_date),
+        date:
+          row.snapshot_date instanceof Date
+            ? formatDateToYYYYMMDD(row.snapshot_date)
+            : String(row.snapshot_date),
         price: parseFloat(String(row.price_usd)),
-        dma200: row.dma_200 === null || row.dma_200 === undefined ? null : parseFloat(String(row.dma_200)),
-        isAboveDma: row.is_above_dma
+        dma200:
+          row.dma_200 === null || row.dma_200 === undefined
+            ? null
+            : parseFloat(String(row.dma_200)),
+        isAboveDma: row.is_above_dma,
       };
     } catch (error) {
-      logger.error('Failed to get latest DMA snapshot', {
+      logger.error("Failed to get latest DMA snapshot", {
         tokenSymbol,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
       return null;
     }
@@ -96,17 +106,18 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
 
   private async writeBatch(
     batch: TokenPriceDmaSnapshotInsert[],
-    batchNumber: number
+    batchNumber: number,
   ): Promise<WriteResult> {
     return this.executeBatchWrite({
       batchNumber,
-      logContext: 'DMA snapshots',
+      logContext: "DMA snapshots",
       recordCount: batch.length,
       buildQuery: () => {
-        const { columns, placeholders, values } = buildTokenPriceDmaInsertValues(batch);
+        const { columns, placeholders, values } =
+          buildTokenPriceDmaInsertValues(batch);
 
         const query = `
-          INSERT INTO ${getTableName('TOKEN_PRICE_DMA_SNAPSHOTS')} (${columns.join(', ')})
+          INSERT INTO ${getTableName("TOKEN_PRICE_DMA_SNAPSHOTS")} (${columns.join(", ")})
           VALUES ${placeholders}
           ON CONFLICT (source, token_symbol, snapshot_date)
           DO UPDATE SET

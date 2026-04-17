@@ -1,9 +1,13 @@
-import type { DataSource, ETLJob, ETLProcessResult } from '../../types/index.js';
-import type { WriteResult } from '../database/baseWriter.js';
-import { logger } from '../../utils/logger.js';
-import type { HealthCheckResult } from '../../utils/healthCheck.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { validateETLJob as performValidation } from './validation.js';
+import type {
+  DataSource,
+  ETLJob,
+  ETLProcessResult,
+} from "../../types/index.js";
+import type { WriteResult } from "../database/baseWriter.js";
+import { logger } from "../../utils/logger.js";
+import type { HealthCheckResult } from "../../utils/healthCheck.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { validateETLJob as performValidation } from "./validation.js";
 
 export type { ETLProcessResult, HealthCheckResult };
 
@@ -45,7 +49,7 @@ export async function executeETLFlow<TRaw, TTransformed>(
   options?: {
     allowEmptyFetch?: boolean;
     allowEmptyTransform?: boolean;
-  }
+  },
 ): Promise<ETLProcessResult> {
   const allowEmptyFetch = options?.allowEmptyFetch === true;
   const allowEmptyTransform = options?.allowEmptyTransform === true;
@@ -66,7 +70,7 @@ export async function executeETLFlow<TRaw, TTransformed>(
     const transformedData = await transformFn(rawData);
 
     if (transformedData.length === 0 && !allowEmptyTransform) {
-      logger.warn('No valid data after transformation', { jobId: job.jobId });
+      logger.warn("No valid data after transformation", { jobId: job.jobId });
       return result;
     }
 
@@ -81,14 +85,14 @@ export async function executeETLFlow<TRaw, TTransformed>(
       jobId: job.jobId,
       recordsProcessed: result.recordsProcessed,
       recordsInserted: result.recordsInserted,
-      errorCount: result.errors.length
+      errorCount: result.errors.length,
     });
 
     return result;
   } catch (error) {
     logger.error(`${source} processing failed:`, {
       jobId: job.jobId,
-      error
+      error,
     });
 
     result.success = false;
@@ -103,7 +107,7 @@ function createETLProcessResult(source: DataSource): ETLProcessResult {
     recordsProcessed: 0,
     recordsInserted: 0,
     errors: [],
-    source
+    source,
   };
 }
 
@@ -111,13 +115,16 @@ function createETLProcessResult(source: DataSource): ETLProcessResult {
  * Create a failed ETL result for early-exit error paths (e.g. validation failures).
  * Shared across processors to eliminate duplicate private methods.
  */
-export function createFailedETLResult(source: DataSource, message: string): ETLProcessResult {
+export function createFailedETLResult(
+  source: DataSource,
+  message: string,
+): ETLProcessResult {
   return {
     success: false,
     recordsProcessed: 0,
     recordsInserted: 0,
     errors: [message],
-    source
+    source,
   };
 }
 
@@ -133,7 +140,7 @@ export function createFailedETLResult(source: DataSource, message: string): ETLP
 export async function withValidatedJob<T extends ETLProcessResult>(
   job: ETLJob,
   source: DataSource,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   try {
     performValidation(job);
@@ -142,7 +149,7 @@ export async function withValidatedJob<T extends ETLProcessResult>(
     const message = toErrorMessage(error);
     logger.error(`${source} processing failed`, {
       jobId: job.jobId,
-      error
+      error,
     });
     return createFailedETLResult(source, message) as T;
   }

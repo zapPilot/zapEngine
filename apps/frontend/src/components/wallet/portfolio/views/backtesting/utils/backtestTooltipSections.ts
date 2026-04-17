@@ -106,6 +106,48 @@ export function buildAllocations(
     .filter((allocation): allocation is AllocationBlock => allocation !== null);
 }
 
+function getStrategyDetailItems(
+  strategy: StrategiesRecord[string],
+  strategyId: string
+): DetailItem[] {
+  const displayName = getStrategyDisplayName(strategyId);
+  const items: DetailItem[] = [
+    {
+      name: `${displayName} decision`,
+      value: `${strategy.decision.action} · ${strategy.decision.reason}`,
+      color: "#cbd5e1",
+    },
+  ];
+
+  const targetSpotAsset = resolveBacktestSpotAsset(strategy);
+  if (targetSpotAsset) {
+    items.push({
+      name: `${displayName} spot asset`,
+      value: targetSpotAsset,
+      color: getBacktestSpotAssetColor(targetSpotAsset),
+    });
+  }
+
+  if (strategy.execution.blocked_reason) {
+    items.push({
+      name: `${displayName} blocked`,
+      value: strategy.execution.blocked_reason,
+      color: "#fda4af",
+    });
+  }
+
+  const buyGateBlockReason = getBuyGateBlockReason(strategy);
+  if (buyGateBlockReason) {
+    items.push({
+      name: `${displayName} buy gate`,
+      value: buyGateBlockReason,
+      color: "#fcd34d",
+    });
+  }
+
+  return items;
+}
+
 /**
  * Build strategy, event, signal, and detail sections for a tooltip.
  *
@@ -133,13 +175,17 @@ export function buildTooltipSections(
       continue;
     }
 
-    const name = entry.name ?? "";
+    const name = String(entry.name ?? "");
     const color = entry.color ?? "#fff";
 
     if (isKnownSignal(name)) {
       signalItems.push({
         name,
-        value: formatSignalValue(name, entry.value, sentiment),
+        value: formatSignalValue(
+          name,
+          typeof entry.value === "number" ? entry.value : undefined,
+          sentiment
+        ),
         color,
       });
       continue;
@@ -165,41 +211,7 @@ export function buildTooltipSections(
     if (strategy?.signal == null) {
       continue;
     }
-
-    const displayName = getStrategyDisplayName(strategyId);
-    detailItems.push({
-      name: `${displayName} decision`,
-      value: `${strategy.decision.action} · ${strategy.decision.reason}`,
-      color: "#cbd5e1",
-    });
-
-    const targetSpotAsset = resolveBacktestSpotAsset(strategy);
-    if (targetSpotAsset) {
-      detailItems.push({
-        name: `${displayName} spot asset`,
-        value: targetSpotAsset,
-        color: getBacktestSpotAssetColor(targetSpotAsset),
-      });
-    }
-
-    if (strategy.execution.blocked_reason) {
-      detailItems.push({
-        name: `${displayName} blocked`,
-        value: strategy.execution.blocked_reason,
-        color: "#fda4af",
-      });
-    }
-
-    const buyGateBlockReason = getBuyGateBlockReason(strategy);
-    if (!buyGateBlockReason) {
-      continue;
-    }
-
-    detailItems.push({
-      name: `${displayName} buy gate`,
-      value: buyGateBlockReason,
-      color: "#fcd34d",
-    });
+    detailItems.push(...getStrategyDetailItems(strategy, strategyId));
   }
 
   return {

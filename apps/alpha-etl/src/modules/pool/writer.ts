@@ -1,22 +1,39 @@
-import { BaseWriter, type WriteResult } from '../../core/database/baseWriter.js';
-import { logger } from '../../utils/logger.js';
-import { getTableName } from '../../config/database.js';
-import type { PoolAprSnapshotInsert } from '../../types/database.js';
-import { buildPoolInsertValues } from '../../core/database/columnDefinitions.js';
+import {
+  BaseWriter,
+  type WriteResult,
+} from "../../core/database/baseWriter.js";
+import { logger } from "../../utils/logger.js";
+import { getTableName } from "../../config/database.js";
+import type { PoolAprSnapshotInsert } from "../../types/database.js";
+import { buildPoolInsertValues } from "../../core/database/columnDefinitions.js";
 
 export class PoolWriter extends BaseWriter<PoolAprSnapshotInsert> {
-  async writePoolSnapshots(snapshots: PoolAprSnapshotInsert[], source: string): Promise<WriteResult> {
-    logger.debug('Writing pool snapshots', { source, recordCount: snapshots.length });
+  async writePoolSnapshots(
+    snapshots: PoolAprSnapshotInsert[],
+    source: string,
+  ): Promise<WriteResult> {
+    logger.debug("Writing pool snapshots", {
+      source,
+      recordCount: snapshots.length,
+    });
 
     return this.processBatches(
       snapshots,
       this.writeBatch.bind(this),
-      'pool snapshots'
+      "pool snapshots",
     );
   }
 
-  private async writeBatch(batch: PoolAprSnapshotInsert[], batchNumber: number): Promise<WriteResult> {
-    const result: WriteResult = { success: true, recordsInserted: 0, errors: [], duplicatesSkipped: 0 };
+  private async writeBatch(
+    batch: PoolAprSnapshotInsert[],
+    batchNumber: number,
+  ): Promise<WriteResult> {
+    const result: WriteResult = {
+      success: true,
+      recordsInserted: 0,
+      errors: [],
+      duplicatesSkipped: 0,
+    };
     const validRecords = this.filterValidRecords(batch, result);
 
     if (validRecords.length === 0) {
@@ -25,12 +42,13 @@ export class PoolWriter extends BaseWriter<PoolAprSnapshotInsert> {
 
     const batchResult = await this.executeBatchWrite({
       batchNumber,
-      logContext: 'pool snapshots',
+      logContext: "pool snapshots",
       recordCount: validRecords.length,
       buildQuery: () => {
-        const { columns, placeholders, values } = buildPoolInsertValues(validRecords);
+        const { columns, placeholders, values } =
+          buildPoolInsertValues(validRecords);
         const query = `
-          INSERT INTO ${getTableName('POOL_APR_SNAPSHOTS')} (${columns.join(', ')})
+          INSERT INTO ${getTableName("POOL_APR_SNAPSHOTS")} (${columns.join(", ")})
           VALUES ${placeholders}
           ON CONFLICT (pool_address, protocol_address, chain, source, snapshot_time)
           DO UPDATE SET
@@ -56,12 +74,22 @@ export class PoolWriter extends BaseWriter<PoolAprSnapshotInsert> {
     return result;
   }
 
-  private filterValidRecords(batch: PoolAprSnapshotInsert[], result: WriteResult): PoolAprSnapshotInsert[] {
+  private filterValidRecords(
+    batch: PoolAprSnapshotInsert[],
+    result: WriteResult,
+  ): PoolAprSnapshotInsert[] {
     const validRecords: PoolAprSnapshotInsert[] = [];
 
     for (const record of batch) {
-      if (!record.source || !record.symbol || record.apr === undefined || record.apr === null) {
-        result.errors.push(`Invalid record: missing required fields (source: ${record.source}, symbol: ${record.symbol}, apr: ${record.apr})`);
+      if (
+        !record.source ||
+        !record.symbol ||
+        record.apr === undefined ||
+        record.apr === null
+      ) {
+        result.errors.push(
+          `Invalid record: missing required fields (source: ${record.source}, symbol: ${record.symbol}, apr: ${record.apr})`,
+        );
         continue;
       }
 

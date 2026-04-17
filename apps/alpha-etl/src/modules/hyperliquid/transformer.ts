@@ -1,10 +1,20 @@
-import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
-import { logger } from '../../utils/logger.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { resolveSnapshotTime } from '../../utils/dateUtils.js';
-import { isFiniteNumber, toFiniteNumberOrNull } from '../../utils/numberUtils.js';
-import type { VaultAprData, VaultDetailsResponse, VaultPositionData } from '../../modules/hyperliquid/fetcher.js';
-import type { PortfolioItemSnapshotInsert, HyperliquidVaultAprSnapshotInsert } from '../../types/database.js';
+import { transformBatchWithLogging } from "../../core/transformers/baseTransformer.js";
+import { logger } from "../../utils/logger.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { resolveSnapshotTime } from "../../utils/dateUtils.js";
+import {
+  isFiniteNumber,
+  toFiniteNumberOrNull,
+} from "../../utils/numberUtils.js";
+import type {
+  VaultAprData,
+  VaultDetailsResponse,
+  VaultPositionData,
+} from "../../modules/hyperliquid/fetcher.js";
+import type {
+  PortfolioItemSnapshotInsert,
+  HyperliquidVaultAprSnapshotInsert,
+} from "../../types/database.js";
 
 export interface TransformPositionParams {
   position: VaultPositionData | null;
@@ -15,7 +25,10 @@ export interface TransformPositionParams {
  * Transforms Hyperliquid vault API responses into portfolio and APR snapshots.
  */
 export class HyperliquidDataTransformer {
-  transformPosition({ position, timestamp }: TransformPositionParams): PortfolioItemSnapshotInsert | null {
+  transformPosition({
+    position,
+    timestamp,
+  }: TransformPositionParams): PortfolioItemSnapshotInsert | null {
     if (!position) {
       return null;
     }
@@ -29,7 +42,7 @@ export class HyperliquidDataTransformer {
 
       return this.createSnapshot(position, snapshotAt, epochSeconds);
     } catch (error) {
-      logger.error('Failed to transform Hyperliquid position data', {
+      logger.error("Failed to transform Hyperliquid position data", {
         error: toErrorMessage(error),
         wallet: position.userWallet,
         vault: position.vaultAddress,
@@ -39,8 +52,11 @@ export class HyperliquidDataTransformer {
   }
 
   private validatePosition(position: VaultPositionData): boolean {
-    if (!isFiniteNumber(position.vaultUsdValue) || !isFiniteNumber(position.hlpBalance)) {
-      logger.warn('Hyperliquid position contains invalid numeric values', {
+    if (
+      !isFiniteNumber(position.vaultUsdValue) ||
+      !isFiniteNumber(position.hlpBalance)
+    ) {
+      logger.warn("Hyperliquid position contains invalid numeric values", {
         wallet: position.userWallet,
         vault: position.vaultAddress,
         vaultUsdValue: position.vaultUsdValue,
@@ -59,7 +75,9 @@ export class HyperliquidDataTransformer {
     return position.vaultUsdValue / position.hlpBalance;
   }
 
-  private buildPositionDetail(position: VaultPositionData): Record<string, unknown> {
+  private buildPositionDetail(
+    position: VaultPositionData,
+  ): Record<string, unknown> {
     return {
       vault_address: position.vaultAddress,
       hlp_balance: position.hlpBalance,
@@ -69,46 +87,56 @@ export class HyperliquidDataTransformer {
     };
   }
 
-  private buildAssetTokenList(position: VaultPositionData, epochSeconds: number): Array<Record<string, unknown>> {
+  private buildAssetTokenList(
+    position: VaultPositionData,
+    epochSeconds: number,
+  ): Array<Record<string, unknown>> {
     const pricePerShare = this.resolvePricePerShare(position);
     return [
       {
         id: position.vaultAddress,
-        chain: 'hyperliquid',
+        chain: "hyperliquid",
         name: position.vaultName,
-        symbol: 'HLP',
+        symbol: "HLP",
         price: pricePerShare,
         amount: position.hlpBalance,
         is_core: false,
         is_wallet: false,
         is_verified: false,
-        protocol_id: 'hyperliquid_vaults',
+        protocol_id: "hyperliquid_vaults",
         decimals: 18,
         time_at: epochSeconds,
       },
     ];
   }
 
-  private buildPoolInfo(position: VaultPositionData, epochSeconds: number): Record<string, unknown> {
+  private buildPoolInfo(
+    position: VaultPositionData,
+    epochSeconds: number,
+  ): Record<string, unknown> {
     return {
       id: position.vaultAddress,
-      chain: 'hyperliquid',
+      chain: "hyperliquid",
       index: null,
       time_at: epochSeconds,
-      adapter_id: 'hyperliquid_vault',
+      adapter_id: "hyperliquid_vault",
       controller: position.leaderAddress ?? null,
-      project_id: 'hyperliquid',
+      project_id: "hyperliquid",
     };
   }
 
-  private createSnapshot(position: VaultPositionData, snapshotAt: string, epochSeconds: number): PortfolioItemSnapshotInsert {
+  private createSnapshot(
+    position: VaultPositionData,
+    snapshotAt: string,
+    epochSeconds: number,
+  ): PortfolioItemSnapshotInsert {
     const assetDict = this.buildAssetDict(position);
     const vaultSiteUrl = this.buildVaultSiteUrl(position.vaultAddress);
 
     return {
       wallet: position.userWallet.toLowerCase(),
-      chain: 'hyperliquid',
-      name: 'hyperliquid',
+      chain: "hyperliquid",
+      name: "hyperliquid",
       name_item: position.vaultName,
       id_raw: position.vaultAddress,
       asset_usd_value: position.vaultUsdValue,
@@ -118,7 +146,7 @@ export class HyperliquidDataTransformer {
       site_url: vaultSiteUrl,
       asset_dict: assetDict,
       asset_token_list: this.buildAssetTokenList(position, epochSeconds),
-      detail_types: ['hyperliquid'],
+      detail_types: ["hyperliquid"],
       pool: this.buildPoolInfo(position, epochSeconds),
       proxy_detail: {},
       debt_usd_value: 0,
@@ -127,20 +155,25 @@ export class HyperliquidDataTransformer {
     };
   }
 
-  transformBatch(params: TransformPositionParams[]): PortfolioItemSnapshotInsert[] {
+  transformBatch(
+    params: TransformPositionParams[],
+  ): PortfolioItemSnapshotInsert[] {
     return transformBatchWithLogging(
       params,
       (item) => this.transformPosition(item),
-      'Hyperliquid position'
+      "Hyperliquid position",
     );
   }
 
-  transformApr(aprData: VaultAprData, raw: VaultDetailsResponse): HyperliquidVaultAprSnapshotInsert {
+  transformApr(
+    aprData: VaultAprData,
+    raw: VaultDetailsResponse,
+  ): HyperliquidVaultAprSnapshotInsert {
     const snapshotTime = this.getSnapshotTime();
     const aprValue = this.toValidAprValue(aprData);
 
     return {
-      source: 'hyperliquid',
+      source: "hyperliquid",
       vault_address: aprData.vaultAddress,
       vault_name: aprData.vaultName,
       leader_address: aprData.leaderAddress,
@@ -179,16 +212,16 @@ export class HyperliquidDataTransformer {
       return aprValue;
     }
 
-    logger.warn('Invalid APR value received from Hyperliquid', {
+    logger.warn("Invalid APR value received from Hyperliquid", {
       vault: aprData.vaultAddress,
       apr: aprData.apr,
     });
-    throw new Error('Invalid APR value');
+    throw new Error("Invalid APR value");
   }
 
   private buildAprPoolMeta(
     aprData: VaultAprData,
-    raw: VaultDetailsResponse
+    raw: VaultDetailsResponse,
   ): Record<string, unknown> {
     return {
       description: raw.description,
@@ -196,5 +229,4 @@ export class HyperliquidDataTransformer {
       total_followers: aprData.totalFollowers ?? null,
     };
   }
-
 }

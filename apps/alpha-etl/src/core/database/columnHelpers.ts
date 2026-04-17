@@ -3,15 +3,21 @@
  * Eliminates duplication across column definition files
  */
 
-function buildRowPlaceholders(startPosition: number, columnCount: number): string {
-  const columns = Array.from({ length: columnCount }, (_, columnIndex) => `$${startPosition + columnIndex}`);
-  return `(${columns.join(', ')})`;
+function buildRowPlaceholders(
+  startPosition: number,
+  columnCount: number,
+): string {
+  const columns = Array.from(
+    { length: columnCount },
+    (_, columnIndex) => `$${startPosition + columnIndex}`,
+  );
+  return `(${columns.join(", ")})`;
 }
 
 function toSqlValue<T, K extends keyof T & string>(
   record: T,
   column: K,
-  valueTransformer?: (column: K, value: T[K], record: T) => unknown
+  valueTransformer?: (column: K, value: T[K], record: T) => unknown,
 ): unknown {
   const rawValue = record[column];
   const transformedValue = valueTransformer
@@ -28,11 +34,14 @@ function toSqlValue<T, K extends keyof T & string>(
  * @param columnCount - Number of columns per record
  * @returns Placeholder string like "($1, $2), ($3, $4)"
  */
-export function buildPlaceholders(recordCount: number, columnCount: number): string {
+export function buildPlaceholders(
+  recordCount: number,
+  columnCount: number,
+): string {
   return Array.from({ length: recordCount }, (_, rowIdx) => {
     const start = rowIdx * columnCount + 1;
     return buildRowPlaceholders(start, columnCount);
-  }).join(', ');
+  }).join(", ");
 }
 
 /**
@@ -41,13 +50,10 @@ export function buildPlaceholders(recordCount: number, columnCount: number): str
  * @param columns - Array of column names (with type safety)
  * @param valueTransformer - Optional function to transform values (e.g., JSON serialization, defaults)
  */
-export function buildGenericInsertValues<
-  T,
-  K extends keyof T & string
->(
+export function buildGenericInsertValues<T, K extends keyof T & string>(
   records: ReadonlyArray<T>,
   columns: ReadonlyArray<K>,
-  valueTransformer?: (column: K, value: T[K], record: T) => unknown
+  valueTransformer?: (column: K, value: T[K], record: T) => unknown,
 ): { columns: ReadonlyArray<K>; placeholders: string; values: unknown[] } {
   const placeholders = buildPlaceholders(records.length, columns.length);
 

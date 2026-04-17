@@ -1,17 +1,17 @@
-import { BaseWriter } from '../../core/database/baseWriter.js';
-import { getTableName } from '../../config/database.js';
-import { buildTokenPriceInsertValues } from '../../core/database/columnDefinitions.js';
-import type { TokenPriceData } from '../../modules/token-price/schema.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { logger } from '../../utils/logger.js';
-import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
+import { BaseWriter } from "../../core/database/baseWriter.js";
+import { getTableName } from "../../config/database.js";
+import { buildTokenPriceInsertValues } from "../../core/database/columnDefinitions.js";
+import type { TokenPriceData } from "../../modules/token-price/schema.js";
+import { toErrorMessage } from "../../utils/errors.js";
+import { logger } from "../../utils/logger.js";
+import { formatDateToYYYYMMDD } from "../../utils/dateUtils.js";
 
 function normalizeSnapshotDateValue(snapshotDate: Date | string): Date {
   return snapshotDate instanceof Date ? snapshotDate : new Date(snapshotDate);
 }
 
 export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
-  private static readonly DEFAULT_TOKEN_SYMBOL = 'BTC';
+  private static readonly DEFAULT_TOKEN_SYMBOL = "BTC";
 
   /**
    * Insert token price snapshot (upsert on conflict)
@@ -24,12 +24,14 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     try {
       const result = await this.executeBatchWrite({
         batchNumber: 1,
-        logContext: 'token price snapshot',
+        logContext: "token price snapshot",
         recordCount: 1,
         buildQuery: () => {
-          const { columns, placeholders, values } = buildTokenPriceInsertValues([data]);
+          const { columns, placeholders, values } = buildTokenPriceInsertValues(
+            [data],
+          );
           const query = `
-            INSERT INTO ${this.getSnapshotsTableName()} (${columns.join(', ')})
+            INSERT INTO ${this.getSnapshotsTableName()} (${columns.join(", ")})
             VALUES ${placeholders}
             ON CONFLICT (source, token_symbol, snapshot_date)
             DO UPDATE SET
@@ -46,23 +48,23 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
       });
 
       if (!result.success) {
-        throw new Error(result.errors[0] ?? 'Unknown insert error');
+        throw new Error(result.errors[0] ?? "Unknown insert error");
       }
 
-      logger.info('Token price snapshot saved', {
+      logger.info("Token price snapshot saved", {
         tokenSymbol: data.tokenSymbol,
         tokenId: data.tokenId,
         price: data.priceUsd,
         source: data.source,
-        date: snapshotDate
+        date: snapshotDate,
       });
     } catch (error) {
-      logger.error('Failed to save token price snapshot', {
+      logger.error("Failed to save token price snapshot", {
         error: toErrorMessage(error),
         date: snapshotDate,
         tokenSymbol: data.tokenSymbol,
         tokenId: data.tokenId,
-        price: data.priceUsd
+        price: data.priceUsd,
       });
       throw error;
     }
@@ -78,13 +80,17 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     if (snapshots.length === 0) {
       return 0;
     }
-    const tokenSymbol = snapshots[0]?.tokenSymbol ?? 'UNKNOWN';
-    logger.info('Starting batch insert', { total: snapshots.length, tokenSymbol });
+    const tokenSymbol = snapshots[0]?.tokenSymbol ?? "UNKNOWN";
+    logger.info("Starting batch insert", {
+      total: snapshots.length,
+      tokenSymbol,
+    });
 
-    const { columns, placeholders, values } = buildTokenPriceInsertValues(snapshots);
+    const { columns, placeholders, values } =
+      buildTokenPriceInsertValues(snapshots);
     const query = `
       INSERT INTO ${this.getSnapshotsTableName()} (
-        ${columns.join(', ')}
+        ${columns.join(", ")}
       )
       VALUES ${placeholders}
       ON CONFLICT (source, token_symbol, snapshot_date) DO NOTHING
@@ -93,23 +99,23 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
 
     try {
       const queryResult = await this.withDatabaseClient((client) =>
-        client.query(query, values)
+        client.query(query, values),
       );
       const inserted = queryResult.rowCount ?? queryResult.rows?.length ?? 0;
       const successRate = `${((inserted / snapshots.length) * 100).toFixed(1)}%`;
-      logger.info('Batch insert completed', {
+      logger.info("Batch insert completed", {
         total: snapshots.length,
         tokenSymbol,
         inserted,
         failed: snapshots.length - inserted,
-        successRate
+        successRate,
       });
       return inserted;
     } catch (error) {
-      logger.error('Batch insert failed', {
+      logger.error("Batch insert failed", {
         tokenSymbol,
         total: snapshots.length,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
       throw error;
     }
@@ -119,7 +125,7 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
    * Get the most recent token price snapshot from database
    */
   async getLatestSnapshot(
-    tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL
+    tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL,
   ): Promise<{ date: string; price: number; tokenSymbol: string } | null> {
     const tableName = this.getSnapshotsTableName();
     const query = `
@@ -131,21 +137,23 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     `;
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, [tokenSymbol])
+        client.query(query, [tokenSymbol]),
       );
       if (result.rows.length === 0) {
         return null;
       }
       const row = result.rows[0];
       return {
-        date: formatDateToYYYYMMDD(normalizeSnapshotDateValue(row.snapshot_date)),
+        date: formatDateToYYYYMMDD(
+          normalizeSnapshotDateValue(row.snapshot_date),
+        ),
         price: Number.parseFloat(row.price_usd),
-        tokenSymbol: row.token_symbol
+        tokenSymbol: row.token_symbol,
       };
     } catch (error) {
-      logger.error('Failed to get latest snapshot', {
+      logger.error("Failed to get latest snapshot", {
         tokenSymbol,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
       throw error;
     }
@@ -154,7 +162,9 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
   /**
    * Count total token price snapshots in database
    */
-  async getSnapshotCount(tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL): Promise<number> {
+  async getSnapshotCount(
+    tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL,
+  ): Promise<number> {
     const tableName = this.getSnapshotsTableName();
     const query = `
       SELECT COUNT(*) as count
@@ -163,13 +173,13 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     `;
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, [tokenSymbol])
+        client.query(query, [tokenSymbol]),
       );
-      return Number.parseInt(result.rows[0]?.count ?? '0', 10);
+      return Number.parseInt(result.rows[0]?.count ?? "0", 10);
     } catch (error) {
-      logger.error('Failed to get snapshot count', {
+      logger.error("Failed to get snapshot count", {
         tokenSymbol,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
       return 0;
     }
@@ -183,7 +193,7 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     startDate: Date,
     endDate: Date,
     tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL,
-    source: string = 'coingecko'
+    source: string = "coingecko",
   ): Promise<string[]> {
     const tableName = this.getSnapshotsTableName();
     const query = `
@@ -199,29 +209,31 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     const endDateStr = formatDateToYYYYMMDD(endDate);
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, [source, tokenSymbol, startDateStr, endDateStr])
+        client.query(query, [source, tokenSymbol, startDateStr, endDateStr]),
       );
       // PostgreSQL to_char() returns strings in YYYY-MM-DD format.
-      const dates = result.rows.map((row: { snapshot_date: string }) => row.snapshot_date);
-      logger.info('Retrieved existing snapshots in range', {
+      const dates = result.rows.map(
+        (row: { snapshot_date: string }) => row.snapshot_date,
+      );
+      logger.info("Retrieved existing snapshots in range", {
         tokenSymbol,
         source,
         startDate: startDateStr,
         endDate: endDateStr,
-        count: dates.length
+        count: dates.length,
       });
       return dates;
     } catch (error) {
-      logger.error('Failed to get existing dates in range', {
+      logger.error("Failed to get existing dates in range", {
         tokenSymbol,
         source,
-        error: toErrorMessage(error)
+        error: toErrorMessage(error),
       });
       return []; // Fallback to full fetch on error
     }
   }
 
   private getSnapshotsTableName(): string {
-    return getTableName('TOKEN_PRICE_SNAPSHOTS');
+    return getTableName("TOKEN_PRICE_SNAPSHOTS");
   }
 }

@@ -1,10 +1,10 @@
-import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
-import { logger } from '../../utils/logger.js';
-import { maskWalletAddress } from '../../utils/mask.js';
-import { z } from 'zod';
-import { RATE_LIMITS } from '../../config/database.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
-import { toErrorMessage } from '../../utils/errors.js';
+import { BaseApiFetcher } from "../../core/fetchers/baseApiFetcher.js";
+import { logger } from "../../utils/logger.js";
+import { maskWalletAddress } from "../../utils/mask.js";
+import { z } from "zod";
+import { RATE_LIMITS } from "../../config/database.js";
+import { wrapHealthCheck } from "../../utils/healthCheck.js";
+import { toErrorMessage } from "../../utils/errors.js";
 
 export interface DeBankTokenBalance {
   id: string;
@@ -61,7 +61,9 @@ export const DeBankComplexProtocolListSchema = z.array(DeBankProtocolSchema);
 
 export type DeBankProtocolItem = z.infer<typeof ProtocolItemSchema>;
 export type DeBankProtocol = z.infer<typeof DeBankProtocolSchema>;
-export type DeBankComplexProtocolList = z.infer<typeof DeBankComplexProtocolListSchema>;
+export type DeBankComplexProtocolList = z.infer<
+  typeof DeBankComplexProtocolListSchema
+>;
 
 export interface DeBankConfig {
   apiUrl?: string;
@@ -70,7 +72,11 @@ export interface DeBankConfig {
   strictErrors?: boolean;
 }
 
-function resolveStrictErrors(configStrict: boolean | undefined, envStrict: string | undefined, defaultStrict: boolean): boolean {
+function resolveStrictErrors(
+  configStrict: boolean | undefined,
+  envStrict: string | undefined,
+  defaultStrict: boolean,
+): boolean {
   if (configStrict !== undefined) {
     return configStrict;
   }
@@ -79,7 +85,7 @@ function resolveStrictErrors(configStrict: boolean | undefined, envStrict: strin
     return defaultStrict;
   }
 
-  return envStrict === 'true';
+  return envStrict === "true";
 }
 
 export class DeBankFetcher extends BaseApiFetcher {
@@ -87,61 +93,86 @@ export class DeBankFetcher extends BaseApiFetcher {
   private strictErrors: boolean;
 
   constructor(config?: DeBankConfig) {
-    const apiUrl = config?.apiUrl ?? process.env.DEBANK_API_URL ?? 'https://pro-openapi.debank.com';
-    const defaultRateLimit = process.env.NODE_ENV === 'test' ? 0 : RATE_LIMITS.DEBANK_DELAY_MS;
+    const apiUrl =
+      config?.apiUrl ??
+      process.env.DEBANK_API_URL ??
+      "https://pro-openapi.debank.com";
+    const defaultRateLimit =
+      process.env.NODE_ENV === "test" ? 0 : RATE_LIMITS.DEBANK_DELAY_MS;
     const rateLimitMs = config?.rateLimitMs ?? defaultRateLimit; // 1 second between requests (conservative)
 
     super(apiUrl, rateLimitMs);
 
     this.apiKey = config?.apiKey ?? process.env.DEBANK_API_KEY;
     const envStrict = process.env.DEBANK_STRICT_ERRORS;
-    const defaultStrict = process.env.NODE_ENV ? process.env.NODE_ENV !== 'test' : true;
-    this.strictErrors = resolveStrictErrors(config?.strictErrors, envStrict, defaultStrict);
+    const defaultStrict = process.env.NODE_ENV
+      ? process.env.NODE_ENV !== "test"
+      : true;
+    this.strictErrors = resolveStrictErrors(
+      config?.strictErrors,
+      envStrict,
+      defaultStrict,
+    );
 
     if (this.apiKey) {
-      logger.info('DeBank fetcher initialized with API key');
+      logger.info("DeBank fetcher initialized with API key");
     } else {
-      logger.warn('DeBank fetcher initialized without API key (rate limits may apply)');
+      logger.warn(
+        "DeBank fetcher initialized without API key (rate limits may apply)",
+      );
     }
   }
 
   /**
    * Fetch wallet token balances
    */
-  async fetchWalletTokenList(walletAddress: string): Promise<DeBankTokenBalance[]> {
+  async fetchWalletTokenList(
+    walletAddress: string,
+  ): Promise<DeBankTokenBalance[]> {
     try {
-      logger.info('Fetching wallet token list from API', {
-        walletAddress: maskWalletAddress(walletAddress)
+      logger.info("Fetching wallet token list from API", {
+        walletAddress: maskWalletAddress(walletAddress),
       });
 
       const url = `${this.baseUrl}/v1/user/all_token_list`;
       const params = new URLSearchParams({
-        id: walletAddress.toLowerCase()
+        id: walletAddress.toLowerCase(),
       });
 
-      const data = await this.fetchWithRetry<unknown>(`${url}?${params}`, {
-        headers: this.buildHeaders()
-      }, 3, 1000);
+      const data = await this.fetchWithRetry<unknown>(
+        `${url}?${params}`,
+        {
+          headers: this.buildHeaders(),
+        },
+        3,
+        1000,
+      );
       return this.validateTokenResponse(data, walletAddress);
-
     } catch (error) {
-      this.logFetchError('Failed to fetch wallet token list', walletAddress, error);
+      this.logFetchError(
+        "Failed to fetch wallet token list",
+        walletAddress,
+        error,
+      );
       return this.rethrowOrReturnEmpty<DeBankTokenBalance>(error);
     }
   }
 
-  private validateTokenResponse(data: unknown, walletAddress: string): DeBankTokenBalance[] {
+  private validateTokenResponse(
+    data: unknown,
+    walletAddress: string,
+  ): DeBankTokenBalance[] {
     if (Array.isArray(data)) {
       return data as DeBankTokenBalance[];
     }
 
-    logger.warn('API returned non-array response', {
+    logger.warn("API returned non-array response", {
       walletAddress: maskWalletAddress(walletAddress),
       responseType: typeof data,
-      response: data
+      response: data,
     });
     if (this.strictErrors) {
-      throw new Error('DeBank API returned non-array response for token list');
+      throw new Error("DeBank API returned non-array response for token list");
     }
     return [];
   }
@@ -149,24 +180,34 @@ export class DeBankFetcher extends BaseApiFetcher {
   /**
    * Fetch complex protocol list (portfolio items) for a wallet
    */
-  async fetchComplexProtocolList(walletAddress: string): Promise<DeBankComplexProtocolList> {
+  async fetchComplexProtocolList(
+    walletAddress: string,
+  ): Promise<DeBankComplexProtocolList> {
     try {
-      logger.info('Fetching complex protocol list from DeBank API', {
-        walletAddress: maskWalletAddress(walletAddress)
+      logger.info("Fetching complex protocol list from DeBank API", {
+        walletAddress: maskWalletAddress(walletAddress),
       });
 
       const url = `${this.baseUrl}/v1/user/all_complex_protocol_list`;
       const params = new URLSearchParams({
-        id: walletAddress.toLowerCase()
+        id: walletAddress.toLowerCase(),
       });
 
-      const data = await this.fetchWithRetry<unknown>(`${url}?${params}`, {
-        headers: this.buildHeaders()
-      }, 3, 1000);
+      const data = await this.fetchWithRetry<unknown>(
+        `${url}?${params}`,
+        {
+          headers: this.buildHeaders(),
+        },
+        3,
+        1000,
+      );
       return this.validateProtocolResponse(data, walletAddress);
-
     } catch (error) {
-      this.logFetchError('Failed to fetch complex protocol list from DeBank', walletAddress, error);
+      this.logFetchError(
+        "Failed to fetch complex protocol list from DeBank",
+        walletAddress,
+        error,
+      );
       return this.rethrowOrReturnEmpty<DeBankProtocol>(error);
     }
   }
@@ -174,19 +215,27 @@ export class DeBankFetcher extends BaseApiFetcher {
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
     if (this.apiKey) {
-      headers['AccessKey'] = this.apiKey;
+      headers["AccessKey"] = this.apiKey;
     }
     return headers;
   }
 
-  private validateProtocolResponse(data: unknown, walletAddress: string): DeBankComplexProtocolList {
+  private validateProtocolResponse(
+    data: unknown,
+    walletAddress: string,
+  ): DeBankComplexProtocolList {
     if (!Array.isArray(data)) {
-      logger.warn('DeBank API returned non-array response for complex protocol list', {
-        walletAddress: maskWalletAddress(walletAddress),
-        responseType: typeof data
-      });
+      logger.warn(
+        "DeBank API returned non-array response for complex protocol list",
+        {
+          walletAddress: maskWalletAddress(walletAddress),
+          responseType: typeof data,
+        },
+      );
       if (this.strictErrors) {
-        throw new Error('DeBank API returned non-array response for complex protocol list');
+        throw new Error(
+          "DeBank API returned non-array response for complex protocol list",
+        );
       }
       return [];
     }
@@ -194,18 +243,28 @@ export class DeBankFetcher extends BaseApiFetcher {
     try {
       return DeBankComplexProtocolListSchema.parse(data);
     } catch (zodError) {
-      logger.warn('DeBank complex protocol list validation failed, returning raw data', {
-        walletAddress: maskWalletAddress(walletAddress),
-        error: zodError instanceof Error ? zodError.message : 'Unknown validation error'
-      });
+      logger.warn(
+        "DeBank complex protocol list validation failed, returning raw data",
+        {
+          walletAddress: maskWalletAddress(walletAddress),
+          error:
+            zodError instanceof Error
+              ? zodError.message
+              : "Unknown validation error",
+        },
+      );
       return data as DeBankComplexProtocolList;
     }
   }
 
-  private logFetchError(message: string, walletAddress: string, error: unknown): void {
+  private logFetchError(
+    message: string,
+    walletAddress: string,
+    error: unknown,
+  ): void {
     logger.error(message, {
       walletAddress: maskWalletAddress(walletAddress),
-      error
+      error,
     });
   }
 
@@ -216,38 +275,41 @@ export class DeBankFetcher extends BaseApiFetcher {
     return [];
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details?: string }> {
+  async healthCheck(): Promise<{
+    status: "healthy" | "unhealthy";
+    details?: string;
+  }> {
     return wrapHealthCheck(async () => {
       // Test with a well-known address (Ethereum Foundation)
-      const testAddress = '0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae';
+      const testAddress = "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae";
       const url = `${this.baseUrl}/v1/user/total_balance`;
       const params = new URLSearchParams({
-        id: testAddress
+        id: testAddress,
       });
 
       const headers: Record<string, string> = {
-        'Accept': 'application/json',
-        'User-Agent': this.userAgent
+        Accept: "application/json",
+        "User-Agent": this.userAgent,
       };
 
       Object.assign(headers, this.buildHeaders());
 
       const response = await fetch(`${url}?${params}`, {
         headers,
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (response.ok) {
-        return { status: 'healthy' };
+        return { status: "healthy" };
       } else if (response.status === 429) {
         return {
-          status: 'unhealthy',
-          details: 'Rate limited - consider adding API key'
+          status: "unhealthy",
+          details: "Rate limited - consider adding API key",
         };
       } else {
         return {
-          status: 'unhealthy',
-          details: `HTTP ${response.status}: ${response.statusText}`
+          status: "unhealthy",
+          details: `HTTP ${response.status}: ${response.statusText}`,
         };
       }
     });

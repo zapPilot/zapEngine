@@ -7,9 +7,13 @@
  * - Runs with 1 worker and list reporter to reduce resource usage.
  */
 
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function resolveBin(bin) {
   const local = path.join(
@@ -71,8 +75,10 @@ async function main() {
         return;
       }
       if (
-        err.includes("browserType.launch") ||
-        err.includes("please install browsers")
+        err.includes("browsertype.launch") ||
+        err.includes("please install browsers") ||
+        err.includes("executable doesn't exist") ||
+        err.includes("download new browsers")
       ) {
         console.log(
           "\nℹ️  Playwright browsers not installed. Skipping E2E tests."

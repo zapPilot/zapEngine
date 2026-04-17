@@ -1,11 +1,11 @@
-import { logger } from '../../utils/logger.js';
-import { maskWalletAddress } from '../../utils/mask.js';
+import { logger } from "../../utils/logger.js";
+import { maskWalletAddress } from "../../utils/mask.js";
 import type {
   DeBankFetcher,
   DeBankTokenBalance,
-  DeBankComplexProtocolList
-} from '../../modules/wallet/fetcher.js';
-import type { WalletBalanceSnapshotInsert } from '../../types/database.js';
+  DeBankComplexProtocolList,
+} from "../../modules/wallet/fetcher.js";
+import type { WalletBalanceSnapshotInsert } from "../../types/database.js";
 
 interface FetchWalletDataOptions {
   warningMessage: string;
@@ -20,7 +20,7 @@ export interface DeBankWalletData {
 export async function fetchWalletDataFromDeBank(
   debankFetcher: DeBankFetcher,
   walletAddress: string,
-  options: FetchWalletDataOptions
+  options: FetchWalletDataOptions,
 ): Promise<DeBankWalletData | null> {
   const [tokenResponse, protocolResponse] = await Promise.all([
     debankFetcher.fetchWalletTokenList(walletAddress),
@@ -33,7 +33,7 @@ export async function fetchWalletDataFromDeBank(
   if (tokensValid && protocolsValid) {
     return {
       tokens: tokenResponse,
-      protocols: protocolResponse
+      protocols: protocolResponse,
     };
   }
 
@@ -41,14 +41,14 @@ export async function fetchWalletDataFromDeBank(
     ...options.context,
     wallet: maskWalletAddress(walletAddress),
     tokensValid,
-    protocolsValid
+    protocolsValid,
   });
   return null;
 }
 
 export function mapTokenBalancesToSnapshots(
   tokens: DeBankTokenBalance[],
-  walletAddress: string
+  walletAddress: string,
 ): WalletBalanceSnapshotInsert[] {
   return tokens.map((tokenObj) => ({
     user_wallet_address: walletAddress,
