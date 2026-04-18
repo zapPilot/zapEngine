@@ -46,3 +46,4 @@ coverage/
 
 # claude
 .claude/scheduled_tasks.lock
+.claude/worktrees

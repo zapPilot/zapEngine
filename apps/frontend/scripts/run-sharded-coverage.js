@@ -193,6 +193,7 @@ for (const [batchIndex, batchFiles] of batches.entries()) {
 console.log("[coverage] Merging batch reports (summary)");
 const summaryMergeStatus = runVitest(
   [
+    "run",
     "--mergeReports",
     BLOB_DIR,
     "--coverage.enabled",
@@ -213,6 +214,7 @@ if (summaryMergeStatus !== 0) {
 console.log("[coverage] Merging batch reports (html/lcov)");
 const htmlMergeStatus = runVitest(
   [
+    "run",
     "--mergeReports",
     BLOB_DIR,
     "--coverage.enabled",
