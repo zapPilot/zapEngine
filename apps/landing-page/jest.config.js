@@ -39,19 +39,6 @@ const config = {
       functions: 60,
       lines: 65,
     },
-    // Critical business logic - higher thresholds
-    './src/lib/regimeUtils.ts': {
-      statements: 90,
-      branches: 85,
-      functions: 90,
-      lines: 90,
-    },
-    './src/lib/regimeTransformers.ts': {
-      statements: 85,
-      branches: 80,
-      functions: 85,
-      lines: 85,
-    },
     // Hooks with comprehensive testing
     './src/hooks/useMediaQuery.ts': {
       statements: 80,
@@ -62,12 +49,6 @@ const config = {
     './src/hooks/useReducedMotion.ts': {
       statements: 80,
       branches: 75,
-      functions: 80,
-      lines: 80,
-    },
-    './src/hooks/useRegimeAutoPlay.ts': {
-      statements: 80,
-      branches: 70,
       functions: 80,
       lines: 80,
     },

@@ -1,19 +1,21 @@
 #!/usr/bin/env sh
 set -eu
 
-phase() {
-  printf '::phase::%s\n' "$1"
-}
+. "$(dirname "$0")/../../.husky/lib/parallel-runner.sh"
 
+# format writes files — must run alone before read-only static checks.
 phase format
 pnpm run format
-phase lint
-pnpm run lint
-phase type-check
-pnpm run type-check
-phase deadcode
-pnpm run deadcode
-phase dup:check
-pnpm run dup:check
+
+# Static checks are read-only and independent — run in parallel.
+phase static-checks
+init_parallel_runner
+queue_task lint       'pnpm run lint'
+queue_task type-check 'pnpm run type-check'
+queue_task deadcode   'pnpm run deadcode'
+queue_task dup:check  'pnpm run dup:check'
+wait_tasks
+
+# Jest coverage runs serially (memory/CPU heavy).
 phase test:coverage
 pnpm run test:coverage

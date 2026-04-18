@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -eu
+
+phase() {
+  printf '::phase::%s\n' "$1"
+}
+
+phase type-check
+pnpm run type-check

@@ -26,7 +26,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "pre-commit": "sh pre-commit"
   },
   "dependencies": {
     "zod": "^4.1.13"

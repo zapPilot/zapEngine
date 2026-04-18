@@ -98,43 +98,6 @@ describe("httpUtils service clients", () => {
     });
   });
 
-  describe("intentEngine", () => {
-    it("should use correct base URL for get", async () => {
-      await httpUtils.intentEngine.get("/intent");
-      expect(mockHttpGet).toHaveBeenCalledWith(
-        "/intent",
-        expect.objectContaining({ baseURL: expect.any(String) }),
-        undefined
-      );
-    });
-
-    it("should use correct base URL for post", async () => {
-      await httpUtils.intentEngine.post("/intent", { action: "swap" });
-      expect(mockHttpPost).toHaveBeenCalledWith(
-        "/intent",
-        { action: "swap" },
-        expect.objectContaining({ baseURL: expect.any(String) }),
-        undefined
-      );
-    });
-  });
-
-  describe("backendApi", () => {
-    it("should use correct base URL", async () => {
-      await httpUtils.backendApi.get("/v1/users");
-      expect(mockHttpGet).toHaveBeenCalledWith(
-        "/v1/users",
-        expect.objectContaining({ baseURL: expect.any(String) }),
-        undefined
-      );
-    });
-
-    it("should support post with body", async () => {
-      await httpUtils.backendApi.post("/v1/notifications", { type: "email" });
-      expect(mockHttpPost).toHaveBeenCalled();
-    });
-  });
-
   describe("accountApi", () => {
     it("should use correct base URL", async () => {
       await httpUtils.accountApi.get("/users/123");

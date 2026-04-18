@@ -7,12 +7,8 @@ describe("API_ENDPOINTS", () => {
     expect(typeof API_ENDPOINTS.analyticsEngine).toBe("string");
   });
 
-  it("has an intentEngine field (string)", () => {
-    expect(typeof API_ENDPOINTS.intentEngine).toBe("string");
-  });
-
-  it("has a backendApi field (string)", () => {
-    expect(typeof API_ENDPOINTS.backendApi).toBe("string");
+  it("has an accountApi field (string)", () => {
+    expect(typeof API_ENDPOINTS.accountApi).toBe("string");
   });
 
   it("has a debank field pointing to the known endpoint", () => {

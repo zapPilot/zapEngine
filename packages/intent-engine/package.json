@@ -25,7 +25,8 @@
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pre-commit": "sh pre-commit"
   },
   "dependencies": {
     "@lifi/sdk": "^3.4.0",
@@ -36,7 +37,7 @@
     "@zapengine/tsconfig": "workspace:*",
     "@types/node": "^22.10.7",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=22.0.0"
