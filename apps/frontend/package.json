@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "playwright install",
     "dev": "cross-env VITE_ENABLE_RQ_DEVTOOLS=0 VITE_ENABLE_LOG_VIEWER=0 vite",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 4173",

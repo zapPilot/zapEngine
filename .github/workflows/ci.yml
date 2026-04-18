@@ -10,9 +10,6 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
-      account-engine: ${{ steps.filter.outputs.account-engine }}
-      alpha-etl: ${{ steps.filter.outputs.alpha-etl }}
       analytics-engine: ${{ steps.filter.outputs.analytics-engine }}
       changed_apps: ${{ steps.filter.outputs.changes }}
     steps:
@@ -22,18 +19,18 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          filters: |
+          filters:
             frontend:
-              - 'apps/frontend/**'
-              - 'packages/**'
+              - "apps/frontend/**"
+              - &watch_packages "packages/**"
             account-engine:
-              - 'apps/account-engine/**'
-              - 'packages/**'
+              - "apps/account-engine/**"
+              - *watch_packages
             alpha-etl:
-              - 'apps/alpha-etl/**'
-              - 'packages/**'
+              - "apps/alpha-etl/**"
+              - *watch_packages
             analytics-engine:
-              - 'apps/analytics-engine/**'
+              - "apps/analytics-engine/**"
 
   lint-test:
     needs: changes
