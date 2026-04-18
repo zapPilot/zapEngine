@@ -196,7 +196,6 @@ LOG_LEVEL=info
   - Migration: Reuses existing portfolio tracking infrastructure
 
 ## Deployment
-
 ### Fly.io Deployment
 
 1. **Install Fly CLI:**
@@ -222,7 +221,6 @@ LOG_LEVEL=info
 - Pre-commit hooks: configured in `alpha-etl/.pre-commit-config.yaml`.
   - Enable locally: `pipx install pre-commit` (or `pip install pre-commit`), then `pre-commit install` from the repo root.
   - Hooks run ESLint fix/validate, TypeScript typecheck, Vitest suites, and basic file hygiene.
-- GitHub Actions: CI workflows under `alpha-etl/.github/workflows/` for tests, Docker build/push (GHCR), and Fly.io deploy.
 
 ## Features
 

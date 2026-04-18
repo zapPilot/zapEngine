@@ -33,7 +33,7 @@ Account Engine is the Hono-based account and notification API for Zap Pilot. It 
 - `GET /etl/jobs/:jobId`
 - `POST /telegram/webhook`
 
-Swagger is intentionally removed in this version. The stale `/health/database` and `/health/database/raw` endpoints are not implemented.
+Swagger is intentionally removed. The stale `/health/database` and `/health/database/raw` endpoints are not implemented.
 
 ## Environment
 

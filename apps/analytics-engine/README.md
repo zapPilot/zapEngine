@@ -141,6 +141,5 @@ For detailed commands, configuration, and development guidelines, see [CLAUDE.md
 - ✅ Optimized SQL queries (window functions, JSONB, pool performance)
 - ✅ Tuned connection pool (10/20 → 30 concurrent connections)
 - ✅ Environment-aware error handling (detailed in dev, secure in production)
-- 📋 Database index recommendations (pending DBA review for -150-300ms additional gain)
 
 See `.serena/memories/performance_optimizations.md` for complete details.

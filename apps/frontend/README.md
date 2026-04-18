@@ -279,7 +279,6 @@ The app is configured for static export deployment:
 
 - **Cloudflare Pages**: Recommended with Worker integration
 - **Vercel**: Full Next.js support with edge functions
-- **Netlify**: Static hosting with form handling
 - **AWS S3/CloudFront**: Traditional static hosting
 
 ## AI Development Support
