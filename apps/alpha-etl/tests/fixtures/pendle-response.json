@@ -1,0 +1,238 @@
+{
+  "success": true,
+  "markets": [
+    {
+      "address": "0x1234567890abcdef1234567890abcdef12345678",
+      "name": "PT-stETH-26DEC2024",
+      "symbol": "PT-stETH",
+      "expiry": "2024-12-26T00:00:00.000Z",
+      "pt": {
+        "address": "0xpt1234567890abcdef1234567890abcdef12345678",
+        "name": "PT stETH",
+        "symbol": "PT-stETH"
+      },
+      "yt": {
+        "address": "0xyt1234567890abcdef1234567890abcdef12345678",
+        "name": "YT stETH",
+        "symbol": "YT-stETH"
+      },
+      "sy": {
+        "address": "0xsy1234567890abcdef1234567890abcdef12345678",
+        "name": "SY stETH",
+        "symbol": "SY-stETH"
+      },
+      "details": {
+        "impliedApy": 8.45,
+        "aggregatedApy": 9.2,
+        "liquidity": 15678000,
+        "totalSupply": 1000000,
+        "priceUSD": 0.9234,
+        "underlyingApy": 6.2,
+        "ytFloatingApy": 2.25,
+        "ptDiscount": 5.5,
+        "swapFeeApy": 0.8,
+        "pendleApy": 1.45
+      },
+      "chainId": 1,
+      "protocol": "pendle",
+      "underlyingAssets": [
+        {
+          "address": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "symbol": "stETH",
+          "name": "Staked Ether",
+          "decimals": 18
+        }
+      ],
+      "rewardTokens": [
+        {
+          "address": "0x808507121b80c02388fad14726482e061b8da827",
+          "symbol": "PENDLE",
+          "name": "Pendle",
+          "decimals": 18
+        }
+      ]
+    },
+    {
+      "address": "0xabcdef1234567890abcdef1234567890abcdef12",
+      "name": "PT-GLP-29MAR2025",
+      "symbol": "PT-GLP",
+      "expiry": "2025-03-29T00:00:00.000Z",
+      "pt": {
+        "address": "0xptabcdef1234567890abcdef1234567890abcdef12",
+        "name": "PT GLP",
+        "symbol": "PT-GLP"
+      },
+      "yt": {
+        "address": "0xytabcdef1234567890abcdef1234567890abcdef12",
+        "name": "YT GLP",
+        "symbol": "YT-GLP"
+      },
+      "sy": {
+        "address": "0xsyabcdef1234567890abcdef1234567890abcdef12",
+        "name": "SY GLP",
+        "symbol": "SY-GLP"
+      },
+      "details": {
+        "impliedApy": 15.78,
+        "aggregatedApy": 18.5,
+        "liquidity": 8934000,
+        "totalSupply": 450000,
+        "priceUSD": 0.8567,
+        "underlyingApy": 12.5,
+        "ytFloatingApy": 3.28,
+        "ptDiscount": 8.2,
+        "swapFeeApy": 1.5,
+        "pendleApy": 4.5
+      },
+      "chainId": 42161,
+      "protocol": "pendle",
+      "underlyingAssets": [
+        {
+          "address": "0x5402B5F40310bDED796c7D0F3FF6683f5C0cFfdf",
+          "symbol": "GLP",
+          "name": "GMX Liquidity Provider",
+          "decimals": 18
+        }
+      ],
+      "rewardTokens": [
+        {
+          "address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+          "symbol": "WETH",
+          "name": "Wrapped Ether",
+          "decimals": 18
+        }
+      ]
+    },
+    {
+      "address": "0x9876543210fedcba9876543210fedcba98765432",
+      "name": "PT-USDC-15JUN2024",
+      "symbol": "PT-USDC",
+      "expiry": "2024-06-15T00:00:00.000Z",
+      "pt": {
+        "address": "0xpt9876543210fedcba9876543210fedcba98765432",
+        "name": "PT USDC",
+        "symbol": "PT-USDC"
+      },
+      "yt": {
+        "address": "0xyt9876543210fedcba9876543210fedcba98765432",
+        "name": "YT USDC",
+        "symbol": "YT-USDC"
+      },
+      "sy": {
+        "address": "0xsy9876543210fedcba9876543210fedcba98765432",
+        "name": "SY USDC",
+        "symbol": "SY-USDC"
+      },
+      "details": {
+        "impliedApy": 4.23,
+        "aggregatedApy": 4.23,
+        "liquidity": 45670000,
+        "totalSupply": 22000000,
+        "priceUSD": 0.9789,
+        "underlyingApy": 4.23,
+        "ytFloatingApy": 0,
+        "ptDiscount": 2.1,
+        "swapFeeApy": 0,
+        "pendleApy": 0
+      },
+      "chainId": 1,
+      "protocol": "pendle",
+      "underlyingAssets": [
+        {
+          "address": "0xA0b86a33E6Ba9df23e45f42a4E9b8ffce85cfdc",
+          "symbol": "USDC",
+          "name": "USD Coin",
+          "decimals": 6
+        }
+      ]
+    },
+    {
+      "address": "0x1111222233334444555566667777888899990000",
+      "name": "PT-rETH-31DEC2024",
+      "symbol": "PT-rETH",
+      "expiry": "2024-12-31T00:00:00.000Z",
+      "pt": {
+        "address": "0xpt1111222233334444555566667777888899990000",
+        "name": "PT rETH",
+        "symbol": "PT-rETH"
+      },
+      "yt": {
+        "address": "0xyt1111222233334444555566667777888899990000",
+        "name": "YT rETH",
+        "symbol": "YT-rETH"
+      },
+      "sy": {
+        "address": "0xsy1111222233334444555566667777888899990000",
+        "name": "SY rETH",
+        "symbol": "SY-rETH"
+      },
+      "details": {
+        "impliedApy": 7.89,
+        "aggregatedApy": 8.5,
+        "liquidity": 9876000,
+        "totalSupply": 450000,
+        "priceUSD": 0.9156,
+        "underlyingApy": 5.67,
+        "ytFloatingApy": 2.22,
+        "ptDiscount": 4.1,
+        "swapFeeApy": 1.2,
+        "pendleApy": 1.8
+      },
+      "chainId": 1,
+      "protocol": "pendle",
+      "underlyingAssets": [
+        {
+          "address": "0xae78736Cd615f374D3085123A210448E74Fc6393",
+          "symbol": "rETH",
+          "name": "Rocket Pool ETH",
+          "decimals": 18
+        }
+      ],
+      "rewardTokens": [
+        {
+          "address": "0x808507121b80c02388fad14726482e061b8da827",
+          "symbol": "PENDLE",
+          "name": "Pendle",
+          "decimals": 18
+        }
+      ]
+    },
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "PT-INVALID-TEST",
+      "symbol": "",
+      "expiry": null,
+      "pt": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "",
+        "symbol": ""
+      },
+      "yt": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "",
+        "symbol": ""
+      },
+      "sy": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "name": "",
+        "symbol": ""
+      },
+      "details": {
+        "impliedApy": 0,
+        "aggregatedApy": 0,
+        "liquidity": 0,
+        "totalSupply": 0,
+        "priceUSD": 0,
+        "underlyingApy": 0,
+        "ytFloatingApy": 0,
+        "ptDiscount": 0,
+        "swapFeeApy": 0,
+        "pendleApy": 0
+      },
+      "chainId": 1,
+      "protocol": "pendle",
+      "underlyingAssets": []
+    }
+  ],
+  "totalCount": 5
+}
