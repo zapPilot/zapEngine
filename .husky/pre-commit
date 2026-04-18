@@ -107,16 +107,15 @@ print_failure_tail() {
   printf '%s\n' "$tail_output" | sed 's/^/   /'
 }
 
+# Workspace-level checks — always run, mirrors CI's "Node security audit" step
+queue workspace-audit 'pnpm audit --audit-level=moderate'
+
 while IFS='|' read -r name dir cmd || [ -n "$name" ]; do
   case "$name" in '#'*|'') continue ;; esac
   if printf '%s\n' "$CHANGED" | grep -q "^${dir}/"; then
     queue "$name" "cd $dir && $cmd"
   fi
 done < "$APPS_CONF"
-
-if [ -z "$NAMES" ]; then
-  exit 0
-fi
 
 for pid in $PIDS; do
   wait "$pid" || true
