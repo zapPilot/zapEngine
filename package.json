@@ -4,8 +4,8 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --parallel",
-    "dev:ts": "turbo run dev --filter='!analytics-engine'",
+    "dev": "turbo run dev --filter=frontend --filter=account-engine --filter=analytics-engine --parallel",
+    "dev:all": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
