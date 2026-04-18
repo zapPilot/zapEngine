@@ -48,7 +48,7 @@ yield-llama-fixtures.json
 uploads
 defillama.json
 wallet.json
-fixtures
+/fixtures/
 debank.json
 coverage-summary.json
 
