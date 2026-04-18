@@ -17,8 +17,8 @@
         "package.json",
         "tsconfig.json",
         "next.config.*",
-        "docusaurus.config.*",
-        "sidebars.*",
+        "source.config.*",
+        "content/**",
         "postcss.config.*",
         "tailwind.config.*"
       ]
@@ -45,7 +45,7 @@
         "package.json",
         "tsconfig.json",
         "next.config.*",
-        "docusaurus.config.*"
+        "source.config.*"
       ],
       "outputs": []
     },
@@ -93,8 +93,7 @@
         "src/**",
         "tests/**",
         "test/**",
-        "docs/**",
-        "i18n/**",
+        "content/**",
         "static/**",
         "public/**",
         "*.config.*",
@@ -110,8 +109,7 @@
         "src/**",
         "tests/**",
         "test/**",
-        "docs/**",
-        "i18n/**",
+        "content/**",
         "knip.json",
         "knip.production.json",
         "vulture_whitelist.py",
@@ -123,8 +121,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "docs/**",
-        "i18n/**",
+        "content/**",
         "public/**",
         ".jscpd.json"
       ],

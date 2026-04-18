@@ -109,6 +109,7 @@ print_failure_tail() {
 
 # Workspace-level checks — always run, mirrors CI's "Node security audit" step
 queue workspace-audit 'pnpm audit --audit-level=moderate'
+queue workspace-dead-env 'bash scripts/check-dead-env.sh'
 
 while IFS='|' read -r name dir cmd || [ -n "$name" ]; do
   case "$name" in '#'*|'') continue ;; esac

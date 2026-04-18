@@ -5,7 +5,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --filter=frontend --filter=account-engine --filter=analytics-engine --parallel",
-    "dev:landing-docs": "turbo run dev --filter=landing-page --filter=docs --parallel",
+    "dev:landing": "turbo run dev --filter=landing-page",
     "dev:all": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",

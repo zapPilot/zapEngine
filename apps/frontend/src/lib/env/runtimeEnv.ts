@@ -30,7 +30,7 @@ function readProcessEnv(key: string): EnvValue {
  *
  * @example
  * ```ts
- * const apiUrl = getRuntimeEnv("VITE_API_URL");
+ * const apiUrl = getRuntimeEnv("VITE_ACCOUNT_API_URL");
  * ```
  */
 export function getRuntimeEnv(key: string): string | undefined {

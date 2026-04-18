@@ -31,7 +31,6 @@ jobs:
       alpha_etl: ${{ steps.resolve.outputs.alpha_etl }}
       analytics_engine: ${{ steps.resolve.outputs.analytics_engine }}
       landing_page: ${{ steps.resolve.outputs.landing_page }}
-      docs: ${{ steps.resolve.outputs.docs }}
       any_changed: ${{ steps.resolve.outputs.any_changed }}
       turbo_selector: ${{ steps.resolve.outputs.turbo_selector }}
     steps:
@@ -80,13 +79,6 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - '.nvmrc'
-            docs:
-              - 'apps/docs/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - '.nvmrc'
 
       - id: resolve
         run: |
@@ -98,8 +90,7 @@ jobs:
                 alpha_etl=true
                 analytics_engine=true
                 landing_page=true
-                docs=true
-                turbo_selector="--filter=frontend --filter=account-engine --filter=alpha-etl --filter=analytics-engine --filter=landing-page --filter=docs"
+                turbo_selector="--filter=frontend --filter=account-engine --filter=alpha-etl --filter=analytics-engine --filter=landing-page"
                 ;;
               frontend)
                 frontend=true
@@ -140,12 +131,11 @@ jobs:
             alpha_etl="${{ steps.filter.outputs.alpha-etl }}"
             analytics_engine="${{ steps.filter.outputs.analytics-engine }}"
             landing_page="${{ steps.filter.outputs.landing-page }}"
-            docs="${{ steps.filter.outputs.docs }}"
             turbo_selector="--affected"
           fi
 
           any_changed=false
-          for changed in "$frontend" "$account_engine" "$alpha_etl" "$analytics_engine" "$landing_page" "$docs"; do
+          for changed in "$frontend" "$account_engine" "$alpha_etl" "$analytics_engine" "$landing_page"; do
             if [ "$changed" = "true" ]; then
               any_changed=true
               break
@@ -158,7 +148,6 @@ jobs:
             echo "alpha_etl=$alpha_etl"
             echo "analytics_engine=$analytics_engine"
             echo "landing_page=$landing_page"
-            echo "docs=$docs"
             echo "any_changed=$any_changed"
             echo "turbo_selector=$turbo_selector"
           } >> "$GITHUB_OUTPUT"
@@ -251,8 +240,6 @@ jobs:
 
       - name: Build frontend
         env:
-          VITE_INTENT_ENGINE_URL: ${{ secrets.VITE_INTENT_ENGINE_URL }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_ACCOUNT_API_URL: ${{ secrets.VITE_ACCOUNT_API_URL }}
           VITE_ANALYTICS_ENGINE_URL: ${{ secrets.VITE_ANALYTICS_ENGINE_URL }}
         run: pnpm --filter frontend build
@@ -319,3 +306,11 @@ jobs:
         run: flyctl deploy . --remote-only --config apps/analytics-engine/fly.toml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ANALYTICS }}
+
+  check-dead-env:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for dead env vars
+        run: bash scripts/check-dead-env.sh

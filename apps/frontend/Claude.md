@@ -88,9 +88,8 @@ export function useMyData(id: string) {
 Required in `.env.local`:
 
 ```bash
-VITE_API_URL=                # Account API endpoint
+VITE_ACCOUNT_API_URL=        # Account API endpoint
 VITE_ANALYTICS_ENGINE_URL=   # Analytics API endpoint
-VITE_INTENT_ENGINE_URL=      # Transaction execution API
 ```
 
 # Development Workflow

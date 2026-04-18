@@ -72,16 +72,6 @@ export const httpUtils = {
   analyticsEngine: createServiceHttpClient(API_ENDPOINTS.analyticsEngine),
 
   /**
-   * Intent Engine API utilities
-   */
-  intentEngine: createServiceHttpClient(API_ENDPOINTS.intentEngine),
-
-  /**
-   * Backend API utilities
-   */
-  backendApi: createServiceHttpClient(API_ENDPOINTS.backendApi),
-
-  /**
    * Account API utilities
    */
   accountApi: createServiceHttpClient(API_ENDPOINTS.accountApi),

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/app/**/*.{ts,tsx}", "src/pages/**/*.{ts,tsx}", "next.config.ts"],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/config/index.ts",
+    "src/hooks/index.ts",
+    "src/lib/index.ts",
+    "src/types/index.ts",
+    "src/test-utils/index.ts"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": [
+    "autoprefixer",
+    "postcss",
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "eslint-config-next",
+    "eslint-config-prettier",
+    "eslint-plugin-prettier",
+    "tailwindcss"
+  ]
+}

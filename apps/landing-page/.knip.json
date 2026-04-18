@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/app/**/*.{ts,tsx}", "*.config.{js,ts,mjs}"],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+  "ignoreDependencies": [
+    "clsx",
+    "tailwind-merge",
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "eslint-config-next",
+    "eslint-config-prettier",
+    "eslint-plugin-prettier",
+    "tailwindcss",
+    "postcss"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "ignoreMembers": ["metadata", "viewport", "generateMetadata", "generateStaticParams"]
+}

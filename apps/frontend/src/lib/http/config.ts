@@ -8,8 +8,6 @@ import { getRuntimeEnv, isRuntimeMode } from "@/lib/env/runtimeEnv";
 // API endpoints configuration
 export const API_ENDPOINTS = {
   analyticsEngine: getRuntimeEnv("VITE_ANALYTICS_ENGINE_URL") || "",
-  intentEngine: getRuntimeEnv("VITE_INTENT_ENGINE_URL") || "",
-  backendApi: getRuntimeEnv("VITE_API_URL") || "",
   accountApi: getRuntimeEnv("VITE_ACCOUNT_API_URL") || "",
   debank: "https://pro-openapi.debank.com/v1",
 } as const;
