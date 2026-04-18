@@ -19,18 +19,18 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          filters:
+          filters: |
             frontend:
-              - "apps/frontend/**"
-              - &watch_packages "packages/**"
+              - 'apps/frontend/**'
+              - 'packages/**'
             account-engine:
-              - "apps/account-engine/**"
-              - *watch_packages
+              - 'apps/account-engine/**'
+              - 'packages/**'
             alpha-etl:
-              - "apps/alpha-etl/**"
-              - *watch_packages
+              - 'apps/alpha-etl/**'
+              - 'packages/**'
             analytics-engine:
-              - "apps/analytics-engine/**"
+              - 'apps/analytics-engine/**'
 
   lint-test:
     needs: changes
