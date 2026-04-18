@@ -5,36 +5,170 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: Deploy a specific app or all apps
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - frontend
+          - account-engine
+          - alpha-etl
+          - analytics-engine
+
+permissions:
+  contents: read
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      analytics-engine: ${{ steps.filter.outputs.analytics-engine }}
-      changed_apps: ${{ steps.filter.outputs.changes }}
+      frontend: ${{ steps.resolve.outputs.frontend }}
+      account_engine: ${{ steps.resolve.outputs.account_engine }}
+      alpha_etl: ${{ steps.resolve.outputs.alpha_etl }}
+      analytics_engine: ${{ steps.resolve.outputs.analytics_engine }}
+      landing_page: ${{ steps.resolve.outputs.landing_page }}
+      docs: ${{ steps.resolve.outputs.docs }}
+      any_changed: ${{ steps.resolve.outputs.any_changed }}
+      turbo_selector: ${{ steps.resolve.outputs.turbo_selector }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
             frontend:
               - 'apps/frontend/**'
               - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
             account-engine:
               - 'apps/account-engine/**'
               - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.dockerignore'
+              - '.nvmrc'
             alpha-etl:
               - 'apps/alpha-etl/**'
               - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.dockerignore'
+              - '.nvmrc'
             analytics-engine:
               - 'apps/analytics-engine/**'
+              - '.dockerignore'
+            landing-page:
+              - 'apps/landing-page/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
+            docs:
+              - 'apps/docs/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
+
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ inputs.deploy_target }}" in
+              all)
+                frontend=true
+                account_engine=true
+                alpha_etl=true
+                analytics_engine=true
+                landing_page=true
+                docs=true
+                turbo_selector="--filter=frontend --filter=account-engine --filter=alpha-etl --filter=analytics-engine --filter=landing-page --filter=docs"
+                ;;
+              frontend)
+                frontend=true
+                account_engine=false
+                alpha_etl=false
+                analytics_engine=false
+                turbo_selector="--filter=frontend"
+                ;;
+              account-engine)
+                frontend=false
+                account_engine=true
+                alpha_etl=false
+                analytics_engine=false
+                turbo_selector="--filter=account-engine"
+                ;;
+              alpha-etl)
+                frontend=false
+                account_engine=false
+                alpha_etl=true
+                analytics_engine=false
+                turbo_selector="--filter=alpha-etl"
+                ;;
+              analytics-engine)
+                frontend=false
+                account_engine=false
+                alpha_etl=false
+                analytics_engine=true
+                turbo_selector="--filter=analytics-engine"
+                ;;
+              *)
+                echo "Unsupported deploy target: ${{ inputs.deploy_target }}" >&2
+                exit 1
+                ;;
+            esac
+          else
+            frontend="${{ steps.filter.outputs.frontend }}"
+            account_engine="${{ steps.filter.outputs.account-engine }}"
+            alpha_etl="${{ steps.filter.outputs.alpha-etl }}"
+            analytics_engine="${{ steps.filter.outputs.analytics-engine }}"
+            landing_page="${{ steps.filter.outputs.landing-page }}"
+            docs="${{ steps.filter.outputs.docs }}"
+            turbo_selector="--affected"
+          fi
+
+          any_changed=false
+          for changed in "$frontend" "$account_engine" "$alpha_etl" "$analytics_engine" "$landing_page" "$docs"; do
+            if [ "$changed" = "true" ]; then
+              any_changed=true
+              break
+            fi
+          done
+
+          {
+            echo "frontend=$frontend"
+            echo "account_engine=$account_engine"
+            echo "alpha_etl=$alpha_etl"
+            echo "analytics_engine=$analytics_engine"
+            echo "landing_page=$landing_page"
+            echo "docs=$docs"
+            echo "any_changed=$any_changed"
+            echo "turbo_selector=$turbo_selector"
+          } >> "$GITHUB_OUTPUT"
 
   lint-test:
     needs: changes
+    if: needs.changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
+    env:
+      TURBO_SELECTOR: ${{ needs.changes.outputs.turbo_selector }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,82 +183,139 @@ jobs:
           cache: "pnpm"
 
       - name: Install uv (for Python)
-        if: needs.changes.outputs.analytics-engine == 'true'
+        if: needs.changes.outputs.analytics_engine == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           version: "0.8.13"
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build affected packages
-        run: pnpm turbo run build --affected
+      - name: Build selected packages
+        run: pnpm turbo run build $TURBO_SELECTOR
 
-      - name: Run affected lint
-        run: pnpm turbo run lint --affected
+      - name: Run selected lint
+        run: pnpm turbo run lint $TURBO_SELECTOR
 
-      - name: Run affected type-check
-        run: pnpm turbo run type-check --affected
+      - name: Run selected type-check
+        run: pnpm turbo run type-check $TURBO_SELECTOR
 
-      - name: Run affected format check
-        run: pnpm turbo run format:check --affected
+      - name: Run selected format check
+        run: pnpm turbo run format:check $TURBO_SELECTOR
 
-      - name: Run affected deadcode check
-        run: pnpm turbo run deadcode --affected
+      - name: Run selected deadcode check
+        run: pnpm turbo run deadcode $TURBO_SELECTOR
 
-      - name: Run affected dup check
-        run: pnpm turbo run dup:check --affected
+      - name: Run selected dup check
+        run: pnpm turbo run dup:check $TURBO_SELECTOR
 
       - name: Node security audit
         run: pnpm audit --audit-level=moderate
 
-      - name: Run affected tests
-        run: pnpm turbo run test --affected
+      - name: Run selected tests
+        run: pnpm turbo run test $TURBO_SELECTOR
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-  deploy:
+  deploy-frontend:
     needs: [changes, lint-test]
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.changed_apps != '[]'
+    if: github.event_name != 'pull_request' && needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - app: frontend
-            platform: cloudflare
-          - app: account-engine
-            platform: fly
-            fly_config: apps/account-engine/fly.toml
-            fly_token_secret: FLY_API_TOKEN_ACCOUNT
-          - app: alpha-etl
-            platform: fly
-            fly_config: apps/alpha-etl/fly.toml
-            fly_token_secret: FLY_API_TOKEN_ETL
-          - app: analytics-engine
-            platform: fly
-            fly_config: apps/analytics-engine/fly.toml
-            fly_token_secret: FLY_API_TOKEN_ANALYTICS
+    concurrency:
+      group: deploy-frontend-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check if this app changed
-        id: check
-        run: |
-          echo "deploy=${{ contains(fromJSON(needs.changes.outputs.changed_apps), matrix.app) }}" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v4
-        if: steps.check.outputs.deploy == 'true'
+
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        env:
+          VITE_INTENT_ENGINE_URL: ${{ secrets.VITE_INTENT_ENGINE_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_ACCOUNT_API_URL: ${{ secrets.VITE_ACCOUNT_API_URL }}
+          VITE_ANALYTICS_ENGINE_URL: ${{ secrets.VITE_ANALYTICS_ENGINE_URL }}
+        run: pnpm --filter frontend build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/frontend/dist
+
+      - name: Deploy frontend to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-account-engine:
+    needs: [changes, lint-test]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.account_engine == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-account-engine-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup flyctl
-        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'fly'
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy to Fly.io
-        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'fly'
-        run: flyctl deploy --remote-only --config ${{ matrix.fly_config }}
+      - name: Deploy account-engine to Fly.io
+        run: flyctl deploy . --remote-only --config apps/account-engine/fly.toml
         env:
-          FLY_API_TOKEN: ${{ secrets[matrix.fly_token_secret] }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ACCOUNT }}
 
-      - name: Deploy to Cloudflare Pages
-        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'cloudflare'
-        run: echo "Deploy frontend to Cloudflare Pages"
-        # Add your Cloudflare Pages deployment steps here
+  deploy-alpha-etl:
+    needs: [changes, lint-test]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.alpha_etl == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-alpha-etl-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy alpha-etl to Fly.io
+        run: flyctl deploy . --remote-only --config apps/alpha-etl/fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ETL }}
+
+  deploy-analytics-engine:
+    needs: [changes, lint-test]
+    if: github.event_name != 'pull_request' && needs.changes.outputs.analytics_engine == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-analytics-engine-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy analytics-engine to Fly.io
+        run: flyctl deploy . --remote-only --config apps/analytics-engine/fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ANALYTICS }}

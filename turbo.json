@@ -1,50 +1,133 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".nvmrc"],
+  "globalDependencies": [
+    ".nvmrc",
+    "pnpm-lock.yaml",
+    "package.json",
+    "pnpm-workspace.yaml"
+  ],
   "globalEnv": ["NODE_ENV", "CI"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"],
-      "inputs": ["src/**", "package.json", "tsconfig.json"]
+      "outputs": ["dist/**", ".next/**", "out/**", "build/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "package.json",
+        "tsconfig.json",
+        "next.config.*",
+        "docusaurus.config.*",
+        "sidebars.*",
+        "postcss.config.*",
+        "tailwind.config.*"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "inputs": ["src/**", "*.config.*", "eslint.config.*"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "*.config.*",
+        ".eslintrc*",
+        "eslint.config.*"
+      ],
       "outputs": []
     },
     "type-check": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "package.json",
+        "tsconfig.json",
+        "next.config.*",
+        "docusaurus.config.*"
+      ],
       "outputs": []
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "test/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "src/**",
+        "tests/**",
+        "test/**",
+        "__tests__/**",
+        "__mocks__/**",
+        "jest.config.*",
+        "vitest.config.*",
+        "pytest.ini",
+        "pyproject.toml"
+      ],
       "outputs": []
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "test/**"],
-      "outputs": ["coverage/**"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "src/**",
+        "tests/**",
+        "test/**",
+        "__tests__/**",
+        "__mocks__/**",
+        "jest.config.*",
+        "vitest.config.*",
+        "pytest.ini",
+        "pyproject.toml"
+      ],
+      "outputs": ["coverage/**", "htmlcov/**"]
     },
     "format": {
       "outputs": [],
       "cache": false
     },
     "format:check": {
-      "inputs": ["src/**", "tests/**", "*.config.*", ".prettierrc*", ".prettierignore", "pyproject.toml"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "tests/**",
+        "test/**",
+        "docs/**",
+        "i18n/**",
+        "static/**",
+        "public/**",
+        "*.config.*",
+        ".prettierrc*",
+        ".prettierignore",
+        "pyproject.toml"
+      ],
       "outputs": []
     },
     "deadcode": {
-      "inputs": ["src/**", "tests/**", "knip.json", "knip.production.json", "vulture_whitelist.py"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "tests/**",
+        "test/**",
+        "docs/**",
+        "i18n/**",
+        "knip.json",
+        "knip.production.json",
+        "vulture_whitelist.py",
+        "tsconfig.tsprune.json"
+      ],
       "outputs": []
     },
     "dup:check": {
-      "inputs": ["src/**", ".jscpd.json"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "docs/**",
+        "i18n/**",
+        "public/**",
+        ".jscpd.json"
+      ],
       "outputs": []
     },
     "clean": {
