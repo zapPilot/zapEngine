@@ -4,7 +4,14 @@
 # [name] so progress is visible live. Exit codes are collected so a single
 # commit attempt surfaces every failure instead of stopping at the first one.
 
-CHANGED=$(git diff --cached --name-only)
+APPS_CONF="$(dirname "$0")/../apps.conf"
+
+if [ "${FORCE_ALL:-}" = "1" ]; then
+  CHANGED=$(awk -F'|' '/^[^#]/ && NF>=2 { print $2 "/" }' "$APPS_CONF")
+else
+  CHANGED=$(git diff --cached --name-only)
+fi
+
 LOG_DIR=$(mktemp -d)
 trap 'rm -rf "$LOG_DIR"' EXIT
 
@@ -90,11 +97,7 @@ print_failure_tail() {
     return
   fi
 
-  if [ "$name" = "analytics-engine" ]; then
-    tail_output=$(tail -n 20 "$log_file")
-  else
-    tail_output=$(sed '/^::phase::/d' "$log_file" | tail -n 20)
-  fi
+  tail_output=$(sed '/^::phase::/d' "$log_file" | tail -n 20)
 
   if [ -z "$tail_output" ]; then
     printf '   (no output captured)\n'
@@ -104,18 +107,12 @@ print_failure_tail() {
   printf '%s\n' "$tail_output" | sed 's/^/   /'
 }
 
-if echo "$CHANGED" | grep -q "^apps/frontend/"; then
-  queue frontend 'cd apps/frontend && sh pre-commit'
-fi
-if echo "$CHANGED" | grep -q "^apps/account-engine/"; then
-  queue account-engine 'cd apps/account-engine && sh pre-commit'
-fi
-if echo "$CHANGED" | grep -q "^apps/alpha-etl/"; then
-  queue alpha-etl 'cd apps/alpha-etl && sh pre-commit'
-fi
-if echo "$CHANGED" | grep -q "^apps/analytics-engine/"; then
-  queue analytics-engine 'cd apps/analytics-engine && uv run pre-commit run --all-files'
-fi
+while IFS='|' read -r name dir cmd || [ -n "$name" ]; do
+  case "$name" in '#'*|'') continue ;; esac
+  if printf '%s\n' "$CHANGED" | grep -q "^${dir}/"; then
+    queue "$name" "cd $dir && $cmd"
+  fi
+done < "$APPS_CONF"
 
 if [ -z "$NAMES" ]; then
   exit 0

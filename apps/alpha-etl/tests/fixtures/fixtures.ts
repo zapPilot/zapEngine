@@ -121,7 +121,7 @@ export const testScenarios = {
     symbol: 'WETH-WBTC-USDC-DAI',
     underlying_tokens: [
       '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-      '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC  
+      '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC
       '0xA0b86a33E6Ba9df23e45f42a4E9b8ffce85cfdc',   // USDC
       '0x6B175474E89094C44Da98b954EedeAC495271d0F'    // DAI
     ],

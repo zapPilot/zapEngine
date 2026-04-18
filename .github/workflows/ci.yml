@@ -14,6 +14,7 @@ jobs:
       account-engine: ${{ steps.filter.outputs.account-engine }}
       alpha-etl: ${{ steps.filter.outputs.alpha-etl }}
       analytics-engine: ${{ steps.filter.outputs.analytics-engine }}
+      changed_apps: ${{ steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,8 +48,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'pnpm'
+          node-version: "22"
+          cache: "pnpm"
 
       - name: Install uv (for Python)
         if: needs.changes.outputs.analytics-engine == 'true'
@@ -85,44 +86,48 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-  deploy-frontend:
+  deploy:
     needs: [changes, lint-test]
-    if: needs.changes.outputs.frontend == 'true' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.changed_apps != '[]'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: frontend
+            platform: cloudflare
+          - app: account-engine
+            platform: fly
+            fly_config: apps/account-engine/fly.toml
+            fly_token_secret: FLY_API_TOKEN_ACCOUNT
+          - app: alpha-etl
+            platform: fly
+            fly_config: apps/alpha-etl/fly.toml
+            fly_token_secret: FLY_API_TOKEN_ETL
+          - app: analytics-engine
+            platform: fly
+            fly_config: apps/analytics-engine/fly.toml
+            fly_token_secret: FLY_API_TOKEN_ANALYTICS
     steps:
-      - uses: actions/checkout@v4
-      - run: echo "Deploy frontend to Cloudflare Pages"
-      # Add your Cloudflare Pages deployment steps here
+      - name: Check if this app changed
+        id: check
+        run: |
+          echo "deploy=${{ contains(fromJSON(needs.changes.outputs.changed_apps), matrix.app) }}" >> $GITHUB_OUTPUT
 
-  deploy-account-engine:
-    needs: [changes, lint-test]
-    if: needs.changes.outputs.account-engine == 'true' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config apps/account-engine/fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ACCOUNT }}
+        if: steps.check.outputs.deploy == 'true'
 
-  deploy-alpha-etl:
-    needs: [changes, lint-test]
-    if: needs.changes.outputs.alpha-etl == 'true' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config apps/alpha-etl/fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ETL }}
+      - name: Setup flyctl
+        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'fly'
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-  deploy-analytics-engine:
-    needs: [changes, lint-test]
-    if: needs.changes.outputs.analytics-engine == 'true' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config apps/analytics-engine/fly.toml
+      - name: Deploy to Fly.io
+        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'fly'
+        run: flyctl deploy --remote-only --config ${{ matrix.fly_config }}
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ANALYTICS }}
+          FLY_API_TOKEN: ${{ secrets[matrix.fly_token_secret] }}
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.check.outputs.deploy == 'true' && matrix.platform == 'cloudflare'
+        run: echo "Deploy frontend to Cloudflare Pages"
+        # Add your Cloudflare Pages deployment steps here
