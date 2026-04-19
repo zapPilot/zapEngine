@@ -38,4 +38,4 @@ See `.env.example` for the full list.
 
 ## Deploy
 
-Static build (`pnpm build` → `dist/`) deployed to GitHub Pages via the repo's deploy workflow.
+Static build (`pnpm build` → `dist/`) deployed to Vercel via the repo's deploy workflow.

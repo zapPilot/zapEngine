@@ -67,7 +67,6 @@ jobs:
         run: pnpm audit --audit-level=moderate
 
   deploy-gates:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.resolve.outputs.frontend }}
@@ -173,6 +172,26 @@ jobs:
             echo "alpha_etl=$alpha_etl"
             echo "analytics_engine=$analytics_engine"
           } >> "$GITHUB_OUTPUT"
+
+  verify-account-engine-docker:
+    needs: [deploy-gates]
+    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.account_engine == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build account-engine Dockerfile
+        run: docker build --file apps/account-engine/Dockerfile --target build .
+
+  verify-alpha-etl-docker:
+    needs: [deploy-gates]
+    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.alpha_etl == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build alpha-etl Dockerfile
+        run: docker build --file apps/alpha-etl/Dockerfile --target build .
 
   deploy-account-engine:
     needs: [lint-test, deploy-gates]

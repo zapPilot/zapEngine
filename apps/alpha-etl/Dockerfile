@@ -11,12 +11,16 @@ RUN apk add --no-cache libc6-compat
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/alpha-etl/package.json apps/alpha-etl/package.json
+COPY packages/eslint-config/package.json packages/eslint-config/package.json
+COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
 RUN HUSKY=0 pnpm install --frozen-lockfile --filter alpha-etl... --store-dir=/pnpm/store
 
 FROM deps AS build
+COPY packages/eslint-config packages/eslint-config
+COPY packages/knip-config packages/knip-config
 COPY packages/tsconfig packages/tsconfig
 COPY packages/types packages/types
 COPY apps/alpha-etl apps/alpha-etl

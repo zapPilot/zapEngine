@@ -23,8 +23,8 @@ zapEngine/
 | account-engine | TypeScript | Hono 4.10 | Fly.io |
 | alpha-etl | TypeScript | Express 4.18 | Fly.io |
 | analytics-engine | Python 3.11+ | FastAPI | Fly.io |
-| frontend | TypeScript | React 19 + Vite 7 | GitHub Pages |
-| landing-page | TypeScript | Next.js 15 | GitHub Pages |
+| frontend | TypeScript | React 19 + Vite 7 | Vercel |
+| landing-page | TypeScript | Next.js 15 | Vercel |
 
 ## Prerequisites
 
@@ -107,7 +107,7 @@ pnpm format
 ## Deployment
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
-- **Frontend / Landing** → GitHub Pages via GitHub Actions
+- **Frontend / Landing** → Vercel
 - CI triggers on push to `main` and PRs; deploys only on `main`
 
 ## Database

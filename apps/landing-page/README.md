@@ -21,6 +21,6 @@ pnpm build          # → ./out (static)
 
 ## Deploy
 
-Static export (`output: 'export'` in `next.config.ts`) deployed to GitHub Pages by the repo's deploy workflow.
+Static export (`output: 'export'` in `next.config.ts`) deployed to Vercel by the repo's deploy workflow.
 
 See [CLAUDE.md](./CLAUDE.md) for test framework and port notes.
