@@ -2,13 +2,13 @@ import {
   AppError,
   BadRequestException,
   ConflictException,
+  getErrorStatus,
   HttpException,
   HttpStatus,
   NotFoundException,
   RateLimitException,
-  UnauthorizedException,
-  getErrorStatus,
   toErrorResponse,
+  UnauthorizedException,
 } from '@common/http';
 
 describe('HttpException', () => {

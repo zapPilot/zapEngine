@@ -1,12 +1,14 @@
 #!/usr/bin/env sh
-# Pre-commit hook: run fix-variants on --affected workspaces only.
+# Pre-commit hook: run lint-staged for auto-fixing, then turbo for other checks.
 # CI runs the same turbo tasks with check-variants on all workspaces.
 # Task orchestration + parallelism + dependency graph are handled by turbo.
 set -eu
 
+# 🎯 Auto-fix and re-stage files that are about to be committed
+pnpm lint-staged
+
+# 🔍 Run other checks on affected workspaces (excluding format/lint:fix since lint-staged handles them)
 pnpm turbo run \
-  format \
-  lint:fix \
   type-check \
   deadcode \
   dup:check \

@@ -21,11 +21,37 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
-    "husky": "^9.0.0"
+    "husky": "^9.0.0",
+    "lint-staged": "^16.4.0",
+    "turbo": "^2.5.0"
   },
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
+  },
+  "lint-staged": {
+    "apps/account-engine/**/*.{ts,tsx}": [
+      "pnpm --filter account-engine exec eslint --fix",
+      "pnpm --filter account-engine exec prettier --write"
+    ],
+    "apps/alpha-etl/**/*.{ts,js}": [
+      "pnpm --filter alpha-etl exec eslint --fix",
+      "pnpm --filter alpha-etl exec prettier --write"
+    ],
+    "apps/frontend/**/*.{ts,tsx}": [
+      "pnpm --filter frontend exec eslint --fix",
+      "pnpm --filter frontend exec prettier --write"
+    ],
+    "apps/landing-page/**/*.{ts,tsx}": [
+      "pnpm --filter landing-page exec eslint --fix",
+      "pnpm --filter landing-page exec prettier --write"
+    ],
+    "packages/**/*.{ts,tsx}": [
+      "pnpm exec eslint --fix",
+      "pnpm exec prettier --write"
+    ],
+    "apps/analytics-engine/**/*.py": [
+      "pnpm --filter analytics-engine exec uv run ruff check --fix"
+    ]
   }
 }
