@@ -29,10 +29,10 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
     "type-check": "tsc --noEmit",
     "deadcode": "knip",
-    "dup:check": "jscpd src --config .jscpd.json",
-    "pre-commit": "sh pre-commit"
+    "dup:check": "jscpd src --config .jscpd.json"
   },
   "dependencies": {
     "zod": "^4.1.13"

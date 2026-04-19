@@ -1,36 +1,23 @@
 #!/usr/bin/env sh
-# Pre-commit orchestrator. Resolves affected workspaces from staged files via
-# the Node selector, runs workspace-level checks and selected workspace
-# pre-commit hooks concurrently, and prefixes streamed output with [name].
-# Exit codes are collected so a single commit attempt surfaces every failure
-# instead of stopping at the first one.
+# Pre-commit hook: run fix-variants on --affected workspaces only.
+# CI runs the same turbo tasks with check-variants on all workspaces.
+# Task orchestration + parallelism + dependency graph are handled by turbo.
+set -eu
 
-. "$(dirname "$0")/lib/parallel-runner.sh"
+pnpm turbo run \
+  format \
+  lint:fix \
+  type-check \
+  deadcode \
+  dup:check \
+  sql:audit \
+  service-reachability \
+  pylint:duplicate-check \
+  test \
+  --affected
 
-WORKSPACES_CONF="$(dirname "$0")/../apps.conf"
-SELECTOR="$(dirname "$0")/../scripts/select-pre-commit-workspaces.mjs"
+# Workspace-level checks — always run, not tied to any package.
+pnpm audit --audit-level=moderate
+bash scripts/check-dead-env.sh
 
-if ! SELECTED=$(FORCE_ALL="${FORCE_ALL:-}" node "$SELECTOR"); then
-  printf '❌ Failed to resolve affected workspaces\n' >&2
-  exit 1
-fi
-
-init_parallel_runner
-
-# Workspace-level checks — always run, mirrors CI's "Node security audit" step
-queue_task workspace-audit 'pnpm audit --audit-level=moderate'
-queue_task workspace-dead-env 'bash scripts/check-dead-env.sh'
-
-while IFS='|' read -r name dir || [ -n "$name" ]; do
-  case "$name" in '#'*|'') continue ;; esac
-  if printf '%s\n' "$SELECTED" | grep -qx "$name"; then
-    queue_task "$name" "cd $dir && pnpm run pre-commit"
-  fi
-done < "$WORKSPACES_CONF"
-
-if ! wait_tasks; then
-  printf '\n❌ Pre-commit failed\n'
-  exit 1
-fi
-
-printf '\n✅ All pre-commit checks passed\n'
+printf '\n✅ Pre-commit passed\n'

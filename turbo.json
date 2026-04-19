@@ -37,6 +37,10 @@
       ],
       "outputs": []
     },
+    "lint:fix": {
+      "dependsOn": ["format"],
+      "cache": false
+    },
     "type-check": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -59,6 +63,7 @@
         "test/**",
         "__tests__/**",
         "__mocks__/**",
+        "scripts/**",
         "jest.config.*",
         "vitest.config.*",
         "pytest.ini",
@@ -76,12 +81,33 @@
         "test/**",
         "__tests__/**",
         "__mocks__/**",
+        "scripts/**",
         "jest.config.*",
         "vitest.config.*",
         "pytest.ini",
         "pyproject.toml"
       ],
       "outputs": ["coverage/**", "htmlcov/**"]
+    },
+    "test:ci": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "src/**",
+        "tests/**",
+        "test/**",
+        "__tests__/**",
+        "__mocks__/**",
+        "scripts/**",
+        "jest.config.*",
+        "vitest.config.*",
+        "playwright.config.*",
+        "pytest.ini",
+        "pyproject.toml"
+      ],
+      "outputs": []
     },
     "format": {
       "outputs": [],
@@ -124,6 +150,53 @@
         "content/**",
         "public/**",
         ".jscpd.json"
+      ],
+      "outputs": []
+    },
+    "sql:audit": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "scripts/audit_sql_params.py"
+      ],
+      "outputs": []
+    },
+    "service-reachability": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "scripts/check_service_reachability.py"
+      ],
+      "outputs": []
+    },
+    "pylint:duplicate-check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "pyproject.toml"
+      ],
+      "outputs": []
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "tests/**",
+        "playwright.config.*"
+      ],
+      "outputs": []
+    },
+    "test:e2e:safe": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "tests/**",
+        "playwright.config.*",
+        "scripts/run-e2e-safe.js"
       ],
       "outputs": []
     },

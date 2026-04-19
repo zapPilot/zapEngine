@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pre-commit test runner with PostgreSQL support
+# Unified analytics-engine test runner with PostgreSQL support
 # Reuses existing container if running, starts ephemeral container otherwise.
 # Integration tests are opt-in via RUN_INTEGRATION=true because they require
 # a production-like schema (functions, views, and extra columns). Unit/SQL
@@ -31,6 +31,65 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+COVERAGE_FAIL_UNDER=""
+GENERATE_HTMLCOV=false
+RUN_DMA_SIGNAL_GATE=false
+
+usage() {
+    cat <<'EOF'
+Usage: bash scripts/run-tests-precommit.sh [options]
+
+Options:
+  --cov-fail-under <N>   Enforce a coverage threshold.
+  --no-cov-fail-under    Disable coverage threshold enforcement.
+  --htmlcov              Generate htmlcov output.
+  --dma-signal-gate      Run the focused DMA signal coverage gate after tests.
+  --no-dma-signal-gate   Skip the focused DMA signal coverage gate.
+  --run-integration      Enable integration-marked tests.
+  -h, --help             Show this help text.
+EOF
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --cov-fail-under)
+                shift
+                if [[ $# -eq 0 ]] || [[ ! "$1" =~ ^[0-9]+$ ]]; then
+                    printf '%b\n' "${RED}[Pre-commit Tests] --cov-fail-under requires an integer value${NC}" >&2
+                    exit 1
+                fi
+                COVERAGE_FAIL_UNDER="$1"
+                ;;
+            --no-cov-fail-under)
+                COVERAGE_FAIL_UNDER=""
+                ;;
+            --htmlcov)
+                GENERATE_HTMLCOV=true
+                ;;
+            --dma-signal-gate)
+                RUN_DMA_SIGNAL_GATE=true
+                ;;
+            --no-dma-signal-gate)
+                RUN_DMA_SIGNAL_GATE=false
+                ;;
+            --run-integration)
+                RUN_INTEGRATION=true
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                printf '%b\n' "${RED}[Pre-commit Tests] Unknown argument: $1${NC}" >&2
+                usage >&2
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
 
 cleanup_postgres() {
     if [[ "${CREATED_NEW_CONTAINER:-false}" == "true" ]]; then
@@ -332,18 +391,18 @@ setup_database_schema() {
     printf '%b\n' "${GREEN}[Pre-commit Tests] Schema setup complete${NC}"
 }
 
-select_pytest_runner() {
+run_pytest() {
     if command -v uv >/dev/null 2>&1; then
-        echo "uv run pytest"
+        uv run pytest "$@"
     else
-        echo "python -m pytest"
+        python -m pytest "$@"
     fi
 }
 
-PYTEST_CMD=$(select_pytest_runner)
-
 run_postgres_suite() {
     local mark_expr="not skip"
+    local -a pytest_args=()
+
     case "${RUN_INTEGRATION:-false}" in
         1|true|TRUE|yes|YES)
             printf '%b\n' "${YELLOW}[Pre-commit Tests] Integration tests enabled${NC}"
@@ -353,7 +412,26 @@ run_postgres_suite() {
             printf '%b\n' "${YELLOW}[Pre-commit Tests] Integration tests disabled (set RUN_INTEGRATION=true to enable)${NC}"
             ;;
     esac
-    ${PYTEST_CMD} tests/ -m "${mark_expr}" --cov=src --cov-report=term-missing --tb=short -W error -v
+
+    pytest_args=(
+        tests/
+        -m "${mark_expr}"
+        --cov=src
+        --cov-report=term-missing
+        --tb=short
+        -W error
+        -v
+    )
+
+    if [[ "${GENERATE_HTMLCOV}" == "true" ]]; then
+        pytest_args+=(--cov-report=html)
+    fi
+
+    if [[ -n "${COVERAGE_FAIL_UNDER}" ]]; then
+        pytest_args+=("--cov-fail-under=${COVERAGE_FAIL_UNDER}")
+    fi
+
+    run_pytest "${pytest_args[@]}"
 }
 
 run_dma_signal_coverage_gate() {
@@ -366,6 +444,7 @@ run_dma_signal_coverage_gate() {
 # Only execute when script is run directly, not when sourced for testing
 # ==============================================================================
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    parse_args "$@"
     printf '%b\n' "${GREEN}[Pre-commit Tests] Starting test suite...${NC}"
     trap cleanup_postgres EXIT
 
@@ -456,9 +535,11 @@ export TEST_DATABASE_URL="$(normalize_sync_url "${TEST_DATABASE_URL}")"
 run_postgres_suite
 TEST_RESULT=$?
 
-if [[ $TEST_RESULT -eq 0 ]]; then
+if [[ $TEST_RESULT -eq 0 && "${RUN_DMA_SIGNAL_GATE}" == "true" ]]; then
     run_dma_signal_coverage_gate
     TEST_RESULT=$?
+elif [[ $TEST_RESULT -eq 0 ]]; then
+    printf '%b\n' "${YELLOW}[Pre-commit Tests] Skipping focused DMA signal coverage gate${NC}"
 fi
 
 if [[ $TEST_RESULT -eq 0 ]]; then

@@ -8,7 +8,7 @@ IMPORTANT: `packages/types` (and other packages) must be built before running `t
 
 analytics-engine is Python (FastAPI). Use `make <command>` instead of `pnpm`:
 - `make dev` — start dev server
-- `make test` — run pytest
+- `make test` — run the unified local test suite
 - `make lint` — ruff + mypy
 - `make install` — uv sync (first time setup)
 
@@ -40,7 +40,7 @@ All TypeScript apps use `pnpm <script>`. Frontend uses `pnpm test:unit` (not `pn
 
 # Pre-commit
 
-Hooks run per-workspace in parallel. Each app has its own `pre-commit` script. To run a specific app's checks manually: `sh apps/<name>/pre-commit` or `pnpm pre-commit` from the app directory.
+Hooks run from the repo root via Turbo. To run local checks for a workspace manually, use `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>`. For `analytics-engine`, include `sql:audit service-reachability pylint:duplicate-check` in the Turbo command when you need the full local gate.
 
 # Python environment (analytics-engine)
 

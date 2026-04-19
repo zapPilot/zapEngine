@@ -1,4 +1,4 @@
-.PHONY: help install install-hooks dev test test-backtesting-signal-coverage lint format duplicate-check service-reachability-check clean docker
+.PHONY: help install install-hooks dev test test-ci test-backtesting-signal-coverage lint format duplicate-check service-reachability-check clean docker
 
 DMA_SIGNAL_TESTS = \
 	tests/services/backtesting/signals/dma_gated_fgi/test_regime_classifier.py \
@@ -22,8 +22,11 @@ install-hooks:	## Install git hooks (pre-commit runs on every commit)
 dev:		## Start development server with hot reload
 	uv run uvicorn src.main:app --reload --port 8001 --host 0.0.0.0
 
-test:		## Run tests with coverage
-	uv run pytest -v --cov=src --cov-report=html --cov-report=term
+test:		## Run the unified local test suite
+	bash scripts/run-tests-precommit.sh
+
+test-ci:	## Run the CI-equivalent test suite
+	bash scripts/run-tests-precommit.sh --cov-fail-under 99 --dma-signal-gate
 
 test-backtesting-signal-coverage:	## Run focused DMA signal coverage gate
 	uv run pytest -q $(DMA_SIGNAL_TESTS) --cov=src/services/backtesting/signals/dma_gated_fgi --cov-report=term-missing --cov-fail-under=98
@@ -95,9 +98,9 @@ analyze-btc-sentiment:	## Generate BTC price & sentiment chart (default: all dat
 analyze-btc-sentiment-365:	## Generate BTC price & sentiment chart (last 365 days)
 	uv run python scripts/analyze_btc_sentiment.py --days 365
 
-pre-commit: format lint	## Run pre-commit checks
+pre-commit: format lint	## Run local pre-commit checks
 	bats tests/scripts/*.bats
-	uv run pytest -x
+	bash scripts/run-tests-precommit.sh
 
 # Production commands
 prod-check:	## Production readiness check
@@ -106,7 +109,7 @@ prod-check:	## Production readiness check
 	uv run mypy src/
 	uv run python scripts/check_service_reachability.py
 	uv run pylint --rcfile=pyproject.toml src/
-	uv run pytest
+	make test-ci
 	@echo "✅ Production checks passed!"
 
 deploy-check:	## Pre-deployment validation

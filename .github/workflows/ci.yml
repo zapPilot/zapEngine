@@ -23,16 +23,49 @@ permissions:
   contents: read
 
 jobs:
-  changes:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install uv (for Python)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.8.13"
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm turbo run build
+
+      - name: Run check-variant tasks
+        run: pnpm turbo run format:check lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Node security audit
+        run: pnpm audit --audit-level=moderate
+
+  deploy-gates:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.resolve.outputs.frontend }}
       account_engine: ${{ steps.resolve.outputs.account_engine }}
       alpha_etl: ${{ steps.resolve.outputs.alpha_etl }}
       analytics_engine: ${{ steps.resolve.outputs.analytics_engine }}
-      landing_page: ${{ steps.resolve.outputs.landing_page }}
-      any_changed: ${{ steps.resolve.outputs.any_changed }}
-      turbo_selector: ${{ steps.resolve.outputs.turbo_selector }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,144 +105,70 @@ jobs:
             analytics-engine:
               - 'apps/analytics-engine/**'
               - '.dockerignore'
-            landing-page:
-              - 'apps/landing-page/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - '.nvmrc'
 
       - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEPLOY_TARGET: ${{ inputs.deploy_target }}
+          FILTER_FRONTEND: ${{ steps.filter.outputs.frontend }}
+          FILTER_ACCOUNT_ENGINE: ${{ steps.filter.outputs.account-engine }}
+          FILTER_ALPHA_ETL: ${{ steps.filter.outputs.alpha-etl }}
+          FILTER_ANALYTICS_ENGINE: ${{ steps.filter.outputs.analytics-engine }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            case "${{ inputs.deploy_target }}" in
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$DEPLOY_TARGET" in
               all)
                 frontend=true
                 account_engine=true
                 alpha_etl=true
                 analytics_engine=true
-                landing_page=true
-                turbo_selector="--filter=frontend --filter=account-engine --filter=alpha-etl --filter=analytics-engine --filter=landing-page"
                 ;;
               frontend)
                 frontend=true
                 account_engine=false
                 alpha_etl=false
                 analytics_engine=false
-                turbo_selector="--filter=frontend"
                 ;;
               account-engine)
                 frontend=false
                 account_engine=true
                 alpha_etl=false
                 analytics_engine=false
-                turbo_selector="--filter=account-engine"
                 ;;
               alpha-etl)
                 frontend=false
                 account_engine=false
                 alpha_etl=true
                 analytics_engine=false
-                turbo_selector="--filter=alpha-etl"
                 ;;
               analytics-engine)
                 frontend=false
                 account_engine=false
                 alpha_etl=false
                 analytics_engine=true
-                turbo_selector="--filter=analytics-engine"
                 ;;
               *)
-                echo "Unsupported deploy target: ${{ inputs.deploy_target }}" >&2
+                echo "Unsupported deploy target: $DEPLOY_TARGET" >&2
                 exit 1
                 ;;
             esac
           else
-            frontend="${{ steps.filter.outputs.frontend }}"
-            account_engine="${{ steps.filter.outputs.account-engine }}"
-            alpha_etl="${{ steps.filter.outputs.alpha-etl }}"
-            analytics_engine="${{ steps.filter.outputs.analytics-engine }}"
-            landing_page="${{ steps.filter.outputs.landing-page }}"
-            turbo_selector="--affected"
+            frontend="$FILTER_FRONTEND"
+            account_engine="$FILTER_ACCOUNT_ENGINE"
+            alpha_etl="$FILTER_ALPHA_ETL"
+            analytics_engine="$FILTER_ANALYTICS_ENGINE"
           fi
-
-          any_changed=false
-          for changed in "$frontend" "$account_engine" "$alpha_etl" "$analytics_engine" "$landing_page"; do
-            if [ "$changed" = "true" ]; then
-              any_changed=true
-              break
-            fi
-          done
 
           {
             echo "frontend=$frontend"
             echo "account_engine=$account_engine"
             echo "alpha_etl=$alpha_etl"
             echo "analytics_engine=$analytics_engine"
-            echo "landing_page=$landing_page"
-            echo "any_changed=$any_changed"
-            echo "turbo_selector=$turbo_selector"
           } >> "$GITHUB_OUTPUT"
 
-  lint-test:
-    needs: changes
-    if: needs.changes.outputs.any_changed == 'true'
-    runs-on: ubuntu-latest
-    env:
-      TURBO_SELECTOR: ${{ needs.changes.outputs.turbo_selector }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Enable corepack
-        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Install uv (for Python)
-        if: needs.changes.outputs.analytics_engine == 'true'
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.8.13"
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build selected packages
-        run: pnpm turbo run build $TURBO_SELECTOR
-
-      - name: Run selected lint
-        run: pnpm turbo run lint $TURBO_SELECTOR
-
-      - name: Run selected type-check
-        run: pnpm turbo run type-check $TURBO_SELECTOR
-
-      - name: Run selected format check
-        run: pnpm turbo run format:check $TURBO_SELECTOR
-
-      - name: Run selected deadcode check
-        run: pnpm turbo run deadcode $TURBO_SELECTOR
-
-      - name: Run selected dup check
-        run: pnpm turbo run dup:check $TURBO_SELECTOR
-
-      - name: Node security audit
-        run: pnpm audit --audit-level=moderate
-
-      - name: Run selected tests
-        run: pnpm turbo run test $TURBO_SELECTOR
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
   deploy-frontend:
-    needs: [changes, lint-test]
-    if: github.event_name != 'pull_request' && needs.changes.outputs.frontend == 'true'
+    needs: [lint-test, deploy-gates]
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-frontend-${{ github.ref }}
@@ -254,8 +213,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   deploy-account-engine:
-    needs: [changes, lint-test]
-    if: github.event_name != 'pull_request' && needs.changes.outputs.account_engine == 'true'
+    needs: [lint-test, deploy-gates]
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.account_engine == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-account-engine-${{ github.ref }}
@@ -272,8 +231,8 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ACCOUNT }}
 
   deploy-alpha-etl:
-    needs: [changes, lint-test]
-    if: github.event_name != 'pull_request' && needs.changes.outputs.alpha_etl == 'true'
+    needs: [lint-test, deploy-gates]
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.alpha_etl == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-alpha-etl-${{ github.ref }}
@@ -290,8 +249,8 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ETL }}
 
   deploy-analytics-engine:
-    needs: [changes, lint-test]
-    if: github.event_name != 'pull_request' && needs.changes.outputs.analytics_engine == 'true'
+    needs: [lint-test, deploy-gates]
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.analytics_engine == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-analytics-engine-${{ github.ref }}

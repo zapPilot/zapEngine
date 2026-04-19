@@ -9,6 +9,7 @@
     "dev": "tsx watch src/app.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "test": "vitest run",
+    "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src scripts",
@@ -16,7 +17,6 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "deadcode": "knip --exports --dependencies",
     "dup:check": "jscpd src --config .jscpd.json",
-    "pre-commit": "sh pre-commit",
     "clean": "rm -rf dist coverage"
   },
   "keywords": ["defi", "etl", "apr", "postgres"],

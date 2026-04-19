@@ -26,12 +26,13 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"examples/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"examples/**/*.ts\"",
     "lint": "eslint src test examples --ext .ts",
+    "lint:fix": "eslint src test examples --ext .ts --fix",
     "type-check": "tsc --noEmit",
     "deadcode": "knip",
     "dup:check": "jscpd src --config .jscpd.json",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "pre-commit": "sh pre-commit"
+    "test:ci": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@lifi/sdk": "^3.4.0",

@@ -10,9 +10,8 @@
     "lint": "uv run ruff check src tests && uv run mypy src",
     "lint:fix": "uv run ruff check --fix src tests",
     "type-check": "uv run mypy src",
-    "test": "uv run pytest tests -v",
-    "test:pre-commit": "bash scripts/run-tests-precommit.sh",
-    "test:coverage": "uv run pytest tests --cov=src --cov-report=html --cov-fail-under=99",
+    "test": "bash scripts/run-tests-precommit.sh",
+    "test:ci": "bash scripts/run-tests-precommit.sh --cov-fail-under 99 --dma-signal-gate",
     "format": "uv run ruff format src tests",
     "format:check": "uv run ruff format --check src tests",
     "deadcode": "uv run vulture src vulture_whitelist.py --min-confidence 80",
@@ -20,7 +19,6 @@
     "sql:audit": "uv run python scripts/audit_sql_params.py",
     "service-reachability": "uv run python scripts/check_service_reachability.py",
     "pylint:duplicate-check": "uv run pylint --jobs=1 --rcfile=pyproject.toml src/",
-    "pre-commit": "sh pre-commit",
     "clean": "rm -rf .venv .coverage htmlcov .pytest_cache .mypy_cache .ruff_cache"
   }
 }

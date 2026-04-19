@@ -1,10 +1,12 @@
 # Frontend
 
-Vite + React 19 PWA for Zap Pilot — DeFi portfolio management, intent-based execution, and analytics.
+Vite + React 19 PWA for Zap Pilot — DeFi portfolio management, intent-based execution, and
+analytics.
 
 ## Stack
 
-Vite 7, React 19, TypeScript, Tailwind CSS v4, wagmi + viem, React Query, Framer Motion, Vitest, Playwright.
+Vite 7, React 19, TypeScript, Tailwind CSS v4, wagmi + viem, React Query, Framer Motion, Vitest,
+Playwright.
 
 ## Setup
 
@@ -17,11 +19,13 @@ pnpm dev           # http://localhost:3099 (PLAYWRIGHT_PORT for e2e)
 
 ## Architecture
 
-- API calls live in `src/services/` as plain functions — no classes, no direct `fetch()` in components.
+- API calls live in `src/services/` as plain functions — no classes, no direct `fetch()` in
+  components.
 - Wallet access goes through `useWalletProvider()` — never call Thirdweb/wagmi hooks directly.
 - Imports use barrel paths (`@/services`, `@/types`, `@/utils`), not deep file paths.
 
-State is split across React Query (server state), React Context (wallet/user), and feature-local hooks.
+State is split across React Query (server state), React Context (wallet/user), and feature-local
+hooks.
 
 ## Env vars
 

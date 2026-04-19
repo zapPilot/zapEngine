@@ -28,8 +28,7 @@
     "dup:check": "jscpd src --gitignore --min-lines 5 --threshold 12",
     "dup:all": "pnpm run dup:check",
     "clean": "rm -rf .next out coverage",
-    "lint-staged": "lint-staged",
-    "pre-commit": "sh pre-commit"
+    "lint-staged": "lint-staged"
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",

@@ -15,11 +15,11 @@
     "lint:fix": "eslint src/ test/ --fix",
     "type-check": "tsc --noEmit",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
+    "test:ci": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
     "deadcode": "knip --exports --dependencies",
     "dup:check": "jscpd src --config .jscpd.json",
-    "pre-commit": "sh pre-commit",
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {

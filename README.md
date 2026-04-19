@@ -84,6 +84,9 @@ pnpm lint
 # Test all (JS/TS)
 pnpm test
 
+# Run the full CI-equivalent suite
+pnpm test:ci
+
 # Test analytics-engine (Python)
 cd apps/analytics-engine && make test
 
@@ -97,8 +100,8 @@ pnpm format
 |---|---|---|
 | account-engine | Jest 30 | `pnpm test` (from app dir) |
 | alpha-etl | Vitest 4 | `pnpm test` |
-| analytics-engine | pytest 8 | `make test` |
-| frontend | Vitest 4 + Playwright | `pnpm test:unit` / `pnpm test:e2e` |
+| analytics-engine | pytest 8 | `make test` (local) / `pnpm --filter analytics-engine test:ci` |
+| frontend | Vitest 4 + Playwright | `pnpm test:unit` / `pnpm test:e2e` / `pnpm test:ci` |
 | landing-page | Jest 29 | `pnpm test` |
 
 ## Deployment
