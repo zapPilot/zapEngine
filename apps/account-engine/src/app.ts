@@ -10,7 +10,7 @@ import {
 } from '@container';
 import { serve } from '@hono/node-server';
 import { createEtlRoutes } from '@routes/etl';
-import { createHealthRoutes } from '@routes/health';
+import { createHealthRoutes, type ReleaseMetadataEnv } from '@routes/health';
 import { createJobsRoutes } from '@routes/jobs';
 import { jsonResponse } from '@routes/shared';
 import { createTelegramRoutes } from '@routes/telegram';
@@ -20,7 +20,10 @@ import { cors } from 'hono/cors';
 
 const logger = new Logger('Bootstrap');
 
-export function createApp(services: AppServices) {
+export function createApp(
+  services: AppServices,
+  releaseEnv: ReleaseMetadataEnv = process.env,
+) {
   const app = new Hono();
 
   app.use('*', cors());
@@ -30,7 +33,7 @@ export function createApp(services: AppServices) {
     createActivityTrackingMiddleware(services.activityTracker),
   );
 
-  app.route('/health', createHealthRoutes());
+  app.route('/health', createHealthRoutes(releaseEnv));
   app.route('/users', createUsersRoutes(services));
   app.route('/jobs', createJobsRoutes(services));
   app.route('/etl', createEtlRoutes(services));
@@ -65,7 +68,7 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   const services = createContainer(rawEnv);
   startServices(services);
 
-  const app = createApp(services);
+  const app = createApp(services, rawEnv);
   const cleanupInterval = setInterval(
     () => services.activityTracker.cleanupCache(),
     60 * 60 * 1000,

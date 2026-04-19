@@ -1,9 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "entry": [
-    "src/index.ts",
-    "src/types/index.ts",
-    "src/protocols/morpho/index.ts",
     "examples/basic-usage.ts"
   ],
   "project": [
@@ -11,7 +8,15 @@
     "test/**/*.ts",
     "examples/**/*.ts"
   ],
+  "ignoreDependencies": [
+    "@zapengine/eslint-config"
+  ],
   "ignoreExportsUsedInFile": true,
+  "eslint": {
+    "config": [
+      "eslint.config.mjs"
+    ]
+  },
   "vitest": {
     "entry": [
       "test/**/*.{test,spec}.ts"

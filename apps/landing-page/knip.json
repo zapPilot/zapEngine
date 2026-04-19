@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/app/**/*.{ts,tsx}", "src/pages/**/*.{ts,tsx}", "next.config.ts"],
+  "entry": ["src/app/**/*.{ts,tsx}"],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [
     "src/config/index.ts",
@@ -11,13 +11,12 @@
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
-    "autoprefixer",
+    "@zapengine/eslint-config",
     "postcss",
-    "@typescript-eslint/eslint-plugin",
-    "@typescript-eslint/parser",
     "eslint-config-next",
-    "eslint-config-prettier",
-    "eslint-plugin-prettier",
-    "tailwindcss"
-  ]
+    "eslint-config-prettier"
+  ],
+  "eslint": {
+    "config": ["eslint.config.mjs"]
+  }
 }

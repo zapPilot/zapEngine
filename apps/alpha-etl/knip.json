@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": ["src/app.ts", "scripts/**/*.ts"],
+  "entry": ["scripts/**/*.ts"],
   "project": [
     "src/**/*.ts",
     "scripts/**/*.ts"
@@ -12,11 +12,16 @@
     "vitest.config.ts"
   ],
   "ignoreDependencies": [
-    "@zapengine/types",
-    "@zapengine/tsconfig"
+    "@zapengine/eslint-config",
+    "@zapengine/types"
   ],
   "ignoreExportsUsedInFile": true,
   "includeEntryExports": true,
+  "eslint": {
+    "config": [
+      "eslint.config.mjs"
+    ]
+  },
   "vitest": {
     "config": [
       "vitest.config.ts"

@@ -184,11 +184,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install workspace dependencies
+        run: HUSKY=0 pnpm install --frozen-lockfile
+
+      - name: Verify account-engine deploy package
+        run: pnpm verify:account-engine-package
+
+      - name: Capture release metadata
+        id: release_metadata
+        run: |
+          echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy account-engine to Fly.io
-        run: flyctl deploy . --remote-only --config apps/account-engine/fly.toml
+        run: |
+          flyctl deploy . --remote-only --config apps/account-engine/fly.toml \
+            --build-arg "COMMIT_SHA=${{ steps.release_metadata.outputs.commit_sha }}" \
+            --build-arg "BUILD_TIME=${{ steps.release_metadata.outputs.build_time }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ACCOUNT }}
 

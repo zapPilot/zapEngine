@@ -4,14 +4,14 @@ import {
   getContractCallsQuote,
   type QuoteRequest,
   type ContractCallsQuoteRequest,
-} from '@lifi/sdk';
-import type { Address } from 'viem';
+} from "@lifi/sdk";
+import type { Address } from "viem";
 
-import { QuoteError } from '../errors/intent.errors.js';
+import { QuoteError } from "../errors/intent.errors.js";
 import type {
   TransactionQuote,
   PreparedTransaction,
-} from '../types/transaction.types.js';
+} from "../types/transaction.types.js";
 
 // LI.FI getQuote returns a step with transactionRequest
 interface LiFiQuoteResponse {
@@ -91,10 +91,10 @@ export class LiFiAdapter {
       const quote = await getQuote(request);
       return this.mapQuoteToTransaction(
         quote as unknown as LiFiQuoteResponse,
-        'SWAP',
+        "SWAP"
       );
     } catch (error) {
-      throw new QuoteError('Failed to get swap quote from LI.FI', {
+      throw new QuoteError("Failed to get swap quote from LI.FI", {
         cause: error,
       });
     }
@@ -135,10 +135,10 @@ export class LiFiAdapter {
       const quote = await getContractCallsQuote(request);
       return this.mapQuoteToTransaction(
         quote as unknown as LiFiQuoteResponse,
-        'SUPPLY',
+        "SUPPLY"
       );
     } catch (error) {
-      throw new QuoteError('Failed to get contract call quote from LI.FI', {
+      throw new QuoteError("Failed to get contract call quote from LI.FI", {
         cause: error,
       });
     }
@@ -149,10 +149,10 @@ export class LiFiAdapter {
    */
   private mapQuoteToTransaction(
     quote: LiFiQuoteResponse,
-    intentType: string,
+    intentType: string
   ): TransactionQuote {
     if (!quote.transactionRequest) {
-      throw new QuoteError('No transaction in quote response');
+      throw new QuoteError("No transaction in quote response");
     }
 
     const tx = quote.transactionRequest;
@@ -161,7 +161,7 @@ export class LiFiAdapter {
     const transaction: PreparedTransaction = {
       to: tx.to as Address,
       data: tx.data as `0x${string}`,
-      value: (tx.value ?? '0').toString(),
+      value: (tx.value ?? "0").toString(),
       chainId: quote.action.fromChainId,
       gasLimit: tx.gasLimit,
       meta: {
@@ -176,7 +176,7 @@ export class LiFiAdapter {
     const approval =
       quote.estimate.approvalAddress &&
       quote.action.fromToken.address !==
-        '0x0000000000000000000000000000000000000000'
+        "0x0000000000000000000000000000000000000000"
         ? {
             tokenAddress: quote.action.fromToken.address as Address,
             spenderAddress: quote.estimate.approvalAddress as Address,
@@ -187,8 +187,8 @@ export class LiFiAdapter {
     // Calculate gas cost from gasCosts array
     const gasCostUsd =
       quote.estimate.gasCosts
-        ?.reduce((sum, gc) => sum + parseFloat(gc.amountUSD ?? '0'), 0)
-        .toString() ?? '0';
+        ?.reduce((sum, gc) => sum + parseFloat(gc.amountUSD ?? "0"), 0)
+        .toString() ?? "0";
 
     return {
       transaction,

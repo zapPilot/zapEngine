@@ -1,20 +1,20 @@
-import type { Address, PublicClient } from 'viem';
+import type { Address, PublicClient } from "viem";
 
-import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
+import type { LiFiAdapter } from "../adapters/lifi.adapter.js";
 import {
   MORPHO_GAS_ESTIMATES,
   MORPHO_VAULT_ABI,
-} from '../protocols/morpho/morpho.constants.js';
+} from "../protocols/morpho/morpho.constants.js";
 import {
   encodeDeposit,
   encodeRedeem,
-} from '../protocols/morpho/morpho.encoder.js';
-import type { RotateIntentInput } from '../types/intent.types.js';
+} from "../protocols/morpho/morpho.encoder.js";
+import type { RotateIntentInput } from "../types/intent.types.js";
 import type {
   PreparedTransaction,
   RotateTransactionPlan,
-} from '../types/transaction.types.js';
-import { validateRotateIntent } from '../validators/intent.validator.js';
+} from "../types/transaction.types.js";
+import { validateRotateIntent } from "../validators/intent.validator.js";
 
 /**
  * Build an atomic rotate plan: redeem shares from one Morpho vault, swap
@@ -38,7 +38,7 @@ import { validateRotateIntent } from '../validators/intent.validator.js';
 export async function buildRotateTx(
   intent: RotateIntentInput,
   adapter: LiFiAdapter,
-  publicClient: PublicClient,
+  publicClient: PublicClient
 ): Promise<RotateTransactionPlan> {
   const validated = validateRotateIntent(intent);
 
@@ -46,18 +46,18 @@ export async function buildRotateTx(
     publicClient.readContract({
       address: validated.fromVault as Address,
       abi: MORPHO_VAULT_ABI,
-      functionName: 'previewRedeem',
+      functionName: "previewRedeem",
       args: [BigInt(validated.shareAmount)],
     }),
     publicClient.readContract({
       address: validated.fromVault as Address,
       abi: MORPHO_VAULT_ABI,
-      functionName: 'asset',
+      functionName: "asset",
     }),
     publicClient.readContract({
       address: validated.toVault as Address,
       abi: MORPHO_VAULT_ABI,
-      functionName: 'asset',
+      functionName: "asset",
     }),
   ]);
 
@@ -68,21 +68,21 @@ export async function buildRotateTx(
     data: encodeRedeem(
       BigInt(validated.shareAmount),
       validated.fromAddress as Address,
-      validated.fromAddress as Address,
+      validated.fromAddress as Address
     ),
-    value: '0',
+    value: "0",
     chainId: validated.chainId,
     gasLimit: MORPHO_GAS_ESTIMATES.redeem,
     meta: {
       intentId: validated.id,
-      intentType: 'ROTATE_WITHDRAW',
+      intentType: "ROTATE_WITHDRAW",
       estimatedGas: MORPHO_GAS_ESTIMATES.redeem,
     },
   };
 
   const depositCalldata = encodeDeposit(
     redeemAmount,
-    validated.fromAddress as Address,
+    validated.fromAddress as Address
   );
 
   const supplyQuote = await adapter.getContractCallQuote({

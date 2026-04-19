@@ -6,10 +6,10 @@
 // =============================================================================
 
 // Types
-export * from './types/index.js';
+export * from "./types/index.js";
 
 // Errors
-export * from './errors/index.js';
+export * from "./errors/index.js";
 
 // Validators
 export {
@@ -18,7 +18,7 @@ export {
   validateSupplyIntent,
   validateWithdrawIntent,
   validateRotateIntent,
-} from './validators/index.js';
+} from "./validators/index.js";
 
 // Builders
 export {
@@ -26,7 +26,7 @@ export {
   buildSupplyTx,
   buildWithdrawTx,
   buildRotateTx,
-} from './builders/index.js';
+} from "./builders/index.js";
 
 // Adapters
 export {
@@ -36,7 +36,7 @@ export {
   TenderlySimulationAdapter,
   type TenderlyConfig,
   NoopSimulationAdapter,
-} from './adapters/index.js';
+} from "./adapters/index.js";
 
 // Execution
 export {
@@ -46,7 +46,7 @@ export {
   encodeMulticall3,
   executeWithEIP7702,
   waitForEIP7702Confirmation,
-} from './execution/index.js';
+} from "./execution/index.js";
 
 // Protocol constants
 export {
@@ -57,45 +57,45 @@ export {
   encodeMint,
   encodeWithdraw,
   encodeRedeem,
-} from './protocols/index.js';
+} from "./protocols/index.js";
 
 // =============================================================================
 // Factory Function
 // =============================================================================
 
-import type { PublicClient, WalletClient } from 'viem';
+import type { PublicClient, WalletClient } from "viem";
 
 import {
   LiFiAdapter,
   type LiFiAdapterConfig,
-} from './adapters/lifi.adapter.js';
+} from "./adapters/lifi.adapter.js";
 import {
   NoopSimulationAdapter,
   type SimulationAdapter,
-} from './adapters/simulation.adapter.js';
-import { buildSwapTx } from './builders/swap.builder.js';
-import { buildSupplyTx } from './builders/supply.builder.js';
-import { buildWithdrawTx } from './builders/withdraw.builder.js';
-import { buildRotateTx } from './builders/rotate.builder.js';
+} from "./adapters/simulation.adapter.js";
+import { buildSwapTx } from "./builders/swap.builder.js";
+import { buildSupplyTx } from "./builders/supply.builder.js";
+import { buildWithdrawTx } from "./builders/withdraw.builder.js";
+import { buildRotateTx } from "./builders/rotate.builder.js";
 import {
   determineExecutionStrategy,
   type ExecutionStrategy,
-} from './execution/capability.detector.js';
-import { encodeMulticall3 } from './execution/multicall3.executor.js';
-import { executeWithEIP7702 } from './execution/eip7702.executor.js';
+} from "./execution/capability.detector.js";
+import { encodeMulticall3 } from "./execution/multicall3.executor.js";
+import { executeWithEIP7702 } from "./execution/eip7702.executor.js";
 import type {
   SwapIntentInput,
   SupplyIntentInput,
   WithdrawIntentInput,
   RotateIntentInput,
-} from './types/intent.types.js';
+} from "./types/intent.types.js";
 import type {
   PreparedTransaction,
   TransactionQuote,
   RotateTransactionPlan,
   SimulationResult,
   ExecutionResult,
-} from './types/transaction.types.js';
+} from "./types/transaction.types.js";
 
 /**
  * Configuration for creating an IntentEngine instance
@@ -122,7 +122,7 @@ export interface IntentEngine {
   /** Build a supply (deposit) transaction (requires a PublicClient to read vault.asset()) */
   buildSupply(
     intent: SupplyIntentInput,
-    publicClient: PublicClient,
+    publicClient: PublicClient
   ): Promise<TransactionQuote>;
 
   /** Build a withdraw transaction */
@@ -131,7 +131,7 @@ export interface IntentEngine {
   /** Build a rotate transaction plan (requires a PublicClient for on-chain previews) */
   buildRotate(
     intent: RotateIntentInput,
-    publicClient: PublicClient,
+    publicClient: PublicClient
   ): Promise<RotateTransactionPlan>;
 
   /** Simulate a transaction before execution */
@@ -140,7 +140,7 @@ export interface IntentEngine {
   /** Determine best execution strategy for a wallet on a given chain */
   getExecutionStrategy(
     wallet?: WalletClient,
-    chainId?: number,
+    chainId?: number
   ): Promise<ExecutionStrategy>;
 
   /** Batch transactions for atomic execution */
@@ -149,7 +149,7 @@ export interface IntentEngine {
   /** Execute batched transactions with EIP-7702 */
   executeWithEIP7702(
     txs: PreparedTransaction[],
-    wallet: WalletClient,
+    wallet: WalletClient
   ): Promise<ExecutionResult>;
 }
 

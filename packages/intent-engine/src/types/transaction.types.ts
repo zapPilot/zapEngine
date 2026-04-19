@@ -1,10 +1,10 @@
-import { z } from 'zod';
-import type { Address, Hash, TransactionReceipt } from 'viem';
+import { z } from "zod";
+import type { Address, Hash, TransactionReceipt } from "viem";
 
 // Prepared transaction ready to be signed and sent
 export const PreparedTransactionSchema = z.object({
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  data: z.string().startsWith('0x'),
+  data: z.string().startsWith("0x"),
   value: z.string().regex(/^\d+$/),
   chainId: z.number(),
   gasLimit: z.string().optional(),
@@ -54,7 +54,7 @@ export interface RotateTransactionPlan {
     amount: string;
   };
   // Execution strategy determined at runtime
-  strategy?: 'eip7702' | 'multicall3' | 'sequential';
+  strategy?: "eip7702" | "multicall3" | "sequential";
 }
 
 // Simulation result (for Tenderly or similar)

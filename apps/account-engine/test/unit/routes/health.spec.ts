@@ -1,9 +1,11 @@
 import { createHealthRoutes } from '@routes/health';
 import { Hono } from 'hono';
 
-function createApp() {
+function createApp(
+  rawEnv: { APP_BUILD_TIME?: string; APP_COMMIT_SHA?: string } = {},
+) {
   const app = new Hono();
-  app.route('/health', createHealthRoutes());
+  app.route('/health', createHealthRoutes(rawEnv));
   return app;
 }
 
@@ -18,6 +20,8 @@ describe('GET /health', () => {
     await expect(response.json()).resolves.toMatchObject({
       status: 'ok',
       service: 'account-engine',
+      commitSha: null,
+      buildTime: null,
     });
   });
 
@@ -25,5 +29,17 @@ describe('GET /health', () => {
     const response = await createApp().request('http://localhost/health');
     const body = await response.json();
     expect(body.timestamp).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  });
+
+  it('includes release metadata when present', async () => {
+    const response = await createApp({
+      APP_COMMIT_SHA: 'ac3c1eeb7778c002007b311fe557a35870249eaa',
+      APP_BUILD_TIME: '2026-04-19T11:00:00Z',
+    }).request('http://localhost/health');
+
+    await expect(response.json()).resolves.toMatchObject({
+      commitSha: 'ac3c1eeb7778c002007b311fe557a35870249eaa',
+      buildTime: '2026-04-19T11:00:00Z',
+    });
   });
 });

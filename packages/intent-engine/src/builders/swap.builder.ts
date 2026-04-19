@@ -1,9 +1,9 @@
-import type { Address } from 'viem';
+import type { Address } from "viem";
 
-import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import type { SwapIntentInput } from '../types/intent.types.js';
-import type { TransactionQuote } from '../types/transaction.types.js';
-import { validateSwapIntent } from '../validators/intent.validator.js';
+import type { LiFiAdapter } from "../adapters/lifi.adapter.js";
+import type { SwapIntentInput } from "../types/intent.types.js";
+import type { TransactionQuote } from "../types/transaction.types.js";
+import { validateSwapIntent } from "../validators/intent.validator.js";
 
 /**
  * Build a swap transaction using LI.FI
@@ -14,7 +14,7 @@ import { validateSwapIntent } from '../validators/intent.validator.js';
  */
 export async function buildSwapTx(
   intent: SwapIntentInput,
-  adapter: LiFiAdapter,
+  adapter: LiFiAdapter
 ): Promise<TransactionQuote> {
   // Validate intent (throws on invalid)
   const validated = validateSwapIntent(intent);

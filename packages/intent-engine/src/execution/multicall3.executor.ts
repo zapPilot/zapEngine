@@ -1,61 +1,61 @@
-import { encodeFunctionData, type Address } from 'viem';
+import { encodeFunctionData, type Address } from "viem";
 
-import { MULTICALL3_ADDRESS } from '../types/chain.types.js';
-import type { PreparedTransaction } from '../types/transaction.types.js';
+import { MULTICALL3_ADDRESS } from "../types/chain.types.js";
+import type { PreparedTransaction } from "../types/transaction.types.js";
 
 /**
  * Multicall3 aggregate3 ABI
  */
 const MULTICALL3_ABI = [
   {
-    name: 'aggregate3',
-    type: 'function',
-    stateMutability: 'payable',
+    name: "aggregate3",
+    type: "function",
+    stateMutability: "payable",
     inputs: [
       {
-        name: 'calls',
-        type: 'tuple[]',
+        name: "calls",
+        type: "tuple[]",
         components: [
-          { name: 'target', type: 'address' },
-          { name: 'allowFailure', type: 'bool' },
-          { name: 'callData', type: 'bytes' },
+          { name: "target", type: "address" },
+          { name: "allowFailure", type: "bool" },
+          { name: "callData", type: "bytes" },
         ],
       },
     ],
     outputs: [
       {
-        name: 'returnData',
-        type: 'tuple[]',
+        name: "returnData",
+        type: "tuple[]",
         components: [
-          { name: 'success', type: 'bool' },
-          { name: 'returnData', type: 'bytes' },
+          { name: "success", type: "bool" },
+          { name: "returnData", type: "bytes" },
         ],
       },
     ],
   },
   {
-    name: 'aggregate3Value',
-    type: 'function',
-    stateMutability: 'payable',
+    name: "aggregate3Value",
+    type: "function",
+    stateMutability: "payable",
     inputs: [
       {
-        name: 'calls',
-        type: 'tuple[]',
+        name: "calls",
+        type: "tuple[]",
         components: [
-          { name: 'target', type: 'address' },
-          { name: 'allowFailure', type: 'bool' },
-          { name: 'value', type: 'uint256' },
-          { name: 'callData', type: 'bytes' },
+          { name: "target", type: "address" },
+          { name: "allowFailure", type: "bool" },
+          { name: "value", type: "uint256" },
+          { name: "callData", type: "bytes" },
         ],
       },
     ],
     outputs: [
       {
-        name: 'returnData',
-        type: 'tuple[]',
+        name: "returnData",
+        type: "tuple[]",
         components: [
-          { name: 'success', type: 'bool' },
-          { name: 'returnData', type: 'bytes' },
+          { name: "success", type: "bool" },
+          { name: "returnData", type: "bytes" },
         ],
       },
     ],
@@ -85,21 +85,21 @@ interface Multicall3ValueCall extends Multicall3Call {
  * @returns Single prepared transaction using Multicall3
  */
 export function encodeMulticall3(
-  txs: PreparedTransaction[],
+  txs: PreparedTransaction[]
 ): PreparedTransaction {
   if (txs.length === 0) {
-    throw new Error('Cannot encode empty transaction array');
+    throw new Error("Cannot encode empty transaction array");
   }
 
   // Check if any transaction has value
-  const hasValue = txs.some((tx) => BigInt(tx.value) > 0n);
+  const hasValue = txs.some(tx => BigInt(tx.value) > 0n);
 
   if (hasValue) {
     return encodeMulticall3WithValue(txs);
   }
 
   // Use aggregate3 for transactions without value
-  const calls: Multicall3Call[] = txs.map((tx) => ({
+  const calls: Multicall3Call[] = txs.map(tx => ({
     target: tx.to as Address,
     allowFailure: false, // Revert entire batch if any call fails
     callData: tx.data as `0x${string}`,
@@ -107,24 +107,24 @@ export function encodeMulticall3(
 
   const calldata = encodeFunctionData({
     abi: MULTICALL3_ABI,
-    functionName: 'aggregate3',
+    functionName: "aggregate3",
     args: [calls],
   });
 
   // Estimate gas as sum of individual gas limits + overhead
   const totalGas = txs.reduce(
-    (sum, tx) => sum + BigInt(tx.gasLimit ?? '100000'),
-    50000n, // Multicall3 overhead
+    (sum, tx) => sum + BigInt(tx.gasLimit ?? "100000"),
+    50000n // Multicall3 overhead
   );
 
   return {
     to: MULTICALL3_ADDRESS,
     data: calldata,
-    value: '0',
+    value: "0",
     chainId: txs[0]!.chainId,
     gasLimit: totalGas.toString(),
     meta: {
-      intentType: 'MULTICALL3_BATCH',
+      intentType: "MULTICALL3_BATCH",
       estimatedGas: totalGas.toString(),
     },
   };
@@ -134,9 +134,9 @@ export function encodeMulticall3(
  * Encode transactions with ETH value using aggregate3Value
  */
 function encodeMulticall3WithValue(
-  txs: PreparedTransaction[],
+  txs: PreparedTransaction[]
 ): PreparedTransaction {
-  const calls: Multicall3ValueCall[] = txs.map((tx) => ({
+  const calls: Multicall3ValueCall[] = txs.map(tx => ({
     target: tx.to as Address,
     allowFailure: false,
     value: BigInt(tx.value),
@@ -145,7 +145,7 @@ function encodeMulticall3WithValue(
 
   const calldata = encodeFunctionData({
     abi: MULTICALL3_ABI,
-    functionName: 'aggregate3Value',
+    functionName: "aggregate3Value",
     args: [calls],
   });
 
@@ -154,8 +154,8 @@ function encodeMulticall3WithValue(
 
   // Estimate gas
   const totalGas = txs.reduce(
-    (sum, tx) => sum + BigInt(tx.gasLimit ?? '100000'),
-    50000n,
+    (sum, tx) => sum + BigInt(tx.gasLimit ?? "100000"),
+    50000n
   );
 
   return {
@@ -165,7 +165,7 @@ function encodeMulticall3WithValue(
     chainId: txs[0]!.chainId,
     gasLimit: totalGas.toString(),
     meta: {
-      intentType: 'MULTICALL3_BATCH',
+      intentType: "MULTICALL3_BATCH",
       estimatedGas: totalGas.toString(),
     },
   };

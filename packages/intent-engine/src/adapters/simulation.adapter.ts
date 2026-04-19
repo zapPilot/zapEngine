@@ -1,7 +1,7 @@
 import type {
   PreparedTransaction,
   SimulationResult,
-} from '../types/transaction.types.js';
+} from "../types/transaction.types.js";
 
 /**
  * Interface for transaction simulation adapters
@@ -34,11 +34,11 @@ export class TenderlySimulationAdapter implements SimulationAdapter {
     // 3. Return structured result
 
     // eslint-disable-next-line no-console -- intentional POC signal that this simulator is stubbed
-    console.warn('[TenderlySimulationAdapter] Simulation is stubbed in POC');
+    console.warn("[TenderlySimulationAdapter] Simulation is stubbed in POC");
 
     return {
       success: true,
-      gasUsed: tx.meta.estimatedGas ?? '100000',
+      gasUsed: tx.meta.estimatedGas ?? "100000",
       logs: [],
       stateChanges: [],
     };

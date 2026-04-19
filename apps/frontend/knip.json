@@ -7,7 +7,7 @@
 
   "ignore": ["**/index.ts", "src/shims/emptyModule.ts"],
 
-  "ignoreDependencies": ["@types/*", "@zapengine/types", "tailwindcss", "postcss"],
+  "ignoreDependencies": ["@zapengine/eslint-config", "@zapengine/types", "tailwindcss", "postcss"],
 
   "ignoreIssues": {
     "src/lib/errors/ServiceError.ts": ["exports"]
@@ -19,6 +19,9 @@
   },
 
   "includeEntryExports": true,
+  "eslint": {
+    "config": ["eslint.config.mjs"]
+  },
 
   "vitest": {
     "config": ["vitest.config.ts"],

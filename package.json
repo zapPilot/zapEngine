@@ -16,6 +16,7 @@
     "format:check": "turbo run format:check",
     "deadcode": "turbo run deadcode",
     "dup:check": "turbo run dup:check",
+    "verify:account-engine-package": "bash scripts/verify-account-engine-package.sh",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },

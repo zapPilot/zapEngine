@@ -1,13 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": [
-    "src/index.ts",
-    "src/api/index.ts",
-    "src/etl/index.ts"
-  ],
   "project": [
     "src/**/*.ts"
   ],
+  "ignoreDependencies": [
+    "@zapengine/eslint-config"
+  ],
   "ignoreExportsUsedInFile": true,
-  "includeEntryExports": false
+  "includeEntryExports": false,
+  "eslint": {
+    "config": [
+      "eslint.config.mjs"
+    ]
+  }
 }

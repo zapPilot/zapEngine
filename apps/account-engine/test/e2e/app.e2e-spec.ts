@@ -34,11 +34,14 @@ describe('App e2e', () => {
     } as unknown as AppServices);
 
     const response = await app.request('http://localhost/health');
+    const body = await response.json();
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
+    expect(body).toMatchObject({
       status: 'ok',
       service: 'account-engine',
     });
+    expect(body).toHaveProperty('commitSha');
+    expect(body).toHaveProperty('buildTime');
   });
 });
