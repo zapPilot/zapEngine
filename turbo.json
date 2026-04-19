@@ -7,6 +7,12 @@
     "pnpm-workspace.yaml"
   ],
   "globalEnv": ["NODE_ENV", "CI"],
+  "futureFlags": {
+    "longerSignatureKey": true
+  },
+  "remoteCache": {
+    "signature": true
+  },
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

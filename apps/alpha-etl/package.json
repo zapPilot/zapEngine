@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "DeFi APR data ETL pipeline",
   "main": "dist/app.js",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/app.js",
@@ -19,7 +22,12 @@
     "dup:check": "jscpd src --config .jscpd.json",
     "clean": "rm -rf dist coverage"
   },
-  "keywords": ["defi", "etl", "apr", "postgres"],
+  "keywords": [
+    "defi",
+    "etl",
+    "apr",
+    "postgres"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

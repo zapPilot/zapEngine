@@ -34,7 +34,6 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nodejs
 
 COPY --from=build --chown=nodejs:nodejs /out/ ./
-COPY --from=build --chown=nodejs:nodejs /workspace/apps/account-engine/templates ./templates
 
 RUN mkdir -p logs temp \
  && chown -R nodejs:nodejs /app

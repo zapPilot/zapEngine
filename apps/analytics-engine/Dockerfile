@@ -13,7 +13,7 @@ COPY apps/analytics-engine/pyproject.toml ./pyproject.toml
 COPY apps/analytics-engine/uv.lock ./uv.lock
 COPY apps/analytics-engine/README.md ./README.md
 
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --no-install-project
 
 FROM python:3.11-slim AS final
 

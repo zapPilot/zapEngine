@@ -5,6 +5,10 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "templates"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
@@ -60,26 +64,54 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": ".",
-    "roots": ["<rootDir>/test/unit"],
+    "roots": [
+      "<rootDir>/test/unit"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "tsconfig.jest.json" }]
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.jest.json"
+        }
+      ]
     },
-    "collectCoverageFrom": ["src/**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "src/**/*.(t|j)s"
+    ],
     "coveragePathIgnorePatterns": [
-      "/node_modules/", "/dist/", "src/test-utils",
-      "\\.dto\\.ts$", "\\.interface\\.ts$", "src/main\\.ts",
-      "src/container\\.ts", "src/common/constants/", "src/types/",
-      "src/users/constants/", "src/users/interfaces/", "/index\\.ts$"
+      "/node_modules/",
+      "/dist/",
+      "src/test-utils",
+      "\\.dto\\.ts$",
+      "\\.interface\\.ts$",
+      "src/main\\.ts",
+      "src/container\\.ts",
+      "src/common/constants/",
+      "src/types/",
+      "src/users/constants/",
+      "src/users/interfaces/",
+      "/index\\.ts$"
     ],
     "coverageThreshold": {
-      "global": { "branches": 90, "functions": 95, "lines": 95, "statements": 95 }
+      "global": {
+        "branches": 90,
+        "functions": 95,
+        "lines": 95,
+        "statements": 95
+      }
     },
     "coverageDirectory": "coverage",
     "testEnvironment": "node",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
     "testTimeout": 30000,
     "detectOpenHandles": true,
     "forceExit": true,

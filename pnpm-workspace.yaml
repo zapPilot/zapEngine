@@ -11,3 +11,10 @@ overrides:
   serialize-javascript@<7.0.5: '>=7.0.5'
   serialize-javascript@<=7.0.2: '>=7.0.3'
   vite@<=6.4.1: '>=6.4.2'
+
+onlyBuiltDependencies:
+  - bufferutil
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - utf-8-validate

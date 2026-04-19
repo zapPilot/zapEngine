@@ -166,52 +166,6 @@ jobs:
             echo "analytics_engine=$analytics_engine"
           } >> "$GITHUB_OUTPUT"
 
-  deploy-frontend:
-    needs: [lint-test, deploy-gates]
-    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-frontend-${{ github.ref }}
-      cancel-in-progress: true
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable corepack
-        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        env:
-          VITE_ACCOUNT_API_URL: ${{ secrets.VITE_ACCOUNT_API_URL }}
-          VITE_ANALYTICS_ENGINE_URL: ${{ secrets.VITE_ANALYTICS_ENGINE_URL }}
-        run: pnpm --filter frontend build
-
-      - name: Upload frontend artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: apps/frontend/dist
-
-      - name: Deploy frontend to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
   deploy-account-engine:
     needs: [lint-test, deploy-gates]
     if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.account_engine == 'true'
