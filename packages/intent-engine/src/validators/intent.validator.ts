@@ -44,16 +44,22 @@ function assertKnownOnThisChainOrUnknown(
   const onThisChain = Object.values(registry[chainId] ?? {}).some(
     (addr) => addr.toLowerCase() === lc,
   );
-  if (onThisChain) {return;}
+  if (onThisChain) {
+    return;
+  }
 
   for (const [otherChainIdStr, entries] of Object.entries(registry)) {
     const otherChainId = Number(otherChainIdStr);
-    if (otherChainId === chainId) {continue;}
+    if (otherChainId === chainId) {
+      continue;
+    }
     const onOtherChain = Object.values(entries).some(
       (addr) => addr.toLowerCase() === lc,
     );
     if (onOtherChain) {
-      if (kind === 'token') {throw new UnsupportedTokenError(address, chainId);}
+      if (kind === 'token') {
+        throw new UnsupportedTokenError(address, chainId);
+      }
       throw new ValidationError(
         `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`,
       );

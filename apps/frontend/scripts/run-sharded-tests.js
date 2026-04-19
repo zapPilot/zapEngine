@@ -86,7 +86,9 @@ function runVitest(args) {
 }
 
 function runBatch(batchFiles, batchLabel) {
-  console.log(`[test] Running batch ${batchLabel} (${batchFiles.length} files)`);
+  console.log(
+    `[test] Running batch ${batchLabel} (${batchFiles.length} files)`
+  );
 
   const status = runVitest(["run", ...batchFiles]);
 
@@ -115,8 +117,8 @@ function runBatch(batchFiles, batchLabel) {
 
 warnAboutNodeVersion();
 
-const testFiles = TEST_DIRECTORIES.flatMap(collectTestFiles).sort((left, right) =>
-  left.localeCompare(right)
+const testFiles = TEST_DIRECTORIES.flatMap(collectTestFiles).sort(
+  (left, right) => left.localeCompare(right)
 );
 
 if (testFiles.length === 0) {
