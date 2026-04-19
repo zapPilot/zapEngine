@@ -33,6 +33,7 @@ export class TenderlySimulationAdapter implements SimulationAdapter {
     // 2. Parse response for gas usage, errors, state changes
     // 3. Return structured result
 
+    // eslint-disable-next-line no-console -- intentional POC signal that this simulator is stubbed
     console.warn('[TenderlySimulationAdapter] Simulation is stubbed in POC');
 
     return {
