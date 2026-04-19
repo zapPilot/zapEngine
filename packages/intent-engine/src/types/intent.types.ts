@@ -5,7 +5,12 @@ export const SUPPORTED_CHAIN_IDS = [1, 8453] as const;
 export type SupportedChainId = (typeof SUPPORTED_CHAIN_IDS)[number];
 
 // Intent type enum
-export const IntentTypeSchema = z.enum(['SWAP', 'SUPPLY', 'WITHDRAW', 'ROTATE']);
+export const IntentTypeSchema = z.enum([
+  'SWAP',
+  'SUPPLY',
+  'WITHDRAW',
+  'ROTATE',
+]);
 export type IntentType = z.infer<typeof IntentTypeSchema>;
 
 // Ethereum address regex
@@ -17,9 +22,13 @@ export const BaseIntentSchema = z.object({
   fromAddress: z.string().regex(addressRegex, 'Invalid Ethereum address'),
   chainId: z
     .number()
-    .refine((id): id is SupportedChainId => SUPPORTED_CHAIN_IDS.includes(id as SupportedChainId), {
-      message: 'Only Ethereum (1) and Base (8453) supported in POC',
-    }),
+    .refine(
+      (id): id is SupportedChainId =>
+        SUPPORTED_CHAIN_IDS.includes(id as SupportedChainId),
+      {
+        message: 'Only Ethereum (1) and Base (8453) supported in POC',
+      },
+    ),
   slippageBps: z.number().int().min(1).max(500).default(50), // 0.01% to 5%, default 0.5%
   metadata: z.record(z.string(), z.unknown()).optional(),
 });

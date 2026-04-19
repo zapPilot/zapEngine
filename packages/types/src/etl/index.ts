@@ -7,7 +7,7 @@ export const JobStatusEnum = z.enum([
   'pending',
   'processing',
   'completed',
-  'failed'
+  'failed',
 ]);
 
 /**
@@ -17,7 +17,7 @@ export const EtlErrorCodeEnum = z.enum([
   'API_ERROR',
   'VALIDATION_ERROR',
   'INTERNAL_ERROR',
-  'RATE_LIMIT_EXCEEDED'
+  'RATE_LIMIT_EXCEEDED',
 ]);
 
 /**
@@ -25,7 +25,7 @@ export const EtlErrorCodeEnum = z.enum([
  */
 export const EtlErrorSchema = z.object({
   code: EtlErrorCodeEnum,
-  message: z.string()
+  message: z.string(),
 });
 
 /**
@@ -41,14 +41,14 @@ export const EtlJobStatusSchema = z.object({
   recordsInserted: z.number().int().nonnegative().optional(),
   duration: z.number().int().nonnegative().optional(), // milliseconds
   completedAt: z.string().datetime().optional(), // ISO-8601
-  error: EtlErrorSchema.optional()
+  error: EtlErrorSchema.optional(),
 });
 
 /**
  * Webhook trigger response - returned when creating a job
  */
 export const EtlJobCreatedSchema = z.object({
-  jobId: z.string()
+  jobId: z.string(),
 });
 
 // Inferred TypeScript types from Zod schemas

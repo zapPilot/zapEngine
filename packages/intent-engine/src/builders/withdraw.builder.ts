@@ -14,14 +14,16 @@ import { validateWithdrawIntent } from '../validators/intent.validator.js';
  *
  * For withdrawals that also need swapping, use buildRotateTx instead.
  */
-export function buildWithdrawTx(intent: WithdrawIntentInput): PreparedTransaction {
+export function buildWithdrawTx(
+  intent: WithdrawIntentInput,
+): PreparedTransaction {
   // Validate intent (throws on invalid)
   const validated = validateWithdrawIntent(intent);
 
   const calldata = encodeRedeem(
     BigInt(validated.shareAmount),
     validated.fromAddress as Address,
-    validated.fromAddress as Address
+    validated.fromAddress as Address,
   );
 
   return {

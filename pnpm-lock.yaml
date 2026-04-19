@@ -502,15 +502,36 @@ importers:
         specifier: ^4.1.13
         version: 4.3.6
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.18.0
+        version: 9.39.4
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.17
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.4(jiti@2.6.1)
+      globals:
+        specifier: ^16.0.0
+        version: 16.5.0
+      jscpd:
+        specifier: ^4.0.5
+        version: 4.0.9
+      knip:
+        specifier: ^5.66.4
+        version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
+      prettier:
+        specifier: ^3.4.2
+        version: 3.8.3
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.20.0
+        version: 8.58.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@22.19.17)(@vitest/coverage-v8@4.1.4)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
@@ -523,12 +544,33 @@ importers:
         specifier: ^4.1.13
         version: 4.3.6
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.18.0
+        version: 9.39.4
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.4(jiti@2.6.1)
+      globals:
+        specifier: ^16.0.0
+        version: 16.5.0
+      jscpd:
+        specifier: ^4.0.5
+        version: 4.0.9
+      knip:
+        specifier: ^5.66.4
+        version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
+      prettier:
+        specifier: ^3.4.2
+        version: 3.8.3
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.20.0
+        version: 8.58.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
 packages:
 

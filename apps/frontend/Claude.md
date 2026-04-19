@@ -2,7 +2,8 @@ See @README.md for project overview and @package.json for available scripts.
 
 # Architecture
 
-- API calls: plain service functions in `src/services/` only — no classes, no direct `fetch()` in components
+- API calls: plain service functions in `src/services/` only — no classes, no direct `fetch()` in
+  components
 - Imports: use barrel paths (`@/services`, `@/types`, `@/utils`) not deep file paths
 - Wallet access: always via `useWalletProvider()` hook — never direct Thirdweb hooks
 

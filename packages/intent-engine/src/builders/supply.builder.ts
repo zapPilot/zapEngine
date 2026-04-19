@@ -1,7 +1,10 @@
 import type { Address, PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import { MORPHO_GAS_ESTIMATES, MORPHO_VAULT_ABI } from '../protocols/morpho/morpho.constants.js';
+import {
+  MORPHO_GAS_ESTIMATES,
+  MORPHO_VAULT_ABI,
+} from '../protocols/morpho/morpho.constants.js';
 import { encodeDeposit } from '../protocols/morpho/morpho.encoder.js';
 import type { SupplyIntentInput } from '../types/intent.types.js';
 import type { TransactionQuote } from '../types/transaction.types.js';
@@ -22,7 +25,7 @@ import { validateSupplyIntent } from '../validators/intent.validator.js';
 export async function buildSupplyTx(
   intent: SupplyIntentInput,
   adapter: LiFiAdapter,
-  publicClient: PublicClient
+  publicClient: PublicClient,
 ): Promise<TransactionQuote> {
   const validated = validateSupplyIntent(intent);
 
@@ -34,7 +37,7 @@ export async function buildSupplyTx(
 
   const depositCalldata = encodeDeposit(
     BigInt(validated.fromAmount),
-    validated.fromAddress as Address
+    validated.fromAddress as Address,
   );
 
   return adapter.getContractCallQuote({

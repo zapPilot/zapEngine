@@ -84,7 +84,9 @@ interface Multicall3ValueCall extends Multicall3Call {
  * @param txs - Array of prepared transactions to batch
  * @returns Single prepared transaction using Multicall3
  */
-export function encodeMulticall3(txs: PreparedTransaction[]): PreparedTransaction {
+export function encodeMulticall3(
+  txs: PreparedTransaction[],
+): PreparedTransaction {
   if (txs.length === 0) {
     throw new Error('Cannot encode empty transaction array');
   }
@@ -112,7 +114,7 @@ export function encodeMulticall3(txs: PreparedTransaction[]): PreparedTransactio
   // Estimate gas as sum of individual gas limits + overhead
   const totalGas = txs.reduce(
     (sum, tx) => sum + BigInt(tx.gasLimit ?? '100000'),
-    50000n // Multicall3 overhead
+    50000n, // Multicall3 overhead
   );
 
   return {
@@ -131,7 +133,9 @@ export function encodeMulticall3(txs: PreparedTransaction[]): PreparedTransactio
 /**
  * Encode transactions with ETH value using aggregate3Value
  */
-function encodeMulticall3WithValue(txs: PreparedTransaction[]): PreparedTransaction {
+function encodeMulticall3WithValue(
+  txs: PreparedTransaction[],
+): PreparedTransaction {
   const calls: Multicall3ValueCall[] = txs.map((tx) => ({
     target: tx.to as Address,
     allowFailure: false,
@@ -151,7 +155,7 @@ function encodeMulticall3WithValue(txs: PreparedTransaction[]): PreparedTransact
   // Estimate gas
   const totalGas = txs.reduce(
     (sum, tx) => sum + BigInt(tx.gasLimit ?? '100000'),
-    50000n
+    50000n,
   );
 
   return {

@@ -1,0 +1,24 @@
+{
+  "threshold": 5,
+  "reporters": ["console"],
+  "ignore": [
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/test/**",
+    "**/tests/**",
+    "dist/**",
+    "node_modules/**",
+    ".turbo/**",
+    "coverage/**"
+  ],
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
+  ],
+  "absolute": true,
+  "gitignore": true,
+  "mode": "strict",
+  "format": ["typescript"],
+  "minLines": 5,
+  "minTokens": 50
+}

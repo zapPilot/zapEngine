@@ -19,7 +19,7 @@ export type ExecutionStrategy = 'eip7702' | 'multicall3' | 'sequential';
  */
 export async function detectEIP7702Support(
   wallet: WalletClient,
-  chainId: number
+  chainId: number,
 ): Promise<boolean> {
   try {
     const capabilities = await getCapabilities(wallet, { chainId });
@@ -38,7 +38,7 @@ export async function detectEIP7702Support(
  */
 export async function determineExecutionStrategy(
   wallet?: WalletClient,
-  chainId?: number
+  chainId?: number,
 ): Promise<ExecutionStrategy> {
   if (!wallet || chainId === undefined) {
     return 'multicall3';

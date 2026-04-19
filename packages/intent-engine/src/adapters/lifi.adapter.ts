@@ -8,7 +8,10 @@ import {
 import type { Address } from 'viem';
 
 import { QuoteError } from '../errors/intent.errors.js';
-import type { TransactionQuote, PreparedTransaction } from '../types/transaction.types.js';
+import type {
+  TransactionQuote,
+  PreparedTransaction,
+} from '../types/transaction.types.js';
 
 // LI.FI getQuote returns a step with transactionRequest
 interface LiFiQuoteResponse {
@@ -86,9 +89,14 @@ export class LiFiAdapter {
       };
 
       const quote = await getQuote(request);
-      return this.mapQuoteToTransaction(quote as unknown as LiFiQuoteResponse, 'SWAP');
+      return this.mapQuoteToTransaction(
+        quote as unknown as LiFiQuoteResponse,
+        'SWAP',
+      );
     } catch (error) {
-      throw new QuoteError('Failed to get swap quote from LI.FI', { cause: error });
+      throw new QuoteError('Failed to get swap quote from LI.FI', {
+        cause: error,
+      });
     }
   }
 
@@ -125,16 +133,24 @@ export class LiFiAdapter {
       };
 
       const quote = await getContractCallsQuote(request);
-      return this.mapQuoteToTransaction(quote as unknown as LiFiQuoteResponse, 'SUPPLY');
+      return this.mapQuoteToTransaction(
+        quote as unknown as LiFiQuoteResponse,
+        'SUPPLY',
+      );
     } catch (error) {
-      throw new QuoteError('Failed to get contract call quote from LI.FI', { cause: error });
+      throw new QuoteError('Failed to get contract call quote from LI.FI', {
+        cause: error,
+      });
     }
   }
 
   /**
    * Map LI.FI quote response to our TransactionQuote format
    */
-  private mapQuoteToTransaction(quote: LiFiQuoteResponse, intentType: string): TransactionQuote {
+  private mapQuoteToTransaction(
+    quote: LiFiQuoteResponse,
+    intentType: string,
+  ): TransactionQuote {
     if (!quote.transactionRequest) {
       throw new QuoteError('No transaction in quote response');
     }
@@ -159,7 +175,8 @@ export class LiFiAdapter {
     // Check if approval is needed
     const approval =
       quote.estimate.approvalAddress &&
-      quote.action.fromToken.address !== '0x0000000000000000000000000000000000000000'
+      quote.action.fromToken.address !==
+        '0x0000000000000000000000000000000000000000'
         ? {
             tokenAddress: quote.action.fromToken.address as Address,
             spenderAddress: quote.estimate.approvalAddress as Address,
@@ -169,7 +186,9 @@ export class LiFiAdapter {
 
     // Calculate gas cost from gasCosts array
     const gasCostUsd =
-      quote.estimate.gasCosts?.reduce((sum, gc) => sum + parseFloat(gc.amountUSD ?? '0'), 0).toString() ?? '0';
+      quote.estimate.gasCosts
+        ?.reduce((sum, gc) => sum + parseFloat(gc.amountUSD ?? '0'), 0)
+        .toString() ?? '0';
 
     return {
       transaction,

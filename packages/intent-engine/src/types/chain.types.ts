@@ -8,7 +8,8 @@ export const CHAIN_IDS = {
 export type ChainId = (typeof CHAIN_IDS)[keyof typeof CHAIN_IDS];
 
 // Native token address (used by LI.FI and most protocols)
-export const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000' as Address;
+export const NATIVE_TOKEN =
+  '0x0000000000000000000000000000000000000000' as Address;
 
 // Common tokens for POC (ETH/BTC rotation strategy)
 export const TOKENS = {
@@ -29,7 +30,8 @@ export const TOKENS = {
 } as const;
 
 // Multicall3 contract address (same on all EVM chains)
-export const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;
+export const MULTICALL3_ADDRESS =
+  '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;
 
 // Chain metadata
 export const CHAIN_METADATA = {

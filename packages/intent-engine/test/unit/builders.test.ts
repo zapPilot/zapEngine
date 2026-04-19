@@ -13,8 +13,10 @@ const FROM_ADDRESS = '0x1234567890123456789012345678901234567890' as Address;
 
 // Base chain: USDC, MOONWELL_USDC
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
-const BASE_MOONWELL_USDC = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
-const BASE_SEAMLESS_WETH = '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address;
+const BASE_MOONWELL_USDC =
+  '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
+const BASE_SEAMLESS_WETH =
+  '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address;
 const BASE_WETH = '0x4200000000000000000000000000000000000006' as Address;
 
 // Eth chain (Base vault used against chainId=1 should fail validation)
@@ -24,7 +26,9 @@ const ETH_WBTC = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as Address;
 const DEPOSIT_SELECTOR = '0x6e553f65';
 const REDEEM_SELECTOR = '0xba087652';
 
-function makeStubQuote(overrides: Partial<TransactionQuote> = {}): TransactionQuote {
+function makeStubQuote(
+  overrides: Partial<TransactionQuote> = {},
+): TransactionQuote {
   return {
     transaction: {
       to: BASE_MOONWELL_USDC,
@@ -78,7 +82,7 @@ describe('buildSwapTx', () => {
         toToken: ETH_WBTC,
         fromAmount: '1000000000000000000',
       },
-      adapter
+      adapter,
     );
 
     expect(getSwapQuote).toHaveBeenCalledWith({
@@ -106,7 +110,7 @@ describe('buildSwapTx', () => {
         fromAmount: '1',
         slippageBps: 100,
       },
-      adapter
+      adapter,
     );
 
     expect(getSwapQuote.mock.calls[0]?.[0]).toMatchObject({ slippageBps: 100 });
@@ -125,15 +129,15 @@ describe('buildSwapTx', () => {
           toToken: ETH_WBTC,
           fromAmount: '1',
         },
-        adapter
-      )
+        adapter,
+      ),
     ).rejects.toThrow(/Invalid swap intent/i);
     expect(getSwapQuote).not.toHaveBeenCalled();
   });
 });
 
 describe('buildSupplyTx', () => {
-  it("reads vault.asset() and encodes a Morpho deposit call for the LI.FI quote", async () => {
+  it('reads vault.asset() and encodes a Morpho deposit call for the LI.FI quote', async () => {
     const { adapter, getContractCallQuote } = makeAdapterMock();
     getContractCallQuote.mockResolvedValueOnce(makeStubQuote());
 
@@ -151,7 +155,7 @@ describe('buildSupplyTx', () => {
         protocol: 'morpho',
       },
       adapter,
-      publicClient
+      publicClient,
     );
 
     expect(readContract).toHaveBeenCalledWith({
@@ -247,7 +251,7 @@ describe('buildRotateTx', () => {
           gasCostUsd: '1.25',
           executionDuration: 30,
         },
-      })
+      }),
     );
 
     const plan = await buildRotateTx(
@@ -261,7 +265,7 @@ describe('buildRotateTx', () => {
         protocol: 'morpho',
       },
       adapter,
-      publicClient
+      publicClient,
     );
 
     // Three parallel reads issued against the correct vaults
@@ -289,9 +293,11 @@ describe('buildRotateTx', () => {
     expect(quoteArgs.toToken).toBe(BASE_WETH);
     expect(quoteArgs.toAmount).toBe('994000');
     expect(quoteArgs.contractCalls[0].fromAmount).toBe('994000');
-    expect(quoteArgs.contractCalls[0].toContractAddress).toBe(BASE_SEAMLESS_WETH);
+    expect(quoteArgs.contractCalls[0].toContractAddress).toBe(
+      BASE_SEAMLESS_WETH,
+    );
     expect(quoteArgs.contractCalls[0].toContractCallData.slice(0, 10)).toBe(
-      DEPOSIT_SELECTOR
+      DEPOSIT_SELECTOR,
     );
 
     // Plan shape
@@ -325,8 +331,8 @@ describe('buildRotateTx', () => {
           protocol: 'morpho',
         },
         adapter,
-        publicClient
-      )
+        publicClient,
+      ),
     ).rejects.toThrow(/LI\.FI down/);
   });
 });

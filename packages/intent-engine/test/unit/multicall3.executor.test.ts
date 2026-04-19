@@ -47,7 +47,9 @@ const MULTICALL3_ABI = [
   },
 ] as const;
 
-function makeTx(overrides: Partial<PreparedTransaction> = {}): PreparedTransaction {
+function makeTx(
+  overrides: Partial<PreparedTransaction> = {},
+): PreparedTransaction {
   return {
     to: TARGET_A,
     data: '0xdeadbeef',
@@ -90,7 +92,11 @@ describe('encodeMulticall3', () => {
     });
     expect(decoded.functionName).toBe('aggregate3');
     const [calls] = decoded.args as unknown as [
-      Array<{ target: Address; allowFailure: boolean; callData: `0x${string}` }>,
+      Array<{
+        target: Address;
+        allowFailure: boolean;
+        callData: `0x${string}`;
+      }>,
     ];
     expect(calls).toHaveLength(2);
     expect(calls[0]).toEqual({
@@ -118,7 +124,12 @@ describe('encodeMulticall3', () => {
     });
     expect(decoded.functionName).toBe('aggregate3Value');
     const [calls] = decoded.args as unknown as [
-      Array<{ target: Address; allowFailure: boolean; value: bigint; callData: `0x${string}` }>,
+      Array<{
+        target: Address;
+        allowFailure: boolean;
+        value: bigint;
+        callData: `0x${string}`;
+      }>,
     ];
     expect(calls).toHaveLength(2);
     expect(calls[0]?.value).toBe(0n);
@@ -160,7 +171,9 @@ describe('encodeMulticall3', () => {
       abi: MULTICALL3_ABI,
       data: out.data as `0x${string}`,
     });
-    const [calls] = decoded.args as unknown as [Array<{ allowFailure: boolean }>];
+    const [calls] = decoded.args as unknown as [
+      Array<{ allowFailure: boolean }>,
+    ];
     expect(calls.every((c) => c.allowFailure === false)).toBe(true);
   });
 });

@@ -46,14 +46,19 @@ export interface ErrorContext {
 /**
  * Data sources for ETL pipeline
  */
-export type DataSource = 'defillama' | 'debank' | 'hyperliquid' | 'feargreed' | 'token-price';
+export type DataSource =
+  | 'defillama'
+  | 'debank'
+  | 'hyperliquid'
+  | 'feargreed'
+  | 'token-price';
 
 export const DATA_SOURCES: readonly DataSource[] = [
   'defillama',
   'debank',
   'hyperliquid',
   'feargreed',
-  'token-price'
+  'token-price',
 ] as const;
 
 /**

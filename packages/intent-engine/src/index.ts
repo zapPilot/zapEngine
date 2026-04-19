@@ -65,13 +65,22 @@ export {
 
 import type { PublicClient, WalletClient } from 'viem';
 
-import { LiFiAdapter, type LiFiAdapterConfig } from './adapters/lifi.adapter.js';
-import { NoopSimulationAdapter, type SimulationAdapter } from './adapters/simulation.adapter.js';
+import {
+  LiFiAdapter,
+  type LiFiAdapterConfig,
+} from './adapters/lifi.adapter.js';
+import {
+  NoopSimulationAdapter,
+  type SimulationAdapter,
+} from './adapters/simulation.adapter.js';
 import { buildSwapTx } from './builders/swap.builder.js';
 import { buildSupplyTx } from './builders/supply.builder.js';
 import { buildWithdrawTx } from './builders/withdraw.builder.js';
 import { buildRotateTx } from './builders/rotate.builder.js';
-import { determineExecutionStrategy, type ExecutionStrategy } from './execution/capability.detector.js';
+import {
+  determineExecutionStrategy,
+  type ExecutionStrategy,
+} from './execution/capability.detector.js';
 import { encodeMulticall3 } from './execution/multicall3.executor.js';
 import { executeWithEIP7702 } from './execution/eip7702.executor.js';
 import type {
@@ -113,7 +122,7 @@ export interface IntentEngine {
   /** Build a supply (deposit) transaction (requires a PublicClient to read vault.asset()) */
   buildSupply(
     intent: SupplyIntentInput,
-    publicClient: PublicClient
+    publicClient: PublicClient,
   ): Promise<TransactionQuote>;
 
   /** Build a withdraw transaction */
@@ -122,20 +131,26 @@ export interface IntentEngine {
   /** Build a rotate transaction plan (requires a PublicClient for on-chain previews) */
   buildRotate(
     intent: RotateIntentInput,
-    publicClient: PublicClient
+    publicClient: PublicClient,
   ): Promise<RotateTransactionPlan>;
 
   /** Simulate a transaction before execution */
   simulateTx(tx: PreparedTransaction): Promise<SimulationResult>;
 
   /** Determine best execution strategy for a wallet on a given chain */
-  getExecutionStrategy(wallet?: WalletClient, chainId?: number): Promise<ExecutionStrategy>;
+  getExecutionStrategy(
+    wallet?: WalletClient,
+    chainId?: number,
+  ): Promise<ExecutionStrategy>;
 
   /** Batch transactions for atomic execution */
   batchTransactions(txs: PreparedTransaction[]): PreparedTransaction;
 
   /** Execute batched transactions with EIP-7702 */
-  executeWithEIP7702(txs: PreparedTransaction[], wallet: WalletClient): Promise<ExecutionResult>;
+  executeWithEIP7702(
+    txs: PreparedTransaction[],
+    wallet: WalletClient,
+  ): Promise<ExecutionResult>;
 }
 
 /**

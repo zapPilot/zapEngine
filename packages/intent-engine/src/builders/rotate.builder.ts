@@ -1,10 +1,19 @@
 import type { Address, PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import { MORPHO_GAS_ESTIMATES, MORPHO_VAULT_ABI } from '../protocols/morpho/morpho.constants.js';
-import { encodeDeposit, encodeRedeem } from '../protocols/morpho/morpho.encoder.js';
+import {
+  MORPHO_GAS_ESTIMATES,
+  MORPHO_VAULT_ABI,
+} from '../protocols/morpho/morpho.constants.js';
+import {
+  encodeDeposit,
+  encodeRedeem,
+} from '../protocols/morpho/morpho.encoder.js';
 import type { RotateIntentInput } from '../types/intent.types.js';
-import type { PreparedTransaction, RotateTransactionPlan } from '../types/transaction.types.js';
+import type {
+  PreparedTransaction,
+  RotateTransactionPlan,
+} from '../types/transaction.types.js';
 import { validateRotateIntent } from '../validators/intent.validator.js';
 
 /**
@@ -29,7 +38,7 @@ import { validateRotateIntent } from '../validators/intent.validator.js';
 export async function buildRotateTx(
   intent: RotateIntentInput,
   adapter: LiFiAdapter,
-  publicClient: PublicClient
+  publicClient: PublicClient,
 ): Promise<RotateTransactionPlan> {
   const validated = validateRotateIntent(intent);
 
@@ -59,7 +68,7 @@ export async function buildRotateTx(
     data: encodeRedeem(
       BigInt(validated.shareAmount),
       validated.fromAddress as Address,
-      validated.fromAddress as Address
+      validated.fromAddress as Address,
     ),
     value: '0',
     chainId: validated.chainId,
@@ -73,7 +82,7 @@ export async function buildRotateTx(
 
   const depositCalldata = encodeDeposit(
     redeemAmount,
-    validated.fromAddress as Address
+    validated.fromAddress as Address,
   );
 
   const supplyQuote = await adapter.getContractCallQuote({

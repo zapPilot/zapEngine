@@ -14,7 +14,7 @@ import { validateSwapIntent } from '../validators/intent.validator.js';
  */
 export async function buildSwapTx(
   intent: SwapIntentInput,
-  adapter: LiFiAdapter
+  adapter: LiFiAdapter,
 ): Promise<TransactionQuote> {
   // Validate intent (throws on invalid)
   const validated = validateSwapIntent(intent);

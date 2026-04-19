@@ -6,7 +6,10 @@ import { MORPHO_VAULT_ABI } from './morpho.constants.js';
  * @param assets - Amount of underlying assets to deposit (in wei)
  * @param receiver - Address to receive vault shares
  */
-export function encodeDeposit(assets: bigint, receiver: Address): `0x${string}` {
+export function encodeDeposit(
+  assets: bigint,
+  receiver: Address,
+): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
     functionName: 'deposit',
@@ -36,7 +39,7 @@ export function encodeMint(shares: bigint, receiver: Address): `0x${string}` {
 export function encodeWithdraw(
   assets: bigint,
   receiver: Address,
-  owner: Address
+  owner: Address,
 ): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
@@ -54,7 +57,7 @@ export function encodeWithdraw(
 export function encodeRedeem(
   shares: bigint,
   receiver: Address,
-  owner: Address
+  owner: Address,
 ): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,

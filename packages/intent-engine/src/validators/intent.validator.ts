@@ -22,7 +22,9 @@ import {
 const SUPPORTED_CHAINS_SET = new Set(SUPPORTED_CHAIN_IDS);
 
 function assertSupportedChain(chainId: number): void {
-  if (!SUPPORTED_CHAINS_SET.has(chainId as (typeof SUPPORTED_CHAIN_IDS)[number])) {
+  if (
+    !SUPPORTED_CHAINS_SET.has(chainId as (typeof SUPPORTED_CHAIN_IDS)[number])
+  ) {
     throw new UnsupportedChainError(chainId);
   }
 }
@@ -36,22 +38,24 @@ function assertKnownOnThisChainOrUnknown(
   address: string,
   chainId: number,
   registry: Record<number, Record<string, string>>,
-  kind: 'token' | 'vault'
+  kind: 'token' | 'vault',
 ): void {
   const lc = address.toLowerCase();
   const onThisChain = Object.values(registry[chainId] ?? {}).some(
-    (addr) => addr.toLowerCase() === lc
+    (addr) => addr.toLowerCase() === lc,
   );
   if (onThisChain) return;
 
   for (const [otherChainIdStr, entries] of Object.entries(registry)) {
     const otherChainId = Number(otherChainIdStr);
     if (otherChainId === chainId) continue;
-    const onOtherChain = Object.values(entries).some((addr) => addr.toLowerCase() === lc);
+    const onOtherChain = Object.values(entries).some(
+      (addr) => addr.toLowerCase() === lc,
+    );
     if (onOtherChain) {
       if (kind === 'token') throw new UnsupportedTokenError(address, chainId);
       throw new ValidationError(
-        `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`
+        `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`,
       );
     }
   }
@@ -62,7 +66,7 @@ function assertTokenForChain(token: string, chainId: number): void {
     token,
     chainId,
     TOKENS as unknown as Record<number, Record<string, string>>,
-    'token'
+    'token',
   );
 }
 
@@ -71,7 +75,7 @@ function assertVaultForChain(vault: string, chainId: number): void {
     vault,
     chainId,
     MORPHO_VAULTS as unknown as Record<number, Record<string, string>>,
-    'vault'
+    'vault',
   );
 }
 

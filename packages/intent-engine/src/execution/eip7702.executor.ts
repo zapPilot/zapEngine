@@ -2,7 +2,10 @@ import type { Hash, WalletClient } from 'viem';
 import { sendCalls, waitForCallsStatus } from 'viem/actions';
 
 import { ExecutionError } from '../errors/intent.errors.js';
-import type { ExecutionResult, PreparedTransaction } from '../types/transaction.types.js';
+import type {
+  ExecutionResult,
+  PreparedTransaction,
+} from '../types/transaction.types.js';
 
 /**
  * Execute a batch of transactions via EIP-5792 `wallet_sendCalls`.
@@ -18,7 +21,7 @@ import type { ExecutionResult, PreparedTransaction } from '../types/transaction.
  */
 export async function executeWithEIP7702(
   txs: PreparedTransaction[],
-  wallet: WalletClient
+  wallet: WalletClient,
 ): Promise<ExecutionResult> {
   if (txs.length === 0) {
     throw new ExecutionError('Cannot execute empty transaction array');
@@ -47,7 +50,9 @@ export async function executeWithEIP7702(
     return {
       success: false,
       error:
-        error instanceof Error ? error.message : 'Unknown error during EIP-7702 execution',
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during EIP-7702 execution',
     };
   }
 }
@@ -64,7 +69,7 @@ export async function executeWithEIP7702(
  */
 export async function waitForEIP7702Confirmation(
   callsId: string,
-  wallet: WalletClient
+  wallet: WalletClient,
 ): Promise<{
   status: 'success' | 'failure';
   transactionHash?: Hash;

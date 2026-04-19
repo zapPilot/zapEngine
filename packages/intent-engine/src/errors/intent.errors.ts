@@ -13,7 +13,10 @@ export class IntentEngineError extends Error {
   public readonly code: IntentErrorCode;
   public readonly errorCause?: unknown;
 
-  constructor(message: string, options?: { code?: IntentErrorCode; cause?: unknown }) {
+  constructor(
+    message: string,
+    options?: { code?: IntentErrorCode; cause?: unknown },
+  ) {
     super(message);
     this.name = 'IntentEngineError';
     this.code = options?.code ?? 'INTENT_ENGINE_ERROR';
@@ -25,7 +28,10 @@ export class IntentEngineError extends Error {
       name: this.name,
       code: this.code,
       message: this.message,
-      cause: this.errorCause instanceof Error ? this.errorCause.message : this.errorCause,
+      cause:
+        this.errorCause instanceof Error
+          ? this.errorCause.message
+          : this.errorCause,
     };
   }
 }
@@ -60,9 +66,12 @@ export class InsufficientBalanceError extends IntentEngineError {
   public readonly available: string;
 
   constructor(token: string, required: string, available: string) {
-    super(`Insufficient ${token} balance: required ${required}, available ${available}`, {
-      code: 'INSUFFICIENT_BALANCE',
-    });
+    super(
+      `Insufficient ${token} balance: required ${required}, available ${available}`,
+      {
+        code: 'INSUFFICIENT_BALANCE',
+      },
+    );
     this.name = 'InsufficientBalanceError';
     this.token = token;
     this.required = required;
@@ -84,9 +93,12 @@ export class SlippageError extends IntentEngineError {
   public readonly received: string;
 
   constructor(expected: string, received: string) {
-    super(`Slippage exceeded: expected ${expected}, would receive ${received}`, {
-      code: 'SLIPPAGE_EXCEEDED',
-    });
+    super(
+      `Slippage exceeded: expected ${expected}, would receive ${received}`,
+      {
+        code: 'SLIPPAGE_EXCEEDED',
+      },
+    );
     this.name = 'SlippageError';
     this.expected = expected;
     this.received = received;
@@ -105,9 +117,12 @@ export class UnsupportedChainError extends IntentEngineError {
   public readonly chainId: number;
 
   constructor(chainId: number) {
-    super(`Chain ${chainId} not supported. POC supports Ethereum (1) and Base (8453)`, {
-      code: 'UNSUPPORTED_CHAIN',
-    });
+    super(
+      `Chain ${chainId} not supported. POC supports Ethereum (1) and Base (8453)`,
+      {
+        code: 'UNSUPPORTED_CHAIN',
+      },
+    );
     this.name = 'UnsupportedChainError';
     this.chainId = chainId;
   }
