@@ -67,6 +67,9 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../../packages/knip-config
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -149,6 +152,9 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../../packages/knip-config
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -272,6 +278,9 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../../packages/knip-config
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
@@ -372,15 +381,15 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../../packages/knip-config
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: 15.3.4
         version: 15.3.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
-      eslint-config-prettier:
-        specifier: ^10.1.5
-        version: 10.1.8(eslint@9.39.4(jiti@2.6.1))
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@20.19.39)
@@ -493,6 +502,9 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../knip-config
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -515,6 +527,8 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@22.19.17)(@vitest/coverage-v8@4.1.4)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
+  packages/knip-config: {}
+
   packages/tsconfig: {}
 
   packages/types:
@@ -526,6 +540,9 @@ importers:
       '@zapengine/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../knip-config
       '@zapengine/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

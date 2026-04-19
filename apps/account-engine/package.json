@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",

@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "prettier": "^3.4.2",
     "@types/cors": "^2.8.17",

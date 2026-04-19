@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
