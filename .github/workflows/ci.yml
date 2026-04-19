@@ -53,6 +53,10 @@ jobs:
       - name: Build all packages
         run: pnpm turbo run build
 
+      - name: Python security audit (analytics-engine)
+        working-directory: apps/analytics-engine
+        run: make deps-audit
+
       - name: Run check-variant tasks
         run: pnpm turbo run format:check lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci
         env:

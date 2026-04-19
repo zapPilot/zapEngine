@@ -89,7 +89,8 @@ deps-update:	## Update dependencies
 	uv lock --upgrade
 
 deps-audit:	## Audit dependencies for security issues
-	uv audit
+	uv export --locked --no-dev --no-emit-project --format requirements.txt --no-header --output-file /tmp/analytics-engine-audit.txt > /dev/null
+	uvx --from pip-audit pip-audit -r /tmp/analytics-engine-audit.txt --disable-pip
 
 # Analysis scripts
 analyze-btc-sentiment:	## Generate BTC price & sentiment chart (default: all data)
