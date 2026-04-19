@@ -7,7 +7,7 @@ app = 'alpha-etl'
 primary_region = 'sin'
 
 [build]
-  dockerfile = 'apps/alpha-etl/Dockerfile'
+  dockerfile = 'Dockerfile'
 
 [http_service]
   internal_port = 3003

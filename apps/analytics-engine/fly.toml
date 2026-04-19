@@ -7,7 +7,7 @@ app = 'analytics-engine-xws3ra'
 primary_region = 'hkg'
 
 [build]
-  dockerfile = 'apps/analytics-engine/Dockerfile'
+  dockerfile = 'Dockerfile'
 
 [http_service]
   internal_port = 8001

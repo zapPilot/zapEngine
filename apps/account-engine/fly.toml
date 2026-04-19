@@ -2,7 +2,7 @@ app = "account-engine"
 primary_region = "sin"
 
 [build]
-dockerfile = "apps/account-engine/Dockerfile"
+dockerfile = "Dockerfile"
 
 [http_service]
 auto_start_machines = true
