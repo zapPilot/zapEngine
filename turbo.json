@@ -26,7 +26,8 @@
         "source.config.*",
         "content/**",
         "postcss.config.*",
-        "tailwind.config.*"
+        "tailwind.config.*",
+        "!**/*.md"
       ]
     },
     "dev": {
@@ -55,7 +56,8 @@
         "package.json",
         "tsconfig.json",
         "next.config.*",
-        "source.config.*"
+        "source.config.*",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -73,7 +75,8 @@
         "jest.config.*",
         "vitest.config.*",
         "pytest.ini",
-        "pyproject.toml"
+        "pyproject.toml",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -91,7 +94,8 @@
         "jest.config.*",
         "vitest.config.*",
         "pytest.ini",
-        "pyproject.toml"
+        "pyproject.toml",
+        "!**/*.md"
       ],
       "outputs": ["coverage/**", "htmlcov/**"]
     },
@@ -111,7 +115,8 @@
         "vitest.config.*",
         "playwright.config.*",
         "pytest.ini",
-        "pyproject.toml"
+        "pyproject.toml",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -145,7 +150,8 @@
         "knip.json",
         "knip.production.json",
         "vulture_whitelist.py",
-        "tsconfig.tsprune.json"
+        "tsconfig.tsprune.json",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -155,7 +161,8 @@
         "src/**",
         "content/**",
         "public/**",
-        ".jscpd.json"
+        ".jscpd.json",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -163,7 +170,8 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "scripts/audit_sql_params.py"
+        "scripts/audit_sql_params.py",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -171,7 +179,8 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "scripts/check_service_reachability.py"
+        "scripts/check_service_reachability.py",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -179,7 +188,8 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "pyproject.toml"
+        "pyproject.toml",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -190,7 +200,8 @@
         "$TURBO_DEFAULT$",
         "src/**",
         "tests/**",
-        "playwright.config.*"
+        "playwright.config.*",
+        "!**/*.md"
       ],
       "outputs": []
     },
@@ -202,7 +213,8 @@
         "src/**",
         "tests/**",
         "playwright.config.*",
-        "scripts/run-e2e-safe.js"
+        "scripts/run-e2e-safe.js",
+        "!**/*.md"
       ],
       "outputs": []
     },

@@ -63,13 +63,13 @@ apiError: "Failed to load portfolio summary"
 
 ```bash
 # Add these to package.json devDependencies:
-npm install --save-dev @testing-library/jest-dom@^6.1.4
-npm install --save-dev @testing-library/react@^14.1.2
-npm install --save-dev @testing-library/user-event@^14.5.1
-npm install --save-dev @vitejs/plugin-react@^4.1.1
-npm install --save-dev @vitest/coverage-v8@^1.0.4
-npm install --save-dev jsdom@^23.0.1
-npm install --save-dev vitest@^1.0.4
+pnpm add -D @testing-library/jest-dom@^6.1.4
+pnpm add -D @testing-library/react@^14.1.2
+pnpm add -D @testing-library/user-event@^14.5.1
+pnpm add -D @vitejs/plugin-react@^4.1.1
+pnpm add -D @vitest/coverage-v8@^1.0.4
+pnpm add -D jsdom@^23.0.1
+pnpm add -D vitest@^1.0.4
 ```
 
 ### 2. Add Test Scripts
@@ -93,19 +93,19 @@ npm install --save-dev vitest@^1.0.4
 
 ```bash
 # Run all tests
-npm run test:vitest
+pnpm test:unit
 
 # Run tests with UI
-npm run test:vitest:ui
+pnpm test:unit -- --ui
 
 # Run tests with coverage
-npm run test:vitest:coverage
+pnpm test:unit -- --coverage
 
 # Run specific test file
-npm run test:vitest WalletPortfolio.test.tsx
+pnpm test:unit -- WalletPortfolio.test.tsx
 
 # Run tests in watch mode
-npm run test:vitest --watch
+pnpm test:unit -- --watch
 ```
 
 ## Mock Strategy

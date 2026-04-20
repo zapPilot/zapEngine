@@ -116,13 +116,13 @@ Leverages project test helpers from `tests/utils/testHelpers.ts`:
 
 ```bash
 # Run database tests
-npm test tests/unit/services/database/
+pnpm test tests/unit/services/database/
 
 # Run with coverage
-npm run test:coverage tests/unit/services/database/poolWriter.test.ts
+pnpm test -- --coverage tests/unit/services/database/poolWriter.test.ts
 
 # Watch mode for development
-npm run test:watch tests/unit/services/database/poolWriter.test.ts
+pnpm test -- --watch tests/unit/services/database/poolWriter.test.ts
 ```
 
 ## Architecture Notes

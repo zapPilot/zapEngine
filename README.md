@@ -110,6 +110,10 @@ pnpm format
 - **Frontend / Landing** → Vercel
 - CI triggers on push to `main` and PRs; deploys only on `main`
 
+## AI Assistant Documentation
+
+This repository uses `CLAUDE.md` as the canonical documentation for AI assistants. See [CLAUDE.md](./CLAUDE.md) for development constraints, gotchas, and mental models.
+
 ## Database
 
 All backend services connect to a Supabase PostgreSQL database. analytics-engine uses a dedicated read-only connection. account-engine uses dual clients: anon (RLS-enforced) + service-role (admin operations).

@@ -14,7 +14,7 @@ Playwright.
 nvm use            # Node 22+
 pnpm install
 cp .env.example .env.local
-pnpm dev           # http://localhost:3099 (PLAYWRIGHT_PORT for e2e)
+pnpm dev           # http://localhost:3000
 ```
 
 ## Architecture

@@ -10,13 +10,13 @@ bundle sharing, and mobile responsiveness.
 
 ## Test Files
 
-| Test File                        | Coverage                                                              | Run                                                            |
-| -------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `v22-feature-flag.spec.ts`       | Feature flags, rollout %, hash-based assignment, V1/V22 routing       | `npx playwright test tests/e2e/v22-feature-flag.spec.ts`       |
-| `v22-multi-wallet.spec.ts`       | Wallet switcher, URL params `?walletId=X`, cross-layout compatibility | `npx playwright test tests/e2e/v22-multi-wallet.spec.ts`       |
-| `v22-bundle-sharing.spec.ts`     | Owner/visitor modes, shared links `/bundle?userId=X`, switch banner   | `npx playwright test tests/e2e/v22-bundle-sharing.spec.ts`     |
-| `v22-core-functionality.spec.ts` | Dashboard, regime cards, tabs, composition bar, quick actions         | `npx playwright test tests/e2e/v22-core-functionality.spec.ts` |
-| `v22-mobile-responsive.spec.ts`  | iPhone SE, iPad, desktop, touch targets, responsive breakpoints       | `npx playwright test tests/e2e/v22-mobile-responsive.spec.ts`  |
+| Test File                        | Coverage                                                              | Run                                                                  |
+| -------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `v22-feature-flag.spec.ts`       | Feature flags, rollout %, hash-based assignment, V1/V22 routing       | `pnpm exec playwright test tests/e2e/v22-feature-flag.spec.ts`       |
+| `v22-multi-wallet.spec.ts`       | Wallet switcher, URL params `?walletId=X`, cross-layout compatibility | `pnpm exec playwright test tests/e2e/v22-multi-wallet.spec.ts`       |
+| `v22-bundle-sharing.spec.ts`     | Owner/visitor modes, shared links `/bundle?userId=X`, switch banner   | `pnpm exec playwright test tests/e2e/v22-bundle-sharing.spec.ts`     |
+| `v22-core-functionality.spec.ts` | Dashboard, regime cards, tabs, composition bar, quick actions         | `pnpm exec playwright test tests/e2e/v22-core-functionality.spec.ts` |
+| `v22-mobile-responsive.spec.ts`  | iPhone SE, iPad, desktop, touch targets, responsive breakpoints       | `pnpm exec playwright test tests/e2e/v22-mobile-responsive.spec.ts`  |
 
 ---
 
@@ -26,42 +26,42 @@ bundle sharing, and mobile responsiveness.
 
 ```bash
 # Run entire V22 test suite
-npx playwright test tests/e2e/v22-*.spec.ts
+pnpm exec playwright test tests/e2e/v22-*.spec.ts
 
 # Run with UI mode for debugging
-npx playwright test tests/e2e/v22-*.spec.ts --ui
+pnpm exec playwright test tests/e2e/v22-*.spec.ts --ui
 
 # Run specific test file
-npx playwright test tests/e2e/v22-feature-flag.spec.ts
+pnpm exec playwright test tests/e2e/v22-feature-flag.spec.ts
 
 # Run tests in headless mode (CI/CD)
-npx playwright test tests/e2e/v22-*.spec.ts --headed=false
+pnpm exec playwright test tests/e2e/v22-*.spec.ts --headed=false
 ```
 
 ### Debug Individual Tests
 
 ```bash
 # Debug mode (pauses on failure)
-npx playwright test tests/e2e/v22-feature-flag.spec.ts --debug
+pnpm exec playwright test tests/e2e/v22-feature-flag.spec.ts --debug
 
 # Slow motion (easier to see what's happening)
-npx playwright test tests/e2e/v22-core-functionality.spec.ts --slow-mo=500
+pnpm exec playwright test tests/e2e/v22-core-functionality.spec.ts --slow-mo=500
 
 # Run specific test case
-npx playwright test tests/e2e/v22-feature-flag.spec.ts -g "should show V22 layout when flag is ON"
+pnpm exec playwright test tests/e2e/v22-feature-flag.spec.ts -g "should show V22 layout when flag is ON"
 ```
 
 ### CI/CD Integration
 
 ```bash
 # Run with retries (recommended for CI)
-npx playwright test tests/e2e/v22-*.spec.ts --retries=2
+pnpm exec playwright test tests/e2e/v22-*.spec.ts --retries=2
 
 # Generate HTML report
-npx playwright test tests/e2e/v22-*.spec.ts --reporter=html
+pnpm exec playwright test tests/e2e/v22-*.spec.ts --reporter=html
 
 # Single worker for memory-constrained environments
-npx playwright test tests/e2e/v22-*.spec.ts --workers=1
+pnpm exec playwright test tests/e2e/v22-*.spec.ts --workers=1
 ```
 
 ---
@@ -232,7 +232,7 @@ routes (`/bundle` for production, `/layout-demo/v22` for forced V22)
 
 1. Keep test descriptions clear and up-to-date
 2. Update DATA_TESTID_GUIDE.md if adding new test IDs
-3. Run full suite before committing: `npm run test:e2e`
+3. Run full suite before committing: `pnpm test:e2e`
 4. Update this README if coverage changes
 
 ---

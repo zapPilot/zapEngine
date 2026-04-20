@@ -52,14 +52,14 @@ Both test suites follow consistent patterns:
 
 ```bash
 # Run all fetcher tests
-npm test tests/unit/services/fetchers/
+pnpm test tests/unit/services/fetchers/
 
 # Run specific fetcher tests
-npm test tests/unit/services/fetchers/defillama.test.ts
-npm test tests/unit/services/fetchers/pendle.test.ts
+pnpm test tests/unit/services/fetchers/defillama.test.ts
+pnpm test tests/unit/services/fetchers/pendle.test.ts
 
 # Run with coverage
-npm test tests/unit/services/fetchers/ -- --coverage
+pnpm test tests/unit/services/fetchers/ -- --coverage
 ```
 
 ## Test Coverage Goals

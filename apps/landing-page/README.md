@@ -17,7 +17,7 @@ pnpm build          # → ./out (static)
 ## Content
 
 - Marketing sections: `src/components/` (Hero, Features, UseCases, etc.)
-- Docs: MDX files under `src/app/docs/` — rendered via Fumadocs.
+- Docs: MDX files under `content/docs/` — rendered via Fumadocs.
 
 ## Deploy
 

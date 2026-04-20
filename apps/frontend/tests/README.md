@@ -333,22 +333,22 @@ vi.mock("@/lib/formatters", () => mockFormatters);
 
 ```bash
 # Run all tests
-npm test
+pnpm test:unit
 
 # Run with watch mode
-npm run test:watch
+pnpm test:unit -- --watch
 
 # Run with coverage
-npm run test:coverage
+pnpm test:unit -- --coverage
 
 # Run specific test file
-npm test -- WalletMetrics.test.tsx
+pnpm test:unit -- WalletMetrics.test.tsx
 
 # Run E2E tests
-npm run test:e2e
+pnpm test:e2e
 
 # Run E2E with UI
-npm run test:e2e:ui
+pnpm test:e2e -- --ui
 ```
 
 ## Coverage Requirements
