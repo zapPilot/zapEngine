@@ -1,5 +1,5 @@
 {
-  "name": "alpha-etl",
+  "name": "@zapengine/alpha-etl",
   "version": "1.0.0",
   "description": "DeFi APR data ETL pipeline",
   "main": "dist/app.js",

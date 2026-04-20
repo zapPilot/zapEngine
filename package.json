@@ -4,8 +4,8 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --filter=frontend --filter=account-engine --filter=analytics-engine --parallel",
-    "dev:landing": "turbo run dev --filter=landing-page",
+    "dev": "turbo run dev --filter=@zapengine/frontend --filter=@zapengine/account-engine --filter=@zapengine/analytics-engine --parallel",
+    "dev:landing": "turbo run dev --filter=@zapengine/landing-page",
     "dev:all": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
@@ -34,26 +34,26 @@
   },
   "lint-staged": {
     "apps/account-engine/**/*.{ts,tsx}": [
-      "pnpm --filter account-engine exec eslint --fix",
-      "pnpm --filter account-engine exec prettier --write"
+      "pnpm --filter @zapengine/account-engine exec eslint --fix",
+      "pnpm --filter @zapengine/account-engine exec prettier --write"
     ],
     "apps/alpha-etl/**/*.{ts,js}": [
-      "pnpm --filter alpha-etl exec eslint --fix",
-      "pnpm --filter alpha-etl exec prettier --write"
+      "pnpm --filter @zapengine/alpha-etl exec eslint --fix",
+      "pnpm --filter @zapengine/alpha-etl exec prettier --write"
     ],
     "apps/frontend/**/*.{ts,tsx}": [
-      "pnpm --filter frontend exec eslint --fix",
-      "pnpm --filter frontend exec prettier --write"
+      "pnpm --filter @zapengine/frontend exec eslint --fix",
+      "pnpm --filter @zapengine/frontend exec prettier --write"
     ],
     "apps/landing-page/**/*.{ts,tsx}": [
-      "pnpm --filter landing-page exec eslint --fix",
-      "pnpm --filter landing-page exec prettier --write"
+      "pnpm --filter @zapengine/landing-page exec eslint --fix",
+      "pnpm --filter @zapengine/landing-page exec prettier --write"
     ],
     "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
       "pnpm --filter @zapengine/eslint-config exec prettier --write"
     ],
     "apps/analytics-engine/**/*.py": [
-      "pnpm --filter analytics-engine exec uv run ruff check --fix"
+      "pnpm --filter @zapengine/analytics-engine exec uv run ruff check --fix"
     ]
   }
 }

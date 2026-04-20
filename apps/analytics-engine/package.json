@@ -1,5 +1,5 @@
 {
-  "name": "analytics-engine",
+  "name": "@zapengine/analytics-engine",
   "version": "1.0.0",
   "private": true,
   "description": "DeFi portfolio analytics backend (Python FastAPI)",

@@ -16,7 +16,7 @@ COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
-RUN HUSKY=0 pnpm install --frozen-lockfile --filter alpha-etl... --store-dir=/pnpm/store
+RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/alpha-etl... --store-dir=/pnpm/store
 
 FROM deps AS build
 COPY packages/eslint-config packages/eslint-config
@@ -26,8 +26,8 @@ COPY packages/types packages/types
 COPY apps/alpha-etl apps/alpha-etl
 
 RUN pnpm --filter @zapengine/types build \
- && pnpm --filter alpha-etl build \
- && pnpm --filter alpha-etl deploy --legacy --prod --store-dir=/pnpm/store /out
+ && pnpm --filter @zapengine/alpha-etl build \
+ && pnpm --filter @zapengine/alpha-etl deploy --legacy --prod --store-dir=/pnpm/store /out
 
 FROM node:22-alpine AS runner
 WORKDIR /app

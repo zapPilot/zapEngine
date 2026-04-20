@@ -16,7 +16,7 @@ COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
-RUN HUSKY=0 pnpm install --frozen-lockfile --filter account-engine... --store-dir=/pnpm/store
+RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/account-engine... --store-dir=/pnpm/store
 
 FROM deps AS build
 COPY packages/eslint-config packages/eslint-config
@@ -26,8 +26,8 @@ COPY packages/types packages/types
 COPY apps/account-engine apps/account-engine
 
 RUN pnpm --filter @zapengine/types build \
- && pnpm --filter account-engine build \
- && pnpm --filter account-engine deploy --legacy --prod --store-dir=/pnpm/store /out \
+ && pnpm --filter @zapengine/account-engine build \
+ && pnpm --filter @zapengine/account-engine deploy --legacy --prod --store-dir=/pnpm/store /out \
  && test -f /out/dist/main.js
 
 FROM node:22-alpine AS runner
