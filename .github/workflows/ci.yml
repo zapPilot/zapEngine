@@ -77,6 +77,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Assert dispatch options match .github/fly-apps.json
+        run: bash scripts/check-dispatch-registry-drift.sh
+
       - uses: dorny/paths-filter@v3
         id: filter
         if: github.event_name != 'workflow_dispatch'
@@ -117,51 +120,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           DEPLOY_TARGET: ${{ inputs.deploy_target }}
           PATHS_CHANGES: ${{ steps.filter.outputs.changes }}
-        run: |
-          set -euo pipefail
-
-          # Single source of truth: adding a new Fly.io app requires only
-          # appending to this registry + adding a paths-filter block above
-          # (and a workflow_dispatch option for manual dispatch UX).
-          registry='[
-            {"app":"account-engine","secret_name":"FLY_API_TOKEN_ACCOUNT","fly_config":"apps/account-engine/fly.toml","verify_package_script":"verify:account-engine-package","capture_release_metadata":true,"verify_docker":true},
-            {"app":"alpha-etl","secret_name":"FLY_API_TOKEN_ETL","fly_config":"apps/alpha-etl/fly.toml","verify_package_script":"","capture_release_metadata":false,"verify_docker":true},
-            {"app":"analytics-engine","secret_name":"FLY_API_TOKEN_ANALYTICS","fly_config":"apps/analytics-engine/fly.toml","verify_package_script":"","capture_release_metadata":false,"verify_docker":false}
-          ]'
-
-          # Compute the set of changed apps (JSON array of strings).
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$DEPLOY_TARGET" = "all" ]; then
-              changes=$(jq -cn --argjson r "$registry" '[$r[].app] + ["frontend"]')
-            else
-              changes=$(jq -cn --arg t "$DEPLOY_TARGET" '[$t]')
-            fi
-          else
-            # paths-filter emits outputs.changes as JSON like ["frontend","alpha-etl"].
-            # When the step is skipped (workflow_dispatch branch) PATHS_CHANGES is empty.
-            changes="${PATHS_CHANGES:-[]}"
-          fi
-
-          fly_matrix=$(jq -c \
-            --argjson registry "$registry" \
-            --argjson changes "$changes" \
-            -n '[$registry[] | select(.app as $a | $changes | index($a))]')
-
-          fly_verify_matrix=$(jq -c \
-            --argjson matrix "$fly_matrix" \
-            -n '[$matrix[] | select(.verify_docker)]')
-
-          frontend=$(jq -rn --argjson c "$changes" '($c | index("frontend")) != null')
-
-          {
-            echo "fly_matrix=$fly_matrix"
-            echo "fly_verify_matrix=$fly_verify_matrix"
-            echo "frontend=$frontend"
-          } >> "$GITHUB_OUTPUT"
-
-          echo "Resolved fly_matrix=$fly_matrix"
-          echo "Resolved fly_verify_matrix=$fly_verify_matrix"
-          echo "Resolved frontend=$frontend"
+        run: bash scripts/resolve-deploy-matrix.sh
 
   verify-fly-docker:
     needs: [deploy-gates]

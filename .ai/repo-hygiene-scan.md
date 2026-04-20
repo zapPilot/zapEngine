@@ -76,6 +76,9 @@ Constraints:
 - DO NOT assume business logic
 - Be conservative (avoid false positives)
 - Mark uncertain cases as "REQUIRES REVIEW"
+- CRITICAL: Account for Knip configs (`knip.ts` / `knip.json`). If a file or export is ignored in the config (e.g., `**/index.ts`), DO NOT report it as an unused file or dead code.
+- CRITICAL: Recognize framework-specific entry points and conventions. For example, Next.js App Router exports like `generateMetadata`, `generateStaticParams`, and `layout` are automatically consumed by the framework and are NOT dead code or duplicate code.
+- CRITICAL: Barrel files (`index.ts`) often re-export items used dynamically or are kept for structural consistency. Verify actual usage before claiming unused exports.
 
 ---
 

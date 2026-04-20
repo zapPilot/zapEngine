@@ -78,6 +78,15 @@ interface Multicall3ValueCall extends Multicall3Call {
   value: bigint;
 }
 
+const MULTICALL3_OVERHEAD = 50000n;
+
+function calculateTotalGas(txs: PreparedTransaction[]): bigint {
+  return txs.reduce(
+    (sum, tx) => sum + BigInt(tx.gasLimit ?? "100000"),
+    MULTICALL3_OVERHEAD
+  );
+}
+
 /**
  * Encode multiple transactions into a single Multicall3 transaction
  *
@@ -111,11 +120,7 @@ export function encodeMulticall3(
     args: [calls],
   });
 
-  // Estimate gas as sum of individual gas limits + overhead
-  const totalGas = txs.reduce(
-    (sum, tx) => sum + BigInt(tx.gasLimit ?? "100000"),
-    50000n // Multicall3 overhead
-  );
+  const totalGas = calculateTotalGas(txs);
 
   return {
     to: MULTICALL3_ADDRESS,
@@ -149,14 +154,8 @@ function encodeMulticall3WithValue(
     args: [calls],
   });
 
-  // Total ETH value to send
   const totalValue = txs.reduce((sum, tx) => sum + BigInt(tx.value), 0n);
-
-  // Estimate gas
-  const totalGas = txs.reduce(
-    (sum, tx) => sum + BigInt(tx.gasLimit ?? "100000"),
-    50000n
-  );
+  const totalGas = calculateTotalGas(txs);
 
   return {
     to: MULTICALL3_ADDRESS,

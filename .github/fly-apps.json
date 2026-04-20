@@ -1,0 +1,26 @@
+[
+  {
+    "app": "account-engine",
+    "secret_name": "FLY_API_TOKEN_ACCOUNT",
+    "fly_config": "apps/account-engine/fly.toml",
+    "verify_package_script": "verify:account-engine-package",
+    "capture_release_metadata": true,
+    "verify_docker": true
+  },
+  {
+    "app": "alpha-etl",
+    "secret_name": "FLY_API_TOKEN_ETL",
+    "fly_config": "apps/alpha-etl/fly.toml",
+    "verify_package_script": "",
+    "capture_release_metadata": false,
+    "verify_docker": true
+  },
+  {
+    "app": "analytics-engine",
+    "secret_name": "FLY_API_TOKEN_ANALYTICS",
+    "fly_config": "apps/analytics-engine/fly.toml",
+    "verify_package_script": "",
+    "capture_release_metadata": false,
+    "verify_docker": false
+  }
+]
