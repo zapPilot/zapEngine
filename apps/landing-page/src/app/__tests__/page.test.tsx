@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import HomePage from '../page';
 
-jest.mock('@/components/AnimatedBackground', () => ({
+vi.mock('@/components/AnimatedBackground', () => ({
   AnimatedBackground: () => <div data-testid="animated-background" />,
 }));
 

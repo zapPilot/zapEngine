@@ -7,19 +7,7 @@ set -eu
 # 🎯 Auto-fix and re-stage files that are about to be committed
 pnpm lint-staged
 
-# 🔍 Run other checks on affected workspaces (excluding format/lint:fix since lint-staged handles them)
-pnpm turbo run \
-  type-check \
-  deadcode \
-  dup:check \
-  sql:audit \
-  service-reachability \
-  pylint:duplicate-check \
-  test \
-  --affected
-
-# Workspace-level checks — always run, not tied to any package.
-pnpm audit --audit-level=moderate
-bash scripts/check-dead-env.sh
+# 🔍 Run the local subset of the CI gate on affected workspaces
+pnpm run check:local
 
 printf '\n✅ Pre-commit passed\n'

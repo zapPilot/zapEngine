@@ -11,9 +11,9 @@ describe('useKeyboardNavigation', () => {
 
   let containerRef: ReturnType<typeof createRef<HTMLDivElement>>;
   let focusedIndex: number;
-  let setFocusedIndex: jest.Mock;
-  let onSelect: jest.Mock;
-  let onEscape: jest.Mock;
+  let setFocusedIndex: Mock;
+  let onSelect: Mock;
+  let onEscape: Mock;
 
   beforeEach(() => {
     // Create a real DOM element
@@ -25,15 +25,15 @@ describe('useKeyboardNavigation', () => {
     containerRef = { current: container };
 
     focusedIndex = 0;
-    setFocusedIndex = jest.fn(updater => {
+    setFocusedIndex = vi.fn(updater => {
       if (typeof updater === 'function') {
         focusedIndex = updater(focusedIndex);
       } else {
         focusedIndex = updater;
       }
     });
-    onSelect = jest.fn();
-    onEscape = jest.fn();
+    onSelect = vi.fn();
+    onEscape = vi.fn();
   });
 
   afterEach(() => {
@@ -213,7 +213,7 @@ describe('useKeyboardNavigation', () => {
   });
 
   it('should cleanup event listener on unmount', () => {
-    const removeEventListenerSpy = jest.spyOn(document, 'removeEventListener');
+    const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
     const { unmount } = renderHook(() =>
       useKeyboardNavigation({
         containerRef,

@@ -2,22 +2,22 @@ import { renderHook, act } from '@testing-library/react';
 import { useMediaQuery } from '../useMediaQuery';
 
 describe('useMediaQuery', () => {
-  let mockMatchMedia: jest.Mock;
+  let mockMatchMedia: Mock;
 
   beforeEach(() => {
-    mockMatchMedia = jest.fn();
+    mockMatchMedia = vi.fn();
     window.matchMedia = mockMatchMedia;
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should return initial matches value', () => {
     mockMatchMedia.mockReturnValue({
       matches: true,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useMediaQuery('(min-width: 768px)'));
@@ -27,8 +27,8 @@ describe('useMediaQuery', () => {
   it('should return false when media query does not match', () => {
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useMediaQuery('(min-width: 768px)'));
@@ -40,10 +40,10 @@ describe('useMediaQuery', () => {
 
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn((event, handler) => {
+      addEventListener: vi.fn((event, handler) => {
         listener = handler;
       }),
-      removeEventListener: jest.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useMediaQuery('(min-width: 768px)'));
@@ -57,11 +57,11 @@ describe('useMediaQuery', () => {
   });
 
   it('should clean up event listener on unmount', () => {
-    const removeEventListener = jest.fn();
+    const removeEventListener = vi.fn();
 
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn(),
+      addEventListener: vi.fn(),
       removeEventListener,
     });
 
@@ -74,8 +74,8 @@ describe('useMediaQuery', () => {
   it('should update query when changed', () => {
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result, rerender } = renderHook(({ query }) => useMediaQuery(query), {

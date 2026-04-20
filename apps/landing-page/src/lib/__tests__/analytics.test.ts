@@ -1,20 +1,13 @@
 import { pageview, event } from '../analytics';
 
-// Mock window.gtag
-declare global {
-  interface Window {
-    gtag: jest.Mock;
-  }
-}
-
 describe('analytics', () => {
   beforeEach(() => {
     // Reset the mock before each test
-    window.gtag = jest.fn();
+    window.gtag = vi.fn();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('pageview', () => {
@@ -28,7 +21,6 @@ describe('analytics', () => {
     });
 
     it('should not throw when gtag is undefined', () => {
-      // @ts-expect-error - intentionally deleting for test
       delete window.gtag;
 
       expect(() => pageview('/test')).not.toThrow();
@@ -64,7 +56,6 @@ describe('analytics', () => {
     });
 
     it('should not throw when gtag is undefined', () => {
-      // @ts-expect-error - intentionally deleting for test
       delete window.gtag;
 
       expect(() => event({ name: 'test' })).not.toThrow();

@@ -32,6 +32,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+RUN_COVERAGE=false
 COVERAGE_FAIL_UNDER=""
 GENERATE_HTMLCOV=false
 RUN_DMA_SIGNAL_GATE=false
@@ -41,9 +42,11 @@ usage() {
 Usage: bash scripts/run-tests-precommit.sh [options]
 
 Options:
-  --cov-fail-under <N>   Enforce a coverage threshold.
+  --coverage             Run pytest with coverage reporting.
+  --no-coverage          Run pytest without coverage reporting.
+  --cov-fail-under <N>   Run coverage and enforce a coverage threshold.
   --no-cov-fail-under    Disable coverage threshold enforcement.
-  --htmlcov              Generate htmlcov output.
+  --htmlcov              Generate htmlcov output and imply --coverage.
   --dma-signal-gate      Run the focused DMA signal coverage gate after tests.
   --no-dma-signal-gate   Skip the focused DMA signal coverage gate.
   --run-integration      Enable integration-marked tests.
@@ -54,18 +57,28 @@ EOF
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --coverage)
+                RUN_COVERAGE=true
+                ;;
+            --no-coverage)
+                RUN_COVERAGE=false
+                COVERAGE_FAIL_UNDER=""
+                GENERATE_HTMLCOV=false
+                ;;
             --cov-fail-under)
                 shift
                 if [[ $# -eq 0 ]] || [[ ! "$1" =~ ^[0-9]+$ ]]; then
                     printf '%b\n' "${RED}[Pre-commit Tests] --cov-fail-under requires an integer value${NC}" >&2
                     exit 1
                 fi
+                RUN_COVERAGE=true
                 COVERAGE_FAIL_UNDER="$1"
                 ;;
             --no-cov-fail-under)
                 COVERAGE_FAIL_UNDER=""
                 ;;
             --htmlcov)
+                RUN_COVERAGE=true
                 GENERATE_HTMLCOV=true
                 ;;
             --dma-signal-gate)
@@ -416,19 +429,21 @@ run_postgres_suite() {
     pytest_args=(
         tests/
         -m "${mark_expr}"
-        --cov=src
-        --cov-report=term-missing
         --tb=short
         -W error
         -v
     )
 
-    if [[ "${GENERATE_HTMLCOV}" == "true" ]]; then
-        pytest_args+=(--cov-report=html)
-    fi
+    if [[ "${RUN_COVERAGE}" == "true" ]]; then
+        pytest_args+=(--cov=src --cov-report=term-missing)
 
-    if [[ -n "${COVERAGE_FAIL_UNDER}" ]]; then
-        pytest_args+=("--cov-fail-under=${COVERAGE_FAIL_UNDER}")
+        if [[ "${GENERATE_HTMLCOV}" == "true" ]]; then
+            pytest_args+=(--cov-report=html)
+        fi
+
+        if [[ -n "${COVERAGE_FAIL_UNDER}" ]]; then
+            pytest_args+=("--cov-fail-under=${COVERAGE_FAIL_UNDER}")
+        fi
     fi
 
     run_pytest "${pytest_args[@]}"
