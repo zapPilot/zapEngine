@@ -1,0 +1,77 @@
+name: Deploy to Fly.io
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        type: string
+        required: true
+        description: App directory name (e.g., account-engine).
+      fly_config:
+        type: string
+        required: true
+        description: Path to fly.toml (e.g., apps/account-engine/fly.toml).
+      verify_package_script:
+        type: string
+        default: ""
+        description: Optional root pnpm script to run before deploy (e.g., verify:account-engine-package). Skipped when empty.
+      capture_release_metadata:
+        type: boolean
+        default: false
+        description: If true, passes COMMIT_SHA + BUILD_TIME as --build-arg to flyctl deploy.
+    secrets:
+      fly_token:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ inputs.app }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        if: inputs.verify_package_script != ''
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        if: inputs.verify_package_script != ''
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install workspace dependencies
+        if: inputs.verify_package_script != ''
+        run: HUSKY=0 pnpm install --frozen-lockfile
+
+      - name: Run verify script
+        if: inputs.verify_package_script != ''
+        env:
+          VERIFY_SCRIPT: ${{ inputs.verify_package_script }}
+        run: pnpm "$VERIFY_SCRIPT"
+
+      - name: Capture release metadata
+        if: inputs.capture_release_metadata
+        id: release_metadata
+        run: |
+          echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.fly_token }}
+          FLY_CONFIG: ${{ inputs.fly_config }}
+          CAPTURE_RELEASE: ${{ inputs.capture_release_metadata }}
+          COMMIT_SHA: ${{ steps.release_metadata.outputs.commit_sha }}
+          BUILD_TIME: ${{ steps.release_metadata.outputs.build_time }}
+        run: |
+          args=(flyctl deploy . --remote-only --config "$FLY_CONFIG")
+          if [ "$CAPTURE_RELEASE" = "true" ]; then
+            args+=(--build-arg "COMMIT_SHA=$COMMIT_SHA" --build-arg "BUILD_TIME=$BUILD_TIME")
+          fi
+          "${args[@]}"

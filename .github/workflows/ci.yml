@@ -69,10 +69,9 @@ jobs:
   deploy-gates:
     runs-on: ubuntu-latest
     outputs:
+      fly_matrix: ${{ steps.resolve.outputs.fly_matrix }}
+      fly_verify_matrix: ${{ steps.resolve.outputs.fly_verify_matrix }}
       frontend: ${{ steps.resolve.outputs.frontend }}
-      account_engine: ${{ steps.resolve.outputs.account_engine }}
-      alpha_etl: ${{ steps.resolve.outputs.alpha_etl }}
-      analytics_engine: ${{ steps.resolve.outputs.analytics_engine }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -117,158 +116,79 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           DEPLOY_TARGET: ${{ inputs.deploy_target }}
-          FILTER_FRONTEND: ${{ steps.filter.outputs.frontend }}
-          FILTER_ACCOUNT_ENGINE: ${{ steps.filter.outputs.account-engine }}
-          FILTER_ALPHA_ETL: ${{ steps.filter.outputs.alpha-etl }}
-          FILTER_ANALYTICS_ENGINE: ${{ steps.filter.outputs.analytics-engine }}
+          PATHS_CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
+          set -euo pipefail
+
+          # Single source of truth: adding a new Fly.io app requires only
+          # appending to this registry + adding a paths-filter block above
+          # (and a workflow_dispatch option for manual dispatch UX).
+          registry='[
+            {"app":"account-engine","secret_name":"FLY_API_TOKEN_ACCOUNT","fly_config":"apps/account-engine/fly.toml","verify_package_script":"verify:account-engine-package","capture_release_metadata":true,"verify_docker":true},
+            {"app":"alpha-etl","secret_name":"FLY_API_TOKEN_ETL","fly_config":"apps/alpha-etl/fly.toml","verify_package_script":"","capture_release_metadata":false,"verify_docker":true},
+            {"app":"analytics-engine","secret_name":"FLY_API_TOKEN_ANALYTICS","fly_config":"apps/analytics-engine/fly.toml","verify_package_script":"","capture_release_metadata":false,"verify_docker":false}
+          ]'
+
+          # Compute the set of changed apps (JSON array of strings).
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            case "$DEPLOY_TARGET" in
-              all)
-                frontend=true
-                account_engine=true
-                alpha_etl=true
-                analytics_engine=true
-                ;;
-              frontend)
-                frontend=true
-                account_engine=false
-                alpha_etl=false
-                analytics_engine=false
-                ;;
-              account-engine)
-                frontend=false
-                account_engine=true
-                alpha_etl=false
-                analytics_engine=false
-                ;;
-              alpha-etl)
-                frontend=false
-                account_engine=false
-                alpha_etl=true
-                analytics_engine=false
-                ;;
-              analytics-engine)
-                frontend=false
-                account_engine=false
-                alpha_etl=false
-                analytics_engine=true
-                ;;
-              *)
-                echo "Unsupported deploy target: $DEPLOY_TARGET" >&2
-                exit 1
-                ;;
-            esac
+            if [ "$DEPLOY_TARGET" = "all" ]; then
+              changes=$(jq -cn --argjson r "$registry" '[$r[].app] + ["frontend"]')
+            else
+              changes=$(jq -cn --arg t "$DEPLOY_TARGET" '[$t]')
+            fi
           else
-            frontend="$FILTER_FRONTEND"
-            account_engine="$FILTER_ACCOUNT_ENGINE"
-            alpha_etl="$FILTER_ALPHA_ETL"
-            analytics_engine="$FILTER_ANALYTICS_ENGINE"
+            # paths-filter emits outputs.changes as JSON like ["frontend","alpha-etl"].
+            # When the step is skipped (workflow_dispatch branch) PATHS_CHANGES is empty.
+            changes="${PATHS_CHANGES:-[]}"
           fi
 
+          fly_matrix=$(jq -c \
+            --argjson registry "$registry" \
+            --argjson changes "$changes" \
+            -n '[$registry[] | select(.app as $a | $changes | index($a))]')
+
+          fly_verify_matrix=$(jq -c \
+            --argjson matrix "$fly_matrix" \
+            -n '[$matrix[] | select(.verify_docker)]')
+
+          frontend=$(jq -rn --argjson c "$changes" '($c | index("frontend")) != null')
+
           {
+            echo "fly_matrix=$fly_matrix"
+            echo "fly_verify_matrix=$fly_verify_matrix"
             echo "frontend=$frontend"
-            echo "account_engine=$account_engine"
-            echo "alpha_etl=$alpha_etl"
-            echo "analytics_engine=$analytics_engine"
           } >> "$GITHUB_OUTPUT"
 
-  verify-account-engine-docker:
+          echo "Resolved fly_matrix=$fly_matrix"
+          echo "Resolved fly_verify_matrix=$fly_verify_matrix"
+          echo "Resolved frontend=$frontend"
+
+  verify-fly-docker:
     needs: [deploy-gates]
-    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.account_engine == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.fly_verify_matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.deploy-gates.outputs.fly_verify_matrix) }}
+    uses: ./.github/workflows/verify-docker.yml
+    with:
+      app: ${{ matrix.app }}
 
-      - name: Build account-engine Dockerfile
-        run: docker build --file apps/account-engine/Dockerfile --target build .
-
-  verify-alpha-etl-docker:
-    needs: [deploy-gates]
-    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.alpha_etl == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build alpha-etl Dockerfile
-        run: docker build --file apps/alpha-etl/Dockerfile --target build .
-
-  deploy-account-engine:
+  deploy-fly:
     needs: [lint-test, deploy-gates]
-    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.account_engine == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-account-engine-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable corepack
-        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Install workspace dependencies
-        run: HUSKY=0 pnpm install --frozen-lockfile
-
-      - name: Verify account-engine deploy package
-        run: pnpm verify:account-engine-package
-
-      - name: Capture release metadata
-        id: release_metadata
-        run: |
-          echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy account-engine to Fly.io
-        run: |
-          flyctl deploy . --remote-only --config apps/account-engine/fly.toml \
-            --build-arg "COMMIT_SHA=${{ steps.release_metadata.outputs.commit_sha }}" \
-            --build-arg "BUILD_TIME=${{ steps.release_metadata.outputs.build_time }}"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ACCOUNT }}
-
-  deploy-alpha-etl:
-    needs: [lint-test, deploy-gates]
-    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.alpha_etl == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-alpha-etl-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy alpha-etl to Fly.io
-        run: flyctl deploy . --remote-only --config apps/alpha-etl/fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ETL }}
-
-  deploy-analytics-engine:
-    needs: [lint-test, deploy-gates]
-    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.analytics_engine == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-analytics-engine-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy analytics-engine to Fly.io
-        run: flyctl deploy . --remote-only --config apps/analytics-engine/fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ANALYTICS }}
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.fly_matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.deploy-gates.outputs.fly_matrix) }}
+    uses: ./.github/workflows/deploy-fly.yml
+    with:
+      app: ${{ matrix.app }}
+      fly_config: ${{ matrix.fly_config }}
+      verify_package_script: ${{ matrix.verify_package_script }}
+      capture_release_metadata: ${{ matrix.capture_release_metadata }}
+    secrets:
+      fly_token: ${{ secrets[matrix.secret_name] }}
 
   check-dead-env:
     runs-on: ubuntu-latest
