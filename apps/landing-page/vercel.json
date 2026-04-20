@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@zapengine/landing-page",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "outputDirectory": "out"
+}
