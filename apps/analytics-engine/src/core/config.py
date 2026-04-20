@@ -202,7 +202,7 @@ class Settings(BaseSettings):
 
     # CORS settings
     allowed_origins: str | list[str] = Field(
-        default="http://localhost:3000,http://localhost:3001,http://localhost:8000,https://v2.zap-pilot.org,http://app.zap-pilot.org",
+        default="http://localhost:3000,http://localhost:3001,http://localhost:8000,https://v2.zap-pilot.org,http://app.zap-pilot.org,https://zap-engine-frontend.vercel.app",
         alias="CORS_ALLOWED_ORIGINS",
         description="Comma-separated list of allowed CORS origins",
     )
