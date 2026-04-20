@@ -27,7 +27,7 @@ function createFailedJob(overrides: Partial<Job> = {}): Job {
 
 function createMocks(env: Record<string, string> = {}) {
   const emailService = {
-    sendEmail: jest.fn().mockResolvedValue({ success: true }),
+    sendEmail: vi.fn().mockResolvedValue({ success: true }),
   };
 
   const defaults = {

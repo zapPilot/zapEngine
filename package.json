@@ -49,9 +49,8 @@
       "pnpm --filter landing-page exec eslint --fix",
       "pnpm --filter landing-page exec prettier --write"
     ],
-    "packages/**/*.{ts,tsx}": [
-      "pnpm exec eslint --fix",
-      "pnpm exec prettier --write"
+    "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
+      "pnpm --filter @zapengine/eslint-config exec prettier --write"
     ],
     "apps/analytics-engine/**/*.py": [
       "pnpm --filter analytics-engine exec uv run ruff check --fix"

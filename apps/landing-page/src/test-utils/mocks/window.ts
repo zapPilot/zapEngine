@@ -35,7 +35,7 @@ export interface InnerWidthController {
 export const setupWindowMock = {
   /**
    * Mock window.open for testing external link navigation
-   * @returns Mock function that can be inspected with jest matchers
+   * @returns Mock function that can be inspected with Vitest matchers
    *
    * @example
    * const mockOpen = setupWindowMock.open();

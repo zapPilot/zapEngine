@@ -2,7 +2,7 @@ See @README.md for project overview.
 
 # Gotchas
 
-- Uses **Jest** (not Vitest) — `pnpm test`, not `pnpm test:unit`
+- Uses **Vitest** — `pnpm test`
 - `postinstall` runs `fumadocs-mdx` automatically; re-run `pnpm install` if MDX types are missing
 - Documentation content lives in MDX files under `src/app/docs/`
 - Deployed to Vercel as static export (`output: 'export'` in next.config.ts)

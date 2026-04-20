@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 /**
  * Shared test utilities for Hono-based service tests.
  * Replaces the old NestJS-centric src/test-utils/ that was deleted during migration.
@@ -8,32 +9,32 @@
 // ---------------------------------------------------------------------------
 
 export interface MockQueryBuilder {
-  select: jest.Mock;
-  insert: jest.Mock;
-  update: jest.Mock;
-  upsert: jest.Mock;
-  delete: jest.Mock;
-  eq: jest.Mock;
-  neq: jest.Mock;
-  gt: jest.Mock;
-  gte: jest.Mock;
-  lt: jest.Mock;
-  lte: jest.Mock;
-  like: jest.Mock;
-  ilike: jest.Mock;
-  is: jest.Mock;
-  in: jest.Mock;
-  contains: jest.Mock;
-  order: jest.Mock;
-  limit: jest.Mock;
-  range: jest.Mock;
-  not: jest.Mock;
-  or: jest.Mock;
-  filter: jest.Mock;
-  match: jest.Mock;
-  single: jest.Mock;
-  maybeSingle: jest.Mock;
-  then: jest.Mock;
+  select: Mock;
+  insert: Mock;
+  update: Mock;
+  upsert: Mock;
+  delete: Mock;
+  eq: Mock;
+  neq: Mock;
+  gt: Mock;
+  gte: Mock;
+  lt: Mock;
+  lte: Mock;
+  like: Mock;
+  ilike: Mock;
+  is: Mock;
+  in: Mock;
+  contains: Mock;
+  order: Mock;
+  limit: Mock;
+  range: Mock;
+  not: Mock;
+  or: Mock;
+  filter: Mock;
+  match: Mock;
+  single: Mock;
+  maybeSingle: Mock;
+  then: Mock;
   mockResolvedThen: (result: {
     data: unknown;
     error: unknown;
@@ -49,35 +50,35 @@ export function createMockQueryBuilder(): MockQueryBuilder {
 
   const builder: MockQueryBuilder = {
     // Chainable methods
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    upsert: jest.fn().mockReturnThis(),
-    delete: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    neq: jest.fn().mockReturnThis(),
-    gt: jest.fn().mockReturnThis(),
-    gte: jest.fn().mockReturnThis(),
-    lt: jest.fn().mockReturnThis(),
-    lte: jest.fn().mockReturnThis(),
-    like: jest.fn().mockReturnThis(),
-    ilike: jest.fn().mockReturnThis(),
-    is: jest.fn().mockReturnThis(),
-    in: jest.fn().mockReturnThis(),
-    contains: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    range: jest.fn().mockReturnThis(),
-    not: jest.fn().mockReturnThis(),
-    or: jest.fn().mockReturnThis(),
-    filter: jest.fn().mockReturnThis(),
-    match: jest.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
+    gt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    like: vi.fn().mockReturnThis(),
+    ilike: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    contains: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
+    filter: vi.fn().mockReturnThis(),
+    match: vi.fn().mockReturnThis(),
     // Terminal methods
-    single: jest.fn().mockResolvedValue({ data: null, error: null }),
-    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
     // Thenable: when the query builder is awaited directly (e.g. `await query`),
     // JS calls query.then(resolve, reject). We must call resolve() with the result.
-    then: jest.fn((resolve?: (v: unknown) => unknown) => {
+    then: vi.fn((resolve?: (v: unknown) => unknown) => {
       if (resolve) {
         return Promise.resolve(resolve(_thenResult));
       }
@@ -104,8 +105,8 @@ export function createMockSupabaseClient() {
 
   return {
     client: {
-      from: jest.fn().mockReturnValue(queryBuilder),
-      rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
+      from: vi.fn().mockReturnValue(queryBuilder),
+      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     },
     queryBuilder,
   };
@@ -120,9 +121,9 @@ export function createMockDatabaseService() {
   const serviceRole = createMockSupabaseClient();
 
   const mock = {
-    getClient: jest.fn().mockReturnValue(anon.client),
-    getServiceRoleClient: jest.fn().mockReturnValue(serviceRole.client),
-    rpc: jest.fn().mockResolvedValue(null),
+    getClient: vi.fn().mockReturnValue(anon.client),
+    getServiceRoleClient: vi.fn().mockReturnValue(serviceRole.client),
+    rpc: vi.fn().mockResolvedValue(null),
   };
 
   return {
@@ -162,7 +163,7 @@ export function createMockConfigService(
 
   return {
     env: defaults as any,
-    get: jest.fn(<T>(key: string, defaultValue?: T): T | undefined => {
+    get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => {
       // Support dot-path lookups
       if (key in defaults) {
         return defaults[key] as T;

@@ -15,7 +15,7 @@
         "test/**",
         "scripts/**",
         "src/test-utils/**",
-        "jest.setup.ts",
+        "vitest.setup.ts",
         "nest-cli.json",
         "eslint.config.mjs"
     ]

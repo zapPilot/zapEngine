@@ -30,7 +30,7 @@ function createParentJob(overrides: Partial<Job> = {}): Job {
 function createMocks() {
   let nextChildJobId = 1;
   const jobQueueService = {
-    createJob: jest.fn().mockImplementation((opts) => ({
+    createJob: vi.fn().mockImplementation((opts) => ({
       id: `child-${nextChildJobId++}`,
       type: opts.type,
       status: JobStatus.PENDING,
@@ -43,16 +43,16 @@ function createMocks() {
       createdAt: now,
       updatedAt: now,
     })),
-    logJobEvent: jest.fn(),
-    updateJobMetadata: jest.fn(),
-    updateJobStatus: jest.fn(),
+    logJobEvent: vi.fn(),
+    updateJobMetadata: vi.fn(),
+    updateJobStatus: vi.fn(),
   };
 
   const logger = {
-    log: jest.fn(),
-    debug: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    log: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   };
 
   const helper = new BatchFanoutHelper(
@@ -83,7 +83,7 @@ describe('BatchFanoutHelper.fanOutBatch', () => {
   it('calls onFanoutStart with total user count when provided', () => {
     const { helper } = createMocks();
     const parent = createParentJob();
-    const onFanoutStart = jest.fn();
+    const onFanoutStart = vi.fn();
 
     helper.fanOutBatch(
       parent,

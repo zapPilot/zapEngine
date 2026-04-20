@@ -1,9 +1,9 @@
 import { ActivityTracker } from '../../../../src/common/interceptors/activity-tracker.interceptor';
 
 function createDatabaseService() {
-  const eq = jest.fn().mockResolvedValue({ error: null });
-  const update = jest.fn().mockReturnValue({ eq });
-  const from = jest.fn().mockReturnValue({ update });
+  const eq = vi.fn().mockResolvedValue({ error: null });
+  const update = vi.fn().mockReturnValue({ eq });
+  const from = vi.fn().mockReturnValue({ update });
 
   return {
     service: {

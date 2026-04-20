@@ -2,13 +2,14 @@ import * as fs from 'node:fs';
 
 import { ServiceLayerException } from '@common/exceptions';
 import { ChartService } from '@modules/notifications/chart.service';
+import type { Mock } from 'vitest';
 
-jest.mock('node:fs');
+vi.mock('node:fs');
 
-const mockExistsSync = fs.existsSync as jest.Mock;
-const mockMkdirSync = fs.mkdirSync as jest.Mock;
-const mockWriteFileSync = fs.writeFileSync as jest.Mock;
-const mockUnlinkSync = fs.unlinkSync as jest.Mock;
+const mockExistsSync = fs.existsSync as Mock;
+const mockMkdirSync = fs.mkdirSync as Mock;
+const mockWriteFileSync = fs.writeFileSync as Mock;
+const mockUnlinkSync = fs.unlinkSync as Mock;
 
 describe('ChartService', () => {
   let service: ChartService;
@@ -36,7 +37,7 @@ describe('ChartService', () => {
   describe('generateChart', () => {
     it('generates chart from data points', async () => {
       const mockBuffer = Buffer.from('PNG');
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });
@@ -56,7 +57,7 @@ describe('ChartService', () => {
     });
 
     it('throws ServiceLayerException on fetch failure', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
       });
@@ -74,7 +75,7 @@ describe('ChartService', () => {
   describe('generateHistoricalBalanceChart', () => {
     it('delegates to generateChart with correct options', async () => {
       const mockBuffer = Buffer.from('PNG');
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });
@@ -90,7 +91,7 @@ describe('ChartService', () => {
   describe('generateChart date label formatting', () => {
     async function generateWithDate(dateValue: unknown) {
       const mockBuffer = Buffer.from('PNG');
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });
@@ -131,7 +132,7 @@ describe('ChartService', () => {
   describe('generateChart with many data points (sampling)', () => {
     it('samples data when count exceeds maxPoints', async () => {
       const mockBuffer = Buffer.from('PNG');
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });
@@ -156,7 +157,7 @@ describe('ChartService', () => {
   describe('generateChart column type', () => {
     it('uses bar chart type when chartType is column', async () => {
       const mockBuffer = Buffer.from('PNG');
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });

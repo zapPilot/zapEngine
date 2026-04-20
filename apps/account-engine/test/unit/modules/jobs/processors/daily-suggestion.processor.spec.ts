@@ -28,23 +28,23 @@ function createPendingJob(overrides: Partial<Job> = {}): Job {
 
 function createMocks() {
   const jobQueueService = {
-    createJob: jest.fn().mockImplementation((opts: any) => ({
+    createJob: vi.fn().mockImplementation((opts: any) => ({
       // eslint-disable-next-line sonarjs/pseudo-random
       id: `child-${Math.random().toString(36).slice(2, 8)}`,
       ...opts,
     })),
-    logJobEvent: jest.fn(),
-    updateJobMetadata: jest.fn(),
-    updateJobStatus: jest.fn(),
+    logJobEvent: vi.fn(),
+    updateJobMetadata: vi.fn(),
+    updateJobStatus: vi.fn(),
   };
 
   const analyticsClient = {
-    getDailySuggestion: jest.fn(),
+    getDailySuggestion: vi.fn(),
   };
 
   const telegramService = {
-    getTelegramConnectedUserIds: jest.fn().mockResolvedValue([]),
-    sendDailySuggestion: jest.fn().mockResolvedValue(undefined),
+    getTelegramConnectedUserIds: vi.fn().mockResolvedValue([]),
+    sendDailySuggestion: vi.fn().mockResolvedValue(undefined),
   };
 
   const processor = new DailySuggestionProcessor(

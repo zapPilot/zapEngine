@@ -5,6 +5,7 @@ import {
   JobStatus,
   JobType,
 } from '@modules/jobs/interfaces/job.interface';
+import type { Mock } from 'vitest';
 
 import { createApp } from '../../src/app';
 
@@ -48,47 +49,47 @@ function createServices(): AppServices {
       },
     },
     activityTracker: {
-      trackRequest: jest.fn(),
-      cleanupCache: jest.fn(),
+      trackRequest: vi.fn(),
+      cleanupCache: vi.fn(),
     },
     usersService: {
-      connectWallet: jest
+      connectWallet: vi
         .fn()
         .mockResolvedValue({ user_id: 'user-1', is_new_user: false }),
-      addWallet: jest.fn().mockResolvedValue({
+      addWallet: vi.fn().mockResolvedValue({
         wallet_id: 'wallet-1',
         message: 'Wallet added successfully to user bundle',
       }),
-      updateEmail: jest.fn(),
-      unsubscribeFromReports: jest.fn(),
-      updateWalletLabel: jest.fn(),
-      getUserWallets: jest.fn(),
-      removeWallet: jest.fn(),
-      triggerWalletDataFetch: jest.fn().mockResolvedValue({
+      updateEmail: vi.fn(),
+      unsubscribeFromReports: vi.fn(),
+      updateWalletLabel: vi.fn(),
+      getUserWallets: vi.fn(),
+      removeWallet: vi.fn(),
+      triggerWalletDataFetch: vi.fn().mockResolvedValue({
         job_id: null,
         status: 'error',
         message: 'Too many requests',
         rate_limited: true,
       }),
-      getUserProfile: jest.fn(),
-      deleteUser: jest.fn(),
-      requestTelegramToken: jest.fn(),
-      getTelegramStatus: jest.fn(),
-      disconnectTelegram: jest.fn(),
-      getEtlJobStatus: jest
+      getUserProfile: vi.fn(),
+      deleteUser: vi.fn(),
+      requestTelegramToken: vi.fn(),
+      getTelegramStatus: vi.fn(),
+      disconnectTelegram: vi.fn(),
+      getEtlJobStatus: vi
         .fn()
         .mockResolvedValue({ job_id: 'etl-1', status: 'completed' }),
     },
     jobQueueService: {
-      createJob: jest.fn().mockReturnValue(job),
-      getJobWithAggregatedStatus: jest.fn().mockReturnValue({ job }),
+      createJob: vi.fn().mockReturnValue(job),
+      getJobWithAggregatedStatus: vi.fn().mockReturnValue({ job }),
     },
     telegramService: {
-      validateWebhookSecret: jest.fn().mockReturnValue(true),
-      getBot: jest.fn().mockReturnValue({
-        handleUpdate: jest.fn().mockRejectedValue(new Error('boom')),
+      validateWebhookSecret: vi.fn().mockReturnValue(true),
+      getBot: vi.fn().mockReturnValue({
+        handleUpdate: vi.fn().mockRejectedValue(new Error('boom')),
       }),
-      logWebhookError: jest.fn(),
+      logWebhookError: vi.fn(),
     },
   } as unknown as AppServices;
 }
@@ -186,9 +187,9 @@ describe('Hono app routes', () => {
 
   it('rejects Telegram webhooks with an invalid secret', async () => {
     const services = createServices();
-    (
-      services.telegramService.validateWebhookSecret as jest.Mock
-    ).mockReturnValue(false);
+    (services.telegramService.validateWebhookSecret as Mock).mockReturnValue(
+      false,
+    );
     const app = createApp(services);
 
     const response = await app.request('http://localhost/telegram/webhook', {
@@ -234,7 +235,7 @@ describe('Hono app routes', () => {
 
   it('global onError returns 500 for a generic Error thrown from a route handler', async () => {
     const services = createServices();
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
       new Error('unexpected crash'),
     );
     const app = createApp(services);
@@ -248,7 +249,7 @@ describe('Hono app routes', () => {
 
   it('global onError uses HttpException statusCode when available', async () => {
     const services = createServices();
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
       new NotFoundException('gone'),
     );
     const app = createApp(services);

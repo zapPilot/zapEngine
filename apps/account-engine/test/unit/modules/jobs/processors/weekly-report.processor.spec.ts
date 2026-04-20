@@ -31,42 +31,42 @@ function createPendingJob(overrides: Partial<Job> = {}): Job {
 
 function createMocks() {
   const jobQueueService = {
-    createJob: jest.fn().mockImplementation((opts: any) => ({
+    createJob: vi.fn().mockImplementation((opts: any) => ({
       // eslint-disable-next-line sonarjs/pseudo-random
       id: `child-${Math.random().toString(36).slice(2, 8)}`,
       ...opts,
     })),
-    logJobEvent: jest.fn(),
-    updateJobMetadata: jest.fn(),
-    updateJobStatus: jest.fn(),
+    logJobEvent: vi.fn(),
+    updateJobMetadata: vi.fn(),
+    updateJobStatus: vi.fn(),
   };
 
   const emailService = {
-    validateEmailConfiguration: jest
+    validateEmailConfiguration: vi
       .fn()
       .mockResolvedValue({ valid: true, message: 'ok' }),
-    getTestRecipient: jest.fn().mockReturnValue('qa@test.com'),
-    sendEmail: jest.fn().mockResolvedValue({ success: true }),
-    generateSubject: jest.fn().mockReturnValue('Weekly Report'),
+    getTestRecipient: vi.fn().mockReturnValue('qa@test.com'),
+    sendEmail: vi.fn().mockResolvedValue({ success: true }),
+    generateSubject: vi.fn().mockReturnValue('Weekly Report'),
   };
 
   const chartService = {
-    generateHistoricalBalanceChart: jest.fn().mockResolvedValue({
+    generateHistoricalBalanceChart: vi.fn().mockResolvedValue({
       buffer: Buffer.from('PNG'),
       fileName: 'chart.png',
       // eslint-disable-next-line sonarjs/publicly-writable-directories
       filePath: '/tmp/chart.png',
       contentId: 'chart-cid',
     }),
-    cleanupTempFiles: jest.fn(),
+    cleanupTempFiles: vi.fn(),
   };
 
   const templateService = {
-    generateReportHTML: jest.fn().mockReturnValue('<html>Report</html>'),
+    generateReportHTML: vi.fn().mockReturnValue('<html>Report</html>'),
   };
 
   const analyticsClient = {
-    getPortfolioData: jest.fn().mockResolvedValue({
+    getPortfolioData: vi.fn().mockResolvedValue({
       total_net_usd: 5000,
       portfolio_roi: {
         recommended_yearly_roi: 10,
@@ -78,7 +78,7 @@ function createMocks() {
       weighted_apr: 8.5,
       wallet_count: 2,
     }),
-    transformToEmailMetrics: jest.fn().mockReturnValue({
+    transformToEmailMetrics: vi.fn().mockReturnValue({
       currentBalance: 5000,
       estimatedYearlyROI: 10,
       estimatedYearlyPnL: 500,
@@ -88,24 +88,24 @@ function createMocks() {
       recommendedPeriod: '30_days',
       weeklyPnLPercentage: 1.5,
     }),
-    validateAnalyticsConnection: jest
+    validateAnalyticsConnection: vi
       .fn()
       .mockResolvedValue({ connected: true, message: 'ok' }),
-    getAnalyticsEngineUrl: jest.fn().mockReturnValue('http://localhost:8001'),
+    getAnalyticsEngineUrl: vi.fn().mockReturnValue('http://localhost:8001'),
   };
 
   const supabaseUserService = {
-    getUsersWithAllWallets: jest.fn().mockResolvedValue([
+    getUsersWithAllWallets: vi.fn().mockResolvedValue([
       {
         user: { id: 'u-1', email: 'user@test.com', subscription_active: true },
         wallets: ['0xabc'],
       },
     ]),
-    getUserWithWallets: jest.fn().mockResolvedValue({
+    getUserWithWallets: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'user@test.com', subscription_active: true },
       wallets: ['0xabc'],
     }),
-    getBalanceHistory: jest.fn().mockResolvedValue([
+    getBalanceHistory: vi.fn().mockResolvedValue([
       { date: '2025-01-01', usd_value: 4800 },
       { date: '2025-01-08', usd_value: 5000 },
     ]),

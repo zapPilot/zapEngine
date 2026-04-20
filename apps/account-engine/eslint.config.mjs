@@ -1,6 +1,6 @@
 // @ts-check
-import { createBackendJestConfig } from '@zapengine/eslint-config/backend-jest';
+import { createBackendVitestConfig } from '@zapengine/eslint-config/backend-vitest';
 
-export default createBackendJestConfig({
+export default createBackendVitestConfig({
   tsconfigRootDir: import.meta.dirname,
 });

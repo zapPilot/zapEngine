@@ -30,17 +30,17 @@ function createPendingJob(overrides: Partial<Job> = {}): Job {
 
 function createMocks() {
   const jobQueueService = {
-    getJob: jest.fn(),
-    getNextJob: jest.fn(),
-    startProcessing: jest.fn(),
-    completeJob: jest.fn(),
-    failJob: jest.fn(),
-    retryJob: jest.fn(),
-    logJobEvent: jest.fn(),
+    getJob: vi.fn(),
+    getNextJob: vi.fn(),
+    startProcessing: vi.fn(),
+    completeJob: vi.fn(),
+    failJob: vi.fn(),
+    retryJob: vi.fn(),
+    logJobEvent: vi.fn(),
   };
 
   const adminNotificationService = {
-    notifyJobFailure: jest.fn().mockResolvedValue(undefined),
+    notifyJobFailure: vi.fn().mockResolvedValue(undefined),
   };
 
   const service = new JobProcessorService(
@@ -56,7 +56,7 @@ function createTestProcessor(
 ): JobProcessor {
   return {
     supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
-    process: jest.fn().mockResolvedValue(result),
+    process: vi.fn().mockResolvedValue(result),
   };
 }
 
@@ -123,8 +123,8 @@ describe('JobProcessorService', () => {
   });
 
   describe('processAvailableJobs (via interval)', () => {
-    beforeEach(() => jest.useFakeTimers());
-    afterEach(() => jest.useRealTimers());
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
 
     it('picks up jobs when interval fires', async () => {
       const { service, jobQueueService } = createMocks();
@@ -134,7 +134,7 @@ describe('JobProcessorService', () => {
       service.start();
 
       // JOB_CONFIG.PROCESSING_INTERVAL_MS = 5000
-      jest.advanceTimersByTime(5100);
+      vi.advanceTimersByTime(5100);
       service.stop();
 
       // Flush background microtasks from executeJobInBackground
@@ -153,7 +153,7 @@ describe('JobProcessorService', () => {
       });
       service.start();
 
-      expect(() => jest.advanceTimersByTime(5100)).not.toThrow();
+      expect(() => vi.advanceTimersByTime(5100)).not.toThrow();
       service.stop();
     });
   });
@@ -164,10 +164,10 @@ describe('JobProcessorService', () => {
       const job = createPendingJob();
       jobQueueService.getJob.mockReturnValue(job);
 
-      const cleanup = jest.fn().mockResolvedValue(undefined);
+      const cleanup = vi.fn().mockResolvedValue(undefined);
       const processorWithCleanup = {
         supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
-        process: jest.fn().mockResolvedValue({ success: true }),
+        process: vi.fn().mockResolvedValue({ success: true }),
         cleanup,
       };
       service.registerProcessor(processorWithCleanup);
@@ -184,8 +184,8 @@ describe('JobProcessorService', () => {
 
       const processorWithCleanup = {
         supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
-        process: jest.fn().mockResolvedValue({ success: true }),
-        cleanup: jest.fn().mockRejectedValue(new Error('cleanup error')),
+        process: vi.fn().mockResolvedValue({ success: true }),
+        cleanup: vi.fn().mockRejectedValue(new Error('cleanup error')),
       };
       service.registerProcessor(processorWithCleanup);
 
@@ -305,7 +305,7 @@ describe('JobProcessorService', () => {
 
       const failingProcessor: JobProcessor = {
         supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
-        process: jest
+        process: vi
           .fn()
           .mockRejectedValue(new Error('ValidationError: bad input')),
       };

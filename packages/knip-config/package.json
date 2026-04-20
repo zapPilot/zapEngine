@@ -3,8 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "files": ["base.mjs"],
+  "files": [
+    "base.mjs",
+    "base.d.ts"
+  ],
   "exports": {
-    "./base": "./base.mjs"
+    "./base": {
+      "types": "./base.d.ts",
+      "default": "./base.mjs"
+    }
   }
 }

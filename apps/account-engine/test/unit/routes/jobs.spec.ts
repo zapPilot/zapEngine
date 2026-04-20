@@ -7,6 +7,7 @@ import {
 } from '@modules/jobs/interfaces/job.interface';
 import { createJobsRoutes } from '@routes/jobs';
 import { Hono } from 'hono';
+import type { Mock } from 'vitest';
 
 const ADMIN_KEY = 'admin-secret';
 const USER_ID = '123e4567-e89b-12d3-a456-426614174000';
@@ -34,8 +35,8 @@ function createServices(jobOverrides: Partial<Job> = {}): AppServices {
   return {
     env: { ADMIN_API_KEY: ADMIN_KEY },
     jobQueueService: {
-      createJob: jest.fn().mockReturnValue(job),
-      getJobWithAggregatedStatus: jest.fn().mockReturnValue({ job }),
+      createJob: vi.fn().mockReturnValue(job),
+      getJobWithAggregatedStatus: vi.fn().mockReturnValue({ job }),
     },
   } as unknown as AppServices;
 }
@@ -213,7 +214,7 @@ describe('GET /jobs/:jobId', () => {
   it('returns 404 when job is not found', async () => {
     const services = createServices();
     (
-      services.jobQueueService.getJobWithAggregatedStatus as jest.Mock
+      services.jobQueueService.getJobWithAggregatedStatus as Mock
     ).mockReturnValue(null);
     const response = await createApp(services).request(
       'http://localhost/jobs/missing-job',
@@ -246,7 +247,7 @@ describe('GET /jobs/:jobId', () => {
     const services = createServices();
     const progress = { total: 10, completed: 8, failed: 1, pending: 1 };
     (
-      services.jobQueueService.getJobWithAggregatedStatus as jest.Mock
+      services.jobQueueService.getJobWithAggregatedStatus as Mock
     ).mockReturnValue({
       job: createJob(),
       progress,

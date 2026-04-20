@@ -18,10 +18,10 @@
     "lint": "eslint src/ test/",
     "lint:fix": "eslint src/ test/ --fix",
     "type-check": "tsc --noEmit",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
-    "test:ci": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
-    "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "deadcode": "knip --exports --dependencies",
     "dup:check": "jscpd src --config .jscpd.json",
     "clean": "rm -rf dist coverage"
@@ -41,86 +41,18 @@
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
-    "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/nodemailer": "^7.0.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.18.0",
-    "jest": "^30.0.0",
     "jscpd": "^4.0.5",
     "knip": "^5.66.4",
     "prettier": "^3.4.2",
-    "ts-jest": "^29.2.5",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.7.3"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": ".",
-    "roots": [
-      "<rootDir>/test/unit"
-    ],
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": [
-        "ts-jest",
-        {
-          "tsconfig": "tsconfig.jest.json"
-        }
-      ]
-    },
-    "collectCoverageFrom": [
-      "src/**/*.(t|j)s"
-    ],
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/dist/",
-      "src/test-utils",
-      "\\.dto\\.ts$",
-      "\\.interface\\.ts$",
-      "src/main\\.ts",
-      "src/container\\.ts",
-      "src/common/constants/",
-      "src/types/",
-      "src/users/constants/",
-      "src/users/interfaces/",
-      "/index\\.ts$"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 90,
-        "functions": 95,
-        "lines": 95,
-        "statements": 95
-      }
-    },
-    "coverageDirectory": "coverage",
-    "testEnvironment": "node",
-    "setupFilesAfterEnv": [
-      "<rootDir>/jest.setup.ts"
-    ],
-    "testTimeout": 30000,
-    "detectOpenHandles": true,
-    "forceExit": true,
-    "clearMocks": true,
-    "restoreMocks": true,
-    "moduleNameMapper": {
-      "^@zapengine/types/(.*)$": "<rootDir>/__mocks__/@zapengine/types/$1",
-      "^@common/(.*)$": "<rootDir>/src/common/$1",
-      "^@database/(.*)$": "<rootDir>/src/database/$1",
-      "^@modules/(.*)$": "<rootDir>/src/modules/$1",
-      "^@users/(.*)$": "<rootDir>/src/users/$1",
-      "^@config/(.*)$": "<rootDir>/src/config/$1",
-      "^@db-types/(.*)$": "<rootDir>/src/types/$1",
-      "^@container$": "<rootDir>/src/container.ts",
-      "^@routes/(.*)$": "<rootDir>/src/routes/$1",
-      "^@test-utils$": "<rootDir>/test/test-utils/index.ts"
-    }
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=22.0.0"

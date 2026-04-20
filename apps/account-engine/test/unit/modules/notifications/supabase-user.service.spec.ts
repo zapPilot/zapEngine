@@ -8,8 +8,8 @@ import { createMockDatabaseService } from '@test-utils';
 function createMocks() {
   const dbMock = createMockDatabaseService();
   const analyticsClient = {
-    getPortfolioTrendData: jest.fn(),
-    getAnalyticsEngineUrl: jest.fn().mockReturnValue('http://localhost:8001'),
+    getPortfolioTrendData: vi.fn(),
+    getAnalyticsEngineUrl: vi.fn().mockReturnValue('http://localhost:8001'),
   };
 
   const service = new SupabaseUserService(

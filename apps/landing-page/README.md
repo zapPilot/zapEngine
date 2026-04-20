@@ -4,7 +4,7 @@ Next.js 15 marketing site and MDX documentation for Zap Pilot.
 
 ## Stack
 
-Next.js 15 (App Router, static export), React 19, Tailwind CSS v4, Framer Motion, Fumadocs (MDX), Jest.
+Next.js 15 (App Router, static export), React 19, Tailwind CSS v4, Framer Motion, Fumadocs (MDX), Vitest.
 
 ## Setup
 

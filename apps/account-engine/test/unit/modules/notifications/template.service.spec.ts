@@ -1,10 +1,11 @@
 import * as fs from 'node:fs';
 
 import { TemplateService } from '@modules/notifications/template.service';
+import type { Mock } from 'vitest';
 
-jest.mock('node:fs');
+vi.mock('node:fs');
 
-const mockReadFileSync = fs.readFileSync as jest.Mock;
+const mockReadFileSync = fs.readFileSync as Mock;
 
 describe('TemplateService', () => {
   let service: TemplateService;
