@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { setupWindowMock } from '@/test-utils';
 import { useResponsiveLayout } from '../useResponsiveLayout';
+import { vi } from 'vitest';
 
 describe('useResponsiveLayout', () => {
   let width: ReturnType<typeof setupWindowMock.innerWidth>;
@@ -8,6 +9,11 @@ describe('useResponsiveLayout', () => {
   beforeEach(() => {
     // Reset window.innerWidth before each test
     width = setupWindowMock.innerWidth(1024);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should return false for desktop viewport by default', () => {
@@ -29,7 +35,7 @@ describe('useResponsiveLayout', () => {
     expect(result.current).toBe(true);
   });
 
-  it('should update on window resize', async () => {
+  it('should update on window resize', () => {
     const { result } = renderHook(() => useResponsiveLayout({ throttleDelay: 50 }));
 
     // Initially desktop
@@ -41,15 +47,15 @@ describe('useResponsiveLayout', () => {
       window.dispatchEvent(new Event('resize'));
     });
 
-    // Wait for throttle delay
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    // Fast-forward throttle delay
+    act(() => {
+      vi.advanceTimersByTime(100);
     });
 
     expect(result.current).toBe(true);
   });
 
-  it('should throttle resize events', async () => {
+  it('should throttle resize events', () => {
     const { result } = renderHook(() => useResponsiveLayout({ throttleDelay: 100 }));
 
     // Trigger multiple resize events rapidly
@@ -63,9 +69,9 @@ describe('useResponsiveLayout', () => {
     // Should still be desktop immediately after events
     expect(result.current).toBe(false);
 
-    // Wait for throttle delay
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 150));
+    // Fast-forward throttle delay
+    act(() => {
+      vi.advanceTimersByTime(150);
     });
 
     // Should now be mobile
