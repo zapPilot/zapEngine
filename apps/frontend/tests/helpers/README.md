@@ -52,151 +52,53 @@ describe("SwapPage", () => {
 
 ## Mock Factories
 
-### `createMockToken(overrides?: Partial<SwapToken>): SwapToken`
+### `createMockToken(overrides?)`
 
-Creates a mock SwapToken with sensible defaults.
-
-**Default Values:**
-
-- `symbol`: "USDC"
-- `decimals`: 6
-- `chainId`: 1 (Ethereum)
-- `balance`: 1000
-
-**Examples:**
+Creates a mock SwapToken. Defaults: symbol="USDC", decimals=6, chainId=1, balance=1000.
 
 ```typescript
-// Default USDC token
 const usdc = createMockToken();
-
-// Custom ETH token
-const eth = createMockToken({
-  symbol: "ETH",
-  decimals: 18,
-  balance: 5.5,
-  address: "0x0000000000000000000000000000000000000000",
-});
-
-// WBTC token on Polygon
-const wbtc = createMockToken({
-  symbol: "WBTC",
-  decimals: 8,
-  chainId: 137,
-});
+const eth = createMockToken({ symbol: "ETH", decimals: 18, balance: 5.5 });
 ```
 
-### `createMockProtocol(overrides?: Partial<Protocol>): Protocol`
+### `createMockProtocol(overrides?)`
 
-Creates a mock protocol with realistic data.
-
-**Default Values:**
-
-- `name`: "Aave V3 USDC"
-- `chain`: "Ethereum"
-- `apy`: 3.5
-- `allocationPercentage`: 50
-
-**Examples:**
+Creates a mock protocol. Defaults: name="Aave V3 USDC", chain="Ethereum", apy=3.5.
 
 ```typescript
-// Default Aave protocol
 const aave = createMockProtocol();
-
-// Custom Compound protocol
-const compound = createMockProtocol({
-  name: "Compound V3 USDC",
-  protocol: "compound-v3",
-  apy: 7.2,
-  riskScore: 2,
-});
+const compound = createMockProtocol({ name: "Compound V3 USDC", apy: 7.2 });
 ```
 
-### `createMockAssetCategory(overrides?: Partial<AssetCategory>): AssetCategory`
+### `createMockAssetCategory(overrides?)`
 
-Creates a mock asset category/strategy.
-
-**Default Values:**
-
-- `name`: "Stablecoins"
-- `protocols`: []
-- `color`: "#10b981"
-- `targetAssets`: ["USDC", "USDT", "DAI"]
-
-**Examples:**
+Creates a mock asset category. Defaults: name="Stablecoins", protocols=[], color="#10b981".
 
 ```typescript
-// Default stablecoin category
 const stables = createMockAssetCategory();
-
-// Category with protocols
-const categoryWithProtocols = createMockAssetCategory({
+const defi = createMockAssetCategory({
   name: "High Yield DeFi",
-  protocols: [
-    createMockProtocol({ name: "Aave V3", apy: 5.0 }),
-    createMockProtocol({ name: "Compound V3", apy: 6.5 }),
-  ],
-});
-
-// Blue chip category
-const blueChips = createMockAssetCategory({
-  name: "Blue Chips",
-  targetAssets: ["WBTC", "WETH"],
-  color: "#3b82f6",
+  protocols: [createMockProtocol({ name: "Aave V3", apy: 5.0 })],
 });
 ```
 
-### `createMockStrategy(overrides?: Partial<InvestmentOpportunity>): InvestmentOpportunity`
+### `createMockStrategy(overrides?)`
 
-Creates a mock investment strategy.
-
-**Default Values:**
-
-- `name`: "Conservative Stablecoin Yield"
-- `apr`: 5.5
-- `risk`: "Low"
-- `category`: "Stablecoins"
-- `navigationContext`: "invest"
-
-**Examples:**
+Creates a mock investment strategy. Defaults: name="Conservative Stablecoin Yield", apr=5.5,
+risk="Low".
 
 ```typescript
-// Default conservative strategy
 const conservative = createMockStrategy();
-
-// High-yield strategy
-const highYield = createMockStrategy({
-  name: "High Yield DeFi",
-  apr: 15.0,
-  risk: "High",
-  navigationContext: "zapIn",
-});
+const highYield = createMockStrategy({ name: "High Yield DeFi", apr: 15.0, risk: "High" });
 ```
 
-### `createMockSwapAction(overrides?: Partial<PortfolioSwapAction>): PortfolioSwapAction`
+### `createMockSwapAction(overrides?)`
 
-Creates a mock swap action for testing form submissions.
-
-**Default Values:**
-
-- `operationMode`: "zapIn"
-- `swapSettings.amount`: "1000"
-- `swapSettings.slippageTolerance`: 0.5
-
-**Examples:**
+Creates a mock swap action. Defaults: operationMode="zapIn", amount="1000", slippage=0.5.
 
 ```typescript
-// Default zapIn action
 const zapIn = createMockSwapAction();
-
-// Custom zapOut action
-const zapOut = createMockSwapAction({
-  operationMode: "zapOut",
-  swapSettings: {
-    amount: "500",
-    slippageTolerance: 1.0,
-    toToken: createMockToken({ symbol: "USDC" }),
-  },
-});
+const zapOut = createMockSwapAction({ operationMode: "zapOut", swapSettings: { amount: "500" } });
 ```
 
 ## Setup Utilities
@@ -260,68 +162,15 @@ The `SwapPageTestScenarios` object provides ready-to-use configurations for comm
 
 ### Available Scenarios
 
-#### `connectedWithStrategies()`
-
-Happy path scenario with connected user and loaded strategies.
-
-```typescript
-const scenario = SwapPageTestScenarios.connectedWithStrategies();
-// Returns: { userInfo, connectedWallet, chainId: 1, strategies: [...], isLoading: false }
-```
-
-#### `disconnected()`
-
-User not connected to wallet.
-
-```typescript
-const scenario = SwapPageTestScenarios.disconnected();
-// Returns: { userInfo: null, connectedWallet: null, strategies: [] }
-```
-
-#### `loading()`
-
-Initial loading state while fetching strategies.
-
-```typescript
-const scenario = SwapPageTestScenarios.loading();
-// Returns: { isLoading: true, isInitialLoading: true, strategies: [] }
-```
-
-#### `error()`
-
-Error state when strategy fetch fails.
-
-```typescript
-const scenario = SwapPageTestScenarios.error();
-// Returns: { error: Error('Failed to fetch strategies'), isLoading: false }
-```
-
-#### `emptyStrategies()`
-
-Connected user but no available strategies.
-
-```typescript
-const scenario = SwapPageTestScenarios.emptyStrategies();
-// Returns: { userInfo, connectedWallet, strategies: [], isLoading: false }
-```
-
-#### `refetching()`
-
-Background refresh while strategies are already loaded.
-
-```typescript
-const scenario = SwapPageTestScenarios.refetching();
-// Returns: { strategies: [...], isRefetching: true }
-```
-
-#### `multiChain()`
-
-Testing on Polygon chain.
-
-```typescript
-const scenario = SwapPageTestScenarios.multiChain();
-// Returns: { chainId: 137, strategies with Polygon chains }
-```
+| Scenario                    | Description                                       |
+| --------------------------- | ------------------------------------------------- |
+| `connectedWithStrategies()` | Happy path: connected user with loaded strategies |
+| `disconnected()`            | User not connected to wallet                      |
+| `loading()`                 | Initial loading state                             |
+| `error()`                   | Strategy fetch failed                             |
+| `emptyStrategies()`         | Connected but no strategies available             |
+| `refetching()`              | Background refresh with loaded data               |
+| `multiChain()`              | Polygon chain testing                             |
 
 ## Interaction Helpers
 
@@ -402,36 +251,11 @@ render(
 
 ## Best Practices
 
-### 1. Use Pre-built Scenarios When Possible
-
-```typescript
-// Good: Use pre-built scenario
-const scenario = SwapPageTestScenarios.connectedWithStrategies();
-const mocks = setupSwapPageMocks(scenario);
-
-// Avoid: Manual configuration when scenario exists
-const mocks = setupSwapPageMocks({
-  userInfo: { userId: "...", walletAddress: "..." },
-  // ... lots of manual config
-});
-```
-
-### 2. Apply All Mocks Consistently
-
-```typescript
-// Good: Apply all related mocks
-vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
-vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
-vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-  mocks.useStrategiesWithPortfolioData()
-);
-
-// Avoid: Forgetting some mocks (will cause undefined errors)
-vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
-// Missing other mocks...
-```
-
-### 3. Clean Up After Tests
+1. **Use Pre-built Scenarios:** `SwapPageTestScenarios.connectedWithStrategies()` vs manual config
+2. **Apply All Mocks:** Use all `mocks.*` functions (`useUser`, `useChain`,
+   `useStrategiesWithPortfolioData`)
+3. **Clean Up:** Call `mocks.resetAll()` in `afterEach()`
+4. **Customize Sparingly:** Only override the fields you need
 
 ```typescript
 describe("SwapPage", () => {
@@ -439,32 +263,11 @@ describe("SwapPage", () => {
 
   beforeEach(() => {
     mocks = setupSwapPageMocks(SwapPageTestScenarios.connectedWithStrategies());
-    // Apply mocks...
   });
 
   afterEach(() => {
-    mocks.resetAll(); // Clean up
+    mocks.resetAll();
   });
-
-  it("should do something", () => {
-    // Test...
-  });
-});
-```
-
-### 4. Customize Only What You Need
-
-```typescript
-// Good: Customize only relevant fields
-const token = createMockToken({ symbol: "ETH", decimals: 18 });
-
-// Avoid: Over-specifying defaults
-const token = createMockToken({
-  symbol: "ETH",
-  decimals: 18,
-  chainId: 1, // Default value, not needed
-  balance: 1000, // Default value, not needed
-  // ... many more defaults
 });
 ```
 
@@ -496,17 +299,3 @@ All types are imported from the main codebase:
 - `InvestmentOpportunity` from `@/types/investment`
 - `PortfolioSwapAction` from `@/components/PortfolioAllocation/types`
 - `UserInfo` from `@/hooks/queries/useUserQuery`
-
-## Contributing
-
-When adding new test utilities:
-
-1. Add JSDoc comments explaining usage
-2. Provide realistic default values
-3. Include examples in the documentation
-4. Add unit tests in `swapPageTestUtils.test.ts`
-5. Update this README with new utilities
-
-## License
-
-Part of the Zap Pilot test suite.

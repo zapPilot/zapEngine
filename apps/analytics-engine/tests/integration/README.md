@@ -179,109 +179,17 @@ pytest tests/ -m "not integration"
 
 ## Test Cases
 
-### TC1: Pure Debt Position (`test_pure_debt_position`)
+### Test Cases
 
-**Scenario:** User with $10,000 USDC deposited and $3,000 USDC borrowed
+| Test | Scenario | Validates |
+|------|----------|-----------|
+| `test_pure_debt_position` | $10k assets, $3k debt in JSONB | JSONB → debt extraction, NET = assets - debt |
+| `test_historical_debt_trend_three_days` | 3-day debt changes | PnL includes debt, trends reflect changes |
+| `test_zero_debt_regression` | No debt (positive only) | Backward compatibility for zero-debt users |
+| `test_cross_endpoint_consistency` | Same user, two endpoints | Both return identical NET values |
+| `test_sql_query_executes_successfully` | SQL execution | Query validity, debt fields present |
 
-**JSONB Structure:**
-```json
-{
-  "asset_token_list": [
-    {"symbol": "USDC", "amount": "10000", "price": "1.0"},
-    {"symbol": "USDC", "amount": "-3000", "price": "1.0"}
-  ]
-}
-```
-
-**Expected Results:**
-```python
-{
-  "total_value_usd": 7000.0,  # NET = $10k assets - $3k debt
-  "category_assets_usd": 10000.0,
-  "category_debt_usd": 3000.0,
-  "category_value_usd": 7000.0
-}
-```
-
-**Validates:**
-- JSONB negative amounts correctly extracted as debt
-- NET portfolio value = assets - debt
-- New debt fields present in API response
-
----
-
-### TC3: Historical Debt Trend (`test_historical_debt_trend_three_days`)
-
-**Scenario:** 3-day trend showing debt changes
-
-| Day | Assets | Debt | NET | PnL |
-|-----|--------|------|-----|-----|
-| 1 | $10,000 | $0 | $10,000 | 0% |
-| 2 | $10,000 | $2,000 | $8,000 | -20% |
-| 3 | $10,000 | $1,000 | $9,000 | +12.5% |
-
-**Validates:**
-- Historical trends reflect debt changes
-- PnL calculations include debt impact
-- Debt increase reduces portfolio value
-- Debt repayment increases portfolio value
-
----
-
-### TC6: Zero Debt Regression (`test_zero_debt_regression`)
-
-**Scenario:** User with no borrowing (only positive amounts)
-
-**JSONB Structure:**
-```json
-{
-  "asset_token_list": [
-    {"symbol": "ETH", "amount": "5", "price": "2000"},
-    {"symbol": "USDC", "amount": "5000", "price": "1.0"}
-  ]
-}
-```
-
-**Expected Results:**
-```python
-{
-  "total_value_usd": 15000.0,
-  "category_debt_usd": 0.0,  # All categories have zero debt
-  "value_usd == assets_usd"  # NET equals assets when debt is zero
-}
-```
-
-**Validates:**
-- Debt handling fix doesn't break existing users without debt
-- Zero debt handled correctly (backward compatibility)
-
----
-
-### TC4: Cross-Endpoint Consistency (`test_cross_endpoint_consistency`)
-
-**Scenario:** Same user queried via two endpoints
-
-**Endpoints:**
-1. `GET /api/v2/analytics/{user_id}/trend?days=1`
-2. `GET /api/v2/portfolio/{user_id}/landing`
-
-**Validates:**
-```python
-trend_response["daily_values"][0]["total_value_usd"] ==
-landing_response["net_portfolio_value"]
-```
-
-**Critical Check:** Both endpoints must show same NET value (assets - debt)
-
----
-
-### TC-SQL: SQL Query Validation (`test_sql_query_executes_successfully`)
-
-**Validates:**
-- SQL query executes without errors on PostgreSQL
-- All referenced tables/functions exist
-- Result rows include debt fields
-- NET calculation is correct: `category_value_usd == assets - debt`
+**Key Equation:** `total_value_usd = category_assets_usd - category_debt_usd`
 
 ---
 
@@ -312,122 +220,13 @@ Creates a user with no debt positions:
 
 ## Troubleshooting
 
-### Tests Are Skipped
-
-```
-SKIPPED: DATABASE_INTEGRATION_URL not set
-```
-
-**Solution:** Set the environment variable:
-```bash
-export DATABASE_INTEGRATION_URL="postgresql+asyncpg://user:pass@host/database"
-```
-
-### Connection Error
-
-```
-could not connect to server: Connection refused
-```
-
-**Solutions:**
-1. Verify PostgreSQL is running: `pg_isready`
-2. Check connection string has correct host/port
-3. Verify credentials are correct
-4. Check firewall/security group settings (if using cloud database)
-
-### Missing Function Error
-
-```
-ERROR: function classify_token_category(text) does not exist
-```
-
-**Solution:** Create the function (see Prerequisites section above)
-
-### Missing Tables Error
-
-```
-ERROR: relation "portfolio_item_snapshots" does not exist
-```
-
-**Solution:** Apply database schema:
-```bash
-pg_dump -s production_db | psql test_db
-# or
-psql test_db < schema.sql
-```
-
-### Permission Errors
-
-```
-ERROR: permission denied for table users
-```
-
-**Solution:** Grant necessary permissions:
-```sql
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO test_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO test_user;
-```
-
----
-
-## Manual SQL Validation
-
-If you want to manually validate the SQL query results:
-
-### 1. Check Test Data
-
-```sql
--- View test user's portfolio snapshots
-SELECT
-    user_id,
-    wallet,
-    snapshot_at,
-    jsonb_pretty(asset_token_list) as tokens,
-    asset_usd_value,
-    debt_usd_value,
-    net_usd_value
-FROM portfolio_item_snapshots
-WHERE user_id = '<test-user-id-from-fixture>';
-```
-
-### 2. Run Trend Query Manually
-
-```sql
--- Copy contents of src/queries/sql/get_portfolio_category_trend_by_user_id.sql
--- Replace parameters:
---   :user_id → '<test-user-id>'
---   :start_date → '2024-01-01 00:00:00'::timestamp
---   :end_date → CURRENT_TIMESTAMP
-
--- Verify results include:
-SELECT
-    date,
-    category,
-    category_value_usd,
-    category_assets_usd,  -- Should be 10000
-    category_debt_usd,    -- Should be 3000
-    total_value_usd       -- Should be 7000 (NET)
-FROM ...
-```
-
-### 3. Validate Calculations
-
-```sql
--- Verify NET = assets - debt for each row
-SELECT
-    date,
-    category,
-    category_assets_usd,
-    category_debt_usd,
-    category_value_usd,
-    category_assets_usd - category_debt_usd as calculated_net,
-    CASE
-        WHEN ABS(category_value_usd - (category_assets_usd - category_debt_usd)) > 0.01
-        THEN 'MISMATCH!'
-        ELSE 'OK'
-    END as validation
-FROM ... ;
-```
+| Issue | Solution |
+|-------|----------|
+| `SKIPPED: DATABASE_INTEGRATION_URL not set` | Set `export DATABASE_INTEGRATION_URL=...` |
+| `Connection refused` | Check PostgreSQL is running; verify connection string |
+| `function classify_token_category does not exist` | Create function (see Prerequisites) |
+| `relation portfolio_item_snapshots does not exist` | Apply schema: `psql test_db < schema.sql` |
+| `permission denied` | Grant privileges: `GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO test_user;` |
 
 ---
 
@@ -516,51 +315,14 @@ tests/integration/test_debt_handling_integration.py::TestDebtHandlingIntegration
 
 ## Next Steps
 
-### Expand Test Coverage
+**Expand Test Coverage:** Multi-category debt, extreme leverage (95% LTV), negative NET categories, mixed DeFi/wallet debt.
 
-Additional test cases to implement:
+**Performance Testing:** Test with 1000+ snapshots across 90 days.
 
-1. **TC2: Multi-Category Debt** - Debt in one category doesn't affect others
-2. **TC5: Extreme Leverage** - 95% LTV edge case
-3. **TC7: Negative NET Category** - Category with debt > assets
-4. **TC8: Mixed DeFi/Wallet Debt** - Debt across source types
-
-### Performance Testing
-
-Test with larger datasets:
-
-```python
-# Create 1000 portfolio snapshots across 90 days
-# Validate query performance and result accuracy
-```
-
-### Continuous Monitoring
-
-Run integration tests:
-- Before deploying to production
-- After database schema changes
-- Weekly as part of regression testing
-
----
-
-## Support
-
-For questions or issues with integration tests:
-
-1. Check this README's troubleshooting section
-2. Review test output for specific error messages
-3. Verify database connection and schema
-4. Check test fixtures are creating data correctly
-
----
+**Continuous Monitoring:** Run before production deploys, after schema changes, weekly regression.
 
 ## Summary
 
-Integration tests are **critical for validating the debt handling fix** because:
-
-1. Unit tests can't validate PostgreSQL-specific SQL
-2. JSONB negative amounts require real database testing
-3. Cross-endpoint consistency needs end-to-end validation
-4. Production bugs are caught before deployment
+Integration tests validate the debt handling fix because: (1) Unit tests can't validate PostgreSQL SQL, (2) JSONB negative amounts need real DB testing, (3) Cross-endpoint consistency requires end-to-end validation, (4) Catches production bugs pre-deployment.
 
 **Before deploying to production**, ensure all integration tests pass against a PostgreSQL database with production-like data.
