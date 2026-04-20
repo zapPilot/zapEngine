@@ -6,39 +6,44 @@ import {
   createMockDatabaseService,
   createMockQueryBuilder,
 } from '@test-utils';
+import { Telegraf } from 'telegraf';
+import type { Mock } from 'vitest';
 
-// Mock telegraf at module level
-jest.mock('telegraf', () => ({
-  Telegraf: jest.fn().mockImplementation(() => ({
-    start: jest.fn(),
-    command: jest.fn(),
-    help: jest.fn(),
-    on: jest.fn(),
-    launch: jest.fn().mockResolvedValue(undefined),
-    stop: jest.fn(),
-    handleUpdate: jest.fn().mockResolvedValue(undefined),
-    telegram: {
-      sendMessage: jest.fn().mockResolvedValue({}),
-    },
-  })),
+// Mock telegraf at module level.
+// Use a regular function (not arrow) because Vitest invokes the
+// mockImplementation with `new`, and arrow functions cannot be constructors.
+vi.mock('telegraf', () => ({
+  Telegraf: vi.fn().mockImplementation(function (this: unknown) {
+    return {
+      start: vi.fn(),
+      command: vi.fn(),
+      help: vi.fn(),
+      on: vi.fn(),
+      launch: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+      handleUpdate: vi.fn().mockResolvedValue(undefined),
+      telegram: {
+        sendMessage: vi.fn().mockResolvedValue({}),
+      },
+    };
+  }),
 }));
 
 interface MockBot {
-  start: jest.Mock;
-  command: jest.Mock;
-  help: jest.Mock;
-  on: jest.Mock;
-  launch: jest.Mock;
-  stop: jest.Mock;
-  handleUpdate: jest.Mock;
+  start: Mock;
+  command: Mock;
+  help: Mock;
+  on: Mock;
+  launch: Mock;
+  stop: Mock;
+  handleUpdate: Mock;
   telegram: {
-    sendMessage: jest.Mock;
+    sendMessage: Mock;
   };
 }
 
-function getMockTelegraf(): jest.Mock {
-  const telegrafModule: { Telegraf: jest.Mock } = jest.requireMock('telegraf');
-  return telegrafModule.Telegraf;
+function getMockTelegraf(): Mock {
+  return vi.mocked(Telegraf) as unknown as Mock;
 }
 
 function getLatestBotMock(): MockBot {
@@ -71,8 +76,8 @@ function getCallbackHandler(): (ctx: unknown) => Promise<void> {
 function createMocks(env: Record<string, string> = {}) {
   const dbMock = createMockDatabaseService();
   const tokenService = {
-    validateToken: jest.fn(),
-    invalidateToken: jest.fn().mockResolvedValue(undefined),
+    validateToken: vi.fn(),
+    invalidateToken: vi.fn().mockResolvedValue(undefined),
   };
 
   const configService = createMockConfigService(env);
@@ -350,8 +355,8 @@ describe('TelegramService', () => {
         callbackQuery: {
           data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
         },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -385,8 +390,8 @@ describe('TelegramService', () => {
         callbackQuery: {
           data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
         },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -406,8 +411,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|broken' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -434,8 +439,8 @@ describe('TelegramService', () => {
         callbackQuery: {
           data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
         },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -537,7 +542,7 @@ describe('TelegramService', () => {
         startPayload: overrides.startPayload ?? 'valid-token',
         chat: { id: overrides.chatId ?? 12345 },
         from: { username: overrides.username ?? 'testuser' },
-        reply: jest.fn().mockResolvedValue(undefined),
+        reply: vi.fn().mockResolvedValue(undefined),
       };
     }
 
@@ -573,7 +578,7 @@ describe('TelegramService', () => {
       const ctx = {
         ...makeCtx(),
         chat: null,
-        reply: jest.fn().mockResolvedValue(undefined),
+        reply: vi.fn().mockResolvedValue(undefined),
       };
 
       await startCallback(ctx);
@@ -630,7 +635,7 @@ describe('TelegramService', () => {
       });
       const ctx = {
         chat: { id: 9999 },
-        reply: jest.fn().mockResolvedValue(undefined),
+        reply: vi.fn().mockResolvedValue(undefined),
       };
 
       await stopCallback(ctx);
@@ -653,7 +658,7 @@ describe('TelegramService', () => {
       });
       const ctx = {
         chat: { id: 9999 },
-        reply: jest.fn().mockResolvedValue(undefined),
+        reply: vi.fn().mockResolvedValue(undefined),
       };
 
       await stopCallback(ctx);
@@ -676,7 +681,7 @@ describe('TelegramService', () => {
       });
       const ctx = {
         chat: { id: 9999 },
-        reply: jest.fn().mockResolvedValue(undefined),
+        reply: vi.fn().mockResolvedValue(undefined),
       };
 
       await stopCallback(ctx);
@@ -690,7 +695,7 @@ describe('TelegramService', () => {
     it('replies with error message when chat id is missing', async () => {
       createMocks();
       const stopCallback = getStopCallback();
-      const ctx = { chat: null, reply: jest.fn().mockResolvedValue(undefined) };
+      const ctx = { chat: null, reply: vi.fn().mockResolvedValue(undefined) };
 
       await stopCallback(ctx);
 
@@ -795,7 +800,7 @@ describe('TelegramService', () => {
     it('replies with help text when /help is called', async () => {
       createMocks();
       const helpCallback = getHelpCallback();
-      const ctx = { reply: jest.fn().mockResolvedValue(undefined) };
+      const ctx = { reply: vi.fn().mockResolvedValue(undefined) };
 
       await helpCallback(ctx);
 
@@ -813,8 +818,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'some_other_callback' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await callbackHandler(ctx);
@@ -849,8 +854,8 @@ describe('TelegramService', () => {
         callbackQuery: {
           data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
         },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await callbackHandler(ctx);
@@ -868,8 +873,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: null, // no chat -> chatId is null
         callbackQuery: { data: 'dsdone|cfg|strat' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -898,8 +903,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|cfg|strat' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -932,8 +937,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|cfg|strat' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await (service as any).handleDailySuggestionDoneCallback(
@@ -963,7 +968,7 @@ describe('TelegramService', () => {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|cfg|strat' },
         // no answerCbQuery
-        editMessageReplyMarkup: jest.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
       };
 
       await expect(
@@ -993,7 +998,7 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|cfg|strat' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
         // no editMessageReplyMarkup
       };
 
@@ -1023,8 +1028,8 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: { data: 'dsdone|cfg|strat' },
-        answerCbQuery: jest.fn().mockResolvedValue(undefined),
-        editMessageReplyMarkup: jest
+        answerCbQuery: vi.fn().mockResolvedValue(undefined),
+        editMessageReplyMarkup: vi
           .fn()
           .mockRejectedValue(new Error('message gone')),
       };

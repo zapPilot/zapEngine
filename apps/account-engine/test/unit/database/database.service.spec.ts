@@ -1,17 +1,18 @@
 import { ConfigService } from '@config/config.service';
 import { DatabaseService } from '@database/database.service';
 import { createMockConfigService } from '@test-utils';
+import type { Mock } from 'vitest';
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn().mockReturnValue({
-    from: jest.fn(),
-    rpc: jest.fn(),
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn().mockReturnValue({
+    from: vi.fn(),
+    rpc: vi.fn(),
   }),
 }));
 
 import { createClient } from '@supabase/supabase-js';
 
-const mockedCreateClient = createClient as jest.Mock;
+const mockedCreateClient = createClient as Mock;
 
 describe('DatabaseService', () => {
   let configService: ConfigService;
@@ -19,8 +20,8 @@ describe('DatabaseService', () => {
   beforeEach(() => {
     mockedCreateClient.mockClear();
     mockedCreateClient.mockReturnValue({
-      from: jest.fn(),
-      rpc: jest.fn().mockResolvedValue({ data: 'ok', error: null }),
+      from: vi.fn(),
+      rpc: vi.fn().mockResolvedValue({ data: 'ok', error: null }),
     });
   });
 
@@ -108,7 +109,7 @@ describe('DatabaseService', () => {
     it('calls rpc on the anon client by default', async () => {
       const service = buildService();
       const client = service.getClient();
-      (client.rpc as jest.Mock).mockResolvedValue({
+      (client.rpc as Mock).mockResolvedValue({
         data: { result: true },
         error: null,
       });
@@ -130,7 +131,7 @@ describe('DatabaseService', () => {
     it('uses service role client when useServiceRole is true', async () => {
       const service = buildService();
       const serviceClient = service.getServiceRoleClient();
-      (serviceClient.rpc as jest.Mock).mockResolvedValue({
+      (serviceClient.rpc as Mock).mockResolvedValue({
         data: { ok: true },
         error: null,
       });
@@ -146,7 +147,7 @@ describe('DatabaseService', () => {
       const service = buildService();
       const client = service.getClient();
       const rpcError = { code: '42000', message: 'function not found' };
-      (client.rpc as jest.Mock).mockResolvedValue({
+      (client.rpc as Mock).mockResolvedValue({
         data: null,
         error: rpcError,
       });

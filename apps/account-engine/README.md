@@ -7,7 +7,7 @@ Hono API service for Zap Pilot. Handles user accounts, wallet onboarding, Telegr
 - Hono on Node.js — TypeScript
 - Supabase PostgreSQL (dual-client: anon + service-role)
 - Telegraf (Telegram bot)
-- Jest (tests)
+- Vitest (tests)
 
 ## HTTP surface
 

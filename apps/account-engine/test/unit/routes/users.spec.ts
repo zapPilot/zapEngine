@@ -8,6 +8,7 @@ import {
 import type { AppServices } from '@container';
 import { createUsersRoutes } from '@routes/users';
 import { Hono } from 'hono';
+import type { Mock } from 'vitest';
 
 const VALID_UUID = '123e4567-e89b-12d3-a456-426614174000';
 const VALID_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
@@ -16,23 +17,23 @@ const VALID_WALLET_ID = '223e4567-e89b-12d3-a456-426614174001';
 function createServices(): AppServices {
   return {
     usersService: {
-      connectWallet: jest
+      connectWallet: vi
         .fn()
         .mockResolvedValue({ user_id: 'user-1', is_new_user: false }),
-      addWallet: jest.fn().mockResolvedValue({ wallet_id: 'w-1' }),
-      updateEmail: jest.fn().mockResolvedValue({ email: 'a@b.com' }),
-      unsubscribeFromReports: jest.fn().mockResolvedValue({ success: true }),
-      updateWalletLabel: jest.fn().mockResolvedValue({ label: 'My Wallet' }),
-      getUserWallets: jest.fn().mockResolvedValue([]),
-      removeWallet: jest.fn().mockResolvedValue({ success: true }),
-      triggerWalletDataFetch: jest
+      addWallet: vi.fn().mockResolvedValue({ wallet_id: 'w-1' }),
+      updateEmail: vi.fn().mockResolvedValue({ email: 'a@b.com' }),
+      unsubscribeFromReports: vi.fn().mockResolvedValue({ success: true }),
+      updateWalletLabel: vi.fn().mockResolvedValue({ label: 'My Wallet' }),
+      getUserWallets: vi.fn().mockResolvedValue([]),
+      removeWallet: vi.fn().mockResolvedValue({ success: true }),
+      triggerWalletDataFetch: vi
         .fn()
         .mockResolvedValue({ job_id: 'j-1', rate_limited: false }),
-      getUserProfile: jest.fn().mockResolvedValue({ id: VALID_UUID }),
-      deleteUser: jest.fn().mockResolvedValue({ success: true }),
-      requestTelegramToken: jest.fn().mockResolvedValue({ token: 'tok-1' }),
-      getTelegramStatus: jest.fn().mockResolvedValue({ connected: false }),
-      disconnectTelegram: jest.fn().mockResolvedValue({ success: true }),
+      getUserProfile: vi.fn().mockResolvedValue({ id: VALID_UUID }),
+      deleteUser: vi.fn().mockResolvedValue({ success: true }),
+      requestTelegramToken: vi.fn().mockResolvedValue({ token: 'tok-1' }),
+      getTelegramStatus: vi.fn().mockResolvedValue({ connected: false }),
+      disconnectTelegram: vi.fn().mockResolvedValue({ success: true }),
     },
   } as unknown as AppServices;
 }
@@ -214,9 +215,7 @@ describe('POST /users/:userId/wallets/:walletAddress/fetch-data', () => {
 
   it('returns 429 when rate_limited is true', async () => {
     const services = createServices();
-    (
-      services.usersService.triggerWalletDataFetch as jest.Mock
-    ).mockResolvedValue({
+    (services.usersService.triggerWalletDataFetch as Mock).mockResolvedValue({
       job_id: null,
       rate_limited: true,
       message: 'Too many requests',
@@ -280,7 +279,7 @@ describe('DELETE /users/:userId/telegram/disconnect', () => {
 describe('onError handler', () => {
   it('returns 500 for a generic Error thrown from a handler', async () => {
     const services = createServices();
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
       new Error('unexpected failure'),
     );
     const response = await createApp(services).request(
@@ -291,7 +290,7 @@ describe('onError handler', () => {
 
   it('uses the HttpException statusCode when an HttpException is thrown', async () => {
     const services = createServices();
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
       new NotFoundException('User not found'),
     );
     const response = await createApp(services).request(
@@ -302,7 +301,7 @@ describe('onError handler', () => {
 
   it('uses the HttpException statusCode for other subclasses', async () => {
     const services = createServices();
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
       new HttpException('Rate limited', HttpStatus.TOO_MANY_REQUESTS),
     );
     const response = await createApp(services).request(
@@ -316,7 +315,7 @@ describe('onError handler', () => {
     const err = Object.assign(new Error('Service unavailable'), {
       statusCode: 503,
     });
-    (services.usersService.getUserProfile as jest.Mock).mockRejectedValue(err);
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(err);
     const response = await createApp(services).request(
       `http://localhost/users/${VALID_UUID}`,
     );

@@ -8,8 +8,8 @@ This directory provides reusable testing helpers to reduce boilerplate and estab
 
 - **Custom Render** (`render.tsx`) - Renders components with necessary providers
 - **Window Mocks** (`mocks/window.ts`) - Helpers for mocking window properties
-- **Regime Fixtures** (`fixtures/regime.ts`) - Factories for regime component test data
-- **Next Router Mocks** (`mocks/next-router.ts`) - Router mocking for navigation tests
+- **Framer Motion Mock** (`mocks/framer-motion.ts`) - Global mock used by Vitest setup
+- **Next Image Mock** (`mocks/next-image.ts`) - Global mock used by Vitest setup
 
 ## Installation
 
@@ -62,7 +62,7 @@ describe('ExternalLink', () => {
 **Before** (6 lines):
 
 ```typescript
-const mockWindowOpen = jest.fn();
+const mockWindowOpen = vi.fn();
 Object.defineProperty(window, 'open', {
   writable: true,
   value: mockWindowOpen,
@@ -188,12 +188,12 @@ describe('RegimeArc', () => {
 ```typescript
 const defaultProps = {
   activeRegime: 'n' as RegimeId,
-  calculatePosition: jest.fn((index: number) => ({
+  calculatePosition: vi.fn((index: number) => ({
     x: 100 + index * 100,
     y: 200,
   })),
   isMobile: false,
-  onRegimeClick: jest.fn(),
+  onRegimeClick: vi.fn(),
   isAutoPlaying: false,
   animationDirection: 'forward' as const,
 };
@@ -265,7 +265,7 @@ Both old and new patterns work. Migrate gradually:
 **Before**:
 
 ```typescript
-const mockWindowOpen = jest.fn();
+const mockWindowOpen = vi.fn();
 Object.defineProperty(window, 'open', {
   writable: true,
   value: mockWindowOpen,
@@ -342,7 +342,7 @@ Reset mocks between tests to avoid pollution:
 ```typescript
 describe('MyComponent', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('test 1', () => {
@@ -396,7 +396,7 @@ const props: RegimeArcProps = createRegimeArcProps({
 
 ## Framer Motion Mocking
 
-Framer Motion is mocked **globally** in `jest.setup.js`. You don't need to import or configure it in individual test files.
+Framer Motion is mocked **globally** in `vitest.setup.ts`. You don't need to import or configure it in individual test files.
 
 ```typescript
 // ✅ Works automatically

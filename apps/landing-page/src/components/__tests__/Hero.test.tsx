@@ -7,7 +7,7 @@ import { STATISTICS } from '@/lib/statistics';
 import { LINKS } from '@/config/links';
 
 describe('Hero', () => {
-  let mockWindowOpen: jest.Mock;
+  let mockWindowOpen: Mock;
 
   beforeEach(() => {
     mockWindowOpen = setupWindowMock.open();

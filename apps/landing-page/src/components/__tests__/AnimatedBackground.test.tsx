@@ -3,15 +3,15 @@ import { render } from '@testing-library/react';
 import { AnimatedBackground } from '../AnimatedBackground';
 
 // Mock useReducedMotion hook
-jest.mock('@/hooks/useReducedMotion', () => ({
-  useReducedMotion: jest.fn(() => false),
+vi.mock('@/hooks/useReducedMotion', () => ({
+  useReducedMotion: vi.fn(() => false),
 }));
 
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 describe('AnimatedBackground', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render the background container', () => {
@@ -37,7 +37,7 @@ describe('AnimatedBackground', () => {
   });
 
   it('should respect reduced motion preference', () => {
-    (useReducedMotion as jest.Mock).mockReturnValue(true);
+    (useReducedMotion as Mock).mockReturnValue(true);
 
     const { container } = render(<AnimatedBackground />);
 

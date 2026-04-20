@@ -58,13 +58,13 @@ jobs:
         run: make deps-audit
 
       - name: Run check-variant tasks
-        run: pnpm turbo run format:check lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci
+        run: pnpm run check:ci
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Node security audit
-        run: pnpm audit --audit-level=moderate
+        run: pnpm run security:audit
 
   deploy-gates:
     runs-on: ubuntu-latest

@@ -16,25 +16,23 @@ function createMocks() {
   const dbMock = createMockDatabaseService();
 
   const validationService = {
-    validateUserExists: jest
+    validateUserExists: vi
       .fn()
       .mockResolvedValue({ id: 'user-1', email: 'test@test.com' }),
-    validateWalletOwnership: jest
+    validateWalletOwnership: vi
       .fn()
       .mockResolvedValue({ id: 'w-1', wallet: '0x1234', user_id: 'user-1' }),
-    validateWalletAvailability: jest
+    validateWalletAvailability: vi
       .fn()
       .mockResolvedValue({ isAvailable: true }),
-    validateEmailAvailability: jest
-      .fn()
-      .mockResolvedValue({ isAvailable: true }),
-    getActiveSubscriptionWithPlan: jest.fn().mockResolvedValue(null),
+    validateEmailAvailability: vi.fn().mockResolvedValue({ isAvailable: true }),
+    getActiveSubscriptionWithPlan: vi.fn().mockResolvedValue(null),
   };
 
   const alphaEtlHttpService = {
-    healthPing: jest.fn().mockResolvedValue(true),
-    triggerWalletFetch: jest.fn().mockResolvedValue({ jobId: 'etl-1' }),
-    getJobStatus: jest.fn().mockResolvedValue({
+    healthPing: vi.fn().mockResolvedValue(true),
+    triggerWalletFetch: vi.fn().mockResolvedValue({ jobId: 'etl-1' }),
+    getJobStatus: vi.fn().mockResolvedValue({
       jobId: 'etl-1',
       status: 'completed',
       createdAt: '2026-01-01',
@@ -44,12 +42,12 @@ function createMocks() {
   };
 
   const telegramService = {
-    isServiceConfigured: jest.fn().mockReturnValue(true),
-    getBotName: jest.fn().mockReturnValue('test_bot'),
+    isServiceConfigured: vi.fn().mockReturnValue(true),
+    getBotName: vi.fn().mockReturnValue('test_bot'),
   };
 
   const telegramTokenService = {
-    generateToken: jest.fn().mockResolvedValue({
+    generateToken: vi.fn().mockResolvedValue({
       token: 'tok-123',
       expiresAt: new Date('2026-01-02'),
     }),

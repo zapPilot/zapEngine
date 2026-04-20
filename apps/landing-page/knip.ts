@@ -11,4 +11,8 @@ export default defineKnipConfig({
     'src/test-utils/index.ts',
   ],
   ignoreDependencies: ['postcss', 'eslint-config-next'],
+  vitest: {
+    config: ['vitest.config.ts'],
+    entry: ['src/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+  },
 });

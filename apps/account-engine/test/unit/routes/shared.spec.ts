@@ -1,7 +1,7 @@
 import { jsonResponse, validationHook } from '@routes/shared';
 
 function makeContext() {
-  const jsonMock = jest.fn();
+  const jsonMock = vi.fn();
   return {
     c: {
       req: { path: '/test' },
@@ -57,7 +57,7 @@ describe('validationHook', () => {
 
 describe('jsonResponse', () => {
   it('calls c.json with the payload and status', () => {
-    const jsonMock = jest.fn();
+    const jsonMock = vi.fn();
     const c = { json: jsonMock } as unknown as Parameters<
       typeof jsonResponse
     >[0];

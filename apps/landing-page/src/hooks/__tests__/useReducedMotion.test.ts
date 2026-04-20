@@ -2,22 +2,22 @@ import { renderHook, act } from '@testing-library/react';
 import { useReducedMotion } from '../useReducedMotion';
 
 describe('useReducedMotion', () => {
-  let mockMatchMedia: jest.Mock;
+  let mockMatchMedia: Mock;
 
   beforeEach(() => {
-    mockMatchMedia = jest.fn();
+    mockMatchMedia = vi.fn();
     window.matchMedia = mockMatchMedia;
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should return initial prefers-reduced-motion value', () => {
     mockMatchMedia.mockReturnValue({
       matches: true,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useReducedMotion());
@@ -27,8 +27,8 @@ describe('useReducedMotion', () => {
   it('should return false when reduced motion is not preferred', () => {
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useReducedMotion());
@@ -40,10 +40,10 @@ describe('useReducedMotion', () => {
 
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn((event, handler) => {
+      addEventListener: vi.fn((event, handler) => {
         listener = handler;
       }),
-      removeEventListener: jest.fn(),
+      removeEventListener: vi.fn(),
     });
 
     const { result } = renderHook(() => useReducedMotion());
@@ -57,11 +57,11 @@ describe('useReducedMotion', () => {
   });
 
   it('should clean up listener on unmount', () => {
-    const removeEventListener = jest.fn();
+    const removeEventListener = vi.fn();
 
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addEventListener: jest.fn(),
+      addEventListener: vi.fn(),
       removeEventListener,
     });
 
@@ -72,11 +72,11 @@ describe('useReducedMotion', () => {
   });
 
   it('should handle fallback for older browsers with addListener', () => {
-    const removeListener = jest.fn();
+    const removeListener = vi.fn();
 
     mockMatchMedia.mockReturnValue({
       matches: false,
-      addListener: jest.fn(),
+      addListener: vi.fn(),
       removeListener,
     });
 

@@ -21,15 +21,15 @@ describe('App e2e', () => {
           },
         },
       },
-      activityTracker: { trackRequest: jest.fn(), cleanupCache: jest.fn() },
+      activityTracker: { trackRequest: vi.fn(), cleanupCache: vi.fn() },
       usersService: {},
       jobQueueService: {
-        getJobWithAggregatedStatus: jest.fn(),
+        getJobWithAggregatedStatus: vi.fn(),
       },
       telegramService: {
-        validateWebhookSecret: jest.fn(),
-        getBot: jest.fn(),
-        logWebhookError: jest.fn(),
+        validateWebhookSecret: vi.fn(),
+        getBot: vi.fn(),
+        logWebhookError: vi.fn(),
       },
     } as unknown as AppServices);
 

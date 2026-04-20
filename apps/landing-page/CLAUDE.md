@@ -2,8 +2,20 @@ See @README.md for project overview.
 
 # Gotchas
 
-- Uses **Jest** (not Vitest) — `pnpm test`, not `pnpm test:unit`
+- Uses **Vitest** — `pnpm test`
 - `postinstall` runs `fumadocs-mdx` automatically; re-run `pnpm install` if MDX types are missing
 - Documentation content lives in MDX files under `src/app/docs/`
 - Deployed to Vercel as static export (`output: 'export'` in next.config.ts)
 - `pnpm dev` starts on port 3000 — conflicts with frontend dev server if both run simultaneously
+
+# AI Tool Documentation
+
+This directory uses **CLAUDE.md** as the single source of truth for AI assistant context.
+
+| File        | Purpose                                  | Type                  |
+| ----------- | ---------------------------------------- | --------------------- |
+| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
+| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
+| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
+
+**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.

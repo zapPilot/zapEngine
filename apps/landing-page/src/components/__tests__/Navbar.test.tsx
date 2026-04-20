@@ -5,7 +5,7 @@ import { Navbar } from '../Navbar';
 import { NAVIGATION, LINKS } from '@/config/links';
 
 describe('Navbar', () => {
-  let mockWindowOpen: jest.Mock;
+  let mockWindowOpen: Mock;
   let scroll: ReturnType<typeof setupWindowMock.scrollY>;
 
   beforeEach(() => {

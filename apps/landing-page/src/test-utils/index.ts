@@ -9,11 +9,8 @@ export * from './render';
 // Window mocking utilities
 export * from './mocks/window';
 
-// Router mocks
-export * from './mocks/next-router';
-
 // Re-export common testing utilities
 export { waitFor, within, screen, act } from '@testing-library/react';
 
-// Note: Framer Motion is mocked globally in jest.setup.js
-// No need to import it in individual test files
+// Note: Framer Motion and next/image are mocked globally in vitest.setup.ts
+// No need to import them in individual test files

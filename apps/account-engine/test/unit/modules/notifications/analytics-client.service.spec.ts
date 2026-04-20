@@ -2,6 +2,7 @@ import { ServiceLayerException } from '@common/exceptions';
 import { AnalyticsClientService } from '@modules/notifications/analytics-client.service';
 import { PortfolioNotFoundError } from '@modules/notifications/errors/portfolio-not-found.error';
 import { createMockConfigService } from '@test-utils';
+import type { Mock } from 'vitest';
 
 describe('AnalyticsClientService', () => {
   let service: AnalyticsClientService;
@@ -11,7 +12,7 @@ describe('AnalyticsClientService', () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('constructor', () => {
@@ -28,7 +29,7 @@ describe('AnalyticsClientService', () => {
   describe('getPortfolioData', () => {
     it('returns portfolio data on success', async () => {
       const mockData = { total_net_usd: 5000, wallet_count: 2 };
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockData),
       });
@@ -38,7 +39,7 @@ describe('AnalyticsClientService', () => {
     });
 
     it('throws PortfolioNotFoundError on 404', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
         text: () => Promise.resolve('Not found'),
@@ -50,7 +51,7 @@ describe('AnalyticsClientService', () => {
     });
 
     it('throws ServiceLayerException on 500', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
         text: () => Promise.resolve('Internal error'),
@@ -66,7 +67,7 @@ describe('AnalyticsClientService', () => {
         code?: string;
       };
       error.code = 'ECONNREFUSED';
-      global.fetch = jest.fn().mockRejectedValue(error);
+      global.fetch = vi.fn().mockRejectedValue(error);
 
       await expect(service.getPortfolioData('user-1')).rejects.toThrow(
         ServiceLayerException,
@@ -101,7 +102,7 @@ describe('AnalyticsClientService', () => {
         },
       };
 
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(rawResponse),
       });
@@ -143,7 +144,7 @@ describe('AnalyticsClientService', () => {
         },
       };
 
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(rawResponse),
       });
@@ -205,7 +206,7 @@ describe('AnalyticsClientService', () => {
 
   describe('validateAnalyticsConnection', () => {
     it('returns connected on success', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ status: 'ok' }),
       });
@@ -215,7 +216,7 @@ describe('AnalyticsClientService', () => {
     });
 
     it('returns not connected on failure', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('timeout'));
+      global.fetch = vi.fn().mockRejectedValue(new Error('timeout'));
 
       const result = await service.validateAnalyticsConnection();
       expect(result.connected).toBe(false);
@@ -231,7 +232,7 @@ describe('AnalyticsClientService', () => {
   describe('getPortfolioTrendData', () => {
     it('returns trend data on success', async () => {
       const mockData = { trend: [{ date: '2025-01-01', value: 1000 }] };
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockData),
       });
@@ -239,7 +240,7 @@ describe('AnalyticsClientService', () => {
       const result = await service.getPortfolioTrendData('user-1');
       expect(result).toEqual(mockData);
       // params should include days=365
-      const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      const calledUrl = (global.fetch as Mock).mock.calls[0][0];
       expect(calledUrl).toContain('days=365');
     });
   });
@@ -307,7 +308,7 @@ describe('AnalyticsClientService', () => {
       const timeoutError = Object.assign(new Error('timeout'), {
         code: 'ECONNABORTED',
       });
-      global.fetch = jest
+      global.fetch = vi
         .fn()
         .mockRejectedValueOnce(timeoutError)
         .mockResolvedValueOnce({
@@ -324,7 +325,7 @@ describe('AnalyticsClientService', () => {
       const timeoutError = Object.assign(new Error('operation timed out'), {
         code: 'ETIMEOUT',
       });
-      global.fetch = jest
+      global.fetch = vi
         .fn()
         .mockRejectedValueOnce(timeoutError)
         .mockResolvedValueOnce({
@@ -338,7 +339,7 @@ describe('AnalyticsClientService', () => {
 
     it('retries when error message includes "timeout"', async () => {
       const timeoutError = new Error('AbortError: timeout exceeded');
-      global.fetch = jest
+      global.fetch = vi
         .fn()
         .mockRejectedValueOnce(timeoutError)
         .mockResolvedValueOnce({
@@ -354,7 +355,7 @@ describe('AnalyticsClientService', () => {
       const timeoutError = Object.assign(new Error('timeout'), {
         code: 'ECONNABORTED',
       });
-      global.fetch = jest.fn().mockRejectedValue(timeoutError);
+      global.fetch = vi.fn().mockRejectedValue(timeoutError);
 
       await expect(service.getDailySuggestion('user-1')).rejects.toThrow(
         ServiceLayerException,
@@ -366,7 +367,7 @@ describe('AnalyticsClientService', () => {
   describe('handleAnalyticsError re-throws ServiceLayerException', () => {
     it('re-throws when the thrown error is already a ServiceLayerException', async () => {
       const original = new ServiceLayerException('upstream error', 502);
-      global.fetch = jest.fn().mockRejectedValue(original);
+      global.fetch = vi.fn().mockRejectedValue(original);
 
       await expect(service.getPortfolioData('user-1')).rejects.toBe(original);
     });
@@ -399,7 +400,7 @@ describe('AnalyticsClientService', () => {
     };
 
     function mockFetch(payload: unknown) {
-      global.fetch = jest
+      global.fetch = vi
         .fn()
         .mockResolvedValue({ ok: true, json: () => Promise.resolve(payload) });
     }

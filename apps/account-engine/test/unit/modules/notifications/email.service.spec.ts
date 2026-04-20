@@ -2,13 +2,14 @@ import { ServiceLayerException } from '@common/exceptions';
 import { EmailService } from '@modules/notifications/email.service';
 import { createMockConfigService } from '@test-utils';
 import * as nodemailer from 'nodemailer';
+import type { Mock } from 'vitest';
 
-jest.mock('nodemailer');
+vi.mock('nodemailer');
 
-const mockSendMail = jest.fn();
-const mockVerify = jest.fn();
+const mockSendMail = vi.fn();
+const mockVerify = vi.fn();
 
-(nodemailer.createTransport as jest.Mock).mockReturnValue({
+(nodemailer.createTransport as Mock).mockReturnValue({
   sendMail: mockSendMail,
   verify: mockVerify,
 });
@@ -27,8 +28,8 @@ function createService(env: Record<string, string> = {}) {
 
 describe('EmailService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (nodemailer.createTransport as jest.Mock).mockReturnValue({
+    vi.clearAllMocks();
+    (nodemailer.createTransport as Mock).mockReturnValue({
       sendMail: mockSendMail,
       verify: mockVerify,
     });
@@ -41,7 +42,7 @@ describe('EmailService', () => {
     });
 
     it('does not create transporter when credentials are missing', () => {
-      (nodemailer.createTransport as jest.Mock).mockClear();
+      (nodemailer.createTransport as Mock).mockClear();
       createService({ EMAIL_USER: '', EMAIL_APP_PASSWORD: '' });
       expect(nodemailer.createTransport).not.toHaveBeenCalled();
     });
@@ -66,7 +67,7 @@ describe('EmailService', () => {
     });
 
     it('throws ServiceLayerException when transporter is not configured', async () => {
-      (nodemailer.createTransport as jest.Mock).mockClear();
+      (nodemailer.createTransport as Mock).mockClear();
       const service = createService({ EMAIL_USER: '', EMAIL_APP_PASSWORD: '' });
 
       await expect(
@@ -112,7 +113,7 @@ describe('EmailService', () => {
     });
 
     it('returns invalid when transporter is not configured', async () => {
-      (nodemailer.createTransport as jest.Mock).mockClear();
+      (nodemailer.createTransport as Mock).mockClear();
       const service = createService({ EMAIL_USER: '', EMAIL_APP_PASSWORD: '' });
 
       const result = await service.validateEmailConfiguration();

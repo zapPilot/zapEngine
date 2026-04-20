@@ -2,17 +2,18 @@ import { getErrorStatus, toErrorResponse } from '@common/http';
 import type { AppServices } from '@container';
 import { createTelegramRoutes } from '@routes/telegram';
 import { Hono } from 'hono';
+import type { Mock } from 'vitest';
 
 function createServices(
   overrides: Partial<Record<string, unknown>> = {},
 ): AppServices {
   return {
     telegramService: {
-      validateWebhookSecret: jest.fn().mockReturnValue(true),
-      getBot: jest.fn().mockReturnValue({
-        handleUpdate: jest.fn().mockResolvedValue(undefined),
+      validateWebhookSecret: vi.fn().mockReturnValue(true),
+      getBot: vi.fn().mockReturnValue({
+        handleUpdate: vi.fn().mockResolvedValue(undefined),
       }),
-      logWebhookError: jest.fn(),
+      logWebhookError: vi.fn(),
       ...overrides,
     },
   } as unknown as AppServices;
@@ -36,9 +37,9 @@ const webhookHeaders = {
 describe('POST /telegram/webhook', () => {
   it('returns 401 when the webhook secret is invalid', async () => {
     const services = createServices();
-    (
-      services.telegramService.validateWebhookSecret as jest.Mock
-    ).mockReturnValue(false);
+    (services.telegramService.validateWebhookSecret as Mock).mockReturnValue(
+      false,
+    );
 
     const response = await createApp(services).request(
       'http://localhost/telegram/webhook',
@@ -50,7 +51,7 @@ describe('POST /telegram/webhook', () => {
 
   it('returns 200 with null body when bot is not configured', async () => {
     const services = createServices();
-    (services.telegramService.getBot as jest.Mock).mockReturnValue(null);
+    (services.telegramService.getBot as Mock).mockReturnValue(null);
 
     const response = await createApp(services).request(
       'http://localhost/telegram/webhook',
@@ -62,8 +63,8 @@ describe('POST /telegram/webhook', () => {
 
   it('returns 200 and calls handleUpdate when the update succeeds', async () => {
     const services = createServices();
-    const handleUpdate = jest.fn().mockResolvedValue(undefined);
-    (services.telegramService.getBot as jest.Mock).mockReturnValue({
+    const handleUpdate = vi.fn().mockResolvedValue(undefined);
+    (services.telegramService.getBot as Mock).mockReturnValue({
       handleUpdate,
     });
 
@@ -79,8 +80,8 @@ describe('POST /telegram/webhook', () => {
   it('returns 200 and calls logWebhookError when handleUpdate throws', async () => {
     const services = createServices();
     const error = new Error('Telegram error');
-    (services.telegramService.getBot as jest.Mock).mockReturnValue({
-      handleUpdate: jest.fn().mockRejectedValue(error),
+    (services.telegramService.getBot as Mock).mockReturnValue({
+      handleUpdate: vi.fn().mockRejectedValue(error),
     });
 
     const response = await createApp(services).request(

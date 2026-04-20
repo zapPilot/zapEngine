@@ -1,4 +1,5 @@
 import { createRequestLoggerMiddleware } from '@common/middleware/logger.middleware';
+import type { MockInstance } from 'vitest';
 
 function makeContext(status: number, headers: Record<string, string> = {}) {
   return {
@@ -12,19 +13,19 @@ function makeContext(status: number, headers: Record<string, string> = {}) {
 }
 
 describe('createRequestLoggerMiddleware', () => {
-  let infoSpy: jest.SpyInstance;
-  let warnSpy: jest.SpyInstance;
-  let errorSpy: jest.SpyInstance;
+  let infoSpy: MockInstance;
+  let warnSpy: MockInstance;
+  let errorSpy: MockInstance;
 
   beforeEach(() => {
-    infoSpy = jest.spyOn(console, 'info').mockImplementation(() => undefined);
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
   it('calls next()', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(200);
 
     await middleware(c as never, next);
@@ -34,7 +35,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('logs INFO (console.info) for 2xx responses', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(200);
 
     await middleware(c as never, next);
@@ -46,7 +47,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('logs WARN (console.warn) for 4xx responses', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(404);
 
     await middleware(c as never, next);
@@ -58,7 +59,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('logs ERROR (console.error) for 5xx responses', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(500);
 
     await middleware(c as never, next);
@@ -70,7 +71,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('includes method, path, and status code in the log message', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(201);
 
     await middleware(c as never, next);
@@ -83,7 +84,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('uses x-forwarded-for header for the IP', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(200, { 'x-forwarded-for': 'forwarded-client' });
 
     await middleware(c as never, next);
@@ -93,7 +94,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('falls back to x-real-ip when x-forwarded-for is absent', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(200, { 'x-real-ip': 'real-client' });
 
     await middleware(c as never, next);
@@ -103,7 +104,7 @@ describe('createRequestLoggerMiddleware', () => {
 
   it('uses "unknown" when no IP header is present', async () => {
     const middleware = createRequestLoggerMiddleware();
-    const next = jest.fn().mockResolvedValue(undefined);
+    const next = vi.fn().mockResolvedValue(undefined);
     const c = makeContext(200);
 
     await middleware(c as never, next);

@@ -7,19 +7,19 @@ describe('AlphaEtlHttpService', () => {
 
   beforeEach(() => {
     service = new AlphaEtlHttpService(createMockConfigService());
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('healthPing', () => {
     it('returns true when health check passes', async () => {
-      global.fetch = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = vi.fn().mockResolvedValue({ ok: true });
 
       const result = await service.healthPing();
       expect(result).toBe(true);
     });
 
     it('returns false when health check returns non-ok', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 503,
         statusText: 'Service Unavailable',
@@ -30,7 +30,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('retries once on first failure then returns result', async () => {
-      const fetchMock = jest
+      const fetchMock = vi
         .fn()
         .mockRejectedValueOnce(new Error('ECONNREFUSED'))
         .mockResolvedValueOnce({ ok: true });
@@ -42,7 +42,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('returns false when both attempts fail', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
 
       const result = await service.healthPing();
       expect(result).toBe(false);
@@ -51,7 +51,7 @@ describe('AlphaEtlHttpService', () => {
 
   describe('triggerWalletFetch', () => {
     it('returns jobId on success', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ success: true, data: { jobId: 'j-1' } }),
       });
@@ -61,7 +61,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('throws ServiceLayerException on non-ok response', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 502,
         text: () => Promise.resolve('Bad Gateway'),
@@ -73,7 +73,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('throws ServiceLayerException when response has no jobId', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ success: false }),
       });
@@ -96,7 +96,7 @@ describe('AlphaEtlHttpService', () => {
         updatedAt: '2025-01-01T00:01:00Z',
       };
 
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true, data: jobData }),
@@ -108,7 +108,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('throws NOT_FOUND for 404', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
       });
@@ -119,7 +119,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('throws BAD_GATEWAY for non-ok status', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
         text: () => Promise.resolve('Internal error'),
@@ -131,7 +131,7 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('throws when response is not successful', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         json: () =>

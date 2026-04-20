@@ -73,7 +73,7 @@ describe('useResponsiveLayout', () => {
   });
 
   it('should cleanup event listener on unmount', () => {
-    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
     const { unmount } = renderHook(() => useResponsiveLayout());
 
     unmount();

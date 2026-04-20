@@ -35,15 +35,15 @@ export interface InnerWidthController {
 export const setupWindowMock = {
   /**
    * Mock window.open for testing external link navigation
-   * @returns Mock function that can be inspected with jest matchers
+   * @returns Mock function that can be inspected with Vitest matchers
    *
    * @example
    * const mockOpen = setupWindowMock.open();
    * fireEvent.click(button);
    * expect(mockOpen).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer');
    */
-  open: (): jest.Mock => {
-    const mockWindowOpen = jest.fn();
+  open: (): Mock => {
+    const mockWindowOpen = vi.fn();
     Object.defineProperty(window, 'open', {
       writable: true,
       value: mockWindowOpen,
@@ -116,15 +116,15 @@ export const setupWindowMock = {
    * // Now media queries will return matches: true
    */
   matchMedia: (query: string, matches = false) => {
-    const mockMatchMedia = jest.fn().mockImplementation((q: string) => ({
+    const mockMatchMedia = vi.fn().mockImplementation((q: string) => ({
       matches: q === query ? matches : false,
       media: q,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }));
 
     Object.defineProperty(window, 'matchMedia', {

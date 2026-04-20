@@ -7,6 +7,7 @@ IMPORTANT: `packages/types` (and other packages) must be built before running `t
 # Per-app tooling
 
 analytics-engine is Python (FastAPI). Use `make <command>` instead of `pnpm`:
+
 - `make dev` — start dev server
 - `make test` — run the unified local test suite
 - `make lint` — ruff + mypy
@@ -24,14 +25,14 @@ All TypeScript apps use `pnpm <script>`. Frontend uses `pnpm test:unit` (not `pn
 
 # Key ports
 
-| App | Port |
-|---|---|
-| frontend (dev) | 3000 |
-| landing-page | 3000 |
-| account-engine | 3004 |
-| alpha-etl | 3003 |
+| App              | Port |
+| ---------------- | ---- |
+| frontend (dev)   | 3000 |
+| landing-page     | 3000 |
+| account-engine   | 3004 |
+| alpha-etl        | 3003 |
 | analytics-engine | 8001 |
-| frontend (E2E) | 3099 |
+| frontend (E2E)   | 3099 |
 
 # Database rules
 
@@ -45,3 +46,15 @@ Hooks run from the repo root via Turbo. To run local checks for a workspace manu
 # Python environment (analytics-engine)
 
 Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new dependencies. Type checking is strict (mypy); all functions need type annotations.
+
+# AI Tool Documentation
+
+This repository uses **CLAUDE.md** as the single source of truth for AI assistant context.
+
+| File        | Purpose                                  | Type                  |
+| ----------- | ---------------------------------------- | --------------------- |
+| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
+| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
+| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
+
+**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.

@@ -11,7 +11,7 @@ function makeService() {
 }
 
 afterEach(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 describe('JobQueueService', () => {
@@ -595,7 +595,7 @@ describe('JobQueueService', () => {
     });
 
     it('cleanup removes completed jobs older than 1 hour', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       const service = makeService();
 
       const job = service.createJob({
@@ -605,10 +605,10 @@ describe('JobQueueService', () => {
       service.completeJob(job.id);
 
       // Advance system clock 2 hours so completedAt is in the past
-      jest.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
 
       // Trigger cleanup interval
-      jest.advanceTimersByTime(60 * 60 * 1000 + 1);
+      vi.advanceTimersByTime(60 * 60 * 1000 + 1);
 
       // Job should be cleaned up
       expect(service.getJob(job.id)).toBeNull();

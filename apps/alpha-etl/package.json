@@ -11,6 +11,7 @@
     "start": "node dist/app.js",
     "dev": "tsx watch src/app.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
@@ -50,7 +51,7 @@
     "@types/node": "^22.0.0",
     "@types/pg": "^8.10.9",
     "@types/supertest": "^2.0.16",
-    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.18.0",
     "fast-check": "^4.4.0",
     "jscpd": "^4.0.5",
@@ -58,7 +59,7 @@
     "supertest": "^6.3.3",
     "tsx": "^4.6.2",
     "typescript": "^5.7.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=22.0.0"

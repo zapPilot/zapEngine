@@ -16,6 +16,9 @@
     "format:check": "turbo run format:check",
     "deadcode": "turbo run deadcode",
     "dup:check": "turbo run dup:check",
+    "check:local": "pnpm format:check && turbo run lint type-check test --affected && bash scripts/check-dead-env.sh",
+    "check:ci": "pnpm format:check && turbo run lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci && bash scripts/check-dead-env.sh",
+    "security:audit": "pnpm audit --audit-level=moderate",
     "verify:account-engine-package": "bash scripts/verify-account-engine-package.sh",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
@@ -46,9 +49,8 @@
       "pnpm --filter landing-page exec eslint --fix",
       "pnpm --filter landing-page exec prettier --write"
     ],
-    "packages/**/*.{ts,tsx}": [
-      "pnpm exec eslint --fix",
-      "pnpm exec prettier --write"
+    "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [
+      "pnpm --filter @zapengine/eslint-config exec prettier --write"
     ],
     "apps/analytics-engine/**/*.py": [
       "pnpm --filter analytics-engine exec uv run ruff check --fix"

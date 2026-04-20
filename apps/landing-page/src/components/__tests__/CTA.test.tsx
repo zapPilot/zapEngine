@@ -6,7 +6,7 @@ import { MESSAGES } from '@/config/messages';
 import { LINKS } from '@/config/links';
 
 describe('CTA', () => {
-  let mockWindowOpen: jest.Mock;
+  let mockWindowOpen: Mock;
 
   beforeEach(() => {
     mockWindowOpen = setupWindowMock.open();

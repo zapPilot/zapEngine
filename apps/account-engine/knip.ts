@@ -8,14 +8,14 @@ export default defineKnipConfig({
     'test/**',
     'scripts/**',
     'src/test-utils/**',
-    'jest.setup.ts',
+    'vitest.setup.ts',
     'nest-cli.json',
     'src/types/database.types.ts',
   ],
   ignoreDependencies: ['@zapengine/types', 'tsconfig-paths'],
   includeEntryExports: true,
-  jest: {
-    config: ['test/jest-e2e.json'],
-    entry: ['src/**/*.spec.ts', 'test/**/*.e2e-spec.ts'],
+  vitest: {
+    config: ['vitest.config.ts'],
+    entry: ['test/unit/**/*.spec.ts', 'test/e2e/**/*.e2e-spec.ts'],
   },
 });

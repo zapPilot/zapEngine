@@ -14,7 +14,7 @@ describe('ErrorBoundary', () => {
   // Suppress console.error for expected errors in tests
   const originalError = console.error;
   beforeAll(() => {
-    console.error = jest.fn();
+    console.error = vi.fn();
   });
   afterAll(() => {
     console.error = originalError;
@@ -67,7 +67,7 @@ describe('ErrorBoundary', () => {
 
   it('should call window.location.reload when refresh button is clicked', () => {
     // Mock window.location.reload
-    const mockReload = jest.fn();
+    const mockReload = vi.fn();
     const originalLocation = window.location;
     Object.defineProperty(window, 'location', {
       value: { ...originalLocation, reload: mockReload },

@@ -19,7 +19,7 @@ describe('API key guard helpers', () => {
 
   it('allows requests with a matching x-api-key header', async () => {
     const middleware = requireApiKey({ ADMIN_API_KEY: 'secret' });
-    const next = jest.fn();
+    const next = vi.fn();
 
     await middleware(
       {
@@ -43,7 +43,7 @@ describe('API key guard helpers', () => {
             header: () => undefined,
           },
         } as never,
-        jest.fn(),
+        vi.fn(),
       ),
     ).rejects.toThrow('Missing x-api-key header');
   });
@@ -58,7 +58,7 @@ describe('API key guard helpers', () => {
             header: () => 'some-key',
           },
         } as never,
-        jest.fn(),
+        vi.fn(),
       ),
     ).rejects.toThrow('ADMIN_API_KEY not set');
   });
@@ -73,7 +73,7 @@ describe('API key guard helpers', () => {
             header: () => 'wrong',
           },
         } as never,
-        jest.fn(),
+        vi.fn(),
       ),
     ).rejects.toThrow('Invalid API key');
   });

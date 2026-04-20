@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 function createServices(overrides: Partial<AppServices> = {}): AppServices {
   return {
     usersService: {
-      getEtlJobStatus: jest
+      getEtlJobStatus: vi
         .fn()
         .mockResolvedValue({ job_id: 'etl-1', status: 'completed' }),
     },
