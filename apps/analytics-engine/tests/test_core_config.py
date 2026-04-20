@@ -2,7 +2,11 @@
 Unit tests for src.core.config.Settings behavior
 """
 
+import pytest
+
 from src.core.config import Settings
+
+PRODUCTION_DATABASE_URL = "postgresql+asyncpg://ro/url"
 
 
 def test_settings_defaults_parse_correctly(monkeypatch):
@@ -32,10 +36,13 @@ def test_settings_defaults_parse_correctly(monkeypatch):
     assert s.is_read_only is True
     assert s.effective_database_url == s.database_read_only_url
 
-    # CORS origins should parse into a non-empty list
-    assert isinstance(s.allowed_origins, list | str)
-    if isinstance(s.allowed_origins, list):
-        assert len(s.allowed_origins) > 0
+    # CORS defaults should stay local-only; production origins must come from env.
+    assert s.allowed_origins == [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173",
+        "http://localhost:8000",
+    ]
 
 
 def test_settings_env_overrides(monkeypatch):
@@ -66,6 +73,61 @@ def test_settings_env_overrides(monkeypatch):
     if isinstance(origins, str):
         origins = [o.strip() for o in origins.split(",") if o.strip()]
     assert origins == ["http://a.com", "http://b.com"]
+
+
+def test_production_requires_explicit_cors_origins(monkeypatch):
+    """Production should not use the development CORS defaults."""
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+
+    with pytest.raises(ValueError, match="CORS_ALLOWED_ORIGINS must be explicitly"):
+        Settings(
+            ENVIRONMENT="production",
+            DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+        )
+
+
+def test_production_rejects_empty_cors_origins():
+    """Production should require at least one explicit CORS origin."""
+    with pytest.raises(ValueError, match="must contain at least one origin"):
+        Settings(
+            ENVIRONMENT="production",
+            DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+            CORS_ALLOWED_ORIGINS="",
+        )
+
+
+def test_production_rejects_local_only_cors_origins():
+    """Production should reject localhost-only CORS origins."""
+    with pytest.raises(ValueError, match="must not include localhost"):
+        Settings(
+            ENVIRONMENT="production",
+            DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+            CORS_ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000",
+        )
+
+
+def test_production_rejects_mixed_local_cors_origins():
+    """Production should reject local origins even when public origins are present."""
+    with pytest.raises(ValueError, match="must not include localhost"):
+        Settings(
+            ENVIRONMENT="production",
+            DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+            CORS_ALLOWED_ORIGINS="https://app.zap-pilot.org,http://0.0.0.0:3000",
+        )
+
+
+def test_production_accepts_explicit_public_cors_origins():
+    """Production should accept explicitly configured public CORS origins."""
+    settings = Settings(
+        ENVIRONMENT="production",
+        DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+        CORS_ALLOWED_ORIGINS="https://v2.zap-pilot.org,https://app.zap-pilot.org",
+    )
+
+    assert settings.allowed_origins == [
+        "https://v2.zap-pilot.org",
+        "https://app.zap-pilot.org",
+    ]
 
 
 def test_staging_environment(monkeypatch):

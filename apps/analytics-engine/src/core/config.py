@@ -7,9 +7,18 @@ Simplified architecture with consolidated validation logic and eliminated compon
 from enum import Enum
 from functools import cached_property
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import Field, PositiveInt, field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+DEV_ALLOWED_ORIGINS = (
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "http://localhost:8000",
+)
+LOCAL_CORS_HOSTS = {"localhost", "0.0.0.0", "::1"}
 
 
 class Environment(str, Enum):
@@ -202,7 +211,7 @@ class Settings(BaseSettings):
 
     # CORS settings
     allowed_origins: str | list[str] = Field(
-        default="http://localhost:3000,http://localhost:3001,http://localhost:8000,https://v2.zap-pilot.org,http://app.zap-pilot.org,https://zap-engine-frontend.vercel.app",
+        default_factory=lambda: list(DEV_ALLOWED_ORIGINS),
         alias="CORS_ALLOWED_ORIGINS",
         description="Comma-separated list of allowed CORS origins",
     )
@@ -399,9 +408,46 @@ class Settings(BaseSettings):
 
     def _validate_production_requirements(self) -> None:
         """Validate production-specific requirements."""
-        if self.is_production and self.database_read_only_url == "placeholder_db_url":
+        if not self.is_production:
+            return
+
+        if self.database_read_only_url == "placeholder_db_url":
             # Ensure database URL is not placeholder in production
             raise ValueError("Valid database URL is required in production environment")
+
+        self._validate_production_cors_origins()
+
+    def _validate_production_cors_origins(self) -> None:
+        """Require explicit non-local CORS origins in production."""
+        if "allowed_origins" not in self.model_fields_set:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must be explicitly set in production environment"
+            )
+
+        allowed_origins = self.allowed_origins
+        if isinstance(allowed_origins, str):
+            allowed_origins = self.parse_origins(allowed_origins)
+
+        if not allowed_origins:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must contain at least one origin in production environment"
+            )
+
+        local_origins = [
+            origin for origin in allowed_origins if self._is_local_cors_origin(origin)
+        ]
+        if local_origins:
+            raise ValueError(
+                "Production CORS_ALLOWED_ORIGINS must not include localhost or loopback origins"
+            )
+
+    @staticmethod
+    def _is_local_cors_origin(origin: str) -> bool:
+        """Return True when an origin targets a local development host."""
+        hostname = urlparse(origin).hostname
+        return hostname in LOCAL_CORS_HOSTS or (
+            hostname is not None and hostname.startswith("127.")
+        )
 
     # Environment properties
     @property
