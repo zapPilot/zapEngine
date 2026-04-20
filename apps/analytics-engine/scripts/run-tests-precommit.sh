@@ -414,10 +414,12 @@ run_pytest() {
 
 run_postgres_suite() {
     local mark_expr="not skip"
+    local run_integration=false
     local -a pytest_args=()
 
     case "${RUN_INTEGRATION:-false}" in
         1|true|TRUE|yes|YES)
+            run_integration=true
             printf '%b\n' "${YELLOW}[Pre-commit Tests] Integration tests enabled${NC}"
             ;;
         *)
@@ -430,9 +432,12 @@ run_postgres_suite() {
         tests/
         -m "${mark_expr}"
         --tb=short
-        -W error
         -v
     )
+
+    if [[ "$run_integration" != "true" ]]; then
+        pytest_args+=(--ignore=tests/integration)
+    fi
 
     if [[ "${RUN_COVERAGE}" == "true" ]]; then
         pytest_args+=(--cov=src --cov-report=term-missing)

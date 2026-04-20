@@ -18,3 +18,15 @@ See @README.md for project overview and @package.json for available scripts.
 - Dev/build may OOM on large machines: use `cross-env NODE_OPTIONS=--max-old-space-size=3072`
 - Analytics API field is `daily_values`, not `daily_totals`
 - All client-side env vars must have `VITE_` prefix
+
+# AI Tool Documentation
+
+This directory uses **CLAUDE.md** as the single source of truth for AI assistant context.
+
+| File        | Purpose                                  | Type                  |
+| ----------- | ---------------------------------------- | --------------------- |
+| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
+| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
+| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
+
+**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.

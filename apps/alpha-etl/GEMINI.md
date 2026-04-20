@@ -1,1 +1,1 @@
-check ./CLAUDE.md
+CLAUDE.md
