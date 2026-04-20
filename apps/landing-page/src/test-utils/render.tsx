@@ -33,6 +33,3 @@ export * from '@testing-library/react';
 
 // Override render with custom render
 export { customRender as render };
-
-// Export test utilities
-export { TestWrapper };

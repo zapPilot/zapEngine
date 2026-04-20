@@ -23,12 +23,12 @@ export async function executeWithEIP7702(
   txs: PreparedTransaction[],
   wallet: WalletClient
 ): Promise<ExecutionResult> {
-  if (txs.length === 0) {
+  if (!txs || txs.length === 0) {
     throw new ExecutionError("Cannot execute empty transaction array");
   }
 
   try {
-    if (!wallet.account) {
+    if (!wallet || !wallet.account) {
       throw new ExecutionError("Wallet has no connected account");
     }
 
