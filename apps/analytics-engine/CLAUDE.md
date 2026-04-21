@@ -12,7 +12,7 @@ Use `make`, not `pnpm`:
 # Database
 
 - This service is **read-only**. Never add INSERT/UPDATE/DELETE operations.
-- SQL params MUST use `:snake_case` format — enforced by `scripts/audit_sql_params.py`
+- SQL params MUST use `:snake_case` format — enforced by `scripts/quality/audit_sql_params.py`
 - SQL queries live in `src/queries/sql/*.sql` (query registry pattern, not inline strings)
 - Set `DATABASE_READ_ONLY=true` in `.env`
 

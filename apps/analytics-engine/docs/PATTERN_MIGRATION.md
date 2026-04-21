@@ -43,11 +43,11 @@ SIMPLE_REGIME_PATTERNS = [
 
 ## Migration Process
 
-### Automated Conversion Tool
+### Historical Automated Conversion Tool
 
-A migration tool was created to convert existing tuple patterns to regex:
-
-**Tool:** `scripts/convert_tuple_patterns.py`
+A one-off migration tool was created to convert existing tuple patterns to
+regex. It is no longer kept in `scripts/`; this section documents the completed
+conversion process for historical context.
 
 **Conversion algorithm:**
 1. Escape special regex characters in regime names using `re.escape()`
@@ -131,7 +131,7 @@ SIMPLE_REGIME_PATTERNS: list[dict[str, Any]] = [
 | `src/services/backtesting/constants.py` | Replaced `SIMPLE_REGIME_RULES_3` and `SIMPLE_REGIME_RULES_2` with `SIMPLE_REGIME_PATTERNS` | ✅ Done |
 | `src/services/backtesting/strategies/simple_regime_orchestration.py` | Refactored `_match_pattern()` to use regex matching | ✅ Done |
 | `tests/services/backtesting/test_pattern_migration.py` | Added golden dataset verification (11 tests) | ✅ Done |
-| `scripts/convert_tuple_patterns.py` | Created migration tool | ✅ Done |
+| Historical conversion script | Created one-off migration tool | ✅ Done |
 | `tests/fixtures/regime_patterns_golden.json` | Captured baseline behavior (180 test cases) | ✅ Done |
 
 ### Performance Characteristics
@@ -243,7 +243,7 @@ When ready to add variable-length patterns:
 
 ## References
 
-- **Migration Tool:** `scripts/convert_tuple_patterns.py`
+- **Migration Tool:** one-off historical conversion script (removed after migration)
 - **Golden Dataset:** `tests/fixtures/regime_patterns_golden.json`
 - **Verification Tests:** `tests/services/backtesting/test_pattern_migration.py`
 - **Pattern Constants:** `src/services/backtesting/constants.py`

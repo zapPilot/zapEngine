@@ -23,10 +23,10 @@ dev:		## Start development server with hot reload
 	uv run uvicorn src.main:app --reload --port 8001 --host 0.0.0.0
 
 test:		## Run the unified local test suite
-	bash scripts/run-tests-precommit.sh
+	bash scripts/ci/run-tests-precommit.sh
 
 test-ci:	## Run the CI-equivalent test suite
-	bash scripts/run-tests-precommit.sh --cov-fail-under 99 --dma-signal-gate
+	bash scripts/ci/run-tests-precommit.sh --cov-fail-under 99 --dma-signal-gate
 
 test-backtesting-signal-coverage:	## Run focused DMA signal coverage gate
 	uv run pytest -q $(DMA_SIGNAL_TESTS) --cov=src/services/backtesting/signals/dma_gated_fgi --cov-report=term-missing --cov-fail-under=98
@@ -47,7 +47,7 @@ lint:		## Run linting with ruff and duplicate detection
 	uv run ruff check src/ tests/
 	uv run ruff format --check src/ tests/
 	uv run mypy src/
-	uv run python scripts/check_service_reachability.py
+	uv run python scripts/quality/check_service_reachability.py
 	uv run pylint --rcfile=pyproject.toml src/
 
 format:		## Format code with ruff
@@ -62,7 +62,7 @@ duplicate-check:	## Check for duplicate code (using workaround for pylint 4.x bu
 	uv run python check_duplicates.py
 
 service-reachability-check:	## Validate router-to-service dependency reachability
-	uv run python scripts/check_service_reachability.py
+	uv run python scripts/quality/check_service_reachability.py
 
 clean:		## Clean cache and build files
 	find . -type d -name __pycache__ -delete
@@ -94,21 +94,21 @@ deps-audit:	## Audit dependencies for security issues
 
 # Analysis scripts
 analyze-btc-sentiment:	## Generate BTC price & sentiment chart (default: all data)
-	uv run python scripts/analyze_btc_sentiment.py
+	uv run python scripts/market/analyze_btc_sentiment.py
 
 analyze-btc-sentiment-365:	## Generate BTC price & sentiment chart (last 365 days)
-	uv run python scripts/analyze_btc_sentiment.py --days 365
+	uv run python scripts/market/analyze_btc_sentiment.py --days 365
 
 pre-commit: format lint	## Run local pre-commit checks
 	bats tests/scripts/*.bats
-	bash scripts/run-tests-precommit.sh
+	bash scripts/ci/run-tests-precommit.sh
 
 # Production commands
 prod-check:	## Production readiness check
 	@echo "🔍 Checking production readiness..."
 	uv run ruff check src/
 	uv run mypy src/
-	uv run python scripts/check_service_reachability.py
+	uv run python scripts/quality/check_service_reachability.py
 	uv run pylint --rcfile=pyproject.toml src/
 	make test-ci
 	@echo "✅ Production checks passed!"

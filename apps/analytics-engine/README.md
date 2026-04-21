@@ -31,7 +31,7 @@ Interactive docs at `/docs`.
 
 Two enforced checks on every push:
 
-- `uv run python scripts/check_service_reachability.py` — rejects unreachable `*ServiceDep` bindings
+- `uv run python scripts/quality/check_service_reachability.py` — rejects unreachable `*ServiceDep` bindings
 - `uv run vulture src/ vulture_whitelist.py --min-confidence 80` — symbol-level unused detection (weekly audit drops to 60)
 
 Every entry in `vulture_whitelist.py` must carry an inline reason. Removing a module requires removing its whitelist entries in the same PR.

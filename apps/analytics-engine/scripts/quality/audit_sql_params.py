@@ -5,7 +5,7 @@ Checks all SQL files for consistent :snake_case parameter naming.
 Any violations (camelCase, PascalCase, kebab-case) are reported.
 
 Usage:
-    python scripts/audit_sql_params.py
+    python scripts/quality/audit_sql_params.py
 
 Output:
     ✓ file.sql: param1, param2, param3  (no violations)
@@ -16,7 +16,7 @@ Output:
 import re
 from pathlib import Path
 
-SQL_DIR = Path("src/queries/sql")
+SQL_DIR = Path(__file__).resolve().parents[2] / "src" / "queries" / "sql"
 PARAM_PATTERN = r":([a-z_][a-z0-9_]*)"
 
 

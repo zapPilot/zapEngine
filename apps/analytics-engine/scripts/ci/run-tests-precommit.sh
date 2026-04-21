@@ -19,6 +19,7 @@ LOCAL_PG_LOG="${LOCAL_PG_LOG:-/tmp/analytics-test-postgres.log}"
 # Maximum seconds to wait for PostgreSQL readiness (checks every 0.5s)
 # Increased to 30s to accommodate slower startup in Colima/Docker Desktop
 MAX_WAIT=30
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default database URLs for local development (use managed Docker container)
 # Note: TEST_DATABASE_URL uses postgresql:// (supports both sync/async drivers via sqlalchemy)
@@ -39,7 +40,7 @@ RUN_DMA_SIGNAL_GATE=false
 
 usage() {
     cat <<'EOF'
-Usage: bash scripts/run-tests-precommit.sh [options]
+Usage: bash scripts/ci/run-tests-precommit.sh [options]
 
 Options:
   --coverage             Run pytest with coverage reporting.
@@ -270,7 +271,11 @@ execute_sql_file() {
     else
         # Execute via psql for external database
         # Use DATABASE_INTEGRATION_URL since it's the normalized async URL
-        local db_url="${DATABASE_INTEGRATION_URL:-${TEST_DATABASE_URL}}"
+        local db_url="${DATABASE_INTEGRATION_URL:-${TEST_DATABASE_URL:-}}"
+        if [[ -z "$db_url" ]]; then
+            [[ "$verbose" -eq 1 ]] && printf '%b\n' "${RED}[Pre-commit Tests] No database URL configured for external SQL execution${NC}" >&2
+            return 1
+        fi
 
         # Convert to psql connection string format
         # Strip driver suffix: postgresql+asyncpg:// -> postgresql://
@@ -285,7 +290,7 @@ execute_sql_file() {
 
 bootstrap_schema() {
     local env="${1:-managed_docker}"
-    local bootstrap_sql="$(dirname "$0")/bootstrap-integration-db.sql"
+    local bootstrap_sql="$SCRIPT_DIR/../db/bootstrap-integration-db.sql"
 
     printf '%b\n' "${YELLOW}[Pre-commit Tests] Bootstrapping schema (env: $env)...${NC}"
 
@@ -300,7 +305,7 @@ bootstrap_schema() {
 
 ensure_extensions_and_roles() {
     local env="${1:-managed_docker}"
-    local sql_file="$(dirname "$0")/sql/extensions-roles.sql"
+    local sql_file="$SCRIPT_DIR/../db/sql/extensions-roles.sql"
 
     if execute_sql_file "$sql_file" 0 "$env" >/dev/null; then
         return 0
@@ -312,14 +317,14 @@ ensure_extensions_and_roles() {
 
 apply_schema_compat_shim() {
     local env="${1:-managed_docker}"
-    local sql_file="$(dirname "$0")/sql/compat-shim.sql"
+    local sql_file="$SCRIPT_DIR/../db/sql/compat-shim.sql"
 
     execute_sql_file "$sql_file" 0 "$env" >/dev/null
 }
 
 apply_inline_compatibility_additions() {
     local env="${1:-managed_docker}"
-    local sql_file="$(dirname "$0")/sql/inline-compat.sql"
+    local sql_file="$SCRIPT_DIR/../db/sql/inline-compat.sql"
 
     execute_sql_file "$sql_file" 0 "$env" >/dev/null
 }
@@ -341,8 +346,12 @@ reset_managed_database() {
 
 reset_external_database() {
     local env="${1:-external}"
-    local db_url="${DATABASE_INTEGRATION_URL:-${TEST_DATABASE_URL}}"
+    local db_url="${DATABASE_INTEGRATION_URL:-${TEST_DATABASE_URL:-}}"
     local connection_string
+
+    if [[ -z "$db_url" ]]; then
+        return 1
+    fi
 
     connection_string=$(echo "$db_url" | sed -E 's#postgresql\+[^:]+://(.*)#postgresql://\1#')
     psql "$connection_string" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1
@@ -358,7 +367,7 @@ setup_database_schema() {
     ensure_extensions_and_roles "$env"
 
     # Step 2: Detect if schema dumps are present
-    SCHEMA_DIR="$(dirname "$0")/../schemas/integration"
+    SCHEMA_DIR="$SCRIPT_DIR/../../schemas/integration"
     SCHEMA_DUMPS_PRESENT=false
     for dump in "$SCHEMA_DIR/public.sql" "$SCHEMA_DIR/alpha_raw.sql"; do
         if [[ -f "$dump" ]]; then

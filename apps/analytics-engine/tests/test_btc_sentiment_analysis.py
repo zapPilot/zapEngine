@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 
 from sqlalchemy.orm import Session
 
-# Add scripts to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+# Add market scripts to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "market"))
 
 from analyze_btc_sentiment import align_data  # noqa: E402
 

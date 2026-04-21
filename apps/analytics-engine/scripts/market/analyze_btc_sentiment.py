@@ -8,16 +8,16 @@ PNG visualizations.
 
 Usage:
     # Fetch all available historical data
-    uv run python scripts/analyze_btc_sentiment.py
+    uv run python scripts/market/analyze_btc_sentiment.py
 
     # Specify custom date range
-    uv run python scripts/analyze_btc_sentiment.py --start 2024-01-01 --end 2024-12-31
+    uv run python scripts/market/analyze_btc_sentiment.py --start 2024-01-01 --end 2024-12-31
 
     # Last N days
-    uv run python scripts/analyze_btc_sentiment.py --days 365
+    uv run python scripts/market/analyze_btc_sentiment.py --days 365
 
     # Custom output path
-    uv run python scripts/analyze_btc_sentiment.py --output /path/to/chart.png
+    uv run python scripts/market/analyze_btc_sentiment.py --output /path/to/chart.png
 """
 
 import argparse
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -169,16 +169,16 @@ def main() -> None:
         epilog="""
 Examples:
   # Fetch all available data
-  python scripts/analyze_btc_sentiment.py
+  python scripts/market/analyze_btc_sentiment.py
 
   # Last 365 days
-  python scripts/analyze_btc_sentiment.py --days 365
+  python scripts/market/analyze_btc_sentiment.py --days 365
 
   # Custom date range
-  python scripts/analyze_btc_sentiment.py --start 2024-01-01 --end 2024-12-31
+  python scripts/market/analyze_btc_sentiment.py --start 2024-01-01 --end 2024-12-31
 
   # Custom output path
-  python scripts/analyze_btc_sentiment.py --output /tmp/btc_chart.png
+  python scripts/market/analyze_btc_sentiment.py --output /tmp/btc_chart.png
         """,
     )
 

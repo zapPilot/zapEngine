@@ -26,7 +26,7 @@ This document defines coding standards and best practices for the Analytics Engi
 Run the SQL parameter audit to verify compliance:
 
 ```bash
-uv run python scripts/audit_sql_params.py
+uv run python scripts/quality/audit_sql_params.py
 ```
 
 **Current Status** (as of January 2025):

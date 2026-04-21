@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Test suite for scripts/run-tests-precommit.sh
+# Test suite for scripts/ci/run-tests-precommit.sh
 # Prevents regressions like the schema dump bug from happening again
 
 load 'helpers/test_helper'
@@ -8,7 +8,7 @@ setup() {
     # Source the script to get access to functions
     # Use a subshell to avoid polluting the test environment
     export SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_DIRNAME")/.." && pwd)"
-    export TEST_SCRIPT="$SCRIPT_DIR/scripts/run-tests-precommit.sh"
+    export TEST_SCRIPT="$SCRIPT_DIR/scripts/ci/run-tests-precommit.sh"
 }
 
 teardown() {
