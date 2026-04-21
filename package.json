@@ -29,7 +29,7 @@
     "turbo": "^2.5.0"
   },
   "engines": {
-    "node": 23.x,
+    "node": "23.x",
     "pnpm": ">=10.0.0"
   },
   "lint-staged": {
