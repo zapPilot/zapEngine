@@ -161,6 +161,7 @@ describe("useBacktestConfiguration", () => {
   });
 
   it("does not override user edits while defaults are still loading", async () => {
+    vi.useFakeTimers();
     vi.mocked(getStrategyConfigs).mockImplementation(
       () =>
         new Promise(resolve => {
@@ -177,11 +178,14 @@ describe("useBacktestConfiguration", () => {
       result.current.updateEditorValue('{"custom":"value"}');
     });
 
+    await vi.advanceTimersByTimeAsync(100);
+
     await waitFor(() => {
       expect(getStrategyConfigs).toHaveBeenCalled();
     });
 
     expect(result.current.editorValue).toBe('{"custom":"value"}');
+    vi.useRealTimers();
   });
 
   // -------------------------------------------------------------------------
@@ -210,6 +214,7 @@ describe("useBacktestConfiguration", () => {
   });
 
   it("does not update editor from catalog when user has already edited and presets fail", async () => {
+    vi.useFakeTimers();
     vi.mocked(getStrategyConfigs).mockRejectedValue(new Error("Presets fail"));
     vi.mocked(getBacktestingStrategiesV3).mockImplementation(
       () =>
@@ -227,12 +232,15 @@ describe("useBacktestConfiguration", () => {
       result.current.updateEditorValue('{"user":"edited"}');
     });
 
+    await vi.advanceTimersByTimeAsync(100);
+
     await waitFor(() => {
       expect(result.current.isInitializing).toBe(false);
     });
 
     // Editor should keep user's value, not the catalog default
     expect(result.current.editorValue).toBe('{"user":"edited"}');
+    vi.useRealTimers();
   });
 
   // -------------------------------------------------------------------------
@@ -754,6 +762,7 @@ describe("useBacktestConfiguration", () => {
   // -------------------------------------------------------------------------
 
   it("sets error and marks initialRunSettled when initial payload fails schema validation", async () => {
+    vi.useFakeTimers();
     // Provide presets with a structurally invalid payload shape so the
     // auto-run useEffect hits the !parsed.success branch.
     // We simulate by having the initial fallback editor value fail schema.
@@ -794,12 +803,15 @@ describe("useBacktestConfiguration", () => {
       );
     });
 
+    await vi.advanceTimersByTimeAsync(100);
+
     await waitFor(() => {
       // After defaults ready, auto-run effect fires with bad payload and sets error
       expect(result.current.editorError).toBeTruthy();
     });
 
     expect(mockMutate).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   // -------------------------------------------------------------------------

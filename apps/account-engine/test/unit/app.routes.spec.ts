@@ -149,6 +149,33 @@ describe('Hono app routes', () => {
     expect(services.activityTracker.trackUserId).toHaveBeenCalledWith(userId);
   });
 
+  it('tracks user activity on nested /:userId/* routes', async () => {
+    const services = createServices();
+    services.usersService.getUserWallets = vi.fn().mockResolvedValue([]);
+    const app = createApp(services);
+
+    const userId = '123e4567-e89b-12d3-a456-426614174000';
+    const response = await app.request(
+      `http://localhost/users/${userId}/wallets`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(services.activityTracker.trackUserId).toHaveBeenCalledWith(userId);
+  });
+
+  it('does not track non-UUID path segments — UUID regex guards the middleware', async () => {
+    const services = createServices();
+    const app = createApp(services);
+
+    // `/users/not-a-uuid` — paramValidator rejects with 400 and the UUID
+    // regex on the middleware pattern prevents it from firing at all. Both
+    // layers must fail closed for this assertion to hold.
+    const response = await app.request('http://localhost/users/not-a-uuid');
+
+    expect(response.status).toBe(400);
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
+  });
+
   it('returns 429 when wallet fetch is rate limited', async () => {
     const services = createServices();
     const app = createApp(services);

@@ -68,6 +68,32 @@ describe("Intent Validators", () => {
       expect(result.type).toBe("SUPPLY");
       expect(result.protocol).toBe("morpho");
     });
+
+    it("should throw for invalid vault address", () => {
+      const intent = {
+        type: "SUPPLY" as const,
+        fromAddress: "0x1234567890123456789012345678901234567890",
+        chainId: 8453,
+        fromToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        fromAmount: "1000000",
+        vaultAddress: "invalid",
+        protocol: "morpho" as const,
+      };
+      expect(() => validateSupplyIntent(intent)).toThrow(ValidationError);
+    });
+
+    it("should throw for zero amount", () => {
+      const intent = {
+        type: "SUPPLY" as const,
+        fromAddress: "0x1234567890123456789012345678901234567890",
+        chainId: 8453,
+        fromToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        fromAmount: "0",
+        vaultAddress: "0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A",
+        protocol: "morpho" as const,
+      };
+      expect(() => validateSupplyIntent(intent)).toThrow(ValidationError);
+    });
   });
 
   describe("validateWithdrawIntent", () => {
@@ -83,6 +109,30 @@ describe("Intent Validators", () => {
 
       const result = validateWithdrawIntent(intent);
       expect(result.type).toBe("WITHDRAW");
+    });
+
+    it("should throw for invalid chainId", () => {
+      const intent = {
+        type: "WITHDRAW" as const,
+        fromAddress: "0x1234567890123456789012345678901234567890",
+        chainId: 9999,
+        vaultAddress: "0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A",
+        shareAmount: "1000000000000000000",
+        protocol: "morpho" as const,
+      };
+      expect(() => validateWithdrawIntent(intent)).toThrow(ValidationError);
+    });
+
+    it("should throw for zero shareAmount", () => {
+      const intent = {
+        type: "WITHDRAW" as const,
+        fromAddress: "0x1234567890123456789012345678901234567890",
+        chainId: 8453,
+        vaultAddress: "0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A",
+        shareAmount: "0",
+        protocol: "morpho" as const,
+      };
+      expect(() => validateWithdrawIntent(intent)).toThrow(ValidationError);
     });
   });
 });

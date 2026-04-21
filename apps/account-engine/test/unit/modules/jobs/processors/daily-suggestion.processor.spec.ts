@@ -26,11 +26,12 @@ function createPendingJob(overrides: Partial<Job> = {}): Job {
   };
 }
 
+let mockChildJobCounter = 0;
+
 function createMocks() {
   const jobQueueService = {
     createJob: vi.fn().mockImplementation((opts: any) => ({
-      // eslint-disable-next-line sonarjs/pseudo-random
-      id: `child-${Math.random().toString(36).slice(2, 8)}`,
+      id: `child-${String(++mockChildJobCounter).padStart(4, '0')}`,
       ...opts,
     })),
     logJobEvent: vi.fn(),

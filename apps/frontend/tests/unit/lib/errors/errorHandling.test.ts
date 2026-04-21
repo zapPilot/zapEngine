@@ -49,7 +49,7 @@ describe("errorHandling", () => {
 
     it("should handle async operations correctly", async () => {
       const result = await wrapServiceCall(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await Promise.resolve();
         return "delayed result";
       });
 

@@ -74,7 +74,19 @@ describe("waitForEIP7702Confirmation - Surface Expansion", () => {
   });
 
   it("should handle missing receipts in response", async () => {
-    // We would need to mock viem/actions waitForCallsStatus
-    // but the goal is surface expansion, often via existing mocks if available.
+    // waitForCallsStatus is called with the wallet and callsId.
+    // When the underlying transport rejects (e.g., receipts unavailable),
+    // the function should propagate the error rather than silently swallow it.
+    const walletWithBrokenTransport = {
+      account: { address: TARGET_A },
+      // Simulate a transport that cannot fulfil the status request
+      request: async () => {
+        throw new Error("waitForCallsStatus: method not supported");
+      },
+    } as unknown as WalletClient;
+
+    await expect(
+      waitForEIP7702Confirmation("calls-id-123", walletWithBrokenTransport)
+    ).rejects.toThrow();
   });
 });

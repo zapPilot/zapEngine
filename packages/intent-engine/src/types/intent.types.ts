@@ -38,14 +38,20 @@ export const SwapIntentSchema = BaseIntentSchema.extend({
   type: z.literal("SWAP"),
   fromToken: z.string().regex(addressRegex, "Invalid fromToken address"),
   toToken: z.string().regex(addressRegex, "Invalid toToken address"),
-  fromAmount: z.string().regex(/^\d+$/, "Amount must be a wei string"),
+  fromAmount: z
+    .string()
+    .regex(/^\d+$/, "Amount must be a wei string")
+    .refine(val => BigInt(val) > 0n, "Amount must be positive"),
 });
 
 // Supply intent - deposit to Morpho vault
 export const SupplyIntentSchema = BaseIntentSchema.extend({
   type: z.literal("SUPPLY"),
   fromToken: z.string().regex(addressRegex, "Invalid fromToken address"),
-  fromAmount: z.string().regex(/^\d+$/, "Amount must be a wei string"),
+  fromAmount: z
+    .string()
+    .regex(/^\d+$/, "Amount must be a wei string")
+    .refine(val => BigInt(val) > 0n, "Amount must be positive"),
   vaultAddress: z.string().regex(addressRegex, "Invalid vault address"),
   protocol: z.literal("morpho"),
 });
@@ -56,7 +62,10 @@ export const SupplyIntentSchema = BaseIntentSchema.extend({
 export const WithdrawIntentSchema = BaseIntentSchema.extend({
   type: z.literal("WITHDRAW"),
   vaultAddress: z.string().regex(addressRegex, "Invalid vault address"),
-  shareAmount: z.string().regex(/^\d+$/, "Share amount must be a wei string"),
+  shareAmount: z
+    .string()
+    .regex(/^\d+$/, "Share amount must be a wei string")
+    .refine(val => BigInt(val) > 0n, "Amount must be positive"),
   protocol: z.literal("morpho"),
 });
 
@@ -65,7 +74,10 @@ export const RotateIntentSchema = BaseIntentSchema.extend({
   type: z.literal("ROTATE"),
   fromVault: z.string().regex(addressRegex, "Invalid fromVault address"),
   toVault: z.string().regex(addressRegex, "Invalid toVault address"),
-  shareAmount: z.string().regex(/^\d+$/, "Share amount must be a wei string"),
+  shareAmount: z
+    .string()
+    .regex(/^\d+$/, "Share amount must be a wei string")
+    .refine(val => BigInt(val) > 0n, "Amount must be positive"),
   intermediateToken: z.string().regex(addressRegex).optional(),
   protocol: z.literal("morpho"),
 });

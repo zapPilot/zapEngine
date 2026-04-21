@@ -102,8 +102,7 @@ describe("sentimentQuotes", () => {
     it("handles edge case when quotes array index returns undefined", () => {
       // This tests the fallback in selectQuote when quotes[index] is undefined
       // Mock Math.random to return a value that results in a very high index
-      const originalRandom = Math.random;
-      Math.random = () => 0.99999;
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99999);
 
       const result = getQuoteForSentiment(10);
       // Should still return a valid quote (either from array or fallback)
@@ -111,14 +110,13 @@ describe("sentimentQuotes", () => {
       expect(result.quote).toBeTruthy();
       expect(result.author).toBeTruthy();
 
-      Math.random = originalRandom;
+      randomSpy.mockRestore();
     });
 
     it("falls back to DEFAULT_QUOTE when Math.random returns 1 (out-of-bounds index)", () => {
       // Exercises the `quotes[index] ?? { DEFAULT_QUOTE... }` false branch:
       // Math.floor(1.0 * 2) = 2, quotes[2] is undefined → uses DEFAULT_QUOTE fallback
-      const originalRandom = Math.random;
-      Math.random = () => 1;
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(1);
 
       const result = getQuoteForSentiment(10);
       expect(result.sentiment).toBe("Extreme Fear");
@@ -127,7 +125,7 @@ describe("sentimentQuotes", () => {
         "Stay balanced when the crowd swings too far in either direction."
       );
 
-      Math.random = originalRandom;
+      randomSpy.mockRestore();
     });
   });
 
