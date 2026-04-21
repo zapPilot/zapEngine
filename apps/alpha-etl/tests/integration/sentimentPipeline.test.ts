@@ -1,8 +1,7 @@
-/* eslint-disable max-lines-per-function */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { ETLJob } from '../../src/types/index.js';
-import type { CoinMarketCapFearGreedResponse, SentimentData } from '../../src/modules/sentiment/index.js';
-import type { WriteResult } from '../../src/core/database/baseWriter.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { ETLJob } from "../../src/types/index.js";
+import type { SentimentData } from "../../src/modules/sentiment/index.js";
+import type { WriteResult } from "../../src/core/database/baseWriter.js";
 
 const createRequestStats = () => ({
   requestCount: 0,
@@ -21,7 +20,7 @@ const createRequestStats = () => ({
 const createMockFearGreedFetcher = () => ({
   fetchCurrentSentiment: vi.fn(),
   fetchRawResponse: vi.fn(),
-  healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
+  healthCheck: vi.fn().mockResolvedValue({ status: "healthy" }),
   getRequestStats: vi.fn().mockReturnValue(createRequestStats()),
 });
 
@@ -41,8 +40,11 @@ let mockWriter: ReturnType<typeof createMockSentimentWriter>;
 // Mock external dependencies with factory functions
 // Note: We must also override SentimentETLProcessor because when all classes are in
 // the same module, the internal `new FearGreedFetcher()` doesn't use the mocked constructor
-vi.mock('../../src/modules/sentiment/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/modules/sentiment/index.js')>();
+vi.mock("../../src/modules/sentiment/index.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../src/modules/sentiment/index.js")
+    >();
 
   // Create a MockedSentimentETLProcessor that uses the mock dependencies
   // but uses the real SentimentDataTransformer for integration testing
@@ -51,7 +53,8 @@ vi.mock('../../src/modules/sentiment/index.js', async (importOriginal) => {
     private transformer = new actual.SentimentDataTransformer();
     private writer = mockWriter;
 
-    async process(job: { jobId: string }) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async process(_job: { jobId: string }) {
       try {
         const rawData = await this.fetcher.fetchCurrentSentiment();
         const transformed = this.transformer.transform(rawData);
@@ -61,27 +64,31 @@ vi.mock('../../src/modules/sentiment/index.js', async (importOriginal) => {
             success: false,
             recordsProcessed: 1,
             recordsInserted: 0,
-            errors: ['Sentiment data failed validation'],
-            source: 'feargreed'
+            errors: ["Sentiment data failed validation"],
+            source: "feargreed",
           };
         }
 
-        const writeResult = await this.writer.writeSentimentSnapshots([transformed], 'feargreed');
+        const writeResult = await this.writer.writeSentimentSnapshots(
+          [transformed],
+          "feargreed",
+        );
 
         return {
           success: writeResult.success,
           recordsProcessed: 1,
           recordsInserted: writeResult.recordsInserted,
           errors: writeResult.errors,
-          source: 'feargreed'
+          source: "feargreed",
         };
-      } catch (error) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_error) {
         return {
           success: false,
           recordsProcessed: 1,
           recordsInserted: 0,
-          errors: ['Failed to fetch sentiment data from API'],
-          source: 'feargreed'
+          errors: ["Failed to fetch sentiment data from API"],
+          source: "feargreed",
         };
       }
     }
@@ -95,68 +102,55 @@ vi.mock('../../src/modules/sentiment/index.js', async (importOriginal) => {
     }
 
     getSourceType() {
-      return 'feargreed';
+      return "feargreed";
     }
   }
 
   return {
     ...actual,
     SentimentETLProcessor: MockedSentimentETLProcessor,
-    FearGreedFetcher: vi.fn().mockImplementation(function FearGreedFetcher() {
+    FearGreedFetcher: vi.fn().mockImplementation(() => {
       return mockFetcher;
     }),
-    SentimentWriter: vi.fn().mockImplementation(function SentimentWriter() {
+    SentimentWriter: vi.fn().mockImplementation(() => {
       return mockWriter;
     }),
   };
 });
 
 // Silence logger
-vi.mock('../../src/utils/logger.js', async () => {
-  const { mockLogger } = await import('../setup/mocks.js');
+vi.mock("../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../setup/mocks.js");
   return mockLogger();
 });
 
 // Import after mocks are set up
-const { SentimentETLProcessor } = await import('../../src/modules/sentiment/index.js');
+const { SentimentETLProcessor } =
+  await import("../../src/modules/sentiment/index.js");
 
 /**
- * Test fixtures - Realistic CoinMarketCap API responses
+ * Test fixtures
  */
-const createMockSentimentResponse = (overrides: Partial<CoinMarketCapFearGreedResponse> = {}): CoinMarketCapFearGreedResponse => ({
-  status: {
-    timestamp: new Date().toISOString(),
-    error_code: "0",
-    error_message: null,
-    elapsed: 15,
-    credit_count: 1
-  },
-  data: {
-    value: 55,
-    update_time: new Date(Date.now() - 60000).toISOString(), // 1 minute ago
-    value_classification: 'Greed'
-  },
-  ...overrides,
-});
-
-const createMockSentimentData = (overrides: Partial<SentimentData> = {}): SentimentData => ({
+const createMockSentimentData = (
+  overrides: Partial<SentimentData> = {},
+): SentimentData => ({
   value: 55,
-  classification: 'Greed',
+  classification: "Greed",
   timestamp: Math.floor((Date.now() - 60000) / 1000), // 1 minute ago
-  source: 'coinmarketcap',
+  source: "coinmarketcap",
   ...overrides,
 });
 
 const createTestJob = (): ETLJob => ({
   jobId: `test-sentiment-${Date.now()}`,
-  trigger: 'scheduled',
-  sources: ['feargreed'],
+  trigger: "scheduled",
+  sources: ["feargreed"],
   filters: {},
   createdAt: new Date(),
-  status: 'pending',
+  status: "pending",
 });
 
-describe('Sentiment Pipeline Integration Tests', () => {
+describe("Sentiment Pipeline Integration Tests", () => {
   let processor: SentimentETLProcessor;
 
   beforeEach(() => {
@@ -172,14 +166,14 @@ describe('Sentiment Pipeline Integration Tests', () => {
     vi.clearAllMocks();
   });
 
-  describe('Complete E2E Flow - Happy Path', () => {
-    it('successfully processes sentiment through entire pipeline', async () => {
+  describe("Complete E2E Flow - Happy Path", () => {
+    it("successfully processes sentiment through entire pipeline", async () => {
       const job = createTestJob();
 
       // Mock successful API response
       const sentimentData = createMockSentimentData({
         value: 60,
-        classification: 'Greed',
+        classification: "Greed",
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
 
@@ -199,7 +193,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1);
       expect(result.errors).toHaveLength(0);
-      expect(result.source).toBe('feargreed');
+      expect(result.source).toBe("feargreed");
 
       // Assertions - API calls
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalledTimes(1);
@@ -211,16 +205,16 @@ describe('Sentiment Pipeline Integration Tests', () => {
       const writeCall = mockWriter.writeSentimentSnapshots.mock.calls[0][0];
       expect(writeCall).toHaveLength(1);
       expect(writeCall[0].sentiment_value).toBe(60);
-      expect(writeCall[0].classification).toBe('Greed');
-      expect(writeCall[0].source).toBe('coinmarketcap');
+      expect(writeCall[0].classification).toBe("Greed");
+      expect(writeCall[0].source).toBe("coinmarketcap");
     });
 
-    it('verifies data consistency through transformation pipeline', async () => {
+    it("verifies data consistency through transformation pipeline", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData({
         value: 27,
-        classification: 'Fear',
+        classification: "Fear",
         timestamp: Math.floor(Date.now() / 1000) - 120, // 2 minutes ago
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
@@ -240,31 +234,33 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       const record = writeCall[0];
       expect(record.sentiment_value).toBe(27);
-      expect(record.classification).toBe('Fear');
-      expect(record.source).toBe('coinmarketcap');
+      expect(record.classification).toBe("Fear");
+      expect(record.source).toBe("coinmarketcap");
       expect(record.snapshot_time).toBeDefined();
       expect(record.raw_data).toBeDefined();
 
       // Verify timestamp is preserved correctly
       expect(new Date(record.snapshot_time).getTime()).toBeCloseTo(
         sentimentData.timestamp * 1000,
-        -3 // Within 1 second
+        -3, // Within 1 second
       );
 
       // Verify raw_data JSONB field contains original data
-      expect(record.raw_data).toHaveProperty('original_data');
-      expect(record.raw_data.original_data).toEqual(expect.objectContaining({
-        value: 27,
-        classification: 'Fear',
-      }));
+      expect(record.raw_data).toHaveProperty("original_data");
+      expect(record.raw_data.original_data).toEqual(
+        expect.objectContaining({
+          value: 27,
+          classification: "Fear",
+        }),
+      );
     });
 
-    it('confirms database upsert with correct structure', async () => {
+    it("confirms database upsert with correct structure", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData({
         value: 50,
-        classification: 'Neutral',
+        classification: "Neutral",
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
 
@@ -280,32 +276,32 @@ describe('Sentiment Pipeline Integration Tests', () => {
       // Verify writer was called with correct source parameter
       expect(mockWriter.writeSentimentSnapshots).toHaveBeenCalledWith(
         expect.any(Array),
-        'feargreed'
+        "feargreed",
       );
 
       // Verify record has all required fields for database
       const writeCall = mockWriter.writeSentimentSnapshots.mock.calls[0][0];
       const record = writeCall[0];
 
-      expect(record).toHaveProperty('sentiment_value');
-      expect(record).toHaveProperty('classification');
-      expect(record).toHaveProperty('source');
-      expect(record).toHaveProperty('snapshot_time');
-      expect(record).toHaveProperty('raw_data');
+      expect(record).toHaveProperty("sentiment_value");
+      expect(record).toHaveProperty("classification");
+      expect(record).toHaveProperty("source");
+      expect(record).toHaveProperty("snapshot_time");
+      expect(record).toHaveProperty("raw_data");
 
       // Verify types
-      expect(typeof record.sentiment_value).toBe('number');
-      expect(typeof record.classification).toBe('string');
-      expect(typeof record.source).toBe('string');
-      expect(typeof record.snapshot_time).toBe('string'); // ISO string format
-      expect(typeof record.raw_data).toBe('object');
+      expect(typeof record.sentiment_value).toBe("number");
+      expect(typeof record.classification).toBe("string");
+      expect(typeof record.source).toBe("string");
+      expect(typeof record.snapshot_time).toBe("string"); // ISO string format
+      expect(typeof record.raw_data).toBe("object");
     });
 
-    it('validates timestamp format and timezone handling', async () => {
+    it("validates timestamp format and timezone handling", async () => {
       const job = createTestJob();
 
       // Create timestamp at midnight UTC
-      const midnightUTC = new Date('2024-12-27T00:00:00.000Z');
+      const midnightUTC = new Date("2024-12-27T00:00:00.000Z");
       const sentimentData = createMockSentimentData({
         timestamp: Math.floor(midnightUTC.getTime() / 1000),
       });
@@ -327,15 +323,17 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(record.snapshot_time).toBe(midnightUTC.toISOString());
 
       // Verify it's a valid ISO 8601 string with UTC timezone (ends with Z)
-      expect(record.snapshot_time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(record.snapshot_time).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
     });
 
-    it('ensures raw_data JSONB field preservation', async () => {
+    it("ensures raw_data JSONB field preservation", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData({
         value: 75,
-        classification: 'Extreme Greed',
+        classification: "Extreme Greed",
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
 
@@ -352,26 +350,30 @@ describe('Sentiment Pipeline Integration Tests', () => {
       const record = writeCall[0];
 
       // Verify raw_data contains complete original data wrapped in original_data
-      expect(record.raw_data).toHaveProperty('original_data');
-      expect(record.raw_data.original_data).toEqual(expect.objectContaining({
-        value: 75,
-        classification: 'Extreme Greed',
-        timestamp: sentimentData.timestamp,
-        source: 'coinmarketcap',
-      }));
+      expect(record.raw_data).toHaveProperty("original_data");
+      expect(record.raw_data.original_data).toEqual(
+        expect.objectContaining({
+          value: 75,
+          classification: "Extreme Greed",
+          timestamp: sentimentData.timestamp,
+          source: "coinmarketcap",
+        }),
+      );
 
       // Verify raw_data can be JSON stringified (for JSONB storage)
       expect(() => JSON.stringify(record.raw_data)).not.toThrow();
     });
   });
 
-  describe('Deduplication Logic', () => {
-    it('upserts duplicate snapshot for same source + timestamp', async () => {
+  describe("Deduplication Logic", () => {
+    it("upserts duplicate snapshot for same source + timestamp", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData({
         value: 60,
-        timestamp: Math.floor(new Date('2024-12-27T12:00:00Z').getTime() / 1000),
+        timestamp: Math.floor(
+          new Date("2024-12-27T12:00:00Z").getTime() / 1000,
+        ),
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
 
@@ -393,12 +395,14 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(mockWriter.writeSentimentSnapshots).toHaveBeenCalledTimes(1);
     });
 
-    it('allows different sources with same timestamp', async () => {
+    it("allows different sources with same timestamp", async () => {
       const job = createTestJob();
 
       // This sentiment snapshot has same timestamp but different source
       // (In production, we only have coinmarketcap, but testing constraint logic)
-      const timestamp = Math.floor(new Date('2024-12-27T12:00:00Z').getTime() / 1000);
+      const timestamp = Math.floor(
+        new Date("2024-12-27T12:00:00Z").getTime() / 1000,
+      );
       const sentimentData = createMockSentimentData({
         timestamp,
       });
@@ -418,15 +422,17 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       // Verify record has source = 'coinmarketcap'
       const writeCall = mockWriter.writeSentimentSnapshots.mock.calls[0][0];
-      expect(writeCall[0].source).toBe('coinmarketcap');
+      expect(writeCall[0].source).toBe("coinmarketcap");
     });
 
-    it('allows same source with different timestamps', async () => {
+    it("allows same source with different timestamps", async () => {
       const job = createTestJob();
 
       // First snapshot at 12:00
       const sentimentData = createMockSentimentData({
-        timestamp: Math.floor(new Date('2024-12-27T12:00:00Z').getTime() / 1000),
+        timestamp: Math.floor(
+          new Date("2024-12-27T12:00:00Z").getTime() / 1000,
+        ),
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
 
@@ -443,10 +449,12 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(result.recordsInserted).toBe(1);
     });
 
-    it('handles rapid concurrent inserts for same snapshot', async () => {
+    it("handles rapid concurrent inserts for same snapshot", async () => {
       const job = createTestJob();
 
-      const timestamp = Math.floor(new Date('2024-12-27T12:00:00Z').getTime() / 1000);
+      const timestamp = Math.floor(
+        new Date("2024-12-27T12:00:00Z").getTime() / 1000,
+      );
       const sentimentData = createMockSentimentData({
         value: 55,
         timestamp,
@@ -470,13 +478,15 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(mockWriter.writeSentimentSnapshots).toHaveBeenCalledTimes(1);
     });
 
-    it('preserves latest data when deduplicating', async () => {
+    it("preserves latest data when deduplicating", async () => {
       const job = createTestJob();
 
-      const timestamp = Math.floor(new Date('2024-12-27T12:00:00Z').getTime() / 1000);
+      const timestamp = Math.floor(
+        new Date("2024-12-27T12:00:00Z").getTime() / 1000,
+      );
       const newerSentimentData = createMockSentimentData({
         value: 65, // Updated value
-        classification: 'Greed',
+        classification: "Greed",
         timestamp,
       });
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(newerSentimentData);
@@ -495,10 +505,10 @@ describe('Sentiment Pipeline Integration Tests', () => {
       // Verify the newer data was sent to writer
       const writeCall = mockWriter.writeSentimentSnapshots.mock.calls[0][0];
       expect(writeCall[0].sentiment_value).toBe(65);
-      expect(writeCall[0].classification).toBe('Greed');
+      expect(writeCall[0].classification).toBe("Greed");
     });
 
-    it('correctly increments duplicatesSkipped counter', async () => {
+    it("correctly increments duplicatesSkipped counter", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData();
@@ -521,10 +531,8 @@ describe('Sentiment Pipeline Integration Tests', () => {
     });
   });
 
-  describe('Rate Limiting & Concurrent Requests', () => {
-    it('enforces 10 requests/minute CoinMarketCap limit', async () => {
-      const job = createTestJob();
-
+  describe("Rate Limiting & Concurrent Requests", () => {
+    it("enforces 10 requests/minute CoinMarketCap limit", async () => {
       const sentimentData = createMockSentimentData();
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
@@ -536,10 +544,10 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       // Process 10 jobs rapidly
       const jobs = Array.from({ length: 10 }, () => createTestJob());
-      const results = await Promise.all(jobs.map(j => processor.process(j)));
+      const results = await Promise.all(jobs.map((j) => processor.process(j)));
 
       // All should succeed
-      expect(results.every(r => r.success)).toBe(true);
+      expect(results.every((r) => r.success)).toBe(true);
 
       // Fetcher should be called 10 times
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalledTimes(10);
@@ -553,7 +561,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(stats.feargreed.requestCount).toBe(10);
     });
 
-    it('handles multiple simultaneous webhook triggers', async () => {
+    it("handles multiple simultaneous webhook triggers", async () => {
       const sentimentData = createMockSentimentData();
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
@@ -565,22 +573,22 @@ describe('Sentiment Pipeline Integration Tests', () => {
 
       // Simulate 3 concurrent webhook triggers
       const jobs = [createTestJob(), createTestJob(), createTestJob()];
-      const results = await Promise.all(jobs.map(j => processor.process(j)));
+      const results = await Promise.all(jobs.map((j) => processor.process(j)));
 
       // All should complete
       expect(results).toHaveLength(3);
-      expect(results.every(r => r.success)).toBe(true);
+      expect(results.every((r) => r.success)).toBe(true);
 
       // Fetcher called 3 times
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalledTimes(3);
     });
 
-    it('queues requests when rate limit exceeded', async () => {
+    it("queues requests when rate limit exceeded", async () => {
       const job = createTestJob();
 
       // Simulate rate limit error on first call
       mockFetcher.fetchCurrentSentiment
-        .mockRejectedValueOnce(new Error('Rate limit exceeded (429)'))
+        .mockRejectedValueOnce(new Error("Rate limit exceeded (429)"))
         .mockResolvedValueOnce(createMockSentimentData());
 
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
@@ -595,10 +603,10 @@ describe('Sentiment Pipeline Integration Tests', () => {
       // Should fail due to rate limit
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain("Failed to fetch sentiment data");
     });
 
-    it('respects 6-second delay between requests', async () => {
+    it("respects 6-second delay between requests", async () => {
       const sentimentData = createMockSentimentData();
       mockFetcher.fetchCurrentSentiment.mockResolvedValue(sentimentData);
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
@@ -622,27 +630,31 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(elapsedTime).toBeLessThan(6000); // Should complete quickly in test
     });
 
-    it('recovers gracefully from rate limit errors (429)', async () => {
+    it("recovers gracefully from rate limit errors (429)", async () => {
       const job = createTestJob();
 
-      mockFetcher.fetchCurrentSentiment.mockRejectedValue(new Error('429 Too Many Requests'));
+      mockFetcher.fetchCurrentSentiment.mockRejectedValue(
+        new Error("429 Too Many Requests"),
+      );
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain("Failed to fetch sentiment data");
 
       // Verify it doesn't crash the processor
       expect(mockFetcher.fetchCurrentSentiment).toHaveBeenCalled();
     });
   });
 
-  describe('Partial Failure & Recovery', () => {
-    it('continues processing after fetcher timeout', async () => {
+  describe("Partial Failure & Recovery", () => {
+    it("continues processing after fetcher timeout", async () => {
       const job = createTestJob();
 
-      mockFetcher.fetchCurrentSentiment.mockRejectedValue(new Error('Request timeout'));
+      mockFetcher.fetchCurrentSentiment.mockRejectedValue(
+        new Error("Request timeout"),
+      );
 
       const result = await processor.process(job);
 
@@ -650,28 +662,30 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(0);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain('Failed to fetch sentiment data');
+      expect(result.errors[0]).toContain("Failed to fetch sentiment data");
 
       // Verify processor doesn't crash
       expect(result).toBeDefined();
     });
 
-    it('handles transformation validation failures', async () => {
+    it("handles transformation validation failures", async () => {
       const job = createTestJob();
 
       // Mock fetcher returns null (simulating transformation failure)
-      mockFetcher.fetchCurrentSentiment.mockResolvedValue(null as unknown as SentimentData);
+      mockFetcher.fetchCurrentSentiment.mockResolvedValue(
+        null as unknown as SentimentData,
+      );
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Sentiment data failed validation');
+      expect(result.errors).toContain("Sentiment data failed validation");
 
       // Writer should not be called
       expect(mockWriter.writeSentimentSnapshots).not.toHaveBeenCalled();
     });
 
-    it('reports database write errors without crashing', async () => {
+    it("reports database write errors without crashing", async () => {
       const job = createTestJob();
 
       const sentimentData = createMockSentimentData();
@@ -681,25 +695,25 @@ describe('Sentiment Pipeline Integration Tests', () => {
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
         success: false,
         recordsInserted: 0,
-        errors: ['Database connection timeout'],
+        errors: ["Database connection timeout"],
         duplicatesSkipped: 0,
       });
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Database connection timeout');
+      expect(result.errors).toContain("Database connection timeout");
 
       // Verify processor completed
       expect(result.recordsProcessed).toBe(1);
     });
 
-    it('retries transient failures with exponential backoff', async () => {
+    it("retries transient failures with exponential backoff", async () => {
       const job = createTestJob();
 
       // Mock transient failure (network error)
       mockFetcher.fetchCurrentSentiment
-        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error("Network error"))
         .mockResolvedValueOnce(createMockSentimentData());
 
       mockWriter.writeSentimentSnapshots.mockResolvedValue({
@@ -721,12 +735,14 @@ describe('Sentiment Pipeline Integration Tests', () => {
     });
   });
 
-  describe('Stale Data Detection', () => {
-    it('warns when sentiment data is >1 hour old', async () => {
+  describe("Stale Data Detection", () => {
+    it("warns when sentiment data is >1 hour old", async () => {
       const job = createTestJob();
 
       // Data from 2 hours ago
-      const staleTimestamp = Math.floor((Date.now() - 2 * 60 * 60 * 1000) / 1000);
+      const staleTimestamp = Math.floor(
+        (Date.now() - 2 * 60 * 60 * 1000) / 1000,
+      );
       const sentimentData = createMockSentimentData({
         timestamp: staleTimestamp,
       });
@@ -746,39 +762,41 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(result.recordsInserted).toBe(1);
     });
 
-    it('fails health check when data is >24 hours old', async () => {
+    it("fails health check when data is >24 hours old", async () => {
       // Mock health check to return stale data
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
-        details: 'Sentiment data is stale (26 hours old)',
+        status: "unhealthy",
+        details: "Sentiment data is stale (26 hours old)",
       });
 
       const health = await processor.healthCheck();
 
-      expect(health.status).toBe('unhealthy');
-      expect(health.details).toContain('stale');
-      expect(health.details).toContain('hours');
+      expect(health.status).toBe("unhealthy");
+      expect(health.details).toContain("stale");
+      expect(health.details).toContain("hours");
     });
 
-    it('includes staleness timestamp in health check details', async () => {
+    it("includes staleness timestamp in health check details", async () => {
       const staleHours = 26;
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
+        status: "unhealthy",
         details: `Sentiment data is stale (${staleHours} hours old)`,
       });
 
       const health = await processor.healthCheck();
 
-      expect(health.status).toBe('unhealthy');
+      expect(health.status).toBe("unhealthy");
       expect(health.details).toContain(staleHours.toString());
     });
   });
 
-  describe('Empty & Edge Cases', () => {
-    it('handles null API response gracefully', async () => {
+  describe("Empty & Edge Cases", () => {
+    it("handles null API response gracefully", async () => {
       const job = createTestJob();
 
-      mockFetcher.fetchCurrentSentiment.mockResolvedValue(null as unknown as SentimentData);
+      mockFetcher.fetchCurrentSentiment.mockResolvedValue(
+        null as unknown as SentimentData,
+      );
 
       const result = await processor.process(job);
 
@@ -791,11 +809,11 @@ describe('Sentiment Pipeline Integration Tests', () => {
       expect(mockWriter.writeSentimentSnapshots).not.toHaveBeenCalled();
     });
 
-    it('handles empty sentiment data gracefully', async () => {
+    it("handles empty sentiment data gracefully", async () => {
       const job = createTestJob();
 
       mockFetcher.fetchCurrentSentiment.mockRejectedValue(
-        new Error('Invalid API response: missing or invalid data object')
+        new Error("Invalid API response: missing or invalid data object"),
       );
 
       const result = await processor.process(job);
@@ -808,69 +826,69 @@ describe('Sentiment Pipeline Integration Tests', () => {
     });
   });
 
-  describe('Health Check', () => {
-    it('returns healthy when API is responsive', async () => {
-      mockFetcher.healthCheck.mockResolvedValue({ status: 'healthy' });
+  describe("Health Check", () => {
+    it("returns healthy when API is responsive", async () => {
+      mockFetcher.healthCheck.mockResolvedValue({ status: "healthy" });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe('healthy');
+      expect(result.status).toBe("healthy");
       expect(result.details).toBeUndefined();
     });
 
-    it('returns unhealthy when API timeout occurs', async () => {
+    it("returns unhealthy when API timeout occurs", async () => {
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
-        details: 'Request timeout',
+        status: "unhealthy",
+        details: "Request timeout",
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe('unhealthy');
-      expect(result.details).toContain('timeout');
+      expect(result.status).toBe("unhealthy");
+      expect(result.details).toContain("timeout");
     });
 
-    it('returns unhealthy when API key is missing', async () => {
+    it("returns unhealthy when API key is missing", async () => {
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
-        details: 'CoinMarketCap API key not configured',
+        status: "unhealthy",
+        details: "CoinMarketCap API key not configured",
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe('unhealthy');
-      expect(result.details).toContain('API key');
+      expect(result.status).toBe("unhealthy");
+      expect(result.details).toContain("API key");
     });
 
-    it('returns unhealthy when data is stale (>24h)', async () => {
+    it("returns unhealthy when data is stale (>24h)", async () => {
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
-        details: 'Sentiment data is stale (26 hours old)',
+        status: "unhealthy",
+        details: "Sentiment data is stale (26 hours old)",
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe('unhealthy');
-      expect(result.details).toContain('stale');
-      expect(result.details).toContain('26 hours');
+      expect(result.status).toBe("unhealthy");
+      expect(result.details).toContain("stale");
+      expect(result.details).toContain("26 hours");
     });
 
-    it('includes detailed error message in health check', async () => {
+    it("includes detailed error message in health check", async () => {
       mockFetcher.healthCheck.mockResolvedValue({
-        status: 'unhealthy',
-        details: 'CoinMarketCap API error (code 1001): Invalid API Key',
+        status: "unhealthy",
+        details: "CoinMarketCap API error (code 1001): Invalid API Key",
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe('unhealthy');
-      expect(result.details).toContain('code 1001');
-      expect(result.details).toContain('Invalid API Key');
+      expect(result.status).toBe("unhealthy");
+      expect(result.details).toContain("code 1001");
+      expect(result.details).toContain("Invalid API Key");
     });
   });
 
-  describe('Stats Retrieval', () => {
-    it('aggregates stats from fetcher', () => {
+  describe("Stats Retrieval", () => {
+    it("aggregates stats from fetcher", () => {
       mockFetcher.getRequestStats.mockReturnValue({
         requestCount: 42,
         lastRequestTime: Date.now(),
@@ -886,7 +904,7 @@ describe('Sentiment Pipeline Integration Tests', () => {
       });
     });
 
-    it('handles zero request count', () => {
+    it("handles zero request count", () => {
       mockFetcher.getRequestStats.mockReturnValue({
         requestCount: 0,
         lastRequestTime: null,

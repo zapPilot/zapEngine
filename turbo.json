@@ -170,7 +170,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "scripts/audit_sql_params.py",
+        "scripts/quality/audit_sql_params.py",
         "!**/*.md"
       ],
       "outputs": []
@@ -179,7 +179,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**",
-        "scripts/check_service_reachability.py",
+        "scripts/quality/check_service_reachability.py",
         "!**/*.md"
       ],
       "outputs": []

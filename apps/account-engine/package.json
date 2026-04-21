@@ -55,6 +55,6 @@
     "vitest": "^4.1.4"
   },
   "engines": {
-    "node": 23.x
+    "node": "23.x"
   }
 }
