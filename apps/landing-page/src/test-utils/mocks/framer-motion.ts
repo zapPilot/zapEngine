@@ -1,5 +1,6 @@
 import React from 'react';
 import { vi } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest';
 
 type MotionProps = Record<string, unknown>;
 
@@ -93,6 +94,52 @@ const MOTION_ELEMENTS = [
 
 type MotionComponentProps = MotionProps & { children?: React.ReactNode };
 
+// Type for motion component
+interface MotionComponent {
+  (props: MotionComponentProps & { ref?: React.Ref<HTMLElement> }): React.ReactElement | null;
+  displayName?: string;
+}
+
+// Type for animation controls
+interface AnimationControls {
+  start: MockedFunction<() => Promise<undefined>>;
+  stop: Mock;
+  set: Mock;
+}
+
+// Type for motion value
+interface MotionValue<T> {
+  get: () => T;
+  set: Mock;
+  onChange: MockedFunction<() => () => void>;
+  on: MockedFunction<() => () => void>;
+}
+
+// Type for scroll values
+interface ScrollValue {
+  get: () => number;
+  set: Mock;
+}
+
+// Type for framer motion mock return
+interface FramerMotionMock {
+  motion: Record<(typeof MOTION_ELEMENTS)[number], MotionComponent>;
+  AnimatePresence: (props: { children?: React.ReactNode }) => React.ReactElement | null;
+  useAnimation: () => AnimationControls;
+  useInView: () => boolean;
+  useMotionValue: <T>(initial: T) => MotionValue<T>;
+  useTransform: <T>(value: T, _input?: unknown, _output?: unknown) => T;
+  useSpring: <T>(initial: T) => MotionValue<T>;
+  useScroll: () => {
+    scrollX: ScrollValue;
+    scrollY: ScrollValue;
+    scrollXProgress: ScrollValue;
+    scrollYProgress: ScrollValue;
+  };
+  useReducedMotion: () => boolean;
+  stagger: () => number;
+}
+
 function createMotionComponent(element: string) {
   const MotionComponent = React.forwardRef<HTMLElement, MotionComponentProps>((props, ref) => {
     const { children, ...rest } = props;
@@ -103,17 +150,17 @@ function createMotionComponent(element: string) {
   return MotionComponent;
 }
 
-export function createFramerMotionMock() {
+export function createFramerMotionMock(): FramerMotionMock {
   const motion = Object.fromEntries(
     MOTION_ELEMENTS.map(tag => [tag, createMotionComponent(tag)])
-  ) as Record<(typeof MOTION_ELEMENTS)[number], ReturnType<typeof createMotionComponent>>;
+  ) as unknown as Record<(typeof MOTION_ELEMENTS)[number], MotionComponent>;
 
   return {
     motion,
     AnimatePresence: ({ children }: { children?: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     useAnimation: () => ({
-      start: vi.fn().mockResolvedValue(undefined),
+      start: vi.fn().mockResolvedValue(undefined) as MockedFunction<() => Promise<undefined>>,
       stop: vi.fn(),
       set: vi.fn(),
     }),
@@ -121,14 +168,15 @@ export function createFramerMotionMock() {
     useMotionValue: <T>(initial: T) => ({
       get: () => initial,
       set: vi.fn(),
-      onChange: vi.fn(() => () => {}),
-      on: vi.fn(() => () => {}),
+      onChange: vi.fn(() => () => {}) as MockedFunction<() => () => void>,
+      on: vi.fn(() => () => {}) as MockedFunction<() => () => void>,
     }),
     useTransform: <T>(value: T, _input?: unknown, _output?: unknown) => value,
     useSpring: <T>(initial: T) => ({
       get: () => initial,
       set: vi.fn(),
-      onChange: vi.fn(() => () => {}),
+      onChange: vi.fn(() => () => {}) as MockedFunction<() => () => void>,
+      on: vi.fn(() => () => {}) as MockedFunction<() => () => void>,
     }),
     useScroll: () => ({
       scrollX: { get: () => 0, set: vi.fn() },

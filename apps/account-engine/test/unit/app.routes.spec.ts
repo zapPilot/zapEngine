@@ -49,7 +49,7 @@ function createServices(): AppServices {
       },
     },
     activityTracker: {
-      trackRequest: vi.fn(),
+      trackUserId: vi.fn(),
       cleanupCache: vi.fn(),
     },
     usersService: {
@@ -129,7 +129,24 @@ describe('Hono app routes', () => {
     expect(services.usersService.connectWallet).toHaveBeenCalledWith(
       '0x1234567890abcdef1234567890abcdef12345678',
     );
-    expect(services.activityTracker.trackRequest).toHaveBeenCalled();
+    // /connect-wallet is intentionally excluded from activity tracking —
+    // there's no userId yet and the middleware's UUID regex constraint
+    // prevents it from matching `/users/connect-wallet`.
+    expect(services.activityTracker.trackUserId).not.toHaveBeenCalled();
+  });
+
+  it('tracks user activity on userId-scoped routes', async () => {
+    const services = createServices();
+    services.usersService.getUserProfile = vi
+      .fn()
+      .mockResolvedValue({ user: { id: 'stub' }, wallets: [] });
+    const app = createApp(services);
+
+    const userId = '123e4567-e89b-12d3-a456-426614174000';
+    const response = await app.request(`http://localhost/users/${userId}`);
+
+    expect(response.status).toBe(200);
+    expect(services.activityTracker.trackUserId).toHaveBeenCalledWith(userId);
   });
 
   it('returns 429 when wallet fetch is rate limited', async () => {

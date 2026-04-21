@@ -67,7 +67,7 @@ export function getFeatures(): Feature[] {
 
   return MESSAGES.features.items.map((item, index) => ({
     ...item,
-    ...FEATURE_VISUALS[index],
+    ...FEATURE_VISUALS[index]!,
   }));
 }
 

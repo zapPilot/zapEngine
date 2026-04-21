@@ -21,7 +21,7 @@ describe('App e2e', () => {
           },
         },
       },
-      activityTracker: { trackRequest: vi.fn(), cleanupCache: vi.fn() },
+      activityTracker: { trackUserId: vi.fn(), cleanupCache: vi.fn() },
       usersService: {},
       jobQueueService: {
         getJobWithAggregatedStatus: vi.fn(),

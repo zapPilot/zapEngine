@@ -43,8 +43,8 @@ describe('SupabaseUserService', () => {
 
       const result = await service.getUsersWithAllWallets();
       expect(result).toHaveLength(1);
-      expect(result[0].user.email).toBe('a@b.com');
-      expect(result[0].wallets).toEqual(['0xabc']);
+      expect(result[0]?.user.email).toBe('a@b.com');
+      expect(result[0]?.wallets).toEqual(['0xabc']);
     });
 
     it('returns empty when no users match', async () => {
@@ -129,7 +129,7 @@ describe('SupabaseUserService', () => {
       const result = await service.getBalanceHistory('u-1');
       expect(result).toHaveLength(2);
       // Should be sorted newest first
-      expect(result[0].usd_value).toBe(1100);
+      expect(result[0]?.usd_value).toBe(1100);
     });
 
     it('returns empty array when portfolio not found', async () => {
@@ -184,7 +184,7 @@ describe('SupabaseUserService', () => {
 
       const result = await service.getEmailSubscriptions();
       expect(result).toHaveLength(1);
-      expect(result[0].email).toBe('a@b.com');
+      expect(result[0]?.email).toBe('a@b.com');
     });
   });
 });

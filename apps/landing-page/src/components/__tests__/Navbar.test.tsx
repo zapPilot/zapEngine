@@ -59,7 +59,7 @@ describe('Navbar', () => {
       render(<Navbar />);
 
       const buttons = screen.getAllByRole('button', { name: /Launch App/i });
-      fireEvent.click(buttons[0]);
+      fireEvent.click(buttons[0]!);
 
       expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
     });
@@ -90,7 +90,7 @@ describe('Navbar', () => {
       // Click a navigation link
       const links = screen.getAllByRole('link', { name: NAVIGATION.internal[0].label });
       // Click the mobile version (second one in DOM)
-      fireEvent.click(links[links.length - 1]);
+      fireEvent.click(links[links.length - 1]!);
 
       // The menu close is handled by state, and AnimatePresence handles exit
       // We just verify the click handler was attached
@@ -107,7 +107,7 @@ describe('Navbar', () => {
       // Get all Launch App buttons and click the mobile one (usually the second)
       const buttons = screen.getAllByRole('button', { name: /Launch App/i });
       // The mobile button is inside the AnimatePresence, click the last one
-      fireEvent.click(buttons[buttons.length - 1]);
+      fireEvent.click(buttons[buttons.length - 1]!);
 
       expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
     });

@@ -211,9 +211,11 @@ export class AnalyticsClientService {
   private resolveWeeklyPnLPercentage(
     portfolioData: PortfolioResponse,
   ): number | undefined {
-    const roi7d = portfolioData.portfolio_roi.windows.roi_7d as
-      | ROIData
-      | undefined;
+    const windows = portfolioData.portfolio_roi.windows as Record<
+      string,
+      unknown
+    >;
+    const roi7d = windows['roi_7d'] as ROIData | undefined;
 
     if (this.isFiniteNumber(roi7d?.value)) {
       return roi7d.value;
@@ -264,131 +266,145 @@ export class AnalyticsClientService {
     payload: unknown,
   ): DailySuggestionData {
     const root = this.getRecord(payload, 'root');
-    const action = this.getRecord(root.action, 'action');
-    const context = this.getRecord(root.context, 'context');
-    const market = this.getRecord(context.market, 'context.market');
-    const signal = this.getRecord(context.signal, 'context.signal');
-    const portfolio = this.getRecord(context.portfolio, 'context.portfolio');
-    const target = this.getRecord(context.target, 'context.target');
-    const strategy = this.getRecord(context.strategy, 'context.strategy');
+    const action = this.getRecord(root['action'], 'action');
+    const context = this.getRecord(root['context'], 'context');
+    const market = this.getRecord(context['market'], 'context["market"]');
+    const signal = this.getRecord(context['signal'], 'context["signal"]');
+    const portfolio = this.getRecord(
+      context['portfolio'],
+      'context["portfolio"]',
+    );
+    const target = this.getRecord(context['target'], 'context["target"]');
+    const strategy = this.getRecord(context['strategy'], 'context["strategy"]');
 
     return {
-      as_of: this.getString(root.as_of, 'as_of'),
-      config_id: this.getString(root.config_id, 'config_id'),
+      as_of: this.getString(root['as_of'], 'as_of'),
+      config_id: this.getString(root['config_id'], 'config_id'),
       config_display_name: this.getString(
-        root.config_display_name,
+        root['config_display_name'],
         'config_display_name',
       ),
-      strategy_id: this.getString(root.strategy_id, 'strategy_id'),
+      strategy_id: this.getString(root['strategy_id'], 'strategy_id'),
       action: {
-        status: this.getActionStatus(action.status, 'action.status'),
-        required: this.getBoolean(action.required, 'action.required'),
+        status: this.getActionStatus(action['status'], 'action["status"]'),
+        required: this.getBoolean(action['required'], 'action["required"]'),
         kind:
-          action.kind === undefined
+          action['kind'] === undefined
             ? null
-            : this.getNullableActionKind(action.kind, 'action.kind'),
-        reason_code: this.getString(action.reason_code, 'action.reason_code'),
-        transfers: this.getTransfers(action.transfers, 'action.transfers'),
+            : this.getNullableActionKind(action['kind'], 'action["kind"]'),
+        reason_code: this.getString(
+          action['reason_code'],
+          'action["reason_code"]',
+        ),
+        transfers: this.getTransfers(
+          action['transfers'],
+          'action["transfers"]',
+        ),
       },
       context: {
         market: {
-          ...(typeof market.date === 'string' ? { date: market.date } : {}),
-          sentiment: this.getNullableNumber(
-            market.sentiment,
-            'context.market.sentiment',
-          ),
-          ...(typeof market.sentiment_label === 'string' ||
-          market.sentiment_label === null
-            ? { sentiment_label: market.sentiment_label ?? null }
+          ...(typeof market['date'] === 'string'
+            ? { date: market['date'] }
             : {}),
-          ...(market.token_price !== undefined
+          sentiment: this.getNullableNumber(
+            market['sentiment'],
+            'context["market"]["sentiment"]',
+          ),
+          ...(typeof market['sentiment_label'] === 'string' ||
+          market['sentiment_label'] === null
+            ? { sentiment_label: market['sentiment_label'] ?? null }
+            : {}),
+          ...(market['token_price'] !== undefined
             ? {
                 token_price: this.getNullableNumericRecord(
-                  market.token_price,
-                  'context.market.token_price',
+                  market['token_price'],
+                  'context["market"]["token_price"]',
                 ),
               }
             : {}),
         },
         signal: {
-          ...(typeof signal.id === 'string' ? { id: signal.id } : {}),
-          regime: this.getString(signal.regime, 'context.signal.regime'),
-          ...(signal.raw_value === undefined
+          ...(typeof signal['id'] === 'string' ? { id: signal['id'] } : {}),
+          regime: this.getString(
+            signal['regime'],
+            'context["signal"]["regime"]',
+          ),
+          ...(signal['raw_value'] === undefined
             ? {}
             : {
                 raw_value: this.getNullableNumber(
-                  signal.raw_value,
-                  'context.signal.raw_value',
+                  signal['raw_value'],
+                  'context["signal"]["raw_value"]',
                 ),
               }),
-          ...(signal.confidence === undefined
+          ...(signal['confidence'] === undefined
             ? {}
             : {
                 confidence: this.getNullableNumber(
-                  signal.confidence,
-                  'context.signal.confidence',
+                  signal['confidence'],
+                  'context["signal"]["confidence"]',
                 ),
               }),
-          details: this.getNullableRecord(signal.details),
+          details: this.getNullableRecord(signal['details']),
         },
         portfolio: {
           total_value: this.getNumber(
-            portfolio.total_value,
-            'context.portfolio.total_value',
+            portfolio['total_value'],
+            'context["portfolio"]["total_value"]',
           ),
-          ...(portfolio.total_assets_usd === undefined
+          ...(portfolio['total_assets_usd'] === undefined
             ? {}
             : {
                 total_assets_usd: this.getNumber(
-                  portfolio.total_assets_usd,
-                  'context.portfolio.total_assets_usd',
+                  portfolio['total_assets_usd'],
+                  'context["portfolio"]["total_assets_usd"]',
                 ),
               }),
-          ...(portfolio.total_debt_usd === undefined
+          ...(portfolio['total_debt_usd'] === undefined
             ? {}
             : {
                 total_debt_usd: this.getNumber(
-                  portfolio.total_debt_usd,
-                  'context.portfolio.total_debt_usd',
+                  portfolio['total_debt_usd'],
+                  'context["portfolio"]["total_debt_usd"]',
                 ),
               }),
-          ...(portfolio.total_net_usd === undefined
+          ...(portfolio['total_net_usd'] === undefined
             ? {}
             : {
                 total_net_usd: this.getNumber(
-                  portfolio.total_net_usd,
-                  'context.portfolio.total_net_usd',
+                  portfolio['total_net_usd'],
+                  'context["portfolio"]["total_net_usd"]',
                 ),
               }),
           asset_allocation: this.getNumericRecord(
-            portfolio.asset_allocation,
-            'context.portfolio.asset_allocation',
+            portfolio['asset_allocation'],
+            'context["portfolio"]["asset_allocation"]',
           ),
         },
         target: {
           allocation: this.getNumericRecord(
-            target.allocation,
-            'context.target.allocation',
+            target['allocation'],
+            'context["target"]["allocation"]',
           ),
           asset_allocation: this.getNumericRecord(
-            target.asset_allocation,
-            'context.target.asset_allocation',
+            target['asset_allocation'],
+            'context["target"]["asset_allocation"]',
           ),
         },
         strategy: {
           stance: this.getStrategyStance(
-            strategy.stance,
-            'context.strategy.stance',
+            strategy['stance'],
+            'context["strategy"]["stance"]',
           ),
           reason_code: this.getString(
-            strategy.reason_code,
-            'context.strategy.reason_code',
+            strategy['reason_code'],
+            'context["strategy"]["reason_code"]',
           ),
-          ...(typeof strategy.rule_group === 'string' ||
-          strategy.rule_group === null
-            ? { rule_group: strategy.rule_group ?? null }
+          ...(typeof strategy['rule_group'] === 'string' ||
+          strategy['rule_group'] === null
+            ? { rule_group: strategy['rule_group'] ?? null }
             : {}),
-          details: this.getNullableRecord(strategy.details),
+          details: this.getNullableRecord(strategy['details']),
         },
       },
     };
@@ -575,16 +591,16 @@ export class AnalyticsClientService {
 
       return {
         from_bucket: this.getString(
-          transfer.from_bucket,
-          `${fieldPath}.${index}.from_bucket`,
+          transfer['from_bucket'],
+          `${fieldPath}.${index}["from_bucket"]`,
         ),
         to_bucket: this.getString(
-          transfer.to_bucket,
-          `${fieldPath}.${index}.to_bucket`,
+          transfer['to_bucket'],
+          `${fieldPath}.${index}["to_bucket"]`,
         ),
         amount_usd: this.getNumber(
-          transfer.amount_usd,
-          `${fieldPath}.${index}.amount_usd`,
+          transfer['amount_usd'],
+          `${fieldPath}.${index}["amount_usd"]`,
         ),
       };
     });

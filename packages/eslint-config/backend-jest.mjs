@@ -67,7 +67,7 @@ export function createBackendJestConfig(options) {
           ...globals.node,
           ...globals.jest,
         },
-        sourceType: 'commonjs',
+        sourceType: 'module',
         parserOptions: {
           projectService: true,
           tsconfigRootDir,

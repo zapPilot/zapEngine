@@ -74,7 +74,11 @@ export class ChartService {
         .substring(5, dateValue.length - 1)
         .split(',')
         .map(Number);
-      date = new Date(dateComponents[0], dateComponents[1], dateComponents[2]);
+      date = new Date(
+        dateComponents[0] ?? 0,
+        dateComponents[1] ?? 0,
+        dateComponents[2] ?? 0,
+      );
     } else if (dateValue instanceof Date) {
       date = new Date(dateValue.getTime());
     } else if (typeof dateValue === 'number' || typeof dateValue === 'string') {
@@ -180,9 +184,13 @@ export class ChartService {
 
     // Format labels and prepare values
     const labels = sampledData.map((item) =>
-      this.formatDateLabel(item[xField]),
+      this.formatDateLabel(
+        (item as unknown as Record<string, unknown>)[xField],
+      ),
     );
-    const values = sampledData.map((item) => Number(item[yField]));
+    const values = sampledData.map((item) =>
+      Number((item as unknown as Record<string, unknown>)[yField]),
+    );
 
     // Build chart configuration (convert 'column' to 'bar' for Chart.js)
     const chartJsType = chartType === 'line' ? 'line' : 'bar';

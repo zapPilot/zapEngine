@@ -39,8 +39,11 @@ registry_path = repo_root / ".github/fly-apps.json"
 ci = yaml.safe_load(ci_path.read_text())
 registry = json.loads(registry_path.read_text())
 
-# PyYAML parses unquoted `on:` as boolean True in YAML 1.1 mode.
-# This is a well-known gotcha; handle both cases.
+# PyYAML parses unquoted `on:` as boolean True in YAML 1.1 mode, so `ci["on"]`
+# may be a KeyError while `ci[True]` holds the real value. See
+# https://github.com/yaml/pyyaml/issues/376 for the long story. Handle both
+# cases so this script works across PyYAML versions and if GitHub ever
+# normalizes the key.
 on_block = ci.get("on") if isinstance(ci.get("on"), dict) else ci.get(True)
 if not on_block:
     sys.exit("error: could not locate 'on' section in ci.yml")

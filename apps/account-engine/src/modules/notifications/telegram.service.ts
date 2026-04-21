@@ -610,7 +610,9 @@ export class TelegramService {
       .replaceAll(/[_-]+/g, ' ')
       .split(' ')
       .filter((part) => part.length > 0)
-      .map((part) => part[0].toUpperCase() + part.slice(1).toLowerCase())
+      .map(
+        (part) => (part[0] ?? '').toUpperCase() + part.slice(1).toLowerCase(),
+      )
       .join(' ');
   }
 
@@ -620,15 +622,13 @@ export class TelegramService {
       return mappedLabel;
     }
 
-    const normalized = reasonCode
-      .replaceAll(/[_-]+/g, ' ')
-      .trim()
-      .toLowerCase();
+    const normalized =
+      reasonCode?.replaceAll(/[_-]+/g, ' ')?.trim()?.toLowerCase() || '';
     if (!normalized) {
       return 'No additional context.';
     }
 
-    return normalized[0].toUpperCase() + normalized.slice(1) + '.';
+    return (normalized[0] ?? '').toUpperCase() + normalized.slice(1) + '.';
   }
 
   private formatDailySuggestionPortfolioSummary(

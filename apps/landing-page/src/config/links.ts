@@ -1,7 +1,7 @@
 // Centralized configuration for all external and internal links
 export const LINKS = {
   // Main application
-  app: process.env.NEXT_PUBLIC_APP_URL || 'https://app.zap-pilot.org',
+  app: process.env['NEXT_PUBLIC_APP_URL'] || 'https://app.zap-pilot.org',
 
   // Documentation and resources
   documentation: 'https://docs.zap-pilot.org/',
@@ -56,9 +56,9 @@ export const LINKS = {
 
   // Analytics and tracking (for internal use)
   analytics: {
-    mixpanel: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN,
-    googleAnalytics: process.env.NEXT_PUBLIC_GA_ID,
-    hotjar: process.env.NEXT_PUBLIC_HOTJAR_ID,
+    mixpanel: process.env['NEXT_PUBLIC_MIXPANEL_TOKEN'],
+    googleAnalytics: process.env['NEXT_PUBLIC_GA_ID'],
+    hotjar: process.env['NEXT_PUBLIC_HOTJAR_ID'],
   },
 } as const;
 

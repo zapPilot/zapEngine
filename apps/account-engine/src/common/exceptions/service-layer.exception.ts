@@ -5,8 +5,8 @@ import { AppError, HttpStatus } from '@common/http';
  * Preserves the original error for debugging while providing user-friendly messages.
  */
 export class ServiceLayerException extends AppError {
-  public readonly cause?: Error;
-  public readonly statusCode: HttpStatus;
+  public override readonly cause?: Error;
+  public override readonly statusCode: HttpStatus;
 
   /**
    * @param message A user-friendly message that can be sent in the response

@@ -8,5 +8,6 @@
     "moduleResolution": "Bundler",
     "isolatedModules": true,
     "noEmit": true
-  }
+  },
+  "_comment": "Uses ESNext/Bundler instead of NodeNext for Vite/Next.js bundler compatibility"
 }

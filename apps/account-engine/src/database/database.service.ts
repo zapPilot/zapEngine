@@ -5,7 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);
-  private supabaseClient: SupabaseClient<Database>;
+  private supabaseClient!: SupabaseClient<Database>;
   private serviceRoleClient?: SupabaseClient<Database>;
 
   /* istanbul ignore next -- DI constructor */

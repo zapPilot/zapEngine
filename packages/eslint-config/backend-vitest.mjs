@@ -67,7 +67,7 @@ export function createBackendVitestConfig(options) {
           ...globals.node,
           ...globals.vitest,
         },
-        sourceType: 'commonjs',
+        sourceType: 'module',
         parserOptions: {
           projectService: true,
           tsconfigRootDir,

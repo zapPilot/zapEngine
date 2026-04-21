@@ -71,7 +71,6 @@ jobs:
     outputs:
       fly_matrix: ${{ steps.resolve.outputs.fly_matrix }}
       fly_verify_matrix: ${{ steps.resolve.outputs.fly_verify_matrix }}
-      frontend: ${{ steps.resolve.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
         with:

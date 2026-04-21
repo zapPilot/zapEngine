@@ -259,7 +259,11 @@ ${this.buildEmailFooter()}
 
     // Try common user ID field names
     const userId =
-      payload.userId ?? payload.user_id ?? payload.id ?? payload.user ?? null;
+      payload['userId'] ??
+      payload['user_id'] ??
+      payload['id'] ??
+      payload['user'] ??
+      null;
     return typeof userId === 'string' ? userId : null;
   }
 

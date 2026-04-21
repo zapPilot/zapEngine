@@ -240,7 +240,7 @@ describe('AnalyticsClientService', () => {
       const result = await service.getPortfolioTrendData('user-1');
       expect(result).toEqual(mockData);
       // params should include days=365
-      const calledUrl = (global.fetch as Mock).mock.calls[0][0];
+      const calledUrl = (global.fetch as Mock).mock.calls[0]?.[0];
       expect(calledUrl).toContain('days=365');
     });
   });
@@ -529,7 +529,7 @@ describe('AnalyticsClientService', () => {
         },
       });
       const result = await service.getDailySuggestion('user-1');
-      expect(result.action.transfers[0].from_bucket).toBe('btc');
+      expect(result.action.transfers?.[0]?.from_bucket).toBe('btc');
     });
 
     it('returns non-null details object via getNullableRecord', async () => {

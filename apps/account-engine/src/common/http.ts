@@ -15,7 +15,7 @@ export enum HttpStatus {
 }
 
 export class AppError extends Error {
-  public readonly cause?: Error;
+  public override readonly cause?: Error;
   public readonly statusCode: number;
 
   constructor(

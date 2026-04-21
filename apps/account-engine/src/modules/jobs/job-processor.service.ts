@@ -269,7 +269,7 @@ export class JobProcessorService {
       return;
     }
 
-    if (result.metadata?.batchStatus === 'processing') {
+    if (result.metadata?.['batchStatus'] === 'processing') {
       this.jobQueueService.logJobEvent(
         jobId,
         LogLevel.INFO,

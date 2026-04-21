@@ -17,8 +17,8 @@ describe('Logger', () => {
       const logger = new Logger('Test');
       logger.log('hello');
       expect(infoSpy).toHaveBeenCalledTimes(1);
-      expect(infoSpy.mock.calls[0][0]).toContain('INFO');
-      expect(infoSpy.mock.calls[0][0]).toContain('hello');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('INFO');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('hello');
     });
   });
 
@@ -27,7 +27,7 @@ describe('Logger', () => {
       const logger = new Logger('Test');
       logger.debug('debug msg');
       expect(infoSpy).toHaveBeenCalledTimes(1);
-      expect(infoSpy.mock.calls[0][0]).toContain('DEBUG');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('DEBUG');
     });
   });
 
@@ -36,7 +36,7 @@ describe('Logger', () => {
       const logger = new Logger('Test');
       logger.warn('warning');
       expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(warnSpy.mock.calls[0][0]).toContain('WARN');
+      expect(warnSpy.mock.calls[0]?.[0]).toContain('WARN');
     });
   });
 
@@ -45,7 +45,7 @@ describe('Logger', () => {
       const logger = new Logger('Test');
       logger.error('oops');
       expect(errorSpy).toHaveBeenCalledTimes(1);
-      expect(errorSpy.mock.calls[0][0]).toContain('ERROR');
+      expect(errorSpy.mock.calls[0]?.[0]).toContain('ERROR');
     });
   });
 
@@ -53,13 +53,13 @@ describe('Logger', () => {
     it('includes the scope in square brackets', () => {
       const logger = new Logger('MyScope');
       logger.log('msg');
-      expect(infoSpy.mock.calls[0][0]).toContain('[MyScope]');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('[MyScope]');
     });
 
     it('omits brackets for an empty scope', () => {
       const logger = new Logger('');
       logger.log('msg');
-      const line: string = infoSpy.mock.calls[0][0];
+      const line: string = infoSpy.mock.calls[0]?.[0];
       expect(line).not.toContain('[');
     });
   });
@@ -68,14 +68,14 @@ describe('Logger', () => {
     it('serializes a string meta entry verbatim', () => {
       const logger = new Logger('Test');
       logger.log('msg', 'extra info');
-      expect(infoSpy.mock.calls[0][0]).toContain('extra info');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('extra info');
     });
 
     it('serializes an Error meta entry as its stack trace', () => {
       const logger = new Logger('Test');
       const err = new Error('test error');
       logger.log('msg', err);
-      const line: string = infoSpy.mock.calls[0][0];
+      const line: string = infoSpy.mock.calls[0]?.[0];
       // The stack contains the error message
       expect(line).toContain('test error');
     });
@@ -83,7 +83,7 @@ describe('Logger', () => {
     it('serializes a plain object meta entry as JSON', () => {
       const logger = new Logger('Test');
       logger.log('msg', { key: 'value' });
-      expect(infoSpy.mock.calls[0][0]).toContain('"key":"value"');
+      expect(infoSpy.mock.calls[0]?.[0]).toContain('"key":"value"');
     });
   });
 
@@ -91,7 +91,7 @@ describe('Logger', () => {
     it('includes an ISO 8601 timestamp', () => {
       const logger = new Logger('Test');
       logger.log('msg');
-      const line: string = infoSpy.mock.calls[0][0];
+      const line: string = infoSpy.mock.calls[0]?.[0];
       expect(line).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
   });

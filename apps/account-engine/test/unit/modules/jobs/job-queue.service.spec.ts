@@ -52,7 +52,7 @@ describe('JobQueueService', () => {
         payload: {},
         metadata: { tag: 'test' },
       });
-      expect(job.metadata?.tag).toBe('test');
+      expect(job.metadata?.['tag']).toBe('test');
       service.stop();
     });
   });
@@ -225,8 +225,8 @@ describe('JobQueueService', () => {
       const updated = service.updateJobMetadata(job.id, {
         childJobIds: ['c-1'],
       });
-      expect(updated.metadata?.existing).toBe(true);
-      expect(updated.metadata?.childJobIds).toEqual(['c-1']);
+      expect(updated.metadata?.['existing']).toBe(true);
+      expect(updated.metadata?.['childJobIds']).toEqual(['c-1']);
       service.stop();
     });
   });
@@ -413,7 +413,7 @@ describe('JobQueueService', () => {
       service.completeJob(j1.id);
       const result = service.queryJobs({ status: [JobStatus.COMPLETED] });
       expect(result.length).toBe(1);
-      expect(result[0].status).toBe(JobStatus.COMPLETED);
+      expect(result[0]?.status).toBe(JobStatus.COMPLETED);
       service.stop();
     });
 
@@ -445,7 +445,7 @@ describe('JobQueueService', () => {
       });
       const result = service.queryJobs({ priority: { min: 3, max: 8 } });
       expect(result.length).toBe(1);
-      expect(result[0].priority).toBe(5);
+      expect(result[0]?.priority).toBe(5);
       service.stop();
     });
 
@@ -495,7 +495,7 @@ describe('JobQueueService', () => {
       const page2 = service.queryJobs({ limit: 2, offset: 2 });
       expect(page1.length).toBe(2);
       expect(page2.length).toBe(2);
-      expect(page1[0].id).not.toBe(page2[0].id);
+      expect(page1[0]?.id).not.toBe(page2[0]?.id);
       service.stop();
     });
   });

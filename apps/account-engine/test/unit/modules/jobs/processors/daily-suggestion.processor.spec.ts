@@ -142,7 +142,7 @@ describe('DailySuggestionProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata?.totalUsers).toBe(0);
+      expect(result.metadata?.['totalUsers']).toBe(0);
       expect(jobQueueService.createJob).not.toHaveBeenCalled();
     });
   });
@@ -162,7 +162,7 @@ describe('DailySuggestionProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata?.notificationSent).toBe(true);
+      expect(result.metadata?.['notificationSent']).toBe(true);
       expect(telegramService.sendDailySuggestion).toHaveBeenCalledWith(
         'u-1',
         expect.any(Object),
@@ -191,8 +191,8 @@ describe('DailySuggestionProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata?.notificationSent).toBe(false);
-      expect(result.metadata?.skipped).toBe(true);
+      expect(result.metadata?.['notificationSent']).toBe(false);
+      expect(result.metadata?.['skipped']).toBe(true);
       expect(telegramService.sendDailySuggestion).not.toHaveBeenCalled();
     });
 
@@ -210,7 +210,7 @@ describe('DailySuggestionProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata?.skipped).toBe(true);
+      expect(result.metadata?.['skipped']).toBe(true);
     });
 
     it('returns failure on unexpected error', async () => {

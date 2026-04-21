@@ -43,7 +43,7 @@ export function useKeyboardNavigation<T, E extends HTMLElement = HTMLElement>({
         case ' ':
           event.preventDefault();
           if (focusedIndex >= 0 && focusedIndex < items.length && onSelect) {
-            onSelect(items[focusedIndex], focusedIndex);
+            onSelect(items[focusedIndex]!, focusedIndex);
           }
           break;
 

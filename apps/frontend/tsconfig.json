@@ -1,7 +1,7 @@
 {
   "extends": "@zapengine/tsconfig/react.json",
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "declaration": false,

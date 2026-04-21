@@ -1,5 +1,4 @@
 import { HttpStatus, toErrorResponse } from '@common/http';
-import { createActivityTrackingMiddleware } from '@common/interceptors';
 import { Logger } from '@common/logger';
 import { createRequestLoggerMiddleware } from '@common/middleware';
 import {
@@ -28,10 +27,6 @@ export function createApp(
 
   app.use('*', cors());
   app.use('*', createRequestLoggerMiddleware());
-  app.use(
-    '/users/*',
-    createActivityTrackingMiddleware(services.activityTracker),
-  );
 
   app.route('/health', createHealthRoutes(releaseEnv));
   app.route('/users', createUsersRoutes(services));

@@ -54,23 +54,23 @@ function getLatestBotMock(): MockBot {
 
   const latestResult =
     mockTelegraf.mock.results[mockTelegraf.mock.results.length - 1];
-  return latestResult.value;
+  return latestResult?.value;
 }
 
 function getStartCallback(): (ctx: unknown) => Promise<void> {
-  return getLatestBotMock().start.mock.calls[0][0];
+  return getLatestBotMock().start.mock.calls[0]?.[0];
 }
 
 function getStopCallback(): (ctx: unknown) => Promise<void> {
-  return getLatestBotMock().command.mock.calls[0][1];
+  return getLatestBotMock().command.mock.calls[0]?.[1];
 }
 
 function getHelpCallback(): (ctx: unknown) => Promise<void> {
-  return getLatestBotMock().help.mock.calls[0][0];
+  return getLatestBotMock().help.mock.calls[0]?.[0];
 }
 
 function getCallbackHandler(): (ctx: unknown) => Promise<void> {
-  return getLatestBotMock().on.mock.calls[0][1];
+  return getLatestBotMock().on.mock.calls[0]?.[1];
 }
 
 function createMocks(env: Record<string, string> = {}) {
@@ -109,17 +109,17 @@ describe('TelegramService', () => {
   describe('start / stop', () => {
     it('starts in webhook mode for non-development', () => {
       const { service } = createMocks({ NODE_ENV: 'production' });
-      service.start(); // should not throw
+      expect(() => service.start()).not.toThrow();
     });
 
     it('stops gracefully', async () => {
       const { service } = createMocks();
-      await service.stop();
+      await expect(service.stop()).resolves.toBeUndefined();
     });
 
     it('stops gracefully when bot is null', async () => {
       const { service } = createMocks({ TELEGRAM_BOT_TOKEN: '' });
-      await service.stop();
+      await expect(service.stop()).resolves.toBeUndefined();
     });
   });
 
@@ -159,13 +159,13 @@ describe('TelegramService', () => {
     it('does nothing when bot is not configured', async () => {
       const { service } = createMocks({ TELEGRAM_BOT_TOKEN: '' });
 
-      await service.sendDriftAlert('user-1', {
-        drift_percentage: 10,
-        wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-        recommendations: [],
-      });
-
-      // No error thrown
+      await expect(
+        service.sendDriftAlert('user-1', {
+          drift_percentage: 10,
+          wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
+          recommendations: [],
+        }),
+      ).resolves.toBeUndefined();
     });
 
     it('does nothing when no chat_id found', async () => {
@@ -175,11 +175,13 @@ describe('TelegramService', () => {
         error: { code: 'PGRST116' },
       });
 
-      await service.sendDriftAlert('user-1', {
-        drift_percentage: 10,
-        wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-        recommendations: [],
-      });
+      await expect(
+        service.sendDriftAlert('user-1', {
+          drift_percentage: 10,
+          wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
+          recommendations: [],
+        }),
+      ).resolves.toBeUndefined();
     });
   });
 

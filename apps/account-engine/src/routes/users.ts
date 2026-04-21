@@ -1,4 +1,5 @@
 import { HttpStatus, RateLimitException } from '@common/http';
+import { createActivityTrackingMiddleware } from '@common/interceptors';
 import type { AppServices } from '@container';
 import { Hono } from 'hono';
 
@@ -28,6 +29,18 @@ export function createUsersRoutes(services: AppServices) {
     const response = await services.usersService.connectWallet(body.wallet);
     return jsonResponse(c, response, HttpStatus.OK);
   });
+
+  // Activity tracking — mounted on patterns that declare `:userId` so the
+  // middleware's `c.req.param('userId')` resolves correctly. The UUID-shape
+  // regex constraint ensures non-UUID segments (e.g. `/connect-wallet`
+  // above, or future literal routes) do not accidentally match and trigger
+  // a wasted DB call with a malformed `id`.
+  const activityMiddleware = createActivityTrackingMiddleware(
+    services.activityTracker,
+  );
+  const UUID_PATTERN = '[0-9a-fA-F-]{36}';
+  app.use(`/:userId{${UUID_PATTERN}}`, activityMiddleware);
+  app.use(`/:userId{${UUID_PATTERN}}/*`, activityMiddleware);
 
   app.post(
     '/:userId/wallets',

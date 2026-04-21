@@ -17,7 +17,7 @@ const iconMap: Record<string, LucideIcon> = {
 export function HowItWorks() {
   const steps = MESSAGES.howItWorks.steps.map(step => ({
     ...step,
-    icon: iconMap[step.icon],
+    icon: iconMap[step.icon]!,
   }));
 
   const stepMotion = (index: number) =>

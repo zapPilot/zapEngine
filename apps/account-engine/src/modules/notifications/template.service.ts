@@ -195,7 +195,7 @@ export class TemplateService {
       return candidate;
     }
 
-    return addresses.length > 0 ? addresses[0] : 'N/A';
+    return addresses.length > 0 ? (addresses[0] ?? 'N/A') : 'N/A';
   }
 
   private getTrendClass(value: number): 'positive' | 'negative' | 'neutral' {

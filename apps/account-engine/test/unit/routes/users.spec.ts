@@ -16,6 +16,10 @@ const VALID_WALLET_ID = '223e4567-e89b-12d3-a456-426614174001';
 
 function createServices(): AppServices {
   return {
+    activityTracker: {
+      trackUserId: vi.fn(),
+      cleanupCache: vi.fn(),
+    },
     usersService: {
       connectWallet: vi
         .fn()

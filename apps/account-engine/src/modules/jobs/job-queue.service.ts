@@ -270,7 +270,7 @@ export class JobQueueService {
       return null;
     }
 
-    const childJobIds = job.metadata?.childJobIds as string[] | undefined;
+    const childJobIds = job.metadata?.['childJobIds'] as string[] | undefined;
     if (
       !childJobIds ||
       !Array.isArray(childJobIds) ||

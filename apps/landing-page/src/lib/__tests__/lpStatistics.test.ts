@@ -21,15 +21,15 @@ describe('lpStatistics', () => {
       const lpPairsStat = LP_STATISTICS.find(stat => stat.label === 'Active LP Pairs');
 
       expect(lpPairsStat?.icons).toHaveLength(2);
-      expect(lpPairsStat?.icons?.[0].name).toBe('BTC-USDC');
-      expect(lpPairsStat?.icons?.[1].name).toBe('ETH-USDC');
+      expect(lpPairsStat?.icons?.[0]!.name).toBe('BTC-USDC');
+      expect(lpPairsStat?.icons?.[1]!.name).toBe('ETH-USDC');
     });
 
     it('should have correct icon sources', () => {
       const lpPairsStat = LP_STATISTICS.find(stat => stat.label === 'Active LP Pairs');
 
-      expect(lpPairsStat?.icons?.[0].src).toBe('/btc.webp');
-      expect(lpPairsStat?.icons?.[1].src).toBe('/eth.webp');
+      expect(lpPairsStat?.icons?.[0]!.src).toBe('/btc.webp');
+      expect(lpPairsStat?.icons?.[1]!.src).toBe('/eth.webp');
     });
 
     it('should have more stats than CORE_STATS', () => {

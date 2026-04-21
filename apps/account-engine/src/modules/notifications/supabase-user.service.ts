@@ -220,9 +220,9 @@ export class SupabaseUserService extends BaseService {
 
     // V2 API guarantees standardized fields: date (string) and total_value_usd (number)
     return (
-      typeof record.date === 'string' &&
-      record.date.length > 0 &&
-      typeof record.total_value_usd === 'number'
+      typeof record['date'] === 'string' &&
+      record['date'].length > 0 &&
+      typeof record['total_value_usd'] === 'number'
     );
   }
 

@@ -76,7 +76,7 @@ describe('createRequestLoggerMiddleware', () => {
 
     await middleware(c as never, next);
 
-    const line: string = infoSpy.mock.calls[0][0];
+    const line: string = infoSpy.mock.calls[0]?.[0];
     expect(line).toContain('GET');
     expect(line).toContain('/test');
     expect(line).toContain('201');
@@ -89,7 +89,7 @@ describe('createRequestLoggerMiddleware', () => {
 
     await middleware(c as never, next);
 
-    expect(infoSpy.mock.calls[0][0]).toContain('forwarded-client');
+    expect(infoSpy.mock.calls[0]?.[0]).toContain('forwarded-client');
   });
 
   it('falls back to x-real-ip when x-forwarded-for is absent', async () => {
@@ -99,7 +99,7 @@ describe('createRequestLoggerMiddleware', () => {
 
     await middleware(c as never, next);
 
-    expect(infoSpy.mock.calls[0][0]).toContain('real-client');
+    expect(infoSpy.mock.calls[0]?.[0]).toContain('real-client');
   });
 
   it('uses "unknown" when no IP header is present', async () => {
@@ -109,6 +109,6 @@ describe('createRequestLoggerMiddleware', () => {
 
     await middleware(c as never, next);
 
-    expect(infoSpy.mock.calls[0][0]).toContain('unknown');
+    expect(infoSpy.mock.calls[0]?.[0]).toContain('unknown');
   });
 });

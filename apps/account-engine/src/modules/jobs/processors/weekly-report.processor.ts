@@ -128,9 +128,9 @@ export class WeeklyReportProcessor implements JobProcessor {
     job: Job,
   ): Promise<JobProcessingResult> {
     const payload: WeeklyReportJobPayload = {
-      userIds: job.payload.userIds as string[] | undefined,
-      testMode: job.payload.testMode as boolean | undefined,
-      testRecipient: job.payload.testRecipient as string | undefined,
+      userIds: job.payload['userIds'] as string[] | undefined,
+      testMode: job.payload['testMode'] as boolean | undefined,
+      testRecipient: job.payload['testRecipient'] as string | undefined,
     };
 
     // Validate services
@@ -178,9 +178,9 @@ export class WeeklyReportProcessor implements JobProcessor {
     job: Job,
   ): Promise<JobProcessingResult> {
     const payload: SingleUserReportJobPayload = {
-      userId: job.payload.userId as string,
-      testMode: job.payload.testMode as boolean | undefined,
-      testRecipient: job.payload.testRecipient as string | undefined,
+      userId: job.payload['userId'] as string,
+      testMode: job.payload['testMode'] as boolean | undefined,
+      testRecipient: job.payload['testRecipient'] as string | undefined,
     };
 
     try {
@@ -407,6 +407,10 @@ export class WeeklyReportProcessor implements JobProcessor {
     }
 
     const latestPoint = normalizedHistory[0];
+    if (!latestPoint) {
+      return { reason: 'no_valid_balance_history' };
+    }
+
     if (latestPoint.usdValue <= 0) {
       return { reason: 'invalid_latest_balance' };
     }

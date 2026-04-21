@@ -105,7 +105,7 @@ describe('AdminNotificationService', () => {
         createFailedJob({ payload: { userId: 'u-42' } }),
       );
 
-      const html = emailService.sendEmail.mock.calls[0][0].html as string;
+      const html = emailService.sendEmail.mock.calls[0]?.[0].html as string;
       expect(html).toContain('u-42');
     });
 
@@ -116,7 +116,7 @@ describe('AdminNotificationService', () => {
         createFailedJob({ errorMessage: undefined }),
       );
 
-      const html = emailService.sendEmail.mock.calls[0][0].html as string;
+      const html = emailService.sendEmail.mock.calls[0]?.[0].html as string;
       expect(html).toContain('Unknown error');
     });
 

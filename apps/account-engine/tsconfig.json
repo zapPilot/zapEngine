@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./",
-    "target": "ES2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,
@@ -22,11 +21,6 @@
       "@routes/*": ["src/routes/*"],
       "@test-utils": ["test/test-utils/index.ts"]
     },
-    "incremental": true,
-    "strict": false,
-    "strictNullChecks": true,
-    "noUncheckedIndexedAccess": false,
-    "noImplicitOverride": false,
-    "noPropertyAccessFromIndexSignature": false
+    "incremental": true
   }
 }

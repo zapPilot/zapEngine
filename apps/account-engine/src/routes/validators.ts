@@ -14,7 +14,7 @@ function isValidEmail(value: string): boolean {
     return false;
   }
 
-  const [local, domain] = parts;
+  const [local = '', domain = ''] = parts;
   if (local.length === 0 || domain.length < 3) {
     return false;
   }

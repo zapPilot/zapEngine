@@ -65,7 +65,7 @@ export class DailySuggestionProcessor implements JobProcessor {
    */
   private async processBatch(job: Job): Promise<JobProcessingResult> {
     const payload: DailySuggestionBatchPayload = {
-      userIds: job.payload.userIds as string[] | undefined,
+      userIds: job.payload['userIds'] as string[] | undefined,
     };
     let userIds = payload.userIds;
 
@@ -96,7 +96,7 @@ export class DailySuggestionProcessor implements JobProcessor {
    */
   private async processSingle(job: Job): Promise<JobProcessingResult> {
     const payload: DailySuggestionSinglePayload = {
-      userId: job.payload.userId as string,
+      userId: job.payload['userId'] as string,
     };
 
     this.jobQueueService.logJobEvent(

@@ -1,3 +1,5 @@
+import type { Mock } from 'vitest';
+
 /**
  * Window property mocking utilities for tests
  * Provides consistent, type-safe helpers for mocking window properties
@@ -30,9 +32,33 @@ export interface InnerWidthController {
 }
 
 /**
+ * Mock MediaQueryList object
+ */
+export interface MockMediaQueryList {
+  matches: boolean;
+  media: string;
+  onchange: null;
+  addListener: Mock;
+  removeListener: Mock;
+  addEventListener: Mock;
+  removeEventListener: Mock;
+  dispatchEvent: Mock;
+}
+
+/**
+ * Window property mocking utilities interface
+ */
+export interface WindowMockSetup {
+  open: () => Mock<(...args: unknown[]) => void>;
+  scrollY: (initialValue?: number) => ScrollYController;
+  innerWidth: (initialValue?: number) => InnerWidthController;
+  matchMedia: (query: string, matches?: boolean) => Mock<(q: string) => MockMediaQueryList>;
+}
+
+/**
  * Window property mocking utilities
  */
-export const setupWindowMock = {
+export const setupWindowMock: WindowMockSetup = {
   /**
    * Mock window.open for testing external link navigation
    * @returns Mock function that can be inspected with Vitest matchers
@@ -115,17 +141,19 @@ export const setupWindowMock = {
    * setupWindowMock.matchMedia('(max-width: 768px)', true);
    * // Now media queries will return matches: true
    */
-  matchMedia: (query: string, matches = false) => {
-    const mockMatchMedia = vi.fn().mockImplementation((q: string) => ({
-      matches: q === query ? matches : false,
-      media: q,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
+  matchMedia: (query: string, matches = false): Mock<(q: string) => MockMediaQueryList> => {
+    const mockMatchMedia = vi.fn().mockImplementation(
+      (q: string): MockMediaQueryList => ({
+        matches: q === query ? matches : false,
+        media: q,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })
+    );
 
     Object.defineProperty(window, 'matchMedia', {
       writable: true,

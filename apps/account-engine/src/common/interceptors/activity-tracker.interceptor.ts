@@ -4,17 +4,12 @@ import { DatabaseService } from '@database/database.service';
 import type { MiddlewareHandler } from 'hono';
 
 /**
- * ActivityTrackerInterceptor tracks user activity by updating users.last_activity_at
- * whenever a request contains a userId (in params, query, or body).
+ * ActivityTracker updates users.last_activity_at for a given userId with
+ * 1-hour debouncing, non-blocking background writes, and graceful failure
+ * handling (logs + cache revert on error). Uses the service-role client
+ * to bypass RLS.
  *
- * Features:
- * - 1-hour debouncing to reduce database writes by ~95%
- * - Non-blocking background updates using setImmediate()
- * - Graceful error handling (logs warnings, doesn't break requests)
- * - Uses service role client to bypass RLS
- *
- * Updated by: account-engine
- * Used by: alpha-etl (for activity-based update frequency)
+ * Consumed by: alpha-etl (activity-based update frequency)
  */
 export class ActivityTracker {
   private readonly logger = new Logger(ActivityTracker.name);
@@ -26,49 +21,25 @@ export class ActivityTracker {
   constructor(private readonly databaseService: DatabaseService) {}
 
   /**
-   * Intercept requests and track user activity if userId is present
+   * Track activity for a userId. Debounces repeated calls within the
+   * 1-hour window and performs the DB write asynchronously via setImmediate.
+   * Accepts `unknown` so callers can forward raw values from HTTP context
+   * without pre-validating (non-string / empty / whitespace are ignored).
    */
-  trackRequest(request: {
-    params?: Record<string, string | undefined>;
-    query?: Record<string, string | undefined>;
-  }): void {
-    const paramsUserId = this.normalizeUserId(request.params?.userId);
-    if (paramsUserId) {
-      this.trackUserActivity(paramsUserId);
-      return;
-    }
+  trackUserId(rawUserId: unknown): void {
+    const userId = this.normalizeUserId(rawUserId);
+    if (!userId) return;
 
-    const queryUserId = this.normalizeUserId(request.query?.userId);
-    if (queryUserId) {
-      this.trackUserActivity(queryUserId);
-    }
-  }
-
-  /**
-   * Track user activity with 1-hour debouncing
-   * Updates database in background without blocking request
-   */
-  private trackUserActivity(userId: string): void {
     const now = Date.now();
     const lastUpdate = this.activityCache.get(userId);
+    if (lastUpdate && now - lastUpdate < this.DEBOUNCE_WINDOW_MS) return;
 
-    // Skip if updated within last hour (debouncing)
-    if (lastUpdate && now - lastUpdate < this.DEBOUNCE_WINDOW_MS) {
-      return;
-    }
-
-    // Update cache immediately (prevent race conditions)
     this.activityCache.set(userId, now);
-
-    // Update database in background (non-blocking)
     setImmediate(() => {
       void this.safeUpdateUserActivity(userId);
     });
   }
 
-  /**
-   * Safely update activity and handle failures without blocking.
-   */
   private async safeUpdateUserActivity(userId: string): Promise<void> {
     try {
       await this.updateUserActivity(userId);
@@ -78,15 +49,11 @@ export class ActivityTracker {
           error,
         )}`,
       );
-      // Revert cache on failure (will retry on next request)
+      // Revert cache on failure so the next request retries instead of debouncing.
       this.activityCache.delete(userId);
     }
   }
 
-  /**
-   * Update users.last_activity_at in database
-   * Uses service role client to bypass RLS
-   */
   private async updateUserActivity(userId: string): Promise<void> {
     const client = this.databaseService.getServiceRoleClient();
 
@@ -109,10 +76,7 @@ export class ActivityTracker {
     return trimmed.length > 0 ? trimmed : null;
   }
 
-  /**
-   * Optional: Clean up stale cache entries (>2 hours old)
-   * Can be called periodically if needed
-   */
+  /** Optional periodic cleanup — drops entries older than 2× debounce window. */
   cleanupCache(): void {
     const now = Date.now();
     const staleThreshold = this.STALE_CACHE_THRESHOLD_MS;
@@ -125,14 +89,19 @@ export class ActivityTracker {
   }
 }
 
+/**
+ * Hono middleware: reads userId from the matched route's path params (or
+ * query string as a fallback) and forwards to the tracker. Must be mounted
+ * on a pattern that declares `:userId` — e.g. inside a route group as
+ * `app.use('/:userId', mw)` and `app.use('/:userId/*', mw)` — because
+ * `c.req.param()` resolves against the middleware's own registered pattern,
+ * not downstream route patterns.
+ */
 export function createActivityTrackingMiddleware(
   tracker: ActivityTracker,
 ): MiddlewareHandler {
   return async (c, next) => {
-    tracker.trackRequest({
-      params: c.req.param(),
-      query: c.req.query(),
-    });
+    tracker.trackUserId(c.req.param('userId') ?? c.req.query('userId'));
     await next();
   };
 }

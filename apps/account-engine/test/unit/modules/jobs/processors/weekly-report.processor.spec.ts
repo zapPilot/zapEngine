@@ -257,7 +257,7 @@ describe('WeeklyReportProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata?.skipped).toBe(true);
+      expect(result.metadata?.['skipped']).toBe(true);
       expect(emailService.sendEmail).not.toHaveBeenCalled();
     });
 

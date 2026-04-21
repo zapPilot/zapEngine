@@ -17,7 +17,7 @@ export interface AvailabilityResult {
  * Eliminates duplicate user existence checks across services
  */
 export class UserValidationService extends BaseService {
-  protected readonly logger = new Logger(UserValidationService.name);
+  protected override readonly logger = new Logger(UserValidationService.name);
 
   /* istanbul ignore next -- DI constructor */
   constructor(databaseService: DatabaseService) {

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { RootProvider } from 'fumadocs-ui/provider/next';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
 
 const geistSans = Geist({
@@ -62,8 +63,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <RootProvider>{children}</RootProvider>
-        {process.env.NEXT_PUBLIC_GA_ID && <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />}
+        <RootProvider>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </RootProvider>
+        {process.env['NEXT_PUBLIC_GA_ID'] && (
+          <GoogleAnalytics gaId={process.env['NEXT_PUBLIC_GA_ID']} />
+        )}
       </body>
     </html>
   );

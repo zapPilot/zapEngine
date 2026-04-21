@@ -130,8 +130,8 @@ describe('BatchFanoutHelper.fanOutBatch', () => {
       expect.stringContaining('u-fail'),
       expect.any(Error),
     );
-    expect(result.metadata?.failedJobsCount).toBe(1);
-    expect(result.metadata?.successfulJobs).toBe(1);
+    expect(result.metadata?.['failedJobsCount']).toBe(1);
+    expect(result.metadata?.['successfulJobs']).toBe(1);
   });
 
   it('logs an error job event when createJob throws', () => {
@@ -204,8 +204,8 @@ describe('BatchFanoutHelper.fanOutBatch', () => {
     );
 
     expect(jobQueueService.createJob).not.toHaveBeenCalled();
-    expect(result.metadata?.totalUsers).toBe(0);
-    expect(result.metadata?.successfulJobs).toBe(0);
+    expect(result.metadata?.['totalUsers']).toBe(0);
+    expect(result.metadata?.['successfulJobs']).toBe(0);
   });
 
   it('returns a createBatchResult with correct counts', () => {
@@ -220,9 +220,9 @@ describe('BatchFanoutHelper.fanOutBatch', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.metadata?.totalUsers).toBe(2);
-    expect(result.metadata?.successfulJobs).toBe(2);
-    expect(result.metadata?.failedJobsCount).toBe(0);
+    expect(result.metadata?.['totalUsers']).toBe(2);
+    expect(result.metadata?.['successfulJobs']).toBe(2);
+    expect(result.metadata?.['failedJobsCount']).toBe(0);
   });
 });
 
@@ -246,8 +246,8 @@ describe('BatchFanoutHelper.handleSkippableError', () => {
     );
     expect(result).not.toBeNull();
     expect(result!.success).toBe(true);
-    expect(result!.metadata?.skipped).toBe(true);
-    expect(result!.metadata?.skipReason).toBe('portfolio_not_found');
+    expect(result!.metadata?.['skipped']).toBe(true);
+    expect(result!.metadata?.['skipReason']).toBe('portfolio_not_found');
   });
 
   it('logs a warning when PortfolioNotFoundError is handled', () => {
@@ -286,6 +286,6 @@ describe('BatchFanoutHelper.handleSkippableError', () => {
       new PortfolioNotFoundError('user-1'),
       { jobType: 'weekly_report' },
     );
-    expect(result!.metadata?.jobType).toBe('weekly_report');
+    expect(result!.metadata?.['jobType']).toBe('weekly_report');
   });
 });
