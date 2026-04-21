@@ -574,11 +574,14 @@ class EthBtcRotationDecisionPolicy(DecisionPolicy):
             eth_share_in_risk_on=ratio_target.eth_share_in_risk_on,
         )
         if dma_intent.target_allocation is not None:
+            # Keep stable deployment immediacy owned by the outer DMA gate.
+            # Ratio crosses may shape the BTC/ETH split, but must not bypass
+            # execution-layer buy gates for non-cross DMA buy intents.
             return AllocationIntent(
                 action=dma_intent.action,
                 target_allocation=target_allocation,
                 allocation_name=dma_intent.allocation_name,
-                immediate=dma_intent.immediate or ratio_target.immediate,
+                immediate=dma_intent.immediate,
                 reason=dma_intent.reason,
                 rule_group=dma_intent.rule_group,
                 decision_score=dma_intent.decision_score,

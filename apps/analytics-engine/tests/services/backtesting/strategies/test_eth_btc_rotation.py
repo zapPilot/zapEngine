@@ -9,7 +9,7 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
 )
-from src.services.backtesting.strategies.base import StrategyContext
+from src.services.backtesting.strategies.base import StrategyAction, StrategyContext
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRelativeStrengthSignalComponent,
@@ -53,6 +53,13 @@ def _build_context(
         price_map={"btc": btc_price, "eth": eth_price},
         extra_data=extra_data,
     )
+
+
+def _buy_gate_payload(action: StrategyAction) -> dict[str, object] | None:
+    for diagnostic in action.snapshot.execution.plugin_diagnostics:
+        if diagnostic.plugin_id == "dma_buy_gate":
+            return dict(diagnostic.payload)
+    return None
 
 
 def test_signal_component_marks_ratio_state_unavailable_when_ratio_missing() -> None:
@@ -227,6 +234,91 @@ def test_decision_policy_reuses_dma_stable_gate_and_builds_asset_target() -> Non
 
     assert intent.action == "buy"
     assert intent.target_allocation == {"btc": 1.0, "eth": 0.0, "stable": 0.0}
+
+
+def test_decision_policy_non_cross_buy_keeps_full_risk_target_not_immediate() -> None:
+    component = EthBtcRelativeStrengthSignalComponent(
+        config=DmaGatedFgiParams(cross_cooldown_days=0).build_signal_config()
+    )
+    decision_policy = EthBtcRotationDecisionPolicy()
+    portfolio = Portfolio(spot_balance=0.0, stable_balance=10_000.0, spot_asset="BTC")
+
+    warmup_context = _build_context(
+        snapshot_date=date(2025, 11, 18),
+        portfolio=portfolio,
+        btc_price=85_000.0,
+        eth_price=3_400.0,
+        dma_200=100_000.0,
+        sentiment_label="fear",
+        sentiment_value=25,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    component.initialize(warmup_context)
+    component.warmup(warmup_context)
+
+    context = _build_context(
+        snapshot_date=date(2025, 11, 19),
+        portfolio=portfolio,
+        btc_price=84_000.0,
+        eth_price=5_040.0,
+        dma_200=100_000.0,
+        sentiment_label="extreme_fear",
+        sentiment_value=10,
+        ratio=0.060,
+        ratio_dma_200=0.050,
+    )
+    snapshot = component.observe(context)
+    intent = decision_policy.decide(snapshot)
+
+    assert snapshot.dma_state.cross_event is None
+    assert snapshot.ratio_cross_event == "cross_up"
+    assert intent.action == "buy"
+    assert intent.reason == "below_extreme_fear_buy"
+    assert intent.immediate is False
+    assert intent.target_allocation == {"btc": 0.0, "eth": 1.0, "stable": 0.0}
+
+
+def test_decision_policy_dma_cross_up_remains_immediate_full_risk_on() -> None:
+    component = EthBtcRelativeStrengthSignalComponent(
+        config=DmaGatedFgiParams(cross_cooldown_days=0).build_signal_config()
+    )
+    decision_policy = EthBtcRotationDecisionPolicy()
+    portfolio = Portfolio(spot_balance=0.0, stable_balance=10_000.0, spot_asset="BTC")
+
+    warmup_context = _build_context(
+        snapshot_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        btc_price=90_000.0,
+        eth_price=3_600.0,
+        dma_200=100_000.0,
+        sentiment_label="neutral",
+        sentiment_value=50,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    component.initialize(warmup_context)
+    component.warmup(warmup_context)
+
+    context = _build_context(
+        snapshot_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        btc_price=101_000.0,
+        eth_price=4_040.0,
+        dma_200=100_000.0,
+        sentiment_label="neutral",
+        sentiment_value=50,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    snapshot = component.observe(context)
+    intent = decision_policy.decide(snapshot)
+
+    assert snapshot.dma_state.cross_event == "cross_up"
+    assert intent.action == "buy"
+    assert intent.reason == "dma_cross_up"
+    assert intent.immediate is True
+    assert intent.target_allocation == {"btc": 0.0, "eth": 1.0, "stable": 0.0}
 
 
 def test_decision_policy_ignores_token_ath_sell_when_above_dma_and_neutral() -> None:
@@ -1270,6 +1362,128 @@ def test_eth_btc_rotation_strategy_targets_full_stable_when_outer_gate_exits() -
     }
     assert action.snapshot.decision.target_spot_asset is None
     assert action.target_spot_asset is None
+
+
+def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
+    strategy = EthBtcRotationStrategy(
+        total_capital=10_000.0,
+        params=EthBtcRotationParams(
+            cross_cooldown_days=0,
+            ratio_cross_cooldown_days=0,
+        ),
+        strategy_id="eth_rotation_capped_buy",
+        display_name="eth_rotation_capped_buy",
+    )
+    portfolio = Portfolio(spot_balance=0.0, stable_balance=10_000.0, spot_asset="BTC")
+    init_context = _build_context(
+        snapshot_date=date(2025, 11, 15),
+        portfolio=portfolio,
+        btc_price=85_000.0,
+        eth_price=3_400.0,
+        dma_200=100_000.0,
+        sentiment_label="fear",
+        sentiment_value=25,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    strategy.initialize(portfolio, None, init_context)
+    strategy.warmup_day(init_context)
+
+    action: StrategyAction | None = None
+    for offset in range(5):
+        is_buy_day = offset == 4
+        context = _build_context(
+            snapshot_date=date(2025, 11, 15 + offset),
+            portfolio=portfolio,
+            btc_price=85_000.0,
+            eth_price=5_100.0 if is_buy_day else 3_400.0,
+            dma_200=100_000.0,
+            sentiment_label="extreme_fear" if is_buy_day else "fear",
+            sentiment_value=10 if is_buy_day else 25,
+            ratio=0.060 if is_buy_day else 0.040,
+            ratio_dma_200=0.050,
+        )
+        action = strategy.on_day(context)
+
+    assert action is not None
+    assert action.snapshot.decision.reason == "below_extreme_fear_buy"
+    assert action.snapshot.decision.immediate is False
+    assert action.snapshot.decision.target_allocation == {
+        "btc": 0.0,
+        "eth": 1.0,
+        "stable": 0.0,
+    }
+    assert action.transfers is not None
+    stable_buy = sum(
+        transfer.amount_usd
+        for transfer in action.transfers
+        if transfer.from_bucket == "stable" and transfer.to_bucket != "stable"
+    )
+    assert stable_buy == pytest.approx(500.0)
+    buy_gate = _buy_gate_payload(action)
+    assert buy_gate is not None
+    assert buy_gate["sideways_confirmed"] is True
+    assert buy_gate["leg_index"] == 1
+    assert buy_gate["leg_cap_pct"] == pytest.approx(0.05)
+    assert buy_gate["leg_spent_usd"] == pytest.approx(500.0)
+
+
+def test_eth_btc_rotation_unconfirmed_buy_gate_blocks_stable_not_rotation() -> None:
+    strategy = EthBtcRotationStrategy(
+        total_capital=10_000.0,
+        params=EthBtcRotationParams(cross_cooldown_days=0),
+        strategy_id="eth_rotation_internal_rotation",
+        display_name="eth_rotation_internal_rotation",
+    )
+    portfolio = Portfolio(
+        stable_balance=5_000.0,
+        spot_asset="BTC",
+        btc_balance=0.05,
+        eth_balance=0.0,
+    )
+    init_context = _build_context(
+        snapshot_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        btc_price=100_000.0,
+        eth_price=4_000.0,
+        dma_200=120_000.0,
+        sentiment_label="fear",
+        sentiment_value=25,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    strategy.initialize(portfolio, None, init_context)
+    strategy.warmup_day(init_context)
+
+    context = _build_context(
+        snapshot_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        btc_price=100_000.0,
+        eth_price=4_000.0,
+        dma_200=120_000.0,
+        sentiment_label="extreme_fear",
+        sentiment_value=10,
+        ratio=0.040,
+        ratio_dma_200=0.050,
+    )
+    action = strategy.on_day(context)
+
+    assert action.snapshot.decision.reason == "below_extreme_fear_buy"
+    assert action.snapshot.decision.target_allocation == {
+        "btc": 0.0,
+        "eth": 1.0,
+        "stable": 0.0,
+    }
+    assert action.transfers is not None
+    assert any(
+        transfer.from_bucket == "btc" and transfer.to_bucket == "eth"
+        for transfer in action.transfers
+    )
+    assert all(transfer.from_bucket != "stable" for transfer in action.transfers)
+    assert action.snapshot.execution.blocked_reason is None
+    buy_gate = _buy_gate_payload(action)
+    assert buy_gate is not None
+    assert buy_gate["sideways_confirmed"] is False
 
 
 def test_build_initial_eth_btc_asset_allocation_uses_ratio_split() -> None:

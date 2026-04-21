@@ -208,6 +208,57 @@ def _build_eth_btc_rotation_inputs(
     return prices, sentiments, request
 
 
+def _build_eth_btc_non_cross_buy_guard_inputs() -> tuple[
+    list[dict[str, object]],
+    dict[date, dict[str, object]],
+    BacktestCompareRequestV3,
+]:
+    start = date(2025, 11, 15)
+    ratios = [0.040, 0.040, 0.040, 0.040, 0.060]
+    sentiments = {
+        start + timedelta(days=offset): (
+            {"label": "extreme_fear", "value": 0}
+            if offset == 4
+            else {"label": "fear", "value": 25}
+        )
+        for offset in range(len(ratios))
+    }
+    prices = [
+        {
+            "date": start + timedelta(days=offset),
+            "price": 60_000.0,
+            "prices": {
+                "btc": 60_000.0,
+                "eth": 60_000.0 * ratios[offset],
+            },
+            "extra_data": {
+                "dma_200": 100_000.0,
+                ETH_BTC_RATIO_FEATURE: ratios[offset],
+                ETH_BTC_RATIO_DMA_200_FEATURE: 0.050,
+            },
+        }
+        for offset in range(len(ratios))
+    ]
+    request = BacktestCompareRequestV3(
+        token_symbol="BTC",
+        start_date=start,
+        end_date=start + timedelta(days=len(ratios) - 1),
+        total_capital=10_000.0,
+        configs=[
+            BacktestCompareConfigV3(
+                config_id="eth_rotation_non_cross_buy_guard",
+                strategy_id="eth_btc_rotation",
+                params=_eth_btc_public_params(
+                    cross_cooldown_days=0,
+                    ratio_cross_cooldown_days=0,
+                    rotation_cooldown_days=0,
+                ),
+            )
+        ],
+    )
+    return prices, sentiments, request
+
+
 def _build_eth_btc_rotation_cooldown_inputs(
     days: int = 6,
 ) -> tuple[
@@ -746,6 +797,37 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
     )
 
 
+def test_run_compare_v3_on_data_caps_non_cross_eth_btc_stable_buy() -> None:
+    prices, sentiments, request = _build_eth_btc_non_cross_buy_guard_inputs()
+    request = materialize_compare_request(request)
+
+    result = run_compare_v3_on_data(
+        prices=prices,
+        sentiments=sentiments,
+        request=request,
+        user_start_date=date(2025, 11, 15),
+        config=RegimeConfig.default(),
+    )
+
+    buy_day = result.timeline[-1].strategies["eth_rotation_non_cross_buy_guard"]
+    stable_buy = sum(
+        transfer.amount_usd
+        for transfer in buy_day.execution.transfers
+        if transfer.from_bucket == "stable" and transfer.to_bucket != "stable"
+    )
+    buy_gate = buy_day.execution.diagnostics.plugins["dma_buy_gate"]
+
+    assert buy_day.decision.reason == "below_extreme_fear_buy"
+    assert buy_day.decision.immediate is False
+    assert buy_day.decision.target_asset_allocation.stable == pytest.approx(0.0)
+    assert buy_day.portfolio.stable_usd > 0.0
+    assert buy_gate is not None
+    assert buy_gate["sideways_confirmed"] is True
+    assert buy_gate["leg_cap_pct"] == pytest.approx(0.05)
+    assert buy_gate["leg_cap_usd"] == pytest.approx(stable_buy)
+    assert buy_gate["leg_spent_usd"] == pytest.approx(stable_buy)
+
+
 def test_run_compare_v3_on_data_blocks_above_zone_revert_after_ratio_cross_up() -> None:
     prices, sentiments, request = (
         _build_eth_btc_ratio_cross_up_cooldown_compare_inputs()
@@ -879,6 +961,13 @@ def test_run_compare_v3_on_data_outer_dma_follows_majority_spot_asset() -> None:
 
     assert cross_up_day.portfolio.spot_asset == "ETH"
     assert cross_up_day.decision.reason == "dma_cross_up"
+    assert cross_up_day.decision.immediate is True
+    assert cross_up_day.decision.target_asset_allocation.stable == pytest.approx(0.0)
+    assert cross_up_day.portfolio.stable_usd == pytest.approx(0.0)
+    assert any(
+        transfer.from_bucket == "stable" and transfer.to_bucket == "eth"
+        for transfer in cross_up_day.execution.transfers
+    )
     assert post_rotation_day.signal is not None
     assert post_rotation_day.portfolio.spot_asset == "ETH"
     assert post_rotation_day.signal.details["dma"]["distance"] == pytest.approx(0.06)
