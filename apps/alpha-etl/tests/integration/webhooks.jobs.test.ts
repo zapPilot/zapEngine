@@ -41,7 +41,7 @@ const { mockJobQueue } = vi.hoisted(() => {
 });
 
 vi.mock("../../src/modules/core/jobQueue.js", () => ({
-  ETLJobQueue: vi.fn().mockImplementation(() => {
+  ETLJobQueue: vi.fn().mockImplementation(function ETLJobQueue() {
     return mockJobQueue;
   }),
 }));

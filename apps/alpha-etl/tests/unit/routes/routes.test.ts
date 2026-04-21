@@ -20,7 +20,7 @@ vi.mock("../../../src/modules/token-price/index.js", () => {
 });
 
 vi.mock("../../../src/modules/core/jobQueue.js", () => ({
-  ETLJobQueue: vi.fn().mockImplementation(() => {
+  ETLJobQueue: vi.fn().mockImplementation(function ETLJobQueue() {
     return {
       getJob: mockGetJob,
       getResult: mockGetResult,

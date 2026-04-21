@@ -216,10 +216,10 @@ vi.mock("../../../../src/modules/token-price/index.js", async () => {
   return {
     ...actualModule,
     TokenPriceETLProcessor: MockedTokenPriceETLProcessor,
-    CoinGeckoFetcher: vi.fn(() => {
+    CoinGeckoFetcher: vi.fn(function CoinGeckoFetcher() {
       return mockFetcher;
     }),
-    TokenPriceWriter: vi.fn(() => {
+    TokenPriceWriter: vi.fn(function TokenPriceWriter() {
       return mockWriter;
     }),
   };

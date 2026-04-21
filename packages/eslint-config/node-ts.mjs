@@ -18,7 +18,13 @@ import tseslint from 'typescript-eslint';
  */
 export function createNodeTsConfig(options = {}) {
   const {
-    ignores = ['dist/**', 'node_modules/**', '.turbo/**', 'coverage/**', '**/*.js'],
+    ignores = [
+      'dist/**',
+      'node_modules/**',
+      '.turbo/**',
+      'coverage/**',
+      '**/*.js',
+    ],
     allowUnderscoreUnused = false,
     extraConfigs = [],
   } = options;
@@ -59,7 +65,7 @@ export function createNodeTsConfig(options = {}) {
         eqeqeq: ['error', 'always'],
         curly: ['warn', 'all'],
         'no-return-await': 'warn',
-        'prefer-arrow-callback': 'error',
+        'prefer-arrow-callback': ['error', { allowNamedFunctions: true }],
         'no-param-reassign': 'error',
         'no-duplicate-imports': 'error',
         'no-template-curly-in-string': 'error',

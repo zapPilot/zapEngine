@@ -70,27 +70,31 @@ let mockAprWriter: ReturnType<typeof createMockAprWriter>;
 
 // Mock external dependencies with factory functions
 vi.mock("../../src/modules/hyperliquid/fetcher.js", () => ({
-  HyperliquidFetcher: vi.fn().mockImplementation(() => {
+  HyperliquidFetcher: vi.fn().mockImplementation(function HyperliquidFetcher() {
     return mockHyperliquidFetcher;
   }),
 }));
 
 vi.mock("../../src/modules/vip-users/supabaseFetcher.js", () => ({
-  SupabaseFetcher: vi.fn().mockImplementation(() => {
+  SupabaseFetcher: vi.fn().mockImplementation(function SupabaseFetcher() {
     return mockSupabaseFetcher;
   }),
 }));
 
 vi.mock("../../src/modules/wallet/portfolioWriter.js", () => ({
-  PortfolioItemWriter: vi.fn().mockImplementation(() => {
-    return mockPortfolioWriter;
-  }),
+  PortfolioItemWriter: vi
+    .fn()
+    .mockImplementation(function PortfolioItemWriter() {
+      return mockPortfolioWriter;
+    }),
 }));
 
 vi.mock("../../src/modules/hyperliquid/aprWriter.js", () => ({
-  HyperliquidVaultAprWriter: vi.fn().mockImplementation(() => {
-    return mockAprWriter;
-  }),
+  HyperliquidVaultAprWriter: vi
+    .fn()
+    .mockImplementation(function HyperliquidVaultAprWriter() {
+      return mockAprWriter;
+    }),
 }));
 
 // Import after mocks are set up

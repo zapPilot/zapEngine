@@ -26,7 +26,7 @@ const mockProcessor = {
 };
 
 vi.mock("../../../src/modules/token-price/index.js", () => ({
-  TokenPriceETLProcessor: vi.fn(() => {
+  TokenPriceETLProcessor: vi.fn(function TokenPriceETLProcessor() {
     return mockProcessor;
   }),
 }));

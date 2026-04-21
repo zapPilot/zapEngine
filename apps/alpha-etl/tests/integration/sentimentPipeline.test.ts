@@ -109,10 +109,10 @@ vi.mock("../../src/modules/sentiment/index.js", async (importOriginal) => {
   return {
     ...actual,
     SentimentETLProcessor: MockedSentimentETLProcessor,
-    FearGreedFetcher: vi.fn().mockImplementation(() => {
+    FearGreedFetcher: vi.fn().mockImplementation(function FearGreedFetcher() {
       return mockFetcher;
     }),
-    SentimentWriter: vi.fn().mockImplementation(() => {
+    SentimentWriter: vi.fn().mockImplementation(function SentimentWriter() {
       return mockWriter;
     }),
   };

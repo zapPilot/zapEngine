@@ -32,7 +32,7 @@ const mockJobQueue = {
 };
 
 vi.mock("../../../src/modules/core/jobQueue.js", () => ({
-  ETLJobQueue: vi.fn(() => {
+  ETLJobQueue: vi.fn(function ETLJobQueue() {
     return mockJobQueue;
   }),
 }));

@@ -75,45 +75,49 @@ let mockAprWriter: ReturnType<typeof createMockAprWriter>;
 
 // Mock external dependencies - these need to be hoisted
 vi.mock("../../src/modules/pool/fetcher.js", () => ({
-  DeFiLlamaFetcher: vi.fn().mockImplementation(() => {
+  DeFiLlamaFetcher: vi.fn().mockImplementation(function DeFiLlamaFetcher() {
     return mockDefiLlamaFetcher;
   }),
 }));
 
 vi.mock("../../src/services/fetchers/pendle.js", () => ({
-  PendleFetcher: vi.fn().mockImplementation(() => {
+  PendleFetcher: vi.fn().mockImplementation(function PendleFetcher() {
     return mockPendleFetcher;
   }),
 }));
 
 vi.mock("../../src/modules/pool/writer.js", () => ({
-  PoolWriter: vi.fn().mockImplementation(() => {
+  PoolWriter: vi.fn().mockImplementation(function PoolWriter() {
     return mockPoolWriter;
   }),
 }));
 
 vi.mock("../../src/modules/hyperliquid/fetcher.js", () => ({
-  HyperliquidFetcher: vi.fn().mockImplementation(() => {
+  HyperliquidFetcher: vi.fn().mockImplementation(function HyperliquidFetcher() {
     return mockHyperliquidFetcher;
   }),
 }));
 
 vi.mock("../../src/modules/vip-users/supabaseFetcher.js", () => ({
-  SupabaseFetcher: vi.fn().mockImplementation(() => {
+  SupabaseFetcher: vi.fn().mockImplementation(function SupabaseFetcher() {
     return mockSupabaseFetcher;
   }),
 }));
 
 vi.mock("../../src/modules/wallet/portfolioWriter.js", () => ({
-  PortfolioItemWriter: vi.fn().mockImplementation(() => {
-    return mockPortfolioWriter;
-  }),
+  PortfolioItemWriter: vi
+    .fn()
+    .mockImplementation(function PortfolioItemWriter() {
+      return mockPortfolioWriter;
+    }),
 }));
 
 vi.mock("../../src/modules/hyperliquid/aprWriter.js", () => ({
-  HyperliquidVaultAprWriter: vi.fn().mockImplementation(() => {
-    return mockAprWriter;
-  }),
+  HyperliquidVaultAprWriter: vi
+    .fn()
+    .mockImplementation(function HyperliquidVaultAprWriter() {
+      return mockAprWriter;
+    }),
 }));
 
 // Import after mocks are set up

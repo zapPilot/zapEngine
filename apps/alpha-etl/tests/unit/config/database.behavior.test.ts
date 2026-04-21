@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 describe("database configuration behaviors", () => {
   it("enables SSL when running in production", async () => {
     vi.resetModules();
-    const PoolMock = vi.fn(() => {
+    const PoolMock = vi.fn(function Pool() {
       return { on: vi.fn(), connect: vi.fn(), end: vi.fn() };
     });
 
@@ -32,7 +32,7 @@ describe("database configuration behaviors", () => {
     vi.resetModules();
     const client = { query: vi.fn(), release: vi.fn() };
     vi.doMock("pg", () => ({
-      Pool: vi.fn(() => {
+      Pool: vi.fn(function Pool() {
         return {
           on: vi.fn(),
           connect: vi.fn().mockResolvedValue(client),
@@ -61,7 +61,7 @@ describe("database configuration behaviors", () => {
     vi.resetModules();
     const client = { query: vi.fn(), release: vi.fn() };
     vi.doMock("pg", () => ({
-      Pool: vi.fn(() => {
+      Pool: vi.fn(function Pool() {
         return {
           on: vi.fn(),
           connect: vi.fn().mockResolvedValue(client),

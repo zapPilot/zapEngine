@@ -43,7 +43,7 @@ describe("Database Configuration", () => {
       end: vi.fn().mockResolvedValue(undefined),
     };
 
-    (Pool as unknown).mockImplementation(() => {
+    (Pool as unknown).mockImplementation(function Pool() {
       return mockPool;
     });
   });
@@ -167,7 +167,7 @@ describe("Database Configuration", () => {
     });
 
     it("should surface initialization errors", async () => {
-      (Pool as unknown).mockImplementationOnce(() => {
+      (Pool as unknown).mockImplementationOnce(function Pool() {
         throw new Error("init failed");
       });
 

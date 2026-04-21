@@ -6,7 +6,7 @@ poolEmitter.end = vi.fn();
 poolEmitter.connect = vi.fn();
 
 vi.mock("pg", () => ({
-  Pool: vi.fn(() => {
+  Pool: vi.fn(function Pool() {
     return poolEmitter;
   }),
 }));

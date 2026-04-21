@@ -15,7 +15,7 @@ const mockPool = {
 
 // Mock pg
 vi.mock("pg", () => ({
-  Pool: vi.fn().mockImplementation(() => {
+  Pool: vi.fn().mockImplementation(function Pool() {
     return mockPool;
   }),
 }));

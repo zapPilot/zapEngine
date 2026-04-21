@@ -3,7 +3,7 @@ import { ETLJobQueue } from "../../src/modules/core/jobQueue.js";
 
 // Mock the ETL processor to avoid executing real pipelines
 vi.mock("../../src/modules/core/pipelineFactory.js", () => ({
-  ETLPipelineFactory: vi.fn().mockImplementation(() => {
+  ETLPipelineFactory: vi.fn().mockImplementation(function ETLPipelineFactory() {
     return {
       processJob: vi.fn().mockResolvedValue({
         success: true,
