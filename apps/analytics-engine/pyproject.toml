@@ -13,7 +13,7 @@ dependencies = [
     # Keep for compatibility with bare postgresql:// URLs (SQLAlchemy default driver).
     "psycopg2-binary==2.9.10",
     "httpx>=0.25.2",
-    "python-dotenv>=1.0.0",
+    "python-dotenv>=1.2.2",
     "pydantic-settings>=2.10.1",
     "numpy>=2.3.4",
 ]
