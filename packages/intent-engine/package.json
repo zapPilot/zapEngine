@@ -31,7 +31,7 @@
     "deadcode": "knip",
     "dup:check": "jscpd src --config .jscpd.json",
     "test": "vitest run",
-    "test:ci": "vitest run",
+    "test:ci": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -44,6 +44,7 @@
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "@types/node": "^22.10.7",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.18.0",
     "jscpd": "^4.0.5",
     "knip": "^5.66.4",

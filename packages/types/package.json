@@ -31,6 +31,10 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "type-check": "tsc --noEmit",
+    "test": "echo '(@zapengine/types has no tests)'",
+    "test:ci": "echo '(@zapengine/types has no tests)'",
+    "test:watch": "echo '(@zapengine/types has no tests)'",
+    "test:coverage": "echo '(@zapengine/types has no tests)'",
     "deadcode": "knip",
     "dup:check": "jscpd src --config .jscpd.json"
   },
