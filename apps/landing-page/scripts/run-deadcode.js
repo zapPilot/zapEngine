@@ -74,13 +74,16 @@ const mode = MODES[modeKey];
 
 if (!mode) {
   console.error(
-    `[deadcode] Unknown mode "${modeKey}". Supported modes: ${Object.keys(MODES).join(', ')}`,
+    '[deadcode] Unknown mode "' +
+      modeKey +
+      '". Supported modes: ' +
+      Object.keys(MODES).join(', '),
   );
   process.exit(1);
 }
 
 const run = (command, args, captureOutput = false) => {
-  console.log(`[deadcode] Running ${command} ${args.join(' ')}`.trim());
+  console.log(('[deadcode] Running ' + command + ' ' + args.join(' ')).trim());
   const result = spawnSync(command, args, {
     stdio: captureOutput ? 'pipe' : 'inherit',
     shell: process.platform === 'win32',
@@ -92,46 +95,59 @@ const run = (command, args, captureOutput = false) => {
   }
 
   return {
-    status:
-      typeof result.status === 'number' ? result.status : result.signal ? 1 : 0,
+    status: result.error
+      ? 1
+      : typeof result.status === 'number'
+        ? result.status
+        : result.signal
+          ? 1
+          : 0,
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   };
 };
 
-const knipResult = run('knip', mode.knipArgs);
+const toTsPruneLines = (output) =>
+  output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-// Run ts-prune
+const isIgnoredTsPruneLine = (line) =>
+  IGNORE_PATTERNS.some((pattern) => pattern.test(line));
+
+const knipResult = run('knip', mode.knipArgs);
 const tsPruneResult = run(
   'ts-prune',
   ['-p', 'tsconfig.tsprune.json', ...mode.tsPruneArgs],
-  mode.strictTsPrune,
+  true,
 );
 
-let tsPruneStatus = 0;
+if (tsPruneResult.stderr.trim()) {
+  console.error(tsPruneResult.stderr.trim());
+}
 
-if (mode.strictTsPrune && tsPruneResult.stdout) {
-  // Parse ts-prune output and find real dead code in components
-  const lines = tsPruneResult.stdout.split('\n').filter((line) => line.trim());
+const actionableTsPruneLines = toTsPruneLines(tsPruneResult.stdout).filter(
+  (line) => !isIgnoredTsPruneLine(line),
+);
+let tsPruneStatus = tsPruneResult.status;
 
-  // Filter to only component files that aren't in ignore patterns
-  const componentDeadCode = lines.filter((line) => {
-    // Must be a component file
-    if (!line.includes('src/components/') || !line.includes('.tsx:')) {
-      return false;
-    }
-    // Must not match any ignore pattern
-    return !IGNORE_PATTERNS.some((pattern) => pattern.test(line));
-  });
+if (actionableTsPruneLines.length > 0) {
+  console.log(actionableTsPruneLines.join('\n'));
+} else {
+  console.log('[deadcode] No actionable ts-prune exports found.');
+}
 
-  // Print all ts-prune output for visibility
-  console.log(tsPruneResult.stdout);
+if (mode.strictTsPrune) {
+  const componentDeadCode = actionableTsPruneLines.filter(
+    (line) => line.includes('src/components/') && line.includes('.tsx:'),
+  );
 
   if (componentDeadCode.length > 0) {
     console.error(
       '\n[deadcode] ❌ STRICT MODE: Found unused component exports:',
     );
-    componentDeadCode.forEach((line) => console.error(`  ${line}`));
+    componentDeadCode.forEach((line) => console.error('  ' + line));
     console.error('\nThese component exports are not used anywhere. Either:');
     console.error('  1. Delete the unused component/export');
     console.error('  2. Use the export somewhere');
@@ -142,11 +158,7 @@ if (mode.strictTsPrune && tsPruneResult.stdout) {
   } else {
     console.log('[deadcode] ✅ No unused component exports found.');
   }
-} else if (!mode.strictTsPrune) {
-  // Just run for informational purposes
-  run('ts-prune', ['-p', 'tsconfig.tsprune.json', ...mode.tsPruneArgs]);
 }
 
-// Fail if either Knip or strict ts-prune failed
 const finalStatus = knipResult.status || tsPruneStatus;
 process.exit(finalStatus);

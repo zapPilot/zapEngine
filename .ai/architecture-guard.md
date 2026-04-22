@@ -100,7 +100,7 @@ If involving "unknown":
 
 ---
 
-## OUTPUT FORMAT
+## OUTPUT FORMAT (save this json file to .todos)
 
 ### 1. JSON ONLY (NO extra text)
 
