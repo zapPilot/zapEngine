@@ -2,7 +2,7 @@
 import { createNodeTsConfig } from "@zapengine/eslint-config/node-ts";
 
 export default createNodeTsConfig({
-  ignores: ["dist/**", "node_modules/**", "coverage/**", "**/*.js"],
+  ignores: ["dist/**", "node_modules/**", "coverage/**", "**/*.js", "**/*.cjs"],
   extraConfigs: [
     {
       rules: {

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
+  "type": "module",
   "description": "DeFi APR data ETL pipeline",
   "main": "dist/app.js",
   "files": [
