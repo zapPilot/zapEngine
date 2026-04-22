@@ -1,6 +1,6 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 const roiWindowSchema = z.object({
   value: z.number(),
@@ -61,7 +61,7 @@ const riskMetricsSchema = z.object({
 const borrowingSummarySchema = z.object({
   has_debt: z.boolean(),
   worst_health_rate: z.number().positive().nullable(),
-  overall_status: z.enum(["HEALTHY", "WARNING", "CRITICAL"]).nullable(),
+  overall_status: z.enum(['HEALTHY', 'WARNING', 'CRITICAL']).nullable(),
   critical_count: z.number().int().nonnegative(),
   warning_count: z.number().int().nonnegative(),
   healthy_count: z.number().int().nonnegative(),
@@ -78,7 +78,7 @@ const borrowingPositionSchema = z.object({
   protocol_name: z.string(),
   chain: z.string(),
   health_rate: z.number().positive(),
-  health_status: z.enum(["HEALTHY", "WARNING", "CRITICAL"]),
+  health_status: z.enum(['HEALTHY', 'WARNING', 'CRITICAL']),
   collateral_usd: z.number().nonnegative(),
   debt_usd: z.number().positive(),
   net_value_usd: z.number(),
@@ -113,7 +113,7 @@ export const landingPageResponseSchema = z
   .object({
     total_assets_usd: z.number().optional(),
     total_debt_usd: z.number().optional(),
-    total_net_usd: z.number().describe("Previously total_net_usd"),
+    total_net_usd: z.number().describe('Previously total_net_usd'),
     net_portfolio_value: z.number().nullable().optional().default(0),
     positions: z.number().optional().default(0),
     protocols: z.number().optional().default(0),
@@ -144,11 +144,11 @@ export type BorrowingPositionsResponse = z.infer<
 export type PoolDetail = z.infer<typeof poolDetailSchema>;
 
 export const validateBorrowingPositionsResponse = createValidator(
-  borrowingPositionsResponseSchema
+  borrowingPositionsResponseSchema,
 );
 export const validateLandingPageResponse = createValidator(
-  landingPageResponseSchema
+  landingPageResponseSchema,
 );
 export const validatePoolPerformanceResponse = createValidator(
-  poolPerformanceResponseSchema
+  poolPerformanceResponseSchema,
 );

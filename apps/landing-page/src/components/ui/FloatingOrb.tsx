@@ -70,7 +70,9 @@ export function FloatingOrb({
         x: xRange ? [0, xRange, 0] : undefined,
         y: [0, -yRange, 0],
         scale: [scaleRange[0], scaleRange[1], scaleRange[0]],
-        rotate: rotateRange ? [rotateRange[0], rotateRange[1], rotateRange[0]] : undefined,
+        rotate: rotateRange
+          ? [rotateRange[0], rotateRange[1], rotateRange[0]]
+          : undefined,
       }}
       transition={{
         duration,

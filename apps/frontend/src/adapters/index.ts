@@ -14,12 +14,12 @@
 // WALLET & PORTFOLIO ADAPTERS
 // ============================================================================
 
-export * from "./walletPortfolioDataAdapter";
+export * from './walletPortfolioDataAdapter';
 
 // ============================================================================
 // PORTFOLIO SUB-ADAPTERS
 // ============================================================================
 
-export * from "./portfolio/allocationAdapter";
-export * from "./portfolio/regimeAdapter";
-export * from "./portfolio/sentimentAdapter";
+export * from './portfolio/allocationAdapter';
+export * from './portfolio/regimeAdapter';
+export * from './portfolio/sentimentAdapter';

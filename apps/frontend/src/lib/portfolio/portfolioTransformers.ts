@@ -5,24 +5,24 @@
  * These functions are UI-agnostic and can be used across different contexts.
  */
 
-import { calculateAllocation } from "@/adapters/portfolio/allocationAdapter";
+import { calculateAllocation } from '@/adapters/portfolio/allocationAdapter';
 import {
   getRegimeStrategyInfo,
   getTargetAllocation,
-} from "@/adapters/portfolio/regimeAdapter";
-import { processSentimentData } from "@/adapters/portfolio/sentimentAdapter";
-import { extractROIChanges } from "@/lib/portfolio/portfolioUtils";
+} from '@/adapters/portfolio/regimeAdapter';
+import { processSentimentData } from '@/adapters/portfolio/sentimentAdapter';
+import { extractROIChanges } from '@/lib/portfolio/portfolioUtils';
 import type {
   LandingPageResponse,
   MarketSentimentData,
   RegimeHistoryData,
-} from "@/services";
+} from '@/services';
 import type {
   BalanceData,
   CompositionData,
   SentimentData,
   StrategyData,
-} from "@/types/portfolio-progressive";
+} from '@/types/portfolio-progressive';
 
 /**
  * Extract balance section data from landing response
@@ -49,7 +49,7 @@ export function extractBalanceData(landing: LandingPageResponse): BalanceData {
  * @returns Formatted composition data for dashboard
  */
 export function extractCompositionData(
-  landing: LandingPageResponse
+  landing: LandingPageResponse,
 ): CompositionData {
   const currentAllocation = calculateAllocation(landing);
 
@@ -79,8 +79,8 @@ export function isValidLandingData(data: unknown): data is LandingPageResponse {
   return (
     data !== null &&
     data !== undefined &&
-    typeof data === "object" &&
-    "total_value" in data
+    typeof data === 'object' &&
+    'total_value' in data
   );
 }
 
@@ -95,7 +95,7 @@ export function isValidLandingData(data: unknown): data is LandingPageResponse {
 export function combineStrategyData(
   landingData: LandingPageResponse | undefined,
   sentimentData: MarketSentimentData | undefined,
-  regimeHistoryData: RegimeHistoryData | undefined
+  regimeHistoryData: RegimeHistoryData | undefined,
 ): StrategyData | null {
   if (!isValidLandingData(landingData)) return null;
 

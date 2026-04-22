@@ -1,11 +1,11 @@
-import { fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { ReviewModal } from "@/components/wallet/portfolio/views/invest/trading/components/ReviewModal";
+import { ReviewModal } from '@/components/wallet/portfolio/views/invest/trading/components/ReviewModal';
 
-import { render, screen } from "../../../../../../../../test-utils";
+import { render, screen } from '../../../../../../../../test-utils';
 
-vi.mock("lucide-react", () => {
+vi.mock('lucide-react', () => {
   const Icon = () => <svg />;
   return {
     AlertCircle: Icon,
@@ -26,7 +26,7 @@ vi.mock("lucide-react", () => {
   };
 });
 
-vi.mock("@/components/ui/modal", () => ({
+vi.mock('@/components/ui/modal', () => ({
   Modal: ({ isOpen, children }: any) =>
     isOpen ? <div data-testid="modal">{children}</div> : null,
   ModalContent: ({ children, className }: any) => (
@@ -35,21 +35,21 @@ vi.mock("@/components/ui/modal", () => ({
 }));
 
 vi.mock(
-  "@/components/wallet/portfolio/modals/components/TransactionModalParts",
+  '@/components/wallet/portfolio/modals/components/TransactionModalParts',
   () => ({
     TransactionModalHeader: ({ title }: any) => (
       <div data-testid="modal-header">{title}</div>
     ),
     SubmittingState: () => <div data-testid="submitting-state" />,
-  })
+  }),
 );
 
-vi.mock("@/lib/ui/classNames", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
+vi.mock('@/lib/ui/classNames', () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
 vi.mock(
-  "@/components/wallet/portfolio/views/invest/trading/components/ReviewModalTabs",
+  '@/components/wallet/portfolio/views/invest/trading/components/ReviewModalTabs',
   () => ({
     VariationImpact: () => (
       <div data-testid="variation-impact">Impact Content</div>
@@ -60,10 +60,10 @@ vi.mock(
     VariationRoute: () => (
       <div data-testid="variation-route">Route Content</div>
     ),
-  })
+  }),
 );
 
-describe("ReviewModal", () => {
+describe('ReviewModal', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -72,86 +72,86 @@ describe("ReviewModal", () => {
     intentData: {},
   };
 
-  it("returns null when isOpen is false", () => {
+  it('returns null when isOpen is false', () => {
     render(<ReviewModal {...defaultProps} isOpen={false} />);
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
   });
 
-  it("renders modal with header title", () => {
+  it('renders modal with header title', () => {
     render(<ReviewModal {...defaultProps} />);
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
-    expect(screen.getByTestId("modal-header")).toBeInTheDocument();
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
+    expect(screen.getByTestId('modal-header')).toBeInTheDocument();
   });
 
-  it("shows default title Review Execution", () => {
+  it('shows default title Review Execution', () => {
     render(<ReviewModal {...defaultProps} />);
-    expect(screen.getByTestId("modal-header")).toHaveTextContent(
-      "Review Execution"
+    expect(screen.getByTestId('modal-header')).toHaveTextContent(
+      'Review Execution',
     );
   });
 
-  it("shows custom title when provided", () => {
+  it('shows custom title when provided', () => {
     render(<ReviewModal {...defaultProps} title="Custom Title" />);
-    expect(screen.getByTestId("modal-header")).toHaveTextContent(
-      "Custom Title"
+    expect(screen.getByTestId('modal-header')).toHaveTextContent(
+      'Custom Title',
     );
   });
 
-  it("shows tab switcher with Impact, Strategy, Route tabs when not submitting", () => {
+  it('shows tab switcher with Impact, Strategy, Route tabs when not submitting', () => {
     render(<ReviewModal {...defaultProps} />);
-    expect(screen.getByText("Impact")).toBeInTheDocument();
-    expect(screen.getByText("Strategy")).toBeInTheDocument();
-    expect(screen.getByText("Route")).toBeInTheDocument();
+    expect(screen.getByText('Impact')).toBeInTheDocument();
+    expect(screen.getByText('Strategy')).toBeInTheDocument();
+    expect(screen.getByText('Route')).toBeInTheDocument();
   });
 
-  it("hides tab switcher when submitting", () => {
+  it('hides tab switcher when submitting', () => {
     render(<ReviewModal {...defaultProps} isSubmitting={true} />);
-    expect(screen.queryByText("Impact")).not.toBeInTheDocument();
-    expect(screen.queryByText("Strategy")).not.toBeInTheDocument();
-    expect(screen.queryByText("Route")).not.toBeInTheDocument();
+    expect(screen.queryByText('Impact')).not.toBeInTheDocument();
+    expect(screen.queryByText('Strategy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Route')).not.toBeInTheDocument();
   });
 
-  it("shows Sign & Execute button when not submitting", () => {
+  it('shows Sign & Execute button when not submitting', () => {
     render(<ReviewModal {...defaultProps} />);
-    expect(screen.getByText("Sign & Execute")).toBeInTheDocument();
+    expect(screen.getByText('Sign & Execute')).toBeInTheDocument();
   });
 
-  it("hides confirm button when submitting", () => {
+  it('hides confirm button when submitting', () => {
     render(<ReviewModal {...defaultProps} isSubmitting={true} />);
-    expect(screen.queryByText("Sign & Execute")).not.toBeInTheDocument();
+    expect(screen.queryByText('Sign & Execute')).not.toBeInTheDocument();
   });
 
-  it("shows SubmittingState when submitting", () => {
+  it('shows SubmittingState when submitting', () => {
     render(<ReviewModal {...defaultProps} isSubmitting={true} />);
-    expect(screen.getByTestId("submitting-state")).toBeInTheDocument();
+    expect(screen.getByTestId('submitting-state')).toBeInTheDocument();
   });
 
-  it("calls onConfirm when confirm button clicked", () => {
+  it('calls onConfirm when confirm button clicked', () => {
     const onConfirm = vi.fn();
     render(<ReviewModal {...defaultProps} onConfirm={onConfirm} />);
-    const confirmButton = screen.getByText("Sign & Execute");
+    const confirmButton = screen.getByText('Sign & Execute');
     fireEvent.click(confirmButton);
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("shows Impact content by default", () => {
+  it('shows Impact content by default', () => {
     render(<ReviewModal {...defaultProps} />);
-    expect(screen.getByTestId("variation-impact")).toBeInTheDocument();
+    expect(screen.getByTestId('variation-impact')).toBeInTheDocument();
   });
 
-  it("switches to Strategy tab when Strategy button clicked", () => {
+  it('switches to Strategy tab when Strategy button clicked', () => {
     render(<ReviewModal {...defaultProps} />);
-    const strategyTab = screen.getByText("Strategy");
+    const strategyTab = screen.getByText('Strategy');
     fireEvent.click(strategyTab);
-    expect(screen.getByTestId("variation-strategy")).toBeInTheDocument();
-    expect(screen.queryByTestId("variation-impact")).not.toBeInTheDocument();
+    expect(screen.getByTestId('variation-strategy')).toBeInTheDocument();
+    expect(screen.queryByTestId('variation-impact')).not.toBeInTheDocument();
   });
 
-  it("switches to Route tab when Route button clicked", () => {
+  it('switches to Route tab when Route button clicked', () => {
     render(<ReviewModal {...defaultProps} />);
-    const routeTab = screen.getByText("Route");
+    const routeTab = screen.getByText('Route');
     fireEvent.click(routeTab);
-    expect(screen.getByTestId("variation-route")).toBeInTheDocument();
-    expect(screen.queryByTestId("variation-impact")).not.toBeInTheDocument();
+    expect(screen.getByTestId('variation-route')).toBeInTheDocument();
+    expect(screen.queryByTestId('variation-impact')).not.toBeInTheDocument();
   });
 });

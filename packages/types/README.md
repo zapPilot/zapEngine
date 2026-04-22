@@ -13,14 +13,14 @@ This package provides type definitions used across multiple applications:
 ## Usage
 
 ```typescript
-// Main exports
-import { PoolSnapshot, WalletSnapshot } from '@zapengine/types';
+// Main exports (ETL + API types)
+import { JobStatus, EtlJobStatus, ApiResult, ApiError } from '@zapengine/types';
 
 // ETL-specific types
-import { DefiLlamaPool, DeBankPosition } from '@zapengine/types/etl';
+import { EtlErrorCode, EtlError, EtlJobCreated } from '@zapengine/types/etl';
 
 // API-specific types
-import { PortfolioResponse, RiskMetrics } from '@zapengine/types/api';
+import { ErrorCode, ErrorContext, DataSource } from '@zapengine/types/api';
 ```
 
 ## Build
@@ -29,4 +29,4 @@ import { PortfolioResponse, RiskMetrics } from '@zapengine/types/api';
 pnpm build
 ```
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [CLAUDE.md](../../../CLAUDE.md) for monorepo development guidelines.

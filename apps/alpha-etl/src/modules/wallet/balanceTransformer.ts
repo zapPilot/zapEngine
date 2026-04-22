@@ -1,8 +1,8 @@
-import { logger } from "../../utils/logger.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { maskWalletAddress } from "../../utils/mask.js";
-import { transformBatchWithLogging } from "../../core/transformers/baseTransformer.js";
-import type { WalletBalanceSnapshotInsert } from "../../types/database.js";
+import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
+import type { WalletBalanceSnapshotInsert } from '../../types/database.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
 
 export class WalletBalanceTransformer {
   private normalizeOptionalString(
@@ -16,31 +16,34 @@ export class WalletBalanceTransformer {
   ): WalletBalanceSnapshotInsert | null {
     try {
       // Validate input is an object (not string or other primitives)
-      if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
-        throw new Error("Invalid input: expected an object");
+      if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
+        throw new Error('Invalid input: expected an object');
       }
 
+      const transformed = Object.assign({}, rawData);
+
       // Normalize wallet address to lowercase for consistent DB storage
-      return {
-        ...rawData,
-        user_wallet_address: this.normalizeOptionalString(
-          rawData.user_wallet_address,
-        ) as string,
-        name: this.normalizeOptionalString(rawData.name),
-        symbol: this.normalizeOptionalString(rawData.symbol),
-        display_symbol: this.normalizeOptionalString(rawData.display_symbol),
-        optimized_symbol: this.normalizeOptionalString(
-          rawData.optimized_symbol,
-        ),
-      };
+      transformed.user_wallet_address = this.normalizeOptionalString(
+        rawData.user_wallet_address,
+      )!;
+      transformed.name = this.normalizeOptionalString(rawData.name);
+      transformed.symbol = this.normalizeOptionalString(rawData.symbol);
+      transformed.display_symbol = this.normalizeOptionalString(
+        rawData.display_symbol,
+      );
+      transformed.optimized_symbol = this.normalizeOptionalString(
+        rawData.optimized_symbol,
+      );
+
+      return transformed;
     } catch (error) {
-      logger.error("Failed to transform wallet balance data:", {
+      logger.error('Failed to transform wallet balance data:', {
         error: toErrorMessage(error),
-        userId: rawData?.user_id || "unknown",
+        userId: rawData?.['user_id'] || 'unknown',
         walletAddress: rawData?.user_wallet_address
           ? maskWalletAddress(rawData.user_wallet_address)
-          : "unknown",
-        tokenSymbol: rawData?.symbol || "unknown",
+          : 'unknown',
+        tokenSymbol: rawData?.symbol || 'unknown',
       });
       return null;
     }
@@ -52,7 +55,7 @@ export class WalletBalanceTransformer {
     return transformBatchWithLogging(
       rawDataList,
       (item) => this.transform(item),
-      "Wallet balance",
+      'Wallet balance',
     );
   }
 }

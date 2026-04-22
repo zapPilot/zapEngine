@@ -78,9 +78,12 @@ describe('useMediaQuery', () => {
       removeEventListener: vi.fn(),
     });
 
-    const { result, rerender } = renderHook(({ query }) => useMediaQuery(query), {
-      initialProps: { query: '(min-width: 768px)' },
-    });
+    const { result, rerender } = renderHook(
+      ({ query }) => useMediaQuery(query),
+      {
+        initialProps: { query: '(min-width: 768px)' },
+      },
+    );
 
     expect(result.current).toBe(false);
 

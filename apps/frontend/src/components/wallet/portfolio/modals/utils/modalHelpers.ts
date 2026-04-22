@@ -1,14 +1,14 @@
-import type { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from 'react-hook-form';
 
-import type { TransactionFormData } from "@/types/domain/transaction";
+import type { TransactionFormData } from '@/types/domain/transaction';
 
 function applyPercentageToAmount(
   form: UseFormReturn<TransactionFormData>,
   pct: number,
-  maxAmount: number
+  maxAmount: number,
 ) {
   if (maxAmount > 0) {
-    form.setValue("amount", (maxAmount * pct).toFixed(4), {
+    form.setValue('amount', (maxAmount * pct).toFixed(4), {
       shouldValidate: true,
     });
   }
@@ -16,7 +16,7 @@ function applyPercentageToAmount(
 
 export function buildModalFormState(
   form: UseFormReturn<TransactionFormData>,
-  getMaxAmount: () => number
+  getMaxAmount: () => number,
 ) {
   const handlePercentage = (pct: number) => {
     const max = getMaxAmount();
@@ -36,7 +36,7 @@ export function buildFormActionsProps(
   actionDisabled: boolean,
   actionGradient: string,
   onAction: () => void,
-  amountClassName?: string
+  amountClassName?: string,
 ) {
   return {
     form,

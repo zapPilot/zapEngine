@@ -1,45 +1,45 @@
-import { CircleDollarSign } from "lucide-react";
-import { useState } from "react";
+import { CircleDollarSign } from 'lucide-react';
+import { useState } from 'react';
 
-import { cn } from "@/lib/ui/classNames";
-import type { BacktestBucket } from "@/types/backtesting";
-import type { DailySuggestionResponse } from "@/types/strategy";
-import { formatCurrency } from "@/utils/formatters";
+import { cn } from '@/lib/ui/classNames';
+import type { BacktestBucket } from '@/types/backtesting';
+import type { DailySuggestionResponse } from '@/types/strategy';
+import { formatCurrency } from '@/utils/formatters';
 
-import { useDailySuggestion } from "../hooks/useDailySuggestion";
-import { useDefaultPresetId } from "../hooks/useDefaultPresetId";
-import { BaseTradingPanel } from "./BaseTradingPanel";
-import { ImpactVisual } from "./ImpactVisual";
+import { useDailySuggestion } from '../hooks/useDailySuggestion';
+import { useDefaultPresetId } from '../hooks/useDefaultPresetId';
+import { BaseTradingPanel } from './BaseTradingPanel';
+import { ImpactVisual } from './ImpactVisual';
 
 const ACTION_STYLES: Record<string, string> = {
-  buy: "bg-green-500 shadow-green-200 dark:shadow-none",
-  sell: "bg-red-500 shadow-red-200 dark:shadow-none",
+  buy: 'bg-green-500 shadow-green-200 dark:shadow-none',
+  sell: 'bg-red-500 shadow-red-200 dark:shadow-none',
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  buy: "Add",
-  sell: "Reduce",
+  buy: 'Add',
+  sell: 'Reduce',
 };
 
-const SPOT_BUCKET_LABEL = "SPOT";
-const STABLE_BUCKET_LABEL = "STABLE";
-const ALT_BUCKET_LABEL = "ALT";
+const SPOT_BUCKET_LABEL = 'SPOT';
+const STABLE_BUCKET_LABEL = 'STABLE';
+const ALT_BUCKET_LABEL = 'ALT';
 
-type SpotAssetSymbol = "BTC" | "ETH";
+type SpotAssetSymbol = 'BTC' | 'ETH';
 const REASON_LABELS: Record<string, string> = {
-  above_greed_sell: "Greed remains elevated, so the strategy stays defensive.",
-  already_aligned: "Portfolio is already aligned with the current target.",
+  above_greed_sell: 'Greed remains elevated, so the strategy stays defensive.',
+  already_aligned: 'Portfolio is already aligned with the current target.',
   below_extreme_fear_buy:
-    "Extreme fear remains in place, so the strategy stays risk-on.",
-  eth_btc_ratio_cooldown_active: "ETH/BTC rotation cooldown is still active.",
-  eth_btc_ratio_rebalance: "ETH/BTC rotation is out of balance.",
-  eth_outperforming_btc: "ETH is still outperforming BTC.",
-  interval_wait: "Minimum rebalance interval has not elapsed yet.",
-  trade_quota_min_interval_active: "Trade quota cooldown is still active.",
+    'Extreme fear remains in place, so the strategy stays risk-on.',
+  eth_btc_ratio_cooldown_active: 'ETH/BTC rotation cooldown is still active.',
+  eth_btc_ratio_rebalance: 'ETH/BTC rotation is out of balance.',
+  eth_outperforming_btc: 'ETH is still outperforming BTC.',
+  interval_wait: 'Minimum rebalance interval has not elapsed yet.',
+  trade_quota_min_interval_active: 'Trade quota cooldown is still active.',
 };
 
 interface DerivedTradeAction {
-  action: "buy" | "sell";
+  action: 'buy' | 'sell';
   bucket: BacktestBucket;
   bucketLabel: string;
   amount_usd: number;
@@ -56,16 +56,16 @@ interface StatusPanelContent {
 }
 
 function formatRegimeLabel(value: string | null | undefined): string {
-  return (value ?? "unknown").replace(/_/g, " ");
+  return (value ?? 'unknown').replace(/_/g, ' ');
 }
 
 function normalizeSpotAsset(value: unknown): SpotAssetSymbol | null {
-  if (typeof value !== "string") {
+  if (typeof value !== 'string') {
     return null;
   }
 
   const normalized = value.trim().toUpperCase();
-  if (normalized === "BTC" || normalized === "ETH") {
+  if (normalized === 'BTC' || normalized === 'ETH') {
     return normalized;
   }
 
@@ -73,28 +73,28 @@ function normalizeSpotAsset(value: unknown): SpotAssetSymbol | null {
 }
 
 function getTargetSpotAsset(
-  data: DailySuggestionResponse
+  data: DailySuggestionResponse,
 ): SpotAssetSymbol | null {
   return normalizeSpotAsset(data.context.strategy.details?.target_spot_asset);
 }
 
 function getBucketLabel(
   bucket: BacktestBucket,
-  targetSpotAsset: SpotAssetSymbol | null
+  targetSpotAsset: SpotAssetSymbol | null,
 ): string {
-  if (bucket === "stable") {
+  if (bucket === 'stable') {
     return STABLE_BUCKET_LABEL;
   }
 
-  if (bucket === "eth") {
-    return "ETH";
+  if (bucket === 'eth') {
+    return 'ETH';
   }
 
-  if (bucket === "btc") {
-    return "BTC";
+  if (bucket === 'btc') {
+    return 'BTC';
   }
 
-  if (bucket === "alt") {
+  if (bucket === 'alt') {
     return ALT_BUCKET_LABEL;
   }
 
@@ -102,13 +102,13 @@ function getBucketLabel(
 }
 
 function buildTradeActions(
-  data: DailySuggestionResponse
+  data: DailySuggestionResponse,
 ): DerivedTradeAction[] {
   const targetSpotAsset = getTargetSpotAsset(data);
-  return data.action.transfers.map(transfer => {
-    const action = transfer.to_bucket !== "stable" ? "buy" : "sell";
+  return data.action.transfers.map((transfer) => {
+    const action = transfer.to_bucket !== 'stable' ? 'buy' : 'sell';
     const actionBucket =
-      action === "buy" ? transfer.to_bucket : transfer.from_bucket;
+      action === 'buy' ? transfer.to_bucket : transfer.from_bucket;
 
     return {
       action,
@@ -117,7 +117,7 @@ function buildTradeActions(
       amount_usd: transfer.amount_usd,
       description: `${getBucketLabel(transfer.from_bucket, targetSpotAsset)} -> ${getBucketLabel(
         transfer.to_bucket,
-        targetSpotAsset
+        targetSpotAsset,
       )}`,
     };
   });
@@ -129,47 +129,47 @@ function humanizeReasonCode(reasonCode: string): string {
     return mappedReason;
   }
 
-  const normalized = reasonCode.replaceAll(/[_-]+/g, " ").trim().toLowerCase();
+  const normalized = reasonCode.replaceAll(/[_-]+/g, ' ').trim().toLowerCase();
   if (!normalized) {
-    return "No additional context.";
+    return 'No additional context.';
   }
 
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1) + ".";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1) + '.';
 }
 
 function getStatusPanelContent(
   data: DailySuggestionResponse,
-  tradeActions: DerivedTradeAction[]
+  tradeActions: DerivedTradeAction[],
 ): StatusPanelContent {
-  if (data.action.status === "action_required") {
+  if (data.action.status === 'action_required') {
     const actionCount = tradeActions.length;
     return {
-      actionCardTitle: `${actionCount} Action${actionCount === 1 ? "" : "s"}`,
-      actionCardSubtitle: "Suggested Moves",
-      bodyTitle: "",
-      bodyDescription: "",
-      ctaLabel: "Review & Execute All",
+      actionCardTitle: `${actionCount} Action${actionCount === 1 ? '' : 's'}`,
+      actionCardSubtitle: 'Suggested Moves',
+      bodyTitle: '',
+      bodyDescription: '',
+      ctaLabel: 'Review & Execute All',
       ctaDisabled: false,
     };
   }
 
-  if (data.action.status === "blocked") {
+  if (data.action.status === 'blocked') {
     return {
-      actionCardTitle: "Action Blocked",
-      actionCardSubtitle: "Trading temporarily unavailable",
-      bodyTitle: "Action blocked",
+      actionCardTitle: 'Action Blocked',
+      actionCardSubtitle: 'Trading temporarily unavailable',
+      bodyTitle: 'Action blocked',
       bodyDescription: humanizeReasonCode(data.action.reason_code),
-      ctaLabel: "Execution Unavailable",
+      ctaLabel: 'Execution Unavailable',
       ctaDisabled: true,
     };
   }
 
   return {
-    actionCardTitle: "0 Actions",
-    actionCardSubtitle: "No trades needed",
-    bodyTitle: "No trades needed",
+    actionCardTitle: '0 Actions',
+    actionCardSubtitle: 'No trades needed',
+    bodyTitle: 'No trades needed',
     bodyDescription: humanizeReasonCode(data.action.reason_code),
-    ctaLabel: "No Action Needed",
+    ctaLabel: 'No Action Needed',
     ctaDisabled: true,
   };
 }
@@ -257,10 +257,10 @@ export function RebalancePanel({ userId }: { userId: string }) {
       title="Portfolio Health"
       subtitle={
         <>
-          Aligned with{" "}
+          Aligned with{' '}
           <span className="text-gray-900 dark:text-white font-medium capitalize">
             {regimeLabel}
-          </span>{" "}
+          </span>{' '}
           Regime
         </>
       }
@@ -285,10 +285,10 @@ export function RebalancePanel({ userId }: { userId: string }) {
             }
           }}
           className={cn(
-            "w-full py-4 rounded-xl font-medium transition-opacity",
+            'w-full py-4 rounded-xl font-medium transition-opacity',
             panelContent.ctaDisabled
-              ? "bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-              : "bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90 shadow-lg shadow-gray-200 dark:shadow-none"
+              ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+              : 'bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90 shadow-lg shadow-gray-200 dark:shadow-none',
           )}
         >
           {panelContent.ctaLabel}
@@ -298,7 +298,7 @@ export function RebalancePanel({ userId }: { userId: string }) {
       onCloseReview={() => setIsReviewOpen(false)}
       onConfirmReview={() => setIsReviewOpen(false)}
     >
-      {data.action.status === "action_required" ? (
+      {data.action.status === 'action_required' ? (
         <div className="space-y-4 pt-2">
           {tradeActions.map((trade, i) => (
             <div
@@ -308,16 +308,16 @@ export function RebalancePanel({ userId }: { userId: string }) {
               <div className="flex items-center gap-4 min-w-0">
                 <div
                   className={cn(
-                    "w-2 h-2 rounded-full transition-all group-hover:scale-125 shadow-sm",
-                    ACTION_STYLES[trade.action]
+                    'w-2 h-2 rounded-full transition-all group-hover:scale-125 shadow-sm',
+                    ACTION_STYLES[trade.action],
                   )}
                 />
                 <div className="min-w-0">
                   <div className="text-lg font-light text-gray-600 dark:text-gray-300">
                     <span className="font-medium text-gray-900 dark:text-white">
                       {ACTION_LABELS[trade.action]}
-                    </span>{" "}
-                    <span className="text-gray-400 mx-1">·</span>{" "}
+                    </span>{' '}
+                    <span className="text-gray-400 mx-1">·</span>{' '}
                     {trade.bucketLabel}
                   </div>
                   <div className="text-xs text-gray-500 truncate">

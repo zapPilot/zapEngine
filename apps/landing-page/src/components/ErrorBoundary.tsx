@@ -54,9 +54,13 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-3">{MESSAGES.errors.generic.title}</h2>
+            <h2 className="text-2xl font-bold text-white mb-3">
+              {MESSAGES.errors.generic.title}
+            </h2>
 
-            <p className="text-gray-300 mb-6">{MESSAGES.errors.generic.description}</p>
+            <p className="text-gray-300 mb-6">
+              {MESSAGES.errors.generic.description}
+            </p>
 
             {this.state.error && process.env.NODE_ENV === 'development' && (
               <div className="mb-6 p-4 bg-gray-950 rounded-lg text-left">

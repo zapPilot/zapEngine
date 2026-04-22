@@ -7,8 +7,8 @@
  * @module lib/http/createServiceCaller
  */
 
-import { APIError } from "@/lib/http/errors";
-import { createErrorMapper } from "@/lib/http/serviceErrorFactory";
+import { APIError } from '@/lib/http/errors';
+import { createErrorMapper } from '@/lib/http/serviceErrorFactory';
 
 /**
  * Creates a service caller with consistent error mapping.
@@ -24,7 +24,7 @@ import { createErrorMapper } from "@/lib/http/serviceErrorFactory";
  * ```
  */
 export function createServiceCaller<TError extends Error>(
-  errorMapper: (error: unknown) => TError
+  errorMapper: (error: unknown) => TError,
 ): <T>(call: () => Promise<T>) => Promise<T> {
   return async function callService<T>(call: () => Promise<T>): Promise<T> {
     try {
@@ -59,14 +59,14 @@ export function createServiceCaller<TError extends Error>(
  */
 export function createApiServiceCaller(
   statusMessages: Record<number, string>,
-  defaultMessage: string
+  defaultMessage: string,
 ) {
   return createServiceCaller(
     createErrorMapper(
       (message, status, code, details) =>
         new APIError(message, status, code, details),
       statusMessages,
-      defaultMessage
-    )
+      defaultMessage,
+    ),
   );
 }

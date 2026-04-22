@@ -1,8 +1,8 @@
-import { Check, Copy, LogOut, Plus, Settings, Wallet } from "lucide-react";
-import { type ReactElement } from "react";
+import { Check, Copy, LogOut, Plus, Settings, Wallet } from 'lucide-react';
+import { type ReactElement } from 'react';
 
-import { ConnectWalletButton } from "@/components/WalletManager/components/ConnectWalletButton";
-import { formatAddress } from "@/utils/formatters";
+import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
+import { formatAddress } from '@/utils/formatters';
 
 import type {
   CopyAddressButtonProps,
@@ -11,18 +11,18 @@ import type {
   WalletMultipleWalletSectionProps,
   WalletSectionFooterProps,
   WalletSingleWalletSectionProps,
-} from "./types";
+} from './types';
 import {
   getCopyButtonClassName,
   getWalletItemClassName,
   getWalletStatusDotClassName,
-} from "./walletMenuClassNames";
+} from './walletMenuClassNames';
 
 function CopyAddressButton({
   address,
   copiedAddress,
   onCopyAddress,
-  variant = "text",
+  variant = 'text',
 }: CopyAddressButtonProps): ReactElement {
   const isCopied = copiedAddress === address;
 
@@ -36,12 +36,12 @@ function CopyAddressButton({
       {isCopied ? (
         <>
           <Check className="w-3 h-3" />
-          {variant === "text" && "Copied"}
+          {variant === 'text' && 'Copied'}
         </>
       ) : (
         <>
           <Copy className="w-3 h-3" />
-          {variant === "text" && "Copy"}
+          {variant === 'text' && 'Copy'}
         </>
       )}
     </button>
@@ -178,7 +178,7 @@ export function WalletMultipleWalletSection({
           Connected Wallets
         </div>
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {connectedWallets.map(walletItem => (
+          {connectedWallets.map((walletItem) => (
             <div
               key={walletItem.address}
               className={getWalletItemClassName(walletItem.isActive)}

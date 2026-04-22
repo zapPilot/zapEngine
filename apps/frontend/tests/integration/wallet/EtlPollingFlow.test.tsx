@@ -26,8 +26,8 @@
  * @see src/components/wallet/portfolio/WalletPortfolioPresenter.tsx - Search handler
  */
 
-import { QueryClient } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ETL_STATUS_COMPLETED,
@@ -36,13 +36,13 @@ import {
   ETL_STATUS_PROCESSING,
   NEW_USER_RESPONSE,
   TEST_WALLET_ADDRESSES,
-} from "../../fixtures/mockEtlData";
+} from '../../fixtures/mockEtlData';
 import {
   advancePollingCycle,
   createConnectWalletMock,
   POLLING_INTERVAL_MS,
-} from "../../helpers/etlMockHelpers";
-import { act, render, screen } from "../../test-utils";
+} from '../../helpers/etlMockHelpers';
+import { act, render, screen } from '../../test-utils';
 
 // Note: This is a simplified integration test focusing on the ETL polling logic.
 // Full E2E tests with DashboardShell would require more complex setup.
@@ -52,12 +52,12 @@ import { act, render, screen } from "../../test-utils";
  */
 function createMockEtlPollingHook() {
   let status:
-    | "idle"
-    | "pending"
-    | "processing"
-    | "completing"
-    | "completed"
-    | "failed" = "idle";
+    | 'idle'
+    | 'pending'
+    | 'processing'
+    | 'completing'
+    | 'completed'
+    | 'failed' = 'idle';
   let jobId: string | null = null;
   let pollCount = 0;
 
@@ -66,13 +66,13 @@ function createMockEtlPollingHook() {
 
     // Simulate progression: pending → processing → completed
     if (pollCount === 1) {
-      status = "pending";
+      status = 'pending';
       return Promise.resolve({ ...ETL_STATUS_PENDING, job_id: id });
     } else if (pollCount === 2) {
-      status = "processing";
+      status = 'processing';
       return Promise.resolve({ ...ETL_STATUS_PROCESSING, job_id: id });
     } else {
-      status = "completed";
+      status = 'completed';
       return Promise.resolve({ ...ETL_STATUS_COMPLETED, job_id: id });
     }
   });
@@ -85,26 +85,26 @@ function createMockEtlPollingHook() {
       return { status, jobId, errorMessage, isLoading: false };
     },
     triggerEtl: vi.fn((_userId: string, _address: string) => {
-      jobId = "test-job-123";
-      status = "pending";
+      jobId = 'test-job-123';
+      status = 'pending';
       return Promise.resolve();
     }),
     startPolling: vi.fn((id: string) => {
       jobId = id;
-      status = "pending";
+      status = 'pending';
     }),
     reset: vi.fn(() => {
-      status = "idle";
+      status = 'idle';
       jobId = null;
       pollCount = 0;
       errorMessage = undefined;
     }),
     completeTransition: vi.fn(() => {
-      status = "idle";
+      status = 'idle';
       jobId = null;
     }),
     simulateFailure: vi.fn((message: string) => {
-      status = "failed";
+      status = 'failed';
       errorMessage = message;
     }),
     mockGetEtlStatus,
@@ -112,7 +112,7 @@ function createMockEtlPollingHook() {
   };
 }
 
-describe("ETL Polling Flow - Integration", () => {
+describe('ETL Polling Flow - Integration', () => {
   let queryClient: QueryClient;
   let mockConnectWallet: ReturnType<typeof vi.fn>;
   let mockRouter: {
@@ -152,8 +152,8 @@ describe("ETL Polling Flow - Integration", () => {
     vi.useRealTimers();
   });
 
-  describe("Complete New User Flow", () => {
-    it("completes full flow: search → poll → load → render", async () => {
+  describe('Complete New User Flow', () => {
+    it('completes full flow: search → poll → load → render', async () => {
       /**
        * This is the MOST IMPORTANT test - validates the entire user journey.
        *
@@ -188,7 +188,7 @@ describe("ETL Polling Flow - Integration", () => {
       const searchParams = new URLSearchParams({
         userId: response.user_id,
         etlJobId: response.etl_job!.job_id,
-        isNewUser: "true",
+        isNewUser: 'true',
       });
       const expectedUrl = `/bundle?${searchParams.toString()}`;
 
@@ -196,16 +196,16 @@ describe("ETL Polling Flow - Integration", () => {
 
       expect(mockRouter.push).toHaveBeenCalledWith(expectedUrl);
       expect(mockRouter.push).toHaveBeenCalledWith(
-        expect.stringContaining("isNewUser=true")
+        expect.stringContaining('isNewUser=true'),
       );
       expect(mockRouter.push).toHaveBeenCalledWith(
-        expect.stringContaining("etlJobId=")
+        expect.stringContaining('etlJobId='),
       );
 
       // Step 4: Start ETL polling
       mockEtlHook.startPolling(response.etl_job!.job_id);
 
-      expect(mockEtlHook.state.status).toBe("pending");
+      expect(mockEtlHook.state.status).toBe('pending');
       expect(mockEtlHook.state.jobId).toBe(response.etl_job!.job_id);
 
       // Step 5: Advance through polling cycles
@@ -215,9 +215,9 @@ describe("ETL Polling Flow - Integration", () => {
       });
 
       let statusResult = await mockEtlHook.mockGetEtlStatus(
-        response.etl_job!.job_id
+        response.etl_job!.job_id,
       );
-      expect(statusResult.status).toBe("pending");
+      expect(statusResult.status).toBe('pending');
 
       // Second poll - should get "processing" status
       await act(async () => {
@@ -225,9 +225,9 @@ describe("ETL Polling Flow - Integration", () => {
       });
 
       statusResult = await mockEtlHook.mockGetEtlStatus(
-        response.etl_job!.job_id
+        response.etl_job!.job_id,
       );
-      expect(statusResult.status).toBe("processing");
+      expect(statusResult.status).toBe('processing');
 
       // Third poll - should get "completed" status
       await act(async () => {
@@ -235,42 +235,42 @@ describe("ETL Polling Flow - Integration", () => {
       });
 
       statusResult = await mockEtlHook.mockGetEtlStatus(
-        response.etl_job!.job_id
+        response.etl_job!.job_id,
       );
-      expect(statusResult.status).toBe("completed");
+      expect(statusResult.status).toBe('completed');
 
       // Verify polling occurred 3 times
       expect(mockEtlHook.pollCount()).toBe(3);
 
       // Step 6: On completion, trigger cache invalidation and refetch
       await act(async () => {
-        queryClient.invalidateQueries({ queryKey: ["portfolio-landing-page"] });
+        queryClient.invalidateQueries({ queryKey: ['portfolio-landing-page'] });
         await queryClient.refetchQueries({
-          queryKey: ["portfolio-landing-page"],
+          queryKey: ['portfolio-landing-page'],
         });
       });
 
       // Step 7: Clean URL parameters
-      const cleanUrl = new URL("http://localhost:3000/bundle");
-      cleanUrl.searchParams.set("userId", response.user_id);
+      const cleanUrl = new URL('http://localhost:3000/bundle');
+      cleanUrl.searchParams.set('userId', response.user_id);
       // Note: isNewUser and etlJobId should be removed
 
       mockRouter.replace(`${cleanUrl.pathname}${cleanUrl.search}`);
 
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        expect.not.stringContaining("isNewUser")
+        expect.not.stringContaining('isNewUser'),
       );
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        expect.not.stringContaining("etlJobId")
+        expect.not.stringContaining('etlJobId'),
       );
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        expect.stringContaining("userId=")
+        expect.stringContaining('userId='),
       );
 
       // Step 8: Complete transition to idle state
       mockEtlHook.completeTransition();
 
-      expect(mockEtlHook.state.status).toBe("idle");
+      expect(mockEtlHook.state.status).toBe('idle');
       expect(mockEtlHook.state.jobId).toBeNull();
 
       // Verify complete flow executed successfully
@@ -280,17 +280,17 @@ describe("ETL Polling Flow - Integration", () => {
       expect(mockEtlHook.pollCount()).toBe(3);
     });
 
-    it("displays correct status messages during polling", async () => {
+    it('displays correct status messages during polling', async () => {
       /**
        * Validates that InitialDataLoadingState shows appropriate messages
        * as ETL job progresses through different statuses.
        */
 
       const statusMessages = {
-        pending: "Job queued...",
-        processing: "Fetching data from DeBank...",
-        completed: "Finalizing...",
-        completing: "Finalizing...", // Maps to completed message
+        pending: 'Job queued...',
+        processing: 'Fetching data from DeBank...',
+        completed: 'Finalizing...',
+        completing: 'Finalizing...', // Maps to completed message
       };
 
       // Test each status independently
@@ -298,7 +298,7 @@ describe("ETL Polling Flow - Integration", () => {
         const { unmount } = render(
           <div data-testid="loading-state" data-status={status}>
             {expectedMessage}
-          </div>
+          </div>,
         );
 
         expect(screen.getByText(expectedMessage)).toBeInTheDocument();
@@ -307,7 +307,7 @@ describe("ETL Polling Flow - Integration", () => {
       }
     });
 
-    it("polls at 3-second intervals", async () => {
+    it('polls at 3-second intervals', async () => {
       const mockGetEtlStatus = vi
         .fn()
         .mockResolvedValueOnce(ETL_STATUS_PENDING)
@@ -315,7 +315,7 @@ describe("ETL Polling Flow - Integration", () => {
         .mockResolvedValueOnce(ETL_STATUS_COMPLETED);
 
       // Start polling
-      const jobId = "test-job-123";
+      const jobId = 'test-job-123';
 
       // First poll happens immediately
       await mockGetEtlStatus(jobId);
@@ -341,11 +341,11 @@ describe("ETL Polling Flow - Integration", () => {
       expect(POLLING_INTERVAL_MS).toBe(3000);
     });
 
-    it("stops polling when status is completed", async () => {
+    it('stops polling when status is completed', async () => {
       const mockEtlHook = createMockEtlPollingHook();
 
       // Start polling
-      mockEtlHook.startPolling("test-job-123");
+      mockEtlHook.startPolling('test-job-123');
 
       // Poll until completed
       await act(async () => {
@@ -364,13 +364,13 @@ describe("ETL Polling Flow - Integration", () => {
       expect(mockEtlHook.pollCount()).toBe(finalPollCount);
     });
 
-    it("stops polling when status is failed", async () => {
+    it('stops polling when status is failed', async () => {
       const mockGetEtlStatus = vi
         .fn()
         .mockResolvedValueOnce(ETL_STATUS_PENDING)
         .mockResolvedValueOnce(ETL_STATUS_FAILED);
 
-      const jobId = "test-job-123";
+      const jobId = 'test-job-123';
 
       // First poll - pending
       await mockGetEtlStatus(jobId);
@@ -396,17 +396,17 @@ describe("ETL Polling Flow - Integration", () => {
     });
   });
 
-  describe("ETL State Transitions", () => {
-    it("transitions through all states: idle → pending → processing → completing → idle", async () => {
+  describe('ETL State Transitions', () => {
+    it('transitions through all states: idle → pending → processing → completing → idle', async () => {
       const stateLog: string[] = [];
       const mockEtlHook = createMockEtlPollingHook();
 
       // Initial state
       stateLog.push(mockEtlHook.state.status);
-      expect(mockEtlHook.state.status).toBe("idle");
+      expect(mockEtlHook.state.status).toBe('idle');
 
       // Start polling
-      mockEtlHook.startPolling("test-job-123");
+      mockEtlHook.startPolling('test-job-123');
       stateLog.push(mockEtlHook.state.status);
 
       // Poll through states
@@ -419,9 +419,9 @@ describe("ETL Polling Flow - Integration", () => {
       stateLog.push(mockEtlHook.state.status);
 
       // Verify state progression (simplified - real implementation would track all transitions)
-      expect(stateLog).toContain("idle");
-      expect(stateLog).toContain("pending");
-      expect(mockEtlHook.state.status).toBe("idle"); // Final state
+      expect(stateLog).toContain('idle');
+      expect(stateLog).toContain('pending');
+      expect(mockEtlHook.state.status).toBe('idle'); // Final state
     });
 
     it("keeps loading screen visible during 'completing' state", async () => {
@@ -434,28 +434,28 @@ describe("ETL Polling Flow - Integration", () => {
 
       const renderLoadingState = (status: string) => {
         const isEtlInProgress = [
-          "pending",
-          "processing",
-          "completing",
+          'pending',
+          'processing',
+          'completing',
         ].includes(status);
         return isEtlInProgress;
       };
 
       // All in-progress states should show loading
-      expect(renderLoadingState("pending")).toBe(true);
-      expect(renderLoadingState("processing")).toBe(true);
-      expect(renderLoadingState("completing")).toBe(true); // CRITICAL
+      expect(renderLoadingState('pending')).toBe(true);
+      expect(renderLoadingState('processing')).toBe(true);
+      expect(renderLoadingState('completing')).toBe(true); // CRITICAL
 
       // Only idle and failed should not show loading
-      expect(renderLoadingState("idle")).toBe(false);
-      expect(renderLoadingState("completed")).toBe(false); // Maps to completing internally
+      expect(renderLoadingState('idle')).toBe(false);
+      expect(renderLoadingState('completed')).toBe(false); // Maps to completing internally
     });
 
-    it("transitions to idle only after completeTransition called", async () => {
+    it('transitions to idle only after completeTransition called', async () => {
       const mockEtlHook = createMockEtlPollingHook();
 
       // Start and complete polling
-      mockEtlHook.startPolling("test-job-123");
+      mockEtlHook.startPolling('test-job-123');
 
       await act(async () => {
         await advancePollingCycle(3);
@@ -468,46 +468,46 @@ describe("ETL Polling Flow - Integration", () => {
       mockEtlHook.completeTransition();
 
       // Now should be idle
-      expect(mockEtlHook.state.status).toBe("idle");
+      expect(mockEtlHook.state.status).toBe('idle');
       expect(mockEtlHook.state.jobId).toBeNull();
     });
   });
 
-  describe("Cache Invalidation", () => {
-    it("invalidates portfolio landing page query on completion", async () => {
-      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+  describe('Cache Invalidation', () => {
+    it('invalidates portfolio landing page query on completion', async () => {
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
       // Simulate ETL completion
       await act(async () => {
         await queryClient.invalidateQueries({
-          queryKey: ["portfolio-landing-page"],
+          queryKey: ['portfolio-landing-page'],
         });
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ["portfolio-landing-page"],
+        queryKey: ['portfolio-landing-page'],
       });
     });
 
-    it("triggers refetch after cache invalidation", async () => {
-      const refetchSpy = vi.spyOn(queryClient, "refetchQueries");
+    it('triggers refetch after cache invalidation', async () => {
+      const refetchSpy = vi.spyOn(queryClient, 'refetchQueries');
 
       // Simulate completion flow: invalidate → refetch
       await act(async () => {
         await queryClient.invalidateQueries({
-          queryKey: ["portfolio-landing-page"],
+          queryKey: ['portfolio-landing-page'],
         });
         await queryClient.refetchQueries({
-          queryKey: ["portfolio-landing-page"],
+          queryKey: ['portfolio-landing-page'],
         });
       });
 
       expect(refetchSpy).toHaveBeenCalledWith({
-        queryKey: ["portfolio-landing-page"],
+        queryKey: ['portfolio-landing-page'],
       });
     });
 
-    it("waits for refetch to complete before showing dashboard", async () => {
+    it('waits for refetch to complete before showing dashboard', async () => {
       let refetchComplete = false;
 
       // Simulate refetch that completes immediately
@@ -528,46 +528,46 @@ describe("ETL Polling Flow - Integration", () => {
     });
   });
 
-  describe("URL Parameter Cleanup", () => {
-    it("removes etlJobId parameter after completion", () => {
+  describe('URL Parameter Cleanup', () => {
+    it('removes etlJobId parameter after completion', () => {
       const initialUrl =
-        "/bundle?userId=user-123&etlJobId=job-456&isNewUser=true";
+        '/bundle?userId=user-123&etlJobId=job-456&isNewUser=true';
       const url = new URL(`http://localhost${initialUrl}`);
 
       // Remove ETL-related params
-      url.searchParams.delete("etlJobId");
-      url.searchParams.delete("isNewUser");
+      url.searchParams.delete('etlJobId');
+      url.searchParams.delete('isNewUser');
 
       const cleanedUrl = `${url.pathname}${url.search}`;
 
-      expect(cleanedUrl).not.toContain("etlJobId");
-      expect(cleanedUrl).not.toContain("isNewUser");
-      expect(cleanedUrl).toContain("userId=user-123");
+      expect(cleanedUrl).not.toContain('etlJobId');
+      expect(cleanedUrl).not.toContain('isNewUser');
+      expect(cleanedUrl).toContain('userId=user-123');
     });
 
-    it("removes isNewUser parameter after completion", () => {
-      const url = new URL("http://localhost/bundle");
-      url.searchParams.set("userId", "user-123");
-      url.searchParams.set("isNewUser", "true");
+    it('removes isNewUser parameter after completion', () => {
+      const url = new URL('http://localhost/bundle');
+      url.searchParams.set('userId', 'user-123');
+      url.searchParams.set('isNewUser', 'true');
 
-      url.searchParams.delete("isNewUser");
+      url.searchParams.delete('isNewUser');
 
       const result = `${url.pathname}${url.search}`;
 
-      expect(result).not.toContain("isNewUser");
-      expect(result).toContain("userId");
+      expect(result).not.toContain('isNewUser');
+      expect(result).toContain('userId');
     });
 
-    it("preserves userId parameter after cleanup", () => {
-      const userId = "user-123456";
-      const url = new URL("http://localhost/bundle");
-      url.searchParams.set("userId", userId);
-      url.searchParams.set("etlJobId", "job-789");
-      url.searchParams.set("isNewUser", "true");
+    it('preserves userId parameter after cleanup', () => {
+      const userId = 'user-123456';
+      const url = new URL('http://localhost/bundle');
+      url.searchParams.set('userId', userId);
+      url.searchParams.set('etlJobId', 'job-789');
+      url.searchParams.set('isNewUser', 'true');
 
       // Clean up
-      url.searchParams.delete("etlJobId");
-      url.searchParams.delete("isNewUser");
+      url.searchParams.delete('etlJobId');
+      url.searchParams.delete('isNewUser');
 
       const result = `${url.pathname}${url.search}`;
 
@@ -575,8 +575,8 @@ describe("ETL Polling Flow - Integration", () => {
       expect(result).toBe(`/bundle?userId=${userId}`);
     });
 
-    it("uses router.replace to avoid adding history entries", () => {
-      const cleanUrl = "/bundle?userId=user-123";
+    it('uses router.replace to avoid adding history entries', () => {
+      const cleanUrl = '/bundle?userId=user-123';
 
       mockRouter.replace(cleanUrl);
 
@@ -585,8 +585,8 @@ describe("ETL Polling Flow - Integration", () => {
     });
   });
 
-  describe("Race Conditions", () => {
-    it("prevents premature query re-enablement during completing state", async () => {
+  describe('Race Conditions', () => {
+    it('prevents premature query re-enablement during completing state', async () => {
       /**
        * CRITICAL TEST: Validates the original race condition bug fix.
        *
@@ -600,24 +600,24 @@ describe("ETL Polling Flow - Integration", () => {
 
       const checkQueriesEnabled = (status: string) => {
         // Queries should be DISABLED during these states
-        const disablingStates = ["pending", "processing", "completing"];
+        const disablingStates = ['pending', 'processing', 'completing'];
         return !disablingStates.includes(status);
       };
 
       // During completing state, queries should remain disabled
-      expect(checkQueriesEnabled("completing")).toBe(false);
+      expect(checkQueriesEnabled('completing')).toBe(false);
 
       // Only after transition to idle should queries re-enable
-      expect(checkQueriesEnabled("idle")).toBe(true);
+      expect(checkQueriesEnabled('idle')).toBe(true);
     });
 
-    it("handles multiple concurrent searches gracefully", async () => {
+    it('handles multiple concurrent searches gracefully', async () => {
       // First search
       const firstSearch = mockConnectWallet(TEST_WALLET_ADDRESSES.VALID_NEW);
 
       // Second search (cancels first)
       const secondSearch = mockConnectWallet(
-        TEST_WALLET_ADDRESSES.VALID_EXISTING
+        TEST_WALLET_ADDRESSES.VALID_EXISTING,
       );
 
       // Both should resolve independently
@@ -627,44 +627,44 @@ describe("ETL Polling Flow - Integration", () => {
       expect(mockConnectWallet).toHaveBeenCalledTimes(2);
     });
 
-    it("handles user navigation away during ETL", async () => {
+    it('handles user navigation away during ETL', async () => {
       const mockEtlHook = createMockEtlPollingHook();
 
       // Start polling
-      mockEtlHook.startPolling("test-job-123");
+      mockEtlHook.startPolling('test-job-123');
 
       // User navigates away (component unmounts)
       mockEtlHook.reset();
 
       // Polling should stop
-      expect(mockEtlHook.state.status).toBe("idle");
+      expect(mockEtlHook.state.status).toBe('idle');
       expect(mockEtlHook.state.jobId).toBeNull();
     });
   });
 
-  describe("Error Recovery", () => {
-    it("shows dashboard with error state when ETL fails", async () => {
+  describe('Error Recovery', () => {
+    it('shows dashboard with error state when ETL fails', async () => {
       const mockEtlHook = createMockEtlPollingHook();
 
-      mockEtlHook.startPolling("test-job-123");
+      mockEtlHook.startPolling('test-job-123');
 
       // Simulate failure
       await act(async () => {
-        mockEtlHook.simulateFailure("Failed to fetch wallet data");
+        mockEtlHook.simulateFailure('Failed to fetch wallet data');
       });
 
-      expect(mockEtlHook.state.status).toBe("failed");
+      expect(mockEtlHook.state.status).toBe('failed');
       expect(mockEtlHook.state.errorMessage).toBeDefined();
     });
 
-    it("handles network interruptions during polling", async () => {
+    it('handles network interruptions during polling', async () => {
       const mockGetEtlStatus = vi
         .fn()
         .mockResolvedValueOnce(ETL_STATUS_PENDING)
-        .mockRejectedValueOnce(new Error("Network error"))
+        .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce(ETL_STATUS_PROCESSING);
 
-      const jobId = "test-job-123";
+      const jobId = 'test-job-123';
 
       // First poll - success
       await mockGetEtlStatus(jobId);

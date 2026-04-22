@@ -1,9 +1,9 @@
-import { useWalletProvider } from "@/providers/WalletProvider";
+import { useWalletProvider } from '@/providers/WalletProvider';
 
 import {
   type TransactionDropdownState,
   useTransactionDropdownState,
-} from "./useTransactionDropdownState";
+} from './useTransactionDropdownState';
 
 export interface TransactionModalStateContext {
   dropdownState: TransactionDropdownState;

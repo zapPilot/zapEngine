@@ -31,12 +31,16 @@ describe('useResponsiveLayout', () => {
   it('should use custom breakpoint', () => {
     width.set(900);
 
-    const { result } = renderHook(() => useResponsiveLayout({ breakpoint: 1024 }));
+    const { result } = renderHook(() =>
+      useResponsiveLayout({ breakpoint: 1024 }),
+    );
     expect(result.current).toBe(true);
   });
 
   it('should update on window resize', () => {
-    const { result } = renderHook(() => useResponsiveLayout({ throttleDelay: 50 }));
+    const { result } = renderHook(() =>
+      useResponsiveLayout({ throttleDelay: 50 }),
+    );
 
     // Initially desktop
     expect(result.current).toBe(false);
@@ -56,7 +60,9 @@ describe('useResponsiveLayout', () => {
   });
 
   it('should throttle resize events', () => {
-    const { result } = renderHook(() => useResponsiveLayout({ throttleDelay: 100 }));
+    const { result } = renderHook(() =>
+      useResponsiveLayout({ throttleDelay: 100 }),
+    );
 
     // Trigger multiple resize events rapidly
     act(() => {
@@ -84,7 +90,10 @@ describe('useResponsiveLayout', () => {
 
     unmount();
 
-    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
+    expect(removeEventListenerSpy).toHaveBeenCalledWith(
+      'resize',
+      expect.any(Function),
+    );
     removeEventListenerSpy.mockRestore();
   });
 });

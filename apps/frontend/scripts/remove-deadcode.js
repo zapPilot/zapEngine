@@ -5,32 +5,32 @@
  * Removes specific exported functions/constants/types based on analysis
  */
 
-import { readFileSync, writeFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { readFileSync, writeFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, "..");
+const projectRoot = path.join(__dirname, '..');
 
 // Define removals by file
 const REMOVALS = {
-  "src/utils/formatters.ts": [
-    { name: "formatSharpeRatio", type: "function" },
-    { name: "formatDrawdown", type: "function" },
-    { name: "formatVolatility", type: "function" },
-    { name: "formatNumber", type: "function" },
+  'src/utils/formatters.ts': [
+    { name: 'formatSharpeRatio', type: 'function' },
+    { name: 'formatDrawdown', type: 'function' },
+    { name: 'formatVolatility', type: 'function' },
+    { name: 'formatNumber', type: 'function' },
   ],
-  "src/utils/logger.ts": [
-    { name: "swapLogger", type: "const" },
-    { name: "chainLogger", type: "const" },
+  'src/utils/logger.ts': [
+    { name: 'swapLogger', type: 'const' },
+    { name: 'chainLogger', type: 'const' },
   ],
 };
 
 function removeExport(filePath, exportName) {
   const fullPath = path.join(projectRoot, filePath);
-  const content = readFileSync(fullPath, "utf-8");
-  const lines = content.split("\n");
+  const content = readFileSync(fullPath, 'utf-8');
+  const lines = content.split('\n');
 
   // Find and remove the export
   let inExport = false;
@@ -44,14 +44,14 @@ function removeExport(filePath, exportName) {
     // Look for export pattern
     if (!inExport) {
       const exportPattern = new RegExp(
-        `export\\s+(const|function|type|interface)\\s+${exportName}[\\s(:=]`
+        `export\\s+(const|function|type|interface)\\s+${exportName}[\\s(:=]`,
       );
       if (exportPattern.test(line)) {
         inExport = true;
         startLine = i;
 
         // Check if single-line export
-        if (line.includes(";") && !line.includes("{")) {
+        if (line.includes(';') && !line.includes('{')) {
           endLine = i;
           break;
         }
@@ -66,7 +66,7 @@ function removeExport(filePath, exportName) {
       braceCount -= (line.match(/}/g) || []).length;
 
       // Check for end
-      if (braceCount === 0 && (line.includes(";") || line.includes("}"))) {
+      if (braceCount === 0 && (line.includes(';') || line.includes('}'))) {
         endLine = i;
         break;
       }
@@ -78,15 +78,15 @@ function removeExport(filePath, exportName) {
     let actualStart = startLine;
     while (
       actualStart > 0 &&
-      (lines[actualStart - 1].trim().startsWith("*") ||
-        lines[actualStart - 1].trim().startsWith("/**") ||
-        lines[actualStart - 1].trim() === "")
+      (lines[actualStart - 1].trim().startsWith('*') ||
+        lines[actualStart - 1].trim().startsWith('/**') ||
+        lines[actualStart - 1].trim() === '')
     ) {
       actualStart--;
     }
 
     lines.splice(actualStart, endLine - actualStart + 1);
-    writeFileSync(fullPath, lines.join("\n"));
+    writeFileSync(fullPath, lines.join('\n'));
     console.log(`✅ Removed ${exportName} from ${filePath}`);
     return true;
   }
@@ -96,7 +96,7 @@ function removeExport(filePath, exportName) {
 }
 
 // Process removals
-console.log("🧹 Starting automated dead code removal...\n");
+console.log('🧹 Starting automated dead code removal...\n');
 
 let removedCount = 0;
 let skippedCount = 0;

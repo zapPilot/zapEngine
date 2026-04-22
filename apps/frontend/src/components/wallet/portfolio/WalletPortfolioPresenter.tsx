@@ -1,39 +1,39 @@
-import { Loader2 } from "lucide-react";
-import { type ReactElement, type ReactNode, useRef, useState } from "react";
+import { Loader2 } from 'lucide-react';
+import { type ReactElement, type ReactNode, useRef, useState } from 'react';
 
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
-import { Footer } from "@/components/Footer/Footer";
-import { InitialDataLoadingState } from "@/components/wallet/InitialDataLoadingState";
-import { WalletNavigation } from "@/components/wallet/portfolio/components/navigation";
-import { usePortfolioModalState } from "@/components/wallet/portfolio/hooks/usePortfolioModalState";
-import { DashboardView } from "@/components/wallet/portfolio/views/DashboardView";
-import { getRegimeById } from "@/components/wallet/regime/regimeData";
-import type { EtlJobPollingState } from "@/hooks/wallet";
-import { lazyImport } from "@/lib/lazy/lazyImport";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import { Footer } from '@/components/Footer/Footer';
+import { InitialDataLoadingState } from '@/components/wallet/InitialDataLoadingState';
+import { WalletNavigation } from '@/components/wallet/portfolio/components/navigation';
+import { usePortfolioModalState } from '@/components/wallet/portfolio/hooks/usePortfolioModalState';
+import { DashboardView } from '@/components/wallet/portfolio/views/DashboardView';
+import { getRegimeById } from '@/components/wallet/regime/regimeData';
+import type { EtlJobPollingState } from '@/hooks/wallet';
+import { lazyImport } from '@/lib/lazy/lazyImport';
 import {
   buildPortfolioRouteSearchParams,
   readPortfolioRouteState,
-} from "@/lib/portfolio/portfolioRouteState";
+} from '@/lib/portfolio/portfolioRouteState';
 import {
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
-} from "@/lib/routing";
-import { useToast } from "@/providers/ToastProvider";
-import { connectWallet } from "@/services";
+} from '@/lib/routing';
+import { useToast } from '@/providers/ToastProvider';
+import { connectWallet } from '@/services';
 import type {
   DashboardSections,
   InvestSubTab,
   MarketSection,
   TabType,
-} from "@/types";
+} from '@/types';
 
 /** Layout class constants for consistent styling */
 const LAYOUT = {
   container:
-    "min-h-screen bg-gray-950 flex flex-col font-sans selection:bg-purple-500/30",
-  main: "flex-1 flex justify-center p-4 md:p-8",
-  content: "w-full max-w-4xl flex flex-col gap-8 min-h-[600px]",
+    'min-h-screen bg-gray-950 flex flex-col font-sans selection:bg-purple-500/30',
+  main: 'flex-1 flex justify-center p-4 md:p-8',
+  content: 'w-full max-w-4xl flex flex-col gap-8 min-h-[600px]',
 } as const;
 
 function PortfolioTabLoadingState(): ReactElement {
@@ -52,28 +52,28 @@ function PortfolioTabLoadingState(): ReactElement {
 
 const LazyAnalyticsView = lazyImport(
   // v8 ignore next -- dynamic import; loader is not invoked in unit tests
-  async () => import("@/components/wallet/portfolio/analytics"),
-  mod => mod.AnalyticsView,
-  { fallback: <PortfolioTabLoadingState /> }
+  async () => import('@/components/wallet/portfolio/analytics'),
+  (mod) => mod.AnalyticsView,
+  { fallback: <PortfolioTabLoadingState /> },
 );
 
 const LazyInvestView = lazyImport(
   // v8 ignore next -- dynamic import; loader is not invoked in unit tests
-  async () => import("@/components/wallet/portfolio/views/invest/InvestView"),
-  mod => mod.InvestView,
-  { fallback: <PortfolioTabLoadingState /> }
+  async () => import('@/components/wallet/portfolio/views/invest/InvestView'),
+  (mod) => mod.InvestView,
+  { fallback: <PortfolioTabLoadingState /> },
 );
 
 const LazyPortfolioModals = lazyImport(
   // v8 ignore next -- dynamic import; loader is not invoked in unit tests
-  async () => import("@/components/wallet/portfolio/modals"),
-  mod => mod.PortfolioModals
+  async () => import('@/components/wallet/portfolio/modals'),
+  (mod) => mod.PortfolioModals,
 );
 
 const LazyWalletManager = lazyImport(
   // v8 ignore next -- dynamic import; loader is not invoked in unit tests
-  async () => import("@/components/WalletManager"),
-  mod => mod.WalletManager
+  async () => import('@/components/WalletManager'),
+  (mod) => mod.WalletManager,
 );
 
 interface WalletPortfolioPresenterProps {
@@ -97,8 +97,8 @@ function isValidationSearchError(error: unknown): boolean {
   }
 
   return (
-    error.message.includes("Invalid wallet") ||
-    error.message.includes("42-character")
+    error.message.includes('Invalid wallet') ||
+    error.message.includes('42-character')
   );
 }
 
@@ -106,25 +106,25 @@ function buildBundleUrlFromSearchResult(params: {
   searchedUserId: string;
   etlJobId?: string | null | undefined;
   searchedIsNewUser?: boolean;
-  currentSearchParams: Pick<URLSearchParams, "toString">;
+  currentSearchParams: Pick<URLSearchParams, 'toString'>;
 }): string {
   const { searchedUserId, etlJobId, searchedIsNewUser, currentSearchParams } =
     params;
   const searchParams = new URLSearchParams(currentSearchParams.toString());
 
-  searchParams.set("userId", searchedUserId);
-  searchParams.delete("walletId");
+  searchParams.set('userId', searchedUserId);
+  searchParams.delete('walletId');
 
   if (etlJobId) {
-    searchParams.set("etlJobId", etlJobId);
+    searchParams.set('etlJobId', etlJobId);
   } else {
-    searchParams.delete("etlJobId");
+    searchParams.delete('etlJobId');
   }
 
   if (searchedIsNewUser) {
-    searchParams.set("isNewUser", "true");
+    searchParams.set('isNewUser', 'true');
   } else {
-    searchParams.delete("isNewUser");
+    searchParams.delete('isNewUser');
   }
 
   return `/bundle?${searchParams.toString()}`;
@@ -132,7 +132,7 @@ function buildBundleUrlFromSearchResult(params: {
 
 function buildPathWithSearchParams(
   pathname: string,
-  nextSearchParams: URLSearchParams
+  nextSearchParams: URLSearchParams,
 ): string {
   const queryString = nextSearchParams.toString();
 
@@ -179,7 +179,7 @@ export function WalletPortfolioPresenter({
   }): void {
     const nextSearchParams = buildPortfolioRouteSearchParams(
       searchParams,
-      patch
+      patch,
     );
 
     router.replace(buildPathWithSearchParams(pathname, nextSearchParams), {
@@ -192,11 +192,11 @@ export function WalletPortfolioPresenter({
   }
 
   function handleInvestSubTabChange(invest: InvestSubTab): void {
-    syncRouteState({ tab: "invest", invest });
+    syncRouteState({ tab: 'invest', invest });
   }
 
   function handleMarketSectionChange(market: MarketSection): void {
-    syncRouteState({ tab: "invest", invest: "market", market });
+    syncRouteState({ tab: 'invest', invest: 'market', market });
   }
 
   async function handleSearch(address: string): Promise<void> {
@@ -234,9 +234,9 @@ export function WalletPortfolioPresenter({
     } catch (error) {
       if (isValidationSearchError(error)) {
         showToast({
-          type: "error",
-          title: "Invalid Address",
-          message: "Please enter a valid 42-character Ethereum address.",
+          type: 'error',
+          title: 'Invalid Address',
+          message: 'Please enter a valid 42-character Ethereum address.',
         });
       } else {
         // For connection errors, show the loading state
@@ -245,7 +245,7 @@ export function WalletPortfolioPresenter({
     } finally {
       pendingSearchCountRef.current = Math.max(
         0,
-        pendingSearchCountRef.current - 1
+        pendingSearchCountRef.current - 1,
       );
       if (pendingSearchCountRef.current === 0) {
         setIsSearching(false);

@@ -44,7 +44,7 @@ const ANALYTICS_CACHE_TIME = {
  */
 export function getAnalyticsStaleTime(
   periodChanged: boolean,
-  walletFilter?: string | null
+  walletFilter?: string | null,
 ): number {
   if (periodChanged) return ANALYTICS_CACHE_TIME.PERIOD_CHANGE;
   return walletFilter

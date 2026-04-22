@@ -1,20 +1,20 @@
-import { type MouseEvent, type ReactElement } from "react";
+import { type MouseEvent, type ReactElement } from 'react';
 
-import { getRegimeConfig } from "@/constants/regimeDisplay";
+import { getRegimeConfig } from '@/constants/regimeDisplay';
 
 import {
   determineActiveDirection,
   resolveDisplayRegime,
   resolveEffectiveRegime,
   resolveTargetAllocation,
-} from "./strategyCardResolvers";
+} from './strategyCardResolvers';
 import {
   type Regime,
   type SectionState,
   type SentimentData,
   type StrategyDirection,
   type WalletPortfolioDataWithDirection,
-} from "./types";
+} from './types';
 
 export interface StrategyDetails {
   author: string | undefined;
@@ -39,7 +39,7 @@ export interface StrategyCardViewModel {
 
 function renderSentimentDisplay(
   sentimentSection: SectionState<SentimentData> | undefined,
-  fallbackValue: string | number | undefined
+  fallbackValue: string | number | undefined,
 ): ReactElement {
   if (sentimentSection?.isLoading) {
     return (
@@ -55,13 +55,13 @@ function renderSentimentDisplay(
       className="text-sm font-mono text-gray-500 bg-gray-800/50 px-1.5 py-0.5 rounded border border-gray-700/50 ml-2 align-middle"
       title="Market Sentiment Score"
     >
-      {sentimentSection?.data?.value ?? fallbackValue ?? "—"}
+      {sentimentSection?.data?.value ?? fallbackValue ?? '—'}
     </span>
   );
 }
 
 function getDisplayConfig(
-  regime: Regime | undefined
+  regime: Regime | undefined,
 ): StrategyCardDisplayConfig {
   if (!regime) {
     return null;
@@ -72,7 +72,7 @@ function getDisplayConfig(
 
 function resolveActiveStrategy(
   displayRegime: Regime | undefined,
-  activeDirection: StrategyDirection
+  activeDirection: StrategyDirection,
 ) {
   if (!displayRegime) {
     return;
@@ -91,7 +91,7 @@ function getStrategyDetails(
         author?: string;
         useCase?: { zapAction?: string; hideAllocationTarget?: boolean };
       }
-    | undefined
+    | undefined,
 ): StrategyDetails {
   return {
     philosophy: activeStrategy?.philosophy,
@@ -106,11 +106,11 @@ export function resolveStrategyCardViewModel(
   currentRegime: Regime | undefined,
   sentimentSection: SectionState<SentimentData> | undefined,
   selectedRegimeId: string | null,
-  selectedDirection: StrategyDirection | null
+  selectedDirection: StrategyDirection | null,
 ): StrategyCardViewModel | null {
   const effectiveRegime = resolveEffectiveRegime(
     currentRegime,
-    sentimentSection
+    sentimentSection,
   );
   if (!effectiveRegime && !sentimentSection) {
     return null;
@@ -125,7 +125,7 @@ export function resolveStrategyCardViewModel(
     displayRegime,
     selectedDirection,
     isViewingCurrent,
-    data
+    data,
   );
   const activeStrategy = resolveActiveStrategy(displayRegime, activeDirection);
 
@@ -136,7 +136,7 @@ export function resolveStrategyCardViewModel(
     targetAllocation: resolveTargetAllocation(activeStrategy, displayRegime),
     sentimentDisplay: renderSentimentDisplay(
       sentimentSection,
-      data.sentimentValue
+      data.sentimentValue,
     ),
     displayConfig: getDisplayConfig(effectiveRegime),
     strategyDetails: getStrategyDetails(activeStrategy),
@@ -151,11 +151,11 @@ function isInteractiveCardTarget(event: MouseEvent<HTMLElement>): boolean {
 export function toggleCardExpansion(
   event: MouseEvent<HTMLElement>,
   displayRegime: Regime | undefined,
-  setIsStrategyExpanded: (value: (previous: boolean) => boolean) => void
+  setIsStrategyExpanded: (value: (previous: boolean) => boolean) => void,
 ): void {
   if (!displayRegime || isInteractiveCardTarget(event)) {
     return;
   }
 
-  setIsStrategyExpanded(previous => !previous);
+  setIsStrategyExpanded((previous) => !previous);
 }

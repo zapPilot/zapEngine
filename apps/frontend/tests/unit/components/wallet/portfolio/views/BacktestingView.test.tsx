@@ -1,27 +1,27 @@
-import { act, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BacktestingView } from "@/components/wallet/portfolio/views/BacktestingView";
-import { useBacktestMutation } from "@/hooks/mutations/useBacktestMutation";
-import * as backtestingService from "@/services/backtestingService";
-import * as strategyService from "@/services/strategyService";
+import { BacktestingView } from '@/components/wallet/portfolio/views/BacktestingView';
+import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
+import * as backtestingService from '@/services/backtestingService';
+import * as strategyService from '@/services/strategyService';
 
-import { render } from "../../../../../test-utils";
+import { render } from '../../../../../test-utils';
 
-vi.mock("@/hooks/mutations/useBacktestMutation", () => ({
+vi.mock('@/hooks/mutations/useBacktestMutation', () => ({
   useBacktestMutation: vi.fn(),
 }));
 
-vi.mock("@/services/backtestingService", () => ({
+vi.mock('@/services/backtestingService', () => ({
   getBacktestingStrategiesV3: vi.fn(),
   runBacktest: vi.fn(),
 }));
 
-vi.mock("@/services/strategyService", () => ({
+vi.mock('@/services/strategyService', () => ({
   getStrategyConfigs: vi.fn(),
 }));
 
-vi.mock("recharts", () => ({
+vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
   ComposedChart: ({ children }: any) => (
     <div data-testid="composed-chart">{children}</div>
@@ -35,7 +35,7 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
 }));
 
-vi.mock("framer-motion", () => ({
+vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
@@ -47,7 +47,7 @@ vi.mock("framer-motion", () => ({
       }: {
         children: React.ReactNode;
         [key: string]: any;
-      }) => <div {...props}>{children}</div>
+      }) => <div {...props}>{children}</div>,
     ),
   },
 }));
@@ -55,8 +55,8 @@ vi.mock("framer-motion", () => ({
 const mockBacktestData = {
   strategies: {
     dca_classic: {
-      strategy_id: "dca_classic",
-      display_name: "DCA Classic",
+      strategy_id: 'dca_classic',
+      display_name: 'DCA Classic',
       total_invested: 10000,
       final_value: 10500,
       roi_percent: 5.2,
@@ -68,9 +68,9 @@ const mockBacktestData = {
       parameters: {},
     },
     dma_gated_fgi_default: {
-      strategy_id: "dma_gated_fgi",
-      display_name: "DMA Gated FGI Default",
-      signal_id: "dma_gated_fgi",
+      strategy_id: 'dma_gated_fgi',
+      display_name: 'DMA Gated FGI Default',
+      signal_id: 'dma_gated_fgi',
       total_invested: 10000,
       final_value: 12000,
       roi_percent: 15.5,
@@ -87,10 +87,10 @@ const mockBacktestData = {
   timeline: [
     {
       market: {
-        date: "2024-01-01",
+        date: '2024-01-01',
         token_price: { btc: 40000 },
         sentiment: 50,
-        sentiment_label: "neutral",
+        sentiment_label: 'neutral',
       },
       strategies: {
         dca_classic: {
@@ -105,9 +105,9 @@ const mockBacktestData = {
           },
           signal: null,
           decision: {
-            action: "hold",
-            reason: "baseline_dca",
-            rule_group: "none",
+            action: 'hold',
+            reason: 'baseline_dca',
+            rule_group: 'none',
             target_allocation: {
               spot: 0.5,
               stable: 0.5,
@@ -134,15 +134,15 @@ const mockBacktestData = {
             },
           },
           signal: {
-            id: "dma_gated_fgi",
-            regime: "neutral",
+            id: 'dma_gated_fgi',
+            regime: 'neutral',
             raw_value: 50,
             confidence: 1,
             details: {
               dma: {
                 dma_200: 39500,
                 distance: 0.01,
-                zone: "above",
+                zone: 'above',
                 cross_event: null,
                 cooldown_active: false,
                 cooldown_remaining_days: 0,
@@ -152,9 +152,9 @@ const mockBacktestData = {
             },
           },
           decision: {
-            action: "buy",
-            reason: "below_extreme_fear_buy",
-            rule_group: "dma_fgi",
+            action: 'buy',
+            reason: 'below_extreme_fear_buy',
+            rule_group: 'dma_fgi',
             target_allocation: {
               spot: 0.6,
               stable: 0.4,
@@ -162,11 +162,11 @@ const mockBacktestData = {
             immediate: false,
           },
           execution: {
-            event: "rebalance",
+            event: 'rebalance',
             transfers: [
               {
-                from_bucket: "stable",
-                to_bucket: "spot",
+                from_bucket: 'stable',
+                to_bucket: 'spot',
                 amount_usd: 250,
               },
             ],
@@ -181,7 +181,7 @@ const mockBacktestData = {
   ],
 };
 
-describe("BacktestingView", () => {
+describe('BacktestingView', () => {
   let mockMutate: ReturnType<typeof vi.fn>;
   let defaultMock: {
     mutate: ReturnType<typeof vi.fn>;
@@ -195,10 +195,10 @@ describe("BacktestingView", () => {
     mockMutate = vi.fn(
       (
         variables: unknown,
-        options?: { onSettled?: (...args: unknown[]) => void }
+        options?: { onSettled?: (...args: unknown[]) => void },
       ) => {
         options?.onSettled?.(undefined, null, variables, undefined);
-      }
+      },
     );
     defaultMock = {
       mutate: mockMutate,
@@ -208,7 +208,7 @@ describe("BacktestingView", () => {
     };
     vi.mocked(useBacktestMutation).mockReturnValue(defaultMock as any);
     vi.mocked(backtestingService.getBacktestingStrategiesV3).mockResolvedValue({
-      catalog_version: "2.0.0",
+      catalog_version: '2.0.0',
       strategies: [],
     });
     vi.mocked(strategyService.getStrategyConfigs).mockResolvedValue({
@@ -218,46 +218,46 @@ describe("BacktestingView", () => {
     });
   });
 
-  it("renders heading and description", async () => {
+  it('renders heading and description', async () => {
     await act(async () => {
       render(<BacktestingView />);
     });
 
-    expect(screen.getByText("Strategy Simulator")).toBeInTheDocument();
+    expect(screen.getByText('Strategy Simulator')).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Compare Normal DCA vs Regime-Based Strategy performance over time/
-      )
+        /Compare Normal DCA vs Regime-Based Strategy performance over time/,
+      ),
     ).toBeInTheDocument();
   });
 
-  it("shows the loading skeleton while defaults are still bootstrapping", () => {
+  it('shows the loading skeleton while defaults are still bootstrapping', () => {
     vi.mocked(backtestingService.getBacktestingStrategiesV3).mockImplementation(
-      () => new Promise(() => undefined)
+      () => new Promise(() => undefined),
     );
     vi.mocked(strategyService.getStrategyConfigs).mockImplementation(
-      () => new Promise(() => undefined)
+      () => new Promise(() => undefined),
     );
 
     render(<BacktestingView />);
 
     expect(
-      screen.getByRole("status", {
+      screen.getByRole('status', {
         name: /Running backtest simulation/i,
-      })
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Ready to Compare Strategies")
+      screen.queryByText('Ready to Compare Strategies'),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        /Click "Run Backtest" to see how the Zap Pilot regime-based strategy compares to normal DCA\./
-      )
+        /Click "Run Backtest" to see how the Zap Pilot regime-based strategy compares to normal DCA\./,
+      ),
     ).not.toBeInTheDocument();
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  it("auto-runs once after defaults resolve", async () => {
+  it('auto-runs once after defaults resolve', async () => {
     await act(async () => {
       render(<BacktestingView />);
     });
@@ -267,7 +267,7 @@ describe("BacktestingView", () => {
     });
   });
 
-  it("shows loading state when pending", async () => {
+  it('shows loading state when pending', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
       isPending: true,
@@ -278,39 +278,39 @@ describe("BacktestingView", () => {
     });
 
     expect(
-      screen.getByRole("status", {
+      screen.getByRole('status', {
         name: /Running backtest simulation/i,
-      })
+      }),
     ).toBeInTheDocument();
   });
 
-  it("displays API error messages", async () => {
+  it('displays API error messages', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
-      error: new Error("Test API Error"),
+      error: new Error('Test API Error'),
     } as any);
 
     await act(async () => {
       render(<BacktestingView />);
     });
 
-    expect(screen.getByText("Test API Error")).toBeInTheDocument();
+    expect(screen.getByText('Test API Error')).toBeInTheDocument();
   });
 
-  it("displays a generic message for non-Error failures", async () => {
+  it('displays a generic message for non-Error failures', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
-      error: "unexpected failure",
+      error: 'unexpected failure',
     } as any);
 
     await act(async () => {
       render(<BacktestingView />);
     });
 
-    expect(screen.getByText("Failed to run backtest")).toBeInTheDocument();
+    expect(screen.getByText('Failed to run backtest')).toBeInTheDocument();
   });
 
-  it("renders DMA-first result metrics and chart", async () => {
+  it('renders DMA-first result metrics and chart', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
       data: mockBacktestData,
@@ -320,16 +320,16 @@ describe("BacktestingView", () => {
       render(<BacktestingView />);
     });
 
-    expect(screen.getByText("ROI")).toBeInTheDocument();
-    expect(screen.getByText("+15.5%")).toBeInTheDocument();
-    expect(screen.getByText("CALMAR")).toBeInTheDocument();
-    expect(screen.getByText("1.24")).toBeInTheDocument();
-    expect(screen.getByText("MAX DRAWDOWN")).toBeInTheDocument();
-    expect(screen.getByText("12.3%")).toBeInTheDocument();
-    expect(screen.getByTestId("composed-chart")).toBeInTheDocument();
+    expect(screen.getByText('ROI')).toBeInTheDocument();
+    expect(screen.getByText('+15.5%')).toBeInTheDocument();
+    expect(screen.getByText('CALMAR')).toBeInTheDocument();
+    expect(screen.getByText('1.24')).toBeInTheDocument();
+    expect(screen.getByText('MAX DRAWDOWN')).toBeInTheDocument();
+    expect(screen.getByText('12.3%')).toBeInTheDocument();
+    expect(screen.getByTestId('composed-chart')).toBeInTheDocument();
   });
 
-  it("renders the days input and run button when data is present", async () => {
+  it('renders the days input and run button when data is present', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
       data: mockBacktestData,
@@ -339,7 +339,7 @@ describe("BacktestingView", () => {
       render(<BacktestingView />);
     });
 
-    expect(screen.getByDisplayValue("500")).toHaveAttribute("type", "number");
-    expect(screen.getByText("[RUN]")).toBeInTheDocument();
+    expect(screen.getByDisplayValue('500')).toHaveAttribute('type', 'number');
+    expect(screen.getByText('[RUN]')).toBeInTheDocument();
   });
 });

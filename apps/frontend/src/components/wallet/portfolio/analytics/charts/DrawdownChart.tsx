@@ -4,11 +4,11 @@
  * Shows underwater/drawdown analysis with recovery visualization
  */
 
-import { memo, useMemo } from "react";
+import { memo, useMemo } from 'react';
 
 // Shared chart imports are now loaded from ChartUI to prevent duplication
-import type { DrawdownHoverData } from "@/types/ui/chartHover";
-import { formatChartDate } from "@/utils/formatters";
+import type { DrawdownHoverData } from '@/types/ui/chartHover';
+import { formatChartDate } from '@/utils/formatters';
 
 import {
   buildPath,
@@ -19,7 +19,7 @@ import {
   ChartTooltip,
   useChartHover,
   YAxisLabels,
-} from "./ChartUI";
+} from './ChartUI';
 
 /**
  * Drawdown chart data point
@@ -55,22 +55,22 @@ export const DrawdownChart = memo<DrawdownChartProps>(
 
     // Calculate min/max for Y-axis scaling
     const minValue = useMemo(
-      () => Math.min(...data.map(d => d.value), 0),
-      [data]
+      () => Math.min(...data.map((d) => d.value), 0),
+      [data],
     );
     const maxValue = 0; // Zero line at top
 
     // Chart hover with tooltip
     const drawdownHover = useChartHover(data, {
-      chartType: "drawdown-recovery",
+      chartType: 'drawdown-recovery',
       chartWidth: width,
       chartHeight: height,
       chartPadding: 0,
       minValue,
       maxValue,
-      getYValue: point => point.value,
+      getYValue: (point) => point.value,
       buildHoverData: (point, x, y): DrawdownHoverData => ({
-        chartType: "drawdown-recovery",
+        chartType: 'drawdown-recovery',
         x,
         y,
         date: formatChartDate(point.date),
@@ -84,7 +84,7 @@ export const DrawdownChart = memo<DrawdownChartProps>(
     const points = buildPath(
       data,
       width,
-      point => (Math.abs(point.value) / drawdownScale) * height
+      (point) => (Math.abs(point.value) / drawdownScale) * height,
     );
 
     return (
@@ -123,7 +123,7 @@ export const DrawdownChart = memo<DrawdownChartProps>(
         </ChartSurface>
 
         {/* Y-Axis Labels */}
-        <YAxisLabels labels={["0%", "-5%", "-10%", "-15%"]} />
+        <YAxisLabels labels={['0%', '-5%', '-10%', '-15%']} />
 
         {/* Legend */}
         <div className="absolute top-2 right-2 flex gap-2 text-[10px] pointer-events-none">
@@ -148,7 +148,7 @@ export const DrawdownChart = memo<DrawdownChartProps>(
         />
       </div>
     );
-  }
+  },
 );
 
-DrawdownChart.displayName = "DrawdownChart";
+DrawdownChart.displayName = 'DrawdownChart';

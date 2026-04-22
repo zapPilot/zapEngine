@@ -1,12 +1,12 @@
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from 'react';
 
-import { isRuntimeMode } from "@/lib/env/runtimeEnv";
-import { logger } from "@/utils";
+import { isRuntimeMode } from '@/lib/env/runtimeEnv';
+import { logger } from '@/utils';
 
-import { BaseCard } from "../ui/BaseCard";
-import { GradientButton } from "../ui/GradientButton";
+import { BaseCard } from '../ui/BaseCard';
+import { GradientButton } from '../ui/GradientButton';
 
-const errorLogger = logger.createContextLogger("ErrorBoundary");
+const errorLogger = logger.createContextLogger('ErrorBoundary');
 
 interface Props {
   children: ReactNode;
@@ -70,7 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log error details
-    errorLogger.error("ErrorBoundary caught an error", { error, errorInfo });
+    errorLogger.error('ErrorBoundary caught an error', { error, errorInfo });
 
     // Update state with error info
     this.setState({
@@ -123,7 +123,7 @@ export class ErrorBoundary extends Component<Props, State> {
   private reportError() {
     // In a real app, you would send this to an error tracking service
     // like Sentry, Bugsnag, LogRocket, etc.
-    if (isRuntimeMode("production")) {
+    if (isRuntimeMode('production')) {
       // Example error reporting
       // Sentry.captureException(error, {
       //   contexts: {
@@ -197,7 +197,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </p>
 
                 {/* Error Details (Development only) */}
-                {isRuntimeMode("development") && error && (
+                {isRuntimeMode('development') && error && (
                   <details className="text-left">
                     <summary className="cursor-pointer text-sm font-medium text-gray-700 mb-2">
                       Error Details
@@ -242,7 +242,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {/* Additional Help */}
               <div className="text-sm text-gray-500">
                 <p>
-                  If this problem persists, please{" "}
+                  If this problem persists, please{' '}
                   <a
                     href="mailto:support@zappilot.com"
                     className="text-blue-600 hover:text-blue-800 underline"

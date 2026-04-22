@@ -34,7 +34,8 @@ class MockIntersectionObserver {
 
 (
   globalThis as unknown as { IntersectionObserver: typeof IntersectionObserver }
-).IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
+).IntersectionObserver =
+  MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 vi.mock('next/image', () => nextImageMock);
 vi.mock('framer-motion', () => createFramerMotionMock());

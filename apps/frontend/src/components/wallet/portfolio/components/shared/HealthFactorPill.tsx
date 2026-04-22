@@ -1,31 +1,31 @@
-import { motion } from "framer-motion";
-import { createPortal } from "react-dom";
+import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 
-import { getRiskConfig, RiskLevel } from "@/constants/riskThresholds";
-import type { RiskMetrics } from "@/services";
+import { getRiskConfig, RiskLevel } from '@/constants/riskThresholds';
+import type { RiskMetrics } from '@/services';
 
-import { HealthRiskTooltip } from "./HealthRiskTooltip";
-import { useTooltipPosition } from "./useTooltipPosition";
-import { useTooltipState } from "./useTooltipState";
+import { HealthRiskTooltip } from './HealthRiskTooltip';
+import { useTooltipPosition } from './useTooltipPosition';
+import { useTooltipState } from './useTooltipState';
 
 /**
  * Size configurations for the Health Factor Pill
  */
 const SIZE_CONFIGS = {
   sm: {
-    container: "px-2 py-1 text-xs gap-1.5",
-    dot: "w-2 h-2",
-    label: "hidden sm:inline",
+    container: 'px-2 py-1 text-xs gap-1.5',
+    dot: 'w-2 h-2',
+    label: 'hidden sm:inline',
   },
   md: {
-    container: "px-3 py-1.5 text-sm gap-2",
-    dot: "w-2.5 h-2.5",
-    label: "inline",
+    container: 'px-3 py-1.5 text-sm gap-2',
+    dot: 'w-2.5 h-2.5',
+    label: 'inline',
   },
   lg: {
-    container: "px-3 py-2 text-base gap-2",
-    dot: "w-3 h-3",
-    label: "inline",
+    container: 'px-3 py-2 text-base gap-2',
+    dot: 'w-3 h-3',
+    label: 'inline',
   },
 } as const;
 
@@ -35,7 +35,7 @@ interface HealthFactorPillProps {
   /** Whether the user is viewing their own bundle */
   isOwnBundle: boolean;
   /** Size variant of the pill */
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   /** Optional handler for detailed risk breakdown modal */
   onViewDetails?: (() => void) | undefined;
 }
@@ -65,7 +65,7 @@ interface HealthFactorPillProps {
 export function HealthFactorPill({
   riskMetrics,
   isOwnBundle,
-  size = "md",
+  size = 'md',
   onViewDetails,
 }: HealthFactorPillProps) {
   const {
@@ -81,12 +81,12 @@ export function HealthFactorPill({
   const sizeConfig = SIZE_CONFIGS[size];
 
   // Check if mobile for tap vs hover behavior
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
 
   const tooltipPosition = useTooltipPosition(
     isHovered,
     containerRef,
-    tooltipRef
+    tooltipRef,
   );
 
   // Animation for critical state (pulse)
@@ -116,7 +116,7 @@ export function HealthFactorPill({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
+    if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       setIsHovered(!isHovered);
     }
@@ -159,7 +159,7 @@ export function HealthFactorPill({
           ${config.colors.bg}
           ${config.colors.border}
           border
-          hover:${config.colors.border.replace("/20", "/40")}
+          hover:${config.colors.border.replace('/20', '/40')}
         `}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}

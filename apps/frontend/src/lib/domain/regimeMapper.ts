@@ -5,15 +5,15 @@
  * Provides validation and helper functions for regime determination.
  */
 
-import type { RegimeId } from "@/components/wallet/regime/regimeData";
-import { logger } from "@/utils";
+import type { RegimeId } from '@/components/wallet/regime/regimeData';
+import { logger } from '@/utils';
 
 export const REGIME_LABELS: Record<RegimeId, string> = {
-  ef: "Extreme Fear",
-  f: "Fear",
-  n: "Neutral",
-  g: "Greed",
-  eg: "Extreme Greed",
+  ef: 'Extreme Fear',
+  f: 'Fear',
+  n: 'Neutral',
+  g: 'Greed',
+  eg: 'Extreme Greed',
 };
 
 /**
@@ -45,17 +45,17 @@ export function getRegimeFromSentiment(sentimentValue: number): RegimeId {
     logger.warn(
       `Invalid sentiment value: ${sentimentValue}. Defaulting to neutral regime.`,
       { sentimentValue },
-      "regimeMapper"
+      'regimeMapper',
     );
-    return "n";
+    return 'n';
   }
 
   // Map sentiment to regime
-  if (sentimentValue <= 25) return "ef"; // Extreme Fear: 0-25
-  if (sentimentValue <= 45) return "f"; // Fear: 26-45
-  if (sentimentValue <= 54) return "n"; // Neutral: 46-54
-  if (sentimentValue <= 75) return "g"; // Greed: 55-75
-  return "eg"; // Extreme Greed: 76-100
+  if (sentimentValue <= 25) return 'ef'; // Extreme Fear: 0-25
+  if (sentimentValue <= 45) return 'f'; // Fear: 26-45
+  if (sentimentValue <= 54) return 'n'; // Neutral: 46-54
+  if (sentimentValue <= 75) return 'g'; // Greed: 55-75
+  return 'eg'; // Extreme Greed: 76-100
 }
 
 /**
@@ -66,29 +66,29 @@ export function getRegimeFromSentiment(sentimentValue: number): RegimeId {
  */
 export function getRegimeFromStatus(status?: string | null): RegimeId {
   if (!status) {
-    return "n";
+    return 'n';
   }
 
   const normalizedStatus = status.toLowerCase().trim();
 
   switch (normalizedStatus) {
-    case "extreme fear":
-      return "ef";
-    case "fear":
-      return "f";
-    case "neutral":
-      return "n";
-    case "greed":
-      return "g";
-    case "extreme greed":
-      return "eg";
+    case 'extreme fear':
+      return 'ef';
+    case 'fear':
+      return 'f';
+    case 'neutral':
+      return 'n';
+    case 'greed':
+      return 'g';
+    case 'extreme greed':
+      return 'eg';
     default:
       logger.warn(
         `Unknown sentiment status: "${status}". Defaulting to neutral regime.`,
         { status },
-        "regimeMapper"
+        'regimeMapper',
       );
-      return "n";
+      return 'n';
   }
 }
 

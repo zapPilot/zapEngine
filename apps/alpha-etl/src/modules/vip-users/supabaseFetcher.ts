@@ -1,8 +1,8 @@
-import { BaseDatabaseClient } from "../../core/database/baseDatabaseClient.js";
-import { logger } from "../../utils/logger.js";
-import { APIError, toErrorMessage } from "../../utils/errors.js";
-import type { VipUser, VipUserWithActivity } from "../../types/index.js";
-import { wrapHealthCheck } from "../../utils/healthCheck.js";
+import { BaseDatabaseClient } from '../../core/database/baseDatabaseClient.js';
+import type { VipUser, VipUserWithActivity } from '../../types/index.js';
+import { APIError, toErrorMessage } from '../../utils/errors.js';
+import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Database-backed VIP user fetcher.
@@ -39,19 +39,19 @@ export class SupabaseFetcher extends BaseDatabaseClient {
     try {
       this.recordRequest();
 
-      logger.info("Fetching VIP users from database via DATABASE_URL");
+      logger.info('Fetching VIP users from database via DATABASE_URL');
 
       const valid = await this.fetchValidatedVipUsersRows(
-        "select user_id, wallet from public.get_users_wallets_by_plan($1)",
-        ["vip"],
+        'select user_id, wallet from public.get_users_wallets_by_plan($1)',
+        ['vip'],
       );
-      logger.info("VIP users fetched successfully", {
+      logger.info('VIP users fetched successfully', {
         userCount: valid.length,
       });
       return this.normalizeUsersWithWallet(valid);
     } catch (error) {
-      logger.error("Failed to fetch VIP users from database:", { error });
-      return this.handleFetchError(error, "DB fetch failed");
+      logger.error('Failed to fetch VIP users from database:', { error });
+      return this.handleFetchError(error, 'DB fetch failed');
     }
   }
 
@@ -64,7 +64,7 @@ export class SupabaseFetcher extends BaseDatabaseClient {
     try {
       this.recordRequest();
 
-      logger.info("Fetching VIP users with activity data from database");
+      logger.info('Fetching VIP users with activity data from database');
 
       // Call the stored procedure: get_users_wallets_by_plan_with_activity(plan_name text)
       const rows = await this.fetchRows<{
@@ -73,8 +73,8 @@ export class SupabaseFetcher extends BaseDatabaseClient {
         last_activity_at: string | null;
         last_portfolio_update_at: string | null;
       }>(
-        "select user_id, wallet, last_activity_at, last_portfolio_update_at from public.get_users_wallets_by_plan_with_activity($1)",
-        ["vip"],
+        'select user_id, wallet, last_activity_at, last_portfolio_update_at from public.get_users_wallets_by_plan_with_activity($1)',
+        ['vip'],
       );
 
       const valid = this.filterValidVipRows(rows);
@@ -82,7 +82,7 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       const uniqueUsers = this.dedupeByWallet(normalizedUsers);
 
       if (uniqueUsers.length < valid.length) {
-        logger.warn("Duplicate wallets detected after SQL query", {
+        logger.warn('Duplicate wallets detected after SQL query', {
           total: valid.length,
           unique: uniqueUsers.length,
           duplicates: valid.length - uniqueUsers.length,
@@ -90,16 +90,16 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       }
 
       logger.info(
-        "VIP users with activity fetched successfully",
+        'VIP users with activity fetched successfully',
         this.buildActivityFetchSummary(uniqueUsers),
       );
 
       return uniqueUsers;
     } catch (error) {
-      logger.error("Failed to fetch VIP users with activity from database:", {
+      logger.error('Failed to fetch VIP users with activity from database:', {
         error,
       });
-      return this.handleFetchError(error, "DB fetch with activity failed");
+      return this.handleFetchError(error, 'DB fetch with activity failed');
     }
   }
 
@@ -111,12 +111,12 @@ export class SupabaseFetcher extends BaseDatabaseClient {
    */
   async batchUpdatePortfolioTimestamps(wallets: string[]): Promise<void> {
     if (!wallets || wallets.length === 0) {
-      logger.debug("No wallets to update timestamps for");
+      logger.debug('No wallets to update timestamps for');
       return;
     }
 
     try {
-      logger.debug("Updating portfolio timestamps for wallets", {
+      logger.debug('Updating portfolio timestamps for wallets', {
         count: wallets.length,
       });
 
@@ -125,18 +125,18 @@ export class SupabaseFetcher extends BaseDatabaseClient {
         // Use LOWER() for case-insensitive comparison since DB stores checksum-case wallets
         // but the ETL normalizes wallets to lowercase for consistent handling
         const { rowCount } = await client.query(
-          "UPDATE user_crypto_wallets SET last_portfolio_update_at = NOW() WHERE LOWER(wallet) = ANY($1)",
+          'UPDATE user_crypto_wallets SET last_portfolio_update_at = NOW() WHERE LOWER(wallet) = ANY($1)',
           [wallets],
         );
 
-        logger.info("Portfolio timestamps updated", {
+        logger.info('Portfolio timestamps updated', {
           walletsRequested: wallets.length,
           rowsUpdated: rowCount ?? 0,
         });
       });
     } catch (error) {
       // Log error but don't throw - timestamp update failure is non-fatal
-      logger.error("Failed to update portfolio timestamps", {
+      logger.error('Failed to update portfolio timestamps', {
         error,
         walletCount: wallets.length,
       });
@@ -153,37 +153,37 @@ export class SupabaseFetcher extends BaseDatabaseClient {
 
     try {
       this.recordRequest();
-      logger.info("Fetching specific users from database", {
+      logger.info('Fetching specific users from database', {
         userCount: userIds.length,
       });
 
       const valid = await this.fetchValidatedVipUsersRows(
-        "select user_id, wallet from public.get_users_wallets_by_ids($1)",
+        'select user_id, wallet from public.get_users_wallets_by_ids($1)',
         [userIds],
       );
 
-      logger.info("Specific users fetched successfully", {
+      logger.info('Specific users fetched successfully', {
         requested: userIds.length,
         found: valid.length,
       });
       return this.normalizeUsersWithWallet(valid);
     } catch (error) {
-      logger.error("Failed to fetch users by IDs from database:", {
+      logger.error('Failed to fetch users by IDs from database:', {
         error,
         userIds,
       });
-      return this.handleFetchError(error, "DB fetch by IDs failed");
+      return this.handleFetchError(error, 'DB fetch by IDs failed');
     }
   }
 
   async healthCheck(): Promise<{
-    status: "healthy" | "unhealthy";
+    status: 'healthy' | 'unhealthy';
     details?: string;
   }> {
     return wrapHealthCheck(async () => {
       const result = await this.withDatabaseClient(async (client) => {
         // Check DB connectivity and whether expected function exists
-        const ping = await client.query("select 1 as ok");
+        const ping = await client.query('select 1 as ok');
         const fn = await client.query<{ exists: boolean }>(
           "select exists (select 1 from pg_proc where proname = 'get_users_wallets_by_plan') as exists",
         );
@@ -194,17 +194,17 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       });
 
       if (!result.ok) {
-        return { status: "unhealthy", details: "DB ping failed" };
+        return { status: 'unhealthy', details: 'DB ping failed' };
       }
 
       if (!result.hasFn) {
         return {
-          status: "unhealthy",
-          details: "Function get_users_wallets_by_plan not found",
+          status: 'unhealthy',
+          details: 'Function get_users_wallets_by_plan not found',
         };
       }
 
-      return { status: "healthy" };
+      return { status: 'healthy' };
     });
   }
 
@@ -214,9 +214,9 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       | null
       | undefined;
     return (
-      typeof candidate?.user_id === "string" &&
+      typeof candidate?.user_id === 'string' &&
       candidate.user_id.length > 0 &&
-      typeof candidate?.wallet === "string" &&
+      typeof candidate?.wallet === 'string' &&
       candidate.wallet.length > 0
     );
   }
@@ -254,7 +254,7 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       return;
     }
 
-    logger.warn("Some invalid user records filtered out", {
+    logger.warn('Some invalid user records filtered out', {
       total: totalRows,
       valid: validRows,
       invalid: totalRows - validRows,
@@ -293,8 +293,8 @@ export class SupabaseFetcher extends BaseDatabaseClient {
     throw new APIError(
       `${prefix}: ${toErrorMessage(error)}`,
       500,
-      "db",
-      "SupabaseFetcher",
+      'db',
+      'SupabaseFetcher',
     );
   }
 

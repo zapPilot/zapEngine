@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Shared tooltip state used by pill components (HealthFactorPill, BorrowingHealthPill).

@@ -1,6 +1,6 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 /**
  * Zod schemas for market sentiment API responses
@@ -46,5 +46,5 @@ export type SentimentApiResponse = z.infer<typeof sentimentApiResponseSchema>;
 // ============================================================================
 
 export const validateSentimentApiResponse = createValidator(
-  sentimentApiResponseSchema
+  sentimentApiResponseSchema,
 );

@@ -8,12 +8,13 @@
  * 3. Database insertion capability
  */
 
-import { readFileSync } from "fs";
-import { join } from "path";
-import { PoolDataTransformer } from "../src/modules/pool/transformer.js";
-import { PoolWriter } from "../src/modules/pool/writer.js";
-import { logger } from "../src/utils/logger.js";
-import { toErrorMessage } from "../src/utils/errors.js";
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { PoolDataTransformer } from '../src/modules/pool/transformer.js';
+import { PoolWriter } from '../src/modules/pool/writer.js';
+import { toErrorMessage } from '../src/utils/errors.js';
+import { logger } from '../src/utils/logger.js';
 
 interface FixtureResponse {
   status: string;
@@ -57,7 +58,7 @@ interface FixturePoolData {
   exposure: string | null;
   reward_tokens: string[] | null;
   pool_meta: { poolMeta: unknown; url: string | undefined } | null;
-  source: "defillama";
+  source: 'defillama';
   raw_data: {
     defillama_pool_id: string;
     original_pool: FixturePool;
@@ -75,9 +76,9 @@ function createFixturePoolData(pool: FixturePool): FixturePoolData {
   return {
     pool_address: null,
     protocol_address: null,
-    chain: pool.chain?.toLowerCase() || "unknown",
-    protocol: pool.project?.toLowerCase() || "unknown",
-    symbol: pool.symbol || "unknown",
+    chain: pool.chain?.toLowerCase() || 'unknown',
+    protocol: pool.project?.toLowerCase() || 'unknown',
+    symbol: pool.symbol || 'unknown',
     tvl_usd: pool.tvlUsd || null,
     apy: pool.apy || 0,
     apy_base: pool.apyBase || null,
@@ -88,7 +89,7 @@ function createFixturePoolData(pool: FixturePool): FixturePoolData {
     pool_meta: pool.poolMeta
       ? { poolMeta: pool.poolMeta, url: pool.url }
       : null,
-    source: "defillama",
+    source: 'defillama',
     raw_data: {
       defillama_pool_id: pool.pool,
       original_pool: pool,
@@ -104,8 +105,8 @@ function createFixturePoolData(pool: FixturePool): FixturePoolData {
 }
 
 function loadFixtureData(): FixtureResponse {
-  const fixturePath = join(process.cwd(), "yield-llama-fixtures.json");
-  const fixtureContent = readFileSync(fixturePath, "utf-8");
+  const fixturePath = join(process.cwd(), 'yield-llama-fixtures.json');
+  const fixtureContent = readFileSync(fixturePath, 'utf-8');
   return JSON.parse(fixtureContent) as FixtureResponse;
 }
 
@@ -124,7 +125,7 @@ async function transformSamplePools(
         transformedPools.push(transformed);
       } else {
         transformErrors += 1;
-        logger.warn("Failed to transform pool", {
+        logger.warn('Failed to transform pool', {
           poolId: pool.pool,
           chain: pool.chain,
           project: pool.project,
@@ -133,7 +134,7 @@ async function transformSamplePools(
       }
     } catch (error) {
       transformErrors += 1;
-      logger.error("Error transforming pool", {
+      logger.error('Error transforming pool', {
         poolId: pool.pool,
         error: toErrorMessage(error),
       });
@@ -148,7 +149,7 @@ function logTransformationResults(
   transformedCount: number,
   transformErrors: number,
 ): void {
-  logger.info("Transformation test results", {
+  logger.info('Transformation test results', {
     totalPools: sampleSize,
     successfulTransforms: transformedCount,
     transformErrors,
@@ -168,18 +169,18 @@ async function testDatabaseInsertion(
   try {
     const writeResult = await writer.writePoolSnapshots(testBatch);
 
-    logger.info("Database insertion test results", {
+    logger.info('Database insertion test results', {
       success: writeResult.success,
       recordsInserted: writeResult.recordsInserted,
       errors: writeResult.errors,
     });
 
     if (!writeResult.success) {
-      logger.error("Database insertion failed", { errors: writeResult.errors });
+      logger.error('Database insertion failed', { errors: writeResult.errors });
       process.exit(1);
     }
   } catch (error) {
-    logger.error("Database insertion test failed", {
+    logger.error('Database insertion test failed', {
       error: toErrorMessage(error),
     });
     process.exit(1);
@@ -187,12 +188,12 @@ async function testDatabaseInsertion(
 }
 
 async function testFixtureData(): Promise<void> {
-  logger.info("Starting fixture data test");
+  logger.info('Starting fixture data test');
 
   try {
     const fixtureData = loadFixtureData();
 
-    logger.info("Loaded fixture data", {
+    logger.info('Loaded fixture data', {
       status: fixtureData.status,
       totalPools: fixtureData.data.length,
     });
@@ -218,20 +219,20 @@ async function testFixtureData(): Promise<void> {
     );
 
     if (transformedPools.length === 0) {
-      logger.error("No pools were successfully transformed!");
+      logger.error('No pools were successfully transformed!');
       process.exit(1);
     }
 
     await testDatabaseInsertion(writer, transformedPools);
 
-    logger.info("✅ All tests passed successfully!");
+    logger.info('✅ All tests passed successfully!');
 
     // Log some sample transformed data for inspection
-    logger.info("Sample transformed record:", {
+    logger.info('Sample transformed record:', {
       sample: JSON.stringify(transformedPools[0], null, 2),
     });
   } catch (error) {
-    logger.error("Test failed with error:", {
+    logger.error('Test failed with error:', {
       error: toErrorMessage(error),
     });
     process.exit(1);
@@ -245,12 +246,12 @@ function mapExposure(exposure?: string): string | null {
 
   const normalized = exposure.toLowerCase();
   switch (normalized) {
-    case "single":
-    case "multi":
-    case "stable":
+    case 'single':
+    case 'multi':
+    case 'stable':
       return normalized;
     default:
-      return "multi";
+      return 'multi';
   }
 }
 
@@ -264,7 +265,7 @@ function cleanRewardTokens(tokens?: string[]): string[] | null {
     (token): token is string =>
       token !== null &&
       token !== undefined &&
-      typeof token === "string" &&
+      typeof token === 'string' &&
       token.trim().length > 0,
   );
 
@@ -277,6 +278,6 @@ function cleanRewardTokens(tokens?: string[]): string[] | null {
 
 // Run the test
 testFixtureData().catch((error) => {
-  logger.error("Unhandled error in test script:", error);
+  logger.error('Unhandled error in test script:', error);
   process.exit(1);
 });

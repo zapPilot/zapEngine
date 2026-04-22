@@ -96,7 +96,9 @@ type MotionComponentProps = MotionProps & { children?: React.ReactNode };
 
 // Type for motion component
 interface MotionComponent {
-  (props: MotionComponentProps & { ref?: React.Ref<HTMLElement> }): React.ReactElement | null;
+  (
+    props: MotionComponentProps & { ref?: React.Ref<HTMLElement> },
+  ): React.ReactElement | null;
   displayName?: string;
 }
 
@@ -124,7 +126,9 @@ interface ScrollValue {
 // Type for framer motion mock return
 interface FramerMotionMock {
   motion: Record<(typeof MOTION_ELEMENTS)[number], MotionComponent>;
-  AnimatePresence: (props: { children?: React.ReactNode }) => React.ReactElement | null;
+  AnimatePresence: (props: {
+    children?: React.ReactNode;
+  }) => React.ReactElement | null;
   useAnimation: () => AnimationControls;
   useInView: () => boolean;
   useMotionValue: <T>(initial: T) => MotionValue<T>;
@@ -141,18 +145,24 @@ interface FramerMotionMock {
 }
 
 function createMotionComponent(element: string) {
-  const MotionComponent = React.forwardRef<HTMLElement, MotionComponentProps>((props, ref) => {
-    const { children, ...rest } = props;
-    const filteredProps = filterMotionProps(rest);
-    return React.createElement(element, { ...filteredProps, ref }, children as React.ReactNode);
-  });
+  const MotionComponent = React.forwardRef<HTMLElement, MotionComponentProps>(
+    (props, ref) => {
+      const { children, ...rest } = props;
+      const filteredProps = filterMotionProps(rest);
+      return React.createElement(
+        element,
+        { ...filteredProps, ref },
+        children as React.ReactNode,
+      );
+    },
+  );
   MotionComponent.displayName = `motion.${element}`;
   return MotionComponent;
 }
 
 export function createFramerMotionMock(): FramerMotionMock {
   const motion = Object.fromEntries(
-    MOTION_ELEMENTS.map(tag => [tag, createMotionComponent(tag)])
+    MOTION_ELEMENTS.map((tag) => [tag, createMotionComponent(tag)]),
   ) as unknown as Record<(typeof MOTION_ELEMENTS)[number], MotionComponent>;
 
   return {
@@ -160,7 +170,9 @@ export function createFramerMotionMock(): FramerMotionMock {
     AnimatePresence: ({ children }: { children?: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     useAnimation: () => ({
-      start: vi.fn().mockResolvedValue(undefined) as MockedFunction<() => Promise<undefined>>,
+      start: vi.fn().mockResolvedValue(undefined) as MockedFunction<
+        () => Promise<undefined>
+      >,
       stop: vi.fn(),
       set: vi.fn(),
     }),

@@ -1,9 +1,9 @@
-import { Loader2 } from "lucide-react";
-import { type JSX } from "react";
+import { Loader2 } from 'lucide-react';
+import { type JSX } from 'react';
 
-import { INVEST_SUB_TABS } from "@/components/wallet/portfolio/components/navigation";
-import { lazyImport } from "@/lib/lazy/lazyImport";
-import type { InvestSubTab, MarketSection } from "@/types";
+import { INVEST_SUB_TABS } from '@/components/wallet/portfolio/components/navigation';
+import { lazyImport } from '@/lib/lazy/lazyImport';
+import type { InvestSubTab, MarketSection } from '@/types';
 
 interface InvestViewProps {
   userId: string | undefined;
@@ -32,31 +32,31 @@ function InvestContentLoadingState(): JSX.Element {
 }
 
 const LazyTradingView = lazyImport(
-  async () => import("./trading/TradingView"),
-  mod => mod.TradingView,
-  { fallback: <InvestContentLoadingState /> }
+  async () => import('./trading/TradingView'),
+  (mod) => mod.TradingView,
+  { fallback: <InvestContentLoadingState /> },
 );
 
 const LazyBacktestingView = lazyImport(
-  async () => import("../BacktestingView"),
-  mod => mod.BacktestingView,
-  { fallback: <InvestContentLoadingState /> }
+  async () => import('../BacktestingView'),
+  (mod) => mod.BacktestingView,
+  { fallback: <InvestContentLoadingState /> },
 );
 
 const LazyMarketDashboardView = lazyImport(
-  async () => import("./market/MarketDashboardView"),
-  mod => mod.MarketDashboardView,
-  { fallback: <InvestContentLoadingState /> }
+  async () => import('./market/MarketDashboardView'),
+  (mod) => mod.MarketDashboardView,
+  { fallback: <InvestContentLoadingState /> },
 );
 
 const LazyConfigManagerView = lazyImport(
-  async () => import("./configManager"),
-  mod => mod.ConfigManagerView,
-  { fallback: <InvestContentLoadingState /> }
+  async () => import('./configManager'),
+  (mod) => mod.ConfigManagerView,
+  { fallback: <InvestContentLoadingState /> },
 );
 
 function getSubTabClassName(isActive: boolean): string {
-  const state = isActive ? "text-white" : "text-gray-500 hover:text-gray-300";
+  const state = isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300';
   return `pb-4 text-sm font-medium transition-colors relative ${state}`;
 }
 
@@ -64,29 +64,29 @@ function renderActiveSubTab(
   activeSubTab: InvestSubTab,
   userId: string | undefined,
   activeMarketSection: MarketSection,
-  onMarketSectionChange: (section: MarketSection) => void
+  onMarketSectionChange: (section: MarketSection) => void,
 ): JSX.Element {
   switch (activeSubTab) {
-    case "trading":
+    case 'trading':
       return <LazyTradingView userId={userId} />;
-    case "backtesting":
+    case 'backtesting':
       return <LazyBacktestingView />;
-    case "market":
+    case 'market':
       return (
         <LazyMarketDashboardView
           activeSection={activeMarketSection}
           onSectionChange={onMarketSectionChange}
         />
       );
-    case "config-manager":
+    case 'config-manager':
       return <LazyConfigManagerView />;
   }
 }
 
 export function InvestView({
   userId,
-  activeSubTab = "trading",
-  activeMarketSection = "overview",
+  activeSubTab = 'trading',
+  activeMarketSection = 'overview',
   onSubTabChange = noop,
   onMarketSectionChange = noop,
 }: InvestViewProps): JSX.Element {
@@ -114,7 +114,7 @@ export function InvestView({
           activeSubTab,
           userId,
           activeMarketSection,
-          onMarketSectionChange
+          onMarketSectionChange,
         )}
       </div>
     </div>

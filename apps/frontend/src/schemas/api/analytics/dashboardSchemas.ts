@@ -1,6 +1,6 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 export const unifiedDashboardResponseSchema = z.any();
 
@@ -15,7 +15,7 @@ export const marketDashboardPointSchema = z.object({
   price_usd: z.number(),
   dma_200: z.number().nullable(),
   sentiment_value: z.number().nullable(),
-  regime: z.enum(["ef", "f", "n", "g", "eg"]).nullable(),
+  regime: z.enum(['ef', 'f', 'n', 'g', 'eg']).nullable(),
   eth_btc_relative_strength: ethBtcRelativeStrengthPointSchema
     .nullable()
     .optional(),
@@ -102,14 +102,14 @@ export type MarketDashboardResponse = z.infer<
 >;
 
 export const validateUnifiedDashboardResponse = createValidator(
-  unifiedDashboardResponseSchema
+  unifiedDashboardResponseSchema,
 );
 export const validateMarketDashboardResponse = createValidator(
-  marketDashboardResponseSchema
+  marketDashboardResponseSchema,
 );
 
 export const safeValidateUnifiedDashboardResponse = (
-  data: unknown
+  data: unknown,
 ): ReturnType<typeof unifiedDashboardResponseSchema.safeParse> => {
   return unifiedDashboardResponseSchema.safeParse(data);
 };

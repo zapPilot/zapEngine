@@ -9,7 +9,12 @@ interface CardItemProps {
   className?: string;
 }
 
-export function CardItem({ index, children, hoverScale = true, className = '' }: CardItemProps) {
+export function CardItem({
+  index,
+  children,
+  hoverScale = true,
+  className = '',
+}: CardItemProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}

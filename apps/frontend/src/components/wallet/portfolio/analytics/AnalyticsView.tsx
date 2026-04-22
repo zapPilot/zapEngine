@@ -5,20 +5,20 @@
  * Receives all data and handlers via props
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
   WalletOption,
-} from "@/types/analytics";
+} from '@/types/analytics';
 
-import { AdditionalMetricsGrid } from "./components/AdditionalMetricsGrid";
-import { AnalyticsHeader } from "./components/AnalyticsHeader";
-import { ChartSection } from "./components/ChartSection";
-import { KeyMetricsGrid } from "./components/KeyMetricsGrid";
-import { MonthlyPnLHeatmap } from "./components/MonthlyPnLHeatmap";
+import { AdditionalMetricsGrid } from './components/AdditionalMetricsGrid';
+import { AnalyticsHeader } from './components/AnalyticsHeader';
+import { ChartSection } from './components/ChartSection';
+import { KeyMetricsGrid } from './components/KeyMetricsGrid';
+import { MonthlyPnLHeatmap } from './components/MonthlyPnLHeatmap';
 
 /**
  * Analytics View Props
@@ -29,11 +29,11 @@ interface AnalyticsViewProps {
   /** Currently selected time period */
   selectedPeriod: AnalyticsTimePeriod;
   /** Active chart tab */
-  activeChartTab: "performance" | "drawdown";
+  activeChartTab: 'performance' | 'drawdown';
   /** Period change handler */
   onPeriodChange: (period: AnalyticsTimePeriod) => void;
   /** Chart tab change handler */
-  onChartTabChange: (tab: "performance" | "drawdown") => void;
+  onChartTabChange: (tab: 'performance' | 'drawdown') => void;
   /** Export handler function */
   onExport: () => void;
   /** Loading state for individual components */

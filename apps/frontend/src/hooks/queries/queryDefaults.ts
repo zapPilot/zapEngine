@@ -30,10 +30,10 @@
  * @module hooks/queries/queryDefaults
  */
 
-import { CACHE_WINDOW } from "@/config/cacheWindow";
-import { isClientError } from "@/lib/errors/errorHelpers";
-import { APIError } from "@/lib/http";
-import { logger } from "@/utils";
+import { CACHE_WINDOW } from '@/config/cacheWindow';
+import { isClientError } from '@/lib/errors/errorHelpers';
+import { APIError } from '@/lib/http';
+import { logger } from '@/utils';
 
 /**
  * Data freshness profiles for different query types
@@ -121,9 +121,9 @@ export function logQueryError(context: string, error: unknown): void {
  * @returns Query configuration object with retry, retryDelay, staleTime, and gcTime
  */
 export function createQueryConfig(
-  options: QueryConfigOptions = {}
+  options: QueryConfigOptions = {},
 ): QueryConfigResult {
-  const { dataType = "etl", retryConfig } = options;
+  const { dataType = 'etl', retryConfig } = options;
 
   const {
     maxRetries = 2,
@@ -154,7 +154,7 @@ export function createQueryConfig(
 
       // Skip errors with specific messages
       if (error instanceof Error) {
-        if (skipErrorMessages.some(msg => error.message.includes(msg))) {
+        if (skipErrorMessages.some((msg) => error.message.includes(msg))) {
           return false;
         }
       }

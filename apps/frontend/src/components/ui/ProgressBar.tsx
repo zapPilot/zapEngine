@@ -17,7 +17,7 @@ export function ProgressBar({
   label,
   color,
   showPercentage = true,
-  className = "",
+  className = '',
 }: ProgressBarProps) {
   return (
     <div className={className}>

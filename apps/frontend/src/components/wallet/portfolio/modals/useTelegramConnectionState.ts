@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { extractErrorMessage } from "@/lib/errors";
+import { extractErrorMessage } from '@/lib/errors';
 import {
   disconnectTelegram,
   getTelegramStatus,
   requestTelegramToken,
   type TelegramStatus,
-} from "@/services";
+} from '@/services';
 
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_DURATION_MS = 120_000;
 
 export type TelegramConnectionViewState =
-  | { kind: "loading" }
-  | { kind: "idle"; status: TelegramStatus }
-  | { kind: "connecting"; deepLink: string }
-  | { kind: "error"; message: string };
+  | { kind: 'loading' }
+  | { kind: 'idle'; status: TelegramStatus }
+  | { kind: 'connecting'; deepLink: string }
+  | { kind: 'error'; message: string };
 
 interface UseTelegramConnectionStateParams {
   isOpen: boolean;
@@ -31,13 +31,13 @@ interface UseTelegramConnectionStateResult {
 }
 
 const createTimeoutView = (): TelegramConnectionViewState => ({
-  kind: "error",
-  message: "Connection timed out. Please try again.",
+  kind: 'error',
+  message: 'Connection timed out. Please try again.',
 });
 
 const createLoadErrorView = (): TelegramConnectionViewState => ({
-  kind: "error",
-  message: "Failed to load Telegram status.",
+  kind: 'error',
+  message: 'Failed to load Telegram status.',
 });
 
 /**
@@ -48,7 +48,7 @@ export const useTelegramConnectionState = ({
   userId,
 }: UseTelegramConnectionStateParams): UseTelegramConnectionStateResult => {
   const [view, setView] = useState<TelegramConnectionViewState>({
-    kind: "loading",
+    kind: 'loading',
   });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -70,7 +70,7 @@ export const useTelegramConnectionState = ({
 
     try {
       const status = await getTelegramStatus(userId);
-      setView({ kind: "idle", status });
+      setView({ kind: 'idle', status });
       return status;
     } catch {
       setView(createLoadErrorView());
@@ -104,7 +104,7 @@ export const useTelegramConnectionState = ({
           }
 
           stopPolling();
-          setView({ kind: "idle", status });
+          setView({ kind: 'idle', status });
         } catch {
           // Keep polling on transient errors.
         }
@@ -116,7 +116,7 @@ export const useTelegramConnectionState = ({
 
   useEffect(() => {
     if (isOpen && userId) {
-      setView({ kind: "loading" });
+      setView({ kind: 'loading' });
       void fetchStatus();
     }
 
@@ -130,15 +130,15 @@ export const useTelegramConnectionState = ({
 
     try {
       const { deepLink } = await requestTelegramToken(userId);
-      window.open(deepLink, "_blank");
-      setView({ kind: "connecting", deepLink });
+      window.open(deepLink, '_blank');
+      setView({ kind: 'connecting', deepLink });
       startPolling();
     } catch (error) {
       setView({
-        kind: "error",
+        kind: 'error',
         message: extractErrorMessage(
           error,
-          "Failed to generate connection link."
+          'Failed to generate connection link.',
         ),
       });
     }
@@ -156,8 +156,8 @@ export const useTelegramConnectionState = ({
       await fetchStatus();
     } catch (error) {
       setView({
-        kind: "error",
-        message: extractErrorMessage(error, "Failed to disconnect Telegram."),
+        kind: 'error',
+        message: extractErrorMessage(error, 'Failed to disconnect Telegram.'),
       });
     } finally {
       setIsDisconnecting(false);
@@ -166,7 +166,7 @@ export const useTelegramConnectionState = ({
 
   const handleRetry = useCallback((): void => {
     stopPolling();
-    setView({ kind: "loading" });
+    setView({ kind: 'loading' });
     void fetchStatus();
   }, [fetchStatus, stopPolling]);
 

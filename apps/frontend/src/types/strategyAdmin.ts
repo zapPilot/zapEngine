@@ -5,7 +5,7 @@
  * analytics-engine/src/models/strategy_admin.py
  */
 
-import type { BacktestCompareParamsV3 } from "./backtesting";
+import type { BacktestCompareParamsV3 } from './backtesting';
 
 /**
  * Reference to a strategy component with its parameters.

@@ -1,4 +1,4 @@
-import { httpUtils } from "@/lib/http";
+import { httpUtils } from '@/lib/http';
 
 export interface BtcPriceSnapshot {
   date: string;
@@ -31,9 +31,9 @@ export interface BtcPriceHistoryResponse {
  */
 export async function getBtcPriceHistory(
   days = 90,
-  token = "btc"
+  token = 'btc',
 ): Promise<BtcPriceHistoryResponse> {
   return httpUtils.analyticsEngine.get<BtcPriceHistoryResponse>(
-    `/api/v2/market/btc/history?days=${days}&token=${token.toLowerCase()}`
+    `/api/v2/market/btc/history?days=${days}&token=${token.toLowerCase()}`,
   );
 }

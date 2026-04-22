@@ -1,6 +1,6 @@
-import { ASSET_COLORS } from "@/constants/assets";
-import type { LandingPageResponse } from "@/services";
-import type { AllocationConstituent } from "@/types/portfolio";
+import { ASSET_COLORS } from '@/constants/assets';
+import type { LandingPageResponse } from '@/services';
+import type { AllocationConstituent } from '@/types/portfolio';
 
 /**
  * Constituent asset type for allocation breakdown
@@ -20,17 +20,17 @@ export interface PortfolioAllocation {
   simplifiedCrypto: AllocationConstituent[];
 }
 
-const CRYPTO_ASSET_META: Omit<AllocationConstituent, "value">[] = [
-  { asset: "BTC", symbol: "BTC", name: "Bitcoin", color: ASSET_COLORS.BTC },
-  { asset: "ETH", symbol: "ETH", name: "Ethereum", color: ASSET_COLORS.ETH },
-  { asset: "Others", symbol: "ALT", name: "Altcoins", color: ASSET_COLORS.ALT },
+const CRYPTO_ASSET_META: Omit<AllocationConstituent, 'value'>[] = [
+  { asset: 'BTC', symbol: 'BTC', name: 'Bitcoin', color: ASSET_COLORS.BTC },
+  { asset: 'ETH', symbol: 'ETH', name: 'Ethereum', color: ASSET_COLORS.ETH },
+  { asset: 'Others', symbol: 'ALT', name: 'Altcoins', color: ASSET_COLORS.ALT },
 ];
 
 /**
  * Calculates current allocation from portfolio data
  */
 export function calculateAllocation(
-  landingData: LandingPageResponse
+  landingData: LandingPageResponse,
 ): PortfolioAllocation {
   const allocation = landingData.portfolio_allocation;
 
@@ -63,15 +63,15 @@ export function calculateAllocation(
   // Build constituents for detailed breakdown
   const safeCryptoDivisor = totalCrypto || 1;
   const [btcMeta, ethMeta, altMeta] = CRYPTO_ASSET_META as [
-    Omit<AllocationConstituent, "value">,
-    Omit<AllocationConstituent, "value">,
-    Omit<AllocationConstituent, "value">,
+    Omit<AllocationConstituent, 'value'>,
+    Omit<AllocationConstituent, 'value'>,
+    Omit<AllocationConstituent, 'value'>,
   ];
   const cryptoConstituents: AllocationConstituent[] = [
     { ...btcMeta, value: (btcValue / safeCryptoDivisor) * 100 },
     { ...ethMeta, value: (ethValue / safeCryptoDivisor) * 100 },
     { ...altMeta, value: (othersValue / safeCryptoDivisor) * 100 },
-  ].filter(c => c.value > 0);
+  ].filter((c) => c.value > 0);
   const stableConstituents: AllocationConstituent[] = [];
 
   // Estimate USDC/USDT split (60/40 default - backend does not provide breakdown yet)
@@ -81,19 +81,19 @@ export function calculateAllocation(
 
     stableConstituents.push(
       {
-        asset: "USDC",
-        symbol: "USDC",
-        name: "USD Coin",
+        asset: 'USDC',
+        symbol: 'USDC',
+        name: 'USD Coin',
         value: (usdcValue / stablecoinsValue) * 100,
         color: ASSET_COLORS.USDC,
       },
       {
-        asset: "USDT",
-        symbol: "USDT",
-        name: "Tether",
+        asset: 'USDT',
+        symbol: 'USDT',
+        name: 'Tether',
         value: (usdtValue / stablecoinsValue) * 100,
         color: ASSET_COLORS.USDT,
-      }
+      },
     );
   }
 
@@ -103,7 +103,7 @@ export function calculateAllocation(
     { ...btcMeta, value: allocation.btc.percentage_of_portfolio },
     { ...ethMeta, value: allocation.eth.percentage_of_portfolio },
     { ...altMeta, value: allocation.others.percentage_of_portfolio },
-  ].filter(c => c.value > 0);
+  ].filter((c) => c.value > 0);
 
   return {
     crypto: cryptoPercent,
@@ -121,7 +121,7 @@ export function calculateAllocation(
  */
 export function calculateDelta(
   currentCrypto: number,
-  targetCrypto: number
+  targetCrypto: number,
 ): number {
   return Math.abs(targetCrypto - currentCrypto);
 }

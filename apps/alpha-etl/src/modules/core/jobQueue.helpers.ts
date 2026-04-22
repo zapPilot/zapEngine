@@ -1,24 +1,24 @@
-import { logger } from "../../utils/logger.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import type { ETLJob, ETLJobResult } from "../../types/index.js";
-import type { MVRefreshStats } from "../../modules/core/mvRefresh.js";
-import type { ETLJobProcessingResult } from "./pipelineFactory.helpers.js";
-import { MV_REFRESH_CONFIG } from "../../config/constants.js";
+import { MV_REFRESH_CONFIG } from '../../config/constants.js';
+import type { MVRefreshStats } from '../../modules/core/mvRefresh.js';
+import type { ETLJob, ETLJobResult } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import type { ETLJobProcessingResult } from './pipelineFactory.helpers.js';
 
 export const MATERIALIZED_VIEW_NAMES = MV_REFRESH_CONFIG.MATERIALIZED_VIEWS.map(
   (mv) => mv.name,
 );
 
 export type PersistedJobStatus =
-  | "pending"
-  | "processing"
-  | "completed"
-  | "failed";
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed';
 
 export interface PersistJobMetadata {
-  userId?: string;
-  walletAddress?: string;
-  errorMessage?: string;
+  userId?: string | undefined;
+  walletAddress?: string | undefined;
+  errorMessage?: string | undefined;
 }
 
 export interface PersistJobQueryPayload {
@@ -30,12 +30,12 @@ interface ProcessedJobOutcomeLike {
   pipelineResult: ETLJobProcessingResult;
   etlDurationMs: number;
   totalDurationMs: number;
-  mvRefreshStats?: MVRefreshStats;
+  mvRefreshStats?: MVRefreshStats | undefined;
 }
 
 export function createPendingJob(
   jobId: string,
-  params: Pick<ETLJob, "trigger" | "sources" | "filters" | "metadata">,
+  params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>,
 ): ETLJob {
   return {
     jobId,
@@ -44,7 +44,7 @@ export function createPendingJob(
     filters: params.filters,
     metadata: params.metadata,
     createdAt: new Date(),
-    status: "pending",
+    status: 'pending',
   };
 }
 
@@ -75,7 +75,7 @@ export function shouldRefreshMaterializedViews(
     return true;
   }
 
-  const isWalletJob = job.metadata?.jobType === "wallet_fetch";
+  const isWalletJob = job.metadata?.jobType === 'wallet_fetch';
   return isWalletJob && pipelineResult.success;
 }
 
@@ -88,7 +88,7 @@ export function resolveJobSuccess(
     return pipelineResult.success;
   }
 
-  logger.warn("Job marked as failed due to MV refresh failure", {
+  logger.warn('Job marked as failed due to MV refresh failure', {
     jobId: job.jobId,
     etlSuccess: pipelineResult.success,
     mvFailedCount: mvRefreshStats.failedCount,
@@ -99,7 +99,7 @@ export function resolveJobSuccess(
 }
 
 export function getPersistedErrorMessage(
-  metadata: ETLJob["metadata"] | undefined,
+  metadata: ETLJob['metadata'] | undefined,
   jobSuccess: boolean,
   mvRefreshStats?: MVRefreshStats,
 ): string | undefined {
@@ -112,7 +112,7 @@ export function getPersistedErrorMessage(
 export function createSuccessResult(
   job: ETLJob,
   outcome: ProcessedJobOutcomeLike,
-  finalStatus: "completed" | "failed",
+  finalStatus: 'completed' | 'failed',
 ): ETLJobResult {
   const { pipelineResult, totalDurationMs, mvRefreshStats } = outcome;
 
@@ -142,7 +142,7 @@ export function logJobCompletion(
   job: ETLJob,
   outcome: ProcessedJobOutcomeLike,
 ): void {
-  logger.info("ETL job completed (including MV refresh)", {
+  logger.info('ETL job completed (including MV refresh)', {
     jobId: job.jobId,
     success: outcome.pipelineResult.success,
     recordsProcessed: outcome.pipelineResult.recordsProcessed,
@@ -156,9 +156,9 @@ export function logJobCompletion(
 
 export function shouldPersistJobStatus(
   metadata?: PersistJobMetadata,
-): metadata is Required<Pick<PersistJobMetadata, "userId">> &
+): metadata is Required<Pick<PersistJobMetadata, 'userId'>> &
   PersistJobMetadata {
-  return typeof metadata?.userId === "string" && metadata.userId.length > 0;
+  return typeof metadata?.userId === 'string' && metadata.userId.length > 0;
 }
 
 export function logPersistStatusFailure(
@@ -167,7 +167,7 @@ export function logPersistStatusFailure(
   error: unknown,
 ): void {
   // Non-fatal error - log and continue
-  logger.warn("Failed to persist job status to database (non-fatal)", {
+  logger.warn('Failed to persist job status to database (non-fatal)', {
     jobId,
     status,
     error: toErrorMessage(error),
@@ -180,8 +180,8 @@ export function buildPersistJobStatusQuery(
   metadata: PersistJobMetadata,
 ): PersistJobQueryPayload {
   const updateColumns: string[] = [
-    "status = EXCLUDED.status",
-    "updated_at = NOW()",
+    'status = EXCLUDED.status',
+    'updated_at = NOW()',
   ];
   const values: unknown[] = [
     jobId,
@@ -190,11 +190,11 @@ export function buildPersistJobStatusQuery(
     status,
   ];
 
-  if (status === "processing") {
-    updateColumns.push("started_at = NOW()");
+  if (status === 'processing') {
+    updateColumns.push('started_at = NOW()');
   }
-  if (status === "completed" || status === "failed") {
-    updateColumns.push("completed_at = NOW()");
+  if (status === 'completed' || status === 'failed') {
+    updateColumns.push('completed_at = NOW()');
   }
   if (metadata.errorMessage) {
     updateColumns.push(`error_message = $${values.length + 1}`);
@@ -207,7 +207,7 @@ export function buildPersistJobStatusQuery(
       VALUES ($1, $2, $3, 'wallet_onboarding', $4, NOW())
       ON CONFLICT (job_id)
       DO UPDATE SET
-        ${updateColumns.join(",\n        ")}
+        ${updateColumns.join(',\n        ')}
     `;
 
   return { query, params: values };

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
-import { Z_INDEX } from "@/constants/design-system";
-import { getRuntimeEnv, isRuntimeMode } from "@/lib/env/runtimeEnv";
-import { type LogEntry, logger, LogLevel } from "@/utils/logger";
+import { BaseCard } from '@/components/ui/BaseCard';
+import { Z_INDEX } from '@/constants/design-system';
+import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
+import { type LogEntry, logger, LogLevel } from '@/utils/logger';
 
 /**
  * Development Log Viewer Component
@@ -17,16 +17,16 @@ export function LogViewer() {
   const [filterLevel, setFilterLevel] = useState<LogLevel>(LogLevel.DEBUG);
 
   const shouldShow =
-    (isRuntimeMode("development") &&
-      getRuntimeEnv("VITE_ENABLE_LOG_VIEWER") === "1") ||
-    getRuntimeEnv("VITE_ENABLE_DEBUG_LOGGING") === "true";
+    (isRuntimeMode('development') &&
+      getRuntimeEnv('VITE_ENABLE_LOG_VIEWER') === '1') ||
+    getRuntimeEnv('VITE_ENABLE_DEBUG_LOGGING') === 'true';
 
   useEffect(() => {
     if (!shouldShow) return;
 
     const interval = setInterval(() => {
       const currentLogs = logger.getLogs();
-      setLogs(currentLogs.filter(log => log.level >= filterLevel));
+      setLogs(currentLogs.filter((log) => log.level >= filterLevel));
     }, 1000);
 
     return () => clearInterval(interval);
@@ -37,30 +37,30 @@ export function LogViewer() {
   const getLevelColor = (level: LogLevel) => {
     switch (level) {
       case LogLevel.DEBUG:
-        return "text-gray-400";
+        return 'text-gray-400';
       case LogLevel.INFO:
-        return "text-blue-400";
+        return 'text-blue-400';
       case LogLevel.WARN:
-        return "text-yellow-400";
+        return 'text-yellow-400';
       case LogLevel.ERROR:
-        return "text-red-400";
+        return 'text-red-400';
       default:
-        return "text-gray-400";
+        return 'text-gray-400';
     }
   };
 
   const getLevelName = (level: LogLevel) => {
     switch (level) {
       case LogLevel.DEBUG:
-        return "DEBUG";
+        return 'DEBUG';
       case LogLevel.INFO:
-        return "INFO";
+        return 'INFO';
       case LogLevel.WARN:
-        return "WARN";
+        return 'WARN';
       case LogLevel.ERROR:
-        return "ERROR";
+        return 'ERROR';
       default:
-        return "UNKNOWN";
+        return 'UNKNOWN';
     }
   };
 
@@ -84,7 +84,7 @@ export function LogViewer() {
               <div className="flex gap-2">
                 <select
                   value={filterLevel}
-                  onChange={e => setFilterLevel(parseInt(e.target.value))}
+                  onChange={(e) => setFilterLevel(parseInt(e.target.value))}
                   className="text-xs bg-gray-700 text-white rounded px-2 py-1"
                 >
                   <option value={LogLevel.DEBUG}>DEBUG+</option>
@@ -110,7 +110,7 @@ export function LogViewer() {
                   if (!log.data) return null;
                   try {
                     const dataStr =
-                      typeof log.data === "string"
+                      typeof log.data === 'string'
                         ? log.data
                         : JSON.stringify(log.data, null, 2);
                     return (

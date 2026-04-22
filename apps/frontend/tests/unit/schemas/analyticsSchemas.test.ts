@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ZodError } from "zod";
+import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 import {
   dailyYieldReturnsResponseSchema,
@@ -19,7 +19,7 @@ import {
   type YieldReturnsSummaryResponse,
   yieldReturnsSummaryResponseSchema,
   yieldWindowSummarySchema,
-} from "@/schemas/api/analyticsSchemas";
+} from '@/schemas/api/analyticsSchemas';
 
 const assertAnalyticsSchemaExportTypes = <
   _TProtocolYieldToday extends ProtocolYieldToday,
@@ -29,9 +29,9 @@ const assertAnalyticsSchemaExportTypes = <
 
 assertAnalyticsSchemaExportTypes();
 
-describe("analyticsSchemas", () => {
-  describe("protocolYieldWindowSchema", () => {
-    it("validates correct protocol yield window data", () => {
+describe('analyticsSchemas', () => {
+  describe('protocolYieldWindowSchema', () => {
+    it('validates correct protocol yield window data', () => {
       const validData = {
         total_yield_usd: 1500.5,
         average_daily_yield_usd: 50.0,
@@ -43,9 +43,9 @@ describe("analyticsSchemas", () => {
       expect(() => protocolYieldWindowSchema.parse(validData)).not.toThrow();
     });
 
-    it("rejects invalid data types", () => {
+    it('rejects invalid data types', () => {
       const invalidData = {
-        total_yield_usd: "not-a-number",
+        total_yield_usd: 'not-a-number',
         average_daily_yield_usd: 50.0,
         data_points: 30,
         positive_days: 25,
@@ -53,15 +53,15 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() => protocolYieldWindowSchema.parse(invalidData)).toThrow(
-        ZodError
+        ZodError,
       );
     });
   });
 
-  describe("protocolYieldTodaySchema", () => {
-    it("validates correct protocol yield today data", () => {
+  describe('protocolYieldTodaySchema', () => {
+    it('validates correct protocol yield today data', () => {
       const validData = {
-        date: "2025-01-17",
+        date: '2025-01-17',
         yield_usd: 75.5,
       };
 
@@ -69,11 +69,11 @@ describe("analyticsSchemas", () => {
     });
   });
 
-  describe("protocolYieldBreakdownSchema", () => {
-    it("validates correct protocol yield breakdown", () => {
+  describe('protocolYieldBreakdownSchema', () => {
+    it('validates correct protocol yield breakdown', () => {
       const validData = {
-        protocol: "Aave V3",
-        chain: "ethereum",
+        protocol: 'Aave V3',
+        chain: 'ethereum',
         window: {
           total_yield_usd: 1500.5,
           average_daily_yield_usd: 50.0,
@@ -82,7 +82,7 @@ describe("analyticsSchemas", () => {
           negative_days: 5,
         },
         today: {
-          date: "2025-01-17",
+          date: '2025-01-17',
           yield_usd: 75.5,
         },
       };
@@ -90,9 +90,9 @@ describe("analyticsSchemas", () => {
       expect(() => protocolYieldBreakdownSchema.parse(validData)).not.toThrow();
     });
 
-    it("accepts null chain", () => {
+    it('accepts null chain', () => {
       const validData = {
-        protocol: "Aave V3",
+        protocol: 'Aave V3',
         chain: null,
         window: {
           total_yield_usd: 1500.5,
@@ -106,10 +106,10 @@ describe("analyticsSchemas", () => {
       expect(() => protocolYieldBreakdownSchema.parse(validData)).not.toThrow();
     });
 
-    it("accepts missing today field", () => {
+    it('accepts missing today field', () => {
       const validData = {
-        protocol: "Aave V3",
-        chain: "ethereum",
+        protocol: 'Aave V3',
+        chain: 'ethereum',
         window: {
           total_yield_usd: 1500.5,
           average_daily_yield_usd: 50.0,
@@ -123,13 +123,13 @@ describe("analyticsSchemas", () => {
     });
   });
 
-  describe("yieldWindowSummarySchema", () => {
-    it("validates correct yield window summary", () => {
+  describe('yieldWindowSummarySchema', () => {
+    it('validates correct yield window summary', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         period: {
-          start_date: "2024-12-18",
-          end_date: "2025-01-17",
+          start_date: '2024-12-18',
+          end_date: '2025-01-17',
           days: 30,
         },
         average_daily_yield_usd: 50.0,
@@ -145,19 +145,19 @@ describe("analyticsSchemas", () => {
           filtered_days: 28,
           outliers_removed: 2,
         },
-        outlier_strategy: "iqr",
+        outlier_strategy: 'iqr',
         outliers_detected: [
           {
-            date: "2025-01-10",
+            date: '2025-01-10',
             value: 500.0,
-            reason: "IQR outlier",
+            reason: 'IQR outlier',
             z_score: null,
           },
         ],
         protocol_breakdown: [
           {
-            protocol: "Aave V3",
-            chain: "ethereum",
+            protocol: 'Aave V3',
+            chain: 'ethereum',
             window: {
               total_yield_usd: 1500.5,
               average_daily_yield_usd: 50.0,
@@ -172,15 +172,15 @@ describe("analyticsSchemas", () => {
       expect(() => yieldWindowSummarySchema.parse(validData)).not.toThrow();
     });
 
-    it("validates outlier_strategy enum", () => {
-      const strategies = ["iqr", "none", "zscore", "percentile"];
+    it('validates outlier_strategy enum', () => {
+      const strategies = ['iqr', 'none', 'zscore', 'percentile'];
 
       for (const strategy of strategies) {
         const validData = {
-          user_id: "0x123",
+          user_id: '0x123',
           period: {
-            start_date: "2024-12-18",
-            end_date: "2025-01-17",
+            start_date: '2024-12-18',
+            end_date: '2025-01-17',
             days: 30,
           },
           average_daily_yield_usd: 50.0,
@@ -205,12 +205,12 @@ describe("analyticsSchemas", () => {
       }
     });
 
-    it("rejects invalid outlier_strategy", () => {
+    it('rejects invalid outlier_strategy', () => {
       const invalidData = {
-        user_id: "0x123",
+        user_id: '0x123',
         period: {
-          start_date: "2024-12-18",
-          end_date: "2025-01-17",
+          start_date: '2024-12-18',
+          end_date: '2025-01-17',
           days: 30,
         },
         average_daily_yield_usd: 50.0,
@@ -226,27 +226,27 @@ describe("analyticsSchemas", () => {
           filtered_days: 28,
           outliers_removed: 2,
         },
-        outlier_strategy: "invalid",
+        outlier_strategy: 'invalid',
         outliers_detected: [],
         protocol_breakdown: [],
       };
 
       expect(() => yieldWindowSummarySchema.parse(invalidData)).toThrow(
-        ZodError
+        ZodError,
       );
     });
   });
 
-  describe("yieldReturnsSummaryResponseSchema", () => {
-    it("validates correct yield returns summary response", () => {
+  describe('yieldReturnsSummaryResponseSchema', () => {
+    it('validates correct yield returns summary response', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         windows: {
-          "30d": {
-            user_id: "0x123",
+          '30d': {
+            user_id: '0x123',
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             average_daily_yield_usd: 50.0,
@@ -262,22 +262,22 @@ describe("analyticsSchemas", () => {
               filtered_days: 28,
               outliers_removed: 2,
             },
-            outlier_strategy: "iqr",
+            outlier_strategy: 'iqr',
             outliers_detected: [],
             protocol_breakdown: [],
           },
         },
-        recommended_period: "30d",
+        recommended_period: '30d',
       };
 
       expect(() =>
-        yieldReturnsSummaryResponseSchema.parse(validData)
+        yieldReturnsSummaryResponseSchema.parse(validData),
       ).not.toThrow();
     });
   });
 
-  describe("landingPageResponseSchema", () => {
-    it("validates correct landing page response", () => {
+  describe('landingPageResponseSchema', () => {
+    it('validates correct landing page response', () => {
       const validData = {
         total_assets_usd: 100000.0,
         total_debt_usd: 10000.0,
@@ -288,7 +288,7 @@ describe("analyticsSchemas", () => {
         wallet_count: 3,
         portfolio_roi: {
           recommended_roi: 0.055,
-          recommended_period: "30d",
+          recommended_period: '30d',
           recommended_yearly_roi: 0.66,
           estimated_yearly_pnl_usd: 5400.0,
         },
@@ -333,7 +333,7 @@ describe("analyticsSchemas", () => {
         total_positions: 12,
         protocols_count: 5,
         chains_count: 3,
-        last_updated: "2025-01-17T00:00:00Z",
+        last_updated: '2025-01-17T00:00:00Z',
         apr_coverage: {
           matched_pools: 10,
           total_pools: 12,
@@ -345,7 +345,7 @@ describe("analyticsSchemas", () => {
       expect(() => landingPageResponseSchema.parse(validData)).not.toThrow();
     });
 
-    it("accepts legacy ROI fields", () => {
+    it('accepts legacy ROI fields', () => {
       const validData = {
         total_assets_usd: 100000.0,
         total_debt_usd: 10000.0,
@@ -356,7 +356,7 @@ describe("analyticsSchemas", () => {
         wallet_count: 3,
         portfolio_roi: {
           recommended_roi: 0.055,
-          recommended_period: "30d",
+          recommended_period: '30d',
           recommended_yearly_roi: 0.66,
           estimated_yearly_pnl_usd: 5400.0,
           roi_7d: {
@@ -413,7 +413,7 @@ describe("analyticsSchemas", () => {
         total_positions: 12,
         protocols_count: 5,
         chains_count: 3,
-        last_updated: "2025-01-17T00:00:00Z",
+        last_updated: '2025-01-17T00:00:00Z',
         apr_coverage: {
           matched_pools: 10,
           total_pools: 12,
@@ -425,7 +425,7 @@ describe("analyticsSchemas", () => {
       expect(() => landingPageResponseSchema.parse(validData)).not.toThrow();
     });
 
-    it("accepts null last_updated", () => {
+    it('accepts null last_updated', () => {
       const validData = {
         total_assets_usd: 100000.0,
         total_debt_usd: 10000.0,
@@ -436,7 +436,7 @@ describe("analyticsSchemas", () => {
         wallet_count: 3,
         portfolio_roi: {
           recommended_roi: 0.055,
-          recommended_period: "30d",
+          recommended_period: '30d',
           recommended_yearly_roi: 0.66,
           estimated_yearly_pnl_usd: 5400.0,
         },
@@ -493,7 +493,7 @@ describe("analyticsSchemas", () => {
       expect(() => landingPageResponseSchema.parse(validData)).not.toThrow();
     });
 
-    it("applies safe defaults when optional fields are missing", () => {
+    it('applies safe defaults when optional fields are missing', () => {
       const apiSample = {
         total_assets_usd: 0,
         total_debt_usd: 0,
@@ -540,7 +540,7 @@ describe("analyticsSchemas", () => {
             roi_30d: { value: 0, data_points: 0, start_balance: 0 },
           },
           recommended_roi: 0,
-          recommended_period: "roi_30d",
+          recommended_period: 'roi_30d',
           recommended_yearly_roi: 0,
           estimated_yearly_pnl_usd: 0,
         },
@@ -563,10 +563,10 @@ describe("analyticsSchemas", () => {
     });
   });
 
-  describe("unifiedDashboardResponseSchema", () => {
-    it("validates correct unified dashboard response", () => {
+  describe('unifiedDashboardResponseSchema', () => {
+    it('validates correct unified dashboard response', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         parameters: {
           trend_days: 30,
           risk_days: 30,
@@ -578,13 +578,13 @@ describe("analyticsSchemas", () => {
           period_days: 30,
           data_points: 30,
           period: {
-            start_date: "2024-12-18",
-            end_date: "2025-01-17",
+            start_date: '2024-12-18',
+            end_date: '2025-01-17',
             days: 30,
           },
           daily_values: [
             {
-              date: "2025-01-17",
+              date: '2025-01-17',
               total_value_usd: 100000.0,
               change_percentage: 2.5,
             },
@@ -599,13 +599,13 @@ describe("analyticsSchemas", () => {
         risk_metrics: {
           volatility: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             volatility_pct: 12.5,
             annualized_volatility_pct: 43.3,
-            interpretation: "Moderate",
+            interpretation: 'Moderate',
             summary: {
               avg_volatility: 12.0,
               max_volatility: 18.5,
@@ -614,26 +614,26 @@ describe("analyticsSchemas", () => {
           },
           sharpe_ratio: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             sharpe_ratio: 1.5,
-            interpretation: "Good",
+            interpretation: 'Good',
             summary: {
               avg_sharpe: 1.5,
-              statistical_reliability: "High",
+              statistical_reliability: 'High',
             },
           },
           max_drawdown: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             max_drawdown_pct: -15.5,
-            peak_date: "2025-01-10",
-            trough_date: "2025-01-15",
+            peak_date: '2025-01-10',
+            trough_date: '2025-01-15',
             recovery_date: null,
             summary: {
               current_drawdown_pct: -5.2,
@@ -644,13 +644,13 @@ describe("analyticsSchemas", () => {
         drawdown_analysis: {
           enhanced: {
             period: {
-              start_date: "2024-10-19",
-              end_date: "2025-01-17",
+              start_date: '2024-10-19',
+              end_date: '2025-01-17',
               days: 90,
             },
             drawdown_data: [
               {
-                date: "2025-01-17",
+                date: '2025-01-17',
                 portfolio_value_usd: 100000.0,
                 running_peak_usd: 105000.0,
                 underwater_pct: -4.76,
@@ -665,13 +665,13 @@ describe("analyticsSchemas", () => {
           },
           underwater_recovery: {
             period: {
-              start_date: "2024-10-19",
-              end_date: "2025-01-17",
+              start_date: '2024-10-19',
+              end_date: '2025-01-17',
               days: 90,
             },
             underwater_data: [
               {
-                date: "2025-01-17",
+                date: '2025-01-17',
                 underwater_pct: -4.76,
               },
             ],
@@ -688,14 +688,14 @@ describe("analyticsSchemas", () => {
           period_days: 40,
           data_points: 40,
           period: {
-            start_date: "2024-12-08",
-            end_date: "2025-01-17",
+            start_date: '2024-12-08',
+            end_date: '2025-01-17',
             days: 40,
           },
           allocations: [
             {
-              date: "2025-01-17",
-              category: "BTC",
+              date: '2025-01-17',
+              category: 'BTC',
               category_value_usd: 30000.0,
               total_portfolio_value_usd: 100000.0,
               allocation_percentage: 30.0,
@@ -710,13 +710,13 @@ describe("analyticsSchemas", () => {
         rolling_analytics: {
           sharpe: {
             period: {
-              start_date: "2024-12-08",
-              end_date: "2025-01-17",
+              start_date: '2024-12-08',
+              end_date: '2025-01-17',
               days: 40,
             },
             rolling_sharpe_data: [
               {
-                date: "2025-01-17",
+                date: '2025-01-17',
                 rolling_sharpe_ratio: 1.5,
                 is_statistically_reliable: true,
               },
@@ -725,18 +725,18 @@ describe("analyticsSchemas", () => {
               latest_sharpe_ratio: 1.5,
               avg_sharpe_ratio: 1.4,
               reliable_data_points: 35,
-              statistical_reliability: "High",
+              statistical_reliability: 'High',
             },
           },
           volatility: {
             period: {
-              start_date: "2024-12-08",
-              end_date: "2025-01-17",
+              start_date: '2024-12-08',
+              end_date: '2025-01-17',
               days: 40,
             },
             rolling_volatility_data: [
               {
-                date: "2025-01-17",
+                date: '2025-01-17',
                 rolling_volatility_pct: 12.5,
                 annualized_volatility_pct: 43.3,
               },
@@ -757,13 +757,13 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() =>
-        unifiedDashboardResponseSchema.parse(validData)
+        unifiedDashboardResponseSchema.parse(validData),
       ).not.toThrow();
     });
 
-    it("accepts passthrough fields in data points", () => {
+    it('accepts passthrough fields in data points', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         parameters: {
           trend_days: 30,
           risk_days: 30,
@@ -775,16 +775,16 @@ describe("analyticsSchemas", () => {
           period_days: 30,
           data_points: 30,
           period: {
-            start_date: "2024-12-18",
-            end_date: "2025-01-17",
+            start_date: '2024-12-18',
+            end_date: '2025-01-17',
             days: 30,
           },
           daily_values: [
             {
-              date: "2025-01-17",
+              date: '2025-01-17',
               total_value_usd: 100000.0,
               change_percentage: 2.5,
-              custom_field: "extra data",
+              custom_field: 'extra data',
             },
           ],
           summary: {
@@ -797,13 +797,13 @@ describe("analyticsSchemas", () => {
         risk_metrics: {
           volatility: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             volatility_pct: 12.5,
             annualized_volatility_pct: 43.3,
-            interpretation: "Moderate",
+            interpretation: 'Moderate',
             summary: {
               avg_volatility: 12.0,
               max_volatility: 18.5,
@@ -812,26 +812,26 @@ describe("analyticsSchemas", () => {
           },
           sharpe_ratio: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             sharpe_ratio: 1.5,
-            interpretation: "Good",
+            interpretation: 'Good',
             summary: {
               avg_sharpe: 1.5,
-              statistical_reliability: "High",
+              statistical_reliability: 'High',
             },
           },
           max_drawdown: {
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             max_drawdown_pct: -15.5,
-            peak_date: "2025-01-10",
-            trough_date: "2025-01-15",
+            peak_date: '2025-01-10',
+            trough_date: '2025-01-15',
             recovery_date: null,
             summary: {
               current_drawdown_pct: -5.2,
@@ -842,8 +842,8 @@ describe("analyticsSchemas", () => {
         drawdown_analysis: {
           enhanced: {
             period: {
-              start_date: "2024-10-19",
-              end_date: "2025-01-17",
+              start_date: '2024-10-19',
+              end_date: '2025-01-17',
               days: 90,
             },
             drawdown_data: [],
@@ -856,8 +856,8 @@ describe("analyticsSchemas", () => {
           },
           underwater_recovery: {
             period: {
-              start_date: "2024-10-19",
-              end_date: "2025-01-17",
+              start_date: '2024-10-19',
+              end_date: '2025-01-17',
               days: 90,
             },
             underwater_data: [],
@@ -874,8 +874,8 @@ describe("analyticsSchemas", () => {
           period_days: 40,
           data_points: 40,
           period: {
-            start_date: "2024-12-08",
-            end_date: "2025-01-17",
+            start_date: '2024-12-08',
+            end_date: '2025-01-17',
             days: 40,
           },
           allocations: [],
@@ -888,8 +888,8 @@ describe("analyticsSchemas", () => {
         rolling_analytics: {
           sharpe: {
             period: {
-              start_date: "2024-12-08",
-              end_date: "2025-01-17",
+              start_date: '2024-12-08',
+              end_date: '2025-01-17',
               days: 40,
             },
             rolling_sharpe_data: [],
@@ -897,13 +897,13 @@ describe("analyticsSchemas", () => {
               latest_sharpe_ratio: 1.5,
               avg_sharpe_ratio: 1.4,
               reliable_data_points: 35,
-              statistical_reliability: "High",
+              statistical_reliability: 'High',
             },
           },
           volatility: {
             period: {
-              start_date: "2024-12-08",
-              end_date: "2025-01-17",
+              start_date: '2024-12-08',
+              end_date: '2025-01-17',
               days: 40,
             },
             rolling_volatility_data: [],
@@ -923,35 +923,35 @@ describe("analyticsSchemas", () => {
       };
 
       const result = unifiedDashboardResponseSchema.parse(validData);
-      expect(result.trends.daily_values[0]).toHaveProperty("custom_field");
+      expect(result.trends.daily_values[0]).toHaveProperty('custom_field');
     });
   });
 
-  describe("dailyYieldReturnsResponseSchema", () => {
-    it("validates correct daily yield returns response", () => {
+  describe('dailyYieldReturnsResponseSchema', () => {
+    it('validates correct daily yield returns response', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         period: {
-          start_date: "2024-12-18",
-          end_date: "2025-01-17",
+          start_date: '2024-12-18',
+          end_date: '2025-01-17',
           days: 30,
         },
         daily_returns: [
           {
-            date: "2025-01-17",
-            protocol_name: "Aave V3",
-            chain: "ethereum",
-            position_type: "lending",
+            date: '2025-01-17',
+            protocol_name: 'Aave V3',
+            chain: 'ethereum',
+            position_type: 'lending',
             yield_return_usd: 75.5,
             tokens: [
               {
-                symbol: "USDC",
+                symbol: 'USDC',
                 amount_change: 50.0,
                 current_price: 1.0,
                 yield_return_usd: 50.0,
               },
               {
-                symbol: "DAI",
+                symbol: 'DAI',
                 amount_change: 25.5,
                 current_price: 1.0,
                 yield_return_usd: 25.5,
@@ -962,38 +962,38 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() =>
-        dailyYieldReturnsResponseSchema.parse(validData)
+        dailyYieldReturnsResponseSchema.parse(validData),
       ).not.toThrow();
     });
 
-    it("accepts empty daily_returns array", () => {
+    it('accepts empty daily_returns array', () => {
       const validData = {
-        user_id: "0x123",
+        user_id: '0x123',
         period: {
-          start_date: "2024-12-18",
-          end_date: "2025-01-17",
+          start_date: '2024-12-18',
+          end_date: '2025-01-17',
           days: 30,
         },
         daily_returns: [],
       };
 
       expect(() =>
-        dailyYieldReturnsResponseSchema.parse(validData)
+        dailyYieldReturnsResponseSchema.parse(validData),
       ).not.toThrow();
     });
   });
 
-  describe("validation helper functions", () => {
-    describe("validateYieldReturnsSummaryResponse", () => {
-      it("returns validated data for valid input", () => {
+  describe('validation helper functions', () => {
+    describe('validateYieldReturnsSummaryResponse', () => {
+      it('returns validated data for valid input', () => {
         const validData = {
-          user_id: "0x123",
+          user_id: '0x123',
           windows: {
-            "30d": {
-              user_id: "0x123",
+            '30d': {
+              user_id: '0x123',
               period: {
-                start_date: "2024-12-18",
-                end_date: "2025-01-17",
+                start_date: '2024-12-18',
+                end_date: '2025-01-17',
                 days: 30,
               },
               average_daily_yield_usd: 50.0,
@@ -1009,7 +1009,7 @@ describe("analyticsSchemas", () => {
                 filtered_days: 28,
                 outliers_removed: 2,
               },
-              outlier_strategy: "iqr",
+              outlier_strategy: 'iqr',
               outliers_detected: [],
               protocol_breakdown: [],
             },
@@ -1020,20 +1020,20 @@ describe("analyticsSchemas", () => {
         expect(result).toEqual(validData);
       });
 
-      it("throws ZodError for invalid input", () => {
+      it('throws ZodError for invalid input', () => {
         const invalidData = {
-          user_id: "0x123",
-          windows: "not-an-object",
+          user_id: '0x123',
+          windows: 'not-an-object',
         };
 
         expect(() => validateYieldReturnsSummaryResponse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
     });
 
-    describe("validateLandingPageResponse", () => {
-      it("returns validated data for valid input", () => {
+    describe('validateLandingPageResponse', () => {
+      it('returns validated data for valid input', () => {
         const validData = {
           total_assets_usd: 100000.0,
           total_debt_usd: 10000.0,
@@ -1042,7 +1042,7 @@ describe("analyticsSchemas", () => {
           estimated_monthly_income: 450.0,
           portfolio_roi: {
             recommended_roi: 0.055,
-            recommended_period: "30d",
+            recommended_period: '30d',
             recommended_yearly_roi: 0.66,
             estimated_yearly_pnl_usd: 5400.0,
           },
@@ -1087,7 +1087,7 @@ describe("analyticsSchemas", () => {
           total_positions: 12,
           protocols_count: 5,
           chains_count: 3,
-          last_updated: "2025-01-17T00:00:00Z",
+          last_updated: '2025-01-17T00:00:00Z',
           apr_coverage: {
             matched_pools: 10,
             total_pools: 12,
@@ -1100,33 +1100,33 @@ describe("analyticsSchemas", () => {
         expect(result.total_assets_usd).toBe(100000.0);
       });
 
-      it("throws ZodError for invalid input", () => {
+      it('throws ZodError for invalid input', () => {
         const invalidData = {
-          total_assets_usd: "not-a-number",
+          total_assets_usd: 'not-a-number',
         };
 
         expect(() => validateLandingPageResponse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
     });
 
-    describe("validateUnifiedDashboardResponse", () => {
-      it("returns data even when fields are sparse", () => {
+    describe('validateUnifiedDashboardResponse', () => {
+      it('returns data even when fields are sparse', () => {
         const minimalData = {
-          user_id: "0x123",
+          user_id: '0x123',
         };
 
         expect(() =>
-          validateUnifiedDashboardResponse(minimalData)
+          validateUnifiedDashboardResponse(minimalData),
         ).not.toThrow();
       });
     });
 
-    describe("safeValidateUnifiedDashboardResponse", () => {
-      it("returns success result for valid input", () => {
+    describe('safeValidateUnifiedDashboardResponse', () => {
+      it('returns success result for valid input', () => {
         const validData = {
-          user_id: "0x123",
+          user_id: '0x123',
           parameters: {
             trend_days: 30,
             risk_days: 30,
@@ -1138,8 +1138,8 @@ describe("analyticsSchemas", () => {
             period_days: 30,
             data_points: 30,
             period: {
-              start_date: "2024-12-18",
-              end_date: "2025-01-17",
+              start_date: '2024-12-18',
+              end_date: '2025-01-17',
               days: 30,
             },
             daily_values: [],
@@ -1153,13 +1153,13 @@ describe("analyticsSchemas", () => {
           risk_metrics: {
             volatility: {
               period: {
-                start_date: "2024-12-18",
-                end_date: "2025-01-17",
+                start_date: '2024-12-18',
+                end_date: '2025-01-17',
                 days: 30,
               },
               volatility_pct: 12.5,
               annualized_volatility_pct: 43.3,
-              interpretation: "Moderate",
+              interpretation: 'Moderate',
               summary: {
                 avg_volatility: 12.0,
                 max_volatility: 18.5,
@@ -1168,26 +1168,26 @@ describe("analyticsSchemas", () => {
             },
             sharpe_ratio: {
               period: {
-                start_date: "2024-12-18",
-                end_date: "2025-01-17",
+                start_date: '2024-12-18',
+                end_date: '2025-01-17',
                 days: 30,
               },
               sharpe_ratio: 1.5,
-              interpretation: "Good",
+              interpretation: 'Good',
               summary: {
                 avg_sharpe: 1.5,
-                statistical_reliability: "High",
+                statistical_reliability: 'High',
               },
             },
             max_drawdown: {
               period: {
-                start_date: "2024-12-18",
-                end_date: "2025-01-17",
+                start_date: '2024-12-18',
+                end_date: '2025-01-17',
                 days: 30,
               },
               max_drawdown_pct: -15.5,
-              peak_date: "2025-01-10",
-              trough_date: "2025-01-15",
+              peak_date: '2025-01-10',
+              trough_date: '2025-01-15',
               recovery_date: null,
               summary: {
                 current_drawdown_pct: -5.2,
@@ -1198,8 +1198,8 @@ describe("analyticsSchemas", () => {
           drawdown_analysis: {
             enhanced: {
               period: {
-                start_date: "2024-10-19",
-                end_date: "2025-01-17",
+                start_date: '2024-10-19',
+                end_date: '2025-01-17',
                 days: 90,
               },
               drawdown_data: [],
@@ -1212,8 +1212,8 @@ describe("analyticsSchemas", () => {
             },
             underwater_recovery: {
               period: {
-                start_date: "2024-10-19",
-                end_date: "2025-01-17",
+                start_date: '2024-10-19',
+                end_date: '2025-01-17',
                 days: 90,
               },
               underwater_data: [],
@@ -1230,8 +1230,8 @@ describe("analyticsSchemas", () => {
             period_days: 40,
             data_points: 40,
             period: {
-              start_date: "2024-12-08",
-              end_date: "2025-01-17",
+              start_date: '2024-12-08',
+              end_date: '2025-01-17',
               days: 40,
             },
             allocations: [],
@@ -1244,8 +1244,8 @@ describe("analyticsSchemas", () => {
           rolling_analytics: {
             sharpe: {
               period: {
-                start_date: "2024-12-08",
-                end_date: "2025-01-17",
+                start_date: '2024-12-08',
+                end_date: '2025-01-17',
                 days: 40,
               },
               rolling_sharpe_data: [],
@@ -1253,13 +1253,13 @@ describe("analyticsSchemas", () => {
                 latest_sharpe_ratio: 1.5,
                 avg_sharpe_ratio: 1.4,
                 reliable_data_points: 35,
-                statistical_reliability: "High",
+                statistical_reliability: 'High',
               },
             },
             volatility: {
               period: {
-                start_date: "2024-12-08",
-                end_date: "2025-01-17",
+                start_date: '2024-12-08',
+                end_date: '2025-01-17',
                 days: 40,
               },
               rolling_volatility_data: [],
@@ -1281,13 +1281,13 @@ describe("analyticsSchemas", () => {
         const result = safeValidateUnifiedDashboardResponse(validData);
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(result.data.user_id).toBe("0x123");
+          expect(result.data.user_id).toBe('0x123');
         }
       });
 
-      it("returns error result for invalid input", () => {
+      it('returns error result for invalid input', () => {
         const invalidData = {
-          user_id: "0x123",
+          user_id: '0x123',
         };
 
         const result = safeValidateUnifiedDashboardResponse(invalidData);
@@ -1296,213 +1296,213 @@ describe("analyticsSchemas", () => {
     });
   });
 
-  describe("poolPerformanceResponseSchema", () => {
-    describe("schema validation", () => {
-      it("validates valid pool performance array", () => {
+  describe('poolPerformanceResponseSchema', () => {
+    describe('schema validation', () => {
+      it('validates valid pool performance array', () => {
         const validData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI", "USDC", "WBTC"],
+            pool_symbols: ['DAI', 'USDC', 'WBTC'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
             snapshot_ids: [
-              "1356713c-1177-48a8-a4e6-180f546d7984",
-              "9d5ea6f5-32d4-401a-8650-34a55667ecbe",
+              '1356713c-1177-48a8-a4e6-180f546d7984',
+              '9d5ea6f5-32d4-401a-8650-34a55667ecbe',
             ],
           },
         ];
 
         expect(() =>
-          poolPerformanceResponseSchema.parse(validData)
+          poolPerformanceResponseSchema.parse(validData),
         ).not.toThrow();
       });
 
-      it("validates empty array", () => {
+      it('validates empty array', () => {
         const validData: unknown[] = [];
         expect(() =>
-          poolPerformanceResponseSchema.parse(validData)
+          poolPerformanceResponseSchema.parse(validData),
         ).not.toThrow();
       });
 
-      it("validates pool with null snapshot_ids", () => {
+      it('validates pool with null snapshot_ids', () => {
         const validData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI"],
+            pool_symbols: ['DAI'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
             snapshot_ids: null,
           },
         ];
 
         expect(() =>
-          poolPerformanceResponseSchema.parse(validData)
+          poolPerformanceResponseSchema.parse(validData),
         ).not.toThrow();
       });
 
-      it("validates pool without optional snapshot_ids", () => {
+      it('validates pool without optional snapshot_ids', () => {
         const validData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI"],
+            pool_symbols: ['DAI'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
         expect(() =>
-          poolPerformanceResponseSchema.parse(validData)
+          poolPerformanceResponseSchema.parse(validData),
         ).not.toThrow();
       });
 
-      it("validates multiple pools", () => {
+      it('validates multiple pools', () => {
         const validData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI", "USDC"],
+            pool_symbols: ['DAI', 'USDC'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
           {
-            wallet: "0x2eCBC6f229feD06044CDb0dD772437a30190CD50",
-            protocol_id: "camelot v3",
-            protocol: "camelot v3",
-            protocol_name: "camelot v3",
-            chain: "arb",
+            wallet: '0x2eCBC6f229feD06044CDb0dD772437a30190CD50',
+            protocol_id: 'camelot v3',
+            protocol: 'camelot v3',
+            protocol_name: 'camelot v3',
+            chain: 'arb',
             asset_usd_value: 13893.18,
-            pool_symbols: ["PENDLE", "WETH"],
+            pool_symbols: ['PENDLE', 'WETH'],
             contribution_to_portfolio: 10.77,
-            snapshot_id: "c1fb06a0-9a6e-4ffd-9e76-81435723340a",
+            snapshot_id: 'c1fb06a0-9a6e-4ffd-9e76-81435723340a',
           },
         ];
 
         expect(() =>
-          poolPerformanceResponseSchema.parse(validData)
+          poolPerformanceResponseSchema.parse(validData),
         ).not.toThrow();
       });
 
-      it("rejects pool missing required wallet field", () => {
+      it('rejects pool missing required wallet field', () => {
         const invalidData = [
           {
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI"],
+            pool_symbols: ['DAI'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
         expect(() => poolPerformanceResponseSchema.parse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
 
-      it("rejects pool missing required protocol_id field", () => {
+      it('rejects pool missing required protocol_id field', () => {
         const invalidData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI"],
+            pool_symbols: ['DAI'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
         expect(() => poolPerformanceResponseSchema.parse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
 
-      it("rejects pool with invalid asset_usd_value type", () => {
+      it('rejects pool with invalid asset_usd_value type', () => {
         const invalidData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
-            asset_usd_value: "not-a-number",
-            pool_symbols: ["DAI"],
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
+            asset_usd_value: 'not-a-number',
+            pool_symbols: ['DAI'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
         expect(() => poolPerformanceResponseSchema.parse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
 
-      it("rejects pool with invalid pool_symbols type", () => {
+      it('rejects pool with invalid pool_symbols type', () => {
         const invalidData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: "not-an-array",
+            pool_symbols: 'not-an-array',
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
         expect(() => poolPerformanceResponseSchema.parse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
 
-      it("rejects non-array input", () => {
+      it('rejects non-array input', () => {
         const invalidData = {
-          wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
+          wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
         };
 
         expect(() => poolPerformanceResponseSchema.parse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
     });
 
-    describe("validatePoolPerformanceResponse", () => {
-      it("validates and returns valid pool performance data", () => {
+    describe('validatePoolPerformanceResponse', () => {
+      it('validates and returns valid pool performance data', () => {
         const validData = [
           {
-            wallet: "0x66C42B20551d449Bce40b3dC8Fc62207A27D579F",
-            protocol_id: "aster",
-            protocol: "aster",
-            protocol_name: "aster",
-            chain: "arb",
+            wallet: '0x66C42B20551d449Bce40b3dC8Fc62207A27D579F',
+            protocol_id: 'aster',
+            protocol: 'aster',
+            protocol_name: 'aster',
+            chain: 'arb',
             asset_usd_value: 27546.75,
-            pool_symbols: ["DAI", "USDC"],
+            pool_symbols: ['DAI', 'USDC'],
             contribution_to_portfolio: 21.35,
-            snapshot_id: "1356713c-1177-48a8-a4e6-180f546d7984",
+            snapshot_id: '1356713c-1177-48a8-a4e6-180f546d7984',
           },
         ];
 
@@ -1510,17 +1510,17 @@ describe("analyticsSchemas", () => {
         expect(result).toEqual(validData);
       });
 
-      it("throws ZodError for invalid data", () => {
-        const invalidData = [{ protocol: "aster" }];
+      it('throws ZodError for invalid data', () => {
+        const invalidData = [{ protocol: 'aster' }];
 
         expect(() => validatePoolPerformanceResponse(invalidData)).toThrow(
-          ZodError
+          ZodError,
         );
       });
     });
   });
 
-  describe("borrowingSummarySchema (via landingPageResponseSchema)", () => {
+  describe('borrowingSummarySchema (via landingPageResponseSchema)', () => {
     const baseValidLandingPage = {
       total_net_usd: 1000,
       portfolio_allocation: {
@@ -1551,13 +1551,13 @@ describe("analyticsSchemas", () => {
       },
     };
 
-    it("accepts borrowing_summary with valid debt positions", () => {
+    it('accepts borrowing_summary with valid debt positions', () => {
       const dataWithDebt = {
         ...baseValidLandingPage,
         borrowing_summary: {
           has_debt: true,
           worst_health_rate: 1.25,
-          overall_status: "HEALTHY",
+          overall_status: 'HEALTHY',
           critical_count: 0,
           warning_count: 0,
           healthy_count: 2,
@@ -1569,10 +1569,10 @@ describe("analyticsSchemas", () => {
       const parsed = landingPageResponseSchema.parse(dataWithDebt);
       expect(parsed.borrowing_summary?.has_debt).toBe(true);
       expect(parsed.borrowing_summary?.worst_health_rate).toBe(1.25);
-      expect(parsed.borrowing_summary?.overall_status).toBe("HEALTHY");
+      expect(parsed.borrowing_summary?.overall_status).toBe('HEALTHY');
     });
 
-    it("accepts null worst_health_rate and overall_status when has_debt is false", () => {
+    it('accepts null worst_health_rate and overall_status when has_debt is false', () => {
       const dataNoDebt = {
         ...baseValidLandingPage,
         borrowing_summary: {
@@ -1593,36 +1593,36 @@ describe("analyticsSchemas", () => {
       expect(parsed.borrowing_summary?.overall_status).toBeNull();
     });
 
-    it("accepts null borrowing_summary (user never had any positions)", () => {
+    it('accepts null borrowing_summary (user never had any positions)', () => {
       const dataNullSummary = {
         ...baseValidLandingPage,
         borrowing_summary: null,
       };
 
       expect(() =>
-        landingPageResponseSchema.parse(dataNullSummary)
+        landingPageResponseSchema.parse(dataNullSummary),
       ).not.toThrow();
 
       const parsed = landingPageResponseSchema.parse(dataNullSummary);
       expect(parsed.borrowing_summary).toBeNull();
     });
 
-    it("accepts missing borrowing_summary (optional field)", () => {
+    it('accepts missing borrowing_summary (optional field)', () => {
       const dataNoSummary = {
         ...baseValidLandingPage,
         // borrowing_summary not provided
       };
 
       expect(() =>
-        landingPageResponseSchema.parse(dataNoSummary)
+        landingPageResponseSchema.parse(dataNoSummary),
       ).not.toThrow();
 
       const parsed = landingPageResponseSchema.parse(dataNoSummary);
       expect(parsed.borrowing_summary).toBeUndefined();
     });
 
-    it("validates overall_status enum values", () => {
-      const validStatuses = ["HEALTHY", "WARNING", "CRITICAL"];
+    it('validates overall_status enum values', () => {
+      const validStatuses = ['HEALTHY', 'WARNING', 'CRITICAL'];
 
       for (const status of validStatuses) {
         const data = {
@@ -1641,13 +1641,13 @@ describe("analyticsSchemas", () => {
       }
     });
 
-    it("rejects invalid overall_status value", () => {
+    it('rejects invalid overall_status value', () => {
       const dataInvalidStatus = {
         ...baseValidLandingPage,
         borrowing_summary: {
           has_debt: true,
           worst_health_rate: 1.5,
-          overall_status: "INVALID_STATUS",
+          overall_status: 'INVALID_STATUS',
           critical_count: 0,
           warning_count: 0,
           healthy_count: 1,
@@ -1655,17 +1655,17 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() => landingPageResponseSchema.parse(dataInvalidStatus)).toThrow(
-        ZodError
+        ZodError,
       );
     });
 
-    it("rejects negative worst_health_rate", () => {
+    it('rejects negative worst_health_rate', () => {
       const dataNegativeHealth = {
         ...baseValidLandingPage,
         borrowing_summary: {
           has_debt: true,
           worst_health_rate: -1.0,
-          overall_status: "CRITICAL",
+          overall_status: 'CRITICAL',
           critical_count: 1,
           warning_count: 0,
           healthy_count: 0,
@@ -1673,17 +1673,17 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() => landingPageResponseSchema.parse(dataNegativeHealth)).toThrow(
-        ZodError
+        ZodError,
       );
     });
 
-    it("rejects zero worst_health_rate (must be positive)", () => {
+    it('rejects zero worst_health_rate (must be positive)', () => {
       const dataZeroHealth = {
         ...baseValidLandingPage,
         borrowing_summary: {
           has_debt: true,
           worst_health_rate: 0,
-          overall_status: "CRITICAL",
+          overall_status: 'CRITICAL',
           critical_count: 1,
           warning_count: 0,
           healthy_count: 0,
@@ -1691,7 +1691,7 @@ describe("analyticsSchemas", () => {
       };
 
       expect(() => landingPageResponseSchema.parse(dataZeroHealth)).toThrow(
-        ZodError
+        ZodError,
       );
     });
   });

@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-import { buildBacktestTooltipData } from "@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils";
+import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 
-vi.mock("@/utils", () => ({
+vi.mock('@/utils', () => ({
   formatCurrency: (value: number) => `$${Math.round(value).toLocaleString()}`,
 }));
 
@@ -11,8 +11,8 @@ vi.mock("@/utils", () => ({
 // ---------------------------------------------------------------------------
 
 function makeMarket(
-  date = "2026-01-15",
-  sentiment_label: string | null = "fear"
+  date = '2026-01-15',
+  sentiment_label: string | null = 'fear',
 ) {
   return { date, sentiment_label };
 }
@@ -20,7 +20,7 @@ function makeMarket(
 function makeStrategyPoint(overrides: {
   spot?: number;
   stable?: number;
-  spotAsset?: "BTC" | "ETH" | null;
+  spotAsset?: 'BTC' | 'ETH' | null;
   signal?: object | null;
   decision?: {
     action: string;
@@ -46,8 +46,8 @@ function makeStrategyPoint(overrides: {
     signal:
       overrides.signal !== undefined
         ? overrides.signal
-        : { id: "dma_gated_fgi" },
-    decision: overrides.decision ?? { action: "hold", reason: "baseline" },
+        : { id: 'dma_gated_fgi' },
+    decision: overrides.decision ?? { action: 'hold', reason: 'baseline' },
     execution: {
       event: null,
       transfers: [],
@@ -74,13 +74,13 @@ function makeStrategyPoint(overrides: {
  */
 function minimalPayload(
   market = makeMarket(),
-  strategies: Record<string, object> = {}
+  strategies: Record<string, object> = {},
 ) {
   return [
     {
-      name: "strategy_a",
+      name: 'strategy_a',
       value: 10000,
-      color: "#3b82f6",
+      color: '#3b82f6',
       payload: {
         market,
         eventStrategies: { buy_spot: [], sell_spot: [] },
@@ -94,13 +94,13 @@ function minimalPayload(
 function createTooltipPayload() {
   return [
     {
-      name: "DMA Gated FGI Default",
+      name: 'DMA Gated FGI Default',
       value: 12000,
-      color: "#3b82f6",
+      color: '#3b82f6',
       payload: {
         market: makeMarket(),
         eventStrategies: {
-          buy_spot: ["DMA Gated FGI Default"],
+          buy_spot: ['DMA Gated FGI Default'],
           sell_spot: [],
         },
         strategies: {
@@ -112,43 +112,43 @@ function createTooltipPayload() {
           dma_gated_fgi_default: makeStrategyPoint({
             spot: 9600,
             stable: 2400,
-            spotAsset: "ETH",
-            signal: { id: "dma_gated_fgi" },
+            spotAsset: 'ETH',
+            signal: { id: 'dma_gated_fgi' },
             decision: {
-              action: "buy",
-              reason: "below_extreme_fear_buy",
+              action: 'buy',
+              reason: 'below_extreme_fear_buy',
               details: {
-                target_spot_asset: "ETH",
+                target_spot_asset: 'ETH',
               },
             },
-            blocked_reason: "cooldown_active",
-            buy_gate: { block_reason: "sideways_pending" },
+            blocked_reason: 'cooldown_active',
+            buy_gate: { block_reason: 'sideways_pending' },
           }),
         },
       },
     },
     {
-      name: "Sentiment",
+      name: 'Sentiment',
       value: 25,
-      color: "#f59e0b",
+      color: '#f59e0b',
       payload: { market: makeMarket() },
     },
     {
-      name: "BTC Price",
+      name: 'BTC Price',
       value: 60000,
-      color: "#22c55e",
+      color: '#22c55e',
       payload: {},
     },
     {
-      name: "DMA 200",
+      name: 'DMA 200',
       value: 50000,
-      color: "#38bdf8",
+      color: '#38bdf8',
       payload: {},
     },
     {
-      name: "Buy Spot",
+      name: 'Buy Spot',
       value: 12000,
-      color: "#22c55e",
+      color: '#22c55e',
       payload: {},
     },
   ];
@@ -158,17 +158,17 @@ function createTooltipPayload() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("buildBacktestTooltipData", () => {
+describe('buildBacktestTooltipData', () => {
   // ------------------------------------------------------------------
   // Early-exit guard
   // ------------------------------------------------------------------
 
-  describe("early-exit when payload is absent or empty", () => {
-    it("returns null when payload is undefined", () => {
+  describe('early-exit when payload is absent or empty', () => {
+    it('returns null when payload is undefined', () => {
       expect(buildBacktestTooltipData({ payload: undefined })).toBeNull();
     });
 
-    it("returns null when payload is an empty array", () => {
+    it('returns null when payload is an empty array', () => {
       expect(buildBacktestTooltipData({ payload: [] })).toBeNull();
     });
   });
@@ -177,21 +177,21 @@ describe("buildBacktestTooltipData", () => {
   // Date derivation
   // ------------------------------------------------------------------
 
-  describe("date string derivation", () => {
-    it("uses market.date when available, ignoring label", () => {
+  describe('date string derivation', () => {
+    it('uses market.date when available, ignoring label', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: "2026-01-01",
+        label: '2026-01-01',
       });
-      expect(result?.dateStr).toBe(new Date("2026-01-15").toLocaleDateString());
+      expect(result?.dateStr).toBe(new Date('2026-01-15').toLocaleDateString());
     });
 
-    it("falls back to label when market.date is absent", () => {
+    it('falls back to label when market.date is absent', () => {
       const payload = [
         {
-          name: "strategy_a",
+          name: 'strategy_a',
           value: 10000,
-          color: "#3b82f6",
+          color: '#3b82f6',
           payload: {
             // no market property at all
             strategies: {},
@@ -199,7 +199,7 @@ describe("buildBacktestTooltipData", () => {
           },
         },
       ];
-      const label = "2025-06-01";
+      const label = '2025-06-01';
       const result = buildBacktestTooltipData({ payload, label });
       expect(result?.dateStr).toBe(new Date(label).toLocaleDateString());
     });
@@ -209,8 +209,8 @@ describe("buildBacktestTooltipData", () => {
   // getOrderedStrategyIds — branch: no sortedStrategyIds supplied
   // ------------------------------------------------------------------
 
-  describe("getOrderedStrategyIds", () => {
-    it("returns strategy keys in natural object order when sortedStrategyIds is absent", () => {
+  describe('getOrderedStrategyIds', () => {
+    it('returns strategy keys in natural object order when sortedStrategyIds is absent', () => {
       const strategies = {
         strategy_b: makeStrategyPoint({}),
         strategy_a: makeStrategyPoint({}),
@@ -220,11 +220,11 @@ describe("buildBacktestTooltipData", () => {
         // sortedStrategyIds intentionally omitted
       });
       // Allocations mirror orderedIds order; both have non-zero spot/stable
-      const ids = result?.sections.allocations.map(a => a.id) ?? [];
-      expect(ids).toEqual(["strategy_b", "strategy_a"]);
+      const ids = result?.sections.allocations.map((a) => a.id) ?? [];
+      expect(ids).toEqual(['strategy_b', 'strategy_a']);
     });
 
-    it("only includes strategies present in sortedStrategyIds", () => {
+    it('only includes strategies present in sortedStrategyIds', () => {
       const strategies = {
         strategy_a: makeStrategyPoint({}),
         strategy_b: makeStrategyPoint({}),
@@ -232,11 +232,11 @@ describe("buildBacktestTooltipData", () => {
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["strategy_c", "strategy_a"],
+        sortedStrategyIds: ['strategy_c', 'strategy_a'],
       });
-      const ids = result?.sections.allocations.map(a => a.id) ?? [];
+      const ids = result?.sections.allocations.map((a) => a.id) ?? [];
       // strategy_b is excluded because it's not in sortedStrategyIds
-      expect(ids).toEqual(["strategy_c", "strategy_a"]);
+      expect(ids).toEqual(['strategy_c', 'strategy_a']);
     });
   });
 
@@ -244,44 +244,44 @@ describe("buildBacktestTooltipData", () => {
   // hasAllocationData — zero-allocation branch returns null block
   // ------------------------------------------------------------------
 
-  describe("buildAllocationBlock / hasAllocationData", () => {
-    it("excludes a strategy whose allocation is all zeros (spot=0, stable=0)", () => {
+  describe('buildAllocationBlock / hasAllocationData', () => {
+    it('excludes a strategy whose allocation is all zeros (spot=0, stable=0)', () => {
       const strategies = {
         zero_alloc: makeStrategyPoint({ spot: 0, stable: 0 }),
         normal: makeStrategyPoint({ spot: 5000, stable: 5000 }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["zero_alloc", "normal"],
+        sortedStrategyIds: ['zero_alloc', 'normal'],
       });
-      const ids = result?.sections.allocations.map(a => a.id) ?? [];
-      expect(ids).not.toContain("zero_alloc");
-      expect(ids).toContain("normal");
+      const ids = result?.sections.allocations.map((a) => a.id) ?? [];
+      expect(ids).not.toContain('zero_alloc');
+      expect(ids).toContain('normal');
     });
 
-    it("includes a strategy whose only spot > 0 (stable = 0)", () => {
+    it('includes a strategy whose only spot > 0 (stable = 0)', () => {
       const strategies = {
         spot_only: makeStrategyPoint({ spot: 8000, stable: 0 }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
       });
-      const ids = result?.sections.allocations.map(a => a.id) ?? [];
-      expect(ids).toContain("spot_only");
+      const ids = result?.sections.allocations.map((a) => a.id) ?? [];
+      expect(ids).toContain('spot_only');
     });
 
-    it("includes a strategy whose only stable > 0 (spot = 0)", () => {
+    it('includes a strategy whose only stable > 0 (spot = 0)', () => {
       const strategies = {
         stable_only: makeStrategyPoint({ spot: 0, stable: 6000 }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
       });
-      const ids = result?.sections.allocations.map(a => a.id) ?? [];
-      expect(ids).toContain("stable_only");
+      const ids = result?.sections.allocations.map((a) => a.id) ?? [];
+      expect(ids).toContain('stable_only');
     });
 
-    it("sets index to -1 when sortedStrategyIds is undefined (indexOf not found)", () => {
+    it('sets index to -1 when sortedStrategyIds is undefined (indexOf not found)', () => {
       const strategies = {
         my_strategy: makeStrategyPoint({ spot: 1000, stable: 1000 }),
       };
@@ -292,65 +292,65 @@ describe("buildBacktestTooltipData", () => {
       expect(result?.sections.allocations[0]?.index).toBeUndefined();
     });
 
-    it("prefers portfolio.spot_asset when it is present", () => {
+    it('prefers portfolio.spot_asset when it is present', () => {
       const strategies = {
         my_strategy: makeStrategyPoint({
           spot: 1000,
           stable: 1000,
-          spotAsset: "ETH",
+          spotAsset: 'ETH',
           decision: {
-            action: "hold",
-            reason: "rotation",
+            action: 'hold',
+            reason: 'rotation',
             details: {
-              target_spot_asset: "btc",
+              target_spot_asset: 'btc',
             },
           },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strategy"],
+        sortedStrategyIds: ['my_strategy'],
       });
 
-      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe("ETH");
+      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
     });
 
-    it("falls back to target_spot_asset when portfolio.spot_asset is absent", () => {
+    it('falls back to target_spot_asset when portfolio.spot_asset is absent', () => {
       const strategies = {
         my_strategy: makeStrategyPoint({
           spot: 1000,
           stable: 1000,
           decision: {
-            action: "hold",
-            reason: "rotation",
+            action: 'hold',
+            reason: 'rotation',
             details: {
-              target_spot_asset: "eth",
+              target_spot_asset: 'eth',
             },
           },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strategy"],
+        sortedStrategyIds: ['my_strategy'],
       });
 
-      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe("ETH");
+      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
     });
 
-    it("updates the allocation label when portfolio.spot_asset flips and ignores stale decision metadata", () => {
-      const sortedStrategyIds = ["my_strategy"];
+    it('updates the allocation label when portfolio.spot_asset flips and ignores stale decision metadata', () => {
+      const sortedStrategyIds = ['my_strategy'];
 
       const btcResult = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket("2026-01-15"), {
+        payload: minimalPayload(makeMarket('2026-01-15'), {
           my_strategy: makeStrategyPoint({
             spot: 1000,
             stable: 1000,
-            spotAsset: "BTC",
+            spotAsset: 'BTC',
             decision: {
-              action: "hold",
-              reason: "rotation",
+              action: 'hold',
+              reason: 'rotation',
               details: {
-                target_spot_asset: "ETH",
+                target_spot_asset: 'ETH',
               },
             },
           }),
@@ -359,16 +359,16 @@ describe("buildBacktestTooltipData", () => {
       });
 
       const ethResult = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket("2026-01-16"), {
+        payload: minimalPayload(makeMarket('2026-01-16'), {
           my_strategy: makeStrategyPoint({
             spot: 1000,
             stable: 1000,
-            spotAsset: "ETH",
+            spotAsset: 'ETH',
             decision: {
-              action: "hold",
-              reason: "rotation",
+              action: 'hold',
+              reason: 'rotation',
               details: {
-                target_spot_asset: "BTC",
+                target_spot_asset: 'BTC',
               },
             },
           }),
@@ -376,28 +376,28 @@ describe("buildBacktestTooltipData", () => {
         sortedStrategyIds,
       });
 
-      expect(btcResult?.sections.allocations[0]?.spotAssetLabel).toBe("BTC");
-      expect(ethResult?.sections.allocations[0]?.spotAssetLabel).toBe("ETH");
+      expect(btcResult?.sections.allocations[0]?.spotAssetLabel).toBe('BTC');
+      expect(ethResult?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
     });
 
-    it("does not expose a spotAssetLabel for stable-only allocations", () => {
+    it('does not expose a spotAssetLabel for stable-only allocations', () => {
       const strategies = {
         stable_only: makeStrategyPoint({
           spot: 0,
           stable: 6000,
-          spotAsset: "ETH",
+          spotAsset: 'ETH',
           decision: {
-            action: "sell",
-            reason: "go_stable",
+            action: 'sell',
+            reason: 'go_stable',
             details: {
-              target_spot_asset: "ETH",
+              target_spot_asset: 'ETH',
             },
           },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["stable_only"],
+        sortedStrategyIds: ['stable_only'],
       });
 
       expect(result?.sections.allocations[0]?.spotAssetLabel).toBeUndefined();
@@ -408,40 +408,40 @@ describe("buildBacktestTooltipData", () => {
   // formatSentimentValue — "Unknown" branch when sentiment is null/undefined
   // ------------------------------------------------------------------
 
-  describe("formatSentimentValue", () => {
+  describe('formatSentimentValue', () => {
     it("displays 'Unknown' when sentiment_label is null", () => {
-      const market = makeMarket("2026-01-15", null);
+      const market = makeMarket('2026-01-15', null);
       const payload = [
         {
-          name: "Sentiment",
+          name: 'Sentiment',
           value: 42,
-          color: "#f59e0b",
+          color: '#f59e0b',
           payload: { market },
         },
       ];
       const result = buildBacktestTooltipData({ payload });
       const sentiment = result?.sections.signals.find(
-        s => s.name === "Sentiment"
+        (s) => s.name === 'Sentiment',
       );
-      expect(sentiment?.value).toBe("Unknown (42)");
+      expect(sentiment?.value).toBe('Unknown (42)');
     });
 
-    it("capitalizes a provided sentiment_label", () => {
-      const market = makeMarket("2026-01-15", "extreme_greed");
+    it('capitalizes a provided sentiment_label', () => {
+      const market = makeMarket('2026-01-15', 'extreme_greed');
       const payload = [
         {
-          name: "Sentiment",
+          name: 'Sentiment',
           value: 90,
-          color: "#f59e0b",
+          color: '#f59e0b',
           payload: { market },
         },
       ];
       const result = buildBacktestTooltipData({ payload });
       const sentiment = result?.sections.signals.find(
-        s => s.name === "Sentiment"
+        (s) => s.name === 'Sentiment',
       );
       // Only first character is uppercased; rest is kept as-is
-      expect(sentiment?.value).toBe("Extreme_greed (90)");
+      expect(sentiment?.value).toBe('Extreme_greed (90)');
     });
   });
 
@@ -449,33 +449,33 @@ describe("buildBacktestTooltipData", () => {
   // formatSignalValue — "BTC Price" / "DMA 200" when value is not a number
   // ------------------------------------------------------------------
 
-  describe("formatSignalValue — BTC Price / DMA 200 with undefined value", () => {
+  describe('formatSignalValue — BTC Price / DMA 200 with undefined value', () => {
     it("returns empty string for 'BTC Price' when value is undefined", () => {
       const payload = [
         {
-          name: "BTC Price",
+          name: 'BTC Price',
           value: undefined,
-          color: "#22c55e",
+          color: '#22c55e',
           payload: {},
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      const btc = result?.sections.signals.find(s => s.name === "BTC Price");
-      expect(btc?.value).toBe("");
+      const btc = result?.sections.signals.find((s) => s.name === 'BTC Price');
+      expect(btc?.value).toBe('');
     });
 
     it("returns empty string for 'DMA 200' when value is undefined", () => {
       const payload = [
         {
-          name: "DMA 200",
+          name: 'DMA 200',
           value: undefined,
-          color: "#38bdf8",
+          color: '#38bdf8',
           payload: {},
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      const dma = result?.sections.signals.find(s => s.name === "DMA 200");
-      expect(dma?.value).toBe("");
+      const dma = result?.sections.signals.find((s) => s.name === 'DMA 200');
+      expect(dma?.value).toBe('');
     });
   });
 
@@ -483,34 +483,34 @@ describe("buildBacktestTooltipData", () => {
   // formatSignalValue — VIX (numeric and non-numeric)
   // ------------------------------------------------------------------
 
-  describe("formatSignalValue — VIX signal (non-Sentiment, non-BTC/DMA)", () => {
-    it("rounds a numeric VIX value to 2 decimal places", () => {
+  describe('formatSignalValue — VIX signal (non-Sentiment, non-BTC/DMA)', () => {
+    it('rounds a numeric VIX value to 2 decimal places', () => {
       const payload = [
         {
-          name: "VIX",
+          name: 'VIX',
           value: 18.456789,
-          color: "#a78bfa",
+          color: '#a78bfa',
           payload: {},
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find(s => s.name === "VIX");
+      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
       expect(vix?.value).toBe(18.46);
     });
 
-    it("returns empty string for VIX when value is undefined", () => {
+    it('returns empty string for VIX when value is undefined', () => {
       const payload = [
         {
-          name: "VIX",
+          name: 'VIX',
           value: undefined,
-          color: "#a78bfa",
+          color: '#a78bfa',
           payload: {},
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find(s => s.name === "VIX");
+      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
       // value ?? "" → ""
-      expect(vix?.value).toBe("");
+      expect(vix?.value).toBe('');
     });
   });
 
@@ -518,8 +518,8 @@ describe("buildBacktestTooltipData", () => {
   // buildTooltipSections — null entry in payload array
   // ------------------------------------------------------------------
 
-  describe("buildTooltipSections — null/falsy entry guard", () => {
-    it("skips a null entry in the payload array without throwing", () => {
+  describe('buildTooltipSections — null/falsy entry guard', () => {
+    it('skips a null entry in the payload array without throwing', () => {
       const payload = [
         null as unknown as {
           name: string;
@@ -528,9 +528,9 @@ describe("buildBacktestTooltipData", () => {
           payload: object;
         },
         {
-          name: "strategy_a",
+          name: 'strategy_a',
           value: 5000,
-          color: "#3b82f6",
+          color: '#3b82f6',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -548,13 +548,13 @@ describe("buildBacktestTooltipData", () => {
   // buildTooltipSections — missing name / color defaults
   // ------------------------------------------------------------------
 
-  describe("buildTooltipSections — entry with missing name or color", () => {
-    it("defaults name to empty string when entry.name is absent", () => {
+  describe('buildTooltipSections — entry with missing name or color', () => {
+    it('defaults name to empty string when entry.name is absent', () => {
       const payload = [
         {
           // name intentionally absent → treated as unknown strategy
           value: 7500,
-          color: "#06b6d4",
+          color: '#06b6d4',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -569,13 +569,13 @@ describe("buildBacktestTooltipData", () => {
       ];
       const result = buildBacktestTooltipData({ payload });
       // Empty-name entry is not a known signal or event, but has a numeric value
-      expect(result?.sections.strategies[0]?.name).toBe("");
+      expect(result?.sections.strategies[0]?.name).toBe('');
     });
 
     it("defaults color to '#fff' when entry.color is absent", () => {
       const payload = [
         {
-          name: "strategy_x",
+          name: 'strategy_x',
           value: 9000,
           // color intentionally absent
           payload: {
@@ -591,7 +591,7 @@ describe("buildBacktestTooltipData", () => {
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      expect(result?.sections.strategies[0]?.color).toBe("#fff");
+      expect(result?.sections.strategies[0]?.color).toBe('#fff');
     });
   });
 
@@ -599,13 +599,13 @@ describe("buildBacktestTooltipData", () => {
   // buildTooltipSections — event with no eventStrategies record
   // ------------------------------------------------------------------
 
-  describe("buildTooltipSections — event key with missing eventStrategies", () => {
-    it("falls back to an empty array when eventStrategies is undefined for event key", () => {
+  describe('buildTooltipSections — event key with missing eventStrategies', () => {
+    it('falls back to an empty array when eventStrategies is undefined for event key', () => {
       const payload = [
         {
-          name: "Buy Spot",
+          name: 'Buy Spot',
           value: 10000,
-          color: "#22c55e",
+          color: '#22c55e',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -614,29 +614,31 @@ describe("buildBacktestTooltipData", () => {
         },
       ];
       const result = buildBacktestTooltipData({ payload });
-      const buyEvent = result?.sections.events.find(e => e.name === "Buy Spot");
+      const buyEvent = result?.sections.events.find(
+        (e) => e.name === 'Buy Spot',
+      );
       expect(buyEvent?.strategies).toEqual([]);
     });
 
-    it("falls back to empty array when eventStrategies exists but key is absent", () => {
+    it('falls back to empty array when eventStrategies exists but key is absent', () => {
       const payload = [
         {
-          name: "Sell Spot",
+          name: 'Sell Spot',
           value: 10000,
-          color: "#ef4444",
+          color: '#ef4444',
           payload: {
             market: makeMarket(),
             strategies: {},
             eventStrategies: {
               // buy_spot present but sell_spot absent
-              buy_spot: ["some_strategy"],
+              buy_spot: ['some_strategy'],
             },
           },
         },
       ];
       const result = buildBacktestTooltipData({ payload });
       const sellEvent = result?.sections.events.find(
-        e => e.name === "Sell Spot"
+        (e) => e.name === 'Sell Spot',
       );
       expect(sellEvent?.strategies).toEqual([]);
     });
@@ -646,13 +648,13 @@ describe("buildBacktestTooltipData", () => {
   // buildTooltipSections — strategy item skipped when value is not a number
   // ------------------------------------------------------------------
 
-  describe("buildTooltipSections — strategy entry with non-numeric value", () => {
-    it("does not push a strategy item when entry.value is undefined", () => {
+  describe('buildTooltipSections — strategy entry with non-numeric value', () => {
+    it('does not push a strategy item when entry.value is undefined', () => {
       const payload = [
         {
-          name: "unknown_strategy",
+          name: 'unknown_strategy',
           value: undefined,
-          color: "#3b82f6",
+          color: '#3b82f6',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -674,54 +676,54 @@ describe("buildBacktestTooltipData", () => {
   // Detail items — decision + blocked + buy-gate
   // ------------------------------------------------------------------
 
-  describe("detail items (decision / blocked / buy gate)", () => {
-    it("adds only a decision detail when blocked_reason and buy_gate are null", () => {
+  describe('detail items (decision / blocked / buy gate)', () => {
+    it('adds only a decision detail when blocked_reason and buy_gate are null', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: "dma_gated_fgi" },
-          decision: { action: "hold", reason: "waiting" },
+          signal: { id: 'dma_gated_fgi' },
+          decision: { action: 'hold', reason: 'waiting' },
           blocked_reason: null,
           buy_gate: null,
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
       const details = result?.sections.details ?? [];
       expect(details).toHaveLength(1);
       expect(details[0]?.name).toMatch(/decision/);
     });
 
-    it("adds decision + blocked detail when blocked_reason is set", () => {
+    it('adds decision + blocked detail when blocked_reason is set', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: "dma_gated_fgi" },
-          decision: { action: "buy", reason: "signal" },
-          blocked_reason: "cooldown_active",
+          signal: { id: 'dma_gated_fgi' },
+          decision: { action: 'buy', reason: 'signal' },
+          blocked_reason: 'cooldown_active',
           buy_gate: null,
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
       const details = result?.sections.details ?? [];
-      const names = details.map(d => d.name);
-      expect(names).toContain("my strat decision");
-      expect(names).toContain("my strat blocked");
+      const names = details.map((d) => d.name);
+      expect(names).toContain('my strat decision');
+      expect(names).toContain('my strat blocked');
     });
 
-    it("adds a spot asset detail from portfolio.spot_asset when available", () => {
+    it('adds a spot asset detail from portfolio.spot_asset when available', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          spotAsset: "ETH",
-          signal: { id: "dma_gated_fgi" },
+          spotAsset: 'ETH',
+          signal: { id: 'dma_gated_fgi' },
           decision: {
-            action: "hold",
-            reason: "rotation",
+            action: 'hold',
+            reason: 'rotation',
             details: {
-              target_spot_asset: "btc",
+              target_spot_asset: 'btc',
             },
           },
           blocked_reason: null,
@@ -730,30 +732,30 @@ describe("buildBacktestTooltipData", () => {
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
       const details = result?.sections.details ?? [];
 
       expect(details).toEqual(
         expect.arrayContaining([
           {
-            name: "my strat spot asset",
-            value: "ETH",
-            color: "#627EEA",
+            name: 'my strat spot asset',
+            value: 'ETH',
+            color: '#627EEA',
           },
-        ])
+        ]),
       );
     });
 
-    it("falls back to legacy target_spot_asset for spot asset details", () => {
+    it('falls back to legacy target_spot_asset for spot asset details', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: "dma_gated_fgi" },
+          signal: { id: 'dma_gated_fgi' },
           decision: {
-            action: "hold",
-            reason: "rotation",
+            action: 'hold',
+            reason: 'rotation',
             details: {
-              target_spot_asset: "eth",
+              target_spot_asset: 'eth',
             },
           },
           blocked_reason: null,
@@ -762,33 +764,33 @@ describe("buildBacktestTooltipData", () => {
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
       const details = result?.sections.details ?? [];
 
       expect(details).toEqual(
         expect.arrayContaining([
           {
-            name: "my strat spot asset",
-            value: "ETH",
-            color: "#627EEA",
+            name: 'my strat spot asset',
+            value: 'ETH',
+            color: '#627EEA',
           },
-        ])
+        ]),
       );
     });
 
-    it("skips spot asset detail for stable-only points", () => {
+    it('skips spot asset detail for stable-only points', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
           spot: 0,
           stable: 10000,
           spotAsset: null,
-          signal: { id: "dma_gated_fgi" },
+          signal: { id: 'dma_gated_fgi' },
           decision: {
-            action: "sell",
-            reason: "go_stable",
+            action: 'sell',
+            reason: 'go_stable',
             details: {
-              target_spot_asset: "ETH",
+              target_spot_asset: 'ETH',
             },
           },
           blocked_reason: null,
@@ -797,60 +799,60 @@ describe("buildBacktestTooltipData", () => {
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
-      const detailNames = (result?.sections.details ?? []).map(d => d.name);
+      const detailNames = (result?.sections.details ?? []).map((d) => d.name);
 
-      expect(detailNames).not.toContain("my strat spot asset");
+      expect(detailNames).not.toContain('my strat spot asset');
     });
 
-    it("adds buy-gate detail when buy_gate.block_reason is set", () => {
+    it('adds buy-gate detail when buy_gate.block_reason is set', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: "dma_gated_fgi" },
-          decision: { action: "buy", reason: "signal" },
+          signal: { id: 'dma_gated_fgi' },
+          decision: { action: 'buy', reason: 'signal' },
           blocked_reason: null,
-          buy_gate: { block_reason: "sideways_pending" },
+          buy_gate: { block_reason: 'sideways_pending' },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
       const details = result?.sections.details ?? [];
-      const names = details.map(d => d.name);
-      expect(names).toContain("my strat buy gate");
+      const names = details.map((d) => d.name);
+      expect(names).toContain('my strat buy gate');
     });
 
-    it("skips detail for a strategy whose signal is null", () => {
+    it('skips detail for a strategy whose signal is null', () => {
       const strategies = {
         no_signal: makeStrategyPoint({ signal: null }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["no_signal"],
+        sortedStrategyIds: ['no_signal'],
       });
       expect(result?.sections.details).toHaveLength(0);
     });
 
-    it("skips buy-gate detail when buy_gate.block_reason is null (non-string)", () => {
+    it('skips buy-gate detail when buy_gate.block_reason is null (non-string)', () => {
       // Exercises the `typeof blockReason === "string"` false branch in getBuyGateBlockReason:
       // plugin exists and is an object, but block_reason is null → returns null → no buy-gate detail
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: "dma_gated_fgi" },
-          decision: { action: "hold", reason: "waiting" },
+          signal: { id: 'dma_gated_fgi' },
+          decision: { action: 'hold', reason: 'waiting' },
           blocked_reason: null,
           buy_gate: { block_reason: null },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ["my_strat"],
+        sortedStrategyIds: ['my_strat'],
       });
-      const names = (result?.sections.details ?? []).map(d => d.name);
-      expect(names).not.toContain("my strat buy gate");
-      expect(names).toContain("my strat decision");
+      const names = (result?.sections.details ?? []).map((d) => d.name);
+      expect(names).not.toContain('my strat buy gate');
+      expect(names).toContain('my strat decision');
     });
   });
 
@@ -858,26 +860,26 @@ describe("buildBacktestTooltipData", () => {
   // BTC / DMA 200 ratio computation
   // ------------------------------------------------------------------
 
-  describe("BTC / DMA 200 ratio signal", () => {
-    it("appends BTC/DMA200 ratio when both signals have numeric values", () => {
+  describe('BTC / DMA 200 ratio signal', () => {
+    it('appends BTC/DMA200 ratio when both signals have numeric values', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: "2026-01-01",
+        label: '2026-01-01',
       });
       const ratio = result?.sections.signals.find(
-        s => s.name === "BTC / DMA 200"
+        (s) => s.name === 'BTC / DMA 200',
       );
       expect(ratio).toBeDefined();
-      expect(ratio?.value).toBe("1.20");
-      expect(ratio?.color).toBe("#a78bfa");
+      expect(ratio?.value).toBe('1.20');
+      expect(ratio?.color).toBe('#a78bfa');
     });
 
-    it("does not append ratio when BTC Price signal is missing", () => {
+    it('does not append ratio when BTC Price signal is missing', () => {
       const payload = [
         {
-          name: "DMA 200",
+          name: 'DMA 200',
           value: 50000,
-          color: "#38bdf8",
+          color: '#38bdf8',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -887,17 +889,17 @@ describe("buildBacktestTooltipData", () => {
       ];
       const result = buildBacktestTooltipData({ payload });
       const ratio = result?.sections.signals.find(
-        s => s.name === "BTC / DMA 200"
+        (s) => s.name === 'BTC / DMA 200',
       );
       expect(ratio).toBeUndefined();
     });
 
-    it("does not append ratio when DMA 200 signal is missing", () => {
+    it('does not append ratio when DMA 200 signal is missing', () => {
       const payload = [
         {
-          name: "BTC Price",
+          name: 'BTC Price',
           value: 60000,
-          color: "#22c55e",
+          color: '#22c55e',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -907,17 +909,17 @@ describe("buildBacktestTooltipData", () => {
       ];
       const result = buildBacktestTooltipData({ payload });
       const ratio = result?.sections.signals.find(
-        s => s.name === "BTC / DMA 200"
+        (s) => s.name === 'BTC / DMA 200',
       );
       expect(ratio).toBeUndefined();
     });
 
-    it("does not append ratio when DMA 200 value is zero (avoids division by zero)", () => {
+    it('does not append ratio when DMA 200 value is zero (avoids division by zero)', () => {
       const payload = [
         {
-          name: "BTC Price",
+          name: 'BTC Price',
           value: 60000,
-          color: "#22c55e",
+          color: '#22c55e',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -925,15 +927,15 @@ describe("buildBacktestTooltipData", () => {
           },
         },
         {
-          name: "DMA 200",
+          name: 'DMA 200',
           value: 0,
-          color: "#38bdf8",
+          color: '#38bdf8',
           payload: {},
         },
       ];
       const result = buildBacktestTooltipData({ payload });
       const ratio = result?.sections.signals.find(
-        s => s.name === "BTC / DMA 200"
+        (s) => s.name === 'BTC / DMA 200',
       );
       expect(ratio).toBeUndefined();
     });
@@ -944,9 +946,9 @@ describe("buildBacktestTooltipData", () => {
       // The ratio is computed as 0 / dmaNum = 0.00 and IS appended.
       const payload = [
         {
-          name: "BTC Price",
+          name: 'BTC Price',
           value: undefined,
-          color: "#22c55e",
+          color: '#22c55e',
           payload: {
             market: makeMarket(),
             strategies: {},
@@ -954,9 +956,9 @@ describe("buildBacktestTooltipData", () => {
           },
         },
         {
-          name: "DMA 200",
+          name: 'DMA 200',
           value: 50000,
-          color: "#38bdf8",
+          color: '#38bdf8',
           payload: {},
         },
       ] as unknown as {
@@ -967,10 +969,10 @@ describe("buildBacktestTooltipData", () => {
       }[];
       const result = buildBacktestTooltipData({ payload });
       const ratio = result?.sections.signals.find(
-        s => s.name === "BTC / DMA 200"
+        (s) => s.name === 'BTC / DMA 200',
       );
       // btcNum = 0 (parsed from ""), dmaNum = 50000 → ratio = "0.00"
-      expect(ratio?.value).toBe("0.00");
+      expect(ratio?.value).toBe('0.00');
     });
   });
 
@@ -978,68 +980,68 @@ describe("buildBacktestTooltipData", () => {
   // Full integration — categorizes all item types correctly
   // ------------------------------------------------------------------
 
-  describe("full integration — categorizes strategies, signals, events, allocations", () => {
-    it("produces correct sections from a complete payload", () => {
+  describe('full integration — categorizes strategies, signals, events, allocations', () => {
+    it('produces correct sections from a complete payload', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: "2026-01-01",
-        sortedStrategyIds: ["dca_classic", "dma_gated_fgi_default"],
+        label: '2026-01-01',
+        sortedStrategyIds: ['dca_classic', 'dma_gated_fgi_default'],
       });
 
       expect(result?.sections.strategies).toEqual([
-        { name: "DMA Gated FGI Default", value: 12000, color: "#3b82f6" },
+        { name: 'DMA Gated FGI Default', value: 12000, color: '#3b82f6' },
       ]);
       expect(result?.sections.signals).toEqual(
         expect.arrayContaining([
-          { name: "Sentiment", value: "Fear (25)", color: "#f59e0b" },
-          { name: "BTC Price", value: "$60,000", color: "#22c55e" },
-          { name: "DMA 200", value: "$50,000", color: "#38bdf8" },
-          { name: "BTC / DMA 200", value: "1.20", color: "#a78bfa" },
-        ])
+          { name: 'Sentiment', value: 'Fear (25)', color: '#f59e0b' },
+          { name: 'BTC Price', value: '$60,000', color: '#22c55e' },
+          { name: 'DMA 200', value: '$50,000', color: '#38bdf8' },
+          { name: 'BTC / DMA 200', value: '1.20', color: '#a78bfa' },
+        ]),
       );
       expect(result?.sections.events).toEqual([
         {
-          name: "Buy Spot",
-          strategies: ["DMA Gated FGI Default"],
-          color: "#22c55e",
+          name: 'Buy Spot',
+          strategies: ['DMA Gated FGI Default'],
+          color: '#22c55e',
         },
       ]);
-      expect(result?.sections.allocations.map(a => a.id)).toEqual([
-        "dca_classic",
-        "dma_gated_fgi_default",
+      expect(result?.sections.allocations.map((a) => a.id)).toEqual([
+        'dca_classic',
+        'dma_gated_fgi_default',
       ]);
     });
 
-    it("includes decision, blocked, and buy-gate details for strategies with signals", () => {
+    it('includes decision, blocked, and buy-gate details for strategies with signals', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: "2026-01-01",
-        sortedStrategyIds: ["dca_classic", "dma_gated_fgi_default"],
+        label: '2026-01-01',
+        sortedStrategyIds: ['dca_classic', 'dma_gated_fgi_default'],
       });
 
       expect(result?.sections.details).toEqual(
         expect.arrayContaining([
           {
-            name: "DMA Gated FGI Default decision",
-            value: "buy · below_extreme_fear_buy",
-            color: "#cbd5e1",
+            name: 'DMA Gated FGI Default decision',
+            value: 'buy · below_extreme_fear_buy',
+            color: '#cbd5e1',
           },
           {
-            name: "DMA Gated FGI Default blocked",
-            value: "cooldown_active",
-            color: "#fda4af",
+            name: 'DMA Gated FGI Default blocked',
+            value: 'cooldown_active',
+            color: '#fda4af',
           },
           {
-            name: "DMA Gated FGI Default spot asset",
-            value: "ETH",
-            color: "#627EEA",
+            name: 'DMA Gated FGI Default spot asset',
+            value: 'ETH',
+            color: '#627EEA',
           },
           {
-            name: "DMA Gated FGI Default buy gate",
-            value: "sideways_pending",
-            color: "#fcd34d",
+            name: 'DMA Gated FGI Default buy gate',
+            value: 'sideways_pending',
+            color: '#fcd34d',
           },
-        ])
+        ]),
       );
     });
   });

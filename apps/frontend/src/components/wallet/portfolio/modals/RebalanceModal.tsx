@@ -1,17 +1,17 @@
-import { ArrowRight } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import { ArrowRight } from 'lucide-react';
+import { type ReactElement, useState } from 'react';
 
-import { Modal, ModalContent } from "@/components/ui/modal";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { transactionServiceMock } from "@/services";
-import type { RebalanceModalProps } from "@/types/ui/ui.types";
+import { Modal, ModalContent } from '@/components/ui/modal';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { transactionServiceMock } from '@/services';
+import type { RebalanceModalProps } from '@/types/ui/ui.types';
 
 import {
   SubmittingState,
   TransactionActionButton,
   TransactionModalHeader,
-} from "./components/TransactionModalParts";
-import { resolveActionLabel } from "./utils/actionLabelUtils";
+} from './components/TransactionModalParts';
+import { resolveActionLabel } from './utils/actionLabelUtils';
 
 export function RebalanceModal({
   isOpen,
@@ -21,41 +21,41 @@ export function RebalanceModal({
 }: RebalanceModalProps): ReactElement {
   const { isConnected } = useWalletProvider();
 
-  const [status, setStatus] = useState<"idle" | "submitting" | "success">(
-    "idle"
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>(
+    'idle',
   );
 
   const projected = transactionServiceMock.computeProjectedAllocation(
     100,
     currentAllocation,
-    targetAllocation
+    targetAllocation,
   );
 
   const handleSubmit = async () => {
-    setStatus("submitting");
+    setStatus('submitting');
     try {
       await transactionServiceMock.simulateRebalance(
         100,
         currentAllocation,
-        targetAllocation
+        targetAllocation,
       );
-      setStatus("success");
+      setStatus('success');
     } catch {
-      setStatus("idle");
+      setStatus('idle');
     }
   };
 
   const resetState = () => {
-    setStatus("idle");
+    setStatus('idle');
     onClose();
   };
 
-  const isSubmitting = status === "submitting" || status === "success";
+  const isSubmitting = status === 'submitting' || status === 'success';
   const actionLabel = resolveActionLabel({
     isConnected,
     isReady: true,
-    readyLabel: "Confirm Rebalance",
-    notReadyLabel: "",
+    readyLabel: 'Confirm Rebalance',
+    notReadyLabel: '',
   });
 
   return (
@@ -71,7 +71,7 @@ export function RebalanceModal({
         <div className="p-6">
           {isSubmitting ? (
             <SubmittingState
-              isSuccess={status === "success"}
+              isSuccess={status === 'success'}
               successMessage="Rebalance Successfully Executed!"
               successTone="indigo"
             />

@@ -45,7 +45,9 @@ describe('analytics', () => {
       event({ name: 'click', parameters: { button_id: 'cta' } });
 
       expect(window.gtag).toHaveBeenCalledTimes(1);
-      expect(window.gtag).toHaveBeenCalledWith('event', 'click', { button_id: 'cta' });
+      expect(window.gtag).toHaveBeenCalledWith('event', 'click', {
+        button_id: 'cta',
+      });
     });
 
     it('should work without parameters', () => {

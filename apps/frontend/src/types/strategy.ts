@@ -15,17 +15,17 @@ import type {
   BacktestStrategyCatalogEntryV3,
   BacktestStrategyPortfolio,
   BacktestTransferMetadata,
-} from "./backtesting";
+} from './backtesting';
 
 /**
  * Market regime labels
  */
 export type RegimeLabel =
-  | "extreme_fear"
-  | "fear"
-  | "neutral"
-  | "greed"
-  | "extreme_greed";
+  | 'extreme_fear'
+  | 'fear'
+  | 'neutral'
+  | 'greed'
+  | 'extreme_greed';
 
 export interface DailySuggestionPortfolio extends BacktestStrategyPortfolio {
   asset_allocation: BacktestAssetAllocation;
@@ -36,14 +36,14 @@ export interface DailySuggestionDecision extends BacktestDecision {
 }
 
 export type DailySuggestionActionStatus =
-  | "action_required"
-  | "blocked"
-  | "no_action";
+  | 'action_required'
+  | 'blocked'
+  | 'no_action';
 
 export interface DailySuggestionAction {
   status: DailySuggestionActionStatus;
   required: boolean;
-  kind: "rebalance" | null;
+  kind: 'rebalance' | null;
   reason_code: string;
   transfers: BacktestTransferMetadata[];
 }
@@ -54,9 +54,9 @@ export interface DailySuggestionTarget {
 }
 
 export interface DailySuggestionStrategyContext {
-  stance: DailySuggestionDecision["action"];
+  stance: DailySuggestionDecision['action'];
   reason_code: string;
-  rule_group: DailySuggestionDecision["rule_group"];
+  rule_group: DailySuggestionDecision['rule_group'];
   details?: BacktestDecisionDetails;
 }
 

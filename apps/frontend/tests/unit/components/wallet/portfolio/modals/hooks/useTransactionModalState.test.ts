@@ -1,22 +1,22 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useTransactionDropdownState } from "@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState";
-import { useTransactionModalState } from "@/components/wallet/portfolio/modals/hooks/useTransactionModalState";
-import { useWalletProvider } from "@/providers/WalletProvider";
+import { useTransactionDropdownState } from '@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState';
+import { useTransactionModalState } from '@/components/wallet/portfolio/modals/hooks/useTransactionModalState';
+import { useWalletProvider } from '@/providers/WalletProvider';
 
-vi.mock("@/providers/WalletProvider", () => ({
+vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
 vi.mock(
-  "@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState",
+  '@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState',
   () => ({
     useTransactionDropdownState: vi.fn(),
-  })
+  }),
 );
 
-describe("useTransactionModalState", () => {
+describe('useTransactionModalState', () => {
   const mockDropdownState = {
     dropdownRef: { current: null },
     isAssetDropdownOpen: false,
@@ -31,7 +31,7 @@ describe("useTransactionModalState", () => {
     vi.mocked(useTransactionDropdownState).mockReturnValue(mockDropdownState);
   });
 
-  it("returns dropdownState from useTransactionDropdownState", () => {
+  it('returns dropdownState from useTransactionDropdownState', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: true });
 
     const { result } = renderHook(() => useTransactionModalState());
@@ -40,7 +40,7 @@ describe("useTransactionModalState", () => {
     expect(useTransactionDropdownState).toHaveBeenCalledOnce();
   });
 
-  it("returns isConnected: true when wallet is connected", () => {
+  it('returns isConnected: true when wallet is connected', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: true });
 
     const { result } = renderHook(() => useTransactionModalState());
@@ -49,7 +49,7 @@ describe("useTransactionModalState", () => {
     expect(useWalletProvider).toHaveBeenCalledOnce();
   });
 
-  it("returns isConnected: false when wallet is disconnected", () => {
+  it('returns isConnected: false when wallet is disconnected', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: false });
 
     const { result } = renderHook(() => useTransactionModalState());
@@ -58,7 +58,7 @@ describe("useTransactionModalState", () => {
     expect(useWalletProvider).toHaveBeenCalledOnce();
   });
 
-  it("returns correct type shape with dropdownState and isConnected", () => {
+  it('returns correct type shape with dropdownState and isConnected', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: true });
 
     const { result } = renderHook(() => useTransactionModalState());
@@ -70,24 +70,24 @@ describe("useTransactionModalState", () => {
     });
 
     // Verify dropdownState has all required properties
-    expect(result.current.dropdownState).toHaveProperty("dropdownRef");
-    expect(result.current.dropdownState).toHaveProperty("isAssetDropdownOpen");
-    expect(result.current.dropdownState).toHaveProperty("isChainDropdownOpen");
-    expect(result.current.dropdownState).toHaveProperty("toggleAssetDropdown");
-    expect(result.current.dropdownState).toHaveProperty("toggleChainDropdown");
-    expect(result.current.dropdownState).toHaveProperty("closeDropdowns");
+    expect(result.current.dropdownState).toHaveProperty('dropdownRef');
+    expect(result.current.dropdownState).toHaveProperty('isAssetDropdownOpen');
+    expect(result.current.dropdownState).toHaveProperty('isChainDropdownOpen');
+    expect(result.current.dropdownState).toHaveProperty('toggleAssetDropdown');
+    expect(result.current.dropdownState).toHaveProperty('toggleChainDropdown');
+    expect(result.current.dropdownState).toHaveProperty('closeDropdowns');
 
     // Verify dropdownState methods are functions
     expect(typeof result.current.dropdownState.toggleAssetDropdown).toBe(
-      "function"
+      'function',
     );
     expect(typeof result.current.dropdownState.toggleChainDropdown).toBe(
-      "function"
+      'function',
     );
-    expect(typeof result.current.dropdownState.closeDropdowns).toBe("function");
+    expect(typeof result.current.dropdownState.closeDropdowns).toBe('function');
   });
 
-  it("calls both hooks on each render", () => {
+  it('calls both hooks on each render', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: true });
 
     renderHook(() => useTransactionModalState());
@@ -96,7 +96,7 @@ describe("useTransactionModalState", () => {
     expect(useWalletProvider).toHaveBeenCalledOnce();
   });
 
-  it("maintains referential integrity of dropdownState", () => {
+  it('maintains referential integrity of dropdownState', () => {
     vi.mocked(useWalletProvider).mockReturnValue({ isConnected: true });
 
     const { result, rerender } = renderHook(() => useTransactionModalState());

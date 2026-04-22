@@ -24,7 +24,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <NormalChild />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText('Normal content')).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <ThrowError />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
@@ -44,19 +44,23 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <ThrowError />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
-    expect(screen.getByRole('button', { name: /refresh page/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /refresh page/i }),
+    ).toBeInTheDocument();
   });
 
   it('should render custom fallback when provided', () => {
-    const customFallback = <div data-testid="custom-fallback">Custom Error UI</div>;
+    const customFallback = (
+      <div data-testid="custom-fallback">Custom Error UI</div>
+    );
 
     render(
       <ErrorBoundary fallback={customFallback}>
         <ThrowError />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     expect(screen.getByTestId('custom-fallback')).toBeInTheDocument();
@@ -77,7 +81,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <ThrowError />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
 
     const refreshButton = screen.getByRole('button', { name: /refresh page/i });

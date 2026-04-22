@@ -1,14 +1,14 @@
-import { ChevronDown, Wallet } from "lucide-react";
-import { type ReactElement } from "react";
+import { ChevronDown, Wallet } from 'lucide-react';
+import { type ReactElement } from 'react';
 
-import { WALLET_LABELS } from "@/constants/wallet";
-import { formatAddress } from "@/utils/formatters";
+import { WALLET_LABELS } from '@/constants/wallet';
+import { formatAddress } from '@/utils/formatters';
 
-import type { WalletMenuButtonProps } from "./types";
+import type { WalletMenuButtonProps } from './types';
 import {
   getChevronClassName,
   getMenuButtonClassName,
-} from "./walletMenuClassNames";
+} from './walletMenuClassNames';
 
 export function WalletMenuButton({
   accountAddress,

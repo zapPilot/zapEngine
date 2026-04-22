@@ -1,32 +1,32 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useWalletOperations } from "@/components/WalletManager/hooks/useWalletOperations";
-import { useUser } from "@/contexts/UserContext";
-import { useToast } from "@/providers/ToastProvider";
-import { useWalletProvider } from "@/providers/WalletProvider";
+import { useWalletOperations } from '@/components/WalletManager/hooks/useWalletOperations';
+import { useUser } from '@/contexts/UserContext';
+import { useToast } from '@/providers/ToastProvider';
+import { useWalletProvider } from '@/providers/WalletProvider';
 import {
   addWallet as addWalletToBundle,
   loadWallets as fetchWallets,
   removeWallet as removeWalletFromBundle,
   updateManagedWalletLabel,
-} from "@/services";
+} from '@/services';
 
 // Mock dependencies
-vi.mock("@/contexts/UserContext", () => ({
+vi.mock('@/contexts/UserContext', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock("@/providers/ToastProvider", () => ({
+vi.mock('@/providers/ToastProvider', () => ({
   useToast: vi.fn(),
 }));
 
-vi.mock("@/providers/WalletProvider", () => ({
+vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-query", async () => {
-  const actual = await vi.importActual("@tanstack/react-query");
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
   return {
     ...(actual as any),
     useQueryClient: () => ({
@@ -35,7 +35,7 @@ vi.mock("@tanstack/react-query", async () => {
   };
 });
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   loadWallets: vi.fn(),
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
@@ -43,26 +43,26 @@ vi.mock("@/services", () => ({
   deleteUser: vi.fn(),
 }));
 
-vi.mock("@/hooks/utils/useQueryInvalidation", () => ({
+vi.mock('@/hooks/utils/useQueryInvalidation', () => ({
   invalidateAndRefetch: vi.fn(),
 }));
 
-vi.mock("@/services/accountService", () => ({
+vi.mock('@/services/accountService', () => ({
   deleteUser: vi.fn(),
 }));
 
-vi.mock("@/utils/clipboard", () => ({
+vi.mock('@/utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(true),
 }));
 
-describe("useWalletOperations", () => {
+describe('useWalletOperations', () => {
   const mockShowToast = vi.fn();
   const mockRefetch = vi.fn();
   const mockDisconnect = vi.fn();
 
   const defaultParams = {
-    viewingUserId: "user-123",
-    realUserId: "user-123",
+    viewingUserId: 'user-123',
+    realUserId: 'user-123',
     isOwner: true,
     isOpen: true,
   };
@@ -80,9 +80,9 @@ describe("useWalletOperations", () => {
     vi.mocked(fetchWallets).mockResolvedValue([]);
   });
 
-  it("initializes with empty state", async () => {
+  it('initializes with empty state', async () => {
     vi.mocked(fetchWallets).mockImplementation(
-      () => new Promise(() => undefined)
+      () => new Promise(() => undefined),
     );
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
@@ -94,10 +94,10 @@ describe("useWalletOperations", () => {
     expect(result.current.isAdding).toBe(false);
   });
 
-  it("loads wallets when modal opens", async () => {
+  it('loads wallets when modal opens', async () => {
     const mockWallets = [
-      { id: "w1", address: "0x123", label: "Main" },
-      { id: "w2", address: "0x456", label: "Trading" },
+      { id: 'w1', address: '0x123', label: 'Main' },
+      { id: 'w2', address: '0x456', label: 'Trading' },
     ];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
 
@@ -107,15 +107,15 @@ describe("useWalletOperations", () => {
       expect(result.current.wallets).toHaveLength(2);
     });
 
-    expect(fetchWallets).toHaveBeenCalledWith("user-123");
+    expect(fetchWallets).toHaveBeenCalledWith('user-123');
   });
 
-  it("handleAddWallet validates input", async () => {
+  it('handleAddWallet validates input', async () => {
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     // Set invalid address
     act(() => {
-      result.current.setNewWallet({ address: "invalid", label: "" });
+      result.current.setNewWallet({ address: 'invalid', label: '' });
     });
 
     await act(async () => {
@@ -126,7 +126,7 @@ describe("useWalletOperations", () => {
     expect(addWalletToBundle).not.toHaveBeenCalled();
   });
 
-  it("handleAddWallet succeeds with valid wallet", async () => {
+  it('handleAddWallet succeeds with valid wallet', async () => {
     vi.mocked(addWalletToBundle).mockResolvedValue({ success: true });
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
@@ -135,8 +135,8 @@ describe("useWalletOperations", () => {
     act(() => {
       result.current.setIsAdding(true);
       result.current.setNewWallet({
-        address: "0x1234567890123456789012345678901234567890",
-        label: "New Wallet",
+        address: '0x1234567890123456789012345678901234567890',
+        label: 'New Wallet',
       });
     });
 
@@ -148,8 +148,8 @@ describe("useWalletOperations", () => {
     expect(result.current.isAdding).toBe(false);
   });
 
-  it("handleDeleteWallet removes wallet", async () => {
-    const mockWallets = [{ id: "w1", address: "0x123", label: "Main" }];
+  it('handleDeleteWallet removes wallet', async () => {
+    const mockWallets = [{ id: 'w1', address: '0x123', label: 'Main' }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
     vi.mocked(removeWalletFromBundle).mockResolvedValue({ success: true });
 
@@ -160,35 +160,35 @@ describe("useWalletOperations", () => {
     });
 
     await act(async () => {
-      await result.current.handleDeleteWallet("w1");
+      await result.current.handleDeleteWallet('w1');
     });
 
-    expect(removeWalletFromBundle).toHaveBeenCalledWith("user-123", "w1");
+    expect(removeWalletFromBundle).toHaveBeenCalledWith('user-123', 'w1');
     expect(result.current.wallets).toHaveLength(0);
   });
 
-  it("handleCopyAddress copies to clipboard", async () => {
+  it('handleCopyAddress copies to clipboard', async () => {
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
-      await result.current.handleCopyAddress("0x123");
+      await result.current.handleCopyAddress('0x123');
     });
 
     expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "success" })
+      expect.objectContaining({ type: 'success' }),
     );
   });
 
-  it("editingWallet state management", () => {
+  it('editingWallet state management', () => {
     const { result } = renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOpen: false })
+      useWalletOperations({ ...defaultParams, isOpen: false }),
     );
 
     act(() => {
-      result.current.setEditingWallet({ id: "w1", label: "Test" });
+      result.current.setEditingWallet({ id: 'w1', label: 'Test' });
     });
 
-    expect(result.current.editingWallet).toEqual({ id: "w1", label: "Test" });
+    expect(result.current.editingWallet).toEqual({ id: 'w1', label: 'Test' });
 
     act(() => {
       result.current.setEditingWallet(null);
@@ -196,8 +196,8 @@ describe("useWalletOperations", () => {
 
     expect(result.current.editingWallet).toBeNull();
   });
-  it("handleEditLabel updates label optimistically and calls API", async () => {
-    const mockWallets = [{ id: "w1", address: "0x123", label: "Old" }];
+  it('handleEditLabel updates label optimistically and calls API', async () => {
+    const mockWallets = [{ id: 'w1', address: '0x123', label: 'Old' }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
     vi.mocked(updateManagedWalletLabel).mockResolvedValue({ success: true });
 
@@ -208,24 +208,24 @@ describe("useWalletOperations", () => {
     });
 
     await act(async () => {
-      await result.current.handleEditLabel("w1", "New");
+      await result.current.handleEditLabel('w1', 'New');
     });
 
     // Should update optimistically
-    expect(result.current.wallets[0].label).toBe("New");
+    expect(result.current.wallets[0].label).toBe('New');
     expect(updateManagedWalletLabel).toHaveBeenCalledWith(
-      "user-123",
-      "0x123",
-      "New"
+      'user-123',
+      '0x123',
+      'New',
     );
   });
 
-  it("handleEditLabel reverts optimistic update on API failure", async () => {
-    const mockWallets = [{ id: "w1", address: "0x123", label: "Old" }];
+  it('handleEditLabel reverts optimistic update on API failure', async () => {
+    const mockWallets = [{ id: 'w1', address: '0x123', label: 'Old' }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
     vi.mocked(updateManagedWalletLabel).mockResolvedValue({
       success: false,
-      error: "API Error",
+      error: 'API Error',
     });
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
@@ -235,15 +235,15 @@ describe("useWalletOperations", () => {
     });
 
     await act(async () => {
-      await result.current.handleEditLabel("w1", "New");
+      await result.current.handleEditLabel('w1', 'New');
     });
 
     // Should revert
-    expect(result.current.wallets[0].label).toBe("Old");
-    expect(result.current.operations.editing.w1.error).toBe("API Error");
+    expect(result.current.wallets[0].label).toBe('Old');
+    expect(result.current.operations.editing.w1.error).toBe('API Error');
   });
 
-  it("handleDeleteAccount calls deleteUser and handles success", async () => {
+  it('handleDeleteAccount calls deleteUser and handles success', async () => {
     vi.mocked(useUser).mockReturnValue({
       refetch: mockRefetch,
       isConnected: false,
@@ -257,13 +257,13 @@ describe("useWalletOperations", () => {
     expect(result.current.isDeletingAccount).toBe(false);
     expect(mockShowToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Account Deleted",
-        type: "success",
-      })
+        title: 'Account Deleted',
+        type: 'success',
+      }),
     );
   });
 
-  it("handleDeleteAccount attempts disconnect if connected", async () => {
+  it('handleDeleteAccount attempts disconnect if connected', async () => {
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
@@ -273,8 +273,8 @@ describe("useWalletOperations", () => {
     expect(mockDisconnect).toHaveBeenCalled();
   });
 
-  it("handleDeleteAccount handles disconnect failure gracefully", async () => {
-    mockDisconnect.mockRejectedValue(new Error("Disconnect error"));
+  it('handleDeleteAccount handles disconnect failure gracefully', async () => {
+    mockDisconnect.mockRejectedValue(new Error('Disconnect error'));
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
@@ -283,18 +283,18 @@ describe("useWalletOperations", () => {
 
     expect(mockShowToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Disconnect Wallet",
-        type: "warning",
-      })
+        title: 'Disconnect Wallet',
+        type: 'warning',
+      }),
     );
   });
 
-  it("auto-refreshes wallets when conditions met", async () => {
+  it('auto-refreshes wallets when conditions met', async () => {
     vi.useFakeTimers();
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
     renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOwner: true, isOpen: true })
+      useWalletOperations({ ...defaultParams, isOwner: true, isOpen: true }),
     );
 
     // Initial load
@@ -309,12 +309,12 @@ describe("useWalletOperations", () => {
     vi.useRealTimers();
   });
 
-  it("does not auto-refresh if not owner", async () => {
+  it('does not auto-refresh if not owner', async () => {
     vi.useFakeTimers();
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
     renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOwner: false, isOpen: true })
+      useWalletOperations({ ...defaultParams, isOwner: false, isOpen: true }),
     );
 
     await act(async () => {
@@ -325,21 +325,21 @@ describe("useWalletOperations", () => {
     vi.useRealTimers();
   });
 
-  it("handleCopyAddress handles clipboard failure gracefully", async () => {
-    const { copyTextToClipboard } = await import("@/utils/clipboard");
+  it('handleCopyAddress handles clipboard failure gracefully', async () => {
+    const { copyTextToClipboard } = await import('@/utils/clipboard');
     vi.mocked(copyTextToClipboard).mockResolvedValue(false);
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
-      await result.current.handleCopyAddress("0x123");
+      await result.current.handleCopyAddress('0x123');
     });
 
     // Should not show success toast if copy failed
     expect(mockShowToast).not.toHaveBeenCalled();
   });
 
-  it("handleSwitchWallet switches active wallet successfully", async () => {
+  it('handleSwitchWallet switches active wallet successfully', async () => {
     const mockSwitchActiveWallet = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useWalletProvider).mockReturnValue({
       disconnect: mockDisconnect,
@@ -352,23 +352,23 @@ describe("useWalletOperations", () => {
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
-      await result.current.handleSwitchWallet("0x789");
+      await result.current.handleSwitchWallet('0x789');
     });
 
-    expect(mockSwitchActiveWallet).toHaveBeenCalledWith("0x789");
+    expect(mockSwitchActiveWallet).toHaveBeenCalledWith('0x789');
     expect(mockShowToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "success",
-        title: "Wallet Switched",
-      })
+        type: 'success',
+        title: 'Wallet Switched',
+      }),
     );
     expect(fetchWallets).toHaveBeenCalledTimes(2); // Initial + reload after switch
   });
 
-  it("handleSwitchWallet handles switch error", async () => {
+  it('handleSwitchWallet handles switch error', async () => {
     const mockSwitchActiveWallet = vi
       .fn()
-      .mockRejectedValue(new Error("Switch failed"));
+      .mockRejectedValue(new Error('Switch failed'));
     vi.mocked(useWalletProvider).mockReturnValue({
       disconnect: mockDisconnect,
       isConnected: true,
@@ -380,22 +380,22 @@ describe("useWalletOperations", () => {
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     await act(async () => {
-      await result.current.handleSwitchWallet("0x789");
+      await result.current.handleSwitchWallet('0x789');
     });
 
-    expect(mockSwitchActiveWallet).toHaveBeenCalledWith("0x789");
+    expect(mockSwitchActiveWallet).toHaveBeenCalledWith('0x789');
     expect(mockShowToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "error",
-        title: "Switch Failed",
-      })
+        type: 'error',
+        title: 'Switch Failed',
+      }),
     );
   });
 
-  it("handleAddWallet handles API error response", async () => {
+  it('handleAddWallet handles API error response', async () => {
     vi.mocked(addWalletToBundle).mockResolvedValue({
       success: false,
-      error: "Wallet already exists",
+      error: 'Wallet already exists',
     });
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
@@ -403,8 +403,8 @@ describe("useWalletOperations", () => {
 
     act(() => {
       result.current.setNewWallet({
-        address: "0x1234567890123456789012345678901234567890",
-        label: "Duplicate",
+        address: '0x1234567890123456789012345678901234567890',
+        label: 'Duplicate',
       });
     });
 
@@ -412,20 +412,20 @@ describe("useWalletOperations", () => {
       await result.current.handleAddWallet();
     });
 
-    expect(result.current.validationError).toBe("Wallet already exists");
+    expect(result.current.validationError).toBe('Wallet already exists');
     expect(result.current.isAdding).toBe(false);
   });
 
-  it("handleAddWallet handles exception during API call", async () => {
-    vi.mocked(addWalletToBundle).mockRejectedValue(new Error("Network error"));
+  it('handleAddWallet handles exception during API call', async () => {
+    vi.mocked(addWalletToBundle).mockRejectedValue(new Error('Network error'));
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
     act(() => {
       result.current.setNewWallet({
-        address: "0x1234567890123456789012345678901234567890",
-        label: "Test",
+        address: '0x1234567890123456789012345678901234567890',
+        label: 'Test',
       });
     });
 
@@ -437,12 +437,12 @@ describe("useWalletOperations", () => {
     expect(result.current.isAdding).toBe(false);
   });
 
-  it("handleDeleteWallet handles API error response", async () => {
-    const mockWallets = [{ id: "w1", address: "0x123", label: "Main" }];
+  it('handleDeleteWallet handles API error response', async () => {
+    const mockWallets = [{ id: 'w1', address: '0x123', label: 'Main' }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
     vi.mocked(removeWalletFromBundle).mockResolvedValue({
       success: false,
-      error: "Cannot remove last wallet",
+      error: 'Cannot remove last wallet',
     });
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
@@ -452,20 +452,20 @@ describe("useWalletOperations", () => {
     });
 
     await act(async () => {
-      await result.current.handleDeleteWallet("w1");
+      await result.current.handleDeleteWallet('w1');
     });
 
     expect(result.current.operations.removing.w1.error).toBe(
-      "Cannot remove last wallet"
+      'Cannot remove last wallet',
     );
     expect(result.current.wallets).toHaveLength(1); // Wallet not removed
   });
 
-  it("handleDeleteWallet handles exception during API call", async () => {
-    const mockWallets = [{ id: "w1", address: "0x123", label: "Main" }];
+  it('handleDeleteWallet handles exception during API call', async () => {
+    const mockWallets = [{ id: 'w1', address: '0x123', label: 'Main' }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
     vi.mocked(removeWalletFromBundle).mockRejectedValue(
-      new Error("Network error")
+      new Error('Network error'),
     );
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
@@ -475,14 +475,14 @@ describe("useWalletOperations", () => {
     });
 
     await act(async () => {
-      await result.current.handleDeleteWallet("w1");
+      await result.current.handleDeleteWallet('w1');
     });
 
     expect(result.current.operations.removing.w1.error).toBeTruthy();
     expect(result.current.wallets).toHaveLength(1); // Wallet not removed
   });
 
-  it("uses default empty array when connectedWallets is undefined", () => {
+  it('uses default empty array when connectedWallets is undefined', () => {
     vi.mocked(useWalletProvider).mockReturnValue({
       disconnect: mockDisconnect,
       isConnected: true,
@@ -492,14 +492,14 @@ describe("useWalletOperations", () => {
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOpen: false })
+      useWalletOperations({ ...defaultParams, isOpen: false }),
     );
 
     // Should not throw error and use empty array as default
     expect(result.current).toBeDefined();
   });
 
-  it("uses default noop function when switchActiveWallet is undefined", async () => {
+  it('uses default noop function when switchActiveWallet is undefined', async () => {
     vi.mocked(useWalletProvider).mockReturnValue({
       disconnect: mockDisconnect,
       isConnected: true,
@@ -512,22 +512,22 @@ describe("useWalletOperations", () => {
 
     // Should not throw error when calling handleSwitchWallet with undefined switchActiveWallet
     await act(async () => {
-      await result.current.handleSwitchWallet("0x789");
+      await result.current.handleSwitchWallet('0x789');
     });
 
     expect(result.current).toBeDefined();
   });
 
-  it("setValidationError updates validation error state", () => {
+  it('setValidationError updates validation error state', () => {
     const { result } = renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOpen: false })
+      useWalletOperations({ ...defaultParams, isOpen: false }),
     );
 
     act(() => {
-      result.current.setValidationError("Invalid format");
+      result.current.setValidationError('Invalid format');
     });
 
-    expect(result.current.validationError).toBe("Invalid format");
+    expect(result.current.validationError).toBe('Invalid format');
 
     act(() => {
       result.current.setValidationError(null);
@@ -536,25 +536,25 @@ describe("useWalletOperations", () => {
     expect(result.current.validationError).toBeNull();
   });
 
-  it("setNewWallet updates new wallet state", () => {
+  it('setNewWallet updates new wallet state', () => {
     const { result } = renderHook(() =>
-      useWalletOperations({ ...defaultParams, isOpen: false })
+      useWalletOperations({ ...defaultParams, isOpen: false }),
     );
 
     act(() => {
       result.current.setNewWallet({
-        address: "0xABC",
-        label: "New Label",
+        address: '0xABC',
+        label: 'New Label',
       });
     });
 
     expect(result.current.newWallet).toEqual({
-      address: "0xABC",
-      label: "New Label",
+      address: '0xABC',
+      label: 'New Label',
     });
   });
 
-  it("handleAddWallet resets validation error on success", async () => {
+  it('handleAddWallet resets validation error on success', async () => {
     vi.mocked(addWalletToBundle).mockResolvedValue({ success: true });
     vi.mocked(fetchWallets).mockResolvedValue([]);
 
@@ -562,10 +562,10 @@ describe("useWalletOperations", () => {
 
     // Set initial validation error
     act(() => {
-      result.current.setValidationError("Old error");
+      result.current.setValidationError('Old error');
       result.current.setNewWallet({
-        address: "0x1234567890123456789012345678901234567890",
-        label: "Test",
+        address: '0x1234567890123456789012345678901234567890',
+        label: 'Test',
       });
     });
 
@@ -574,6 +574,6 @@ describe("useWalletOperations", () => {
     });
 
     expect(result.current.validationError).toBeNull();
-    expect(result.current.newWallet).toEqual({ address: "", label: "" });
+    expect(result.current.newWallet).toEqual({ address: '', label: '' });
   });
 });

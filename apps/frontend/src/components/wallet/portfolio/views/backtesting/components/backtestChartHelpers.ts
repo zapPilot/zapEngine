@@ -1,8 +1,8 @@
 import type {
   BacktestTooltipPayloadEntry,
   BacktestTooltipProps,
-} from "../utils/backtestTooltipDataTypes";
-import type { IndicatorKey } from "./backtestChartLegendData";
+} from '../utils/backtestTooltipDataTypes';
+import type { IndicatorKey } from './backtestChartLegendData';
 
 export const AXIS_DEFAULTS = {
   tickLine: false,
@@ -32,7 +32,7 @@ export function buildBacktestTooltipProps(params: {
   }
 
   if (payload != null) {
-    tooltipProps.payload = Array.from(payload, item => ({ ...item }));
+    tooltipProps.payload = Array.from(payload, (item) => ({ ...item }));
   }
 
   if (label != null) {
@@ -49,7 +49,7 @@ export function getStrokeDasharrayProps(isDcaClassic: boolean): {
     return {};
   }
 
-  return { strokeDasharray: "4 4" };
+  return { strokeDasharray: '4 4' };
 }
 
 export function getStrategyVisualTier(index: number): {

@@ -3,16 +3,16 @@
  * Reusable indicator primitives for chart hover states.
  */
 
-import { motion } from "framer-motion";
-import { memo, type ReactNode } from "react";
+import { motion } from 'framer-motion';
+import { memo, type ReactNode } from 'react';
 
-import { CHART_COLORS } from "@/constants/portfolio";
-import type { ChartHoverState } from "@/types/ui/chartHover";
-import { getSharpeColor } from "@/utils/chartHoverUtils";
+import { CHART_COLORS } from '@/constants/portfolio';
+import type { ChartHoverState } from '@/types/ui/chartHover';
+import { getSharpeColor } from '@/utils/chartHoverUtils';
 
-const STROKE_COLOR = "#ffffff";
-const HIGH_VOL_STROKE_COLOR = "#f59e0b";
-const RECOVERY_COLOR = "#10b981";
+const STROKE_COLOR = '#ffffff';
+const HIGH_VOL_STROKE_COLOR = '#f59e0b';
+const RECOVERY_COLOR = '#10b981';
 const HIGH_VOLATILITY_THRESHOLD = 25;
 
 const CIRCLE_ANIMATION = {
@@ -35,7 +35,7 @@ export function IndicatorWrapper({
     <g
       role="img"
       aria-label={label}
-      style={{ pointerEvents: "none" }}
+      style={{ pointerEvents: 'none' }}
       data-chart-type={point.chartType}
     >
       <title>{label}</title>
@@ -75,7 +75,7 @@ function IndicatorCircle({
       animate={CIRCLE_ANIMATION.animate}
       exit={CIRCLE_ANIMATION.exit}
       transition={{ ...CIRCLE_ANIMATION.transition, delay }}
-      className={`drop-shadow-lg ${className ?? ""}`}
+      className={`drop-shadow-lg ${className ?? ''}`}
     />
   );
 }
@@ -93,12 +93,12 @@ export const SingleCircle = memo(function SingleCircle({
   r,
   sw,
   color,
-}: Omit<VariantCircleProps, "label">) {
+}: Omit<VariantCircleProps, 'label'>) {
   const effectiveColor =
-    point.chartType === "sharpe" ? getSharpeColor(point.sharpe || 0) : color;
+    point.chartType === 'sharpe' ? getSharpeColor(point.sharpe || 0) : color;
 
   const isHighVol =
-    point.chartType === "volatility" &&
+    point.chartType === 'volatility' &&
     point.volatility > HIGH_VOLATILITY_THRESHOLD;
 
   return (
@@ -115,7 +115,7 @@ export const SingleCircle = memo(function SingleCircle({
           initial={{ opacity: 0.6, scale: 1 }}
           animate={{ opacity: 0, scale: 2 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
         />
       )}
     </>
@@ -129,7 +129,7 @@ export const MultiCircle = memo(function MultiCircle({
   color,
   label,
 }: VariantCircleProps) {
-  if (point.chartType !== "asset-allocation") {
+  if (point.chartType !== 'asset-allocation') {
     return (
       <IndicatorWrapper point={point} label={label}>
         <SingleCircle point={point} r={r} sw={sw} color={color} />
@@ -142,7 +142,7 @@ export const MultiCircle = memo(function MultiCircle({
     { v: point.eth, c: CHART_COLORS.eth },
     { v: point.stablecoin, c: CHART_COLORS.stablecoin },
     { v: point.altcoin, c: CHART_COLORS.altcoin },
-  ].filter(i => i.v > 1);
+  ].filter((i) => i.v > 1);
 
   if (colors.length <= 1) {
     return (
@@ -183,7 +183,7 @@ export const FlaggedCircle = memo(function FlaggedCircle({
   label,
 }: VariantCircleProps) {
   const isRecovery =
-    point.chartType === "drawdown-recovery" && point.isRecoveryPoint;
+    point.chartType === 'drawdown-recovery' && point.isRecoveryPoint;
 
   return (
     <IndicatorWrapper point={point} label={label}>

@@ -1,28 +1,28 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from 'react';
 
-import type { BacktestResponse } from "@/types/backtesting";
-import type { StrategyConfigsResponse } from "@/types/strategy";
+import type { BacktestResponse } from '@/types/backtesting';
+import type { StrategyConfigsResponse } from '@/types/strategy';
 
-import { FIXED_PACING_ENGINE_ID } from "../constants";
-import { buildCompareConfigForStrategyId } from "../hooks/backtestConfigurationBuilders";
-import { getPrimaryStrategyId } from "../utils/chartHelpers";
+import { FIXED_PACING_ENGINE_ID } from '../constants';
+import { buildCompareConfigForStrategyId } from '../hooks/backtestConfigurationBuilders';
+import { getPrimaryStrategyId } from '../utils/chartHelpers';
 import {
   updateConfigStrategy,
   updateJsonField,
-} from "../utils/jsonConfigurationHelpers";
-import { BacktestChart } from "./BacktestChart";
-import { BacktestCommandBar } from "./BacktestCommandBar";
-import { BacktestHeroMetrics } from "./BacktestHeroMetrics";
+} from '../utils/jsonConfigurationHelpers';
+import { BacktestChart } from './BacktestChart';
+import { BacktestCommandBar } from './BacktestCommandBar';
+import { BacktestHeroMetrics } from './BacktestHeroMetrics';
 import {
   createHeroMetrics,
   formatTradeFrequency,
-} from "./backtestTerminalMetrics";
-import type { TerminalDropdownOption } from "./TerminalDropdown";
-import { phosphorGlowDimStyle } from "./terminalStyles";
+} from './backtestTerminalMetrics';
+import type { TerminalDropdownOption } from './TerminalDropdown';
+import { phosphorGlowDimStyle } from './terminalStyles';
 
 export interface BacktestTerminalDisplayProps {
   /** Strategy summaries keyed by strategy_id */
-  summary: { strategies: BacktestResponse["strategies"] } | null;
+  summary: { strategies: BacktestResponse['strategies'] } | null;
   /** Strategy IDs in display order */
   sortedStrategyIds: string[];
   /** Actual number of simulated days */
@@ -70,7 +70,7 @@ export function BacktestTerminalDisplay({
 }: BacktestTerminalDisplayProps): React.ReactElement {
   const handleDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onEditorValueChange(
-      updateJsonField(editorValue, "days", Number(e.target.value))
+      updateJsonField(editorValue, 'days', Number(e.target.value)),
     );
   };
 
@@ -79,11 +79,11 @@ export function BacktestTerminalDisplay({
       const nextConfig = buildCompareConfigForStrategyId(
         newStrategyId,
         strategyConfigs?.presets ?? [],
-        strategyConfigs?.strategies ?? []
+        strategyConfigs?.strategies ?? [],
       );
       onEditorValueChange(updateConfigStrategy(editorValue, nextConfig));
     },
-    [strategyConfigs, editorValue, onEditorValueChange]
+    [strategyConfigs, editorValue, onEditorValueChange],
   );
 
   const primaryId = getPrimaryStrategyId(sortedStrategyIds);
@@ -92,7 +92,7 @@ export function BacktestTerminalDisplay({
   const heroMetrics = useMemo(() => createHeroMetrics(regime), [regime]);
   const tradeFreqLabel = useMemo(
     () => formatTradeFrequency(regime?.trade_count ?? 0, actualDays),
-    [regime?.trade_count, actualDays]
+    [regime?.trade_count, actualDays],
   );
 
   return (
@@ -123,7 +123,7 @@ export function BacktestTerminalDisplay({
             className="absolute inset-0 pointer-events-none z-10"
             style={{
               background:
-                "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(52,211,153,0.03) 2px, rgba(52,211,153,0.03) 4px)",
+                'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(52,211,153,0.03) 2px, rgba(52,211,153,0.03) 4px)',
             }}
           />
         </div>
@@ -135,7 +135,7 @@ export function BacktestTerminalDisplay({
             className="text-xs text-emerald-400/40 tracking-wide"
             style={phosphorGlowDimStyle}
           >
-            {">"} approx. {tradeFreqLabel}
+            {'>'} approx. {tradeFreqLabel}
           </span>
         </div>
       )}

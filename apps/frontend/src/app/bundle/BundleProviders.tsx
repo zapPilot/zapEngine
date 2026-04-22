@@ -1,23 +1,23 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
-import { ErrorBoundary } from "@/components/errors/ErrorBoundary";
-import { GlobalErrorHandler } from "@/components/errors/GlobalErrorHandler";
-import { UserProvider } from "@/contexts/UserContext";
-import { getRuntimeEnv, isRuntimeMode } from "@/lib/env/runtimeEnv";
-import { lazyImport } from "@/lib/lazy/lazyImport";
-import { QueryProvider } from "@/providers/QueryProvider";
-import { SimpleWeb3Provider } from "@/providers/SimpleWeb3Provider";
-import { ToastProvider } from "@/providers/ToastProvider";
-import { WalletProvider } from "@/providers/WalletProvider";
+import { ErrorBoundary } from '@/components/errors/ErrorBoundary';
+import { GlobalErrorHandler } from '@/components/errors/GlobalErrorHandler';
+import { UserProvider } from '@/contexts/UserContext';
+import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
+import { lazyImport } from '@/lib/lazy/lazyImport';
+import { QueryProvider } from '@/providers/QueryProvider';
+import { SimpleWeb3Provider } from '@/providers/SimpleWeb3Provider';
+import { ToastProvider } from '@/providers/ToastProvider';
+import { WalletProvider } from '@/providers/WalletProvider';
 
 const shouldLoadLogViewer =
-  isRuntimeMode("development") &&
-  getRuntimeEnv("VITE_ENABLE_LOG_VIEWER") === "1";
+  isRuntimeMode('development') &&
+  getRuntimeEnv('VITE_ENABLE_LOG_VIEWER') === '1';
 
 const LogViewer = shouldLoadLogViewer
   ? lazyImport(
-      async () => import("@/components/debug/LogViewer"),
-      mod => mod.LogViewer
+      async () => import('@/components/debug/LogViewer'),
+      (mod) => mod.LogViewer,
     )
   : () => null;
 
@@ -37,7 +37,7 @@ export function BundleProviders({ children }: BundleProvidersProps) {
       <SimpleWeb3Provider>
         <WalletProvider>
           <UserProvider>
-            <ErrorBoundary resetKeys={["user-context"]}>
+            <ErrorBoundary resetKeys={['user-context']}>
               <GlobalErrorHandler />
               <ToastProvider>{children}</ToastProvider>
               <LogViewer />

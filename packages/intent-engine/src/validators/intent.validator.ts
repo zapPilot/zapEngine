@@ -10,14 +10,14 @@ import {
   type SupplyIntent,
   type WithdrawIntent,
   type RotateIntent,
-} from "../types/intent.types.js";
-import { TOKENS } from "../types/chain.types.js";
-import { MORPHO_VAULTS } from "../protocols/morpho/morpho.constants.js";
+} from '../types/intent.types.js';
+import { TOKENS } from '../types/chain.types.js';
+import { MORPHO_VAULTS } from '../protocols/morpho/morpho.constants.js';
 import {
   ValidationError,
   UnsupportedChainError,
   UnsupportedTokenError,
-} from "../errors/intent.errors.js";
+} from '../errors/intent.errors.js';
 
 const SUPPORTED_CHAINS_SET = new Set(SUPPORTED_CHAIN_IDS);
 
@@ -38,11 +38,11 @@ function assertKnownOnThisChainOrUnknown(
   address: string,
   chainId: number,
   registry: Record<number, Record<string, string>>,
-  kind: "token" | "vault"
+  kind: 'token' | 'vault',
 ): void {
   const lc = address.toLowerCase();
   const onThisChain = Object.values(registry[chainId] ?? {}).some(
-    addr => addr.toLowerCase() === lc
+    (addr) => addr.toLowerCase() === lc,
   );
   if (onThisChain) {
     return;
@@ -54,14 +54,14 @@ function assertKnownOnThisChainOrUnknown(
       continue;
     }
     const onOtherChain = Object.values(entries).some(
-      addr => addr.toLowerCase() === lc
+      (addr) => addr.toLowerCase() === lc,
     );
     if (onOtherChain) {
-      if (kind === "token") {
+      if (kind === 'token') {
         throw new UnsupportedTokenError(address, chainId);
       }
       throw new ValidationError(
-        `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`
+        `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`,
       );
     }
   }
@@ -72,7 +72,7 @@ function assertTokenForChain(token: string, chainId: number): void {
     token,
     chainId,
     TOKENS as unknown as Record<number, Record<string, string>>,
-    "token"
+    'token',
   );
 }
 
@@ -81,7 +81,7 @@ function assertVaultForChain(vault: string, chainId: number): void {
     vault,
     chainId,
     MORPHO_VAULTS as unknown as Record<number, Record<string, string>>,
-    "vault"
+    'vault',
   );
 }
 
@@ -91,7 +91,7 @@ function assertVaultForChain(vault: string, chainId: number): void {
 export function validateIntent(intent: unknown): Intent {
   const result = IntentSchema.safeParse(intent);
   if (!result.success) {
-    throw new ValidationError("Invalid intent", result.error.issues);
+    throw new ValidationError('Invalid intent', result.error.issues);
   }
   assertSupportedChain(result.data.chainId);
   return result.data;
@@ -103,7 +103,7 @@ export function validateIntent(intent: unknown): Intent {
 export function validateSwapIntent(intent: unknown): SwapIntent {
   const result = SwapIntentSchema.safeParse(intent);
   if (!result.success) {
-    throw new ValidationError("Invalid swap intent", result.error.issues);
+    throw new ValidationError('Invalid swap intent', result.error.issues);
   }
   assertSupportedChain(result.data.chainId);
   assertTokenForChain(result.data.fromToken, result.data.chainId);
@@ -117,7 +117,7 @@ export function validateSwapIntent(intent: unknown): SwapIntent {
 export function validateSupplyIntent(intent: unknown): SupplyIntent {
   const result = SupplyIntentSchema.safeParse(intent);
   if (!result.success) {
-    throw new ValidationError("Invalid supply intent", result.error.issues);
+    throw new ValidationError('Invalid supply intent', result.error.issues);
   }
   assertSupportedChain(result.data.chainId);
   assertTokenForChain(result.data.fromToken, result.data.chainId);
@@ -131,7 +131,7 @@ export function validateSupplyIntent(intent: unknown): SupplyIntent {
 export function validateWithdrawIntent(intent: unknown): WithdrawIntent {
   const result = WithdrawIntentSchema.safeParse(intent);
   if (!result.success) {
-    throw new ValidationError("Invalid withdraw intent", result.error.issues);
+    throw new ValidationError('Invalid withdraw intent', result.error.issues);
   }
   assertSupportedChain(result.data.chainId);
   assertVaultForChain(result.data.vaultAddress, result.data.chainId);
@@ -144,7 +144,7 @@ export function validateWithdrawIntent(intent: unknown): WithdrawIntent {
 export function validateRotateIntent(intent: unknown): RotateIntent {
   const result = RotateIntentSchema.safeParse(intent);
   if (!result.success) {
-    throw new ValidationError("Invalid rotate intent", result.error.issues);
+    throw new ValidationError('Invalid rotate intent', result.error.issues);
   }
   assertSupportedChain(result.data.chainId);
   assertVaultForChain(result.data.fromVault, result.data.chainId);

@@ -1,18 +1,18 @@
-import { ArrowRight, Layers, LineChart, Zap } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ArrowRight, Layers, LineChart, Zap } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 
-import { Modal, ModalContent } from "@/components/ui/modal";
+import { Modal, ModalContent } from '@/components/ui/modal';
 import {
   SubmittingState,
   TransactionModalHeader,
-} from "@/components/wallet/portfolio/modals/components/TransactionModalParts";
-import { cn } from "@/lib/ui/classNames";
+} from '@/components/wallet/portfolio/modals/components/TransactionModalParts';
+import { cn } from '@/lib/ui/classNames';
 
 import {
   VariationImpact,
   VariationRoute,
   VariationStrategy,
-} from "./ReviewModalTabs";
+} from './ReviewModalTabs';
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -22,21 +22,21 @@ interface ReviewModalProps {
   title?: string;
 }
 
-type TabId = "strategy" | "impact" | "route";
+type TabId = 'strategy' | 'impact' | 'route';
 
 const TABS: { id: TabId; label: string; icon: typeof LineChart }[] = [
-  { id: "impact", label: "Impact", icon: Layers },
-  { id: "strategy", label: "Strategy", icon: LineChart },
-  { id: "route", label: "Route", icon: Zap },
+  { id: 'impact', label: 'Impact', icon: Layers },
+  { id: 'strategy', label: 'Strategy', icon: LineChart },
+  { id: 'route', label: 'Route', icon: Zap },
 ];
 
 function renderTabContent(activeTab: TabId): ReactNode {
   switch (activeTab) {
-    case "strategy":
+    case 'strategy':
       return <VariationStrategy />;
-    case "impact":
+    case 'impact':
       return <VariationImpact />;
-    case "route":
+    case 'route':
       return <VariationRoute />;
     default:
       return null;
@@ -48,9 +48,9 @@ export function ReviewModal({
   onClose,
   onConfirm,
   isSubmitting = false,
-  title = "Review Execution",
+  title = 'Review Execution',
 }: ReviewModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("impact");
+  const [activeTab, setActiveTab] = useState<TabId>('impact');
 
   if (!isOpen) return null;
 
@@ -67,15 +67,15 @@ export function ReviewModal({
         {/* Tab Switcher */}
         {!isSubmitting && (
           <div className="flex p-2 bg-gray-900/50 border-b border-gray-800 gap-1">
-            {TABS.map(tab => (
+            {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all",
+                  'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all',
                   activeTab === tab.id
-                    ? "bg-gray-800 text-white shadow-sm ring-1 ring-white/10"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? 'bg-gray-800 text-white shadow-sm ring-1 ring-white/10'
+                    : 'text-gray-500 hover:text-gray-300',
                 )}
               >
                 <tab.icon className="w-3.5 h-3.5" />

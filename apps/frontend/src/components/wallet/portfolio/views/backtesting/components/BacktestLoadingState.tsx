@@ -1,4 +1,4 @@
-import { ChartSkeleton, MetricsSkeleton } from "@/components/ui";
+import { ChartSkeleton, MetricsSkeleton } from '@/components/ui';
 
 export function BacktestLoadingState() {
   return (

@@ -58,7 +58,7 @@ describe('Features', () => {
         'Transparent Strategy',
       ];
 
-      featureTitles.forEach(title => {
+      featureTitles.forEach((title) => {
         expect(screen.getByText(title)).toBeInTheDocument();
       });
     });
@@ -75,17 +75,24 @@ describe('Features', () => {
     it('should have correct href for learn more links', () => {
       render(<Features />);
 
-      const learnMoreLinks = screen.getAllByRole('link', { name: 'Learn more' });
-      learnMoreLinks.forEach(link => {
-        expect(link).toHaveAttribute('href', 'https://docs.zap-pilot.org/docs/how-it-works');
+      const learnMoreLinks = screen.getAllByRole('link', {
+        name: 'Learn more',
+      });
+      learnMoreLinks.forEach((link) => {
+        expect(link).toHaveAttribute(
+          'href',
+          'https://docs.zap-pilot.org/docs/how-it-works',
+        );
       });
     });
 
     it('should open learn more links in new tab', () => {
       render(<Features />);
 
-      const learnMoreLinks = screen.getAllByRole('link', { name: 'Learn more' });
-      learnMoreLinks.forEach(link => {
+      const learnMoreLinks = screen.getAllByRole('link', {
+        name: 'Learn more',
+      });
+      learnMoreLinks.forEach((link) => {
         expect(link).toHaveAttribute('target', '_blank');
       });
     });
@@ -95,7 +102,9 @@ describe('Features', () => {
     it('should rely on per-card learn more links (no standalone CTA)', () => {
       render(<Features />);
 
-      expect(screen.queryByRole('link', { name: 'Explore All Features' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'Explore All Features' }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -126,7 +135,9 @@ describe('Features', () => {
       const { container } = render(<Features />);
 
       // Each feature has an icon wrapper with gradient background
-      const iconWrappers = container.querySelectorAll('.rounded-2xl.bg-gradient-to-br');
+      const iconWrappers = container.querySelectorAll(
+        '.rounded-2xl.bg-gradient-to-br',
+      );
       expect(iconWrappers.length).toBe(4);
     });
   });
@@ -155,7 +166,7 @@ describe('Features', () => {
         /See exactly how it works./,
       ];
 
-      descriptions.forEach(desc => {
+      descriptions.forEach((desc) => {
         expect(screen.getByText(desc)).toBeInTheDocument();
       });
     });

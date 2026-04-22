@@ -10,19 +10,19 @@ import {
   render,
   screen,
   waitFor,
-} from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+} from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { RebalanceModal } from "@/components/wallet/portfolio/modals/RebalanceModal";
+import { RebalanceModal } from '@/components/wallet/portfolio/modals/RebalanceModal';
 
 // Mock dependencies
-vi.mock("@/providers/WalletProvider", () => ({
+vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     isConnected: true,
   }),
 }));
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   transactionServiceMock: {
     computeProjectedAllocation: vi.fn((intensity, current, target) => {
       // Simple linear interpolation for testing
@@ -33,13 +33,13 @@ vi.mock("@/services", () => ({
       };
     }),
     simulateRebalance: vi.fn(() =>
-      Promise.resolve({ success: true, txHash: "0x123" })
+      Promise.resolve({ success: true, txHash: '0x123' }),
     ),
   },
 }));
 
 // Mock UI components
-vi.mock("@/components/ui/modal", () => ({
+vi.mock('@/components/ui/modal', () => ({
   Modal: ({
     children,
     isOpen,
@@ -61,14 +61,14 @@ vi.mock("@/components/ui/modal", () => ({
 }));
 
 // Mock lucide-react icons
-vi.mock("lucide-react", () => ({
+vi.mock('lucide-react', () => ({
   ArrowRight: () => <div data-testid="arrow-right">→</div>,
   Check: () => <div data-testid="check-icon">✓</div>,
 }));
 
 // Mock transaction modal components
 vi.mock(
-  "@/components/wallet/portfolio/modals/components/TransactionModalParts",
+  '@/components/wallet/portfolio/modals/components/TransactionModalParts',
   () => ({
     TransactionModalHeader: ({
       title,
@@ -92,7 +92,7 @@ vi.mock(
       successMessage?: string;
     }) => (
       <div data-testid="submitting-state">
-        {isSuccess ? successMessage : "Processing..."}
+        {isSuccess ? successMessage : 'Processing...'}
       </div>
     ),
     TransactionActionButton: ({
@@ -108,10 +108,10 @@ vi.mock(
         {label}
       </button>
     ),
-  })
+  }),
 );
 
-vi.mock("@/components/wallet/portfolio/modals/utils/actionLabelUtils", () => ({
+vi.mock('@/components/wallet/portfolio/modals/utils/actionLabelUtils', () => ({
   resolveActionLabel: ({
     isConnected,
     isReady,
@@ -123,12 +123,12 @@ vi.mock("@/components/wallet/portfolio/modals/utils/actionLabelUtils", () => ({
     readyLabel: string;
     notReadyLabel: string;
   }) => {
-    if (!isConnected) return "Connect Wallet";
+    if (!isConnected) return 'Connect Wallet';
     return isReady ? readyLabel : notReadyLabel;
   },
 }));
 
-describe("RebalanceModal", () => {
+describe('RebalanceModal', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -136,87 +136,87 @@ describe("RebalanceModal", () => {
     targetAllocation: { crypto: 50, stable: 50 },
   };
 
-  it("should not render when isOpen is false", () => {
+  it('should not render when isOpen is false', () => {
     render(<RebalanceModal {...defaultProps} isOpen={false} />);
 
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
   });
 
-  it("should render when isOpen is true", () => {
+  it('should render when isOpen is true', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
   });
 
-  it("should render modal header with title", () => {
+  it('should render modal header with title', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    expect(screen.getByText("Rebalance Portfolio")).toBeInTheDocument();
+    expect(screen.getByText('Rebalance Portfolio')).toBeInTheDocument();
   });
 
-  it("should display current allocation", () => {
+  it('should display current allocation', () => {
     render(<RebalanceModal {...defaultProps} />);
 
     // Current crypto: 60%
-    expect(screen.getByText("60")).toBeInTheDocument();
+    expect(screen.getByText('60')).toBeInTheDocument();
     // Current stable: 40%
-    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.getByText('40')).toBeInTheDocument();
   });
 
-  it("should display projected allocation", () => {
+  it('should display projected allocation', () => {
     render(<RebalanceModal {...defaultProps} />);
 
     // With intensity at 100, projected should equal target
     // Crypto: 50%, Stable: 50%
-    expect(screen.getAllByText("50").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('50').length).toBeGreaterThanOrEqual(2);
   });
 
-  it("should render current and projected labels", () => {
+  it('should render current and projected labels', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByText("Projected")).toBeInTheDocument();
+    expect(screen.getByText('Current')).toBeInTheDocument();
+    expect(screen.getByText('Projected')).toBeInTheDocument();
   });
 
-  it("should render crypto and stable labels", () => {
+  it('should render crypto and stable labels', () => {
     render(<RebalanceModal {...defaultProps} />);
 
     // Multiple occurrences (current and projected)
-    expect(screen.getAllByText("Crypto").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("Stable").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Crypto').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Stable').length).toBeGreaterThanOrEqual(2);
   });
 
-  it("should render arrow between current and projected", () => {
+  it('should render arrow between current and projected', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    expect(screen.getByTestId("arrow-right")).toBeInTheDocument();
+    expect(screen.getByTestId('arrow-right')).toBeInTheDocument();
   });
 
-  it("should render action button with correct label", () => {
+  it('should render action button with correct label', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent("Confirm Rebalance");
+    expect(button).toHaveTextContent('Confirm Rebalance');
   });
 
-  it("should enable action button when connected and ready", () => {
+  it('should enable action button when connected and ready', () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     expect(button).not.toBeDisabled();
   });
 
-  it("should call transaction service on submit", async () => {
-    const { transactionServiceMock } = await import("@/services");
+  it('should call transaction service on submit', async () => {
+    const { transactionServiceMock } = await import('@/services');
     const simulateRebalanceSpy = vi.spyOn(
       transactionServiceMock,
-      "simulateRebalance"
+      'simulateRebalance',
     );
 
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     await act(async () => {
       fireEvent.click(button);
     });
@@ -225,53 +225,53 @@ describe("RebalanceModal", () => {
       expect(simulateRebalanceSpy).toHaveBeenCalledWith(
         100,
         { crypto: 60, stable: 40 },
-        { crypto: 50, stable: 50 }
+        { crypto: 50, stable: 50 },
       );
     });
   });
 
-  it("should show submitting state after submit", async () => {
+  it('should show submitting state after submit', async () => {
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     await act(async () => {
       fireEvent.click(button);
     });
 
-    expect(await screen.findByTestId("submitting-state")).toBeInTheDocument();
+    expect(await screen.findByTestId('submitting-state')).toBeInTheDocument();
   });
 
-  it("should call onClose when close button clicked", () => {
+  it('should call onClose when close button clicked', () => {
     const onCloseMock = vi.fn();
     render(<RebalanceModal {...defaultProps} onClose={onCloseMock} />);
 
-    const closeButton = screen.getByTestId("close-button");
+    const closeButton = screen.getByTestId('close-button');
     fireEvent.click(closeButton);
 
     // Close is called through resetState
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 
-  it("should handle different allocation values", () => {
+  it('should handle different allocation values', () => {
     render(
       <RebalanceModal
         {...defaultProps}
         currentAllocation={{ crypto: 80, stable: 20 }}
         targetAllocation={{ crypto: 30, stable: 70 }}
-      />
+      />,
     );
 
-    expect(screen.getByText("80")).toBeInTheDocument();
-    expect(screen.getByText("20")).toBeInTheDocument();
-    expect(screen.getByText("30")).toBeInTheDocument();
-    expect(screen.getByText("70")).toBeInTheDocument();
+    expect(screen.getByText('80')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
+    expect(screen.getByText('30')).toBeInTheDocument();
+    expect(screen.getByText('70')).toBeInTheDocument();
   });
 
-  it("should compute projected allocation correctly", async () => {
-    const { transactionServiceMock } = await import("@/services");
+  it('should compute projected allocation correctly', async () => {
+    const { transactionServiceMock } = await import('@/services');
     const computeSpy = vi.spyOn(
       transactionServiceMock,
-      "computeProjectedAllocation"
+      'computeProjectedAllocation',
     );
 
     render(<RebalanceModal {...defaultProps} />);
@@ -279,72 +279,72 @@ describe("RebalanceModal", () => {
     expect(computeSpy).toHaveBeenCalledWith(
       100,
       { crypto: 60, stable: 40 },
-      { crypto: 50, stable: 50 }
+      { crypto: 50, stable: 50 },
     );
   });
 
-  it("should handle allocation with decimal values", () => {
+  it('should handle allocation with decimal values', () => {
     render(
       <RebalanceModal
         {...defaultProps}
         currentAllocation={{ crypto: 55.5, stable: 44.5 }}
         targetAllocation={{ crypto: 50.5, stable: 49.5 }}
-      />
+      />,
     );
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
   });
 
-  it("should reset state when modal closes", () => {
+  it('should reset state when modal closes', () => {
     const onCloseMock = vi.fn();
     render(<RebalanceModal {...defaultProps} onClose={onCloseMock} />);
 
-    const closeButton = screen.getByTestId("close-button");
+    const closeButton = screen.getByTestId('close-button');
     fireEvent.click(closeButton);
 
     // Verify close button interaction
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 
-  it("should handle transaction error gracefully", async () => {
-    const { transactionServiceMock } = await import("@/services");
-    vi.spyOn(transactionServiceMock, "simulateRebalance").mockRejectedValueOnce(
-      new Error("Network error")
+  it('should handle transaction error gracefully', async () => {
+    const { transactionServiceMock } = await import('@/services');
+    vi.spyOn(transactionServiceMock, 'simulateRebalance').mockRejectedValueOnce(
+      new Error('Network error'),
     );
 
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     await act(async () => {
       fireEvent.click(button);
     });
 
     // Component should handle error and return to idle state
     await waitFor(() => {
-      expect(screen.getByTestId("action-button")).toBeInTheDocument();
-      expect(screen.queryByTestId("submitting-state")).not.toBeInTheDocument();
+      expect(screen.getByTestId('action-button')).toBeInTheDocument();
+      expect(screen.queryByTestId('submitting-state')).not.toBeInTheDocument();
     });
   });
 
-  it("should display success message after successful rebalance", async () => {
-    const { transactionServiceMock } = await import("@/services");
-    vi.spyOn(transactionServiceMock, "simulateRebalance").mockResolvedValueOnce(
+  it('should display success message after successful rebalance', async () => {
+    const { transactionServiceMock } = await import('@/services');
+    vi.spyOn(transactionServiceMock, 'simulateRebalance').mockResolvedValueOnce(
       {
         success: true,
-        txHash: "0xABC",
-      }
+        txHash: '0xABC',
+      },
     );
 
     render(<RebalanceModal {...defaultProps} />);
 
-    const button = screen.getByTestId("action-button");
+    const button = screen.getByTestId('action-button');
     await act(async () => {
       fireEvent.click(button);
     });
 
     // After success, submitting state is shown
     expect(
-      await screen.findByText("Rebalance Successfully Executed!")
+      await screen.findByText('Rebalance Successfully Executed!'),
     ).toBeInTheDocument();
   });
 });

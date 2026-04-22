@@ -1,14 +1,14 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
 import {
   mapBorrowingStatusToRiskLevel,
   RISK_DISPLAY_CONFIG,
-} from "@/constants/riskThresholds";
-import type { BorrowingPosition, BorrowingSummary } from "@/services";
+} from '@/constants/riskThresholds';
+import type { BorrowingPosition, BorrowingSummary } from '@/services';
 
-import { FinancialMetricRow } from "./FinancialMetricRow";
-import { IconBadge } from "./IconBadge";
-import { TokenIconStack } from "./TokenIconStack";
+import { FinancialMetricRow } from './FinancialMetricRow';
+import { IconBadge } from './IconBadge';
+import { TokenIconStack } from './TokenIconStack';
 
 interface BorrowingPositionsTooltipProps {
   /** Borrowing positions data */
@@ -61,7 +61,7 @@ function TooltipSkeleton(): ReactElement {
     <div className="w-96 bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-lg shadow-xl p-4 animate-pulse">
       <div className="h-4 bg-gray-700 rounded w-3/4 mb-3" />
       <div className="space-y-2">
-        {[1, 2, 3].map(i => (
+        {[1, 2, 3].map((i) => (
           <div key={i} className="h-16 bg-gray-800 rounded" />
         ))}
       </div>
@@ -123,7 +123,7 @@ function PositionCard({ position }: PositionCardProps): ReactElement {
             src={`https://zap-assets-worker.davidtnfsh.workers.dev/projectPictures/${position.protocol_id.toLowerCase()}.webp`}
             alt={`${position.protocol_name} logo`}
             size="md" // 24px
-            fallback={{ type: "letter", content: position.protocol_name }}
+            fallback={{ type: 'letter', content: position.protocol_name }}
           />
           <div>
             <p className="text-sm font-medium text-white">
@@ -160,7 +160,7 @@ function PositionCard({ position }: PositionCardProps): ReactElement {
           <span className="text-gray-400">Net Value</span>
           <span
             className={`font-medium ${
-              position.net_value_usd >= 0 ? "text-green-400" : "text-rose-400"
+              position.net_value_usd >= 0 ? 'text-green-400' : 'text-rose-400'
             }`}
           >
             ${position.net_value_usd.toLocaleString()}
@@ -276,7 +276,7 @@ export function BorrowingPositionsTooltip({
 
       {/* Position Cards */}
       <div className="space-y-2 mb-3 max-h-64 overflow-y-auto custom-scrollbar">
-        {positions.map(position => (
+        {positions.map((position) => (
           <PositionCard
             key={`${position.protocol_id}-${position.chain}`}
             position={position}
@@ -291,16 +291,16 @@ export function BorrowingPositionsTooltip({
       <div className="space-y-1">
         {[
           {
-            label: "Total Collateral",
+            label: 'Total Collateral',
             value: `$${totalCollateralUsd.toLocaleString()}`,
           },
-          { label: "Total Debt", value: `$${totalDebtUsd.toLocaleString()}` },
+          { label: 'Total Debt', value: `$${totalDebtUsd.toLocaleString()}` },
           {
-            label: "Worst Health Rate",
+            label: 'Worst Health Rate',
             value: summary.worst_health_rate.toFixed(2),
             valueClassName: `font-medium ${riskConfig.text}`,
           },
-        ].map(metric => (
+        ].map((metric) => (
           <FinancialMetricRow key={metric.label} {...metric} />
         ))}
       </div>

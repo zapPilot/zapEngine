@@ -3,37 +3,37 @@
  * Main request execution logic with retry support
  */
 
-import { createTimeoutController, isAbortError } from "./abort-control";
+import { createTimeoutController, isAbortError } from './abort-control';
 import {
   hasHeaders,
   parseCacheControlForHint,
   syncQueryCacheDefaultsFromHint,
-} from "./cache-control";
+} from './cache-control';
 import {
   HTTP_CONFIG,
   type HttpRequestConfig,
   type ResponseTransformer,
-} from "./config";
+} from './config';
 import {
   APIError,
   NetworkError,
   parseErrorResponse,
   TimeoutError,
   toError,
-} from "./errors";
-import { calculateBackoffDelay, delay, shouldAttemptRetry } from "./retry";
+} from './errors';
+import { calculateBackoffDelay, delay, shouldAttemptRetry } from './retry';
 
 function createRequestConfig(config: HttpRequestConfig): RequestInit {
-  const { method = "GET", headers = {}, body } = config;
+  const { method = 'GET', headers = {}, body } = config;
   const requestConfig: RequestInit = {
     method,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
   };
 
-  if (body && method !== "GET") {
+  if (body && method !== 'GET') {
     requestConfig.body = JSON.stringify(body);
   }
 
@@ -56,13 +56,13 @@ function normalizeRequestExecutionError(error: unknown): Error {
 async function executeRequest<T>(
   url: string,
   requestInit: RequestInit,
-  transformer?: ResponseTransformer<T>
+  transformer?: ResponseTransformer<T>,
 ): Promise<T> {
   const response = await fetch(url, requestInit);
 
   // Some test doubles provide a minimal Response-like object without headers.
   const cacheControlHeader = hasHeaders(response)
-    ? ((response as Response).headers?.get?.("cache-control") ?? undefined)
+    ? ((response as Response).headers?.get?.('cache-control') ?? undefined)
     : undefined;
 
   const cacheHint = parseCacheControlForHint(cacheControlHeader);
@@ -76,7 +76,7 @@ async function executeRequest<T>(
       errorData.message || `HTTP ${response.status}`,
       response.status,
       errorData.code,
-      errorData.details
+      errorData.details,
     );
   }
 
@@ -90,7 +90,7 @@ async function executeRequest<T>(
 export async function httpRequest<T = unknown>(
   url: string,
   config: HttpRequestConfig = {},
-  transformer?: ResponseTransformer<T>
+  transformer?: ResponseTransformer<T>,
 ): Promise<T> {
   const {
     timeout = HTTP_CONFIG.timeout,
@@ -106,7 +106,7 @@ export async function httpRequest<T = unknown>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     const { signal: composedSignal, cleanup } = createTimeoutController(
       timeout,
-      signal
+      signal,
     );
     requestConfig.signal = composedSignal;
 
@@ -127,6 +127,6 @@ export async function httpRequest<T = unknown>(
 
   // If we get here, all retries failed
   throw new NetworkError(
-    lastError ? lastError.message : "Network request failed"
+    lastError ? lastError.message : 'Network request failed',
   );
 }

@@ -1,1 +1,1 @@
-export { QuickSwitchFAB } from "./QuickSwitchFAB";
+export { QuickSwitchFAB } from './QuickSwitchFAB';

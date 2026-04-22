@@ -16,7 +16,7 @@
  * - `stable`: Stablecoins (capital preservation)
  * - `alt`: Everything else (non-BTC, non-ETH, non-stable)
  */
-export type UnifiedCategory = "btc" | "eth" | "stable" | "alt";
+export type UnifiedCategory = 'btc' | 'eth' | 'stable' | 'alt';
 
 /**
  * A single segment in the unified allocation bar.
@@ -45,7 +45,7 @@ export interface UnifiedAllocationBarProps {
   /** Minimum percentage to show inline label (default: 10) */
   labelThreshold?: number;
   /** Bar height variant */
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   /** Additional CSS classes */
   className?: string;
   /** Optional title displayed above the bar */

@@ -1,6 +1,6 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from 'lucide-react';
 
-import { BaseCard } from "./BaseCard";
+import { BaseCard } from './BaseCard';
 
 interface EmptyStateCardProps {
   icon: LucideIcon;
@@ -13,7 +13,7 @@ export function EmptyStateCard({
   icon: Icon,
   message,
   description,
-  iconClassName = "text-gray-500",
+  iconClassName = 'text-gray-500',
 }: EmptyStateCardProps) {
   return (
     <BaseCard variant="glass" className="p-6">

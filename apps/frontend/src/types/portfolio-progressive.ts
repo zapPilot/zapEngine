@@ -1,6 +1,6 @@
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
-import type { RegimeId } from "@/components/wallet/regime/regimeData";
-import type { MarketSentimentData, RegimeHistoryData } from "@/services";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import type { RegimeId } from '@/components/wallet/regime/regimeData';
+import type { MarketSentimentData, RegimeHistoryData } from '@/services';
 
 /**
  * Generic state for a dashboard section

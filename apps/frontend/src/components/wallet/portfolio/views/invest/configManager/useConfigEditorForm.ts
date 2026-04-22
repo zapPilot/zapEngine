@@ -5,19 +5,19 @@ import {
   useEffect,
   useMemo,
   useState,
-} from "react";
+} from 'react';
 
 import {
   useCreateStrategyConfig,
   useUpdateStrategyConfig,
-} from "@/hooks/mutations";
-import { useStrategyAdminConfig } from "@/hooks/queries/strategyAdmin";
-import { useToast } from "@/providers/ToastProvider";
+} from '@/hooks/mutations';
+import { useStrategyAdminConfig } from '@/hooks/queries/strategyAdmin';
+import { useToast } from '@/providers/ToastProvider';
 import type {
   BacktestCompareParamsV3,
   SavedStrategyConfig,
   StrategyComposition,
-} from "@/types";
+} from '@/types';
 
 import {
   buildFieldsPayload,
@@ -31,7 +31,7 @@ import {
   INITIAL_FORM_STATE,
   type JsonTab,
   tryParseJson,
-} from "./configEditorShared";
+} from './configEditorShared';
 
 interface UseConfigEditorFormParams {
   configId: string | null;
@@ -63,7 +63,7 @@ export function useConfigEditorForm({
 }: UseConfigEditorFormParams): UseConfigEditorFormResult {
   const { showToast } = useToast();
   const { data: existingConfig, isLoading } = useStrategyAdminConfig(
-    mode === "edit" ? configId : null
+    mode === 'edit' ? configId : null,
   );
   const createMutation = useCreateStrategyConfig();
   const updateMutation = useUpdateStrategyConfig();
@@ -71,29 +71,29 @@ export function useConfigEditorForm({
 
   const [formState, setFormState] =
     useState<ConfigEditorFormState>(INITIAL_FORM_STATE);
-  const [activeJsonTab, setActiveJsonTab] = useState<JsonTab>("params");
+  const [activeJsonTab, setActiveJsonTab] = useState<JsonTab>('params');
 
   const seedConfig = useMemo(
     () => getSeedConfig(mode, existingConfig, duplicateFrom),
-    [duplicateFrom, existingConfig, mode]
+    [duplicateFrom, existingConfig, mode],
   );
 
   useEffect(() => {
     setFormState(getSeededFormState(mode, seedConfig));
   }, [mode, seedConfig]);
 
-  const isBenchmark = mode === "edit" && existingConfig?.is_benchmark === true;
+  const isBenchmark = mode === 'edit' && existingConfig?.is_benchmark === true;
   const paramsValidation = useMemo(
     () => tryParseJson<BacktestCompareParamsV3>(formState.paramsJson),
-    [formState.paramsJson]
+    [formState.paramsJson],
   );
   const compositionValidation = useMemo(
     () => tryParseJson<StrategyComposition>(formState.compositionJson),
-    [formState.compositionJson]
+    [formState.compositionJson],
   );
 
   const configIdValid =
-    mode === "edit" || CONFIG_ID_PATTERN.test(formState.configIdInput);
+    mode === 'edit' || CONFIG_ID_PATTERN.test(formState.configIdInput);
   const formValid =
     configIdValid &&
     formState.displayName.trim().length > 0 &&
@@ -106,7 +106,7 @@ export function useConfigEditorForm({
     formState,
     paramsValidation,
     compositionValidation,
-    setFormState
+    setFormState,
   );
 
   const handleSave = useCallback(async (): Promise<void> => {
@@ -121,18 +121,18 @@ export function useConfigEditorForm({
     const sharedFields = buildFieldsPayload(
       formState,
       paramsValidation.parsed,
-      compositionValidation.parsed
+      compositionValidation.parsed,
     );
 
     try {
-      if (mode === "create") {
+      if (mode === 'create') {
         await createMutation.mutateAsync({
           config_id: formState.configIdInput,
           ...sharedFields,
         });
         showToast({
-          type: "success",
-          title: "Configuration created",
+          type: 'success',
+          title: 'Configuration created',
           message: `"${sharedFields.display_name}" has been created.`,
         });
       } else {
@@ -141,8 +141,8 @@ export function useConfigEditorForm({
           body: sharedFields,
         });
         showToast({
-          type: "success",
-          title: "Configuration updated",
+          type: 'success',
+          title: 'Configuration updated',
           message: `"${sharedFields.display_name}" has been saved.`,
         });
       }
@@ -150,9 +150,9 @@ export function useConfigEditorForm({
       onSaved();
     } catch (error) {
       showToast({
-        type: "error",
+        type: 'error',
         title: getMutationErrorTitle(mode),
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }, [

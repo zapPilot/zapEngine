@@ -1,8 +1,8 @@
-import { type ServiceResult, wrapServiceCall } from "@/lib/errors";
+import { type ServiceResult, wrapServiceCall } from '@/lib/errors';
 import {
   transformWalletData,
   type WalletData,
-} from "@/lib/validation/walletUtils";
+} from '@/lib/validation/walletUtils';
 
 import {
   addWalletToBundle,
@@ -11,7 +11,7 @@ import {
   removeWalletFromBundle,
   updateUserEmail,
   updateWalletLabel as updateWalletLabelRequest,
-} from "./accountService";
+} from './accountService';
 
 /**
  * Load wallets for a specific user and normalise the API response.
@@ -32,7 +32,7 @@ export async function loadWallets(userId: string): Promise<WalletData[]> {
 export async function addWallet(
   userId: string,
   address: string,
-  label: string
+  label: string,
 ): Promise<ServiceResult> {
   return wrapServiceCall(async () => {
     await addWalletToBundle(userId, address, label);
@@ -44,7 +44,7 @@ export async function addWallet(
  */
 export async function removeWallet(
   userId: string,
-  walletId: string
+  walletId: string,
 ): Promise<ServiceResult> {
   return wrapServiceCall(async () => {
     await removeWalletFromBundle(userId, walletId);
@@ -57,7 +57,7 @@ export async function removeWallet(
 export async function updateManagedWalletLabel(
   userId: string,
   walletAddress: string,
-  newLabel: string
+  newLabel: string,
 ): Promise<ServiceResult> {
   return wrapServiceCall(async () => {
     await updateWalletLabelRequest(userId, walletAddress, newLabel);
@@ -69,7 +69,7 @@ export async function updateManagedWalletLabel(
  */
 export async function updateUserEmailSubscription(
   userId: string,
-  email: string
+  email: string,
 ): Promise<void> {
   await updateUserEmail(userId, email);
 }

@@ -3,8 +3,8 @@
  * Eliminates need for `as unknown as` type assertions
  */
 
-import type { MouseEvent, TouchEvent } from "react";
-import { vi } from "vitest";
+import type { MouseEvent, TouchEvent } from 'react';
+import { vi } from 'vitest';
 
 /**
  * Mock SVG element with proper getBoundingClientRect
@@ -15,7 +15,7 @@ export function createMockSVGElement(rect: {
   width: number;
   height: number;
 }): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 
   // Override getBoundingClientRect with typed return
   svg.getBoundingClientRect = vi.fn(
@@ -29,7 +29,7 @@ export function createMockSVGElement(rect: {
       x: rect.left,
       y: rect.top,
       toJSON: () => ({}),
-    })
+    }),
   );
 
   return svg;
@@ -42,9 +42,9 @@ export function createMouseEvent(
   clientX: number,
   clientY: number,
   currentTarget: SVGSVGElement,
-  eventInit?: Partial<MouseEvent<SVGSVGElement>>
+  eventInit?: Partial<MouseEvent<SVGSVGElement>>,
 ): MouseEvent<SVGSVGElement> {
-  const nativeEvent = new window.MouseEvent("mousemove", { clientX, clientY });
+  const nativeEvent = new window.MouseEvent('mousemove', { clientX, clientY });
 
   return {
     clientX,
@@ -58,7 +58,7 @@ export function createMouseEvent(
     eventPhase: Event.AT_TARGET,
     isTrusted: true,
     timeStamp: Date.now(),
-    type: "mousemove",
+    type: 'mousemove',
     altKey: false,
     button: 0,
     buttons: 0,
@@ -92,7 +92,7 @@ export function createTouchEvent(
   clientX: number,
   clientY: number,
   currentTarget: SVGSVGElement,
-  eventInit?: Partial<TouchEvent<SVGSVGElement>>
+  eventInit?: Partial<TouchEvent<SVGSVGElement>>,
 ): TouchEvent<SVGSVGElement> {
   const touch: Touch = {
     clientX,
@@ -109,7 +109,7 @@ export function createTouchEvent(
     target: currentTarget,
   };
 
-  const nativeTouchEvent = new window.TouchEvent("touchmove", {
+  const nativeTouchEvent = new window.TouchEvent('touchmove', {
     touches: [touch],
     changedTouches: [touch],
     targetTouches: [touch],
@@ -130,7 +130,7 @@ export function createTouchEvent(
     eventPhase: Event.AT_TARGET,
     isTrusted: true,
     timeStamp: Date.now(),
-    type: "touchmove",
+    type: 'touchmove',
     altKey: false,
     ctrlKey: false,
     metaKey: false,
@@ -168,11 +168,11 @@ export class SVGEventFactory {
    * Create a mouse leave event
    */
   mouseLeave(): MouseEvent<SVGSVGElement> {
-    const nativeEvent = new window.MouseEvent("mouseleave", { bubbles: false });
+    const nativeEvent = new window.MouseEvent('mouseleave', { bubbles: false });
 
     return {
       ...createMouseEvent(0, 0, this.svg),
-      type: "mouseleave",
+      type: 'mouseleave',
       nativeEvent,
     };
   }
@@ -191,8 +191,8 @@ export class SVGEventFactory {
     const event = createTouchEvent(clientX, clientY, this.svg);
     return {
       ...event,
-      type: "touchstart",
-      nativeEvent: new window.TouchEvent("touchstart", {
+      type: 'touchstart',
+      nativeEvent: new window.TouchEvent('touchstart', {
         touches: event.touches,
         changedTouches: event.changedTouches,
         targetTouches: event.targetTouches,
@@ -206,7 +206,7 @@ export class SVGEventFactory {
    * Create a touch end event
    */
   touchEnd(): TouchEvent<SVGSVGElement> {
-    const nativeEvent = new window.TouchEvent("touchend", {
+    const nativeEvent = new window.TouchEvent('touchend', {
       touches: [],
       changedTouches: [],
       targetTouches: [],
@@ -227,7 +227,7 @@ export class SVGEventFactory {
       eventPhase: Event.AT_TARGET,
       isTrusted: true,
       timeStamp: Date.now(),
-      type: "touchend",
+      type: 'touchend',
       altKey: false,
       ctrlKey: false,
       metaKey: false,
@@ -270,7 +270,7 @@ export class SVGEventFactory {
         x: rect.left,
         y: rect.top,
         toJSON: () => ({}),
-      })
+      }),
     );
   }
 }
@@ -284,7 +284,7 @@ export function createMouseMoveSequence(
   endX: number,
   endY: number,
   steps: number,
-  svg: SVGSVGElement
+  svg: SVGSVGElement,
 ): MouseEvent<SVGSVGElement>[] {
   const events: MouseEvent<SVGSVGElement>[] = [];
   const deltaX = (endX - startX) / steps;
@@ -292,7 +292,7 @@ export function createMouseMoveSequence(
 
   for (let i = 0; i <= steps; i++) {
     events.push(
-      createMouseEvent(startX + deltaX * i, startY + deltaY * i, svg)
+      createMouseEvent(startX + deltaX * i, startY + deltaY * i, svg),
     );
   }
 
@@ -308,7 +308,7 @@ export function createTouchMoveSequence(
   endX: number,
   endY: number,
   steps: number,
-  svg: SVGSVGElement
+  svg: SVGSVGElement,
 ): TouchEvent<SVGSVGElement>[] {
   const events: TouchEvent<SVGSVGElement>[] = [];
   const deltaX = (endX - startX) / steps;
@@ -316,7 +316,7 @@ export function createTouchMoveSequence(
 
   for (let i = 0; i <= steps; i++) {
     events.push(
-      createTouchEvent(startX + deltaX * i, startY + deltaY * i, svg)
+      createTouchEvent(startX + deltaX * i, startY + deltaY * i, svg),
     );
   }
 

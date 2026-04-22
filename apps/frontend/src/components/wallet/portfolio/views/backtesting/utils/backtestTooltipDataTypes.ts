@@ -3,9 +3,9 @@ import type {
   BacktestPortfolioAllocation,
   BacktestSpotAssetSymbol,
   BacktestStrategyPoint,
-} from "@/types/backtesting";
+} from '@/types/backtesting';
 
-import type { IndicatorKey } from "../components/backtestChartLegendData";
+import type { IndicatorKey } from '../components/backtestChartLegendData';
 
 export interface TooltipItem {
   name: string;

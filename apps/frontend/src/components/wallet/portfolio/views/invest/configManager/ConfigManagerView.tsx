@@ -1,14 +1,14 @@
-import { type ReactElement, useReducer } from "react";
+import { type ReactElement, useReducer } from 'react';
 
-import { Spinner } from "@/components/ui";
-import { useStrategyAdminConfigs } from "@/hooks/queries/strategyAdmin";
-import type { SavedStrategyConfig } from "@/types";
+import { Spinner } from '@/components/ui';
+import { useStrategyAdminConfigs } from '@/hooks/queries/strategyAdmin';
+import type { SavedStrategyConfig } from '@/types';
 
-import { ConfigEditorView } from "./ConfigEditorView";
-import { ConfigListView } from "./ConfigListView";
+import { ConfigEditorView } from './ConfigEditorView';
+import { ConfigListView } from './ConfigListView';
 
-type ViewMode = "list" | "editor";
-type EditorMode = "create" | "edit";
+type ViewMode = 'list' | 'editor';
+type EditorMode = 'create' | 'edit';
 
 interface NavigationState {
   viewMode: ViewMode;
@@ -18,45 +18,45 @@ interface NavigationState {
 }
 
 type NavigationAction =
-  | { type: "edit"; configId: string }
-  | { type: "create" }
-  | { type: "duplicate"; config: SavedStrategyConfig }
-  | { type: "backToList" };
+  | { type: 'edit'; configId: string }
+  | { type: 'create' }
+  | { type: 'duplicate'; config: SavedStrategyConfig }
+  | { type: 'backToList' };
 
 const initialState: NavigationState = {
-  viewMode: "list",
-  editorMode: "create",
+  viewMode: 'list',
+  editorMode: 'create',
   selectedConfigId: null,
   duplicateFrom: null,
 };
 
 function navigationReducer(
   _state: NavigationState,
-  action: NavigationAction
+  action: NavigationAction,
 ): NavigationState {
   switch (action.type) {
-    case "edit":
+    case 'edit':
       return {
-        viewMode: "editor",
-        editorMode: "edit",
+        viewMode: 'editor',
+        editorMode: 'edit',
         selectedConfigId: action.configId,
         duplicateFrom: null,
       };
-    case "create":
+    case 'create':
       return {
-        viewMode: "editor",
-        editorMode: "create",
+        viewMode: 'editor',
+        editorMode: 'create',
         selectedConfigId: null,
         duplicateFrom: null,
       };
-    case "duplicate":
+    case 'duplicate':
       return {
-        viewMode: "editor",
-        editorMode: "create",
+        viewMode: 'editor',
+        editorMode: 'create',
         selectedConfigId: null,
         duplicateFrom: action.config,
       };
-    case "backToList":
+    case 'backToList':
       return initialState;
   }
 }
@@ -84,19 +84,19 @@ export function ConfigManagerView(): ReactElement {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-8 text-center">
         <p className="text-sm text-red-400">
-          Failed to load configurations.{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
+          Failed to load configurations.{' '}
+          {error instanceof Error ? error.message : 'Unknown error'}
         </p>
       </div>
     );
   }
 
   const handleDuplicate = (config: SavedStrategyConfig) =>
-    dispatch({ type: "duplicate", config });
+    dispatch({ type: 'duplicate', config });
 
-  const handleBackToList = () => dispatch({ type: "backToList" });
+  const handleBackToList = () => dispatch({ type: 'backToList' });
 
-  if (nav.viewMode === "editor") {
+  if (nav.viewMode === 'editor') {
     return (
       <ConfigEditorView
         configId={nav.selectedConfigId}
@@ -112,9 +112,9 @@ export function ConfigManagerView(): ReactElement {
   return (
     <ConfigListView
       configs={configs ?? []}
-      onEdit={configId => dispatch({ type: "edit", configId })}
+      onEdit={(configId) => dispatch({ type: 'edit', configId })}
       onDuplicate={handleDuplicate}
-      onCreate={() => dispatch({ type: "create" })}
+      onCreate={() => dispatch({ type: 'create' })}
     />
   );
 }

@@ -21,7 +21,10 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
  * Custom render function with all necessary providers
  * Use this instead of @testing-library/react render for consistent test setup
  */
-function customRender(ui: ReactElement, options?: CustomRenderOptions): RenderResult {
+function customRender(
+  ui: ReactElement,
+  options?: CustomRenderOptions,
+): RenderResult {
   return render(ui, {
     wrapper: TestWrapper,
     ...options,

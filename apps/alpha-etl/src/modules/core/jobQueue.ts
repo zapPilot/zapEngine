@@ -1,17 +1,16 @@
-import type { PoolClient } from "pg";
-import { TIMEOUTS, getDbClient } from "../../config/database.js";
-import { ETLPipelineFactory } from "../../modules/core/pipelineFactory.js";
+import type { EtlError } from '@zapengine/types/etl';
+import type { PoolClient } from 'pg';
+
+import { getDbClient, TIMEOUTS } from '../../config/database.js';
 import {
-  type MVRefreshStats,
   mvRefresher,
-} from "../../modules/core/mvRefresh.js";
-import type { ETLJob, ETLJobResult } from "../../types/index.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
-import type { EtlError } from "@zapengine/types/etl";
+  type MVRefreshStats,
+} from '../../modules/core/mvRefresh.js';
+import { ETLPipelineFactory } from '../../modules/core/pipelineFactory.js';
+import type { ETLJob, ETLJobResult } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 import {
-  type PersistJobMetadata,
-  type PersistedJobStatus,
   buildPersistJobStatusQuery,
   createFailedMvRefreshStats,
   createPendingJob,
@@ -19,10 +18,12 @@ import {
   getPersistedErrorMessage,
   logJobCompletion,
   logPersistStatusFailure,
+  type PersistedJobStatus,
+  type PersistJobMetadata,
   resolveJobSuccess,
   shouldPersistJobStatus,
   shouldRefreshMaterializedViews,
-} from "./jobQueue.helpers.js";
+} from './jobQueue.helpers.js';
 
 export interface QueueStatus {
   total: number;
@@ -34,21 +35,21 @@ export interface QueueStatus {
 }
 
 type PipelineProcessResult = Awaited<
-  ReturnType<ETLPipelineFactory["processJob"]>
+  ReturnType<ETLPipelineFactory['processJob']>
 >;
 
 interface ProcessedJobOutcome {
   pipelineResult: PipelineProcessResult;
   etlDurationMs: number;
   totalDurationMs: number;
-  mvRefreshStats?: MVRefreshStats;
+  mvRefreshStats?: MVRefreshStats | undefined;
   jobSuccess: boolean;
 }
 
 export class ETLJobQueue {
   // Current design: in-memory queue state, so process-local jobs are lost on restart.
-  private readonly jobs: Map<string, ETLJob> = new Map();
-  private readonly results: Map<string, ETLJobResult> = new Map();
+  private readonly jobs = new Map<string, ETLJob>();
+  private readonly results = new Map<string, ETLJobResult>();
   private readonly processor: ETLPipelineFactory;
   // Current design: single worker to preserve simple FIFO processing semantics.
   private isProcessing = false;
@@ -58,16 +59,16 @@ export class ETLJobQueue {
   }
 
   async enqueue(
-    params: Pick<ETLJob, "trigger" | "sources" | "filters" | "metadata">,
+    params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>,
   ): Promise<ETLJob> {
     const jobId = this.generateJobId();
     const job = createPendingJob(jobId, params);
 
     this.jobs.set(jobId, job);
-    logger.info("Job queued", { jobId, sources: params.sources });
+    logger.info('Job queued', { jobId, sources: params.sources });
 
     // Persist job status to database (for wallet_fetch jobs only)
-    await this.persistJobStatus(jobId, "pending", params.metadata);
+    await this.persistJobStatus(jobId, 'pending', params.metadata);
 
     void this.processNext();
 
@@ -107,7 +108,7 @@ export class ETLJobQueue {
       );
       await client.query(query, params);
 
-      logger.debug("Job status persisted to database", {
+      logger.debug('Job status persisted to database', {
         jobId,
         status,
         userId: metadata.userId,
@@ -136,14 +137,14 @@ export class ETLJobQueue {
   private getPendingJob(): ETLJob | undefined {
     // Limitation: pending jobs are selected with simple FIFO semantics and no priorities.
     return Array.from(this.jobs.values()).find(
-      (job) => job.status === "pending",
+      (job) => job.status === 'pending',
     );
   }
 
   private async markJobAsProcessing(job: ETLJob): Promise<void> {
     this.isProcessing = true;
-    job.status = "processing";
-    await this.persistJobStatus(job.jobId, "processing", job.metadata);
+    job.status = 'processing';
+    await this.persistJobStatus(job.jobId, 'processing', job.metadata);
   }
 
   private async processPendingJob(job: ETLJob): Promise<void> {
@@ -161,7 +162,7 @@ export class ETLJobQueue {
   }
 
   private async executeJob(job: ETLJob): Promise<ProcessedJobOutcome> {
-    logger.info("Starting ETL job processing", {
+    logger.info('Starting ETL job processing', {
       jobId: job.jobId,
       sources: job.sources,
     });
@@ -196,18 +197,18 @@ export class ETLJobQueue {
     const shouldRefresh = shouldRefreshMaterializedViews(job, pipelineResult);
 
     if (!shouldRefresh) {
-      logger.debug("Skipping MV refresh (no records inserted)", {
+      logger.debug('Skipping MV refresh (no records inserted)', {
         jobId: job.jobId,
         success: pipelineResult.success,
         recordsInserted: pipelineResult.recordsInserted,
-        isWalletJob: job.metadata?.jobType === "wallet_fetch",
+        isWalletJob: job.metadata?.jobType === 'wallet_fetch',
       });
       return undefined;
     }
 
     if (!pipelineResult.success && pipelineResult.recordsInserted > 0) {
       logger.warn(
-        "Refreshing MVs despite ETL partial failure because records were inserted",
+        'Refreshing MVs despite ETL partial failure because records were inserted',
         {
           jobId: job.jobId,
           recordsInserted: pipelineResult.recordsInserted,
@@ -217,13 +218,13 @@ export class ETLJobQueue {
     }
 
     try {
-      logger.info("Starting MV refresh (job still processing)", {
+      logger.info('Starting MV refresh (job still processing)', {
         jobId: job.jobId,
         recordsInserted: pipelineResult.recordsInserted,
       });
 
       const mvRefreshStats = await mvRefresher.refreshAllViews(job.jobId);
-      logger.info("MV refresh completed", {
+      logger.info('MV refresh completed', {
         jobId: job.jobId,
         mvRefreshDurationMs: mvRefreshStats.totalDurationMs,
         allSucceeded: mvRefreshStats.allSucceeded,
@@ -232,7 +233,7 @@ export class ETLJobQueue {
       });
       return mvRefreshStats;
     } catch (error) {
-      logger.error("MV refresh failed - marking job as failed", {
+      logger.error('MV refresh failed - marking job as failed', {
         jobId: job.jobId,
         error: toErrorMessage(error),
       });
@@ -246,9 +247,9 @@ export class ETLJobQueue {
     job: ETLJob,
     outcome: ProcessedJobOutcome,
   ): Promise<void> {
-    const finalStatus: "completed" | "failed" = outcome.jobSuccess
-      ? "completed"
-      : "failed";
+    const finalStatus: 'completed' | 'failed' = outcome.jobSuccess
+      ? 'completed'
+      : 'failed';
     job.status = finalStatus;
 
     const jobResult = createSuccessResult(job, outcome, finalStatus);
@@ -267,17 +268,17 @@ export class ETLJobQueue {
   }
 
   private async handleJobFailure(job: ETLJob, error: unknown): Promise<void> {
-    logger.error("Job processing failed", { jobId: job.jobId, error });
+    logger.error('Job processing failed', { jobId: job.jobId, error });
 
-    job.status = "failed";
+    job.status = 'failed';
 
-    await this.persistJobStatus(job.jobId, "failed", {
+    await this.persistJobStatus(job.jobId, 'failed', {
       ...job.metadata,
       errorMessage: toErrorMessage(error),
     });
 
     const etlError: EtlError = {
-      code: "INTERNAL_ERROR",
+      code: 'INTERNAL_ERROR',
       message: toErrorMessage(error),
     };
 
@@ -285,7 +286,7 @@ export class ETLJobQueue {
       success: false,
       error: {
         ...etlError,
-        source: "system",
+        source: 'system',
         context: { jobId: job.jobId },
       },
     });
@@ -302,7 +303,7 @@ export class ETLJobQueue {
     const jobs = Array.from(this.jobs.values());
     const counts: Pick<
       QueueStatus,
-      "pending" | "processing" | "completed" | "failed"
+      'pending' | 'processing' | 'completed' | 'failed'
     > = {
       pending: 0,
       processing: 0,

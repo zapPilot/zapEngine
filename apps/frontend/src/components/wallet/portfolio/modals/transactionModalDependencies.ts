@@ -8,7 +8,7 @@ export {
   EmptyAssetsMessage,
   TokenOptionButton,
   TransactionModalContent,
-} from "./components/TransactionModalSelectors";
-export { useTransactionModalState } from "./hooks/useTransactionModalState";
-export { resolveActionLabel } from "./utils/actionLabelUtils";
-export { buildModalFormState } from "./utils/modalHelpers";
+} from './components/TransactionModalSelectors';
+export { useTransactionModalState } from './hooks/useTransactionModalState';
+export { resolveActionLabel } from './utils/actionLabelUtils';
+export { buildModalFormState } from './utils/modalHelpers';

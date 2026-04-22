@@ -1,6 +1,7 @@
-import type { EtlJobStatus, EtlError } from "@zapengine/types/etl";
-import { EtlJobStatusSchema } from "../schemas/etl.js";
-import type { ETLJob, ETLJobResult, ETLProcessResult } from "../types/index.js";
+import type { EtlError, EtlJobStatus } from '@zapengine/types/etl';
+
+import { EtlJobStatusSchema } from '../schemas/etl.js';
+import type { ETLJob, ETLJobResult, ETLProcessResult } from '../types/index.js';
 
 /** Response type for job status endpoint */
 export interface JobStatusApiResponse {
@@ -20,10 +21,10 @@ function buildFailedResultError(
 ): EtlError {
   return {
     code: result.error.code as
-      | "API_ERROR"
-      | "VALIDATION_ERROR"
-      | "INTERNAL_ERROR"
-      | "RATE_LIMIT_EXCEEDED",
+      | 'API_ERROR'
+      | 'VALIDATION_ERROR'
+      | 'INTERNAL_ERROR'
+      | 'RATE_LIMIT_EXCEEDED',
     message: result.error.message,
   };
 }
@@ -44,19 +45,19 @@ export function buildJobStatusResponse(
   const failedResult = result?.success === false;
   const response: EtlJobStatus = {
     jobId: job.jobId,
-    status: failedResult ? "failed" : job.status,
+    status: failedResult ? 'failed' : job.status,
     trigger: job.trigger,
     createdAt: job.createdAt.toISOString(),
   };
 
-  if (result?.success && job.status === "completed") {
+  if (result?.success && job.status === 'completed') {
     response.recordsProcessed = result.data.recordsProcessed;
     response.recordsInserted = result.data.recordsInserted;
     response.duration = result.data.duration;
     response.completedAt = result.data.completedAt.toISOString();
   }
 
-  if (response.status === "failed" && result && !result.success) {
+  if (response.status === 'failed' && result && !result.success) {
     response.error = buildFailedResultError(result);
   }
 
@@ -81,15 +82,15 @@ export function determineJobStatusCode(
   response: EtlJobStatus,
   result?: ETLJobResult,
 ): number {
-  if (job.status === "pending" || job.status === "processing") {
+  if (job.status === 'pending' || job.status === 'processing') {
     return 202;
   }
 
-  if (response.status === "failed") {
+  if (response.status === 'failed') {
     return 500;
   }
 
-  if (job.status === "completed" && result?.success) {
+  if (job.status === 'completed' && result?.success) {
     if (
       hasPartialSourceFailures(result) ||
       result.data.recordsProcessed > result.data.recordsInserted

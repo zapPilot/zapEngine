@@ -5,7 +5,7 @@
  * Extracted to eliminate duplication across adapters and hooks.
  */
 
-import type { LandingPageResponse } from "@/services";
+import type { LandingPageResponse } from '@/services';
 
 /**
  * ROI change data structure
@@ -24,7 +24,7 @@ export interface ROIChanges {
  * @returns ROI changes for 7-day and 30-day periods
  */
 export function extractROIChanges(
-  landingData: LandingPageResponse
+  landingData: LandingPageResponse,
 ): ROIChanges {
   const roiData = landingData.portfolio_roi;
 
@@ -34,8 +34,8 @@ export function extractROIChanges(
 
   if (roiData.windows) {
     return {
-      change7d: roiData.windows["7d"]?.value ?? 0,
-      change30d: roiData.windows["30d"]?.value ?? 0,
+      change7d: roiData.windows['7d']?.value ?? 0,
+      change30d: roiData.windows['30d']?.value ?? 0,
     };
   }
 

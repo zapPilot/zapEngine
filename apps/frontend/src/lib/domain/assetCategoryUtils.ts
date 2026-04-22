@@ -1,21 +1,21 @@
 import {
   type AllocationCategoryKey,
   getAllocationCategoryForToken,
-} from "@/lib/domain/allocationCategories";
+} from '@/lib/domain/allocationCategories';
 
 /**
  * Asset category keys matching portfolio.ts aliases.
  */
-export type AssetCategoryKey = "btc" | "eth" | "stablecoin" | "altcoin";
+export type AssetCategoryKey = 'btc' | 'eth' | 'stablecoin' | 'altcoin';
 
 const ALLOCATION_TO_ASSET_CATEGORY: Record<
   AllocationCategoryKey,
   AssetCategoryKey
 > = {
-  btc: "btc",
-  eth: "eth",
-  stable: "stablecoin",
-  alt: "altcoin",
+  btc: 'btc',
+  eth: 'eth',
+  stable: 'stablecoin',
+  alt: 'altcoin',
 };
 
 // Unused type removed: CategoryFilter

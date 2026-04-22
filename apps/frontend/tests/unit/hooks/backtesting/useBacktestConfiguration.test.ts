@@ -1,19 +1,19 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useBacktestConfiguration } from "@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration";
-import { useBacktestMutation } from "@/hooks/mutations/useBacktestMutation";
-import { getStrategyConfigs } from "@/services/strategyService";
+import { useBacktestConfiguration } from '@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration';
+import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
+import { getStrategyConfigs } from '@/services/strategyService';
 
-vi.mock("@/services/strategyService", () => ({
+vi.mock('@/services/strategyService', () => ({
   getStrategyConfigs: vi.fn(),
 }));
 
-vi.mock("@/hooks/mutations/useBacktestMutation", () => ({
+vi.mock('@/hooks/mutations/useBacktestMutation', () => ({
   useBacktestMutation: vi.fn(),
 }));
 
-describe("useBacktestConfiguration regressions", () => {
+describe('useBacktestConfiguration regressions', () => {
   const mockMutate = vi.fn();
 
   beforeEach(() => {
@@ -26,14 +26,14 @@ describe("useBacktestConfiguration regressions", () => {
     } as any);
   });
 
-  it("waits for defaults before the initial compare run", async () => {
+  it('waits for defaults before the initial compare run', async () => {
     let resolvePresets: ((value: any) => void) | undefined;
 
     vi.mocked(getStrategyConfigs).mockImplementation(
       () =>
-        new Promise(resolve => {
+        new Promise((resolve) => {
           resolvePresets = resolve;
-        })
+        }),
     );
 
     renderHook(() => useBacktestConfiguration());
@@ -44,10 +44,10 @@ describe("useBacktestConfiguration regressions", () => {
       strategies: [],
       presets: [
         {
-          config_id: "eth_btc_rotation_default",
-          display_name: "ETH/BTC RS Rotation",
-          description: "Curated rotation preset",
-          strategy_id: "eth_btc_rotation",
+          config_id: 'eth_btc_rotation_default',
+          display_name: 'ETH/BTC RS Rotation',
+          description: 'Curated rotation preset',
+          strategy_id: 'eth_btc_rotation',
           params: { pacing: { k: 5, r_max: 1 } },
           is_benchmark: false,
           is_default: true,
@@ -64,10 +64,10 @@ describe("useBacktestConfiguration regressions", () => {
     });
   });
 
-  it("keeps manual editor changes intact when late defaults arrive", async () => {
+  it('keeps manual editor changes intact when late defaults arrive', async () => {
     vi.mocked(getStrategyConfigs).mockImplementation(
       () =>
-        new Promise(resolve => {
+        new Promise((resolve) => {
           setTimeout(
             () =>
               resolve({
@@ -78,9 +78,9 @@ describe("useBacktestConfiguration regressions", () => {
                   total_capital: 10000,
                 },
               }),
-            50
+            50,
           );
-        })
+        }),
     );
 
     const { result } = renderHook(() => useBacktestConfiguration());

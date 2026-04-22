@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Creates a typed validator function from a Zod schema.
@@ -13,7 +13,7 @@ import { z } from "zod";
  * ```
  */
 export function createValidator<T>(
-  schema: z.ZodSchema<T>
+  schema: z.ZodSchema<T>,
 ): (data: unknown) => T {
   return function validate(data: unknown): T {
     return schema.parse(data);

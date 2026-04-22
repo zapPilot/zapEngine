@@ -1,4 +1,4 @@
-import { memo, type ReactElement, useCallback, useState } from "react";
+import { memo, type ReactElement, useCallback, useState } from 'react';
 import {
   CartesianGrid,
   ComposedChart,
@@ -6,30 +6,30 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import { BaseCard } from "@/components/ui/BaseCard";
+import { BaseCard } from '@/components/ui/BaseCard';
 import {
   formatChartAxisDate,
   formatCurrencyAxis,
   formatSentiment,
-} from "@/utils";
+} from '@/utils';
 
-import { getPrimaryStrategyId } from "../utils/chartHelpers";
+import { getPrimaryStrategyId } from '../utils/chartHelpers';
 import {
   AXIS_DEFAULTS,
   axisTick,
   buildBacktestTooltipProps,
-} from "./backtestChartHelpers";
+} from './backtestChartHelpers';
 import {
   ChartDefs,
   renderIndicatorLayers,
   renderSignalScatterLayers,
   StrategyArea,
-} from "./BacktestChartLayers";
-import { BacktestChartLegend } from "./BacktestChartLegend";
-import type { IndicatorKey } from "./backtestChartLegendData";
-import { BacktestTooltip, type BacktestTooltipProps } from "./BacktestTooltip";
+} from './BacktestChartLayers';
+import { BacktestChartLegend } from './BacktestChartLegend';
+import type { IndicatorKey } from './backtestChartLegendData';
+import { BacktestTooltip, type BacktestTooltipProps } from './BacktestTooltip';
 
 export interface BacktestChartProps {
   chartData: Record<string, unknown>[];
@@ -43,17 +43,17 @@ export interface BacktestChartProps {
 export const BacktestChart = memo(function BacktestChart({
   actualDays,
   chartData,
-  chartIdPrefix = "default",
+  chartIdPrefix = 'default',
   sortedStrategyIds,
   yAxisDomain,
 }: BacktestChartProps): ReactElement {
   const primarySeriesId = getPrimaryStrategyId(sortedStrategyIds);
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
-    () => new Set()
+    () => new Set(),
   );
 
   const handleToggleIndicator = useCallback((key: IndicatorKey) => {
-    setActiveIndicators(previous => {
+    setActiveIndicators((previous) => {
       const next = new Set(previous);
       if (next.has(key)) {
         next.delete(key);
@@ -66,8 +66,8 @@ export const BacktestChart = memo(function BacktestChart({
   }, []);
 
   const showPriceAxis =
-    activeIndicators.has("btcPrice") || activeIndicators.has("dma200");
-  const showSentimentAxis = activeIndicators.has("sentiment");
+    activeIndicators.has('btcPrice') || activeIndicators.has('dma200');
+  const showSentimentAxis = activeIndicators.has('sentiment');
 
   return (
     <BaseCard
@@ -101,7 +101,7 @@ export const BacktestChart = memo(function BacktestChart({
 
             <XAxis
               dataKey="date"
-              tick={axisTick("#6b7280")}
+              tick={axisTick('#6b7280')}
               {...AXIS_DEFAULTS}
               minTickGap={30}
               tickFormatter={formatChartAxisDate}
@@ -109,7 +109,7 @@ export const BacktestChart = memo(function BacktestChart({
 
             <YAxis
               domain={yAxisDomain}
-              tick={axisTick("#6b7280")}
+              tick={axisTick('#6b7280')}
               {...AXIS_DEFAULTS}
               tickFormatter={formatCurrencyAxis}
             />
@@ -118,15 +118,15 @@ export const BacktestChart = memo(function BacktestChart({
               <YAxis
                 yAxisId="priceRight"
                 orientation="right"
-                tick={axisTick("#f59e0b")}
+                tick={axisTick('#f59e0b')}
                 {...AXIS_DEFAULTS}
                 width={64}
                 tickFormatter={formatCurrencyAxis}
                 label={{
-                  value: "BTC / DMA 200",
+                  value: 'BTC / DMA 200',
                   angle: 90,
-                  position: "insideRight",
-                  style: { fontSize: 10, fill: "#f59e0b" },
+                  position: 'insideRight',
+                  style: { fontSize: 10, fill: '#f59e0b' },
                 }}
               />
             )}
@@ -136,14 +136,14 @@ export const BacktestChart = memo(function BacktestChart({
                 yAxisId="sentimentRight"
                 orientation="right"
                 domain={[0, 100]}
-                tick={axisTick("#a855f7")}
+                tick={axisTick('#a855f7')}
                 {...AXIS_DEFAULTS}
                 width={48}
                 label={{
-                  value: "Sentiment",
+                  value: 'Sentiment',
                   angle: 90,
-                  position: "insideRight",
-                  style: { fontSize: 10, fill: "#a855f7" },
+                  position: 'insideRight',
+                  style: { fontSize: 10, fill: '#a855f7' },
                 }}
                 tickFormatter={formatSentiment}
               />

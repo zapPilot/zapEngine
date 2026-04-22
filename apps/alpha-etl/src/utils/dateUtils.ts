@@ -77,7 +77,7 @@ export function calculateMissingDates(
  * // Returns: '2024-12-25'
  */
 export function formatDateToYYYYMMDD(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return date.toISOString().slice(0, 10);
 }
 
 export interface SnapshotTimeContext {

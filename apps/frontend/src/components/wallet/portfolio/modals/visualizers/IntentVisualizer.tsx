@@ -1,7 +1,7 @@
-import { Check } from "lucide-react";
-import { type ReactElement, useEffect, useState } from "react";
+import { Check } from 'lucide-react';
+import { type ReactElement, useEffect, useState } from 'react';
 
-import { getProtocolLogo } from "../utils/assetHelpers";
+import { getProtocolLogo } from '../utils/assetHelpers';
 
 interface VisualizerLane {
   id: string;
@@ -15,26 +15,26 @@ interface IntentVisualizerProps {
 }
 
 const DEFAULT_LANES: VisualizerLane[] = [
-  { id: "hyperliquid", name: "Hyperliquid", est: "2.1s" },
-  { id: "gmx-v2", name: "GMX V2", est: "~3.5s" },
-  { id: "morpho", name: "Morpho", est: "1.8s" },
+  { id: 'hyperliquid', name: 'Hyperliquid', est: '2.1s' },
+  { id: 'gmx-v2', name: 'GMX V2', est: '~3.5s' },
+  { id: 'morpho', name: 'Morpho', est: '1.8s' },
 ];
 
-const DEFAULT_STEPS = ["Approve", "Swap", "Deposit"];
+const DEFAULT_STEPS = ['Approve', 'Swap', 'Deposit'];
 
 function getStepStatusClassName(
   isStepComplete: boolean,
-  isStepActive: boolean
+  isStepActive: boolean,
 ): string {
   if (isStepComplete) {
-    return "bg-green-500 border-green-500";
+    return 'bg-green-500 border-green-500';
   }
 
   if (isStepActive) {
-    return "bg-gray-900 border-green-500 animate-pulse";
+    return 'bg-gray-900 border-green-500 animate-pulse';
   }
 
-  return "bg-gray-950 border-gray-800";
+  return 'bg-gray-950 border-gray-800';
 }
 
 export function IntentVisualizer({
@@ -47,7 +47,7 @@ export function IntentVisualizer({
     // Reset state on mount or when props change
     const initialProgress = lanes.reduce(
       (acc, lane) => ({ ...acc, [lane.id]: 0 }),
-      {}
+      {},
     );
     setLaneProgress(initialProgress);
 
@@ -58,7 +58,7 @@ export function IntentVisualizer({
       const speed = Math.random() * 600 + 400;
 
       const timer = setInterval(() => {
-        setLaneProgress(prev => {
+        setLaneProgress((prev) => {
           const current = prev[lane.id] ?? 0;
           if (current >= steps.length) return prev;
           return { ...prev, [lane.id]: current + 1 };
@@ -76,12 +76,12 @@ export function IntentVisualizer({
 
   return (
     <div className="w-full py-4 space-y-3">
-      {lanes.map(lane => {
+      {lanes.map((lane) => {
         const currentStepIndex = laneProgress[lane.id] ?? 0;
         const isComplete = currentStepIndex >= steps.length;
         const progressPercent = Math.min(
           (currentStepIndex / steps.length) * 100,
-          100
+          100,
         );
 
         return (
@@ -137,12 +137,12 @@ export function IntentVisualizer({
                                         w-3 h-3 rounded-full border-2 transition-colors duration-300
                                         ${getStepStatusClassName(
                                           isStepComplete,
-                                          isStepActive
+                                          isStepActive,
                                         )}
                                     `}
                     ></div>
                     <span
-                      className={`text-[9px] font-bold uppercase tracking-wider ${isComplete || isStepComplete || isStepActive ? "text-gray-300" : "text-gray-700"}`}
+                      className={`text-[9px] font-bold uppercase tracking-wider ${isComplete || isStepComplete || isStepActive ? 'text-gray-300' : 'text-gray-700'}`}
                     >
                       {label}
                     </span>
@@ -153,7 +153,7 @@ export function IntentVisualizer({
 
             {/* EST Time */}
             <div className="text-xs font-mono text-gray-500 w-12 text-right">
-              {isComplete ? "DONE" : lane.est}
+              {isComplete ? 'DONE' : lane.est}
             </div>
           </div>
         );

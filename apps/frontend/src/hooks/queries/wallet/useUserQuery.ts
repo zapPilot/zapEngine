@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { queryKeys } from "@/lib/state/queryClient";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import type { UserProfileResponse } from "@/schemas/api/accountSchemas";
-import { connectWallet, getUserProfile } from "@/services";
+import { queryKeys } from '@/lib/state/queryClient';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import type { UserProfileResponse } from '@/schemas/api/accountSchemas';
+import { connectWallet, getUserProfile } from '@/services';
 
-import { createQueryConfig } from "../queryDefaults";
+import { createQueryConfig } from '../queryDefaults';
 
 // Removed ApiBundleResponse in favor of account API wallets
 
@@ -27,7 +27,7 @@ export interface UserInfo {
 
 const baseUserQueryConfig = createQueryConfig({
   retryConfig: {
-    skipErrorMessages: ["USER_NOT_FOUND"],
+    skipErrorMessages: ['USER_NOT_FOUND'],
   },
 });
 
@@ -47,15 +47,15 @@ function buildUserInfo({
   etlJobId,
 }: BuildUserInfoInput): UserInfo {
   const wallets = profileData.wallets || [];
-  const userEmail = profileData.user?.email || "";
+  const userEmail = profileData.user?.email || '';
   let bundleWallets: string[] = [];
   if (wallets.length > 0) {
-    bundleWallets = wallets.map(w => w.wallet);
+    bundleWallets = wallets.map((w) => w.wallet);
   } else if (fallbackWallet) {
     bundleWallets = [fallbackWallet];
   }
 
-  const additionalWallets = wallets.map(w => ({
+  const additionalWallets = wallets.map((w) => ({
     wallet_address: w.wallet,
     label: w.label ?? null,
     created_at: w.created_at,
@@ -85,7 +85,7 @@ function buildUserInfo({
 function buildUserQuery(
   key: readonly unknown[],
   identifier: string | null,
-  fetchUser: () => Promise<UserInfo>
+  fetchUser: () => Promise<UserInfo>,
 ) {
   return {
     ...baseUserQueryConfig,
@@ -99,10 +99,10 @@ function buildUserQuery(
 export function useUserByWallet(walletAddress: string | null) {
   return useQuery(
     buildUserQuery(
-      queryKeys.user.byWallet(walletAddress || ""),
+      queryKeys.user.byWallet(walletAddress || ''),
       walletAddress,
       async () => {
-        if (!walletAddress) throw new Error("No wallet address provided");
+        if (!walletAddress) throw new Error('No wallet address provided');
 
         const connectResponse = await connectWallet(walletAddress);
         const {
@@ -120,8 +120,8 @@ export function useUserByWallet(walletAddress: string | null) {
           isNewUser,
           etlJobId: etl_job?.job_id ?? null,
         });
-      }
-    )
+      },
+    ),
   );
 }
 
@@ -150,12 +150,12 @@ export function useCurrentUser() {
  */
 export function useUserById(userId: string | null) {
   return useQuery(
-    buildUserQuery(queryKeys.user.byId(userId || ""), userId, async () => {
-      if (!userId) throw new Error("No user ID provided");
+    buildUserQuery(queryKeys.user.byId(userId || ''), userId, async () => {
+      if (!userId) throw new Error('No user ID provided');
 
       const profileData: UserProfileResponse = await getUserProfile(userId);
 
       return buildUserInfo({ userId, profileData });
-    })
+    }),
   );
 }

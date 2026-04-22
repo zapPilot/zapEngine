@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-import { resolveActionLabel } from "@/components/wallet/portfolio/modals/utils/actionLabelUtils";
-import { WALLET_LABELS } from "@/constants/wallet";
+import { resolveActionLabel } from '@/components/wallet/portfolio/modals/utils/actionLabelUtils';
+import { WALLET_LABELS } from '@/constants/wallet';
 
 interface ActionLabelInput {
   isConnected: boolean;
@@ -13,65 +13,65 @@ interface ActionLabelInput {
 }
 
 function createActionLabelInput(
-  overrides: Partial<ActionLabelInput> = {}
+  overrides: Partial<ActionLabelInput> = {},
 ): ActionLabelInput {
   return {
     isConnected: true,
     isReady: true,
-    readyLabel: "Execute",
-    notReadyLabel: "Not Ready",
+    readyLabel: 'Execute',
+    notReadyLabel: 'Not Ready',
     hasSelection: true,
     ...overrides,
   };
 }
 
-describe("resolveActionLabel", () => {
+describe('resolveActionLabel', () => {
   it("returns 'Connect Wallet' when not connected", () => {
     const result = resolveActionLabel(
-      createActionLabelInput({ isConnected: false })
+      createActionLabelInput({ isConnected: false }),
     );
 
     expect(result).toBe(WALLET_LABELS.CONNECT);
   });
 
-  it("returns selectionLabel when connected but no selection (hasSelection=false)", () => {
+  it('returns selectionLabel when connected but no selection (hasSelection=false)', () => {
     const result = resolveActionLabel(
       createActionLabelInput({
         hasSelection: false,
-        selectionLabel: "Select an option",
-      })
+        selectionLabel: 'Select an option',
+      }),
     );
 
-    expect(result).toBe("Select an option");
+    expect(result).toBe('Select an option');
   });
 
-  it("returns notReadyLabel when connected with selection but not ready", () => {
+  it('returns notReadyLabel when connected with selection but not ready', () => {
     const result = resolveActionLabel(
-      createActionLabelInput({ isReady: false })
+      createActionLabelInput({ isReady: false }),
     );
 
-    expect(result).toBe("Not Ready");
+    expect(result).toBe('Not Ready');
   });
 
-  it("returns readyLabel when connected, has selection, and is ready", () => {
+  it('returns readyLabel when connected, has selection, and is ready', () => {
     const result = resolveActionLabel(createActionLabelInput());
 
-    expect(result).toBe("Execute");
+    expect(result).toBe('Execute');
   });
 
-  it("defaults hasSelection to true when not provided", () => {
+  it('defaults hasSelection to true when not provided', () => {
     const result = resolveActionLabel(
-      createActionLabelInput({ hasSelection: undefined })
+      createActionLabelInput({ hasSelection: undefined }),
     );
 
-    expect(result).toBe("Execute");
+    expect(result).toBe('Execute');
   });
 
-  it("defaults selectionLabel to notReadyLabel when not provided and hasSelection=false", () => {
+  it('defaults selectionLabel to notReadyLabel when not provided and hasSelection=false', () => {
     const result = resolveActionLabel(
-      createActionLabelInput({ hasSelection: false })
+      createActionLabelInput({ hasSelection: false }),
     );
 
-    expect(result).toBe("Not Ready");
+    expect(result).toBe('Not Ready');
   });
 });

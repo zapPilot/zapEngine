@@ -4,14 +4,14 @@
  * Fetches and caches market sentiment data with automatic refetching.
  * Extracted from sentimentService.ts to maintain service layer purity.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
 import {
   createQueryConfig,
   logQueryError,
-} from "@/hooks/queries/queryDefaults";
-import { queryKeys } from "@/lib/state/queryClient";
-import { fetchMarketSentiment } from "@/services";
+} from '@/hooks/queries/queryDefaults';
+import { queryKeys } from '@/lib/state/queryClient';
+import { fetchMarketSentiment } from '@/services';
 
 const SENTIMENT_CACHE_MS = 10 * 60 * 1000; // 10 minutes (matches backend cache)
 
@@ -28,7 +28,7 @@ export function useSentimentData() {
       try {
         return await fetchMarketSentiment();
       } catch (error) {
-        logQueryError("Failed to fetch market sentiment", error);
+        logQueryError('Failed to fetch market sentiment', error);
         throw error;
       }
     },

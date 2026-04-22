@@ -89,7 +89,9 @@ describe('TokenPair', () => {
     });
 
     it('should apply custom className to container', () => {
-      const { container } = render(<TokenPair tokens={['btc', 'eth']} className="custom-class" />);
+      const { container } = render(
+        <TokenPair tokens={['btc', 'eth']} className="custom-class" />,
+      );
 
       const wrapper = container.firstChild;
       expect(wrapper).toHaveClass('custom-class');
@@ -106,7 +108,9 @@ describe('TokenPair', () => {
     });
 
     it('should use aggressive overlap (-space-x-2) when overlap prop is true', () => {
-      const { container } = render(<TokenPair tokens={['btc', 'eth']} overlap />);
+      const { container } = render(
+        <TokenPair tokens={['btc', 'eth']} overlap />,
+      );
 
       const wrapper = container.firstChild;
       expect(wrapper).toHaveClass('-space-x-2');
@@ -114,7 +118,9 @@ describe('TokenPair', () => {
     });
 
     it('should use standard overlap when overlap prop is false', () => {
-      const { container } = render(<TokenPair tokens={['btc', 'eth']} overlap={false} />);
+      const { container } = render(
+        <TokenPair tokens={['btc', 'eth']} overlap={false} />,
+      );
 
       const wrapper = container.firstChild;
       expect(wrapper).toHaveClass('-space-x-1');

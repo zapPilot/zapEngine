@@ -1,5 +1,5 @@
-import type { ModalContentProps } from "./types";
+import type { ModalContentProps } from './types';
 
-export function ModalContent({ children, className = "" }: ModalContentProps) {
+export function ModalContent({ children, className = '' }: ModalContentProps) {
   return <div className={`space-y-6 ${className}`}>{children}</div>;
 }

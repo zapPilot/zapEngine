@@ -19,9 +19,9 @@
  * ```
  */
 
-import { vi } from "vitest";
+import { vi } from 'vitest';
 
-import type { ConnectWalletResponse } from "@/schemas/api/accountSchemas";
+import type { ConnectWalletResponse } from '@/schemas/api/accountSchemas';
 
 import {
   ETL_STATUS_COMPLETED,
@@ -33,17 +33,17 @@ import {
   NEW_USER_RESPONSE,
   VALIDATION_ERROR,
   WALLET_CONFLICT_ERROR,
-} from "../fixtures/mockEtlData";
+} from '../fixtures/mockEtlData';
 
 /**
  * ETL job status values used in the state machine.
  */
-type EtlStatus = "pending" | "processing" | "completed" | "failed" | "idle";
+type EtlStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'idle';
 
 /**
  * Error types that can occur during wallet connection.
  */
-type ErrorType = "validation" | "connection" | "conflict" | "timeout";
+type ErrorType = 'validation' | 'connection' | 'conflict' | 'timeout';
 
 /**
  * Creates a mock function that returns progressive ETL statuses.
@@ -81,7 +81,7 @@ export function createProgressiveEtlMock(statusSequence: EtlStatus[]) {
       processing: ETL_STATUS_PROCESSING,
       completed: ETL_STATUS_COMPLETED,
       failed: ETL_STATUS_FAILED,
-      idle: { ...ETL_STATUS_PENDING, status: "idle" as const, progress: 0 },
+      idle: { ...ETL_STATUS_PENDING, status: 'idle' as const, progress: 0 },
     };
 
     return Promise.resolve(statusData[status]);
@@ -135,35 +135,35 @@ interface ConnectWalletMockOptions {
  * ```
  */
 export function createConnectWalletMock(
-  options: ConnectWalletMockOptions
+  options: ConnectWalletMockOptions,
 ): ReturnType<typeof vi.fn<[], Promise<ConnectWalletResponse>>> {
   const {
     isNewUser,
     hasEtlJob,
     shouldError = false,
-    errorType = "validation",
+    errorType = 'validation',
     userId,
     jobId,
   } = options;
 
   if (shouldError) {
     return vi.fn(() => {
-      const error = new Error("Wallet connection failed");
+      const error = new Error('Wallet connection failed');
 
       switch (errorType) {
-        case "validation":
+        case 'validation':
           error.message = VALIDATION_ERROR.message;
           (error as any).status = VALIDATION_ERROR.status;
           break;
-        case "conflict":
+        case 'conflict':
           error.message = WALLET_CONFLICT_ERROR.message;
           (error as any).status = WALLET_CONFLICT_ERROR.status;
           break;
-        case "timeout":
-          error.message = "Request timeout";
-          error.name = "TimeoutError";
+        case 'timeout':
+          error.message = 'Request timeout';
+          error.name = 'TimeoutError';
           break;
-        case "connection":
+        case 'connection':
         default:
           error.message = NETWORK_ERROR.message;
           (error as any).status = NETWORK_ERROR.status;
@@ -184,9 +184,9 @@ export function createConnectWalletMock(
     // Add ETL job if requested and user is new
     if (isNewUser && hasEtlJob) {
       response.etl_job = {
-        job_id: jobId || "test-etl-job-123",
-        status: "pending",
-        message: "ETL job queued",
+        job_id: jobId || 'test-etl-job-123',
+        status: 'pending',
+        message: 'ETL job queued',
       };
     }
 
@@ -226,7 +226,7 @@ export const POLLING_INTERVAL_MS = 3000;
  */
 export async function advancePollingCycle(
   times = 1,
-  interval = POLLING_INTERVAL_MS
+  interval = POLLING_INTERVAL_MS,
 ): Promise<void> {
   for (let i = 0; i < times; i++) {
     await vi.advanceTimersByTimeAsync(interval);
@@ -263,7 +263,7 @@ export function createEtlJobStatusMock(statuses: EtlStatus[]) {
       processing: ETL_STATUS_PROCESSING,
       completed: ETL_STATUS_COMPLETED,
       failed: ETL_STATUS_FAILED,
-      idle: { ...ETL_STATUS_PENDING, status: "idle" as const },
+      idle: { ...ETL_STATUS_PENDING, status: 'idle' as const },
     };
 
     return Promise.resolve({
@@ -291,10 +291,10 @@ export function createEtlJobStatusMock(statuses: EtlStatus[]) {
  * ```
  */
 export function resetEtlMocks(
-  mocks: Record<string, ReturnType<typeof vi.fn>>
+  mocks: Record<string, ReturnType<typeof vi.fn>>,
 ): void {
   for (const mock of Object.values(mocks)) {
-    if (mock && typeof mock.mockReset === "function") {
+    if (mock && typeof mock.mockReset === 'function') {
       mock.mockReset();
     }
   }
@@ -365,5 +365,5 @@ export function createMockToast() {
  * ```
  */
 export async function flushPromises(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 0));
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }

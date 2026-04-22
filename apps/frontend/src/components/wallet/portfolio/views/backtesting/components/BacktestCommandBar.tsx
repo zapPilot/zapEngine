@@ -1,8 +1,8 @@
 import {
   TerminalDropdown,
   type TerminalDropdownOption,
-} from "./TerminalDropdown";
-import { phosphorGlowStyle } from "./terminalStyles";
+} from './TerminalDropdown';
+import { phosphorGlowStyle } from './terminalStyles';
 
 export interface BacktestCommandBarProps {
   /** Current days value for the input */
@@ -103,7 +103,7 @@ export function BacktestCommandBar({
         className="ml-auto border border-emerald-400/30 text-emerald-400 px-3 py-1 rounded hover:bg-emerald-400/10 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         style={phosphorGlowStyle}
       >
-        {isPending ? "[...]" : "[RUN]"}
+        {isPending ? '[...]' : '[RUN]'}
       </button>
     </div>
   );

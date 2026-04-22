@@ -1,6 +1,6 @@
-import type { JSX } from "react";
+import type { JSX } from 'react';
 
-import { type Timeframe, TIMEFRAMES } from "./marketDashboardConstants";
+import { type Timeframe, TIMEFRAMES } from './marketDashboardConstants';
 
 interface TimeframePickerProps {
   value: Timeframe;
@@ -27,16 +27,16 @@ export function TimeframePicker({
   value,
   onChange,
   testIdPrefix,
-  keyPrefix = "",
-  borderColor = "border-gray-700",
-  activeColor = "bg-purple-600",
-  buttonSize = "px-4 py-1.5 text-sm",
+  keyPrefix = '',
+  borderColor = 'border-gray-700',
+  activeColor = 'bg-purple-600',
+  buttonSize = 'px-4 py-1.5 text-sm',
 }: TimeframePickerProps): JSX.Element {
   return (
     <div
       className={`flex items-center gap-1 bg-gray-800 rounded-lg p-1 border ${borderColor}`}
     >
-      {TIMEFRAMES.map(tf => (
+      {TIMEFRAMES.map((tf) => (
         <button
           key={`${keyPrefix}${tf.id}`}
           onClick={() => onChange(tf.id)}
@@ -44,7 +44,7 @@ export function TimeframePicker({
           className={`${buttonSize} font-medium rounded-md transition-colors ${
             value === tf.id
               ? `${activeColor} text-white shadow-sm`
-              : "text-gray-400 hover:text-gray-200 hover:bg-gray-700/50"
+              : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
           }`}
         >
           {tf.id}

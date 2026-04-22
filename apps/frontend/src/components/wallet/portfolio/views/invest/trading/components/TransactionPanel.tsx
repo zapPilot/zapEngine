@@ -1,25 +1,25 @@
-import { useState } from "react";
+import { useState } from 'react';
 
-import { useTransactionForm } from "@/components/wallet/portfolio/modals/hooks/useTransactionForm";
-import { useTransactionSubmission } from "@/components/wallet/portfolio/modals/hooks/useTransactionSubmission";
-import { useWatchedTransactionData } from "@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData";
-import { cn } from "@/lib/ui/classNames";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { transactionServiceMock } from "@/services";
+import { useTransactionForm } from '@/components/wallet/portfolio/modals/hooks/useTransactionForm';
+import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
+import { useWatchedTransactionData } from '@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData';
+import { cn } from '@/lib/ui/classNames';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { transactionServiceMock } from '@/services';
 
-import { BaseTradingPanel } from "./BaseTradingPanel";
+import { BaseTradingPanel } from './BaseTradingPanel';
 
 const MODE_CONFIG = {
   deposit: {
-    subtitle: "Add capital to your strategy.",
-    buttonLabel: "Deposit",
-    reviewTitle: "Confirm Deposit",
+    subtitle: 'Add capital to your strategy.',
+    buttonLabel: 'Deposit',
+    reviewTitle: 'Confirm Deposit',
     submitFn: transactionServiceMock.simulateDeposit,
   },
   withdraw: {
-    subtitle: "Withdraw funds to your wallet.",
-    buttonLabel: "Withdrawal",
-    reviewTitle: "Confirm Withdrawal",
+    subtitle: 'Withdraw funds to your wallet.',
+    buttonLabel: 'Withdrawal',
+    reviewTitle: 'Confirm Withdrawal',
     submitFn: transactionServiceMock.simulateWithdraw,
   },
 } as const;
@@ -54,7 +54,7 @@ function MinimalInput({
   );
 }
 
-export function TransactionPanel({ mode }: { mode: "deposit" | "withdraw" }) {
+export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
   const { isConnected } = useWalletProvider();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
@@ -68,7 +68,7 @@ export function TransactionPanel({ mode }: { mode: "deposit" | "withdraw" }) {
     isConnected,
     transactionData.selectedToken,
     config.submitFn,
-    () => setIsReviewOpen(false)
+    () => setIsReviewOpen(false),
   );
 
   return (
@@ -93,7 +93,7 @@ export function TransactionPanel({ mode }: { mode: "deposit" | "withdraw" }) {
       <MinimalInput
         label="Amount"
         value={amount}
-        onChange={e => form.setValue("amount", e.target.value)}
+        onChange={(e) => form.setValue('amount', e.target.value)}
         suffix={<span className="text-sm font-medium text-gray-400">USD</span>}
       />
 
@@ -109,15 +109,15 @@ export function TransactionPanel({ mode }: { mode: "deposit" | "withdraw" }) {
                   className="h-10 w-16 bg-gray-800/50 rounded-xl animate-pulse"
                 />
               ))
-            : transactionData.tokenQuery.data?.slice(0, 5).map(token => (
+            : transactionData.tokenQuery.data?.slice(0, 5).map((token) => (
                 <button
                   key={token.address}
-                  onClick={() => form.setValue("tokenAddress", token.address)}
+                  onClick={() => form.setValue('tokenAddress', token.address)}
                   className={cn(
-                    "px-4 py-2.5 rounded-xl text-sm transition-all border font-medium",
+                    'px-4 py-2.5 rounded-xl text-sm transition-all border font-medium',
                     transactionData.selectedToken?.address === token.address
-                      ? "bg-gray-900 dark:bg-white text-white dark:text-black border-transparent shadow-md"
-                      : "bg-gray-50 dark:bg-gray-800 border-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-black border-transparent shadow-md'
+                      : 'bg-gray-50 dark:bg-gray-800 border-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white',
                   )}
                 >
                   {token.symbol}

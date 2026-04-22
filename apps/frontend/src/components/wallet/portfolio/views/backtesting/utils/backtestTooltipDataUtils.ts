@@ -1,17 +1,17 @@
-import type { IndicatorKey } from "../components/backtestChartLegendData";
+import type { IndicatorKey } from '../components/backtestChartLegendData';
 import type {
   BacktestTooltipProps,
   EventStrategiesRecord,
   ParsedTooltipData,
   ParsedTooltipSource,
   StrategiesRecord,
-} from "./backtestTooltipDataTypes";
+} from './backtestTooltipDataTypes';
 import {
   appendBtcToDmaRatio,
   buildAllocations,
   buildTooltipSections,
   getOrderedStrategyIds,
-} from "./backtestTooltipSections";
+} from './backtestTooltipSections';
 
 export type {
   AllocationBlock,
@@ -22,7 +22,7 @@ export type {
   ParsedTooltipData,
   SignalItem,
   TooltipItem,
-} from "./backtestTooltipDataTypes";
+} from './backtestTooltipDataTypes';
 
 const buildParsedTooltipData = ({
   payload,
@@ -34,13 +34,13 @@ const buildParsedTooltipData = ({
   }
 
   const firstPayload = payload[0]?.payload;
-  const market = firstPayload?.["market"] as
+  const market = firstPayload?.['market'] as
     | { date?: string; sentiment_label?: string | null }
     | undefined;
-  const eventStrategies = firstPayload?.["eventStrategies"] as
+  const eventStrategies = firstPayload?.['eventStrategies'] as
     | EventStrategiesRecord
     | undefined;
-  const strategies = firstPayload?.["strategies"] as
+  const strategies = firstPayload?.['strategies'] as
     | StrategiesRecord
     | undefined;
   const orderedIds = getOrderedStrategyIds(strategies, sortedStrategyIds);
@@ -49,7 +49,7 @@ const buildParsedTooltipData = ({
     eventStrategies,
     market?.sentiment_label ?? undefined,
     strategies,
-    orderedIds
+    orderedIds,
   );
   const signals = appendBtcToDmaRatio(sections);
 
@@ -69,9 +69,9 @@ const buildParsedTooltipData = ({
 
 /** Maps indicator keys to their signal names in tooltip payload. */
 const INDICATOR_KEY_TO_SIGNAL_NAMES: Record<IndicatorKey, string[]> = {
-  btcPrice: ["BTC Price"],
-  dma200: ["DMA 200"],
-  sentiment: ["Sentiment"],
+  btcPrice: ['BTC Price'],
+  dma200: ['DMA 200'],
+  sentiment: ['Sentiment'],
 };
 
 /**
@@ -124,12 +124,12 @@ export function buildBacktestTooltipData({
   }
 
   result.sections.signals = result.sections.signals.filter(
-    signal => !hiddenSignalNames.has(signal.name)
+    (signal) => !hiddenSignalNames.has(signal.name),
   );
 
-  if (hiddenSignalNames.has("BTC Price") || hiddenSignalNames.has("DMA 200")) {
+  if (hiddenSignalNames.has('BTC Price') || hiddenSignalNames.has('DMA 200')) {
     result.sections.signals = result.sections.signals.filter(
-      signal => signal.name !== "BTC / DMA 200"
+      (signal) => signal.name !== 'BTC / DMA 200',
     );
   }
 

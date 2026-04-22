@@ -1,12 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EditWalletModal } from "@/components/WalletManager/components/EditWalletModal";
-import type { WalletData } from "@/lib/validation/walletUtils";
-import type { EditingWallet, WalletOperations } from "@/types";
+import { EditWalletModal } from '@/components/WalletManager/components/EditWalletModal';
+import type { WalletData } from '@/lib/validation/walletUtils';
+import type { EditingWallet, WalletOperations } from '@/types';
 
 // Mock UI components
-vi.mock("@/components/ui", () => ({
+vi.mock('@/components/ui', () => ({
   BaseCard: ({
     children,
     className,
@@ -36,7 +36,7 @@ vi.mock("@/components/ui", () => ({
   LoadingSpinner: () => <span data-testid="loading-spinner" />,
 }));
 
-vi.mock("@/components/ui/modal", () => ({
+vi.mock('@/components/ui/modal', () => ({
   ModalBackdrop: ({
     children,
     onDismiss,
@@ -51,18 +51,18 @@ vi.mock("@/components/ui/modal", () => ({
   ),
 }));
 
-vi.mock("@/utils/formatters", () => ({
+vi.mock('@/utils/formatters', () => ({
   formatAddress: vi.fn((addr: string) => `${addr.slice(0, 6)}...`),
 }));
 
 const mockWallets: WalletData[] = [
   {
-    id: "wallet-1",
-    address: "0x1234567890abcdef",
-    label: "My Wallet",
+    id: 'wallet-1',
+    address: '0x1234567890abcdef',
+    label: 'My Wallet',
     isActive: true,
     isConnected: true,
-    source: "connected",
+    source: 'connected',
   },
 ];
 
@@ -74,11 +74,11 @@ const defaultOperations: WalletOperations = {
 };
 
 const defaultEditingWallet: EditingWallet = {
-  id: "wallet-1",
-  label: "My Wallet",
+  id: 'wallet-1',
+  label: 'My Wallet',
 };
 
-describe("EditWalletModal", () => {
+describe('EditWalletModal', () => {
   const onSave = vi.fn();
   const onClose = vi.fn();
 
@@ -86,7 +86,7 @@ describe("EditWalletModal", () => {
     vi.clearAllMocks();
   });
 
-  it("renders nothing when editingWallet is null", () => {
+  it('renders nothing when editingWallet is null', () => {
     const { container } = render(
       <EditWalletModal
         editingWallet={null}
@@ -94,13 +94,13 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    expect(container.innerHTML).toBe("");
+    expect(container.innerHTML).toBe('');
   });
 
-  it("renders the modal when editingWallet is provided", () => {
+  it('renders the modal when editingWallet is provided', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -108,13 +108,13 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    expect(screen.getByText("Edit Wallet Label")).toBeDefined();
+    expect(screen.getByText('Edit Wallet Label')).toBeDefined();
   });
 
-  it("initializes input with editingWallet label", () => {
+  it('initializes input with editingWallet label', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -122,14 +122,14 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    expect((input as HTMLInputElement).value).toBe("My Wallet");
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    expect((input as HTMLInputElement).value).toBe('My Wallet');
   });
 
-  it("updates input on change", () => {
+  it('updates input on change', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -137,16 +137,16 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    fireEvent.change(input, { target: { value: "New Label" } });
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    fireEvent.change(input, { target: { value: 'New Label' } });
 
-    expect((input as HTMLInputElement).value).toBe("New Label");
+    expect((input as HTMLInputElement).value).toBe('New Label');
   });
 
-  it("calls onSave with wallet id and new label on save click", () => {
+  it('calls onSave with wallet id and new label on save click', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -154,17 +154,17 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    fireEvent.change(input, { target: { value: "Updated" } });
-    fireEvent.click(screen.getByTestId("gradient-button"));
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    fireEvent.change(input, { target: { value: 'Updated' } });
+    fireEvent.click(screen.getByTestId('gradient-button'));
 
-    expect(onSave).toHaveBeenCalledWith("wallet-1", "Updated");
+    expect(onSave).toHaveBeenCalledWith('wallet-1', 'Updated');
   });
 
-  it("calls onSave on Enter key press", () => {
+  it('calls onSave on Enter key press', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -172,16 +172,16 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    fireEvent.keyDown(input, { key: "Enter" });
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(onSave).toHaveBeenCalledWith("wallet-1", "My Wallet");
+    expect(onSave).toHaveBeenCalledWith('wallet-1', 'My Wallet');
   });
 
-  it("calls onClose on Escape key press", () => {
+  it('calls onClose on Escape key press', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -189,16 +189,16 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    fireEvent.keyDown(input, { key: "Escape" });
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    fireEvent.keyDown(input, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("calls onClose and resets label on cancel click", () => {
+  it('calls onClose and resets label on cancel click', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -206,15 +206,15 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    fireEvent.click(screen.getByText("Cancel"));
+    fireEvent.click(screen.getByText('Cancel'));
 
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("calls onClose on X button click", () => {
+  it('calls onClose on X button click', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -222,22 +222,22 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
     // X button is a button with an svg child
-    const buttons = screen.getAllByRole("button");
+    const buttons = screen.getAllByRole('button');
     const closeBtn = buttons.find(
-      btn =>
-        !btn.textContent?.includes("Save") &&
-        !btn.textContent?.includes("Cancel")
+      (btn) =>
+        !btn.textContent?.includes('Save') &&
+        !btn.textContent?.includes('Cancel'),
     );
     if (closeBtn) fireEvent.click(closeBtn);
 
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("disables save button when label is empty", () => {
+  it('disables save button when label is empty', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -245,20 +245,20 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    const input = screen.getByPlaceholderText("Enter wallet label");
-    fireEvent.change(input, { target: { value: "   " } });
+    const input = screen.getByPlaceholderText('Enter wallet label');
+    fireEvent.change(input, { target: { value: '   ' } });
 
-    const saveButton = screen.getByTestId("gradient-button");
-    expect(saveButton.hasAttribute("disabled")).toBe(true);
+    const saveButton = screen.getByTestId('gradient-button');
+    expect(saveButton.hasAttribute('disabled')).toBe(true);
   });
 
-  it("shows loading state when editing operation is in progress", () => {
+  it('shows loading state when editing operation is in progress', () => {
     const loadingOperations: WalletOperations = {
       ...defaultOperations,
-      editing: { "wallet-1": { isLoading: true } },
+      editing: { 'wallet-1': { isLoading: true } },
     };
 
     render(
@@ -268,14 +268,14 @@ describe("EditWalletModal", () => {
         operations={loadingOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
-    expect(screen.getByText("Saving...")).toBeDefined();
-    expect(screen.getByTestId("loading-spinner")).toBeDefined();
+    expect(screen.getByText('Saving...')).toBeDefined();
+    expect(screen.getByTestId('loading-spinner')).toBeDefined();
   });
 
-  it("displays formatted wallet address", () => {
+  it('displays formatted wallet address', () => {
     render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -283,13 +283,13 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
     expect(screen.getByText(/0x1234/)).toBeDefined();
   });
 
-  it("updates label when editingWallet changes", async () => {
+  it('updates label when editingWallet changes', async () => {
     const { rerender } = render(
       <EditWalletModal
         editingWallet={defaultEditingWallet}
@@ -297,22 +297,22 @@ describe("EditWalletModal", () => {
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
     rerender(
       <EditWalletModal
-        editingWallet={{ id: "wallet-1", label: "Changed Label" }}
+        editingWallet={{ id: 'wallet-1', label: 'Changed Label' }}
         wallets={mockWallets}
         operations={defaultOperations}
         onSave={onSave}
         onClose={onClose}
-      />
+      />,
     );
 
     await waitFor(() => {
-      const input = screen.getByPlaceholderText("Enter wallet label");
-      expect((input as HTMLInputElement).value).toBe("Changed Label");
+      const input = screen.getByPlaceholderText('Enter wallet label');
+      expect((input as HTMLInputElement).value).toBe('Changed Label');
     });
   });
 });

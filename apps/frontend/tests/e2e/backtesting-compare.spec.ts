@@ -4,35 +4,35 @@ import {
   type Page,
   type Route,
   test,
-} from "@playwright/test";
+} from '@playwright/test';
 
-const BUNDLE_USER_ID = "0x1234567890123456789012345678901234567890";
+const BUNDLE_USER_ID = '0x1234567890123456789012345678901234567890';
 const LIVE_ANALYTICS_ENGINE_URL =
-  process.env["VITE_ANALYTICS_ENGINE_URL"] ?? "http://127.0.0.1:8001";
+  process.env['VITE_ANALYTICS_ENGINE_URL'] ?? 'http://127.0.0.1:8001';
 const PLAYWRIGHT_TEST_BASE_URL =
-  process.env["PLAYWRIGHT_BASE_URL"] ??
-  `http://127.0.0.1:${process.env["PLAYWRIGHT_PORT"] ?? "3000"}`;
+  process.env['PLAYWRIGHT_BASE_URL'] ??
+  `http://127.0.0.1:${process.env['PLAYWRIGHT_PORT'] ?? '3000'}`;
 const PLAYWRIGHT_TEST_ORIGIN = new URL(PLAYWRIGHT_TEST_BASE_URL).origin;
-const ROTATION_STRATEGY_ID = "eth_btc_rotation_default";
-const UI_PRIMARY_CONFIG_ID = "dma_gated_fgi_default";
-const ROTATION_STRATEGY_LABEL = "ETH/BTC Relative Strength Rotation";
+const ROTATION_STRATEGY_ID = 'eth_btc_rotation_default';
+const UI_PRIMARY_CONFIG_ID = 'dma_gated_fgi_default';
+const ROTATION_STRATEGY_LABEL = 'ETH/BTC Relative Strength Rotation';
 const ROTATION_SPOT_SEGMENT_TEST_ID = `backtest-${UI_PRIMARY_CONFIG_ID}-btc`;
-const ETH_CHART_COLOR_RGB = "99, 102, 241";
-const BTC_CHART_COLOR_RGB = "245, 158, 11";
+const ETH_CHART_COLOR_RGB = '99, 102, 241';
+const BTC_CHART_COLOR_RGB = '245, 158, 11';
 
 const ROUTE_PATTERNS = {
-  landing: "**/api/v2/portfolio/*/landing",
-  strategies: "**/api/v3/backtesting/strategies",
-  compare: "**/api/v3/backtesting/compare",
-  strategyConfigs: "**/api/v3/strategy/configs",
+  landing: '**/api/v2/portfolio/*/landing',
+  strategies: '**/api/v3/backtesting/strategies',
+  compare: '**/api/v3/backtesting/compare',
+  strategyConfigs: '**/api/v3/strategy/configs',
 } as const;
 
 const SELECTORS = {
-  investTabTestId: "v22-tab-invest",
+  investTabTestId: 'v22-tab-invest',
   backtestingSubTabName: /^backtesting$/i,
-  roiLabel: "ROI",
-  calmarLabel: "CALMAR",
-  maxDrawdownLabel: "MAX DRAWDOWN",
+  roiLabel: 'ROI',
+  calmarLabel: 'CALMAR',
+  maxDrawdownLabel: 'MAX DRAWDOWN',
 } as const;
 
 const LANDING_RESPONSE = {
@@ -70,21 +70,21 @@ const LANDING_RESPONSE = {
 } as const;
 
 const STRATEGIES_RESPONSE = {
-  catalog_version: "2.0.0",
+  catalog_version: '2.0.0',
   strategies: [
     {
-      strategy_id: "dca_classic",
-      display_name: "DCA Classic",
-      description: "Baseline",
-      param_schema: { type: "object", additionalProperties: false },
+      strategy_id: 'dca_classic',
+      display_name: 'DCA Classic',
+      description: 'Baseline',
+      param_schema: { type: 'object', additionalProperties: false },
       default_params: {},
       supports_daily_suggestion: false,
     },
     {
-      strategy_id: "dma_gated_fgi",
-      display_name: "DMA Gated FGI",
-      description: "DMA-first strategy",
-      param_schema: { type: "object" },
+      strategy_id: 'dma_gated_fgi',
+      display_name: 'DMA Gated FGI',
+      description: 'DMA-first strategy',
+      param_schema: { type: 'object' },
       default_params: {
         signal: {
           cross_cooldown_days: 30,
@@ -102,10 +102,10 @@ const STRATEGIES_RESPONSE = {
 const STRATEGY_CONFIGS_RESPONSE = {
   presets: [
     {
-      config_id: "dma_gated_fgi_default",
-      display_name: "DMA Gated FGI Default",
-      description: "Curated DMA-first preset",
-      strategy_id: "dma_gated_fgi",
+      config_id: 'dma_gated_fgi_default',
+      display_name: 'DMA Gated FGI Default',
+      description: 'Curated DMA-first preset',
+      strategy_id: 'dma_gated_fgi',
       params: {
         signal: {
           cross_cooldown_days: 30,
@@ -128,8 +128,8 @@ const STRATEGY_CONFIGS_RESPONSE = {
 const COMPARE_RESPONSE = {
   strategies: {
     dca_classic: {
-      strategy_id: "dca_classic",
-      display_name: "DCA Classic",
+      strategy_id: 'dca_classic',
+      display_name: 'DCA Classic',
       total_invested: 10000,
       final_value: 11000,
       roi_percent: 10,
@@ -143,9 +143,9 @@ const COMPARE_RESPONSE = {
       },
     },
     dma_gated_fgi_default: {
-      strategy_id: "dma_gated_fgi",
-      display_name: "DMA Gated FGI Default",
-      signal_id: "dma_gated_fgi",
+      strategy_id: 'dma_gated_fgi',
+      display_name: 'DMA Gated FGI Default',
+      signal_id: 'dma_gated_fgi',
       total_invested: 10000,
       final_value: 11200,
       roi_percent: 12,
@@ -162,10 +162,10 @@ const COMPARE_RESPONSE = {
   timeline: [
     {
       market: {
-        date: "2024-01-01",
+        date: '2024-01-01',
         token_price: { btc: 50000 },
         sentiment: 50,
-        sentiment_label: "neutral",
+        sentiment_label: 'neutral',
       },
       strategies: {
         dca_classic: {
@@ -177,9 +177,9 @@ const COMPARE_RESPONSE = {
           },
           signal: null,
           decision: {
-            action: "hold",
-            reason: "baseline_dca",
-            rule_group: "none",
+            action: 'hold',
+            reason: 'baseline_dca',
+            rule_group: 'none',
             target_allocation: { spot: 0.5, stable: 0.5 },
             immediate: false,
           },
@@ -200,15 +200,15 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.5, stable: 0.5 },
           },
           signal: {
-            id: "dma_gated_fgi",
-            regime: "fear",
+            id: 'dma_gated_fgi',
+            regime: 'fear',
             raw_value: 25,
             confidence: 1,
             details: {
               dma: {
                 dma_200: 49500,
                 distance: 0.01,
-                zone: "above",
+                zone: 'above',
                 cross_event: null,
                 cooldown_active: false,
                 cooldown_remaining_days: 0,
@@ -218,9 +218,9 @@ const COMPARE_RESPONSE = {
             },
           },
           decision: {
-            action: "hold",
-            reason: "wait",
-            rule_group: "none",
+            action: 'hold',
+            reason: 'wait',
+            rule_group: 'none',
             target_allocation: { spot: 0.5, stable: 0.5 },
             immediate: false,
           },
@@ -237,10 +237,10 @@ const COMPARE_RESPONSE = {
     },
     {
       market: {
-        date: "2024-01-02",
+        date: '2024-01-02',
         token_price: { btc: 50500 },
         sentiment: 45,
-        sentiment_label: "fear",
+        sentiment_label: 'fear',
       },
       strategies: {
         dca_classic: {
@@ -252,14 +252,14 @@ const COMPARE_RESPONSE = {
           },
           signal: null,
           decision: {
-            action: "buy",
-            reason: "baseline_dca",
-            rule_group: "none",
+            action: 'buy',
+            reason: 'baseline_dca',
+            rule_group: 'none',
             target_allocation: { spot: 0.51, stable: 0.49 },
             immediate: false,
           },
           execution: {
-            event: "buy",
+            event: 'buy',
             transfers: [],
             blocked_reason: null,
             step_count: 1,
@@ -275,16 +275,16 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.48, stable: 0.52 },
           },
           signal: {
-            id: "dma_gated_fgi",
-            regime: "fear",
+            id: 'dma_gated_fgi',
+            regime: 'fear',
             raw_value: 20,
             confidence: 1,
             details: {
               dma: {
                 dma_200: 49750,
                 distance: -0.02,
-                zone: "below",
-                cross_event: "cross_down",
+                zone: 'below',
+                cross_event: 'cross_down',
                 cooldown_active: false,
                 cooldown_remaining_days: 0,
                 cooldown_blocked_zone: null,
@@ -293,18 +293,18 @@ const COMPARE_RESPONSE = {
             },
           },
           decision: {
-            action: "sell",
-            reason: "cross_down_exit",
-            rule_group: "cross",
+            action: 'sell',
+            reason: 'cross_down_exit',
+            rule_group: 'cross',
             target_allocation: { spot: 0.3, stable: 0.7 },
             immediate: true,
           },
           execution: {
-            event: "rebalance",
+            event: 'rebalance',
             transfers: [
               {
-                from_bucket: "spot",
-                to_bucket: "stable",
+                from_bucket: 'spot',
+                to_bucket: 'stable',
                 amount_usd: 200,
               },
             ],
@@ -318,10 +318,10 @@ const COMPARE_RESPONSE = {
     },
     {
       market: {
-        date: "2024-01-03",
+        date: '2024-01-03',
         token_price: { btc: 51000 },
         sentiment: 60,
-        sentiment_label: "greed",
+        sentiment_label: 'greed',
       },
       strategies: {
         dca_classic: {
@@ -333,14 +333,14 @@ const COMPARE_RESPONSE = {
           },
           signal: null,
           decision: {
-            action: "buy",
-            reason: "baseline_dca",
-            rule_group: "none",
+            action: 'buy',
+            reason: 'baseline_dca',
+            rule_group: 'none',
             target_allocation: { spot: 0.52, stable: 0.48 },
             immediate: false,
           },
           execution: {
-            event: "buy",
+            event: 'buy',
             transfers: [],
             blocked_reason: null,
             step_count: 1,
@@ -356,16 +356,16 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.7, stable: 0.3 },
           },
           signal: {
-            id: "dma_gated_fgi",
-            regime: "greed",
+            id: 'dma_gated_fgi',
+            regime: 'greed',
             raw_value: 70,
             confidence: 1,
             details: {
               dma: {
                 dma_200: 50000,
                 distance: 0.02,
-                zone: "above",
-                cross_event: "cross_up",
+                zone: 'above',
+                cross_event: 'cross_up',
                 cooldown_active: false,
                 cooldown_remaining_days: 0,
                 cooldown_blocked_zone: null,
@@ -374,18 +374,18 @@ const COMPARE_RESPONSE = {
             },
           },
           decision: {
-            action: "buy",
-            reason: "cross_up_entry",
-            rule_group: "cross",
+            action: 'buy',
+            reason: 'cross_up_entry',
+            rule_group: 'cross',
             target_allocation: { spot: 0.7, stable: 0.3 },
             immediate: true,
           },
           execution: {
-            event: "rebalance",
+            event: 'rebalance',
             transfers: [
               {
-                from_bucket: "stable",
-                to_bucket: "spot",
+                from_bucket: 'stable',
+                to_bucket: 'spot',
                 amount_usd: 400,
               },
             ],
@@ -407,7 +407,7 @@ function getJsonResponseOptions(body: unknown): {
 } {
   return {
     status: 200,
-    contentType: "application/json",
+    contentType: 'application/json',
     body: JSON.stringify(body),
   };
 }
@@ -441,14 +441,14 @@ async function registerLandingRoute(page: Page): Promise<void> {
 }
 
 async function isLiveAnalyticsBackendAvailable(
-  request: APIRequestContext
+  request: APIRequestContext,
 ): Promise<boolean> {
   try {
     const response = await request.get(
       `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/backtesting/strategies`,
       {
         timeout: 5000,
-      }
+      },
     );
 
     if (!response.ok()) {
@@ -463,7 +463,7 @@ async function isLiveAnalyticsBackendAvailable(
 }
 
 async function isLiveAnalyticsCorsCompatible(
-  request: APIRequestContext
+  request: APIRequestContext,
 ): Promise<boolean> {
   try {
     const response = await request.get(
@@ -473,15 +473,15 @@ async function isLiveAnalyticsCorsCompatible(
         headers: {
           Origin: PLAYWRIGHT_TEST_ORIGIN,
         },
-      }
+      },
     );
 
     if (!response.ok()) {
       return false;
     }
 
-    const allowOrigin = response.headers()["access-control-allow-origin"];
-    return allowOrigin === "*" || allowOrigin === PLAYWRIGHT_TEST_ORIGIN;
+    const allowOrigin = response.headers()['access-control-allow-origin'];
+    return allowOrigin === '*' || allowOrigin === PLAYWRIGHT_TEST_ORIGIN;
   } catch {
     return false;
   }
@@ -499,7 +499,7 @@ async function fetchLiveCompareResponse(request: APIRequestContext): Promise<{
     `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/strategy/configs`,
     {
       timeout: 10000,
-    }
+    },
   );
   expect(configsResponse.ok()).toBeTruthy();
 
@@ -522,13 +522,13 @@ async function fetchLiveCompareResponse(request: APIRequestContext): Promise<{
       data: {
         days: configsPayload.backtest_defaults?.days ?? 500,
         total_capital: configsPayload.backtest_defaults?.total_capital ?? 10000,
-        configs: configsPayload.presets.map(preset => ({
+        configs: configsPayload.presets.map((preset) => ({
           config_id: preset.config_id,
           strategy_id: preset.strategy_id,
           params: preset.params,
         })),
       },
-    }
+    },
   );
   expect(compareResponse.ok()).toBeTruthy();
 
@@ -546,7 +546,7 @@ async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
   title: string;
   style: string;
 } | null> {
-  const chartSurface = page.locator(".recharts-surface").first();
+  const chartSurface = page.locator('.recharts-surface').first();
   await expect(chartSurface).toBeVisible();
 
   const box = await chartSurface.boundingBox();
@@ -562,7 +562,7 @@ async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
     for (const yRatio of yRatios) {
       await page.mouse.move(
         box.x + box.width * xRatio,
-        box.y + box.height * yRatio
+        box.y + box.height * yRatio,
       );
 
       try {
@@ -571,13 +571,13 @@ async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
         continue;
       }
 
-      const title = (await segment.getAttribute("title")) ?? "";
-      const style = ((await segment.getAttribute("style")) ?? "").toLowerCase();
+      const title = (await segment.getAttribute('title')) ?? '';
+      const style = ((await segment.getAttribute('style')) ?? '').toLowerCase();
 
       if (
-        title.startsWith("ETH:") ||
-        title.startsWith("BTC:") ||
-        title.startsWith("SPOT:")
+        title.startsWith('ETH:') ||
+        title.startsWith('BTC:') ||
+        title.startsWith('SPOT:')
       ) {
         return { title, style };
       }
@@ -588,25 +588,27 @@ async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
 }
 
 async function switchUiStrategyToRotation(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /DMA Gated FGI/i }).click();
-  await page.getByRole("option", { name: ROTATION_STRATEGY_LABEL }).click();
+  await page.getByRole('button', { name: /DMA Gated FGI/i }).click();
+  await page.getByRole('option', { name: ROTATION_STRATEGY_LABEL }).click();
   await expect(
-    page.getByRole("button", { name: new RegExp(ROTATION_STRATEGY_LABEL, "i") })
+    page.getByRole('button', {
+      name: new RegExp(ROTATION_STRATEGY_LABEL, 'i'),
+    }),
   ).toBeVisible();
 }
 
 async function openBacktestingView(page: Page): Promise<void> {
   await page.goto(`/bundle?userId=${BUNDLE_USER_ID}`);
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState('domcontentloaded');
   await page.getByTestId(SELECTORS.investTabTestId).click();
   await page
-    .getByRole("button", { name: SELECTORS.backtestingSubTabName })
+    .getByRole('button', { name: SELECTORS.backtestingSubTabName })
     .first()
     .click();
 }
 
-test.describe("Backtesting (v3) - Terminal display + two-bucket chart", () => {
-  test("renders terminal display with current v3 contract data", async ({
+test.describe('Backtesting (v3) - Terminal display + two-bucket chart', () => {
+  test('renders terminal display with current v3 contract data', async ({
     page,
   }) => {
     await registerBacktestingRoutes(page);
@@ -616,14 +618,14 @@ test.describe("Backtesting (v3) - Terminal display + two-bucket chart", () => {
     await expect(page.getByText(SELECTORS.calmarLabel)).toBeVisible();
     await expect(page.getByText(SELECTORS.maxDrawdownLabel)).toBeVisible();
 
-    await expect(page.getByText("DCA Classic").first()).toBeVisible();
-    await expect(page.getByText("DMA Gated FGI Default").first()).toBeVisible();
+    await expect(page.getByText('DCA Classic').first()).toBeVisible();
+    await expect(page.getByText('DMA Gated FGI Default').first()).toBeVisible();
 
-    await expect(page.getByText("Sell Spot").first()).toBeVisible();
-    await expect(page.getByText("Buy Spot").first()).toBeVisible();
+    await expect(page.getByText('Sell Spot').first()).toBeVisible();
+    await expect(page.getByText('Buy Spot').first()).toBeVisible();
   });
 
-  test("renders asset-specific tooltip labels from a live analytics-engine response", async ({
+  test('renders asset-specific tooltip labels from a live analytics-engine response', async ({
     page,
     request,
   }) => {
@@ -633,21 +635,21 @@ test.describe("Backtesting (v3) - Terminal display + two-bucket chart", () => {
     const corsCompatible = await isLiveAnalyticsCorsCompatible(request);
     test.skip(
       !backendAvailable,
-      `Requires analytics-engine at ${LIVE_ANALYTICS_ENGINE_URL}`
+      `Requires analytics-engine at ${LIVE_ANALYTICS_ENGINE_URL}`,
     );
     test.skip(
       !corsCompatible,
-      `Requires analytics-engine CORS to allow ${PLAYWRIGHT_TEST_ORIGIN}`
+      `Requires analytics-engine CORS to allow ${PLAYWRIGHT_TEST_ORIGIN}`,
     );
 
     await registerLandingRoute(page);
 
     const compareJson = await fetchLiveCompareResponse(request);
 
-    const rotationPointWithSpotAsset = compareJson.timeline?.find(point => {
+    const rotationPointWithSpotAsset = compareJson.timeline?.find((point) => {
       const spotAsset =
         point.strategies?.[ROTATION_STRATEGY_ID]?.portfolio?.spot_asset;
-      return spotAsset === "BTC" || spotAsset === "ETH";
+      return spotAsset === 'BTC' || spotAsset === 'ETH';
     });
 
     expect(rotationPointWithSpotAsset).toBeTruthy();
@@ -659,22 +661,22 @@ test.describe("Backtesting (v3) - Terminal display + two-bucket chart", () => {
     });
 
     await switchUiStrategyToRotation(page);
-    await page.getByRole("button", { name: /\[RUN\]/ }).click();
+    await page.getByRole('button', { name: /\[RUN\]/ }).click();
     await page.waitForTimeout(12000);
 
     const segmentSnapshot = await findRotationSpotSegmentSnapshot(page);
     expect(segmentSnapshot).not.toBeNull();
 
-    const { title, style } = segmentSnapshot ?? { title: "", style: "" };
+    const { title, style } = segmentSnapshot ?? { title: '', style: '' };
 
-    expect(title.startsWith("SPOT:")).toBeFalsy();
+    expect(title.startsWith('SPOT:')).toBeFalsy();
 
-    if (title.startsWith("ETH:")) {
+    if (title.startsWith('ETH:')) {
       expect(style).toContain(ETH_CHART_COLOR_RGB);
       return;
     }
 
-    expect(title.startsWith("BTC:")).toBeTruthy();
+    expect(title.startsWith('BTC:')).toBeTruthy();
     expect(style).toContain(BTC_CHART_COLOR_RGB);
   });
 });

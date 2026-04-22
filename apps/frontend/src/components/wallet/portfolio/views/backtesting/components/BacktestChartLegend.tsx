@@ -1,15 +1,15 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
 import {
   getStrategyColor,
   getStrategyDisplayName,
-} from "../utils/strategyDisplay";
+} from '../utils/strategyDisplay';
 import {
   EVENT_LEGEND,
   INDICATOR_LEGEND,
   type IndicatorKey,
   type LegendItem,
-} from "./backtestChartLegendData";
+} from './backtestChartLegendData';
 
 interface BacktestChartLegendProps {
   sortedStrategyIds: string[];
@@ -70,8 +70,8 @@ function IndicatorToggleGroup({
               onClick={() => onToggle(key)}
               className={`rounded-full text-[10px] px-2 py-0.5 cursor-pointer transition-colors border ${
                 isActive
-                  ? "text-gray-200"
-                  : "border-zinc-700 text-gray-500 bg-transparent"
+                  ? 'text-gray-200'
+                  : 'border-zinc-700 text-gray-500 bg-transparent'
               }`}
               style={
                 isActive

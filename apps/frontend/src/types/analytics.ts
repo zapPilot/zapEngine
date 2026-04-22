@@ -53,7 +53,7 @@ export interface MetricData {
   /** Contextual sub-value (e.g., "+2.4% vs BTC", "Top 5% of Pilots") */
   subValue: string;
   /** Visual trend indicator */
-  trend: "up" | "down" | "neutral";
+  trend: 'up' | 'down' | 'neutral';
 }
 
 /**

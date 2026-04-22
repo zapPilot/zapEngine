@@ -1,15 +1,15 @@
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useUser } from "@/contexts/UserContext";
-import { useAppRouter } from "@/lib/routing";
-import { useWalletProvider } from "@/providers/WalletProvider";
+import { useUser } from '@/contexts/UserContext';
+import { useAppRouter } from '@/lib/routing';
+import { useWalletProvider } from '@/providers/WalletProvider';
 import {
   type BundleUser,
   generateBundleUrl,
   getBundleUser,
   isOwnBundle as isBundleOwned,
-} from "@/services";
+} from '@/services';
 
 import {
   buildBundlePageUrl,
@@ -24,14 +24,14 @@ import {
   performWalletSwitchAndRefresh,
   shouldAttemptAutoSwitch,
   shouldRedirectDisconnectedOwner,
-} from "./useBundlePageUtils";
+} from './useBundlePageUtils';
 
 export {
   computeIsDifferentUser,
   computeRedirectUrl,
   computeShowEmailBanner,
   computeShowQuickSwitch,
-} from "./useBundlePageUtils";
+} from './useBundlePageUtils';
 
 interface UseBundlePageResult {
   isOwnBundle: boolean;
@@ -85,7 +85,7 @@ const handleStayOnViewedBundle = (): void => {
  */
 export function useBundlePage(
   userId: string,
-  walletId?: string
+  walletId?: string,
 ): UseBundlePageResult {
   const router = useAppRouter();
   const fallbackQueryClient = useMemo(() => new QueryClient(), []);
@@ -116,7 +116,7 @@ export function useBundlePage(
     void performWalletSwitchAndRefresh(
       walletId,
       switchActiveWallet,
-      queryClient
+      queryClient,
     );
   }, [
     connectedWallets,
@@ -189,7 +189,7 @@ export function useBundlePage(
         isConnected,
         isOwnBundle,
         userInfo?.email,
-        emailBannerDismissed
+        emailBannerDismissed,
       ),
       onSubscribe: openWalletManager,
       onDismiss: handleDismissEmailBanner,
@@ -198,7 +198,7 @@ export function useBundlePage(
       showQuickSwitch: computeShowQuickSwitch(
         isConnected,
         isOwnBundle,
-        userInfo?.userId
+        userInfo?.userId,
       ),
       isWalletManagerOpen,
       openWalletManager,

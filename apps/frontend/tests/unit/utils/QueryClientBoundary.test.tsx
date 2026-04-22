@@ -5,26 +5,26 @@
  * a fallback QueryClient when none exists in the component tree.
  */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-import { QueryClientBoundary } from "@/utils/QueryClientBoundary";
+import { QueryClientBoundary } from '@/utils/QueryClientBoundary';
 
-describe("QueryClientBoundary", () => {
-  describe("Without parent QueryClientProvider", () => {
-    it("should render children with fallback provider", () => {
+describe('QueryClientBoundary', () => {
+  describe('Without parent QueryClientProvider', () => {
+    it('should render children with fallback provider', () => {
       render(
         <QueryClientBoundary>
           <div data-testid="child">Child Content</div>
-        </QueryClientBoundary>
+        </QueryClientBoundary>,
       );
 
-      expect(screen.getByTestId("child")).toBeInTheDocument();
-      expect(screen.getByText("Child Content")).toBeInTheDocument();
+      expect(screen.getByTestId('child')).toBeInTheDocument();
+      expect(screen.getByText('Child Content')).toBeInTheDocument();
     });
 
-    it("should provide a query client context to children", () => {
+    it('should provide a query client context to children', () => {
       // This tests that the fallback provider is working
       const TestComponent = () => {
         // If no QueryClient is available, this would throw
@@ -34,15 +34,15 @@ describe("QueryClientBoundary", () => {
       render(
         <QueryClientBoundary>
           <TestComponent />
-        </QueryClientBoundary>
+        </QueryClientBoundary>,
       );
 
-      expect(screen.getByTestId("test-component")).toBeInTheDocument();
+      expect(screen.getByTestId('test-component')).toBeInTheDocument();
     });
   });
 
-  describe("With parent QueryClientProvider", () => {
-    it("should render children without wrapping in another provider", () => {
+  describe('With parent QueryClientProvider', () => {
+    it('should render children without wrapping in another provider', () => {
       const parentQueryClient = new QueryClient();
 
       render(
@@ -50,13 +50,13 @@ describe("QueryClientBoundary", () => {
           <QueryClientBoundary>
             <div data-testid="child">Child Content</div>
           </QueryClientBoundary>
-        </QueryClientProvider>
+        </QueryClientProvider>,
       );
 
-      expect(screen.getByTestId("child")).toBeInTheDocument();
+      expect(screen.getByTestId('child')).toBeInTheDocument();
     });
 
-    it("should pass through to existing provider", () => {
+    it('should pass through to existing provider', () => {
       const parentQueryClient = new QueryClient();
 
       render(
@@ -64,25 +64,25 @@ describe("QueryClientBoundary", () => {
           <QueryClientBoundary>
             <div data-testid="nested-child">Nested</div>
           </QueryClientBoundary>
-        </QueryClientProvider>
+        </QueryClientProvider>,
       );
 
-      expect(screen.getByTestId("nested-child")).toBeInTheDocument();
-      expect(screen.getByText("Nested")).toBeInTheDocument();
+      expect(screen.getByTestId('nested-child')).toBeInTheDocument();
+      expect(screen.getByText('Nested')).toBeInTheDocument();
     });
   });
 
-  describe("Multiple children", () => {
-    it("should render multiple children correctly", () => {
+  describe('Multiple children', () => {
+    it('should render multiple children correctly', () => {
       render(
         <QueryClientBoundary>
           <div data-testid="child-1">First</div>
           <div data-testid="child-2">Second</div>
-        </QueryClientBoundary>
+        </QueryClientBoundary>,
       );
 
-      expect(screen.getByTestId("child-1")).toBeInTheDocument();
-      expect(screen.getByTestId("child-2")).toBeInTheDocument();
+      expect(screen.getByTestId('child-1')).toBeInTheDocument();
+      expect(screen.getByTestId('child-2')).toBeInTheDocument();
     });
   });
 });

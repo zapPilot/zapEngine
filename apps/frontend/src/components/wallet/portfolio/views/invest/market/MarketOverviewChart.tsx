@@ -1,4 +1,4 @@
-import { type JSX, useMemo } from "react";
+import { type JSX, useMemo } from 'react';
 import {
   CartesianGrid,
   ComposedChart,
@@ -9,18 +9,18 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import { REGIME_LABELS } from "@/lib/domain/regimeMapper";
-import type { MarketDashboardPoint } from "@/services";
-import { formatCurrencyAxis } from "@/utils";
+import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
+import type { MarketDashboardPoint } from '@/services';
+import { formatCurrencyAxis } from '@/utils';
 
 import {
   AXIS_COLOR,
   formatXAxisDate,
   getRegimeColor,
   REGIME_COLORS,
-} from "./sections/marketDashboardConstants";
+} from './sections/marketDashboardConstants';
 
 type RegimeKey = keyof typeof REGIME_COLORS;
 
@@ -38,21 +38,21 @@ function formatTooltipValue(
       ratio?: number | null;
       dma_200?: number | null;
     };
-  }
+  },
 ): [string | number, string | number] {
-  const labelName = String(name ?? "");
-  if (labelName === "BTC Price" || labelName === "200 DMA") {
+  const labelName = String(name ?? '');
+  if (labelName === 'BTC Price' || labelName === '200 DMA') {
     return [`$${Number(value ?? 0).toLocaleString()}`, labelName];
   }
-  if (labelName === "ETH/BTC Ratio" || labelName === "Ratio 200 DMA") {
+  if (labelName === 'ETH/BTC Ratio' || labelName === 'Ratio 200 DMA') {
     return [Number(value ?? 0).toFixed(4), labelName];
   }
-  if (labelName === "Fear & Greed Index") {
+  if (labelName === 'Fear & Greed Index') {
     const rawFgi = props.payload?.sentiment_value;
     const regime = props.payload?.regime as
       | keyof typeof REGIME_LABELS
       | undefined;
-    const label = regime ? REGIME_LABELS[regime] : "";
+    const label = regime ? REGIME_LABELS[regime] : '';
     return [`${String(rawFgi)} (${label})`, labelName];
   }
   return [value as string | number, labelName];
@@ -64,7 +64,7 @@ function renderFgiActiveDot(dotProps: {
   payload?: { regime?: string | null | undefined };
 }): JSX.Element {
   const { cx = 0, cy = 0, payload } = dotProps;
-  const color = getRegimeColor(payload?.regime, "#10B981");
+  const color = getRegimeColor(payload?.regime, '#10B981');
   return (
     <circle cx={cx} cy={cy} r={6} fill={color} stroke="#fff" strokeWidth={2} />
   );
@@ -88,7 +88,7 @@ export function MarketOverviewChart({
     } | null = null;
 
     for (const [i, d] of data.entries()) {
-      const regime = (d.regime || "n") as RegimeKey;
+      const regime = (d.regime || 'n') as RegimeKey;
 
       if (!currentBlock) {
         currentBlock = { start: d.snapshot_date, end: d.snapshot_date, regime };
@@ -158,7 +158,7 @@ export function MarketOverviewChart({
             yAxisId="left"
             stroke={AXIS_COLOR}
             tick={{ fill: AXIS_COLOR, fontSize: 11 }}
-            domain={["auto", "auto"]}
+            domain={['auto', 'auto']}
             tickFormatter={formatCurrencyAxis}
           />
 
@@ -170,9 +170,9 @@ export function MarketOverviewChart({
             domain={[0, 100]}
             tickFormatter={String}
             label={{
-              value: "FGI",
+              value: 'FGI',
               angle: 90,
-              position: "insideRight",
+              position: 'insideRight',
               fill: AXIS_COLOR,
               fontSize: 10,
             }}
@@ -196,26 +196,26 @@ export function MarketOverviewChart({
 
           <Tooltip
             contentStyle={{
-              backgroundColor: "#111827",
-              borderColor: "#374151",
-              borderRadius: "12px",
-              color: "#fff",
-              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+              backgroundColor: '#111827',
+              borderColor: '#374151',
+              borderRadius: '12px',
+              color: '#fff',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
             }}
-            itemStyle={{ color: "#E5E7EB", fontSize: "13px" }}
+            itemStyle={{ color: '#E5E7EB', fontSize: '13px' }}
             labelStyle={{
               color: AXIS_COLOR,
-              marginBottom: "8px",
-              fontWeight: "bold",
+              marginBottom: '8px',
+              fontWeight: 'bold',
             }}
-            cursor={{ stroke: "#4B5563", strokeWidth: 1 }}
+            cursor={{ stroke: '#4B5563', strokeWidth: 1 }}
             formatter={formatTooltipValue}
           />
           <Legend
             verticalAlign="top"
             height={36}
             iconType="circle"
-            wrapperStyle={{ paddingTop: "0", marginBottom: "20px" }}
+            wrapperStyle={{ paddingTop: '0', marginBottom: '20px' }}
           />
 
           <Line
@@ -230,7 +230,7 @@ export function MarketOverviewChart({
               r: 5,
               fill: AXIS_COLOR,
               strokeWidth: 2,
-              stroke: "#fff",
+              stroke: '#fff',
             }}
           />
           <Line

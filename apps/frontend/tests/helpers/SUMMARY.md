@@ -95,8 +95,8 @@ factories, mock setup functions, and interaction helpers.
 All factories use proper TypeScript types from the codebase:
 
 ```typescript
-import type { SwapToken } from "@/types/swap";
-import type { AssetCategory } from "@/components/PortfolioAllocation/types";
+import type { SwapToken } from '@/types/swap';
+import type { AssetCategory } from '@/components/PortfolioAllocation/types';
 ```
 
 ### 2. Realistic Defaults
@@ -113,7 +113,7 @@ Mock data uses production-like values:
 Override only what you need:
 
 ```typescript
-const eth = createMockToken({ symbol: "ETH", decimals: 18 });
+const eth = createMockToken({ symbol: 'ETH', decimals: 18 });
 ```
 
 ### 4. Unified Mock Setup
@@ -122,7 +122,7 @@ Configure all mocks with one function:
 
 ```typescript
 const mocks = setupSwapPageMocks({
-  userInfo: { userId: "test-user", walletAddress: "0xabc" },
+  userInfo: { userId: 'test-user', walletAddress: '0xabc' },
   strategies: [createMockAssetCategory()],
 });
 ```
@@ -254,13 +254,18 @@ All utilities are fully tested:
 1. **Import utilities in new tests:**
 
    ```typescript
-   import { setupSwapPageMocks, SwapPageTestScenarios } from "tests/helpers/swapPageTestUtils";
+   import {
+     setupSwapPageMocks,
+     SwapPageTestScenarios,
+   } from 'tests/helpers/swapPageTestUtils';
    ```
 
 2. **Use pre-built scenarios for common cases:**
 
    ```typescript
-   const mocks = setupSwapPageMocks(SwapPageTestScenarios.connectedWithStrategies());
+   const mocks = setupSwapPageMocks(
+     SwapPageTestScenarios.connectedWithStrategies(),
+   );
    ```
 
 3. **Customize only when needed:**

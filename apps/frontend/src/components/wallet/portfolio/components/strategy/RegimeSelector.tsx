@@ -1,4 +1,4 @@
-import type { Regime } from "@/components/wallet/regime/regimeData";
+import type { Regime } from '@/components/wallet/regime/regimeData';
 
 interface RegimeSelectorProps {
   currentRegime: Regime | undefined;
@@ -9,8 +9,8 @@ interface RegimeSelectorProps {
 
 const STYLES = {
   regimeButtonSelected:
-    "bg-gray-800 border border-gray-600 shadow-lg scale-102 ring-1 ring-purple-500/50",
-  regimeButtonUnselected: "opacity-60 hover:opacity-100 hover:bg-gray-800/50",
+    'bg-gray-800 border border-gray-600 shadow-lg scale-102 ring-1 ring-purple-500/50',
+  regimeButtonUnselected: 'opacity-60 hover:opacity-100 hover:bg-gray-800/50',
 } as const;
 
 /**
@@ -37,14 +37,14 @@ export function RegimeSelector({
         Market Cycle Position
       </h4>
       <div className="flex flex-col gap-2">
-        {regimes.map(regime => {
+        {regimes.map((regime) => {
           const isCurrent = currentRegime?.id === regime.id;
           const isSelected = selectedRegime?.id === regime.id;
 
           return (
             <button
               key={regime.id}
-              onClick={e => {
+              onClick={(e) => {
                 e.stopPropagation();
                 onSelectRegime(regime.id);
               }}
@@ -55,13 +55,13 @@ export function RegimeSelector({
               }`}
             >
               <div
-                className={`w-3 h-3 rounded-full ${isCurrent ? "animate-pulse" : ""}`}
+                className={`w-3 h-3 rounded-full ${isCurrent ? 'animate-pulse' : ''}`}
                 style={{
                   backgroundColor: regime.fillColor,
                 }}
               />
               <span
-                className={`text-sm font-bold ${isSelected ? "text-white" : "text-gray-400"}`}
+                className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-400'}`}
               >
                 {regime.label}
               </span>

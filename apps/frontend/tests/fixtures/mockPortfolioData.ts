@@ -1,5 +1,5 @@
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
-import type { RegimeId } from "@/components/wallet/regime/regimeData";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import type { RegimeId } from '@/components/wallet/regime/regimeData';
 
 const BASE_ALLOCATION = {
   crypto: 65,
@@ -7,72 +7,72 @@ const BASE_ALLOCATION = {
   constituents: {
     crypto: [
       {
-        asset: "BTC",
-        symbol: "BTC",
-        name: "Bitcoin",
+        asset: 'BTC',
+        symbol: 'BTC',
+        name: 'Bitcoin',
         value: 40,
-        color: "#F7931A",
+        color: '#F7931A',
       },
       {
-        asset: "ETH",
-        symbol: "ETH",
-        name: "Ethereum",
+        asset: 'ETH',
+        symbol: 'ETH',
+        name: 'Ethereum',
         value: 35,
-        color: "#627EEA",
+        color: '#627EEA',
       },
       {
-        asset: "SOL",
-        symbol: "SOL",
-        name: "Solana",
+        asset: 'SOL',
+        symbol: 'SOL',
+        name: 'Solana',
         value: 15,
-        color: "#14F195",
+        color: '#14F195',
       },
       {
-        asset: "Others",
-        symbol: "ALT",
-        name: "Altcoins",
+        asset: 'Others',
+        symbol: 'ALT',
+        name: 'Altcoins',
         value: 10,
-        color: "#8C8C8C",
+        color: '#8C8C8C',
       },
     ],
     stable: [
       {
-        asset: "USDC",
-        symbol: "USDC",
-        name: "USD Coin",
+        asset: 'USDC',
+        symbol: 'USDC',
+        name: 'USD Coin',
         value: 60,
-        color: "#2775CA",
+        color: '#2775CA',
       },
       {
-        asset: "USDT",
-        symbol: "USDT",
-        name: "Tether",
+        asset: 'USDT',
+        symbol: 'USDT',
+        name: 'Tether',
         value: 40,
-        color: "#26A17B",
+        color: '#26A17B',
       },
     ],
   },
   simplifiedCrypto: [
     {
-      asset: "BTC",
-      symbol: "BTC",
-      name: "Bitcoin",
+      asset: 'BTC',
+      symbol: 'BTC',
+      name: 'Bitcoin',
       value: 40,
-      color: "#F7931A",
+      color: '#F7931A',
     },
     {
-      asset: "ETH",
-      symbol: "ETH",
-      name: "Ethereum",
+      asset: 'ETH',
+      symbol: 'ETH',
+      name: 'Ethereum',
       value: 35,
-      color: "#627EEA",
+      color: '#627EEA',
     },
     {
-      asset: "ALT",
-      symbol: "ALT",
-      name: "Altcoins",
+      asset: 'ALT',
+      symbol: 'ALT',
+      name: 'Altcoins',
       value: 25,
-      color: "#8C8C8C",
+      color: '#8C8C8C',
     },
   ],
 };
@@ -85,14 +85,14 @@ export const MOCK_DATA: WalletPortfolioDataWithDirection = {
 
   // Market sentiment
   sentimentValue: 68,
-  sentimentStatus: "Greed",
+  sentimentStatus: 'Greed',
   sentimentQuote:
-    "Market conditions favor aggressive positioning with higher allocation to growth assets. Technical indicators show sustained momentum.",
+    'Market conditions favor aggressive positioning with higher allocation to growth assets. Technical indicators show sustained momentum.',
 
   // Regime data
-  currentRegime: "g" as RegimeId,
+  currentRegime: 'g' as RegimeId,
   previousRegime: null,
-  strategyDirection: "default",
+  strategyDirection: 'default',
   regimeDuration: null,
 
   // Allocations
@@ -118,16 +118,16 @@ export const MOCK_SCENARIOS: Record<string, WalletPortfolioDataWithDirection> =
     extremeFear: {
       ...MOCK_DATA,
       sentimentValue: 15,
-      sentimentStatus: "Extreme Fear",
-      currentRegime: "ef",
+      sentimentStatus: 'Extreme Fear',
+      currentRegime: 'ef',
       targetAllocation: { crypto: 30, stable: 70 },
       delta: 35,
     },
     neutral: {
       ...MOCK_DATA,
       sentimentValue: 50,
-      sentimentStatus: "Neutral",
-      currentRegime: "n",
+      sentimentStatus: 'Neutral',
+      currentRegime: 'n',
       currentAllocation: {
         ...BASE_ALLOCATION,
         crypto: 50,
@@ -139,8 +139,8 @@ export const MOCK_SCENARIOS: Record<string, WalletPortfolioDataWithDirection> =
     extremeGreed: {
       ...MOCK_DATA,
       sentimentValue: 92,
-      sentimentStatus: "Extreme Greed",
-      currentRegime: "eg",
+      sentimentStatus: 'Extreme Greed',
+      currentRegime: 'eg',
       targetAllocation: { crypto: 90, stable: 10 },
       delta: 25,
     },

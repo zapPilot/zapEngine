@@ -1,8 +1,8 @@
-import { APIError } from "../../utils/errors.js";
-import { RATE_LIMITS } from "../../config/database.js";
-import { logger } from "../../utils/logger.js";
-import { sleep } from "../../utils/sleep.js";
-import { withRetry } from "../../utils/retry.js";
+import { RATE_LIMITS } from '../../config/database.js';
+import { APIError } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import { withRetry } from '../../utils/retry.js';
+import { sleep } from '../../utils/sleep.js';
 
 export interface RequestStats {
   requestCount: number;
@@ -21,7 +21,7 @@ export abstract class BaseApiFetcher {
   protected requestCount = 0;
   protected lastRequestTime = 0;
   protected readonly rateLimitDelay: number;
-  protected readonly userAgent = "alpha-etl/1.0.0";
+  protected readonly userAgent = 'alpha-etl/1.0.0';
 
   constructor(
     baseUrl: string,
@@ -37,7 +37,7 @@ export abstract class BaseApiFetcher {
 
     if (timeSinceLastRequest < this.rateLimitDelay) {
       const delay = this.rateLimitDelay - timeSinceLastRequest;
-      logger.debug("Rate limiting API request", {
+      logger.debug('Rate limiting API request', {
         fetcher: this.constructor.name,
         delay,
       });
@@ -56,7 +56,7 @@ export abstract class BaseApiFetcher {
 
     const headers = this.buildRequestHeaders(options.headers);
 
-    logger.debug("Making API request", {
+    logger.debug('Making API request', {
       fetcher: this.constructor.name,
       url,
       requestCount: this.requestCount,
@@ -93,8 +93,8 @@ export abstract class BaseApiFetcher {
   protected async fetchWithRetry<T>(
     url: string,
     options: FetchOptions = {},
-    maxRetries: number = 3,
-    baseDelayMs: number = 1000,
+    maxRetries = 3,
+    baseDelayMs = 1000,
   ): Promise<T> {
     let attemptNum = 0;
     const maxAttempts = maxRetries + 1;
@@ -140,8 +140,8 @@ export abstract class BaseApiFetcher {
     customHeaders?: Record<string, string>,
   ): Record<string, string> {
     return {
-      "User-Agent": this.userAgent,
-      Accept: "application/json",
+      'User-Agent': this.userAgent,
+      Accept: 'application/json',
       ...customHeaders,
     };
   }
@@ -167,7 +167,7 @@ export abstract class BaseApiFetcher {
 
   // Abstract method that subclasses must implement for health checks
   abstract healthCheck(): Promise<{
-    status: "healthy" | "unhealthy";
+    status: 'healthy' | 'unhealthy';
     details?: string;
   }>;
 }

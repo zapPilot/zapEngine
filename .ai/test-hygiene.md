@@ -95,7 +95,7 @@ DO NOT judge correctness
 
 ---
 
-## OUTPUT FORMAT
+## OUTPUT FORMAT (save this json file to .todos)
 
 ### JSON ONLY (NO extra text)
 

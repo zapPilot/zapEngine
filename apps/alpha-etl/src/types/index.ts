@@ -1,18 +1,18 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export type DataSource =
-  | "defillama"
-  | "debank"
-  | "hyperliquid"
-  | "feargreed"
-  | "token-price";
+  | 'defillama'
+  | 'debank'
+  | 'hyperliquid'
+  | 'feargreed'
+  | 'token-price';
 
 export const DATA_SOURCES: readonly DataSource[] = [
-  "defillama",
-  "debank",
-  "hyperliquid",
-  "feargreed",
-  "token-price",
+  'defillama',
+  'debank',
+  'hyperliquid',
+  'feargreed',
+  'token-price',
 ] as const;
 
 export type ApiResult<T, E = ApiError> =
@@ -22,22 +22,22 @@ export type ApiResult<T, E = ApiError> =
 export interface ApiError {
   code: ErrorCode;
   message: string;
-  source: DataSource | "system" | "database";
+  source: DataSource | 'system' | 'database';
   context?: ErrorContext;
   timestamp?: string;
 }
 
 export type ErrorCode =
-  | "RATE_LIMIT_EXCEEDED"
-  | "TIMEOUT"
-  | "NETWORK"
-  | "VALIDATION_ERROR"
-  | "API_ERROR"
-  | "DATABASE_ERROR"
-  | "INTERNAL_ERROR"
-  | "NOT_FOUND"
-  | "UNAUTHORIZED"
-  | "UNKNOWN";
+  | 'RATE_LIMIT_EXCEEDED'
+  | 'TIMEOUT'
+  | 'NETWORK'
+  | 'VALIDATION_ERROR'
+  | 'API_ERROR'
+  | 'DATABASE_ERROR'
+  | 'INTERNAL_ERROR'
+  | 'NOT_FOUND'
+  | 'UNAUTHORIZED'
+  | 'UNKNOWN';
 
 export interface ErrorContext {
   jobId?: string;
@@ -58,7 +58,7 @@ export const BaseJobMetadataSchema = z.object({
 
 // Wallet fetch metadata requires jobType + walletAddress + userId
 export const WalletFetchJobMetadataSchema = BaseJobMetadataSchema.extend({
-  jobType: z.literal("wallet_fetch"),
+  jobType: z.literal('wallet_fetch'),
   walletAddress: z.string().min(1),
   userId: z.string().min(1),
 });
@@ -87,8 +87,8 @@ export interface ProcessUserResult<B, P> {
   successfulWallet?: string;
 }
 
-export type ETLTrigger = "scheduled" | "manual" | "webhook";
-export type ETLJobStatus = "pending" | "processing" | "completed" | "failed";
+export type ETLTrigger = 'scheduled' | 'manual' | 'webhook';
+export type ETLJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface ETLJob {
   jobId: string;
@@ -109,12 +109,12 @@ export interface ETLJob {
 export interface TokenBackfillConfig {
   tokenId: string; // CoinGecko ID: 'bitcoin', 'ethereum'
   tokenSymbol: string; // Display symbol: 'BTC', 'ETH'
-  daysBack?: number; // Optional override (default: 90)
+  daysBack?: number | undefined; // Optional override (default: 90)
 }
 
 export interface BackfillPayload {
   tokens: TokenBackfillConfig[];
-  trigger: "manual" | "scheduled";
+  trigger: 'manual' | 'scheduled';
 }
 
 export interface BackfillDmaMetadata {
@@ -122,7 +122,7 @@ export interface BackfillDmaMetadata {
   dmaUpserted: number;
   dmaRetries: number;
   dmaSuccess: boolean;
-  dmaError?: string;
+  dmaError?: string | undefined;
 }
 
 export interface BackfillTokenResultData extends BackfillDmaMetadata {
@@ -164,7 +164,7 @@ export interface ETLProcessResult extends BaseBatchResult {
 
 export interface ETLJobResultData {
   jobId: string;
-  status: "completed" | "partial" | "failed";
+  status: 'completed' | 'partial' | 'failed';
   recordsProcessed: number;
   recordsInserted: number;
   sourceResults: Record<DataSource, ETLProcessResult>;
@@ -175,7 +175,7 @@ export interface ETLJobResultData {
 
 export type ETLJobResult = ApiResult<ETLJobResultData>;
 
-export type WebhookTrigger = Extract<ETLTrigger, "scheduled" | "manual">;
+export type WebhookTrigger = Extract<ETLTrigger, 'scheduled' | 'manual'>;
 
 export interface SingleSourceWebhookPayload {
   trigger: WebhookTrigger;
@@ -202,13 +202,13 @@ export interface ETLFilters {
 export type ApiResponse<T = unknown> = ApiResult<T> & { timestamp: string };
 
 export interface SourceHealth {
-  status: "healthy" | "unhealthy";
+  status: 'healthy' | 'unhealthy';
   details?: string;
   lastCheck?: string;
 }
 
 export type HealthCheckResponse = ApiResponse<{
-  status: "healthy" | "degraded" | "unhealthy";
+  status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
   database: boolean;

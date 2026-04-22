@@ -4,7 +4,7 @@
  * Zod schemas and TypeScript interfaces for CoinGecko API responses
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Schemas
@@ -58,13 +58,14 @@ export const CoinGeckoHistoricalSchema = z
  *
  * Dynamic response structure where the key is the token ID (e.g., 'bitcoin', 'ethereum', 'solana')
  */
-export interface CoinGeckoSimplePriceResponse {
-  [tokenId: string]: {
+export type CoinGeckoSimplePriceResponse = Record<
+  string,
+  {
     usd: number;
     usd_market_cap: number;
     usd_24h_vol: number;
-  };
-}
+  }
+>;
 
 /**
  * CoinGecko API Response - Historical Price by Date

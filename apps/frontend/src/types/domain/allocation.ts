@@ -10,7 +10,7 @@
  * @see Phase 8 - Type System Consolidation
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // TRANSACTION ALLOCATION SCHEMA (Portfolio Operations)
@@ -31,7 +31,7 @@ export const allocationBreakdownSchema = z.object({
         name: z.string(),
         value: z.number(),
         color: z.string().optional(),
-      })
+      }),
     )
     .optional(),
 });

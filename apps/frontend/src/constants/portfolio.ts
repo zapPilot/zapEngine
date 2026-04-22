@@ -5,13 +5,13 @@
  * Single source of truth for asset categories, colors, and labels.
  */
 
-import { ALLOCATION_CATEGORIES } from "@/lib/domain/allocationCategories";
+import { ALLOCATION_CATEGORIES } from '@/lib/domain/allocationCategories';
 
 /**
  * Asset Category Keys
  * Type-safe keys for all supported asset categories
  */
-type AssetCategoryKey = "btc" | "eth" | "stablecoin" | "altcoin";
+type AssetCategoryKey = 'btc' | 'eth' | 'stablecoin' | 'altcoin';
 
 /**
  * Asset Category Definition
@@ -38,7 +38,7 @@ interface AssetCategory {
  */
 export const ASSET_CATEGORIES: Record<AssetCategoryKey, AssetCategory> = {
   btc: {
-    key: "btc",
+    key: 'btc',
     label: ALLOCATION_CATEGORIES.btc.label,
     shortLabel: ALLOCATION_CATEGORIES.btc.shortLabel,
     chartColor: ALLOCATION_CATEGORIES.btc.color,
@@ -46,7 +46,7 @@ export const ASSET_CATEGORIES: Record<AssetCategoryKey, AssetCategory> = {
     tailwindColor: ALLOCATION_CATEGORIES.btc.tailwindColor,
   },
   eth: {
-    key: "eth",
+    key: 'eth',
     label: ALLOCATION_CATEGORIES.eth.label,
     shortLabel: ALLOCATION_CATEGORIES.eth.shortLabel,
     chartColor: ALLOCATION_CATEGORIES.eth.color,
@@ -54,7 +54,7 @@ export const ASSET_CATEGORIES: Record<AssetCategoryKey, AssetCategory> = {
     tailwindColor: ALLOCATION_CATEGORIES.eth.tailwindColor,
   },
   stablecoin: {
-    key: "stablecoin",
+    key: 'stablecoin',
     label: ALLOCATION_CATEGORIES.stable.label,
     shortLabel: ALLOCATION_CATEGORIES.stable.shortLabel,
     chartColor: ALLOCATION_CATEGORIES.stable.color,
@@ -62,7 +62,7 @@ export const ASSET_CATEGORIES: Record<AssetCategoryKey, AssetCategory> = {
     tailwindColor: ALLOCATION_CATEGORIES.stable.tailwindColor,
   },
   altcoin: {
-    key: "altcoin",
+    key: 'altcoin',
     label: ALLOCATION_CATEGORIES.alt.label,
     shortLabel: ALLOCATION_CATEGORIES.alt.shortLabel,
     chartColor: ALLOCATION_CATEGORIES.alt.color,
@@ -89,10 +89,10 @@ export const PORTFOLIO_CONFIG = {
   DEFAULT_PIE_CHART_STROKE_WIDTH: 8,
 
   // Display configuration
-  CURRENCY_LOCALE: "en-US",
-  CURRENCY_CODE: "USD",
-  HIDDEN_BALANCE_PLACEHOLDER: "••••••••",
-  HIDDEN_NUMBER_PLACEHOLDER: "••••",
+  CURRENCY_LOCALE: 'en-US',
+  CURRENCY_CODE: 'USD',
+  HIDDEN_BALANCE_PLACEHOLDER: '••••••••',
+  HIDDEN_NUMBER_PLACEHOLDER: '••••',
 
   // Animation delays
   ANIMATION_DELAY_STEP: 0.1,

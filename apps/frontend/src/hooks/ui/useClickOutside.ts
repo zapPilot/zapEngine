@@ -16,7 +16,7 @@
  * ```
  */
 
-import { RefObject, useEffect } from "react";
+import { RefObject, useEffect } from 'react';
 
 export interface UseClickOutsideOptions {
   /** Whether to also listen for Escape key press */
@@ -35,7 +35,7 @@ export function useClickOutside<T extends HTMLElement>(
   ref: RefObject<T | null>,
   onClickOutside: () => void,
   isActive = true,
-  options: UseClickOutsideOptions = {}
+  options: UseClickOutsideOptions = {},
 ): void {
   const { enableEscapeKey = true } = options;
 
@@ -49,21 +49,21 @@ export function useClickOutside<T extends HTMLElement>(
     };
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         onClickOutside();
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
 
     if (enableEscapeKey) {
-      document.addEventListener("keydown", handleEscape);
+      document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
       if (enableEscapeKey) {
-        document.removeEventListener("keydown", handleEscape);
+        document.removeEventListener('keydown', handleEscape);
       }
     };
   }, [ref, onClickOutside, isActive, enableEscapeKey]);

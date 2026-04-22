@@ -1,7 +1,7 @@
-import { BaseDatabaseClient } from "./baseDatabaseClient.js";
-import { logger } from "../../utils/logger.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import type { BaseBatchResult } from "../../types/index.js";
+import type { BaseBatchResult } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import { BaseDatabaseClient } from './baseDatabaseClient.js';
 
 /**
  * Shared result structure for all database write operations

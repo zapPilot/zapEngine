@@ -1,4 +1,4 @@
-import { StickyBannerShell } from "./StickyBannerShell";
+import { StickyBannerShell } from './StickyBannerShell';
 
 interface EmailReminderBannerProps {
   onSubscribe: () => void;

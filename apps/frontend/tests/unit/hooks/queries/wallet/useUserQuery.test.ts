@@ -15,37 +15,37 @@
  * Strategy: mock useQuery so we can invoke the captured queryFn directly,
  * bypassing the enabled guard and exercising the internal logic branches.
  */
-import { useQuery } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useAccount } from "wagmi";
+import { useQuery } from '@tanstack/react-query';
+import { renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAccount } from 'wagmi';
 
 import {
   useCurrentUser,
   useUserById,
   useUserByWallet,
-} from "@/hooks/queries/wallet/useUserQuery";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { connectWallet, getUserProfile } from "@/services/accountService";
+} from '@/hooks/queries/wallet/useUserQuery';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { connectWallet, getUserProfile } from '@/services/accountService';
 
 // ---------------------------------------------------------------------------
 // Module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@tanstack/react-query", async () => {
-  const actual = await vi.importActual("@tanstack/react-query");
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
   return { ...actual, useQuery: vi.fn() };
 });
 
-vi.mock("wagmi", () => ({
+vi.mock('wagmi', () => ({
   useAccount: vi.fn(),
 }));
 
-vi.mock("@/providers/WalletProvider", () => ({
+vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
-vi.mock("@/services/accountService", () => ({
+vi.mock('@/services/accountService', () => ({
   connectWallet: vi.fn(),
   getUserProfile: vi.fn(),
 }));
@@ -73,9 +73,9 @@ function captureQueryFn(): {
         isSuccess: false,
         error: null,
         refetch: vi.fn(),
-        status: "pending",
+        status: 'pending',
       } as ReturnType<typeof useQuery>;
-    }
+    },
   );
 
   return captured;
@@ -83,7 +83,7 @@ function captureQueryFn(): {
 
 /** Minimal happy-path connect-wallet response without ETL job. */
 const baseConnectResponse = {
-  user_id: "user-abc",
+  user_id: 'user-abc',
   is_new_user: false,
   etl_job: undefined,
 };
@@ -91,25 +91,25 @@ const baseConnectResponse = {
 /** Minimal user profile with two wallets. */
 const profileWithWallets = {
   user: {
-    id: "user-abc",
-    email: "alice@example.com",
+    id: 'user-abc',
+    email: 'alice@example.com',
     is_subscribed_to_reports: false,
-    created_at: "2024-01-01",
+    created_at: '2024-01-01',
   },
   wallets: [
     {
-      id: "w1",
-      user_id: "user-abc",
-      wallet: "0xAAA",
-      label: "Hot",
-      created_at: "2024-01-01",
+      id: 'w1',
+      user_id: 'user-abc',
+      wallet: '0xAAA',
+      label: 'Hot',
+      created_at: '2024-01-01',
     },
     {
-      id: "w2",
-      user_id: "user-abc",
-      wallet: "0xBBB",
+      id: 'w2',
+      user_id: 'user-abc',
+      wallet: '0xBBB',
       label: null,
-      created_at: "2024-01-02",
+      created_at: '2024-01-02',
     },
   ],
 };
@@ -118,7 +118,7 @@ const profileWithWallets = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("useUserQuery — uncovered branches", () => {
+describe('useUserQuery — uncovered branches', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -131,7 +131,7 @@ describe("useUserQuery — uncovered branches", () => {
       isSuccess: false,
       error: null,
       refetch: vi.fn(),
-      status: "pending",
+      status: 'pending',
     } as ReturnType<typeof useQuery>);
 
     vi.mocked(useAccount).mockReturnValue({
@@ -142,22 +142,22 @@ describe("useUserQuery — uncovered branches", () => {
         infer T
       >
         ? T
-        : never
+        : never,
     );
     vi.mocked(getUserProfile).mockResolvedValue(
       profileWithWallets as ReturnType<typeof getUserProfile> extends Promise<
         infer T
       >
         ? T
-        : never
+        : never,
     );
   });
 
   // -------------------------------------------------------------------------
   // Branch 1: useUserByWallet queryFn guard — walletAddress is falsy
   // -------------------------------------------------------------------------
-  describe("useUserByWallet queryFn", () => {
-    it("throws when walletAddress is empty string (falsy guard inside queryFn)", async () => {
+  describe('useUserByWallet queryFn', () => {
+    it('throws when walletAddress is empty string (falsy guard inside queryFn)', async () => {
       const captured = captureQueryFn();
 
       renderHook(() => useUserByWallet(null));
@@ -167,11 +167,11 @@ describe("useUserQuery — uncovered branches", () => {
       // We invoke it directly to exercise the unreachable-at-runtime branch.
       expect(captured.fn).not.toBeNull();
       await expect(captured.fn!()).rejects.toThrow(
-        "No wallet address provided"
+        'No wallet address provided',
       );
     });
 
-    it("returns UserInfo with isNewUser when connectWallet reports a new user", async () => {
+    it('returns UserInfo with isNewUser when connectWallet reports a new user', async () => {
       vi.mocked(connectWallet).mockResolvedValue({
         ...baseConnectResponse,
         is_new_user: true,
@@ -184,22 +184,22 @@ describe("useUserQuery — uncovered branches", () => {
           infer T
         >
           ? T
-          : never
+          : never,
       );
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       const result = await captured.fn!();
       expect(result).toMatchObject({ isNewUser: true });
     });
 
-    it("sets etlJobId on result when connectWallet returns an etl_job", async () => {
+    it('sets etlJobId on result when connectWallet returns an etl_job', async () => {
       vi.mocked(connectWallet).mockResolvedValue({
         ...baseConnectResponse,
         etl_job: {
-          job_id: "job-xyz",
-          status: "pending" as const,
+          job_id: 'job-xyz',
+          status: 'pending' as const,
         },
       } as ReturnType<typeof connectWallet> extends Promise<infer T>
         ? T
@@ -209,17 +209,17 @@ describe("useUserQuery — uncovered branches", () => {
           infer T
         >
           ? T
-          : never
+          : never,
       );
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       const result = await captured.fn!();
-      expect(result).toMatchObject({ etlJobId: "job-xyz" });
+      expect(result).toMatchObject({ etlJobId: 'job-xyz' });
     });
 
-    it("does NOT include isNewUser key when is_new_user is false", async () => {
+    it('does NOT include isNewUser key when is_new_user is false', async () => {
       vi.mocked(connectWallet).mockResolvedValue({
         ...baseConnectResponse,
         is_new_user: false,
@@ -232,17 +232,17 @@ describe("useUserQuery — uncovered branches", () => {
           infer T
         >
           ? T
-          : never
+          : never,
       );
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
-      expect(result).not.toHaveProperty("isNewUser");
+      expect(result).not.toHaveProperty('isNewUser');
     });
 
-    it("does NOT include etlJobId key when etl_job is absent", async () => {
+    it('does NOT include etlJobId key when etl_job is absent', async () => {
       vi.mocked(connectWallet).mockResolvedValue({
         ...baseConnectResponse,
         etl_job: undefined,
@@ -254,17 +254,17 @@ describe("useUserQuery — uncovered branches", () => {
           infer T
         >
           ? T
-          : never
+          : never,
       );
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
-      expect(result).not.toHaveProperty("etlJobId");
+      expect(result).not.toHaveProperty('etlJobId');
     });
 
-    it("uses fallbackWallet when profileData has no wallets", async () => {
+    it('uses fallbackWallet when profileData has no wallets', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: profileWithWallets.user,
         wallets: [],
@@ -273,22 +273,22 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xFALLBACK"));
+      renderHook(() => useUserByWallet('0xFALLBACK'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
       expect(result).toMatchObject({
-        bundleWallets: ["0xFALLBACK"],
+        bundleWallets: ['0xFALLBACK'],
         totalWallets: 1,
       });
     });
 
-    it("falls back to empty email string when profileData.user.email is absent", async () => {
+    it('falls back to empty email string when profileData.user.email is absent', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: {
-          id: "user-abc",
+          id: 'user-abc',
           // email intentionally omitted
           is_subscribed_to_reports: false,
-          created_at: "2024-01-01",
+          created_at: '2024-01-01',
         },
         wallets: profileWithWallets.wallets,
       } as ReturnType<typeof getUserProfile> extends Promise<infer T>
@@ -296,13 +296,13 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
-      expect(result).toMatchObject({ email: "" });
+      expect(result).toMatchObject({ email: '' });
     });
 
-    it("falls back to empty wallets array when profileData.wallets is null/undefined", async () => {
+    it('falls back to empty wallets array when profileData.wallets is null/undefined', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: profileWithWallets.user,
         // wallets intentionally absent — exercises the `|| []` branch
@@ -312,50 +312,50 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserByWallet("0xAAA"));
+      renderHook(() => useUserByWallet('0xAAA'));
 
       // Should not throw; falls back to fallbackWallet ("0xAAA")
       const result = (await captured.fn!()) as Record<string, unknown>;
-      expect(Array.isArray(result["bundleWallets"])).toBe(true);
+      expect(Array.isArray(result['bundleWallets'])).toBe(true);
     });
   });
 
   // -------------------------------------------------------------------------
   // Branch 2: useUserById queryFn guard — userId is falsy
   // -------------------------------------------------------------------------
-  describe("useUserById queryFn", () => {
-    it("throws when userId is empty string (falsy guard inside queryFn)", async () => {
+  describe('useUserById queryFn', () => {
+    it('throws when userId is empty string (falsy guard inside queryFn)', async () => {
       const captured = captureQueryFn();
 
       renderHook(() => useUserById(null));
 
       expect(captured.fn).not.toBeNull();
-      await expect(captured.fn!()).rejects.toThrow("No user ID provided");
+      await expect(captured.fn!()).rejects.toThrow('No user ID provided');
     });
 
-    it("returns UserInfo without isNewUser or etlJobId (no wallet connection)", async () => {
+    it('returns UserInfo without isNewUser or etlJobId (no wallet connection)', async () => {
       vi.mocked(getUserProfile).mockResolvedValue(
         profileWithWallets as ReturnType<typeof getUserProfile> extends Promise<
           infer T
         >
           ? T
-          : never
+          : never,
       );
 
       const captured = captureQueryFn();
-      renderHook(() => useUserById("bundle-owner-999"));
+      renderHook(() => useUserById('bundle-owner-999'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
-      expect(result).not.toHaveProperty("isNewUser");
-      expect(result).not.toHaveProperty("etlJobId");
+      expect(result).not.toHaveProperty('isNewUser');
+      expect(result).not.toHaveProperty('etlJobId');
       expect(result).toMatchObject({
-        userId: "bundle-owner-999",
-        email: "alice@example.com",
-        bundleWallets: ["0xAAA", "0xBBB"],
+        userId: 'bundle-owner-999',
+        email: 'alice@example.com',
+        bundleWallets: ['0xAAA', '0xBBB'],
       });
     });
 
-    it("produces empty bundleWallets when profile has no wallets and no fallback", async () => {
+    it('produces empty bundleWallets when profile has no wallets and no fallback', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: profileWithWallets.user,
         wallets: [],
@@ -364,7 +364,7 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserById("bundle-owner-999"));
+      renderHook(() => useUserById('bundle-owner-999'));
 
       const result = (await captured.fn!()) as Record<string, unknown>;
       // No fallbackWallet passed → bundleWallets must be []
@@ -379,17 +379,17 @@ describe("useUserQuery — uncovered branches", () => {
   // -------------------------------------------------------------------------
   // Branch 3 & 4 (consolidated): buildUserInfo edge cases via useUserById
   // -------------------------------------------------------------------------
-  describe("buildUserInfo edge cases via useUserById", () => {
-    it("maps null wallet label to null in additionalWallets", async () => {
+  describe('buildUserInfo edge cases via useUserById', () => {
+    it('maps null wallet label to null in additionalWallets', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: profileWithWallets.user,
         wallets: [
           {
-            id: "w1",
-            user_id: "u",
-            wallet: "0xNULL",
+            id: 'w1',
+            user_id: 'u',
+            wallet: '0xNULL',
             label: null,
-            created_at: "2024-06-01",
+            created_at: '2024-06-01',
           },
         ],
       } as ReturnType<typeof getUserProfile> extends Promise<infer T>
@@ -397,7 +397,7 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserById("uid-null-label"));
+      renderHook(() => useUserById('uid-null-label'));
 
       const result = (await captured.fn!()) as {
         additionalWallets: { label: unknown }[];
@@ -405,16 +405,16 @@ describe("useUserQuery — uncovered branches", () => {
       expect(result.additionalWallets[0]?.label).toBeNull();
     });
 
-    it("maps undefined wallet label to null in additionalWallets", async () => {
+    it('maps undefined wallet label to null in additionalWallets', async () => {
       vi.mocked(getUserProfile).mockResolvedValue({
         user: profileWithWallets.user,
         wallets: [
           {
-            id: "w1",
-            user_id: "u",
-            wallet: "0xUNDEF",
+            id: 'w1',
+            user_id: 'u',
+            wallet: '0xUNDEF',
             label: undefined,
-            created_at: "2024-06-01",
+            created_at: '2024-06-01',
           },
         ],
       } as ReturnType<typeof getUserProfile> extends Promise<infer T>
@@ -422,7 +422,7 @@ describe("useUserQuery — uncovered branches", () => {
         : never);
 
       const captured = captureQueryFn();
-      renderHook(() => useUserById("uid-undef-label"));
+      renderHook(() => useUserById('uid-undef-label'));
 
       const result = (await captured.fn!()) as {
         additionalWallets: { label: unknown }[];
@@ -435,12 +435,12 @@ describe("useUserQuery — uncovered branches", () => {
   // -------------------------------------------------------------------------
   // useCurrentUser: error message transformation
   // -------------------------------------------------------------------------
-  describe("useCurrentUser", () => {
-    it("exposes error as a string message when the inner query errors", () => {
-      const testError = new Error("Wallet service unavailable");
+  describe('useCurrentUser', () => {
+    it('exposes error as a string message when the inner query errors', () => {
+      const testError = new Error('Wallet service unavailable');
 
       vi.mocked(useWalletProvider).mockReturnValue({
-        account: { address: "0xDEAD", isConnected: true },
+        account: { address: '0xDEAD', isConnected: true },
       } as ReturnType<typeof useWalletProvider>);
       vi.mocked(useQuery).mockReturnValue({
         data: undefined,
@@ -450,16 +450,16 @@ describe("useUserQuery — uncovered branches", () => {
         isSuccess: false,
         error: testError,
         refetch: vi.fn(),
-        status: "error",
+        status: 'error',
       } as ReturnType<typeof useQuery>);
 
       const { result } = renderHook(() => useCurrentUser());
 
-      expect(result.current.error).toBe("Wallet service unavailable");
+      expect(result.current.error).toBe('Wallet service unavailable');
       expect(result.current.isConnected).toBe(true);
     });
 
-    it("exposes error as null when the inner query has no error", () => {
+    it('exposes error as null when the inner query has no error', () => {
       vi.mocked(useWalletProvider).mockReturnValue({
         account: null,
       } as ReturnType<typeof useWalletProvider>);
@@ -471,7 +471,7 @@ describe("useUserQuery — uncovered branches", () => {
         isSuccess: false,
         error: null,
         refetch: vi.fn(),
-        status: "pending",
+        status: 'pending',
       } as ReturnType<typeof useQuery>);
 
       const { result } = renderHook(() => useCurrentUser());
@@ -480,18 +480,18 @@ describe("useUserQuery — uncovered branches", () => {
       expect(result.current.isConnected).toBe(false);
     });
 
-    it("derives connectedWallet from wallet provider account", () => {
+    it('derives connectedWallet from wallet provider account', () => {
       vi.mocked(useWalletProvider).mockReturnValue({
-        account: { address: "0xBEEF", isConnected: true },
+        account: { address: '0xBEEF', isConnected: true },
       } as ReturnType<typeof useWalletProvider>);
 
       const { result } = renderHook(() => useCurrentUser());
 
-      expect(result.current.connectedWallet).toBe("0xBEEF");
+      expect(result.current.connectedWallet).toBe('0xBEEF');
       expect(result.current.isConnected).toBe(true);
     });
 
-    it("sets connectedWallet to null when wallet provider has no account", () => {
+    it('sets connectedWallet to null when wallet provider has no account', () => {
       vi.mocked(useWalletProvider).mockReturnValue({
         account: null,
       } as ReturnType<typeof useWalletProvider>);
@@ -502,9 +502,9 @@ describe("useUserQuery — uncovered branches", () => {
       expect(result.current.isConnected).toBe(false);
     });
 
-    it("sets userInfo to null when query has no data", () => {
+    it('sets userInfo to null when query has no data', () => {
       vi.mocked(useWalletProvider).mockReturnValue({
-        account: { address: "0xBEEF", isConnected: true },
+        account: { address: '0xBEEF', isConnected: true },
       } as ReturnType<typeof useWalletProvider>);
       vi.mocked(useQuery).mockReturnValue({
         data: undefined,
@@ -514,7 +514,7 @@ describe("useUserQuery — uncovered branches", () => {
         isSuccess: false,
         error: null,
         refetch: vi.fn(),
-        status: "pending",
+        status: 'pending',
       } as ReturnType<typeof useQuery>);
 
       const { result } = renderHook(() => useCurrentUser());

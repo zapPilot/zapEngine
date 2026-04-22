@@ -16,7 +16,12 @@ This directory provides reusable testing helpers to reduce boilerplate and estab
 All utilities are exported from `@/test-utils` for easy importing:
 
 ```typescript
-import { render, screen, setupWindowMock, createMockStrategy } from '@/test-utils';
+import {
+  render,
+  screen,
+  setupWindowMock,
+  createMockStrategy,
+} from '@/test-utils';
 ```
 
 ## Usage Guide

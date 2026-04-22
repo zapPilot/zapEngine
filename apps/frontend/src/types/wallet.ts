@@ -12,9 +12,9 @@ export interface OperationState {
 }
 
 export type WalletOperationStateSetter = (
-  key: "removing" | "editing",
+  key: 'removing' | 'editing',
   walletId: string,
-  state: OperationState
+  state: OperationState,
 ) => void;
 
 export interface WalletOperations {

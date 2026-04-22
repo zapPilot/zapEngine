@@ -1,11 +1,11 @@
-import { type ReactElement } from "react";
+import { type ReactElement } from 'react';
 
 import {
   Modal,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from "@/components/ui/modal";
+} from '@/components/ui/modal';
 
 interface SetDefaultConfirmModalProps {
   isOpen: boolean;
@@ -36,11 +36,11 @@ export function SetDefaultConfirmModal({
       <ModalContent>
         <div className="space-y-4 text-sm text-gray-300">
           <p>
-            This will change the default strategy configuration from{" "}
+            This will change the default strategy configuration from{' '}
             <span className="font-semibold text-white">
               {currentDefaultName}
-            </span>{" "}
-            to{" "}
+            </span>{' '}
+            to{' '}
             <span className="font-semibold text-white">{targetConfigName}</span>
             .
           </p>
@@ -67,7 +67,7 @@ export function SetDefaultConfirmModal({
             disabled={isPending}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50"
           >
-            {isPending ? "Setting..." : "Confirm"}
+            {isPending ? 'Setting...' : 'Confirm'}
           </button>
         </div>
       </ModalFooter>

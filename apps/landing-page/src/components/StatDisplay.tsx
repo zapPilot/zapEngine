@@ -11,7 +11,12 @@ interface StatDisplayProps {
   animate?: boolean;
 }
 
-export function StatDisplay({ stat, index, variant = 'hero', animate = true }: StatDisplayProps) {
+export function StatDisplay({
+  stat,
+  index,
+  variant = 'hero',
+  animate = true,
+}: StatDisplayProps) {
   const isHero = variant === 'hero';
   const isCTA = variant === 'cta';
 
@@ -37,9 +42,14 @@ export function StatDisplay({ stat, index, variant = 'hero', animate = true }: S
       ) : (
         <>
           {/* Icon row */}
-          <div className={`flex items-center justify-center ${isHero ? 'gap-3' : 'gap-2'} mb-3`}>
-            {stat.icons?.map(icon => (
-              <div key={icon.name} className="relative group/icon flex items-center justify-center">
+          <div
+            className={`flex items-center justify-center ${isHero ? 'gap-3' : 'gap-2'} mb-3`}
+          >
+            {stat.icons?.map((icon) => (
+              <div
+                key={icon.name}
+                className="relative group/icon flex items-center justify-center"
+              >
                 <Image
                   src={icon.src}
                   alt={icon.alt}

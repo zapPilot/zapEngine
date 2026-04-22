@@ -10,25 +10,26 @@
  *   npm run backfill:eth-btc-ratio
  */
 
-import type { Pool } from "pg";
-import { getDbPool, getTableName } from "../src/config/database.js";
-import { TokenPriceDmaService } from "../src/modules/token-price/dmaService.js";
-import { toErrorMessage } from "../src/utils/errors.js";
+import type { Pool } from 'pg';
 
-const SOURCE = "coingecko";
-const REQUIRED_TOKENS = ["ETH", "BTC"] as const;
-const DIVIDER = "═══════════════════════════════════════════════════════════";
+import { getDbPool, getTableName } from '../src/config/database.js';
+import { TokenPriceDmaService } from '../src/modules/token-price/dmaService.js';
+import { toErrorMessage } from '../src/utils/errors.js';
+
+const SOURCE = 'coingecko';
+const REQUIRED_TOKENS = ['ETH', 'BTC'] as const;
+const DIVIDER = '═══════════════════════════════════════════════════════════';
 
 function printHeader(): void {
   console.log(DIVIDER);
-  console.log("  ETH/BTC Ratio DMA200 Backfill");
+  console.log('  ETH/BTC Ratio DMA200 Backfill');
   console.log(`${DIVIDER}\n`);
 }
 
 async function ensureRatioTableExists(pool: Pool): Promise<void> {
-  const ratioTable = getTableName("TOKEN_PAIR_RATIO_DMA_SNAPSHOTS");
+  const ratioTable = getTableName('TOKEN_PAIR_RATIO_DMA_SNAPSHOTS');
   const result = await pool.query<{ table_name: string | null }>(
-    "SELECT to_regclass($1) AS table_name",
+    'SELECT to_regclass($1) AS table_name',
     [ratioTable],
   );
 
@@ -44,7 +45,7 @@ async function ensureRatioTableExists(pool: Pool): Promise<void> {
 async function getSourceRowCounts(
   pool: Pool,
 ): Promise<Record<(typeof REQUIRED_TOKENS)[number], number>> {
-  const priceTable = getTableName("TOKEN_PRICE_SNAPSHOTS");
+  const priceTable = getTableName('TOKEN_PRICE_SNAPSHOTS');
   const result = await pool.query<{ token_symbol: string; row_count: string }>(
     `
       SELECT token_symbol, COUNT(*)::text AS row_count
@@ -80,17 +81,17 @@ function assertRequiredSourceRows(
   }
 
   throw new Error(
-    `Missing required token price history for ${missingTokens.join(", ")} in ${getTableName("TOKEN_PRICE_SNAPSHOTS")}.`,
+    `Missing required token price history for ${missingTokens.join(', ')} in ${getTableName('TOKEN_PRICE_SNAPSHOTS')}.`,
   );
 }
 
 function printPreflightSummary(
   counts: Record<(typeof REQUIRED_TOKENS)[number], number>,
 ): void {
-  console.log("Preflight checks passed.\n");
-  console.log(`Source table: ${getTableName("TOKEN_PRICE_SNAPSHOTS")}`);
+  console.log('Preflight checks passed.\n');
+  console.log(`Source table: ${getTableName('TOKEN_PRICE_SNAPSHOTS')}`);
   console.log(
-    `Target table: ${getTableName("TOKEN_PAIR_RATIO_DMA_SNAPSHOTS")}`,
+    `Target table: ${getTableName('TOKEN_PAIR_RATIO_DMA_SNAPSHOTS')}`,
   );
   console.log(`ETH source rows: ${counts.ETH}`);
   console.log(`BTC source rows: ${counts.BTC}\n`);
@@ -121,10 +122,10 @@ async function main(): Promise<void> {
 
     const recordsInserted = await runBackfill(pool);
 
-    console.log("Backfill completed successfully.\n");
+    console.log('Backfill completed successfully.\n');
     console.log(`Rows inserted/upserted: ${recordsInserted}`);
     console.log(
-      `Target table: ${getTableName("TOKEN_PAIR_RATIO_DMA_SNAPSHOTS")}`,
+      `Target table: ${getTableName('TOKEN_PAIR_RATIO_DMA_SNAPSHOTS')}`,
     );
   } finally {
     await pool.end();
@@ -132,7 +133,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("\nETH/BTC ratio DMA backfill failed.");
+  console.error('\nETH/BTC ratio DMA backfill failed.');
   console.error(toErrorMessage(error));
   process.exit(1);
 });

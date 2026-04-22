@@ -1,11 +1,11 @@
 /**
  * Query hook for fetching a single strategy admin configuration.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { createQueryConfig } from "@/hooks/queries/queryDefaults";
-import { queryKeys } from "@/lib/state/queryClient";
-import { getStrategyAdminConfig } from "@/services";
+import { createQueryConfig } from '@/hooks/queries/queryDefaults';
+import { queryKeys } from '@/lib/state/queryClient';
+import { getStrategyAdminConfig } from '@/services';
 
 /**
  * Fetch a single saved strategy configuration by ID.
@@ -21,7 +21,7 @@ import { getStrategyAdminConfig } from "@/services";
 export function useStrategyAdminConfig(configId: string | null) {
   return useQuery({
     ...createQueryConfig(),
-    queryKey: queryKeys.strategyAdmin.config(configId ?? ""),
+    queryKey: queryKeys.strategyAdmin.config(configId ?? ''),
     queryFn: async () => {
       const response = await getStrategyAdminConfig(configId!);
       return response.config;

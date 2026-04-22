@@ -2,21 +2,21 @@ import type {
   BacktestBucket,
   BacktestSpotAssetSymbol,
   BacktestTimelinePoint,
-} from "@/types/backtesting";
+} from '@/types/backtesting';
 
-import { getBacktestTransferDirection } from "../backtestBuckets";
-import { DCA_CLASSIC_STRATEGY_ID } from "../constants";
+import { getBacktestTransferDirection } from '../backtestBuckets';
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import {
   getBacktestSpotAssetColor,
   resolveBacktestSpotAsset,
-} from "./spotAssetDisplay";
-import { getStrategyDisplayName } from "./strategyDisplay";
+} from './spotAssetDisplay';
+import { getStrategyDisplayName } from './strategyDisplay';
 
 export type SignalKey =
-  | "buy_spot"
-  | "sell_spot"
-  | "switch_to_eth"
-  | "switch_to_btc";
+  | 'buy_spot'
+  | 'sell_spot'
+  | 'switch_to_eth'
+  | 'switch_to_btc';
 
 export interface SignalConfig {
   key: SignalKey;
@@ -24,48 +24,48 @@ export interface SignalConfig {
   name: string;
   color: string;
   shape:
-    | "circle"
-    | "cross"
-    | "diamond"
-    | "square"
-    | "star"
-    | "triangle"
-    | "wye";
+    | 'circle'
+    | 'cross'
+    | 'diamond'
+    | 'square'
+    | 'star'
+    | 'triangle'
+    | 'wye';
 }
 
 /** Unified signal configuration */
 export const CHART_SIGNALS: SignalConfig[] = [
   {
-    key: "buy_spot",
-    field: "buySpotSignal",
-    name: "Buy Spot",
-    color: "#22c55e",
-    shape: "circle",
+    key: 'buy_spot',
+    field: 'buySpotSignal',
+    name: 'Buy Spot',
+    color: '#22c55e',
+    shape: 'circle',
   },
   {
-    key: "sell_spot",
-    field: "sellSpotSignal",
-    name: "Sell Spot",
-    color: "#ef4444",
-    shape: "circle",
+    key: 'sell_spot',
+    field: 'sellSpotSignal',
+    name: 'Sell Spot',
+    color: '#ef4444',
+    shape: 'circle',
   },
   {
-    key: "switch_to_eth",
-    field: "switchToEthSignal",
-    name: "Switch to ETH",
-    color: getBacktestSpotAssetColor("ETH"),
-    shape: "diamond",
+    key: 'switch_to_eth',
+    field: 'switchToEthSignal',
+    name: 'Switch to ETH',
+    color: getBacktestSpotAssetColor('ETH'),
+    shape: 'diamond',
   },
   {
-    key: "switch_to_btc",
-    field: "switchToBtcSignal",
-    name: "Switch to BTC",
-    color: getBacktestSpotAssetColor("BTC"),
-    shape: "diamond",
+    key: 'switch_to_btc',
+    field: 'switchToBtcSignal',
+    name: 'Switch to BTC',
+    color: getBacktestSpotAssetColor('BTC'),
+    shape: 'diamond',
   },
 ];
 
-const SIGNAL_FIELDS = CHART_SIGNALS.map(s => s.field);
+const SIGNAL_FIELDS = CHART_SIGNALS.map((s) => s.field);
 const SENTIMENT_INDEX_MAP: Record<string, number> = {
   extreme_fear: 0,
   fear: 25,
@@ -83,30 +83,30 @@ interface SignalAccumulator {
 }
 
 type BacktestStrategy = NonNullable<
-  BacktestTimelinePoint["strategies"][string]
+  BacktestTimelinePoint['strategies'][string]
 >;
 type SpotAssetTracker = Record<string, BacktestSpotAssetSymbol | null>;
 
 function classifyTransfer(
   from: BacktestBucket,
-  to: BacktestBucket
+  to: BacktestBucket,
 ): SignalKey | null {
   const direction = getBacktestTransferDirection(from, to);
 
-  if (direction === "stable_to_spot") {
-    return "buy_spot";
+  if (direction === 'stable_to_spot') {
+    return 'buy_spot';
   }
 
-  if (direction === "spot_to_stable") {
-    return "sell_spot";
+  if (direction === 'spot_to_stable') {
+    return 'sell_spot';
   }
 
-  if (from === "btc" && to === "eth") {
-    return "switch_to_eth";
+  if (from === 'btc' && to === 'eth') {
+    return 'switch_to_eth';
   }
 
-  if (from === "eth" && to === "btc") {
-    return "switch_to_btc";
+  if (from === 'eth' && to === 'btc') {
+    return 'switch_to_btc';
   }
 
   return null;
@@ -116,9 +116,9 @@ function updateSignal(
   acc: SignalAccumulator,
   signalKey: SignalKey,
   portfolioValue: number,
-  displayName: string
+  displayName: string,
 ): void {
-  const config = CHART_SIGNALS.find(s => s.key === signalKey);
+  const config = CHART_SIGNALS.find((s) => s.key === signalKey);
   if (!config) return;
 
   const current = acc[config.field] as number | null;
@@ -132,15 +132,15 @@ function updateSignal(
 }
 
 function getTransfers(
-  strategy: BacktestStrategy
-): BacktestStrategy["execution"]["transfers"] {
+  strategy: BacktestStrategy,
+): BacktestStrategy['execution']['transfers'] {
   return strategy.execution.transfers ?? [];
 }
 
 function forEachActiveStrategy(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-  callback: (strategyId: string, strategy: BacktestStrategy) => void
+  callback: (strategyId: string, strategy: BacktestStrategy) => void,
 ): void {
   for (const strategyId of strategyIds) {
     if (strategyId === DCA_CLASSIC_STRATEGY_ID) {
@@ -159,14 +159,14 @@ function forEachActiveStrategy(
 function processStrategyTransfers(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-  acc: SignalAccumulator
+  acc: SignalAccumulator,
 ): void {
   forEachActiveStrategy(point, strategyIds, (strategyId, strategy) => {
     const displayName = getStrategyDisplayName(strategyId);
     for (const transfer of getTransfers(strategy)) {
       const signalKey = classifyTransfer(
         transfer.from_bucket,
-        transfer.to_bucket
+        transfer.to_bucket,
       );
       if (!signalKey) {
         continue;
@@ -181,7 +181,7 @@ function processStrategySpotSwitches(
   point: BacktestTimelinePoint,
   strategyIds: string[],
   acc: SignalAccumulator,
-  spotAssetTracker: SpotAssetTracker | undefined
+  spotAssetTracker: SpotAssetTracker | undefined,
 ): void {
   if (!spotAssetTracker) {
     return;
@@ -202,12 +202,12 @@ function processStrategySpotSwitches(
     const previousSpotAsset = spotAssetTracker[strategyId];
     if (previousSpotAsset && previousSpotAsset !== currentSpotAsset) {
       const signalKey =
-        currentSpotAsset === "ETH" ? "switch_to_eth" : "switch_to_btc";
+        currentSpotAsset === 'ETH' ? 'switch_to_eth' : 'switch_to_btc';
       updateSignal(
         acc,
         signalKey,
         strategy.portfolio.total_value,
-        getStrategyDisplayName(strategyId)
+        getStrategyDisplayName(strategyId),
       );
     }
 
@@ -230,14 +230,14 @@ function createSignalAccumulator(): SignalAccumulator {
 
 function getPointValues(
   point: Record<string, unknown>,
-  strategyIds: string[]
+  strategyIds: string[],
 ): number[] {
-  const keys = [...strategyIds.map(id => `${id}_value`), ...SIGNAL_FIELDS];
+  const keys = [...strategyIds.map((id) => `${id}_value`), ...SIGNAL_FIELDS];
   const values: number[] = [];
 
   for (const key of keys) {
     const value = point[key];
-    if (typeof value === "number") {
+    if (typeof value === 'number') {
       values.push(value);
     }
   }
@@ -247,17 +247,17 @@ function getPointValues(
 
 function getPrimaryDma(
   point: BacktestTimelinePoint,
-  strategyIds: string[]
+  strategyIds: string[],
 ): number | null {
   for (const strategyId of strategyIds) {
     const signal = point.strategies[strategyId]?.signal;
     const details = signal?.details;
     const dmaDetails =
-      details && typeof details === "object" && "dma" in details
+      details && typeof details === 'object' && 'dma' in details
         ? (details.dma as { dma_200?: number | null } | null | undefined)
         : null;
     const dma = dmaDetails?.dma_200;
-    if (typeof dma === "number") {
+    if (typeof dma === 'number') {
       return dma;
     }
   }
@@ -266,7 +266,7 @@ function getPrimaryDma(
 }
 
 export function sentimentLabelToIndex(
-  label: string | null | undefined
+  label: string | null | undefined,
 ): number | null {
   if (!label) {
     return null;
@@ -277,7 +277,7 @@ export function sentimentLabelToIndex(
 
 export function calculateYAxisDomain(
   chartData: Record<string, unknown>[],
-  strategyIds: string[]
+  strategyIds: string[],
 ): [number, number] {
   if (!chartData.length) return DEFAULT_Y_DOMAIN;
 
@@ -314,7 +314,9 @@ export function calculateActualDays(timeline: BacktestTimelinePoint[]): number {
 
 export function getPrimaryStrategyId(sortedIds: string[]): string | null {
   return (
-    sortedIds.find(id => id !== DCA_CLASSIC_STRATEGY_ID) ?? sortedIds[0] ?? null
+    sortedIds.find((id) => id !== DCA_CLASSIC_STRATEGY_ID) ??
+    sortedIds[0] ??
+    null
   );
 }
 
@@ -352,9 +354,9 @@ export function sortStrategyIds(ids: string[]): string[] {
   }
 
   const others = ids
-    .filter(id => id !== DCA_CLASSIC_STRATEGY_ID)
+    .filter((id) => id !== DCA_CLASSIC_STRATEGY_ID)
     .sort((a, b) =>
-      getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b))
+      getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b)),
     );
 
   return [...dca, ...others];
@@ -363,7 +365,7 @@ export function sortStrategyIds(ids: string[]): string[] {
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-  spotAssetTracker?: SpotAssetTracker
+  spotAssetTracker?: SpotAssetTracker,
 ): Record<string, unknown> {
   const data: Record<string, unknown> = {
     date: point.market.date,
@@ -378,9 +380,9 @@ export function buildChartPoint(
     }
   }
 
-  data["btc_price"] = point.market.token_price["btc"] ?? null;
-  data["dma_200"] = getPrimaryDma(point, strategyIds);
-  data["sentiment"] =
+  data['btc_price'] = point.market.token_price['btc'] ?? null;
+  data['dma_200'] = getPrimaryDma(point, strategyIds);
+  data['sentiment'] =
     point.market.sentiment ??
     sentimentLabelToIndex(point.market.sentiment_label);
 
@@ -391,7 +393,7 @@ export function buildChartPoint(
   for (const signal of CHART_SIGNALS) {
     data[signal.field] = acc[signal.field];
   }
-  data["eventStrategies"] = acc.eventStrategies;
+  data['eventStrategies'] = acc.eventStrategies;
 
   return data;
 }

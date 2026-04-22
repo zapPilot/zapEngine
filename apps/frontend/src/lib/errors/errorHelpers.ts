@@ -1,7 +1,7 @@
-import { getIntentErrorMessage } from "@/lib/errors/errorMessages";
+import { getIntentErrorMessage } from '@/lib/errors/errorMessages';
 
-import { resolveErrorMessage } from "./errorFactory";
-import { IntentServiceError, type ServiceError } from "./ServiceError";
+import { resolveErrorMessage } from './errorFactory';
+import { IntentServiceError, type ServiceError } from './ServiceError';
 
 /**
  * Extract a human-readable message from an unknown error object.
@@ -12,21 +12,21 @@ import { IntentServiceError, type ServiceError } from "./ServiceError";
  */
 export function extractErrorMessage(
   error: unknown,
-  fallbackMessage: string
+  fallbackMessage: string,
 ): string {
   if (error instanceof Error) {
     return error.message;
   }
 
-  if (typeof error === "string") {
+  if (typeof error === 'string') {
     return error;
   }
 
   if (
     error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof error.message === "string"
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
   ) {
     return error.message;
   }
@@ -56,7 +56,7 @@ interface ErrorContextSource {
  */
 export function isClientError(error: unknown): boolean {
   const status = getErrorStatus(error);
-  return typeof status === "number" && status >= 400 && status < 500;
+  return typeof status === 'number' && status >= 400 && status < 500;
 }
 
 /**
@@ -67,7 +67,7 @@ export function isClientError(error: unknown): boolean {
  */
 export function isServerError(error: unknown): boolean {
   const status = getErrorStatus(error);
-  return typeof status === "number" && status >= 500;
+  return typeof status === 'number' && status >= 500;
 }
 
 /**
@@ -79,7 +79,7 @@ export function isServerError(error: unknown): boolean {
 export function isRetryableError(error: unknown): boolean {
   const status = getErrorStatus(error);
   return (
-    typeof status === "number" &&
+    typeof status === 'number' &&
     (status >= 500 || status === 429 || status === 408)
   );
 }
@@ -93,8 +93,8 @@ export function isRetryableError(error: unknown): boolean {
 function isServiceError(error: unknown): error is ServiceError {
   return (
     error instanceof Error &&
-    "status" in error &&
-    typeof (error as ServiceError).status === "number"
+    'status' in error &&
+    typeof (error as ServiceError).status === 'number'
   );
 }
 
@@ -103,9 +103,9 @@ function getErrorStatus(error: unknown): number | undefined {
     return error.status;
   }
 
-  if (error && typeof error === "object" && "status" in error) {
+  if (error && typeof error === 'object' && 'status' in error) {
     const status = (error as ErrorWithStatus).status;
-    if (typeof status === "number") return status;
+    if (typeof status === 'number') return status;
   }
 
   return undefined;
@@ -113,7 +113,7 @@ function getErrorStatus(error: unknown): number | undefined {
 
 function getResponseStatus(error: unknown): number | undefined {
   const responseStatus = (error as ErrorContextSource)?.response?.status;
-  return typeof responseStatus === "number" ? responseStatus : undefined;
+  return typeof responseStatus === 'number' ? responseStatus : undefined;
 }
 
 /**
@@ -124,10 +124,10 @@ function getResponseStatus(error: unknown): number | undefined {
  */
 export function extractStatusCode(error: unknown): number {
   const directStatus = getErrorStatus(error);
-  if (typeof directStatus === "number") return directStatus;
+  if (typeof directStatus === 'number') return directStatus;
 
   const responseStatus = getResponseStatus(error);
-  if (typeof responseStatus === "number") return responseStatus;
+  if (typeof responseStatus === 'number') return responseStatus;
 
   return 500;
 }
@@ -143,9 +143,9 @@ export function extractErrorCode(error: unknown): string | undefined {
     return error.code;
   }
 
-  if (error && typeof error === "object" && "code" in error) {
+  if (error && typeof error === 'object' && 'code' in error) {
     const code = (error as ErrorWithCode).code;
-    if (typeof code === "string") return code;
+    if (typeof code === 'string') return code;
   }
 
   return undefined;
@@ -162,11 +162,11 @@ export function createIntentServiceError(error: unknown): IntentServiceError {
   const code = extractErrorCode(error);
   const errorObj = error as ErrorContextSource;
   const fallbackMessage = resolveErrorMessage(
-    "Intent service error",
-    extractErrorMessage(error, "Intent service error"),
+    'Intent service error',
+    extractErrorMessage(error, 'Intent service error'),
     errorObj.response?.data,
     errorObj.details,
-    errorObj
+    errorObj,
   );
   const userMessage = getIntentErrorMessage(status, fallbackMessage);
 
@@ -174,6 +174,6 @@ export function createIntentServiceError(error: unknown): IntentServiceError {
     userMessage,
     status,
     code,
-    errorObj.details as Record<string, unknown> | undefined
+    errorObj.details as Record<string, unknown> | undefined,
   );
 }

@@ -1,9 +1,9 @@
-import { ChevronDown } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { ChevronDown } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 
-import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useClickOutside } from '@/hooks/ui/useClickOutside';
 
-import { phosphorGlowStyle } from "./terminalStyles";
+import { phosphorGlowStyle } from './terminalStyles';
 
 export interface TerminalDropdownOption {
   value: string;
@@ -49,13 +49,13 @@ export function TerminalDropdown({
 
   useClickOutside(containerRef, () => setIsOpen(false), isOpen);
 
-  const selectedLabel = options.find(o => o.value === value)?.label ?? value;
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
 
   const toggle = () => {
     if (disabled) return;
-    setIsOpen(prev => {
+    setIsOpen((prev) => {
       if (!prev) {
-        const idx = options.findIndex(o => o.value === value);
+        const idx = options.findIndex((o) => o.value === value);
         setFocusIndex(idx >= 0 ? idx : 0);
       }
       return !prev;
@@ -67,12 +67,12 @@ export function TerminalDropdown({
       onChange(optionValue);
       setIsOpen(false);
     },
-    [onChange]
+    [onChange],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen) {
-      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
         e.preventDefault();
         toggle();
       }
@@ -80,15 +80,15 @@ export function TerminalDropdown({
     }
 
     switch (e.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         e.preventDefault();
-        setFocusIndex(prev => Math.min(prev + 1, options.length - 1));
+        setFocusIndex((prev) => Math.min(prev + 1, options.length - 1));
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         e.preventDefault();
-        setFocusIndex(prev => Math.max(prev - 1, 0));
+        setFocusIndex((prev) => Math.max(prev - 1, 0));
         break;
-      case "Enter": {
+      case 'Enter': {
         e.preventDefault();
         const focused = options[focusIndex];
         if (focused) {
@@ -96,7 +96,7 @@ export function TerminalDropdown({
         }
         break;
       }
-      case "Escape":
+      case 'Escape':
         e.preventDefault();
         setIsOpen(false);
         break;
@@ -137,13 +137,13 @@ export function TerminalDropdown({
                 onMouseEnter={() => setFocusIndex(index)}
                 className={`px-3 py-1.5 cursor-pointer transition-colors ${
                   isFocused
-                    ? "bg-emerald-400/10 text-emerald-400"
-                    : "text-gray-300 hover:text-emerald-400"
+                    ? 'bg-emerald-400/10 text-emerald-400'
+                    : 'text-gray-300 hover:text-emerald-400'
                 }`}
                 style={isFocused ? phosphorGlowStyle : undefined}
               >
                 <span className="text-emerald-400/60 mr-1">
-                  {isSelected ? ">" : "\u00A0"}
+                  {isSelected ? '>' : '\u00A0'}
                 </span>
                 {option.label}
               </li>

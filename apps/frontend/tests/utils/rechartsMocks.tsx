@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, type ReactNode } from 'react';
 
 type MockRenderer<TProps> = (props: TProps) => ReactNode;
 
@@ -21,7 +21,7 @@ interface RechartsMockComponent<TProps> {
  * });
  */
 export const createRechartsMockComponent = <TProps,>(
-  renderer?: MockRenderer<TProps>
+  renderer?: MockRenderer<TProps>,
 ): RechartsMockComponent<TProps> => {
   const MockComponent = (() => null) as RechartsMockComponent<TProps>;
   MockComponent.__mockRenderer = renderer;
@@ -30,12 +30,12 @@ export const createRechartsMockComponent = <TProps,>(
 
 const renderMockChildren = (
   children: ReactNode,
-  keyState: { value: number } = { value: 0 }
+  keyState: { value: number } = { value: 0 },
 ): ReactNode[] => {
   const renderedChildren: ReactNode[] = [];
 
-  Children.forEach(children, child => {
-    if (!isValidElement(child) || typeof child.type === "string") {
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child) || typeof child.type === 'string') {
       return;
     }
 
@@ -43,7 +43,7 @@ const renderMockChildren = (
       Record<string, unknown>
     >;
     const renderedChild = component.__mockRenderer?.(
-      child.props as Record<string, unknown>
+      child.props as Record<string, unknown>,
     );
 
     if (renderedChild != null) {
@@ -52,17 +52,17 @@ const renderMockChildren = (
           ? cloneElement(renderedChild, {
               key: `recharts-mock-${keyState.value++}`,
             })
-          : renderedChild
+          : renderedChild,
       );
       return;
     }
 
-    if (typeof child.type === "function") {
+    if (typeof child.type === 'function') {
       renderedChildren.push(
         ...renderMockChildren(
           child.type(child.props as Record<string, unknown>) as ReactNode,
-          keyState
-        )
+          keyState,
+        ),
       );
     }
   });
@@ -84,7 +84,7 @@ export const createRechartsChartContainer = () => {
     return <div>{renderMockChildren(children)}</div>;
   };
 
-  MockChartContainer.displayName = "MockRechartsChartContainer";
+  MockChartContainer.displayName = 'MockRechartsChartContainer';
 
   return MockChartContainer;
 };

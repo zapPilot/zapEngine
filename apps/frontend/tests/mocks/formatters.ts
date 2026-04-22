@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from 'vitest';
 
 /**
  * Centralized mock implementations for formatter functions.
@@ -27,11 +27,11 @@ export const mockFormatters = {
    */
   formatCurrency: vi.fn((amount: number, options: any = {}) => {
     const isHidden =
-      typeof options === "boolean" ? options : options.isHidden || false;
-    if (isHidden) return "****";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+      typeof options === 'boolean' ? options : options.isHidden || false;
+    if (isHidden) return '****';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
@@ -43,9 +43,9 @@ export const mockFormatters = {
    */
   formatNumber: vi.fn((amount: number, options: any = {}) => {
     const isHidden =
-      typeof options === "boolean" ? options : options.isHidden || false;
-    if (isHidden) return "***";
-    return amount.toLocaleString("en-US", {
+      typeof options === 'boolean' ? options : options.isHidden || false;
+    if (isHidden) return '***';
+    return amount.toLocaleString('en-US', {
       maximumFractionDigits: options.maximumFractionDigits || 4,
       minimumFractionDigits: options.minimumFractionDigits || 0,
     });
@@ -65,14 +65,14 @@ export const mockFormatters = {
    * Shortens wallet addresses to standard format.
    */
   formatAddress: vi.fn((address?: string | null, options: any = {}) => {
-    if (!address || typeof address !== "string") return "";
+    if (!address || typeof address !== 'string') return '';
 
     const normalized = address.trim();
-    if (normalized.length === 0) return "";
+    if (normalized.length === 0) return '';
 
     const prefixLength = options.prefixLength || 6;
     const suffixLength = options.suffixLength || 4;
-    const ellipsis = options.ellipsis || "...";
+    const ellipsis = options.ellipsis || '...';
 
     if (normalized.length <= prefixLength + suffixLength) {
       return normalized;
@@ -85,14 +85,14 @@ export const mockFormatters = {
    * Mock implementation of formatChartDate.
    */
   formatChartDate: vi.fn((date: string | Date) => {
-    const parsed = typeof date === "string" ? new Date(date) : date;
+    const parsed = typeof date === 'string' ? new Date(date) : date;
     if (Number.isNaN(parsed.getTime())) {
-      return typeof date === "string" ? date : "";
+      return typeof date === 'string' ? date : '';
     }
-    return parsed.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+    return parsed.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
   }),
 
@@ -100,10 +100,10 @@ export const mockFormatters = {
    * Mock implementation of formatLargeNumber.
    */
   formatLargeNumber: vi.fn((value: number, decimals = 1) => {
-    if (value === 0) return "0";
+    if (value === 0) return '0';
 
     const absValue = Math.abs(value);
-    const sign = value < 0 ? "-" : "";
+    const sign = value < 0 ? '-' : '';
 
     if (absValue >= 1e9) {
       return `${sign}${(absValue / 1e9).toFixed(decimals)}B`;
@@ -123,29 +123,29 @@ export const mockFormatters = {
    */
   formatters: {
     currency: vi.fn((value: number) =>
-      mockFormatters.formatCurrency(Math.round(value))
+      mockFormatters.formatCurrency(Math.round(value)),
     ),
     currencyPrecise: vi.fn((value: number) =>
       mockFormatters.formatCurrency(value, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      })
+      }),
     ),
     percent: vi.fn(
-      (value: number, decimals = 1) => `${value.toFixed(decimals)}%`
+      (value: number, decimals = 1) => `${value.toFixed(decimals)}%`,
     ),
     chartDate: vi.fn((date: string | Date) =>
-      mockFormatters.formatChartDate(date)
+      mockFormatters.formatChartDate(date),
     ),
     number: vi.fn((amount: number) => mockFormatters.formatNumber(amount)),
   },
 
   // Legacy exports for backward compatibility
   formatCurrencyValue: vi.fn((amount: number, options: any = {}) =>
-    mockFormatters.formatCurrency(amount, options)
+    mockFormatters.formatCurrency(amount, options),
   ),
   formatNumericValue: vi.fn((amount: number, options: any = {}) =>
-    mockFormatters.formatNumber(amount, options)
+    mockFormatters.formatNumber(amount, options),
   ),
 };
 
@@ -166,11 +166,11 @@ export const mockFormatters = {
  */
 export function resetFormatterMocks() {
   for (const mock of Object.values(mockFormatters)) {
-    if (typeof mock === "function" && "mockClear" in mock) {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
       mock.mockClear();
-    } else if (typeof mock === "object") {
+    } else if (typeof mock === 'object') {
       for (const nestedMock of Object.values(mock)) {
-        if (typeof nestedMock === "function" && "mockClear" in nestedMock) {
+        if (typeof nestedMock === 'function' && 'mockClear' in nestedMock) {
           nestedMock.mockClear();
         }
       }

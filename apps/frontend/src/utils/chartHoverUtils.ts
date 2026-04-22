@@ -7,20 +7,20 @@ import {
   getColorForSeverity,
   type SeverityLevel,
   severityMappers,
-} from "@/lib/ui/severityColors";
+} from '@/lib/ui/severityColors';
 
 // ============================================================================
 // Drawdown Functions
 // ============================================================================
 
-type DrawdownSeverityLabel = "Minor" | "Moderate" | "Significant" | "Severe";
+type DrawdownSeverityLabel = 'Minor' | 'Moderate' | 'Significant' | 'Severe';
 
 const DRAWDOWN_LABELS: Record<SeverityLevel, DrawdownSeverityLabel> = {
-  excellent: "Minor",
-  good: "Minor",
-  fair: "Moderate",
-  poor: "Significant",
-  critical: "Severe",
+  excellent: 'Minor',
+  good: 'Minor',
+  fair: 'Moderate',
+  poor: 'Significant',
+  critical: 'Severe',
 };
 
 /**
@@ -37,11 +37,11 @@ export function getDrawdownSeverity(drawdown: number): DrawdownSeverityLabel {
 // ============================================================================
 
 const SHARPE_LABELS: Record<SeverityLevel, string> = {
-  excellent: "Excellent",
-  good: "Good",
-  fair: "Fair",
-  poor: "Poor",
-  critical: "Very Poor",
+  excellent: 'Excellent',
+  good: 'Good',
+  fair: 'Fair',
+  poor: 'Poor',
+  critical: 'Very Poor',
 };
 
 /**
@@ -69,12 +69,12 @@ const VOLATILITY_RISK_THRESHOLDS = {
  * @returns Risk level label
  */
 export function getVolatilityRiskLevel(
-  volatility: number
-): "Low" | "Moderate" | "High" | "Very High" {
-  if (volatility < VOLATILITY_RISK_THRESHOLDS.LOW_MAX) return "Low";
-  if (volatility < VOLATILITY_RISK_THRESHOLDS.MODERATE_MAX) return "Moderate";
-  if (volatility < VOLATILITY_RISK_THRESHOLDS.HIGH_MAX) return "High";
-  return "Very High";
+  volatility: number,
+): 'Low' | 'Moderate' | 'High' | 'Very High' {
+  if (volatility < VOLATILITY_RISK_THRESHOLDS.LOW_MAX) return 'Low';
+  if (volatility < VOLATILITY_RISK_THRESHOLDS.MODERATE_MAX) return 'Moderate';
+  if (volatility < VOLATILITY_RISK_THRESHOLDS.HIGH_MAX) return 'High';
+  return 'Very High';
 }
 
 /**
@@ -91,11 +91,11 @@ export function calculateDailyVolatility(annualizedVol: number): number {
 // ============================================================================
 
 const SHARPE_COLORS: Record<SeverityLevel, string> = {
-  excellent: "#10b981",
-  good: "#84cc16",
-  fair: "#fbbf24",
-  poor: "#fb923c",
-  critical: "#ef4444",
+  excellent: '#10b981',
+  good: '#84cc16',
+  fair: '#fbbf24',
+  poor: '#fb923c',
+  critical: '#ef4444',
 };
 
 /**
@@ -111,10 +111,10 @@ const DRAWDOWN_SEVERITY_TO_SEVERITY: Record<
   DrawdownSeverityLabel,
   SeverityLevel
 > = {
-  Minor: "good",
-  Moderate: "fair",
-  Significant: "poor",
-  Severe: "critical",
+  Minor: 'good',
+  Moderate: 'fair',
+  Significant: 'poor',
+  Severe: 'critical',
 };
 
 /**
@@ -133,10 +133,10 @@ const VOLATILITY_RISK_TO_SEVERITY: Record<
   ReturnType<typeof getVolatilityRiskLevel>,
   SeverityLevel
 > = {
-  Low: "excellent",
-  Moderate: "good",
-  High: "poor",
-  "Very High": "critical",
+  Low: 'excellent',
+  Moderate: 'good',
+  High: 'poor',
+  'Very High': 'critical',
 };
 
 /**
@@ -145,7 +145,7 @@ const VOLATILITY_RISK_TO_SEVERITY: Record<
  * @returns Object with color and bgColor Tailwind classes
  */
 export function getVolatilityRiskColor(
-  riskLevel: ReturnType<typeof getVolatilityRiskLevel>
+  riskLevel: ReturnType<typeof getVolatilityRiskLevel>,
 ): {
   color: string;
   bgColor: string;

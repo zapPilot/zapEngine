@@ -1,8 +1,8 @@
 import {
   type BacktestTooltipProps,
   buildBacktestTooltipData,
-} from "../utils/backtestTooltipDataUtils";
-import { BacktestAllocationBar } from "./BacktestAllocationBar";
+} from '../utils/backtestTooltipDataUtils';
+import { BacktestAllocationBar } from './BacktestAllocationBar';
 
 export type { BacktestTooltipProps };
 
@@ -47,15 +47,15 @@ export function BacktestTooltip(props: BacktestTooltipProps) {
       <div className="space-y-1">
         {strategies.map((entry, index) => (
           <div key={index} className="text-xs" style={{ color: entry.color }}>
-            {entry.name}: ${entry.value.toLocaleString("en-US")}
+            {entry.name}: ${entry.value.toLocaleString('en-US')}
           </div>
         ))}
 
         {events.map((entry, index) => {
           const strategiesStr =
             entry.strategies.length > 0
-              ? ` (${entry.strategies.join(", ")})`
-              : "";
+              ? ` (${entry.strategies.join(', ')})`
+              : '';
 
           return (
             <div
@@ -104,7 +104,7 @@ export function BacktestTooltip(props: BacktestTooltipProps) {
 
       {allocations.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-700 space-y-2">
-          {allocations.map(block => (
+          {allocations.map((block) => (
             <BacktestAllocationBar
               key={block.id}
               displayName={block.displayName}

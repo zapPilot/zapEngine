@@ -1,12 +1,12 @@
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { useTooltipPosition } from "@/components/wallet/portfolio/components/shared/useTooltipPosition";
+import { useTooltipPosition } from '@/components/wallet/portfolio/components/shared/useTooltipPosition';
 
-describe("useTooltipPosition", () => {
+describe('useTooltipPosition', () => {
   type MockRect = Pick<
     DOMRect,
-    "top" | "bottom" | "left" | "right" | "width" | "height" | "x" | "y"
+    'top' | 'bottom' | 'left' | 'right' | 'width' | 'height' | 'x' | 'y'
   > & {
     toJSON: () => object;
   };
@@ -17,12 +17,12 @@ describe("useTooltipPosition", () => {
 
   function mockElementRect(
     element: HTMLElement,
-    rectOrFactory: MockRect | (() => MockRect)
+    rectOrFactory: MockRect | (() => MockRect),
   ) {
     const getRect =
-      typeof rectOrFactory === "function" ? rectOrFactory : () => rectOrFactory;
+      typeof rectOrFactory === 'function' ? rectOrFactory : () => rectOrFactory;
 
-    Object.defineProperty(element, "getBoundingClientRect", {
+    Object.defineProperty(element, 'getBoundingClientRect', {
       configurable: true,
       value: vi.fn((): DOMRect => getRect() as DOMRect),
     });
@@ -31,46 +31,46 @@ describe("useTooltipPosition", () => {
   function renderTooltipPosition(
     isHovered: boolean,
     containerCurrent: HTMLElement | null,
-    tooltipCurrent: HTMLElement | null
+    tooltipCurrent: HTMLElement | null,
   ) {
     const containerRef = createRef(containerCurrent);
     const tooltipRef = createRef(tooltipCurrent);
 
     return renderHook(() =>
-      useTooltipPosition(isHovered, containerRef, tooltipRef)
+      useTooltipPosition(isHovered, containerRef, tooltipRef),
     );
   }
 
-  it("returns default position when not hovered", () => {
+  it('returns default position when not hovered', () => {
     const { result } = renderTooltipPosition(
       false,
-      document.createElement("div"),
-      document.createElement("div")
+      document.createElement('div'),
+      document.createElement('div'),
     );
     expect(result.current).toEqual({ top: 0, left: 0 });
   });
 
-  it("returns default position when containerRef is null", () => {
+  it('returns default position when containerRef is null', () => {
     const { result } = renderTooltipPosition(
       true,
       null,
-      document.createElement("div")
+      document.createElement('div'),
     );
     expect(result.current).toEqual({ top: 0, left: 0 });
   });
 
-  it("returns default position when tooltipRef is null", () => {
+  it('returns default position when tooltipRef is null', () => {
     const { result } = renderTooltipPosition(
       true,
-      document.createElement("div"),
-      null
+      document.createElement('div'),
+      null,
     );
     expect(result.current).toEqual({ top: 0, left: 0 });
   });
 
-  it("calculates position when hovered with valid refs", () => {
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+  it('calculates position when hovered with valid refs', () => {
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, {
       top: 100,
@@ -103,9 +103,9 @@ describe("useTooltipPosition", () => {
     expect(result.current.left).toBe(210);
   });
 
-  it("clamps left to padding when tooltip overflows left edge", () => {
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+  it('clamps left to padding when tooltip overflows left edge', () => {
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, {
       top: 100,
@@ -131,11 +131,11 @@ describe("useTooltipPosition", () => {
       toJSON: () => ({}),
     });
 
-    Object.defineProperty(window, "innerWidth", {
+    Object.defineProperty(window, 'innerWidth', {
       value: 1024,
       writable: true,
     });
-    Object.defineProperty(window, "innerHeight", {
+    Object.defineProperty(window, 'innerHeight', {
       value: 768,
       writable: true,
     });
@@ -146,9 +146,9 @@ describe("useTooltipPosition", () => {
     expect(result.current.left).toBe(16);
   });
 
-  it("clamps left when tooltip overflows right edge", () => {
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+  it('clamps left when tooltip overflows right edge', () => {
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, {
       top: 100,
@@ -174,8 +174,8 @@ describe("useTooltipPosition", () => {
       toJSON: () => ({}),
     });
 
-    Object.defineProperty(window, "innerWidth", { value: 400, writable: true });
-    Object.defineProperty(window, "innerHeight", {
+    Object.defineProperty(window, 'innerWidth', { value: 400, writable: true });
+    Object.defineProperty(window, 'innerHeight', {
       value: 768,
       writable: true,
     });
@@ -186,9 +186,9 @@ describe("useTooltipPosition", () => {
     expect(result.current.left).toBe(184);
   });
 
-  it("flips tooltip above container when it overflows bottom", () => {
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+  it('flips tooltip above container when it overflows bottom', () => {
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, {
       top: 100,
@@ -214,11 +214,11 @@ describe("useTooltipPosition", () => {
       toJSON: () => ({}),
     });
 
-    Object.defineProperty(window, "innerWidth", {
+    Object.defineProperty(window, 'innerWidth', {
       value: 1024,
       writable: true,
     });
-    Object.defineProperty(window, "innerHeight", {
+    Object.defineProperty(window, 'innerHeight', {
       value: 200,
       writable: true,
     });
@@ -229,12 +229,12 @@ describe("useTooltipPosition", () => {
     expect(result.current.top).toBe(-8);
   });
 
-  it("cleans up event listeners on unmount", () => {
-    const addSpy = vi.spyOn(window, "addEventListener");
-    const removeSpy = vi.spyOn(window, "removeEventListener");
+  it('cleans up event listeners on unmount', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
 
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, {
       top: 0,
@@ -262,31 +262,31 @@ describe("useTooltipPosition", () => {
 
     const { unmount } = renderTooltipPosition(true, container, tooltip);
 
-    expect(addSpy).toHaveBeenCalledWith("scroll", expect.any(Function));
-    expect(addSpy).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(addSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(addSpy).toHaveBeenCalledWith('resize', expect.any(Function));
 
     unmount();
 
-    expect(removeSpy).toHaveBeenCalledWith("scroll", expect.any(Function));
-    expect(removeSpy).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('resize', expect.any(Function));
 
     addSpy.mockRestore();
     removeSpy.mockRestore();
   });
 
-  it("recalculates on scroll event", () => {
-    Object.defineProperty(window, "innerWidth", {
+  it('recalculates on scroll event', () => {
+    Object.defineProperty(window, 'innerWidth', {
       value: 1024,
       writable: true,
     });
-    Object.defineProperty(window, "innerHeight", {
+    Object.defineProperty(window, 'innerHeight', {
       value: 768,
       writable: true,
     });
 
     let containerTop = 100;
-    const container = document.createElement("div");
-    const tooltip = document.createElement("div");
+    const container = document.createElement('div');
+    const tooltip = document.createElement('div');
 
     mockElementRect(container, () => ({
       top: containerTop,
@@ -318,7 +318,7 @@ describe("useTooltipPosition", () => {
 
     containerTop = 50;
     act(() => {
-      window.dispatchEvent(new Event("scroll"));
+      window.dispatchEvent(new Event('scroll'));
     });
 
     expect(result.current.top).toBe(88);

@@ -13,8 +13,12 @@ TypeScript library for constructing and validating DeFi transaction intents:
 ## Usage
 
 ```typescript
-import { createIntent, validateRoute } from "@zapengine/intent-engine";
-import { morphoRoutes } from "@zapengine/intent-engine/morpho";
+import { createIntentEngine, validateIntent } from '@zapengine/intent-engine';
+import { MORPHO_VAULTS } from '@zapengine/intent-engine/morpho';
+
+const engine = createIntentEngine({
+  lifi: { integrator: 'my-app' },
+});
 ```
 
 ## Exports
@@ -31,4 +35,4 @@ import { morphoRoutes } from "@zapengine/intent-engine/morpho";
 pnpm build
 ```
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [CLAUDE.md](../../../CLAUDE.md) for monorepo development guidelines.

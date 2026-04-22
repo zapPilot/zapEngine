@@ -5,8 +5,8 @@
  * enabling consistent visualization across Dashboard, Strategy, and Backtesting views.
  */
 
-import { UNIFIED_COLORS } from "@/constants/assets";
-import { getAllocationCategoryForToken } from "@/lib/domain/allocationCategories";
+import { UNIFIED_COLORS } from '@/constants/assets';
+import { getAllocationCategoryForToken } from '@/lib/domain/allocationCategories';
 
 import type {
   AssetAllocationSource,
@@ -16,17 +16,17 @@ import type {
   StrategyBucketsSource,
   UnifiedCategory,
   UnifiedSegment,
-} from "./unifiedAllocationTypes";
+} from './unifiedAllocationTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Category Labels
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<UnifiedCategory, string> = {
-  btc: "BTC",
-  eth: "ETH",
-  stable: "STABLE",
-  alt: "ALT",
+  btc: 'BTC',
+  eth: 'ETH',
+  stable: 'STABLE',
+  alt: 'ALT',
 };
 
 const CATEGORY_COLORS: Record<UnifiedCategory, string> = {
@@ -45,7 +45,7 @@ const CATEGORY_COLORS: Record<UnifiedCategory, string> = {
  */
 function createSegment(
   category: UnifiedCategory,
-  percentage: number
+  percentage: number,
 ): UnifiedSegment {
   return {
     category,
@@ -60,15 +60,15 @@ function createSegment(
  */
 function normalizeSegments(segments: UnifiedSegment[]): UnifiedSegment[] {
   return segments
-    .filter(s => s.percentage > 0)
+    .filter((s) => s.percentage > 0)
     .sort((a, b) => b.percentage - a.percentage);
 }
 
 const DEFAULT_ASSET_CATEGORIES: readonly UnifiedCategory[] = [
-  "btc",
-  "eth",
-  "stable",
-  "alt",
+  'btc',
+  'eth',
+  'stable',
+  'alt',
 ];
 
 /**
@@ -76,9 +76,9 @@ const DEFAULT_ASSET_CATEGORIES: readonly UnifiedCategory[] = [
  */
 function getRecordValue(
   data: Record<string, number> | number,
-  key: string
+  key: string,
 ): number {
-  if (typeof data === "number") {
+  if (typeof data === 'number') {
     // When it's a plain number, we can't distinguish assets
     // Return 0 for specific keys, the caller handles the fallback
     return 0;
@@ -90,7 +90,7 @@ function getRecordValue(
  * Gets the total value from a Record or number.
  */
 function getRecordTotal(data: Record<string, number> | number): number {
-  if (typeof data === "number") {
+  if (typeof data === 'number') {
     return data;
   }
   return Object.values(data).reduce((sum, val) => sum + val, 0);
@@ -118,13 +118,13 @@ function getRecordTotal(data: Record<string, number> | number): number {
  * ```
  */
 export function mapPortfolioToUnified(
-  data: PortfolioAllocationSource
+  data: PortfolioAllocationSource,
 ): UnifiedSegment[] {
   const segments: UnifiedSegment[] = [
-    createSegment("btc", data.btc),
-    createSegment("eth", data.eth),
-    createSegment("stable", data.stablecoins),
-    createSegment("alt", data.others),
+    createSegment('btc', data.btc),
+    createSegment('eth', data.eth),
+    createSegment('stable', data.stablecoins),
+    createSegment('alt', data.others),
   ];
 
   return normalizeSegments(segments);
@@ -138,10 +138,10 @@ export function mapPortfolioToUnified(
  */
 export function mapAssetAllocationToUnified(
   data: AssetAllocationSource,
-  categories: readonly UnifiedCategory[] = DEFAULT_ASSET_CATEGORIES
+  categories: readonly UnifiedCategory[] = DEFAULT_ASSET_CATEGORIES,
 ): UnifiedSegment[] {
-  const segments = categories.map(category =>
-    createSegment(category, (data[category] ?? 0) * 100)
+  const segments = categories.map((category) =>
+    createSegment(category, (data[category] ?? 0) * 100),
   );
 
   return normalizeSegments(segments);
@@ -167,12 +167,12 @@ export function mapAssetAllocationToUnified(
  * ```
  */
 export function mapStrategyToUnified(
-  data: StrategyBucketsSource
+  data: StrategyBucketsSource,
 ): UnifiedSegment[] {
   const segments: UnifiedSegment[] = [
-    createSegment("btc", data.spot * 100),
-    createSegment("alt", data.lp * 100),
-    createSegment("stable", data.stable * 100),
+    createSegment('btc', data.spot * 100),
+    createSegment('alt', data.lp * 100),
+    createSegment('stable', data.stable * 100),
   ];
 
   return normalizeSegments(segments);
@@ -198,7 +198,7 @@ export function mapStrategyToUnified(
  * ```
  */
 export function mapBacktestToUnified(
-  data: BacktestConstituentsSource
+  data: BacktestConstituentsSource,
 ): UnifiedSegment[] {
   // Calculate total portfolio value
   const spotTotal = getRecordTotal(data.spot);
@@ -210,27 +210,27 @@ export function mapBacktestToUnified(
   }
 
   // Extract individual asset values
-  const btcSpot = getRecordValue(data.spot, "btc");
-  const btcLp = getRecordValue(data.lp, "btc");
-  const ethSpot = getRecordValue(data.spot, "eth");
-  const ethLp = getRecordValue(data.lp, "eth");
+  const btcSpot = getRecordValue(data.spot, 'btc');
+  const btcLp = getRecordValue(data.lp, 'btc');
+  const ethSpot = getRecordValue(data.spot, 'eth');
+  const ethLp = getRecordValue(data.lp, 'eth');
 
   // Calculate "others" as anything not explicitly BTC or ETH
   const othersSpot =
-    typeof data.spot === "number"
+    typeof data.spot === 'number'
       ? data.spot // When spot is a number, it's all "others"
       : spotTotal - btcSpot - ethSpot;
 
   const othersLp =
-    typeof data.lp === "number"
+    typeof data.lp === 'number'
       ? data.lp // When lp is a number, it's all "others"
       : lpTotal - btcLp - ethLp;
 
   const segments: UnifiedSegment[] = [
-    createSegment("btc", ((btcSpot + btcLp) / total) * 100),
-    createSegment("eth", ((ethSpot + ethLp) / total) * 100),
-    createSegment("stable", (data.stable / total) * 100),
-    createSegment("alt", ((othersSpot + othersLp) / total) * 100),
+    createSegment('btc', ((btcSpot + btcLp) / total) * 100),
+    createSegment('eth', ((ethSpot + ethLp) / total) * 100),
+    createSegment('stable', (data.stable / total) * 100),
+    createSegment('alt', ((othersSpot + othersLp) / total) * 100),
   ];
 
   return normalizeSegments(segments);
@@ -252,7 +252,7 @@ export function mapBacktestToUnified(
  */
 export function mapLegacyConstituentsToUnified(
   cryptoAssets: LegacyAllocationConstituent[],
-  stablePercentage: number
+  stablePercentage: number,
 ): UnifiedSegment[] {
   let btcTotal = 0;
   let ethTotal = 0;
@@ -261,20 +261,20 @@ export function mapLegacyConstituentsToUnified(
   for (const asset of cryptoAssets) {
     const category = getAllocationCategoryForToken(asset.symbol);
 
-    if (category === "btc") {
+    if (category === 'btc') {
       btcTotal += asset.value;
-    } else if (category === "eth") {
+    } else if (category === 'eth') {
       ethTotal += asset.value;
-    } else if (category === "alt") {
+    } else if (category === 'alt') {
       altTotal += asset.value;
     }
   }
 
   const segments: UnifiedSegment[] = [
-    createSegment("btc", btcTotal),
-    createSegment("eth", ethTotal),
-    createSegment("stable", stablePercentage),
-    createSegment("alt", altTotal),
+    createSegment('btc', btcTotal),
+    createSegment('eth', ethTotal),
+    createSegment('stable', stablePercentage),
+    createSegment('alt', altTotal),
   ];
 
   return normalizeSegments(segments);
@@ -298,5 +298,7 @@ export function calculateTotalPercentage(segments: UnifiedSegment[]): number {
  * ```
  */
 export function getAllocationSummary(segments: UnifiedSegment[]): string {
-  return segments.map(s => `${s.label} ${s.percentage.toFixed(0)}%`).join(", ");
+  return segments
+    .map((s) => `${s.label} ${s.percentage.toFixed(0)}%`)
+    .join(', ');
 }

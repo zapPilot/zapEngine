@@ -1,11 +1,11 @@
-import { type Dispatch, type SetStateAction, useCallback } from "react";
+import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
 import {
   handleWalletError,
   type WalletData,
-} from "@/lib/validation/walletUtils";
-import { updateManagedWalletLabel as updateWalletLabelRequest } from "@/services";
-import type { EditingWallet, WalletOperationStateSetter } from "@/types";
+} from '@/lib/validation/walletUtils';
+import { updateManagedWalletLabel as updateWalletLabelRequest } from '@/services';
+import type { EditingWallet, WalletOperationStateSetter } from '@/types';
 
 interface UseWalletLabelsParams {
   userId: string;
@@ -19,15 +19,15 @@ interface UseWalletLabelsReturn {
   handleEditLabel: (walletId: string, newLabel: string) => Promise<void>;
 }
 
-const UPDATE_LABEL_FAILED_ERROR = "Failed to update wallet label";
+const UPDATE_LABEL_FAILED_ERROR = 'Failed to update wallet label';
 
 function updateWalletEntryLabel(
   previousWallets: WalletData[],
   walletId: string,
-  label: string
+  label: string,
 ): WalletData[] {
-  return previousWallets.map(wallet =>
-    wallet.id === walletId ? { ...wallet, label } : wallet
+  return previousWallets.map((wallet) =>
+    wallet.id === walletId ? { ...wallet, label } : wallet,
   );
 }
 
@@ -48,12 +48,12 @@ export function useWalletLabels({
 }: UseWalletLabelsParams): UseWalletLabelsReturn {
   const setEditingState = useCallback(
     (walletId: string, isLoading: boolean, error: string | null) => {
-      setWalletOperationState("editing", walletId, {
+      setWalletOperationState('editing', walletId, {
         isLoading,
         error,
       });
     },
-    [setWalletOperationState]
+    [setWalletOperationState],
   );
 
   const handleEditLabel = useCallback(
@@ -63,7 +63,7 @@ export function useWalletLabels({
         return;
       }
 
-      const wallet = wallets.find(w => w.id === walletId);
+      const wallet = wallets.find((w) => w.id === walletId);
       if (!wallet) {
         setEditingWallet(null);
         return;
@@ -71,8 +71,8 @@ export function useWalletLabels({
 
       setEditingState(walletId, true, null);
       const updateLabel = (label: string) => {
-        setWallets(previousWallets =>
-          updateWalletEntryLabel(previousWallets, walletId, label)
+        setWallets((previousWallets) =>
+          updateWalletEntryLabel(previousWallets, walletId, label),
         );
       };
 
@@ -83,7 +83,7 @@ export function useWalletLabels({
         const response = await updateWalletLabelRequest(
           userId,
           wallet.address,
-          newLabel
+          newLabel,
         );
 
         if (!response.success) {
@@ -91,7 +91,7 @@ export function useWalletLabels({
           setEditingState(
             walletId,
             false,
-            response.error ?? UPDATE_LABEL_FAILED_ERROR
+            response.error ?? UPDATE_LABEL_FAILED_ERROR,
           );
           return;
         }
@@ -103,7 +103,7 @@ export function useWalletLabels({
         setEditingState(walletId, false, errorMessage);
       }
     },
-    [userId, wallets, setWallets, setEditingWallet, setEditingState]
+    [userId, wallets, setWallets, setEditingWallet, setEditingState],
   );
 
   return {

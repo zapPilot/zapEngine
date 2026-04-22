@@ -2,8 +2,8 @@ import {
   ARIA_LABEL_PROP,
   DATA_TEST_ID_PROP,
   DEFAULT_SKELETON_LABEL,
-} from "../constants";
-import { Skeleton } from "../Skeleton";
+} from '../constants';
+import { Skeleton } from '../Skeleton';
 
 function CardSkeletonContent() {
   return (
@@ -19,8 +19,8 @@ function CardSkeletonContent() {
 }
 
 export function CardSkeleton({
-  className = "",
-  [DATA_TEST_ID_PROP]: testId = "card-skeleton",
+  className = '',
+  [DATA_TEST_ID_PROP]: testId = 'card-skeleton',
 }: {
   className?: string;
   [DATA_TEST_ID_PROP]?: string;
@@ -34,8 +34,8 @@ export function CardSkeleton({
 
 export function LoadingCard({
   message,
-  className = "",
-  [DATA_TEST_ID_PROP]: testId = "loading-card",
+  className = '',
+  [DATA_TEST_ID_PROP]: testId = 'loading-card',
   [ARIA_LABEL_PROP]: ariaLabel,
 }: {
   message?: string;

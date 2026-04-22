@@ -1,7 +1,7 @@
-import { logger } from "../../utils/logger.js";
-import { maskWalletAddress } from "../../utils/mask.js";
-import type { VipUserWithActivity } from "../../types/index.js";
-import { TIME_CONSTANTS } from "../../config/database.js";
+import { TIME_CONSTANTS } from '../../config/database.js';
+import type { VipUserWithActivity } from '../../types/index.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
 
 /**
  * Activity-based update frequency thresholds
@@ -124,7 +124,7 @@ export function shouldUpdateUser(
 
   // Always update if never updated before
   if (!lastUpdate) {
-    logger.debug("User has never been updated - scheduling update", {
+    logger.debug('User has never been updated - scheduling update', {
       userId: user.user_id,
       wallet: maskWalletAddress(user.wallet),
     });
@@ -137,7 +137,7 @@ export function shouldUpdateUser(
     isActiveWithinThreshold(lastActivity, nowMs, inactivityThresholdMs)
   ) {
     const daysSinceActivity = calculateDaysSince(lastActivity, nowMs);
-    logger.debug("Active user - scheduling update", {
+    logger.debug('Active user - scheduling update', {
       userId: user.user_id,
       wallet: maskWalletAddress(user.wallet),
       daysSinceActivity,
@@ -300,14 +300,14 @@ function buildInactiveDecisionLogPayload(
 ): {
   userId: string;
   wallet: string;
-  daysSinceActivity: number | "never";
+  daysSinceActivity: number | 'never';
   daysSinceUpdate: number;
   shouldUpdate: boolean;
 } {
   return {
     userId: user.user_id,
     wallet: maskWalletAddress(user.wallet),
-    daysSinceActivity: daysSinceActivity ?? "never",
+    daysSinceActivity: daysSinceActivity ?? 'never',
     daysSinceUpdate,
     shouldUpdate,
   };

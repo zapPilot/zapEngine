@@ -3,7 +3,7 @@
  * Handles retry decision-making and exponential backoff calculations
  */
 
-import { APIError } from "./errors";
+import { APIError } from './errors';
 
 // Retry logic helper
 function shouldRetry(error: unknown): boolean {
@@ -17,12 +17,12 @@ function shouldRetry(error: unknown): boolean {
 
 // Delay helper for exponential backoff
 export function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function calculateBackoffDelay(
   baseDelay: number,
-  attempt: number
+  attempt: number,
 ): number {
   return baseDelay * Math.pow(2, attempt);
 }
@@ -30,7 +30,7 @@ export function calculateBackoffDelay(
 export function shouldAttemptRetry(
   attempt: number,
   retries: number,
-  error: unknown
+  error: unknown,
 ): boolean {
   if (attempt >= retries) {
     return false;

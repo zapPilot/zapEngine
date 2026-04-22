@@ -1,10 +1,10 @@
-import { config } from "dotenv";
-import { z } from "zod";
+import { config } from 'dotenv';
+import { z } from 'zod';
 
 config({ quiet: true });
 
 function parseBoolean(value: string): boolean {
-  return value.toLowerCase() === "true";
+  return value.toLowerCase() === 'true';
 }
 
 function parsePort(defaultValue: string) {
@@ -25,14 +25,14 @@ function parsePositiveInteger(defaultValue: string) {
 
 function parseOptionalNonEmptyString() {
   return z.preprocess((value) => {
-    if (typeof value === "string" && value.trim() === "") {
-      return undefined;
+    if (typeof value === 'string' && value.trim() === '') {
+      return;
     }
     return value;
   }, z.string().min(1).optional());
 }
 
-function parseBooleanFlag(defaultValue: "true" | "false") {
+function parseBooleanFlag(defaultValue: 'true' | 'false') {
   return z
     .string()
     .default(defaultValue)
@@ -43,41 +43,41 @@ function parseBooleanFlag(defaultValue: "true" | "false") {
 const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().min(1),
-  DB_SCHEMA: z.string().min(1).default("alpha_raw"),
+  DB_SCHEMA: z.string().min(1).default('alpha_raw'),
 
   // Server
-  PORT: parsePort("3000"),
+  PORT: parsePort('3000'),
   NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
+    .enum(['development', 'production', 'test'])
+    .default('development'),
 
   // Webhook
   WEBHOOK_SECRET: parseOptionalNonEmptyString(),
 
   // API Endpoints
-  DEFILLAMA_API_URL: z.string().url().default("https://api.llama.fi"),
+  DEFILLAMA_API_URL: z.string().url().default('https://api.llama.fi'),
   HYPERLIQUID_API_URL: z
     .string()
     .url()
-    .default("https://api-ui.hyperliquid.xyz"),
-  HYPERLIQUID_RATE_LIMIT_RPM: parsePositiveInteger("60"),
+    .default('https://api-ui.hyperliquid.xyz'),
+  HYPERLIQUID_RATE_LIMIT_RPM: parsePositiveInteger('60'),
 
   // CoinMarketCap API
   COINMARKETCAP_API_KEY: z.string().min(1).optional(),
   COINMARKETCAP_API_URL: z
     .string()
     .url()
-    .default("https://pro-api.coinmarketcap.com"),
+    .default('https://pro-api.coinmarketcap.com'),
 
   // Rate Limiting
-  RATE_LIMIT_REQUESTS_PER_MINUTE: parsePositiveInteger("60"),
-  RATE_LIMIT_BURST: parsePositiveInteger("10"),
+  RATE_LIMIT_REQUESTS_PER_MINUTE: parsePositiveInteger('60'),
+  RATE_LIMIT_BURST: parsePositiveInteger('10'),
 
   // Logging
-  LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
   // Materialized View Refresh
-  ENABLE_MV_REFRESH: parseBooleanFlag("true"),
+  ENABLE_MV_REFRESH: parseBooleanFlag('true'),
 });
 
 type Environment = z.infer<typeof envSchema>;
@@ -87,7 +87,7 @@ function parseEnvironment(): Environment {
 
   if (!result.success) {
     // eslint-disable-next-line no-console
-    console.error("Environment validation failed:");
+    console.error('Environment validation failed:');
     // eslint-disable-next-line no-console
     console.error(result.error.format());
     process.exit(1);

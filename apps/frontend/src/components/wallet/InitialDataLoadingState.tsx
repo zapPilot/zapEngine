@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Loader2 } from 'lucide-react';
 
 interface InitialDataLoadingStateProps {
   status?: string;
@@ -35,12 +35,12 @@ export function InitialDataLoadingState({
 }
 
 const STATUS_MESSAGES: Record<string, string> = {
-  pending: "Job queued...",
-  processing: "Fetching data from DeBank...",
-  completed: "Finalizing...",
-  failed: "Something went wrong",
+  pending: 'Job queued...',
+  processing: 'Fetching data from DeBank...',
+  completed: 'Finalizing...',
+  failed: 'Something went wrong',
 };
 
 function getStatusMessage(status: string): string {
-  return STATUS_MESSAGES[status] ?? "Initializing...";
+  return STATUS_MESSAGES[status] ?? 'Initializing...';
 }

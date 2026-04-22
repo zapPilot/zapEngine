@@ -1,14 +1,14 @@
-import { motion } from "framer-motion";
-import { Zap } from "lucide-react";
-import { memo } from "react";
+import { motion } from 'framer-motion';
+import { Zap } from 'lucide-react';
+import { memo } from 'react';
 
-import { LoadingSpinner } from "@/components/ui";
-import { fadeInUp, SMOOTH_TRANSITION } from "@/lib/ui/animationVariants";
-import type { WalletData } from "@/lib/validation/walletUtils";
-import type { WalletMenuHandlers, WalletOperations } from "@/types";
-import { formatAddress } from "@/utils/formatters";
+import { LoadingSpinner } from '@/components/ui';
+import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
+import type { WalletData } from '@/lib/validation/walletUtils';
+import type { WalletMenuHandlers, WalletOperations } from '@/types';
+import { formatAddress } from '@/utils/formatters';
 
-import { WalletActionMenu } from "./WalletActionMenu";
+import { WalletActionMenu } from './WalletActionMenu';
 
 interface WalletCardProps extends WalletMenuHandlers {
   wallet: WalletData;
@@ -38,7 +38,7 @@ function OperationStatus({ isLoading, label }: OperationStatusProps) {
 
 function getWalletCardClassName(isActive: boolean): string {
   const baseClassName =
-    "relative p-4 rounded-xl border transition-all duration-200";
+    'relative p-4 rounded-xl border transition-all duration-200';
   if (isActive) {
     return `${baseClassName} border-purple-500/50 bg-purple-500/10 shadow-lg shadow-purple-500/20`;
   }
@@ -48,7 +48,7 @@ function getWalletCardClassName(isActive: boolean): string {
 
 function getWalletOperationError(
   operations: WalletOperations,
-  walletId: string
+  walletId: string,
 ): string | undefined {
   const removeError = operations.removing[walletId]?.error ?? undefined;
   const editError = operations.editing[walletId]?.error ?? undefined;
@@ -140,4 +140,4 @@ function WalletCardComponent({
 
 export const WalletCard = memo(WalletCardComponent);
 
-WalletCard.displayName = "WalletCard";
+WalletCard.displayName = 'WalletCard';

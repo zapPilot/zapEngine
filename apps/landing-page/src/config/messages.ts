@@ -14,7 +14,8 @@ export const MESSAGES = {
   errors: {
     generic: {
       title: 'Something went wrong',
-      description: 'We encountered an unexpected error. Please try refreshing the page.',
+      description:
+        'We encountered an unexpected error. Please try refreshing the page.',
       refreshButton: 'Refresh Page',
     },
   },
@@ -54,24 +55,29 @@ export const MESSAGES = {
   // Features section
   features: {
     title: 'Why Zap Pilot?',
-    subtitle: 'A smarter way to manage your crypto — without giving up control.',
+    subtitle:
+      'A smarter way to manage your crypto — without giving up control.',
     learnMore: 'Learn more',
     items: [
       {
         title: 'Market Sentiment Engine',
-        description: 'We watch the market 24/7. You get alerts to buy fear and sell greed.',
+        description:
+          'We watch the market 24/7. You get alerts to buy fear and sell greed.',
       },
       {
         title: 'Your Keys. Your Crypto.',
-        description: 'No deposits. You decide. You sign every trade. 100% self-custodial.',
+        description:
+          'No deposits. You decide. You sign every trade. 100% self-custodial.',
       },
       {
         title: 'Smart Rebalancing',
-        description: 'No panic selling. Just disciplined, gradual adjustments over 5-10 days.',
+        description:
+          'No panic selling. Just disciplined, gradual adjustments over 5-10 days.',
       },
       {
         title: 'Transparent Strategy',
-        description: 'See exactly how it works. Adjustable settings. Fully backtestable.',
+        description:
+          'See exactly how it works. Adjustable settings. Fully backtestable.',
       },
     ],
   },
@@ -99,7 +105,8 @@ export const MESSAGES = {
         number: 3,
         icon: 'Shield' as const,
         title: 'Review & Sign',
-        description: 'Click the link, review the trade, and sign with your wallet.',
+        description:
+          'Click the link, review the trade, and sign with your wallet.',
         color: 'from-green-500 to-emerald-600',
       },
     ],
@@ -120,7 +127,8 @@ export const MESSAGES = {
     subtitle: 'Real scenarios where Zap Pilot keeps you disciplined.',
     bottomMessage: {
       line1: 'Let market sentiment guide your decisions.',
-      line2: 'Zap Pilot handles the gradual execution — entirely within your wallet.',
+      line2:
+        'Zap Pilot handles the gradual execution — entirely within your wallet.',
     },
   },
 
@@ -181,7 +189,8 @@ export const MESSAGES = {
   // Protocols section
   protocols: {
     title: 'Integrated Protocols',
-    subtitle: 'Where your stablecoins earn yield while you wait for the next move.',
+    subtitle:
+      'Where your stablecoins earn yield while you wait for the next move.',
     items: [
       {
         name: 'Morpho',

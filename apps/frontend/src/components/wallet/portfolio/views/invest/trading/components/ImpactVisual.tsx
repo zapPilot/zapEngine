@@ -1,12 +1,12 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from 'lucide-react';
 
 import {
   mapAssetAllocationToUnified,
   UnifiedAllocationBar,
-} from "@/components/wallet/portfolio/components/allocation";
-import type { BacktestAssetAllocation } from "@/types/backtesting";
+} from '@/components/wallet/portfolio/components/allocation';
+import type { BacktestAssetAllocation } from '@/types/backtesting';
 
-const TARGET_CATEGORIES = ["btc", "eth", "stable"] as const;
+const TARGET_CATEGORIES = ['btc', 'eth', 'stable'] as const;
 
 interface ImpactVisualProps {
   currentAllocation: BacktestAssetAllocation;
@@ -20,7 +20,7 @@ export function ImpactVisual({
   const currentSegments = mapAssetAllocationToUnified(currentAllocation);
   const targetSegments = mapAssetAllocationToUnified(
     targetAllocation,
-    TARGET_CATEGORIES
+    TARGET_CATEGORIES,
   );
 
   return (

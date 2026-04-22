@@ -1,22 +1,22 @@
-import { type ReactNode, useEffect } from "react";
-import type { UseFormReturn } from "react-hook-form";
+import { type ReactNode, useEffect } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 
-import { Modal, ModalContent } from "@/components/ui/modal";
-import { useWalletProvider } from "@/providers/WalletProvider";
+import { Modal, ModalContent } from '@/components/ui/modal';
+import { useWalletProvider } from '@/providers/WalletProvider';
 import type {
   ChainData,
   TransactionFormData,
   TransactionResult,
-} from "@/types/domain/transaction";
+} from '@/types/domain/transaction';
 
 import {
   SubmittingState,
   TransactionModalHeader,
-} from "../components/TransactionModalParts";
-import type { useTransactionData } from "../hooks/useTransactionData";
-import { useTransactionForm } from "../hooks/useTransactionForm";
-import { useTransactionSubmission } from "../hooks/useTransactionSubmission";
-import { useWatchedTransactionData } from "../hooks/useWatchedTransactionData";
+} from '../components/TransactionModalParts';
+import type { useTransactionData } from '../hooks/useTransactionData';
+import { useTransactionForm } from '../hooks/useTransactionForm';
+import { useTransactionSubmission } from '../hooks/useTransactionSubmission';
+import { useWatchedTransactionData } from '../hooks/useWatchedTransactionData';
 
 /**
  * State exposed to render prop children for custom modal content
@@ -44,7 +44,7 @@ export interface TransactionModalBaseProps {
   slippage?: number;
   submitFn: (data: TransactionFormData) => Promise<TransactionResult>;
   successMessage?: string;
-  successTone?: "green" | "indigo";
+  successTone?: 'green' | 'indigo';
   successExtra?: ReactNode;
   modalContentClassName?: string;
   children: (state: TransactionModalState) => ReactNode;
@@ -70,9 +70,9 @@ export function TransactionModalBase({
   slippage,
   submitFn,
   successMessage,
-  successTone = "indigo",
+  successTone = 'indigo',
   successExtra,
-  modalContentClassName = "p-0 overflow-hidden bg-gray-950 border-gray-800",
+  modalContentClassName = 'p-0 overflow-hidden bg-gray-950 border-gray-800',
   children,
 }: TransactionModalBaseProps) {
   const { isConnected } = useWalletProvider();
@@ -92,7 +92,7 @@ export function TransactionModalBase({
     const tokens = transactionData.availableTokens;
     const firstToken = tokens[0];
     if (tokens.length > 0 && !tokenAddress && firstToken) {
-      form.setValue("tokenAddress", firstToken.address, {
+      form.setValue('tokenAddress', firstToken.address, {
         shouldValidate: true,
       });
     }
@@ -104,7 +104,7 @@ export function TransactionModalBase({
     isConnected,
     transactionData.selectedToken,
     submitFn,
-    onClose
+    onClose,
   );
 
   // Derived state
@@ -139,7 +139,7 @@ export function TransactionModalBase({
         <div className="p-6">
           {isSubmitting ? (
             <SubmittingState
-              isSuccess={submission.status === "success"}
+              isSuccess={submission.status === 'success'}
               {...(successMessage ? { successMessage } : {})}
               successTone={successTone}
               successExtra={successExtra}

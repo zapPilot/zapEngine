@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import type { BacktestRequest } from "@/types/backtesting";
-import type { StrategyConfigsResponse } from "@/types/strategy";
+import type { BacktestRequest } from '@/types/backtesting';
+import type { StrategyConfigsResponse } from '@/types/strategy';
 
 // ── Zod Schemas ──────────────────────────────────────────────────────
 
@@ -79,16 +79,16 @@ export const backtestRequestSchema = z.object({
           if (config.saved_config_id) {
             if (config.strategy_id) {
               ctx.addIssue({
-                code: "custom",
-                message: "saved_config_id cannot be combined with strategy_id",
-                path: ["strategy_id"],
+                code: 'custom',
+                message: 'saved_config_id cannot be combined with strategy_id',
+                path: ['strategy_id'],
               });
             }
             if (config.params !== undefined) {
               ctx.addIssue({
-                code: "custom",
-                message: "saved_config_id cannot be combined with params",
-                path: ["params"],
+                code: 'custom',
+                message: 'saved_config_id cannot be combined with params',
+                path: ['params'],
               });
             }
             return;
@@ -96,13 +96,13 @@ export const backtestRequestSchema = z.object({
 
           if (!config.strategy_id) {
             ctx.addIssue({
-              code: "custom",
+              code: 'custom',
               message:
-                "compare config must provide either saved_config_id or strategy_id",
-              path: ["strategy_id"],
+                'compare config must provide either saved_config_id or strategy_id',
+              path: ['strategy_id'],
             });
           }
-        })
+        }),
     )
     .min(1),
 });
@@ -118,12 +118,12 @@ export type ParsedBacktestRequest = z.infer<typeof backtestRequestSchema>;
  */
 export function validateConfigsStrategyIdsAgainstCatalog(
   configs: { strategy_id?: string | null | undefined }[],
-  strategies: StrategyConfigsResponse["strategies"] | null | undefined
+  strategies: StrategyConfigsResponse['strategies'] | null | undefined,
 ): string | null {
   if (!strategies?.length) {
     return null;
   }
-  const allowed = new Set(strategies.map(entry => entry.strategy_id));
+  const allowed = new Set(strategies.map((entry) => entry.strategy_id));
   for (let index = 0; index < configs.length; index += 1) {
     const config = configs[index];
     if (!config) {
@@ -145,8 +145,8 @@ export function validateConfigsStrategyIdsAgainstCatalog(
 
 export function formatValidationError(error: z.ZodError): string {
   return error.issues
-    .map(issue => `${issue.path.join(".") || "payload"}: ${issue.message}`)
-    .join("\n");
+    .map((issue) => `${issue.path.join('.') || 'payload'}: ${issue.message}`)
+    .join('\n');
 }
 
 function pruneUndefinedDeep(value: unknown): unknown {
@@ -156,7 +156,7 @@ function pruneUndefinedDeep(value: unknown): unknown {
   if (value === null || Array.isArray(value)) {
     return value;
   }
-  if (typeof value !== "object") {
+  if (typeof value !== 'object') {
     return value;
   }
 
@@ -164,7 +164,7 @@ function pruneUndefinedDeep(value: unknown): unknown {
     ([key, entryValue]) => {
       const normalizedEntry = pruneUndefinedDeep(entryValue);
       return normalizedEntry === undefined ? [] : [[key, normalizedEntry]];
-    }
+    },
   );
 
   return normalizedEntries.length > 0
@@ -173,13 +173,13 @@ function pruneUndefinedDeep(value: unknown): unknown {
 }
 
 export function normalizeParams(
-  params: ParsedBacktestRequest["configs"][number]["params"]
-): BacktestRequest["configs"][number]["params"] {
+  params: ParsedBacktestRequest['configs'][number]['params'],
+): BacktestRequest['configs'][number]['params'] {
   if (!params) {
     return undefined;
   }
   const normalized = pruneUndefinedDeep(params);
   return normalized !== undefined
-    ? (normalized as BacktestRequest["configs"][number]["params"])
+    ? (normalized as BacktestRequest['configs'][number]['params'])
     : undefined;
 }

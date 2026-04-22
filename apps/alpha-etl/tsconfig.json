@@ -11,10 +11,7 @@
     "strictFunctionTypes": true,
     "noImplicitReturns": true,
     "removeComments": true,
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false,
-    "noImplicitOverride": false,
-    "noPropertyAccessFromIndexSignature": false
+    "exactOptionalPropertyTypes": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

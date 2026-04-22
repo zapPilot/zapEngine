@@ -1,9 +1,9 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, RefreshCw } from "lucide-react";
-import type { ReactNode } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import type { ReactNode } from 'react';
 
-import { fadeInOut } from "@/lib/ui/animationVariants";
-import type { SectionState } from "@/types/portfolio-progressive";
+import { fadeInOut } from '@/lib/ui/animationVariants';
+import type { SectionState } from '@/types/portfolio-progressive';
 
 interface SectionWrapperProps<T> {
   state: SectionState<T>;
@@ -20,7 +20,7 @@ export function SectionWrapper<T>({
   state,
   skeleton,
   children,
-  className = "",
+  className = '',
 }: SectionWrapperProps<T>) {
   // Error State
   if (state.error) {

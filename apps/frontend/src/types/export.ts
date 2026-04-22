@@ -8,7 +8,7 @@ import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
-} from "./analytics";
+} from './analytics';
 
 /**
  * Metadata for export operations
@@ -33,7 +33,7 @@ export interface CsvGenerationOptions {
   /** Include UTF-8 BOM for Excel compatibility (default: true) */
   includeBOM?: boolean;
   /** Line ending style (default: CRLF for Windows/Excel) */
-  lineEnding?: "\r\n" | "\n";
+  lineEnding?: '\r\n' | '\n';
   /** CSV field delimiter (default: comma) */
   delimiter?: string;
   /** Quote character for escaping (default: double quote) */

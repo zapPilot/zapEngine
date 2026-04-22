@@ -2,8 +2,8 @@ import {
   QueryClient,
   QueryClientProvider,
   useQueryClient,
-} from "@tanstack/react-query";
-import type { PropsWithChildren, ReactNode } from "react";
+} from '@tanstack/react-query';
+import type { PropsWithChildren, ReactNode } from 'react';
 
 const fallbackQueryClient = new QueryClient();
 

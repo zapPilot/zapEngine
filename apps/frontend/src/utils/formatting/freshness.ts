@@ -1,8 +1,8 @@
-import { logger } from "@/utils/logger";
+import { logger } from '@/utils/logger';
 
-import { dayjs, parseUtcDate } from "./shared";
+import { dayjs, parseUtcDate } from './shared';
 
-export type FreshnessState = "fresh" | "stale" | "very-stale" | "unknown";
+export type FreshnessState = 'fresh' | 'stale' | 'very-stale' | 'unknown';
 
 export interface DataFreshness {
   relativeTime: string;
@@ -13,14 +13,14 @@ export interface DataFreshness {
 }
 
 const UNKNOWN_FRESHNESS: DataFreshness = {
-  relativeTime: "Unknown",
-  state: "unknown",
+  relativeTime: 'Unknown',
+  state: 'unknown',
   hoursSince: Infinity,
-  timestamp: "",
+  timestamp: '',
   isCurrent: false,
 };
 
-function createUnknownFreshness(timestamp = ""): DataFreshness {
+function createUnknownFreshness(timestamp = ''): DataFreshness {
   return {
     ...UNKNOWN_FRESHNESS,
     timestamp,
@@ -28,9 +28,9 @@ function createUnknownFreshness(timestamp = ""): DataFreshness {
 }
 
 function getFreshnessState(hours: number): FreshnessState {
-  if (hours <= 24) return "fresh";
-  if (hours <= 72) return "stale";
-  return "very-stale";
+  if (hours <= 24) return 'fresh';
+  if (hours <= 72) return 'stale';
+  return 'very-stale';
 }
 
 /**
@@ -40,7 +40,7 @@ function getFreshnessState(hours: number): FreshnessState {
  * @returns Data freshness descriptor
  */
 export function calculateDataFreshness(
-  lastUpdated: string | null | undefined
+  lastUpdated: string | null | undefined,
 ): DataFreshness {
   if (!lastUpdated) {
     return UNKNOWN_FRESHNESS;
@@ -52,7 +52,7 @@ export function calculateDataFreshness(
       return createUnknownFreshness(lastUpdated);
     }
 
-    const hoursSince = dayjs.utc().diff(updateTime, "hour", true);
+    const hoursSince = dayjs.utc().diff(updateTime, 'hour', true);
     const state = getFreshnessState(hoursSince);
 
     return {
@@ -60,10 +60,10 @@ export function calculateDataFreshness(
       state,
       hoursSince,
       timestamp: lastUpdated,
-      isCurrent: state === "fresh",
+      isCurrent: state === 'fresh',
     };
   } catch (error) {
-    logger.error("Error calculating data freshness", error, "formatters");
+    logger.error('Error calculating data freshness', error, 'formatters');
     return createUnknownFreshness(lastUpdated);
   }
 }
@@ -75,20 +75,20 @@ export function calculateDataFreshness(
  * @returns Relative time or "Unknown"
  */
 export function formatRelativeTime(
-  dateString: string | null | undefined
+  dateString: string | null | undefined,
 ): string {
   if (!dateString) {
-    return "Unknown";
+    return 'Unknown';
   }
 
   try {
     const parsedDate = parseUtcDate(dateString);
     if (!parsedDate) {
-      return "Unknown";
+      return 'Unknown';
     }
 
     return parsedDate.fromNow();
   } catch {
-    return "Unknown";
+    return 'Unknown';
   }
 }

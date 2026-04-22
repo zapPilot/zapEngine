@@ -14,28 +14,28 @@ import {
   calculateAllocation,
   calculateDelta,
   type PortfolioAllocation,
-} from "@/adapters/portfolio/allocationAdapter";
+} from '@/adapters/portfolio/allocationAdapter';
 import {
   getRegimeStrategyInfo,
   getTargetAllocation,
-} from "@/adapters/portfolio/regimeAdapter";
-import { processSentimentData } from "@/adapters/portfolio/sentimentAdapter";
-import type { RegimeId } from "@/components/wallet/regime/regimeData";
-import { GHOST_MODE_PREVIEW } from "@/constants/ghostModeData";
-import { getDefaultQuoteForRegime } from "@/constants/regimes";
-import { getRegimeFromStatus } from "@/lib/domain/regimeMapper";
-import { extractROIChanges } from "@/lib/portfolio/portfolioUtils";
+} from '@/adapters/portfolio/regimeAdapter';
+import { processSentimentData } from '@/adapters/portfolio/sentimentAdapter';
+import type { RegimeId } from '@/components/wallet/regime/regimeData';
+import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
+import { getDefaultQuoteForRegime } from '@/constants/regimes';
+import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
+import { extractROIChanges } from '@/lib/portfolio/portfolioUtils';
 import type {
   DirectionType,
   DurationInfo,
-} from "@/schemas/api/regimeHistorySchemas";
+} from '@/schemas/api/regimeHistorySchemas';
 import type {
   BorrowingSummary,
   LandingPageResponse,
   MarketSentimentData,
   RegimeHistoryData,
   RiskMetrics,
-} from "@/services";
+} from '@/services';
 
 /**
  * Wallet Portfolio Data Structure
@@ -109,7 +109,7 @@ export interface WalletPortfolioDataWithDirection extends WalletPortfolioData {
  */
 export function transformToWalletPortfolioData(
   landingData: LandingPageResponse,
-  sentimentData: MarketSentimentData | null
+  sentimentData: MarketSentimentData | null,
 ): WalletPortfolioData {
   // Process sentiment
   const sentimentInfo = processSentimentData(sentimentData);
@@ -123,7 +123,7 @@ export function transformToWalletPortfolioData(
   // Calculate drift (delta) between current and target allocation
   const delta = calculateDelta(
     currentAllocation.crypto,
-    targetAllocation.crypto
+    targetAllocation.crypto,
   );
 
   // Extract ROI changes
@@ -171,7 +171,7 @@ export function transformToWalletPortfolioData(
 
 function applyRegimeHistoryFields(
   baseData: WalletPortfolioData,
-  regimeHistoryData: RegimeHistoryData | null
+  regimeHistoryData: RegimeHistoryData | null,
 ): WalletPortfolioDataWithDirection {
   const strategyInfo = getRegimeStrategyInfo(regimeHistoryData);
 
@@ -195,7 +195,7 @@ function applyRegimeHistoryFields(
 export function transformToWalletPortfolioDataWithDirection(
   landingData: LandingPageResponse,
   sentimentData: MarketSentimentData | null,
-  regimeHistoryData: RegimeHistoryData | null
+  regimeHistoryData: RegimeHistoryData | null,
 ): WalletPortfolioDataWithDirection {
   // Start with base portfolio data
   const baseData = transformToWalletPortfolioData(landingData, sentimentData);
@@ -213,10 +213,10 @@ export function transformToWalletPortfolioDataWithDirection(
  */
 export function createEmptyPortfolioState(
   sentimentData: MarketSentimentData | null,
-  regimeHistoryData: RegimeHistoryData | null
+  regimeHistoryData: RegimeHistoryData | null,
 ): WalletPortfolioDataWithDirection {
   const sentimentValue = sentimentData?.value ?? 50;
-  const sentimentStatus = sentimentData?.status ?? "Neutral";
+  const sentimentStatus = sentimentData?.status ?? 'Neutral';
   const currentRegime = getRegimeFromStatus(sentimentStatus);
   const targetAllocation = getTargetAllocation(currentRegime);
 
@@ -238,7 +238,7 @@ export function createEmptyPortfolioState(
 
     // Market sentiment - REAL data
     sentimentValue,
-    sentimentStatus: sentimentData?.status ?? "Neutral",
+    sentimentStatus: sentimentData?.status ?? 'Neutral',
     sentimentQuote:
       sentimentData?.quote?.quote ?? getDefaultQuoteForRegime(currentRegime),
 

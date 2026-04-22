@@ -1,6 +1,6 @@
-import { Clock, Quote, TrendingDown, TrendingUp } from "lucide-react";
+import { Clock, Quote, TrendingDown, TrendingUp } from 'lucide-react';
 
-import { cn } from "@/lib/ui/classNames";
+import { cn } from '@/lib/ui/classNames';
 
 import {
   formatPercent,
@@ -9,12 +9,12 @@ import {
   getRouteStepDetail,
   getRouteStepIconClass,
   getRouteStepTitle,
-} from "./reviewModalHelpers";
+} from './reviewModalHelpers';
 import {
   MOCK_ALLOCATION,
   MOCK_ROUTE,
   MOCK_STRATEGY,
-} from "./reviewModalPreviewData";
+} from './reviewModalPreviewData';
 
 interface BacktestMetricProps {
   label: string;
@@ -30,8 +30,8 @@ function BacktestMetric({ label, value, positive }: BacktestMetricProps) {
       </div>
       <div
         className={cn(
-          "text-base font-bold font-mono",
-          positive ? "text-emerald-400" : "text-red-400"
+          'text-base font-bold font-mono',
+          positive ? 'text-emerald-400' : 'text-red-400',
         )}
       >
         {value}
@@ -88,8 +88,8 @@ export function VariationStrategy() {
             Pacing
           </div>
           <div className="text-xs text-gray-400">
-            Step{" "}
-            <span className="text-white font-bold">{pacing.currentStep}</span>{" "}
+            Step{' '}
+            <span className="text-white font-bold">{pacing.currentStep}</span>{' '}
             of {pacing.totalSteps}
             <span className="text-gray-600 ml-1.5">
               · every {pacing.intervalDays}d
@@ -103,7 +103,7 @@ export function VariationStrategy() {
           />
         </div>
         <div className="text-[10px] text-gray-500 mt-2">
-          Executing{" "}
+          Executing{' '}
           <span className="text-indigo-400 font-bold">{convergencePct}</span> of
           target delta this step
         </div>
@@ -150,7 +150,7 @@ export function VariationImpact() {
             <div className="text-right">Target</div>
             <div className="text-right">Change</div>
           </div>
-          {MOCK_ALLOCATION.map(row => {
+          {MOCK_ALLOCATION.map((row) => {
             const change = row.target - row.current;
             return (
               <div
@@ -168,8 +168,8 @@ export function VariationImpact() {
                 </div>
                 <div
                   className={cn(
-                    "text-sm text-right font-mono font-bold",
-                    getAllocationChangeClass(change)
+                    'text-sm text-right font-mono font-bold',
+                    getAllocationChangeClass(change),
                   )}
                 >
                   {formatSignedPercent(change)}
@@ -213,7 +213,7 @@ export function VariationRoute() {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                     {step.type}
                   </span>
-                  {"duration" in step && step.duration && (
+                  {'duration' in step && step.duration && (
                     <span className="flex items-center gap-1 text-[10px] text-gray-500">
                       <Clock className="w-3 h-3" /> {step.duration}
                     </span>

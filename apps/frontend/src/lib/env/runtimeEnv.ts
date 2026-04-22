@@ -3,9 +3,9 @@ type EnvValue = string | boolean | undefined;
 type EnvRecord = Record<string, EnvValue>;
 
 const MODE_ALIASES = {
-  development: "development",
-  production: "production",
-  test: "test",
+  development: 'development',
+  production: 'production',
+  test: 'test',
 } as const;
 
 function readImportMetaEnv(key: string): EnvValue {
@@ -13,7 +13,7 @@ function readImportMetaEnv(key: string): EnvValue {
 }
 
 function readProcessEnv(key: string): EnvValue {
-  if (typeof process === "undefined") {
+  if (typeof process === 'undefined') {
     return undefined;
   }
 
@@ -35,12 +35,12 @@ function readProcessEnv(key: string): EnvValue {
  */
 export function getRuntimeEnv(key: string): string | undefined {
   const importMetaValue = readImportMetaEnv(key);
-  if (typeof importMetaValue === "string") {
+  if (typeof importMetaValue === 'string') {
     return importMetaValue;
   }
 
   const processValue = readProcessEnv(key);
-  if (typeof processValue === "string") {
+  if (typeof processValue === 'string') {
     return processValue;
   }
 
@@ -60,13 +60,13 @@ export function getRuntimeEnv(key: string): string | undefined {
  * ```
  */
 function getRuntimeMode(): string {
-  const processMode = readProcessEnv("NODE_ENV");
-  if (typeof processMode === "string" && processMode.length > 0) {
+  const processMode = readProcessEnv('NODE_ENV');
+  if (typeof processMode === 'string' && processMode.length > 0) {
     return processMode;
   }
 
-  const importMetaMode = readImportMetaEnv("MODE");
-  if (typeof importMetaMode === "string" && importMetaMode.length > 0) {
+  const importMetaMode = readImportMetaEnv('MODE');
+  if (typeof importMetaMode === 'string' && importMetaMode.length > 0) {
     return importMetaMode;
   }
 
@@ -85,7 +85,7 @@ function getRuntimeMode(): string {
  * ```
  */
 export function isRuntimeMode(
-  mode: "development" | "production" | "test"
+  mode: 'development' | 'production' | 'test',
 ): boolean {
   return getRuntimeMode() === MODE_ALIASES[mode];
 }

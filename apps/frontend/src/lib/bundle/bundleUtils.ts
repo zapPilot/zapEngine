@@ -31,12 +31,12 @@
 export function generateBundleUrl(
   userId: string,
   walletId?: string,
-  baseUrl?: string
+  baseUrl?: string,
 ): string {
   const params = new URLSearchParams({ userId });
 
   if (walletId) {
-    params.set("walletId", walletId);
+    params.set('walletId', walletId);
   }
 
   const path = `/bundle?${params.toString()}`;
@@ -74,7 +74,7 @@ export function generateBundleUrl(
  */
 export function isOwnBundle(
   bundleUserId: string,
-  currentUserId?: string | null
+  currentUserId?: string | null,
 ): boolean {
   return !!currentUserId && currentUserId === bundleUserId;
 }

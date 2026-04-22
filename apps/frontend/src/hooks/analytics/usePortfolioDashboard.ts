@@ -16,13 +16,13 @@
  * - useAllocationTimeseries
  */
 
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import {
   type DashboardWindowParams,
   getPortfolioDashboard,
   type UnifiedDashboardResponse,
-} from "@/services";
+} from '@/services';
 
 /**
  * Query options override for usePortfolioDashboard
@@ -32,7 +32,7 @@ interface DashboardQueryOptions {
   /** Override staleTime (default: 2 minutes) */
   staleTime?: number;
   /** Override refetchOnMount behavior */
-  refetchOnMount?: boolean | "always";
+  refetchOnMount?: boolean | 'always';
 }
 
 /**
@@ -86,13 +86,13 @@ interface DashboardQueryOptions {
 export function usePortfolioDashboard(
   userId: string | undefined,
   params: DashboardWindowParams = {},
-  options: DashboardQueryOptions = {}
+  options: DashboardQueryOptions = {},
 ): UseQueryResult<UnifiedDashboardResponse> & {
   dashboard: UnifiedDashboardResponse | undefined;
 } {
   const queryResult = useQuery({
     queryKey: [
-      "portfolio-dashboard",
+      'portfolio-dashboard',
       userId,
       params.trend_days,
       params.drawdown_days,

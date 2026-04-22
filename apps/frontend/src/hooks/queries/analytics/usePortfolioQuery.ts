@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { queryKeys } from "@/lib/state/queryClient";
+import { queryKeys } from '@/lib/state/queryClient';
 import {
   getLandingPagePortfolioData,
   type LandingPageResponse,
-} from "@/services";
+} from '@/services';
 
-import { createQueryConfig } from "../queryDefaults";
+import { createQueryConfig } from '../queryDefaults';
 
 const PORTFOLIO_REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -22,18 +22,18 @@ const PORTFOLIO_REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
  */
 export function useLandingPageData(
   userId: string | null | undefined,
-  isEtlInProgress = false
+  isEtlInProgress = false,
 ) {
   return useQuery({
     ...createQueryConfig({
       retryConfig: {
-        skipErrorMessages: ["USER_NOT_FOUND", "404"],
+        skipErrorMessages: ['USER_NOT_FOUND', '404'],
       },
     }),
-    queryKey: queryKeys.portfolio.landingPage(userId || ""),
+    queryKey: queryKeys.portfolio.landingPage(userId || ''),
     queryFn: async (): Promise<LandingPageResponse> => {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new Error('User ID is required');
       }
       return getLandingPagePortfolioData(userId);
     },

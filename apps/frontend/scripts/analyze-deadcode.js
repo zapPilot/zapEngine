@@ -4,31 +4,31 @@
  * Analyze exports to find which are only used in test files
  */
 
-import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Get all deadcode exports from ts-prune
-console.log("🔍 Running ts-prune to find unused exports...\n");
+console.log('🔍 Running ts-prune to find unused exports...\n');
 // eslint-disable-next-line sonarjs/no-os-command-from-path
-const tsPruneOutput = execSync("npm run deadcode:exports 2>&1", {
+const tsPruneOutput = execSync('npm run deadcode:exports 2>&1', {
   cwd: __dirname,
-  encoding: "utf-8",
+  encoding: 'utf-8',
 });
 
 // Parse ts-prune output
 const exports = [];
-const lines = tsPruneOutput.split("\n");
+const lines = tsPruneOutput.split('\n');
 for (const line of lines) {
   // Format: src/path/file.ts:line - exportName (used in module)?
   const match = line.match(/^(src\/[^:]+):(\d+) - ([^\s(]+)/);
   if (match) {
     const [, filePath, lineNum, exportName] = match;
-    const usedInModule = line.includes("(used in module)");
+    const usedInModule = line.includes('(used in module)');
     exports.push({
       filePath,
       lineNum: parseInt(lineNum),
@@ -50,14 +50,14 @@ for (const exp of exports) {
     // eslint-disable-next-line sonarjs/os-command
     const testSearch = execSync(
       `grep -r "${exp.exportName}" tests/ 2>/dev/null || true`,
-      { cwd: path.join(__dirname, ".."), encoding: "utf-8" }
+      { cwd: path.join(__dirname, '..'), encoding: 'utf-8' },
     );
 
     // Search for usage in src (excluding the file where it's defined)
     // eslint-disable-next-line sonarjs/os-command
     const srcSearch = execSync(
       `grep -r "${exp.exportName}" src/ 2>/dev/null | grep -v "${exp.filePath}" || true`,
-      { cwd: path.join(__dirname, ".."), encoding: "utf-8" }
+      { cwd: path.join(__dirname, '..'), encoding: 'utf-8' },
     );
 
     const usedInTests = testSearch.trim().length > 0;
@@ -73,16 +73,16 @@ for (const exp of exports) {
   }
 }
 
-console.log("📊 Analysis Results:\n");
+console.log('📊 Analysis Results:\n');
 console.log(`✅ Truly unused exports: ${trulyUnused.length}`);
 console.log(`🧪 Test-only exports: ${testOnlyExports.length}`);
 console.log(
-  `📦 Total to remove: ${trulyUnused.length + testOnlyExports.length}\n`
+  `📦 Total to remove: ${trulyUnused.length + testOnlyExports.length}\n`,
 );
 
 // Output detailed results
 if (trulyUnused.length > 0) {
-  console.log("═══ TRULY UNUSED EXPORTS ═══\n");
+  console.log('═══ TRULY UNUSED EXPORTS ═══\n');
   for (const exp of trulyUnused) {
     console.log(`${exp.filePath}:${exp.lineNum} - ${exp.exportName}`);
   }
@@ -90,7 +90,7 @@ if (trulyUnused.length > 0) {
 }
 
 if (testOnlyExports.length > 0) {
-  console.log("═══ TEST-ONLY EXPORTS (can be removed) ═══\n");
+  console.log('═══ TEST-ONLY EXPORTS (can be removed) ═══\n');
   for (const exp of testOnlyExports) {
     console.log(`${exp.filePath}:${exp.lineNum} - ${exp.exportName}`);
   }
@@ -105,8 +105,8 @@ const results = {
 };
 
 fs.writeFileSync(
-  path.join(__dirname, "..", "deadcode-analysis.json"),
-  JSON.stringify(results, null, 2)
+  path.join(__dirname, '..', 'deadcode-analysis.json'),
+  JSON.stringify(results, null, 2),
 );
 
-console.log("📄 Results saved to deadcode-analysis.json");
+console.log('📄 Results saved to deadcode-analysis.json');

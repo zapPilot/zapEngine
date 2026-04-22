@@ -1,4 +1,4 @@
-import type { SectionState } from "@/types/portfolio-progressive";
+import type { SectionState } from '@/types/portfolio-progressive';
 
 /**
  * Creates a section state from query results with combined loading/error states
@@ -39,28 +39,28 @@ interface QueryResult<TData> {
 
 export function createSectionState<TData, TOutput>(
   queries: [QueryResult<TData>],
-  extractor: (data: TData) => TOutput | null
+  extractor: (data: TData) => TOutput | null,
 ): SectionState<TOutput>;
 export function createSectionState<TDataA, TDataB, TOutput>(
   queries: [QueryResult<TDataA>, QueryResult<TDataB>],
-  extractor: (dataA: TDataA, dataB: TDataB) => TOutput | null
+  extractor: (dataA: TDataA, dataB: TDataB) => TOutput | null,
 ): SectionState<TOutput>;
 export function createSectionState<TDataA, TDataB, TDataC, TOutput>(
   queries: [QueryResult<TDataA>, QueryResult<TDataB>, QueryResult<TDataC>],
-  extractor: (dataA: TDataA, dataB: TDataB, dataC: TDataC) => TOutput | null
+  extractor: (dataA: TDataA, dataB: TDataB, dataC: TDataC) => TOutput | null,
 ): SectionState<TOutput>;
 export function createSectionState<TOutput>(
   queries: QueryResult<unknown>[],
-  extractor: (...args: unknown[]) => TOutput | null
+  extractor: (...args: unknown[]) => TOutput | null,
 ): SectionState<TOutput> {
-  const isLoading = queries.some(q => q.isLoading);
-  const error = queries.find(q => q.error)?.error as Error | null;
+  const isLoading = queries.some((q) => q.isLoading);
+  const error = queries.find((q) => q.error)?.error as Error | null;
 
   // Only call extractor if all queries have data
   // This matches the original pattern: landingQuery.data ? extractor(landingQuery.data) : null
   // Using != null to check both undefined and null (matches truthiness check)
-  const allDataPresent = queries.every(q => q.data != null);
-  const data = allDataPresent ? extractor(...queries.map(q => q.data)) : null;
+  const allDataPresent = queries.every((q) => q.data != null);
+  const data = allDataPresent ? extractor(...queries.map((q) => q.data)) : null;
 
   return { data, isLoading, error };
 }

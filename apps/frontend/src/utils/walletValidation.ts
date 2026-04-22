@@ -1,5 +1,5 @@
-import { validateWalletAddress } from "@/lib/validation/walletUtils";
-import type { NewWallet, ValidationResult } from "@/types";
+import { validateWalletAddress } from '@/lib/validation/walletUtils';
+import type { NewWallet, ValidationResult } from '@/types';
 
 /**
  * Validate wallet address format
@@ -10,7 +10,7 @@ function validateAddress(address: string): ValidationResult {
   if (!trimmedAddress) {
     return {
       isValid: false,
-      error: "Wallet address is required",
+      error: 'Wallet address is required',
     };
   }
 
@@ -18,7 +18,7 @@ function validateAddress(address: string): ValidationResult {
     return {
       isValid: false,
       error:
-        "Invalid wallet address format. Must be a 42-character Ethereum address starting with 0x",
+        'Invalid wallet address format. Must be a 42-character Ethereum address starting with 0x',
     };
   }
 
@@ -34,14 +34,14 @@ function validateLabel(label: string): ValidationResult {
   if (!trimmedLabel) {
     return {
       isValid: false,
-      error: "Wallet label is required",
+      error: 'Wallet label is required',
     };
   }
 
   if (trimmedLabel.length < 2) {
     return {
       isValid: false,
-      error: "Wallet label must be at least 2 characters long",
+      error: 'Wallet label must be at least 2 characters long',
     };
   }
 
@@ -56,7 +56,7 @@ export function validateEmail(email: string): ValidationResult {
   if (!trimmedEmail) {
     return {
       isValid: false,
-      error: "Email address is required",
+      error: 'Email address is required',
     };
   }
 
@@ -64,7 +64,7 @@ export function validateEmail(email: string): ValidationResult {
   if (!emailRegex.test(email)) {
     return {
       isValid: false,
-      error: "Please enter a valid email address",
+      error: 'Please enter a valid email address',
     };
   }
 

@@ -1,7 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from '@tanstack/react-query';
 
-import { runBacktest } from "@/services";
-import type { BacktestRequest } from "@/types/backtesting";
+import { runBacktest } from '@/services';
+import type { BacktestRequest } from '@/types/backtesting';
 
 /**
  * React Query mutation hook for running backtests.

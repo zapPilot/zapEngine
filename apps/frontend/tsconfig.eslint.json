@@ -1,5 +1,13 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["vite-env.d.ts", "vitest.d.ts", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.cjs", "**/*.mjs"],
+  "include": [
+    "vite-env.d.ts",
+    "vitest.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.cjs",
+    "**/*.mjs"
+  ],
   "exclude": ["node_modules", "out", "dist", "coverage"]
 }

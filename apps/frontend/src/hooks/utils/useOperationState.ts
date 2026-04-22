@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useCallback } from "react";
+import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
 /**
  * Operation State Utilities
@@ -20,21 +20,21 @@ interface OperationState {
  * Hook for managing operation state with standardized handlers
  */
 export function useOperationStateHandlers(
-  setState: Dispatch<SetStateAction<OperationState>>
+  setState: Dispatch<SetStateAction<OperationState>>,
 ) {
   const setLoading = useCallback(
     () => setState({ isLoading: true, error: null }),
-    [setState]
+    [setState],
   );
 
   const setSuccess = useCallback(
     () => setState({ isLoading: false, error: null }),
-    [setState]
+    [setState],
   );
 
   const setError = useCallback(
     (error: string) => setState({ isLoading: false, error }),
-    [setState]
+    [setState],
   );
 
   return { setLoading, setSuccess, setError };

@@ -1,4 +1,4 @@
-import type { BacktestStrategySummary } from "@/types/backtesting";
+import type { BacktestStrategySummary } from '@/types/backtesting';
 
 export interface HeroMetric {
   label: string;
@@ -8,16 +8,16 @@ export interface HeroMetric {
 }
 function asciiBar(value: number, max: number, width: number): string {
   if (max <= 0) {
-    return "\u2591".repeat(width);
+    return '\u2591'.repeat(width);
   }
 
   const filled = Math.round((Math.min(Math.abs(value), max) / max) * width);
   const empty = width - filled;
-  return "\u2588".repeat(filled) + "\u2591".repeat(empty);
+  return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
 }
 
 export function createHeroMetrics(
-  strategy: BacktestStrategySummary | undefined
+  strategy: BacktestStrategySummary | undefined,
 ): HeroMetric[] {
   if (!strategy) {
     return [];
@@ -25,25 +25,25 @@ export function createHeroMetrics(
 
   return [
     {
-      label: "ROI",
-      value: `${strategy.roi_percent >= 0 ? "+" : ""}${strategy.roi_percent.toFixed(1)}%`,
+      label: 'ROI',
+      value: `${strategy.roi_percent >= 0 ? '+' : ''}${strategy.roi_percent.toFixed(1)}%`,
       bar: asciiBar(strategy.roi_percent, 200, 10),
-      color: "text-emerald-400",
+      color: 'text-emerald-400',
     },
     {
-      label: "CALMAR",
-      value: strategy.calmar_ratio?.toFixed(2) ?? "N/A",
+      label: 'CALMAR',
+      value: strategy.calmar_ratio?.toFixed(2) ?? 'N/A',
       bar: asciiBar(strategy.calmar_ratio ?? 0, 5, 10),
-      color: "text-cyan-400",
+      color: 'text-cyan-400',
     },
     {
-      label: "MAX DRAWDOWN",
+      label: 'MAX DRAWDOWN',
       value:
         strategy.max_drawdown_percent != null
           ? `${Math.abs(strategy.max_drawdown_percent).toFixed(1)}%`
-          : "N/A",
+          : 'N/A',
       bar: asciiBar(Math.abs(strategy.max_drawdown_percent ?? 0), 30, 10),
-      color: "text-rose-400",
+      color: 'text-rose-400',
     },
   ];
 }
@@ -62,10 +62,10 @@ export function createHeroMetrics(
  */
 export function formatTradeFrequency(
   tradeCount: number,
-  actualDays: number
+  actualDays: number,
 ): string | null {
   if (tradeCount <= 0 || actualDays <= 0) return null;
   const daysPerTrade = Math.round(actualDays / tradeCount);
-  if (daysPerTrade <= 1) return "1+ trades per day";
+  if (daysPerTrade <= 1) return '1+ trades per day';
   return `1 trade every ${daysPerTrade} days`;
 }

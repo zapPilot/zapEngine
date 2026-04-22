@@ -1,13 +1,13 @@
+import { getTableName } from '../../config/database.js';
 import {
   BaseWriter,
   type WriteResult,
-} from "../../core/database/baseWriter.js";
-import { getTableName } from "../../config/database.js";
-import type { HyperliquidVaultAprSnapshotInsert } from "../../types/database.js";
-import { buildHyperliquidInsertValues } from "../../core/database/columnDefinitions.js";
+} from '../../core/database/baseWriter.js';
+import { buildHyperliquidInsertValues } from '../../core/database/columnDefinitions.js';
+import type { HyperliquidVaultAprSnapshotInsert } from '../../types/database.js';
 
 export class HyperliquidVaultAprWriter extends BaseWriter<HyperliquidVaultAprSnapshotInsert> {
-  protected batchSize = 100;
+  protected override batchSize = 100;
 
   async writeSnapshots(
     snapshots: HyperliquidVaultAprSnapshotInsert[],
@@ -15,7 +15,7 @@ export class HyperliquidVaultAprWriter extends BaseWriter<HyperliquidVaultAprSna
     return this.processBatches(
       snapshots,
       this.writeBatch.bind(this),
-      "Hyperliquid vault APR snapshots",
+      'Hyperliquid vault APR snapshots',
     );
   }
 
@@ -25,20 +25,20 @@ export class HyperliquidVaultAprWriter extends BaseWriter<HyperliquidVaultAprSna
   ): Promise<WriteResult> {
     return this.executeBatchWrite({
       batchNumber,
-      logContext: "Hyperliquid APR",
+      logContext: 'Hyperliquid APR',
       recordCount: batch.length,
       buildQuery: () => {
         const { columns, placeholders, values } =
           buildHyperliquidInsertValues(batch);
         const updateColumns = columns.filter(
-          (column) => column !== "snapshot_time",
+          (column) => column !== 'snapshot_time',
         );
         const assignments = updateColumns
-          .filter((column) => column !== "source")
+          .filter((column) => column !== 'source')
           .map((column) => `${column} = EXCLUDED.${column}`)
-          .join(", ");
+          .join(', ');
         const query = `
-          INSERT INTO ${getTableName("HYPERLIQUID_VAULT_APR_SNAPSHOTS")} (${columns.join(", ")})
+          INSERT INTO ${getTableName('HYPERLIQUID_VAULT_APR_SNAPSHOTS')} (${columns.join(', ')})
           VALUES ${placeholders}
           ON CONFLICT (vault_address, snapshot_time) DO UPDATE SET
             ${assignments}

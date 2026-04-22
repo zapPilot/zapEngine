@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { logger } from "@/utils";
+import { logger } from '@/utils';
 
-const globalErrorLogger = logger.createContextLogger("GlobalErrorHandler");
+const globalErrorLogger = logger.createContextLogger('GlobalErrorHandler');
 
 /**
  * Global Error Handler Component
@@ -14,7 +14,7 @@ export function GlobalErrorHandler() {
   useEffect(() => {
     // Handle unhandled promise rejections
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      globalErrorLogger.error("Unhandled Promise Rejection", {
+      globalErrorLogger.error('Unhandled Promise Rejection', {
         reason: event.reason,
         stack: event.reason?.stack,
       });
@@ -25,7 +25,7 @@ export function GlobalErrorHandler() {
 
     // Handle global errors
     const handleGlobalError = (event: ErrorEvent) => {
-      globalErrorLogger.error("Global Error", {
+      globalErrorLogger.error('Global Error', {
         message: event.message,
         filename: event.filename,
         lineno: event.lineno,
@@ -35,16 +35,16 @@ export function GlobalErrorHandler() {
     };
 
     // Add event listeners
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-    window.addEventListener("error", handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleGlobalError);
 
     // Cleanup
     return () => {
       window.removeEventListener(
-        "unhandledrejection",
-        handleUnhandledRejection
+        'unhandledrejection',
+        handleUnhandledRejection,
       );
-      window.removeEventListener("error", handleGlobalError);
+      window.removeEventListener('error', handleGlobalError);
     };
   }, []);
 

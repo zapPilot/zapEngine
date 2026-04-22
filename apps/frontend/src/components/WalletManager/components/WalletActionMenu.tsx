@@ -1,14 +1,14 @@
-import { Copy, Edit3, ExternalLink, MoreVertical, Trash2 } from "lucide-react";
-import { memo, type ReactElement } from "react";
+import { Copy, Edit3, ExternalLink, MoreVertical, Trash2 } from 'lucide-react';
+import { memo, type ReactElement } from 'react';
 
-import { Portal } from "@/components/ui/Portal";
-import { Z_INDEX } from "@/constants/design-system";
-import type { WalletData } from "@/lib/validation/walletUtils";
+import { Portal } from '@/components/ui/Portal';
+import { Z_INDEX } from '@/constants/design-system';
+import type { WalletData } from '@/lib/validation/walletUtils';
 import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from "@/types";
+} from '@/types';
 
 interface WalletActionMenuProps extends WalletMenuHandlers {
   wallet: WalletData;
@@ -71,11 +71,11 @@ function WalletActionMenuComponent(props: WalletActionMenuProps): ReactElement {
           <div
             className={`w-48 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg shadow-xl ${Z_INDEX.TOOLTIP}`}
             style={{
-              position: "fixed",
+              position: 'fixed',
               top: menuPosition.top,
               left: menuPosition.left,
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="py-1">
               <button
@@ -125,4 +125,4 @@ function WalletActionMenuComponent(props: WalletActionMenuProps): ReactElement {
 
 export const WalletActionMenu = memo(WalletActionMenuComponent);
 
-WalletActionMenu.displayName = "WalletActionMenu";
+WalletActionMenu.displayName = 'WalletActionMenu';

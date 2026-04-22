@@ -1,10 +1,10 @@
-import { type QueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { type QueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 
-import { queryKeys } from "@/hooks/queries";
-import type { AppRouterLike } from "@/lib/routing";
+import { queryKeys } from '@/hooks/queries';
+import type { AppRouterLike } from '@/lib/routing';
 
-import type { EtlJobPollingState } from "./useEtlJobPolling";
+import type { EtlJobPollingState } from './useEtlJobPolling';
 
 interface UseEtlJobSyncParams {
   initialEtlJobId: string | undefined;
@@ -19,14 +19,14 @@ interface UseEtlJobSyncParams {
 
 function shouldClearEtlUrlParams(completingJobId: string): boolean {
   const url = new URL(window.location.href);
-  const urlJobId = url.searchParams.get("etlJobId");
-  return urlJobId === completingJobId || url.searchParams.has("isNewUser");
+  const urlJobId = url.searchParams.get('etlJobId');
+  return urlJobId === completingJobId || url.searchParams.has('isNewUser');
 }
 
 function clearEtlUrlParams(router: AppRouterLike): void {
   const url = new URL(window.location.href);
-  url.searchParams.delete("etlJobId");
-  url.searchParams.delete("isNewUser");
+  url.searchParams.delete('etlJobId');
+  url.searchParams.delete('isNewUser');
   router.replace(url.pathname + url.search, { scroll: false });
 }
 
@@ -59,7 +59,7 @@ export function useEtlJobSync({
 
   // Sync on ETL completion: invalidate queries, refetch, clean URL
   useEffect(() => {
-    if (etlState.status !== "completing" || !etlState.jobId) {
+    if (etlState.status !== 'completing' || !etlState.jobId) {
       return;
     }
 

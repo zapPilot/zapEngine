@@ -22,7 +22,9 @@ describe('CTA', () => {
     it('should render the second line of title', () => {
       render(<CTA />);
 
-      expect(screen.getByText(MESSAGES.cta.titleSecondLine)).toBeInTheDocument();
+      expect(
+        screen.getByText(MESSAGES.cta.titleSecondLine),
+      ).toBeInTheDocument();
     });
 
     it('should render the subtitle', () => {
@@ -37,7 +39,9 @@ describe('CTA', () => {
       render(<CTA />);
 
       expect(
-        screen.getByRole('button', { name: new RegExp(MESSAGES.cta.ctaPrimary) })
+        screen.getByRole('button', {
+          name: new RegExp(MESSAGES.cta.ctaPrimary),
+        }),
       ).toBeInTheDocument();
     });
 
@@ -45,7 +49,9 @@ describe('CTA', () => {
       render(<CTA />);
 
       expect(
-        screen.getByRole('button', { name: new RegExp(MESSAGES.cta.ctaSecondary) })
+        screen.getByRole('button', {
+          name: new RegExp(MESSAGES.cta.ctaSecondary),
+        }),
       ).toBeInTheDocument();
     });
 
@@ -57,7 +63,11 @@ describe('CTA', () => {
       });
       fireEvent.click(primaryButton);
 
-      expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        LINKS.app,
+        '_blank',
+        'noopener,noreferrer',
+      );
     });
 
     it('should open documentation link when secondary CTA is clicked', () => {
@@ -71,7 +81,7 @@ describe('CTA', () => {
       expect(mockWindowOpen).toHaveBeenCalledWith(
         LINKS.documentation,
         '_blank',
-        'noopener,noreferrer'
+        'noopener,noreferrer',
       );
     });
   });

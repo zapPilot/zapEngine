@@ -2,13 +2,13 @@
  * React Query hook for fetching the shared strategy bootstrap payload.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { getStrategyConfigs } from "@/services";
-import type { StrategyConfigsResponse } from "@/types/strategy";
+import { getStrategyConfigs } from '@/services';
+import type { StrategyConfigsResponse } from '@/types/strategy';
 
 export const strategyConfigKeys = {
-  all: ["strategy-configs"] as const,
+  all: ['strategy-configs'] as const,
 };
 
 /**

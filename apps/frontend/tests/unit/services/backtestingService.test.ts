@@ -1,31 +1,31 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { httpUtils } from "@/lib/http";
+import { httpUtils } from '@/lib/http';
 import {
   _sampleTimelineData as sampleTimelineData,
   getBacktestingStrategiesV3,
   MAX_CHART_POINTS,
   MIN_CHART_POINTS,
   runBacktest,
-} from "@/services/backtestingService";
+} from '@/services/backtestingService';
 import type {
   BacktestRequest,
   BacktestTimelinePoint,
-} from "@/types/backtesting";
+} from '@/types/backtesting';
 
 function createTimelinePoint(
   index: number,
-  opts?: { withTransfers?: boolean }
+  opts?: { withTransfers?: boolean },
 ): BacktestTimelinePoint {
-  const date = new Date("2024-01-01");
+  const date = new Date('2024-01-01');
   date.setDate(date.getDate() + index);
 
   return {
     market: {
-      date: date.toISOString().split("T")[0] ?? "2024-01-01",
+      date: date.toISOString().split('T')[0] ?? '2024-01-01',
       token_price: { btc: 50000 + index * 10 },
       sentiment: 50,
-      sentiment_label: "neutral",
+      sentiment_label: 'neutral',
     },
     strategies: {
       dca_classic: {
@@ -40,9 +40,9 @@ function createTimelinePoint(
         },
         signal: null,
         decision: {
-          action: "hold",
-          reason: "baseline_dca",
-          rule_group: "none",
+          action: 'hold',
+          reason: 'baseline_dca',
+          rule_group: 'none',
           target_allocation: {
             spot: 0.5,
             stable: 0.5,
@@ -70,9 +70,9 @@ function createTimelinePoint(
         },
         signal: null,
         decision: {
-          action: opts?.withTransfers ? "buy" : "hold",
-          reason: "dma_fgi",
-          rule_group: opts?.withTransfers ? "dma_fgi" : "none",
+          action: opts?.withTransfers ? 'buy' : 'hold',
+          reason: 'dma_fgi',
+          rule_group: opts?.withTransfers ? 'dma_fgi' : 'none',
           target_allocation: {
             spot: 0.6,
             stable: 0.4,
@@ -80,12 +80,12 @@ function createTimelinePoint(
           immediate: false,
         },
         execution: {
-          event: opts?.withTransfers ? "rebalance" : null,
+          event: opts?.withTransfers ? 'rebalance' : null,
           transfers: opts?.withTransfers
             ? [
                 {
-                  from_bucket: "stable",
-                  to_bucket: "spot",
+                  from_bucket: 'stable',
+                  to_bucket: 'spot',
                   amount_usd: 123,
                 },
               ]
@@ -100,10 +100,10 @@ function createTimelinePoint(
   };
 }
 
-const analyticsEnginePostSpy = vi.spyOn(httpUtils.analyticsEngine, "post");
-const analyticsEngineGetSpy = vi.spyOn(httpUtils.analyticsEngine, "get");
+const analyticsEnginePostSpy = vi.spyOn(httpUtils.analyticsEngine, 'post');
+const analyticsEngineGetSpy = vi.spyOn(httpUtils.analyticsEngine, 'get');
 
-describe("backtestingService", () => {
+describe('backtestingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     analyticsEnginePostSpy.mockReset();
@@ -115,16 +115,16 @@ describe("backtestingService", () => {
     analyticsEngineGetSpy.mockRestore();
   });
 
-  describe("runBacktest", () => {
-    it("calls the v3 compare endpoint with a 10-minute timeout", async () => {
+  describe('runBacktest', () => {
+    it('calls the v3 compare endpoint with a 10-minute timeout', async () => {
       const mockRequest: BacktestRequest = {
         total_capital: 10000,
         days: 30,
         configs: [
-          { config_id: "dca_classic", strategy_id: "dca_classic", params: {} },
+          { config_id: 'dca_classic', strategy_id: 'dca_classic', params: {} },
           {
-            config_id: "dma_gated_fgi_default",
-            strategy_id: "dma_gated_fgi",
+            config_id: 'dma_gated_fgi_default',
+            strategy_id: 'dma_gated_fgi',
             params: { pacing: { k: 5, r_max: 1 } },
           },
         ],
@@ -138,28 +138,28 @@ describe("backtestingService", () => {
       await runBacktest(mockRequest);
 
       expect(analyticsEnginePostSpy).toHaveBeenCalledWith(
-        "/api/v3/backtesting/compare",
+        '/api/v3/backtesting/compare',
         mockRequest,
-        { timeout: 600000 }
+        { timeout: 600000 },
       );
     });
 
-    it("maps API errors through the backtesting error mapper", async () => {
-      analyticsEnginePostSpy.mockRejectedValue(new Error("API Error"));
+    it('maps API errors through the backtesting error mapper', async () => {
+      analyticsEnginePostSpy.mockRejectedValue(new Error('API Error'));
 
       await expect(
         runBacktest({
           total_capital: 10000,
-          configs: [{ config_id: "dca_classic", strategy_id: "dca_classic" }],
-        })
+          configs: [{ config_id: 'dca_classic', strategy_id: 'dca_classic' }],
+        }),
       ).rejects.toThrow(
-        "An unexpected error occurred while running the backtest."
+        'An unexpected error occurred while running the backtest.',
       );
     });
 
-    it("samples the timeline before returning the response", async () => {
+    it('samples the timeline before returning the response', async () => {
       const timeline = Array.from({ length: 220 }, (_, i) =>
-        createTimelinePoint(i)
+        createTimelinePoint(i),
       );
 
       analyticsEnginePostSpy.mockResolvedValue({
@@ -169,49 +169,49 @@ describe("backtestingService", () => {
 
       const result = await runBacktest({
         total_capital: 10000,
-        configs: [{ config_id: "dca_classic", strategy_id: "dca_classic" }],
+        configs: [{ config_id: 'dca_classic', strategy_id: 'dca_classic' }],
       });
 
       expect(result.timeline.length).toBeLessThanOrEqual(MAX_CHART_POINTS);
     });
   });
 
-  describe("sampleTimelineData", () => {
-    it("returns empty array for undefined or empty timeline", () => {
+  describe('sampleTimelineData', () => {
+    it('returns empty array for undefined or empty timeline', () => {
       expect(sampleTimelineData(undefined)).toEqual([]);
       expect(sampleTimelineData([])).toEqual([]);
     });
 
-    it("returns the timeline unchanged when it is already small enough", () => {
+    it('returns the timeline unchanged when it is already small enough', () => {
       const timeline = Array.from({ length: MIN_CHART_POINTS }, (_, i) =>
-        createTimelinePoint(i)
+        createTimelinePoint(i),
       );
 
       expect(sampleTimelineData(timeline)).toEqual(timeline);
     });
 
-    it("preserves first, last, and transfer points", () => {
+    it('preserves first, last, and transfer points', () => {
       const transferIndices = [10, 50, 150];
       const timeline = Array.from({ length: 220 }, (_, i) =>
-        createTimelinePoint(i, { withTransfers: transferIndices.includes(i) })
+        createTimelinePoint(i, { withTransfers: transferIndices.includes(i) }),
       );
 
       const result = sampleTimelineData(timeline);
-      const dates = new Set(result.map(point => point.market.date));
+      const dates = new Set(result.map((point) => point.market.date));
 
-      expect(dates.has(timeline[0]?.market.date ?? "")).toBe(true);
-      expect(dates.has(timeline[timeline.length - 1]?.market.date ?? "")).toBe(
-        true
+      expect(dates.has(timeline[0]?.market.date ?? '')).toBe(true);
+      expect(dates.has(timeline[timeline.length - 1]?.market.date ?? '')).toBe(
+        true,
       );
       for (const index of transferIndices) {
-        expect(dates.has(timeline[index]?.market.date ?? "")).toBe(true);
+        expect(dates.has(timeline[index]?.market.date ?? '')).toBe(true);
       }
     });
 
-    it("does not treat DCA-only activity as a critical event", () => {
+    it('does not treat DCA-only activity as a critical event', () => {
       const timeline = Array.from({ length: 220 }, (_, i) =>
-        createTimelinePoint(i, { withTransfers: i === 100 })
-      ).map(point => ({
+        createTimelinePoint(i, { withTransfers: i === 100 }),
+      ).map((point) => ({
         ...point,
         strategies: {
           dca_classic: {
@@ -220,7 +220,7 @@ describe("backtestingService", () => {
               ...point.strategies.dca_classic.execution,
               transfers:
                 point.market.date ===
-                (timelineDate => timelineDate)(point.market.date)
+                ((timelineDate) => timelineDate)(point.market.date)
                   ? point.strategies.dma_gated_fgi_default.execution.transfers
                   : [],
             },
@@ -235,16 +235,16 @@ describe("backtestingService", () => {
     });
   });
 
-  describe("getBacktestingStrategiesV3", () => {
-    it("calls the v3 strategies endpoint via GET", async () => {
+  describe('getBacktestingStrategiesV3', () => {
+    it('calls the v3 strategies endpoint via GET', async () => {
       const mockStrategies = {
-        catalog_version: "2.0.0",
+        catalog_version: '2.0.0',
         strategies: [
           {
-            strategy_id: "dca_classic",
-            display_name: "DCA Classic",
-            description: "Baseline",
-            param_schema: { type: "object", additionalProperties: false },
+            strategy_id: 'dca_classic',
+            display_name: 'DCA Classic',
+            description: 'Baseline',
+            param_schema: { type: 'object', additionalProperties: false },
             default_params: {},
             supports_daily_suggestion: false,
           },
@@ -255,16 +255,16 @@ describe("backtestingService", () => {
       const result = await getBacktestingStrategiesV3();
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
-        "/api/v3/backtesting/strategies"
+        '/api/v3/backtesting/strategies',
       );
       expect(result).toEqual(mockStrategies);
     });
 
-    it("maps GET errors with the backtesting error mapper", async () => {
-      analyticsEngineGetSpy.mockRejectedValue(new Error("API Error"));
+    it('maps GET errors with the backtesting error mapper', async () => {
+      analyticsEngineGetSpy.mockRejectedValue(new Error('API Error'));
 
       await expect(getBacktestingStrategiesV3()).rejects.toThrow(
-        "An unexpected error occurred while running the backtest."
+        'An unexpected error occurred while running the backtest.',
       );
     });
   });

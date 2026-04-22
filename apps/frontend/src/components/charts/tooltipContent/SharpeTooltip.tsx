@@ -2,28 +2,28 @@
  * SharpeTooltip - Sharpe ratio with color-coded rating
  */
 
-import type { SharpeHoverData } from "@/types/ui/chartHover";
+import type { SharpeHoverData } from '@/types/ui/chartHover';
 import {
   getSharpeColor,
   getSharpeInterpretation,
-} from "@/utils/chartHoverUtils";
+} from '@/utils/chartHoverUtils';
 
-import { TooltipRow } from "./TooltipRow";
-import { TooltipWrapper } from "./TooltipWrapper";
+import { TooltipRow } from './TooltipRow';
+import { TooltipWrapper } from './TooltipWrapper';
 
-const INTERPRETATION_COLORS: Record<SharpeHoverData["interpretation"], string> =
+const INTERPRETATION_COLORS: Record<SharpeHoverData['interpretation'], string> =
   {
-    Excellent: "text-green-400",
-    Good: "text-lime-400",
-    Fair: "text-yellow-400",
-    Poor: "text-orange-400",
-    "Very Poor": "text-red-400",
+    Excellent: 'text-green-400',
+    Good: 'text-lime-400',
+    Fair: 'text-yellow-400',
+    Poor: 'text-orange-400',
+    'Very Poor': 'text-red-400',
   };
 
 export function SharpeTooltip({ data }: { data: SharpeHoverData }) {
   const interpretation = getSharpeInterpretation(
-    data.sharpe
-  ) as SharpeHoverData["interpretation"];
+    data.sharpe,
+  ) as SharpeHoverData['interpretation'];
   const indicatorColor = getSharpeColor(data.sharpe);
 
   return (

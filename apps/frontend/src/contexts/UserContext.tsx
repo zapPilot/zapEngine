@@ -1,10 +1,10 @@
-import { createContext, type ReactNode, useCallback, useContext } from "react";
+import { createContext, type ReactNode, useCallback, useContext } from 'react';
 
 import {
   useCurrentUser,
   type UserInfo,
-} from "@/hooks/queries/wallet/useUserQuery";
-import { logger } from "@/utils";
+} from '@/hooks/queries/wallet/useUserQuery';
+import { logger } from '@/utils';
 
 interface UserContextType {
   userInfo: UserInfo | null;
@@ -23,12 +23,12 @@ interface UserProviderProps {
 }
 
 async function triggerUserRefetch(
-  refetch: () => Promise<unknown>
+  refetch: () => Promise<unknown>,
 ): Promise<void> {
   try {
     await refetch();
   } catch (error) {
-    logger.error("Failed to refetch user data", error);
+    logger.error('Failed to refetch user data', error);
   }
 }
 
@@ -62,7 +62,7 @@ export function UserProvider({ children }: UserProviderProps) {
 export function useUser(): UserContextType {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
+    throw new Error('useUser must be used within a UserProvider');
   }
   return context;
 }

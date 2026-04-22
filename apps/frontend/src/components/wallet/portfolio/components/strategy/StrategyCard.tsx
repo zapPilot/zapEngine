@@ -1,31 +1,31 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { Gauge } from "lucide-react";
-import { type MouseEvent, type ReactElement, useState } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import { Gauge } from 'lucide-react';
+import { type MouseEvent, type ReactElement, useState } from 'react';
 
-import { cn } from "@/lib/ui/classNames";
+import { cn } from '@/lib/ui/classNames';
 
-import { StrategyCardSkeleton } from "../../views/DashboardSkeleton";
-import { StrategyCardExpandedContent } from "./StrategyCardExpandedContent";
-import { StrategyCardHeader } from "./StrategyCardHeader";
+import { StrategyCardSkeleton } from '../../views/DashboardSkeleton';
+import { StrategyCardExpandedContent } from './StrategyCardExpandedContent';
+import { StrategyCardHeader } from './StrategyCardHeader';
 import {
   resolveStrategyCardViewModel,
   toggleCardExpansion,
-} from "./strategyCardViewModel";
+} from './strategyCardViewModel';
 import {
   type Regime,
   type SectionState,
   type SentimentData,
   type StrategyDirection,
   type WalletPortfolioDataWithDirection,
-} from "./types";
+} from './types';
 
 const STYLES = {
   cardBase:
-    "bg-gray-900/40 backdrop-blur-sm border rounded-2xl p-6 relative overflow-hidden group cursor-pointer transition-all duration-200",
+    'bg-gray-900/40 backdrop-blur-sm border rounded-2xl p-6 relative overflow-hidden group cursor-pointer transition-all duration-200',
   cardExpanded:
-    "row-span-2 md:col-span-2 border-purple-500/30 shadow-lg shadow-purple-500/10",
+    'row-span-2 md:col-span-2 border-purple-500/30 shadow-lg shadow-purple-500/10',
   cardCollapsed:
-    "border-gray-800 hover:border-purple-500/20 hover:bg-gray-900/60",
+    'border-gray-800 hover:border-purple-500/20 hover:bg-gray-900/60',
 } as const;
 
 function getCardClassName(isExpanded: boolean): string {
@@ -60,7 +60,7 @@ export function StrategyCard({
     currentRegime,
     sentimentSection,
     selectedRegimeId,
-    selectedDirection
+    selectedDirection,
   );
   if (!viewModel) {
     return null;
@@ -99,8 +99,8 @@ export function StrategyCard({
       <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
         <Gauge
           className={cn(
-            "w-32 h-32",
-            displayConfig ? displayConfig.color : "text-purple-500"
+            'w-32 h-32',
+            displayConfig ? displayConfig.color : 'text-purple-500',
           )}
         />
       </div>

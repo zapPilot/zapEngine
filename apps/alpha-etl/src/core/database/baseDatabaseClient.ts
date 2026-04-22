@@ -1,7 +1,8 @@
-import { getDbClient } from "../../config/database.js";
-import { DatabaseError } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
-import type { PoolClient } from "pg";
+import type { PoolClient } from 'pg';
+
+import { getDbClient } from '../../config/database.js';
+import { DatabaseError } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Base database client providing connection management for ETL operations
@@ -14,10 +15,10 @@ export abstract class BaseDatabaseClient {
     }
 
     try {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
     } catch (rollbackError) {
       // Ignore rollback errors (transaction may not be active)
-      logger.debug("Transaction rollback attempted after error", {
+      logger.debug('Transaction rollback attempted after error', {
         rollbackError,
       });
     }
@@ -45,10 +46,10 @@ export abstract class BaseDatabaseClient {
       // This prevents "current transaction is aborted" errors in subsequent operations
       await this.rollbackIfNeeded(client);
 
-      logger.error("Database operation failed:", error);
+      logger.error('Database operation failed:', error);
       throw new DatabaseError(
-        error instanceof Error ? error.message : "Unknown database error",
-        "database_operation",
+        error instanceof Error ? error.message : 'Unknown database error',
+        'database_operation',
       );
     } finally {
       this.releaseClient(client);

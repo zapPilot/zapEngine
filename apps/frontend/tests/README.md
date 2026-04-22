@@ -30,14 +30,14 @@ describe("MyComponent", () => {
 ### Hook Test
 
 ```typescript
-import { renderHook } from "tests/test-utils";
-import { describe, expect, it } from "vitest";
-import { useMyHook } from "@/hooks/useMyHook";
+import { renderHook } from 'tests/test-utils';
+import { describe, expect, it } from 'vitest';
+import { useMyHook } from '@/hooks/useMyHook';
 
-describe("useMyHook", () => {
-  it("should return correct value", () => {
+describe('useMyHook', () => {
+  it('should return correct value', () => {
     const { result } = renderHook(() => useMyHook());
-    expect(result.current.value).toBe("expected");
+    expect(result.current.value).toBe('expected');
   });
 });
 ```
@@ -70,7 +70,7 @@ const queryClient = new QueryClient();
 **✅ DO: Use `renderHook` from test-utils**
 
 ```typescript
-import { renderHook } from "tests/test-utils";
+import { renderHook } from 'tests/test-utils';
 
 // Automatically wraps with providers
 const { result } = renderHook(() => useMyQuery());
@@ -119,8 +119,8 @@ describe("MyComponent", () => {
 
 ```typescript
 // Avoid duplicating this pattern
-vi.mock("@/lib/formatters", () => ({
-  formatCurrency: vi.fn(amount => `$${amount}`),
+vi.mock('@/lib/formatters', () => ({
+  formatCurrency: vi.fn((amount) => `$${amount}`),
   // ... more formatters
 }));
 ```
@@ -130,11 +130,11 @@ vi.mock("@/lib/formatters", () => ({
 **✅ DO: Use shared framer-motion mocks**
 
 ```typescript
-import { setupFramerMotionMocks } from "tests/utils/framerMotionMocks";
+import { setupFramerMotionMocks } from 'tests/utils/framerMotionMocks';
 
 setupFramerMotionMocks();
 
-describe("AnimatedComponent", () => {
+describe('AnimatedComponent', () => {
   // Tests use plain div/button instead of motion.div/motion.button
 });
 ```
@@ -168,15 +168,15 @@ describe("WalletComponent", () => {
 ### 1. Test Organization
 
 ```typescript
-describe("ComponentName", () => {
-  describe("Feature Group", () => {
-    it("should do specific thing", () => {
+describe('ComponentName', () => {
+  describe('Feature Group', () => {
+    it('should do specific thing', () => {
       // Test implementation
     });
   });
 
-  describe("Edge Cases", () => {
-    it("should handle error state", () => {
+  describe('Edge Cases', () => {
+    it('should handle error state', () => {
       // Test implementation
     });
   });
@@ -188,15 +188,15 @@ describe("ComponentName", () => {
 **✅ DO: Be specific**
 
 ```typescript
-it("should show loading spinner when isLoading is true", () => {});
-it("should format large numbers with K/M/B suffixes", () => {});
+it('should show loading spinner when isLoading is true', () => {});
+it('should format large numbers with K/M/B suffixes', () => {});
 ```
 
 **❌ DON'T: Be vague**
 
 ```typescript
-it("works correctly", () => {});
-it("handles the case", () => {});
+it('works correctly', () => {});
+it('handles the case', () => {});
 ```
 
 ### 3. Test User Behavior
@@ -220,7 +220,7 @@ it("should toggle visibility when button is clicked", async () => {
 **❌ DON'T: Test implementation details**
 
 ```typescript
-it("should call setState with true", () => {
+it('should call setState with true', () => {
   const setState = vi.fn();
   // Testing internal implementation
 });
@@ -290,16 +290,16 @@ render(<MyComponent />);
 
 ```typescript
 // Old pattern (duplicated in many files)
-vi.mock("@/lib/formatters", () => ({
+vi.mock('@/lib/formatters', () => ({
   formatCurrency: vi.fn((amount, options = {}) => {
-    const isHidden = typeof options === "boolean" ? options : options.isHidden;
-    if (isHidden) return "****";
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    const isHidden = typeof options === 'boolean' ? options : options.isHidden;
+    if (isHidden) return '****';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
     }).format(amount);
   }),
-  formatNumber: vi.fn(amount => amount.toLocaleString("en-US")),
+  formatNumber: vi.fn((amount) => amount.toLocaleString('en-US')),
   // ... more formatters
 }));
 ```
@@ -308,9 +308,9 @@ vi.mock("@/lib/formatters", () => ({
 
 ```typescript
 // New pattern
-import { mockFormatters } from "tests/test-utils";
+import { mockFormatters } from 'tests/test-utils';
 
-vi.mock("@/lib/formatters", () => mockFormatters);
+vi.mock('@/lib/formatters', () => mockFormatters);
 ```
 
 ### Benefits of Migration

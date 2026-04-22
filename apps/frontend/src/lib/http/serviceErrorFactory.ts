@@ -1,5 +1,5 @@
-import { resolveErrorMessage } from "@/lib/errors/errorFactory";
-import { ServiceError } from "@/lib/errors/ServiceError";
+import { resolveErrorMessage } from '@/lib/errors/errorFactory';
+import { ServiceError } from '@/lib/errors/ServiceError';
 
 /**
  * Standard API error response structure.
@@ -23,7 +23,7 @@ export type MessageEnhancer = (status: number, message: string) => string;
 type ErrorData = Record<string, unknown>;
 
 function getErrorData(error: unknown): ErrorData {
-  if (error && typeof error === "object") {
+  if (error && typeof error === 'object') {
     return error as ErrorData;
   }
 
@@ -31,8 +31,8 @@ function getErrorData(error: unknown): ErrorData {
 }
 
 function getResponseData(errorData: ErrorData): ErrorData | undefined {
-  const response = errorData["response"];
-  if (!response || typeof response !== "object") {
+  const response = errorData['response'];
+  if (!response || typeof response !== 'object') {
     return undefined;
   }
 
@@ -46,18 +46,18 @@ function getResponseData(errorData: ErrorData): ErrorData | undefined {
  * @returns Whether the value is object-like
  */
 export function isApiErrorResponse(error: unknown): error is ApiErrorResponse {
-  return error !== null && typeof error === "object";
+  return error !== null && typeof error === 'object';
 }
 
 function resolveStatus(errorData: ErrorData): number {
   const responseData = getResponseData(errorData);
-  const directStatus = errorData["status"];
-  if (typeof directStatus === "number") {
+  const directStatus = errorData['status'];
+  if (typeof directStatus === 'number') {
     return directStatus;
   }
 
-  const responseStatus = responseData?.["status"];
-  if (typeof responseStatus === "number") {
+  const responseStatus = responseData?.['status'];
+  if (typeof responseStatus === 'number') {
     return responseStatus;
   }
 
@@ -66,28 +66,28 @@ function resolveStatus(errorData: ErrorData): number {
 
 function resolveMessageFromSources(
   errorData: ErrorData,
-  defaultMessage: string
+  defaultMessage: string,
 ): string {
   const responseData = getResponseData(errorData);
 
   return resolveErrorMessage(
     defaultMessage,
-    errorData["message"],
-    responseData?.["data"],
-    errorData["details"]
+    errorData['message'],
+    responseData?.['data'],
+    errorData['details'],
   );
 }
 
 function resolveCode(errorData: ErrorData): string | undefined {
-  const code = errorData["code"];
-  return typeof code === "string" ? code : undefined;
+  const code = errorData['code'];
+  return typeof code === 'string' ? code : undefined;
 }
 
 function resolveDetails(
-  errorData: ErrorData
+  errorData: ErrorData,
 ): Record<string, unknown> | undefined {
-  const details = errorData["details"];
-  if (details && typeof details === "object") {
+  const details = errorData['details'];
+  if (details && typeof details === 'object') {
     return details as Record<string, unknown>;
   }
 
@@ -108,10 +108,10 @@ export function createErrorMapper<TError extends Error>(
     message: string,
     status: number,
     code?: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) => TError,
   statusMessages: Record<number, string>,
-  defaultMessage: string
+  defaultMessage: string,
 ): (error: unknown) => TError {
   return function mapError(error: unknown): TError {
     const errorData = getErrorData(error);
@@ -124,7 +124,7 @@ export function createErrorMapper<TError extends Error>(
       message,
       status,
       resolveCode(errorData),
-      resolveDetails(errorData)
+      resolveDetails(errorData),
     );
   };
 }
@@ -143,7 +143,7 @@ export function createServiceError<T extends typeof ServiceError>(
   error: unknown,
   ErrorClass: T,
   defaultMessage: string,
-  enhanceMessage?: MessageEnhancer
+  enhanceMessage?: MessageEnhancer,
 ): InstanceType<T> {
   const errorData = getErrorData(error);
   const status = resolveStatus(errorData);
@@ -156,6 +156,6 @@ export function createServiceError<T extends typeof ServiceError>(
     message,
     status,
     resolveCode(errorData),
-    resolveDetails(errorData)
+    resolveDetails(errorData),
   ) as InstanceType<T>;
 }

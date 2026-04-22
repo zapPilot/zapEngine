@@ -1,6 +1,6 @@
-import { formatCurrency } from "@/utils";
+import { formatCurrency } from '@/utils';
 
-import { hasBacktestAllocation } from "../backtestBuckets";
+import { hasBacktestAllocation } from '../backtestBuckets';
 import type {
   AllocationBlock,
   BacktestTooltipPayloadEntry,
@@ -11,31 +11,31 @@ import type {
   StrategiesRecord,
   TooltipItem,
   TooltipSections,
-} from "./backtestTooltipDataTypes";
-import { CHART_SIGNALS } from "./chartHelpers";
+} from './backtestTooltipDataTypes';
+import { CHART_SIGNALS } from './chartHelpers';
 import {
   getBacktestSpotAssetColor,
   resolveBacktestSpotAsset,
-} from "./spotAssetDisplay";
-import { getStrategyDisplayName } from "./strategyDisplay";
+} from './spotAssetDisplay';
+import { getStrategyDisplayName } from './strategyDisplay';
 
 const SIGNAL_EVENT_KEYS = new Set<string>([
-  "buy_spot",
-  "sell_spot",
-  "switch_to_eth",
-  "switch_to_btc",
+  'buy_spot',
+  'sell_spot',
+  'switch_to_eth',
+  'switch_to_btc',
 ]);
 
 const SIGNAL_TO_EVENT_KEY: Record<string, string> = Object.fromEntries(
-  CHART_SIGNALS.filter(signal => SIGNAL_EVENT_KEYS.has(signal.key)).map(
-    signal => [signal.name, signal.key]
-  )
+  CHART_SIGNALS.filter((signal) => SIGNAL_EVENT_KEYS.has(signal.key)).map(
+    (signal) => [signal.name, signal.key],
+  ),
 );
 
 function buildAllocationBlock(
   strategyId: string,
   strategies: StrategiesRecord | undefined,
-  sortedStrategyIds: string[] | undefined
+  sortedStrategyIds: string[] | undefined,
 ): AllocationBlock | null {
   const strategy = strategies?.[strategyId];
   const allocation = strategy?.portfolio?.allocation;
@@ -56,15 +56,15 @@ function buildAllocationBlock(
 }
 
 function getBuyGateBlockReason(
-  strategy: StrategiesRecord[string]
+  strategy: StrategiesRecord[string],
 ): string | null {
-  const plugin = strategy.execution.diagnostics?.plugins?.["dma_buy_gate"];
-  if (!plugin || typeof plugin !== "object") {
+  const plugin = strategy.execution.diagnostics?.plugins?.['dma_buy_gate'];
+  if (!plugin || typeof plugin !== 'object') {
     return null;
   }
 
-  const blockReason = plugin["block_reason"];
-  return typeof blockReason === "string" ? blockReason : null;
+  const blockReason = plugin['block_reason'];
+  return typeof blockReason === 'string' ? blockReason : null;
 }
 
 /**
@@ -76,14 +76,14 @@ function getBuyGateBlockReason(
  */
 export function getOrderedStrategyIds(
   strategies: StrategiesRecord | undefined,
-  sortedStrategyIds: string[] | undefined
+  sortedStrategyIds: string[] | undefined,
 ): string[] {
   const strategyKeys = Object.keys(strategies ?? {});
   if (!sortedStrategyIds?.length) {
     return strategyKeys;
   }
 
-  return sortedStrategyIds.filter(id => strategies?.[id]);
+  return sortedStrategyIds.filter((id) => strategies?.[id]);
 }
 
 /**
@@ -97,25 +97,25 @@ export function getOrderedStrategyIds(
 export function buildAllocations(
   orderedIds: string[],
   strategies: StrategiesRecord | undefined,
-  sortedStrategyIds: string[] | undefined
+  sortedStrategyIds: string[] | undefined,
 ): AllocationBlock[] {
   return orderedIds
-    .map(strategyId =>
-      buildAllocationBlock(strategyId, strategies, sortedStrategyIds)
+    .map((strategyId) =>
+      buildAllocationBlock(strategyId, strategies, sortedStrategyIds),
     )
     .filter((allocation): allocation is AllocationBlock => allocation !== null);
 }
 
 function getStrategyDetailItems(
   strategy: StrategiesRecord[string],
-  strategyId: string
+  strategyId: string,
 ): DetailItem[] {
   const displayName = getStrategyDisplayName(strategyId);
   const items: DetailItem[] = [
     {
       name: `${displayName} decision`,
       value: `${strategy.decision.action} · ${strategy.decision.reason}`,
-      color: "#cbd5e1",
+      color: '#cbd5e1',
     },
   ];
 
@@ -132,7 +132,7 @@ function getStrategyDetailItems(
     items.push({
       name: `${displayName} blocked`,
       value: strategy.execution.blocked_reason,
-      color: "#fda4af",
+      color: '#fda4af',
     });
   }
 
@@ -141,7 +141,7 @@ function getStrategyDetailItems(
     items.push({
       name: `${displayName} buy gate`,
       value: buyGateBlockReason,
-      color: "#fcd34d",
+      color: '#fcd34d',
     });
   }
 
@@ -163,7 +163,7 @@ export function buildTooltipSections(
   eventStrategies: EventStrategiesRecord | undefined,
   sentiment: string | undefined,
   strategies: StrategiesRecord | undefined,
-  orderedIds: string[]
+  orderedIds: string[],
 ): TooltipSections {
   const strategyItems: TooltipItem[] = [];
   const eventItems: EventItem[] = [];
@@ -175,16 +175,16 @@ export function buildTooltipSections(
       continue;
     }
 
-    const name = String(entry.name ?? "");
-    const color = entry.color ?? "#fff";
+    const name = String(entry.name ?? '');
+    const color = entry.color ?? '#fff';
 
     if (isKnownSignal(name)) {
       signalItems.push({
         name,
         value: formatSignalValue(
           name,
-          typeof entry.value === "number" ? entry.value : undefined,
-          sentiment
+          typeof entry.value === 'number' ? entry.value : undefined,
+          sentiment,
         ),
         color,
       });
@@ -201,7 +201,7 @@ export function buildTooltipSections(
       continue;
     }
 
-    if (typeof entry.value === "number") {
+    if (typeof entry.value === 'number') {
       strategyItems.push({ name, value: entry.value, color });
     }
   }
@@ -226,15 +226,15 @@ export function buildTooltipSections(
 // SIGNAL FORMATTING (merged from backtestTooltipSignalFormatting.ts)
 // =============================================================================
 
-const KNOWN_SIGNALS = ["BTC Price", "Sentiment", "VIX", "DMA 200"];
+const KNOWN_SIGNALS = ['BTC Price', 'Sentiment', 'VIX', 'DMA 200'];
 
 function formatSentimentValue(
   value: number | undefined,
-  sentiment: string | undefined
+  sentiment: string | undefined,
 ): string {
   const label = sentiment
     ? sentiment.charAt(0).toUpperCase() + sentiment.slice(1)
-    : "Unknown";
+    : 'Unknown';
 
   return `${label} (${value})`;
 }
@@ -260,36 +260,36 @@ function isKnownSignal(name: string): boolean {
 function formatSignalValue(
   signalName: string,
   value: number | undefined,
-  sentiment: string | undefined
+  sentiment: string | undefined,
 ): string | number {
-  if (signalName === "Sentiment") {
+  if (signalName === 'Sentiment') {
     return formatSentimentValue(value, sentiment);
   }
 
-  if (signalName === "BTC Price" || signalName === "DMA 200") {
-    if (typeof value === "number") {
+  if (signalName === 'BTC Price' || signalName === 'DMA 200') {
+    if (typeof value === 'number') {
       return formatCurrency(value, {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       });
     }
 
-    return "";
+    return '';
   }
 
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return Number(value.toFixed(2));
   }
 
-  return value ?? "";
+  return value ?? '';
 }
 
 function parseNumericSignal(value: string | number): number | null {
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return value;
   }
 
-  const cleaned = value.replace(/[$,]/g, "");
+  const cleaned = value.replace(/[$,]/g, '');
   const numericValue = Number(cleaned);
 
   return Number.isFinite(numericValue) ? numericValue : null;
@@ -303,9 +303,11 @@ function parseNumericSignal(value: string | number): number | null {
  */
 export function appendBtcToDmaRatio(sections: TooltipSections): SignalItem[] {
   const btcSignal = sections.signals.find(
-    signal => signal.name === "BTC Price"
+    (signal) => signal.name === 'BTC Price',
   );
-  const dmaSignal = sections.signals.find(signal => signal.name === "DMA 200");
+  const dmaSignal = sections.signals.find(
+    (signal) => signal.name === 'DMA 200',
+  );
   if (!btcSignal || !dmaSignal) {
     return sections.signals;
   }
@@ -319,9 +321,9 @@ export function appendBtcToDmaRatio(sections: TooltipSections): SignalItem[] {
   return [
     ...sections.signals,
     {
-      name: "BTC / DMA 200",
+      name: 'BTC / DMA 200',
       value: (btcValue / dmaValue).toFixed(2),
-      color: "#a78bfa",
+      color: '#a78bfa',
     },
   ];
 }

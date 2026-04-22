@@ -1,6 +1,6 @@
-import { type QueryClient } from "@tanstack/react-query";
+import { type QueryClient } from '@tanstack/react-query';
 
-import { walletLogger } from "@/utils";
+import { walletLogger } from '@/utils';
 
 /**
  * Query Invalidation Utilities
@@ -19,7 +19,7 @@ interface InvalidateAndRefetchOptions {
 function logQueryOperationError(
   errorPrefix: string,
   operationName: string,
-  error: unknown
+  error: unknown,
 ): void {
   walletLogger.error(`${errorPrefix} after ${operationName}`, error);
 }
@@ -34,15 +34,15 @@ export async function invalidateAndRefetch({
   queryClient,
   queryKey,
   refetch,
-  operationName = "operation",
+  operationName = 'operation',
 }: InvalidateAndRefetchOptions): Promise<void> {
   try {
     await queryClient.invalidateQueries({ queryKey });
   } catch (invalidateError) {
     logQueryOperationError(
-      "Failed to invalidate queries",
+      'Failed to invalidate queries',
       operationName,
-      invalidateError
+      invalidateError,
     );
   }
 
@@ -50,9 +50,9 @@ export async function invalidateAndRefetch({
     await refetch();
   } catch (refetchError) {
     logQueryOperationError(
-      "Failed to refetch data",
+      'Failed to refetch data',
       operationName,
-      refetchError
+      refetchError,
     );
   }
 }

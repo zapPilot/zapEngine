@@ -1,7 +1,7 @@
-import { EtlErrorCodeEnum, type EtlJobStatus } from "@zapengine/types/etl";
-import { z } from "zod";
+import { EtlErrorCodeEnum, type EtlJobStatus } from '@zapengine/types/etl';
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 /**
  * Zod schemas for account service API responses
@@ -110,8 +110,8 @@ export const healthCheckResponseSchema = z.object({
 const lenientEtlJobStatusSchema = z
   .object({
     job_id: z.string(),
-    status: z.enum(["pending", "processing", "completed", "failed"]),
-    trigger: z.enum(["webhook", "manual", "scheduled"]).optional(),
+    status: z.enum(['pending', 'processing', 'completed', 'failed']),
+    trigger: z.enum(['webhook', 'manual', 'scheduled']).optional(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
     completed_at: z.string().optional(),
@@ -200,10 +200,10 @@ export const userProfileResponseSchema = z.object({
   is_new_user: boolean;
   etl_job?: {
     job_id: string;
-    status: "pending" | "processing" | "completed" | "failed";
+    status: 'pending' | 'processing' | 'completed' | 'failed';
     message?: string;
     rate_limited?: boolean;
-    trigger?: "webhook" | "manual" | "scheduled";
+    trigger?: 'webhook' | 'manual' | 'scheduled';
     created_at?: string;
     updated_at?: string;
     completed_at?: string;
@@ -244,24 +244,24 @@ export type { EtlJobStatus };
 // ============================================================================
 
 export const validateConnectWalletResponse = createValidator(
-  connectWalletResponseSchema
+  connectWalletResponseSchema,
 );
 export const validateAddWalletResponse = createValidator(
-  addWalletResponseSchema
+  addWalletResponseSchema,
 );
 export const validateUpdateEmailResponse = createValidator(
-  updateEmailResponseSchema
+  updateEmailResponseSchema,
 );
 export const validateUserProfileResponse = createValidator(
-  userProfileResponseSchema
+  userProfileResponseSchema,
 );
 export const validateUserWallets = createValidator(
-  z.array(userCryptoWalletSchema)
+  z.array(userCryptoWalletSchema),
 );
 export const validateAccountTokens = createValidator(
-  z.array(accountTokenSchema)
+  z.array(accountTokenSchema),
 );
 export const validateMessageResponse = createValidator(messageResponseSchema);
 export const validateHealthCheckResponse = createValidator(
-  healthCheckResponseSchema
+  healthCheckResponseSchema,
 );

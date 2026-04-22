@@ -9,6 +9,6 @@
  * Known strategy IDs with their display labels.
  */
 export const STRATEGY_IDS: Record<string, string> = {
-  dma_gated_fgi: "DMA-Gated FGI",
-  simple_dca: "Simple DCA",
+  dma_gated_fgi: 'DMA-Gated FGI',
+  simple_dca: 'Simple DCA',
 };

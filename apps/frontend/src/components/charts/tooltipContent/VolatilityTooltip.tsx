@@ -2,15 +2,15 @@
  * VolatilityTooltip - Volatility with risk assessment
  */
 
-import type { VolatilityHoverData } from "@/types/ui/chartHover";
+import type { VolatilityHoverData } from '@/types/ui/chartHover';
 import {
   calculateDailyVolatility,
   getVolatilityRiskColor,
   getVolatilityRiskLevel,
-} from "@/utils/chartHoverUtils";
+} from '@/utils/chartHoverUtils';
 
-import { TooltipRow } from "./TooltipRow";
-import { TooltipWrapper } from "./TooltipWrapper";
+import { TooltipRow } from './TooltipRow';
+import { TooltipWrapper } from './TooltipWrapper';
 
 export function VolatilityTooltip({ data }: { data: VolatilityHoverData }) {
   const riskLevel = getVolatilityRiskLevel(data.volatility);

@@ -1,33 +1,33 @@
-import { motion } from "framer-motion";
-import { ReactNode } from "react";
+import { motion } from 'framer-motion';
+import { ReactNode } from 'react';
 
-import { fadeInUp, SMOOTH_TRANSITION } from "@/lib/ui/animationVariants";
-import { BaseComponentProps } from "@/types/ui/ui.types";
+import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
+import { BaseComponentProps } from '@/types/ui/ui.types';
 
-type AriaLive = "off" | "polite" | "assertive";
+type AriaLive = 'off' | 'polite' | 'assertive';
 
 // Variant configurations
 const VARIANT_STYLES = {
-  glass: "glass-morphism",
-  empty: "glass-morphism text-center",
-  error: "glass-morphism",
-  solid: "bg-gray-900/50",
+  glass: 'glass-morphism',
+  empty: 'glass-morphism text-center',
+  error: 'glass-morphism',
+  solid: 'bg-gray-900/50',
 } as const;
 
 const PADDING_STYLES = {
-  none: "",
-  sm: "p-4",
-  md: "p-4 sm:p-6",
-  lg: "p-4 sm:p-6 lg:p-8",
-  xl: "p-6",
+  none: '',
+  sm: 'p-4',
+  md: 'p-4 sm:p-6',
+  lg: 'p-4 sm:p-6 lg:p-8',
+  xl: 'p-6',
 } as const;
 
 const BORDER_RADIUS_STYLES = {
-  sm: "rounded-lg",
-  md: "rounded-xl",
-  lg: "rounded-2xl",
-  xl: "rounded-2xl sm:rounded-3xl",
-  "2xl": "rounded-3xl",
+  sm: 'rounded-lg',
+  md: 'rounded-xl',
+  lg: 'rounded-2xl',
+  xl: 'rounded-2xl sm:rounded-3xl',
+  '2xl': 'rounded-3xl',
 } as const;
 
 interface BaseCardProps extends BaseComponentProps {
@@ -72,10 +72,10 @@ interface BaseCardProps extends BaseComponentProps {
  */
 export function BaseCard({
   children,
-  className = "",
-  variant = "glass",
-  padding = "xl",
-  borderRadius = "2xl",
+  className = '',
+  variant = 'glass',
+  padding = 'xl',
+  borderRadius = '2xl',
   border = true,
   shadow = false,
   animate = true,
@@ -87,8 +87,8 @@ export function BaseCard({
   const variantClass = VARIANT_STYLES[variant];
   const paddingClass = PADDING_STYLES[padding];
   const borderRadiusClass = BORDER_RADIUS_STYLES[borderRadius];
-  const borderClass = border ? "border border-gray-800" : "";
-  const shadowClass = shadow ? "shadow-xl shadow-purple-500/10" : "";
+  const borderClass = border ? 'border border-gray-800' : '';
+  const shadowClass = shadow ? 'shadow-xl shadow-purple-500/10' : '';
 
   const fullClassName = [
     variantClass,
@@ -99,7 +99,7 @@ export function BaseCard({
     className,
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
   // Conditional animation wrapper
   if (animate) {

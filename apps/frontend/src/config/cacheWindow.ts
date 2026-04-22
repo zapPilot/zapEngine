@@ -1,14 +1,14 @@
-import { getRuntimeEnv } from "@/lib/env/runtimeEnv";
-import { toSeconds } from "@/lib/utils/env";
+import { getRuntimeEnv } from '@/lib/env/runtimeEnv';
+import { toSeconds } from '@/lib/utils/env';
 
 const DEFAULT_MAX_AGE_SECONDS = toSeconds(
-  getRuntimeEnv("VITE_CACHE_MAX_AGE_SECONDS"),
-  60 * 60
+  getRuntimeEnv('VITE_CACHE_MAX_AGE_SECONDS'),
+  60 * 60,
 );
 
 const DEFAULT_STALE_WHILE_REVALIDATE_SECONDS = toSeconds(
-  getRuntimeEnv("VITE_CACHE_STALE_WHILE_REVALIDATE_SECONDS"),
-  23 * 60 * 60
+  getRuntimeEnv('VITE_CACHE_STALE_WHILE_REVALIDATE_SECONDS'),
+  23 * 60 * 60,
 );
 
 export const CACHE_WINDOW = {

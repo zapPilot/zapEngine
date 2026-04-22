@@ -1,20 +1,20 @@
-import { toErrorMessage } from "../utils/errors.js";
-import { logger } from "../utils/logger.js";
-import {
-  buildSuccessApiResponse,
-  buildValidationErrorApiResponse,
-  buildSystemErrorApiResponse,
-} from "../utils/apiResponse.js";
 import type {
   ApiResponse,
   BackfillResult,
   BackfillTokenResultData,
-} from "../types/index.js";
+} from '../types/index.js';
+import {
+  buildSuccessApiResponse,
+  buildSystemErrorApiResponse,
+  buildValidationErrorApiResponse,
+} from '../utils/apiResponse.js';
+import { toErrorMessage } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 interface BackfillTokenConfig {
   tokenId: string;
   tokenSymbol: string;
-  daysBack?: number;
+  daysBack?: number | undefined;
 }
 
 export type DmaRetryResult =
@@ -40,9 +40,9 @@ function buildBackfillFailureResult(
   return {
     success: false,
     error: {
-      code: "API_ERROR",
+      code: 'API_ERROR',
       message: errorMessage,
-      source: "system",
+      source: 'system',
       context: {
         tokenId,
         ...context,
@@ -51,7 +51,7 @@ function buildBackfillFailureResult(
   };
 }
 
-export { getRequestId } from "../utils/apiResponse.js";
+export { getRequestId } from '../utils/apiResponse.js';
 
 export function buildSuccessResponse(
   results: BackfillResult[],
@@ -79,7 +79,7 @@ function createFailedBackfillContext(
     dmaUpserted: 0,
     dmaRetries: 0,
     dmaSuccess: false,
-    dmaError: "Backfill failed before DMA step",
+    dmaError: 'Backfill failed before DMA step',
   };
 }
 
@@ -118,7 +118,7 @@ export function createDmaFailureOutcome(
   tokenResultData: BackfillTokenResultData,
   duration: number,
 ): { success: boolean; result: BackfillResult } {
-  logger.error("Backfill completed but DMA update failed", {
+  logger.error('Backfill completed but DMA update failed', {
     requestId,
     tokenSymbol: tokenConfig.tokenSymbol,
     tokenId: tokenConfig.tokenId,
@@ -147,7 +147,7 @@ export function createProcessingFailureOutcome(
   const duration = Date.now() - startTime;
   const errorMessage = toErrorMessage(error);
 
-  logger.error("Backfill failed", {
+  logger.error('Backfill failed', {
     error,
     requestId,
     tokenSymbol: tokenConfig.tokenSymbol,

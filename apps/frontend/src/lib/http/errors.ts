@@ -9,24 +9,24 @@ export class APIError extends Error {
     message: string,
     public status: number,
     public code?: string,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown>,
   ) {
     super(message);
-    this.name = "APIError";
+    this.name = 'APIError';
   }
 }
 
 export class NetworkError extends Error {
-  constructor(message = "Network connection failed") {
+  constructor(message = 'Network connection failed') {
     super(message);
-    this.name = "NetworkError";
+    this.name = 'NetworkError';
   }
 }
 
 export class TimeoutError extends Error {
-  constructor(message = "Request timed out") {
+  constructor(message = 'Request timed out') {
     super(message);
-    this.name = "TimeoutError";
+    this.name = 'TimeoutError';
   }
 }
 
@@ -58,14 +58,14 @@ export function toError(error: unknown): Error {
     return error;
   }
 
-  if (typeof error === "string") {
+  if (typeof error === 'string') {
     return new Error(error);
   }
 
-  if (error && typeof error === "object") {
+  if (error && typeof error === 'object') {
     const errorObj = error as Record<string, unknown>;
-    return new Error((errorObj["message"] as string) || "Unknown error");
+    return new Error((errorObj['message'] as string) || 'Unknown error');
   }
 
-  return new Error("Unknown error occurred");
+  return new Error('Unknown error occurred');
 }

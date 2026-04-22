@@ -3,32 +3,32 @@
  * @module utils/formatters
  */
 
-import { formatCurrency, formatNumber } from "./formatting/currencyNumber";
-import { formatChartDate } from "./formatting/dateChart";
+import { formatCurrency, formatNumber } from './formatting/currencyNumber';
+import { formatChartDate } from './formatting/dateChart';
 import {
   calculateDataFreshness,
   formatRelativeTime,
-} from "./formatting/freshness";
+} from './formatting/freshness';
 
-export { type AddressFormatOptions, formatAddress } from "./formatting/address";
+export { type AddressFormatOptions, formatAddress } from './formatting/address';
 export {
   type CurrencyFormatOptions,
   formatCurrency,
   formatNumber,
   type NumberFormatOptions,
-} from "./formatting/currencyNumber";
+} from './formatting/currencyNumber';
 export {
   formatChartAxisDate,
   formatChartDate,
   formatCurrencyAxis,
   formatSentiment,
-} from "./formatting/dateChart";
+} from './formatting/dateChart';
 export {
   calculateDataFreshness,
   type DataFreshness,
   formatRelativeTime,
   type FreshnessState,
-} from "./formatting/freshness";
+} from './formatting/freshness';
 
 // =============================================================================
 // UNIFIED API

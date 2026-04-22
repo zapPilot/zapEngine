@@ -82,9 +82,9 @@ export const MV_REFRESH_CONFIG = {
    * since later MVs may depend on earlier ones
    */
   MATERIALIZED_VIEWS: [
-    { name: "alpha_raw.daily_wallet_token_snapshots" },
-    { name: "public.daily_portfolio_snapshots" },
-    { name: "public.portfolio_category_trend_mv" },
+    { name: 'alpha_raw.daily_wallet_token_snapshots' },
+    { name: 'public.daily_portfolio_snapshots' },
+    { name: 'public.portfolio_category_trend_mv' },
   ] as const satisfies readonly MVConfig[],
   /** Number of retry attempts for failed MV refresh operations */
   MAX_RETRIES: 2,

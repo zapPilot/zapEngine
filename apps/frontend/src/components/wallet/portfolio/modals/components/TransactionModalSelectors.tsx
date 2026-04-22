@@ -1,18 +1,18 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { Check } from "lucide-react";
-import type { ReactNode, RefObject } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check } from 'lucide-react';
+import type { ReactNode, RefObject } from 'react';
 
-import { AppImage } from "@/components/ui";
-import { dropdownMenu } from "@/lib/ui/animationVariants";
-import { cn } from "@/lib/ui/classNames";
-import type { ChainData } from "@/types/domain/transaction";
+import { AppImage } from '@/components/ui';
+import { dropdownMenu } from '@/lib/ui/animationVariants';
+import { cn } from '@/lib/ui/classNames';
+import type { ChainData } from '@/types/domain/transaction';
 
-import type { TransactionModalState } from "../base/TransactionModalBase";
-import type { TransactionDropdownState } from "../hooks/useTransactionDropdownState";
-import { getChainLogo } from "../utils/assetHelpers";
-import { buildFormActionsProps } from "../utils/modalHelpers";
-import { CompactSelectorButton } from "./CompactSelectorButton";
-import { TransactionFormActionsWithForm } from "./TransactionModalParts";
+import type { TransactionModalState } from '../base/TransactionModalBase';
+import type { TransactionDropdownState } from '../hooks/useTransactionDropdownState';
+import { getChainLogo } from '../utils/assetHelpers';
+import { buildFormActionsProps } from '../utils/modalHelpers';
+import { CompactSelectorButton } from './CompactSelectorButton';
+import { TransactionFormActionsWithForm } from './TransactionModalParts';
 
 interface DropdownPanelProps {
   isOpen: boolean;
@@ -93,11 +93,11 @@ function ChainSelector({
             width={32}
             height={32}
             className="w-8 h-8 rounded-full bg-black p-1"
-            alt={selectedChain?.name ?? "Chain"}
+            alt={selectedChain?.name ?? 'Chain'}
           />
         }
         label="Network"
-        value={selectedChain?.name ?? "Select"}
+        value={selectedChain?.name ?? 'Select'}
         isOpen={isOpen}
       />
 
@@ -106,13 +106,13 @@ function ChainSelector({
         className="absolute top-full left-0 mt-2 w-full bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-30"
       >
         <div className="p-2 space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
-          {chainList.map(chain => (
+          {chainList.map((chain) => (
             <button
               key={chain.chainId}
               onClick={() => onSelect(chain.chainId)}
               className={cn(
-                "w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer",
-                chainId === chain.chainId && "bg-gray-800"
+                'w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer',
+                chainId === chain.chainId && 'bg-gray-800',
               )}
             >
               <AppImage
@@ -152,11 +152,11 @@ function AssetSelector({
         onClick={onToggle}
         icon={
           <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold border border-indigo-500/30">
-            {selectedSymbol?.[0] ?? "?"}
+            {selectedSymbol?.[0] ?? '?'}
           </div>
         }
         label="Asset"
-        value={selectedSymbol ?? "Select Asset"}
+        value={selectedSymbol ?? 'Select Asset'}
         isOpen={isOpen}
       />
 
@@ -187,8 +187,8 @@ export function TokenOptionButton({
     <button
       onClick={onSelect}
       className={cn(
-        "w-full flex items-center justify-between p-2.5 rounded-lg transition-colors group cursor-pointer",
-        isSelected ? "bg-indigo-500/10" : "hover:bg-gray-800"
+        'w-full flex items-center justify-between p-2.5 rounded-lg transition-colors group cursor-pointer',
+        isSelected ? 'bg-indigo-500/10' : 'hover:bg-gray-800',
       )}
     >
       <div className="flex items-center gap-3">
@@ -198,8 +198,8 @@ export function TokenOptionButton({
         <div className="text-left">
           <div
             className={cn(
-              "text-sm font-medium",
-              isSelected ? "text-indigo-300" : "text-gray-300"
+              'text-sm font-medium',
+              isSelected ? 'text-indigo-300' : 'text-gray-300',
             )}
           >
             {symbol}
@@ -217,7 +217,7 @@ interface EmptyAssetsMessageProps {
 }
 
 export function EmptyAssetsMessage({
-  message = "No assets found.",
+  message = 'No assets found.',
 }: EmptyAssetsMessageProps) {
   return <div className="p-6 text-center text-gray-500 text-sm">{message}</div>;
 }
@@ -282,11 +282,11 @@ export function TransactionModalContent({
     actionLabel,
     isSubmitDisabled,
     actionGradient,
-    handleSubmit
+    handleSubmit,
   );
 
   const handleSelectChain = (selectedChainId: number): void => {
-    form.setValue("chainId", selectedChainId);
+    form.setValue('chainId', selectedChainId);
     dropdownState.closeDropdowns();
   };
 

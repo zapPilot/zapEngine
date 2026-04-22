@@ -1,22 +1,22 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { act } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueryClient } from '@tanstack/react-query';
+import { act } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { EtlJobPollingState } from "@/hooks/wallet/useEtlJobPolling";
-import { useEtlJobSync } from "@/hooks/wallet/useEtlJobSync";
-import type { AppRouterLike } from "@/lib/routing";
+import type { EtlJobPollingState } from '@/hooks/wallet/useEtlJobPolling';
+import { useEtlJobSync } from '@/hooks/wallet/useEtlJobSync';
+import type { AppRouterLike } from '@/lib/routing';
 
-import { renderHook } from "../../../test-utils";
+import { renderHook } from '../../../test-utils';
 
-describe("useEtlJobSync", () => {
+describe('useEtlJobSync', () => {
   let mockQueryClient: QueryClient;
   let mockRouter: AppRouterLike;
   let mockStartPolling: vi.Mock;
   let mockCompleteTransition: vi.Mock;
   let mockRefetch: vi.Mock;
 
-  const USER_ID = "user-123";
-  const JOB_ID = "job-456";
+  const USER_ID = 'user-123';
+  const JOB_ID = 'job-456';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,9 +35,9 @@ describe("useEtlJobSync", () => {
     mockRefetch = vi.fn().mockResolvedValue(undefined);
 
     // Mock window.location
-    Object.defineProperty(window, "location", {
+    Object.defineProperty(window, 'location', {
       value: {
-        href: "http://localhost:3000/portfolio?etlJobId=job-456",
+        href: 'http://localhost:3000/portfolio?etlJobId=job-456',
       },
       writable: true,
     });
@@ -48,7 +48,7 @@ describe("useEtlJobSync", () => {
     etlState: EtlJobPollingState;
   }) {
     return renderHook(
-      params =>
+      (params) =>
         useEtlJobSync({
           initialEtlJobId: params.initialEtlJobId,
           etlState: params.etlState,
@@ -61,16 +61,16 @@ describe("useEtlJobSync", () => {
         }),
       {
         initialProps: initialParams,
-      }
+      },
     );
   }
 
-  it("starts polling when initialEtlJobId is provided", () => {
+  it('starts polling when initialEtlJobId is provided', () => {
     renderSyncHook({
       initialEtlJobId: JOB_ID,
       etlState: {
         jobId: null,
-        status: "idle",
+        status: 'idle',
         errorMessage: undefined,
         isLoading: false,
         isInProgress: false,
@@ -80,12 +80,12 @@ describe("useEtlJobSync", () => {
     expect(mockStartPolling).toHaveBeenCalledWith(JOB_ID);
   });
 
-  it("does not start polling when initialEtlJobId is undefined", () => {
+  it('does not start polling when initialEtlJobId is undefined', () => {
     renderSyncHook({
       initialEtlJobId: undefined,
       etlState: {
         jobId: null,
-        status: "idle",
+        status: 'idle',
         errorMessage: undefined,
         isLoading: false,
         isInProgress: false,
@@ -100,7 +100,7 @@ describe("useEtlJobSync", () => {
       initialEtlJobId: JOB_ID,
       etlState: {
         jobId: JOB_ID,
-        status: "pending",
+        status: 'pending',
         errorMessage: undefined,
         isLoading: true,
         isInProgress: true,
@@ -113,7 +113,7 @@ describe("useEtlJobSync", () => {
         initialEtlJobId: JOB_ID,
         etlState: {
           jobId: JOB_ID,
-          status: "completing",
+          status: 'completing',
           errorMessage: undefined,
           isLoading: false,
           isInProgress: true,
@@ -129,10 +129,10 @@ describe("useEtlJobSync", () => {
     });
   });
 
-  it("clears URL params if isNewUser is present", async () => {
-    Object.defineProperty(window, "location", {
+  it('clears URL params if isNewUser is present', async () => {
+    Object.defineProperty(window, 'location', {
       value: {
-        href: "http://localhost:3000/portfolio?isNewUser=true",
+        href: 'http://localhost:3000/portfolio?isNewUser=true',
       },
       writable: true,
     });
@@ -141,7 +141,7 @@ describe("useEtlJobSync", () => {
       initialEtlJobId: JOB_ID,
       etlState: {
         jobId: JOB_ID,
-        status: "pending",
+        status: 'pending',
         errorMessage: undefined,
         isLoading: true,
         isInProgress: true,
@@ -153,7 +153,7 @@ describe("useEtlJobSync", () => {
         initialEtlJobId: JOB_ID,
         etlState: {
           jobId: JOB_ID,
-          status: "completing",
+          status: 'completing',
           errorMessage: undefined,
           isLoading: false,
           isInProgress: true,
@@ -163,16 +163,16 @@ describe("useEtlJobSync", () => {
 
     await vi.waitFor(() => {
       expect(mockRouter.replace).toHaveBeenCalledWith(
-        expect.stringContaining("/portfolio"),
-        { scroll: false }
+        expect.stringContaining('/portfolio'),
+        { scroll: false },
       );
     });
   });
 
-  it("does not clear URL params if job ID does not match and isNewUser is absent", async () => {
-    Object.defineProperty(window, "location", {
+  it('does not clear URL params if job ID does not match and isNewUser is absent', async () => {
+    Object.defineProperty(window, 'location', {
       value: {
-        href: "http://localhost:3000/portfolio?etlJobId=other-job",
+        href: 'http://localhost:3000/portfolio?etlJobId=other-job',
       },
       writable: true,
     });
@@ -181,7 +181,7 @@ describe("useEtlJobSync", () => {
       initialEtlJobId: JOB_ID,
       etlState: {
         jobId: JOB_ID,
-        status: "pending",
+        status: 'pending',
         errorMessage: undefined,
         isLoading: true,
         isInProgress: true,
@@ -193,7 +193,7 @@ describe("useEtlJobSync", () => {
         initialEtlJobId: JOB_ID,
         etlState: {
           jobId: JOB_ID,
-          status: "completing",
+          status: 'completing',
           errorMessage: undefined,
           isLoading: false,
           isInProgress: true,
@@ -213,7 +213,7 @@ describe("useEtlJobSync", () => {
       initialEtlJobId: JOB_ID,
       etlState: {
         jobId: JOB_ID,
-        status: "processing",
+        status: 'processing',
         errorMessage: undefined,
         isLoading: true,
         isInProgress: true,

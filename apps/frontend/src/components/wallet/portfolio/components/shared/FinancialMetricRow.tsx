@@ -28,7 +28,7 @@ interface FinancialMetricRowProps {
 export function FinancialMetricRow({
   label,
   value,
-  valueClassName = "text-white font-medium",
+  valueClassName = 'text-white font-medium',
 }: FinancialMetricRowProps) {
   return (
     <div className="flex justify-between text-xs">

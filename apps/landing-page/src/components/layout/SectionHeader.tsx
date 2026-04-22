@@ -25,7 +25,9 @@ export function SectionHeader({
     >
       <h2 className="text-4xl sm:text-5xl font-bold mb-6">
         {typeof title === 'string' ? (
-          <span className={`bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
+          <span
+            className={`bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}
+          >
             {title}
           </span>
         ) : (

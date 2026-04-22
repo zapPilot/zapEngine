@@ -1,13 +1,13 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { type ReactElement, type ReactNode } from "react";
+import { useQueryClient } from '@tanstack/react-query';
+import { type ReactElement, type ReactNode } from 'react';
 
-import { createEmptyPortfolioState } from "@/adapters/walletPortfolioDataAdapter";
-import { WalletPortfolioErrorState } from "@/components/wallet/portfolio/views/LoadingStates";
-import { WalletPortfolioPresenter } from "@/components/wallet/portfolio/WalletPortfolioPresenter";
-import { usePortfolioDataProgressive } from "@/hooks/queries/analytics/usePortfolioDataProgressive";
-import { useEtlJobPolling, useEtlJobSync } from "@/hooks/wallet";
-import { useAppRouter } from "@/lib/routing";
-import { logger } from "@/utils";
+import { createEmptyPortfolioState } from '@/adapters/walletPortfolioDataAdapter';
+import { WalletPortfolioErrorState } from '@/components/wallet/portfolio/views/LoadingStates';
+import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
+import { usePortfolioDataProgressive } from '@/hooks/queries/analytics/usePortfolioDataProgressive';
+import { useEtlJobPolling, useEtlJobSync } from '@/hooks/wallet';
+import { useAppRouter } from '@/lib/routing';
+import { logger } from '@/utils';
 
 interface DashboardShellProps {
   urlUserId: string;
@@ -20,7 +20,7 @@ interface DashboardShellProps {
   isNewUser?: boolean | undefined;
 }
 
-type EtlState = ReturnType<typeof useEtlJobPolling>["state"];
+type EtlState = ReturnType<typeof useEtlJobPolling>['state'];
 type UnifiedPortfolioSnapshot = { positions?: number; balance?: number } | null;
 
 function getSafeError(error: Error | null | unknown): Error | null {
@@ -29,24 +29,24 @@ function getSafeError(error: Error | null | unknown): Error | null {
 
 function computeIsEmptyState(
   isLoading: boolean,
-  unifiedData: UnifiedPortfolioSnapshot
+  unifiedData: UnifiedPortfolioSnapshot,
 ): boolean {
   return Boolean(
     !isLoading &&
     (unifiedData === null ||
-      ((unifiedData.positions ?? 0) === 0 && (unifiedData.balance ?? 0) === 0))
+      ((unifiedData.positions ?? 0) === 0 && (unifiedData.balance ?? 0) === 0)),
   );
 }
 
 function logDashboardState(
   unifiedData: UnifiedPortfolioSnapshot,
   isLoading: boolean,
-  error: Error | null
+  error: Error | null,
 ): void {
-  logger.debug("[DashboardShell] Debug State:", {
-    unifiedData: unifiedData ? "exists" : "null",
-    balance: unifiedData?.balance ?? "N/A",
-    positions: unifiedData?.positions ?? "N/A",
+  logger.debug('[DashboardShell] Debug State:', {
+    unifiedData: unifiedData ? 'exists' : 'null',
+    balance: unifiedData?.balance ?? 'N/A',
+    positions: unifiedData?.positions ?? 'N/A',
     isLoading,
     error: error ? error.message : null,
   });
@@ -58,7 +58,7 @@ interface DashboardShellViewProps {
   bundleUserName: string | undefined;
   bundleUrl: string | undefined;
   portfolioData: ReturnType<typeof createEmptyPortfolioState>;
-  sections: ReturnType<typeof usePortfolioDataProgressive>["sections"];
+  sections: ReturnType<typeof usePortfolioDataProgressive>['sections'];
   isEmptyState: boolean;
   isLoading: boolean;
   etlState: EtlState;
@@ -82,9 +82,9 @@ function DashboardShellView({
   return (
     <div
       data-bundle-user-id={urlUserId}
-      data-bundle-owner={isOwnBundle ? "own" : "visitor"}
-      data-bundle-user-name={bundleUserName ?? ""}
-      data-bundle-url={bundleUrl ?? ""}
+      data-bundle-owner={isOwnBundle ? 'own' : 'visitor'}
+      data-bundle-user-name={bundleUserName ?? ''}
+      data-bundle-url={bundleUrl ?? ''}
     >
       <WalletPortfolioPresenter
         data={portfolioData}

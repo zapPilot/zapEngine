@@ -20,7 +20,11 @@ const SIZE_MAP = {
  * @param size - Icon size (numeric or preset: sm/md/lg)
  * @param className - Additional CSS classes
  */
-export function TokenIcon({ token, size = 'md', className = '' }: TokenIconProps) {
+export function TokenIcon({
+  token,
+  size = 'md',
+  className = '',
+}: TokenIconProps) {
   const dimension = typeof size === 'number' ? size : SIZE_MAP[size];
 
   return (
@@ -56,7 +60,9 @@ export function TokenPair({
   overlap = false,
 }: TokenPairProps) {
   return (
-    <div className={`flex ${overlap ? '-space-x-2' : '-space-x-1'} ${className}`}>
+    <div
+      className={`flex ${overlap ? '-space-x-2' : '-space-x-1'} ${className}`}
+    >
       <TokenIcon token={tokens[0]} size={size} />
       <TokenIcon token={tokens[1]} size={size} />
     </div>

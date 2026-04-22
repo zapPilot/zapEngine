@@ -8,11 +8,11 @@
  * This avoids circular dependencies between schemas and utilities
  */
 export const SENTIMENT_CLASSIFICATIONS = [
-  "Extreme Fear",
-  "Fear",
-  "Neutral",
-  "Greed",
-  "Extreme Greed",
+  'Extreme Fear',
+  'Fear',
+  'Neutral',
+  'Greed',
+  'Extreme Greed',
 ] as const;
 
 function findMatchingClassification(

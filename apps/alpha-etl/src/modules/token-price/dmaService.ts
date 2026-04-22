@@ -11,15 +11,16 @@
  * Target: alpha_raw.token_price_dma_snapshots
  */
 
-import { Pool } from "pg";
-import { logger } from "../../utils/logger.js";
-import { getDbPool, getTableName } from "../../config/database.js";
-import { TokenPriceDmaWriter } from "../../modules/token-price/dmaWriter.js";
-import { TokenPairRatioDmaWriter } from "../../modules/token-price/ratioDmaWriter.js";
+import { Pool } from 'pg';
+
+import { getDbPool, getTableName } from '../../config/database.js';
+import { TokenPriceDmaWriter } from '../../modules/token-price/dmaWriter.js';
+import { TokenPairRatioDmaWriter } from '../../modules/token-price/ratioDmaWriter.js';
 import type {
   TokenPairRatioDmaSnapshotInsert,
   TokenPriceDmaSnapshotInsert,
-} from "../../types/database.js";
+} from '../../types/database.js';
+import { logger } from '../../utils/logger.js';
 import {
   buildAlignedPairRatioSeries,
   computeDma,
@@ -29,13 +30,13 @@ import {
   ETH_BTC_RATIO_CONTEXT,
   type PairRatioContext,
   type PriceRow,
-} from "./dmaCalculator.js";
+} from './dmaCalculator.js';
 
 export {
   buildAlignedPairRatioSeries,
   computeDma,
   computeTokenPairRatioDma,
-} from "./dmaCalculator.js";
+} from './dmaCalculator.js';
 
 interface TokenContext {
   tokenSymbol: string;
@@ -83,7 +84,7 @@ export class TokenPriceDmaService {
       jobId,
     );
 
-    logger.info("Starting DMA computation post-step", {
+    logger.info('Starting DMA computation post-step', {
       jobId: correlationId,
       tokenSymbol: tokenContext.tokenSymbol,
       tokenId: tokenContext.tokenId,
@@ -94,7 +95,7 @@ export class TokenPriceDmaService {
       tokenContext.tokenId,
     );
     if (prices.length === 0) {
-      logger.info("No price history found for DMA computation", {
+      logger.info('No price history found for DMA computation', {
         jobId: correlationId,
         tokenSymbol: tokenContext.tokenSymbol,
         tokenId: tokenContext.tokenId,
@@ -108,7 +109,7 @@ export class TokenPriceDmaService {
       tokenContext.tokenSymbol,
     );
 
-    logger.info("DMA computation post-step completed", {
+    logger.info('DMA computation post-step completed', {
       jobId: correlationId,
       tokenSymbol: tokenContext.tokenSymbol,
       recordsInserted: writeResult.recordsInserted,
@@ -141,7 +142,7 @@ export class TokenPriceDmaService {
       jobId,
     );
 
-    logger.info("Starting pair ratio DMA computation post-step", {
+    logger.info('Starting pair ratio DMA computation post-step', {
       jobId: correlationId,
       baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
       quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
@@ -160,7 +161,7 @@ export class TokenPriceDmaService {
 
     if (basePrices.length === 0 || quotePrices.length === 0) {
       logger.info(
-        "Insufficient price history found for pair ratio DMA computation",
+        'Insufficient price history found for pair ratio DMA computation',
         {
           jobId: correlationId,
           baseTokenRows: basePrices.length,
@@ -178,7 +179,7 @@ export class TokenPriceDmaService {
 
     if (ratioPrices.length === 0) {
       logger.info(
-        "No overlapping price history found for pair ratio DMA computation",
+        'No overlapping price history found for pair ratio DMA computation',
         {
           jobId: correlationId,
           baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
@@ -198,7 +199,7 @@ export class TokenPriceDmaService {
       ETH_BTC_RATIO_CONTEXT,
     );
 
-    logger.info("Pair ratio DMA computation post-step completed", {
+    logger.info('Pair ratio DMA computation post-step completed', {
       jobId: correlationId,
       baseTokenSymbol: ETH_BTC_RATIO_CONTEXT.baseTokenSymbol,
       quoteTokenSymbol: ETH_BTC_RATIO_CONTEXT.quoteTokenSymbol,
@@ -220,7 +221,7 @@ export class TokenPriceDmaService {
       SELECT token_symbol, token_id,
              to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date,
              price_usd
-      FROM ${getTableName("TOKEN_PRICE_SNAPSHOTS")}
+      FROM ${getTableName('TOKEN_PRICE_SNAPSHOTS')}
       WHERE source = $1
         AND token_symbol = $2
         AND lower(token_id) = lower($3)
@@ -235,7 +236,7 @@ export class TokenPriceDmaService {
 
     const rows = result.rows.map((row) => this.mapPriceRow(row));
 
-    logger.info("Fetched price history for DMA computation", {
+    logger.info('Fetched price history for DMA computation', {
       tokenSymbol,
       tokenId,
       rowCount: rows.length,
@@ -252,7 +253,7 @@ export class TokenPriceDmaService {
     jobId: string,
     tokenSymbol: string,
   ): Promise<{ recordsInserted: number }> {
-    logger.info("Writing DMA snapshots to database", {
+    logger.info('Writing DMA snapshots to database', {
       jobId,
       tokenSymbol,
       recordCount: snapshots.length,
@@ -267,7 +268,7 @@ export class TokenPriceDmaService {
     jobId: string,
     pairContext: PairRatioContext,
   ): Promise<{ recordsInserted: number }> {
-    logger.info("Writing pair ratio DMA snapshots to database", {
+    logger.info('Writing pair ratio DMA snapshots to database', {
       jobId,
       baseTokenSymbol: pairContext.baseTokenSymbol,
       quoteTokenSymbol: pairContext.quoteTokenSymbol,

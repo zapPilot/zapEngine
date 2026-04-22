@@ -2,7 +2,7 @@
  * Centralized logging utility with levels and formatting
  */
 
-import { getRuntimeEnv, isRuntimeMode } from "@/lib/env/runtimeEnv";
+import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -33,12 +33,12 @@ export class Logger {
   private localLogs: LogEntry[] = [];
 
   constructor(config: Partial<LogConfig> = {}) {
-    const isProduction = isRuntimeMode("production");
-    const isDevelopment = isRuntimeMode("development");
+    const isProduction = isRuntimeMode('production');
+    const isDevelopment = isRuntimeMode('development');
     const enableDebugInProd =
-      getRuntimeEnv("VITE_ENABLE_DEBUG_LOGGING") === "true";
+      getRuntimeEnv('VITE_ENABLE_DEBUG_LOGGING') === 'true';
     const enableDevLogging =
-      getRuntimeEnv("VITE_ENABLE_DEV_LOGGING") !== "false";
+      getRuntimeEnv('VITE_ENABLE_DEV_LOGGING') !== 'false';
 
     this.config = {
       level:
@@ -60,7 +60,7 @@ export class Logger {
     message: string,
     data?: unknown,
     context?: string,
-    error?: Error
+    error?: Error,
   ): LogEntry {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -81,11 +81,11 @@ export class Logger {
   }
 
   private formatLogEntry(entry: LogEntry): string {
-    const levelNames = ["DEBUG", "INFO", "WARN", "ERROR"];
-    const levelName = levelNames[entry.level] || "UNKNOWN";
-    const contextStr = entry.context ? `[${entry.context}] ` : "";
-    const dataStr = entry.data ? ` ${JSON.stringify(entry.data)}` : "";
-    const errorStr = entry.error ? ` Error: ${entry.error.message}` : "";
+    const levelNames = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const levelName = levelNames[entry.level] || 'UNKNOWN';
+    const contextStr = entry.context ? `[${entry.context}] ` : '';
+    const dataStr = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
+    const errorStr = entry.error ? ` Error: ${entry.error.message}` : '';
 
     return `${entry.timestamp} ${levelName} ${contextStr}${entry.message}${dataStr}${errorStr}`;
   }
@@ -95,7 +95,7 @@ export class Logger {
     message: string,
     data?: unknown,
     context?: string,
-    error?: Error
+    error?: Error,
   ): void {
     if (!this.shouldLog(level)) return;
 
@@ -186,7 +186,7 @@ export class Logger {
 class ContextLogger {
   constructor(
     private logger: Logger,
-    private context: string
+    private context: string,
   ) {}
 
   debug(message: string, data?: unknown): void {
@@ -211,7 +211,7 @@ export const logger = new Logger();
 
 // Convenience factory for ad-hoc context loggers
 // Export context-aware loggers for common areas
-export const walletLogger = logger.createContextLogger("Wallet");
+export const walletLogger = logger.createContextLogger('Wallet');
 
 // Export types and classes
 export type { LogEntry };

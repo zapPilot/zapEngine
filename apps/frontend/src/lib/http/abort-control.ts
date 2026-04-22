@@ -5,7 +5,7 @@
 
 export function createTimeoutController(
   timeout: number,
-  externalSignal?: AbortSignal
+  externalSignal?: AbortSignal,
 ) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -13,7 +13,7 @@ export function createTimeoutController(
   const cleanup = () => {
     clearTimeout(timeoutId);
     if (externalSignal) {
-      externalSignal.removeEventListener("abort", handleExternalAbort);
+      externalSignal.removeEventListener('abort', handleExternalAbort);
     }
   };
 
@@ -22,7 +22,7 @@ export function createTimeoutController(
   };
 
   if (externalSignal) {
-    externalSignal.addEventListener("abort", handleExternalAbort);
+    externalSignal.addEventListener('abort', handleExternalAbort);
   }
 
   return { signal: controller.signal, cleanup };
@@ -30,7 +30,7 @@ export function createTimeoutController(
 
 export function isAbortError(error: unknown): boolean {
   return (
-    (error instanceof Error && error.name === "AbortError") ||
-    (error instanceof DOMException && error.name === "AbortError")
+    (error instanceof Error && error.name === 'AbortError') ||
+    (error instanceof DOMException && error.name === 'AbortError')
   );
 }

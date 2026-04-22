@@ -1,4 +1,4 @@
-import { StickyBannerShell } from "./StickyBannerShell";
+import { StickyBannerShell } from './StickyBannerShell';
 
 interface SwitchPromptBannerProps {
   show: boolean;
@@ -31,7 +31,7 @@ export function SwitchPromptBanner({
     );
   }
 
-  const displayName = bundleUserName || "another user";
+  const displayName = bundleUserName || 'another user';
 
   return (
     <StickyBannerShell

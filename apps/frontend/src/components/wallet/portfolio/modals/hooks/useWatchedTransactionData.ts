@@ -1,8 +1,8 @@
-import type { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from 'react-hook-form';
 
-import type { TransactionFormData } from "@/types/domain/transaction";
+import type { TransactionFormData } from '@/types/domain/transaction';
 
-import { useTransactionData } from "./useTransactionData";
+import { useTransactionData } from './useTransactionData';
 
 /**
  * Watches form values and feeds them into useTransactionData.
@@ -16,11 +16,11 @@ import { useTransactionData } from "./useTransactionData";
  */
 export function useWatchedTransactionData(
   form: UseFormReturn<TransactionFormData>,
-  isOpen: boolean
+  isOpen: boolean,
 ) {
-  const chainId = form.watch("chainId");
-  const tokenAddress = form.watch("tokenAddress");
-  const amount = form.watch("amount");
+  const chainId = form.watch('chainId');
+  const tokenAddress = form.watch('tokenAddress');
+  const amount = form.watch('amount');
 
   return {
     chainId,

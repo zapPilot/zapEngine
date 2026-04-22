@@ -1,28 +1,28 @@
 /**
  * Unit tests for chains/adapters
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-import { getMainnetChains } from "@/config/chains/adapters";
-import type { BaseChainConfig } from "@/config/chains/types";
+import { getMainnetChains } from '@/config/chains/adapters';
+import type { BaseChainConfig } from '@/config/chains/types';
 
 const mockChainWithExplorer: BaseChainConfig = {
   id: 42161,
-  name: "Arbitrum One",
+  name: 'Arbitrum One',
   rpcUrls: {
     default: {
-      http: ["https://arb1.arbitrum.io/rpc"],
+      http: ['https://arb1.arbitrum.io/rpc'],
     },
   },
   nativeCurrency: {
-    name: "Ether",
-    symbol: "ETH",
+    name: 'Ether',
+    symbol: 'ETH',
     decimals: 18,
   },
   blockExplorers: {
     default: {
-      name: "Arbiscan",
-      url: "https://arbiscan.io",
+      name: 'Arbiscan',
+      url: 'https://arbiscan.io',
     },
   },
   isSupported: true,
@@ -30,15 +30,15 @@ const mockChainWithExplorer: BaseChainConfig = {
 
 const mockChainWithoutExplorer: BaseChainConfig = {
   id: 1337,
-  name: "Local Dev",
+  name: 'Local Dev',
   rpcUrls: {
     default: {
-      http: ["http://localhost:8545"],
+      http: ['http://localhost:8545'],
     },
   },
   nativeCurrency: {
-    name: "Ether",
-    symbol: "ETH",
+    name: 'Ether',
+    symbol: 'ETH',
     decimals: 18,
   },
   isSupported: true,
@@ -46,23 +46,23 @@ const mockChainWithoutExplorer: BaseChainConfig = {
 
 const mockUnsupportedChain: BaseChainConfig = {
   id: 5,
-  name: "Goerli",
+  name: 'Goerli',
   rpcUrls: {
     default: {
-      http: ["https://goerli.infura.io"],
+      http: ['https://goerli.infura.io'],
     },
   },
   nativeCurrency: {
-    name: "Goerli Ether",
-    symbol: "ETH",
+    name: 'Goerli Ether',
+    symbol: 'ETH',
     decimals: 18,
   },
   isSupported: false,
 };
 
-describe("adapters", () => {
-  describe("getMainnetChains", () => {
-    it("should filter to only supported chains", () => {
+describe('adapters', () => {
+  describe('getMainnetChains', () => {
+    it('should filter to only supported chains', () => {
       const result = getMainnetChains([
         mockChainWithExplorer,
         mockUnsupportedChain,
@@ -72,13 +72,13 @@ describe("adapters", () => {
       expect(result[0].id).toBe(42161);
     });
 
-    it("should return empty array when no chains are supported", () => {
+    it('should return empty array when no chains are supported', () => {
       const result = getMainnetChains([mockUnsupportedChain]);
 
       expect(result).toEqual([]);
     });
 
-    it("should return all chains when all are supported", () => {
+    it('should return all chains when all are supported', () => {
       const result = getMainnetChains([
         mockChainWithExplorer,
         mockChainWithoutExplorer,

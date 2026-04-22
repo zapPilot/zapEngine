@@ -1,9 +1,9 @@
-import { RefObject, useEffect, useState } from "react";
+import { RefObject, useEffect, useState } from 'react';
 
 export function useTooltipPosition(
   isHovered: boolean,
   containerRef: RefObject<HTMLElement | null>,
-  tooltipRef: RefObject<HTMLElement | null>
+  tooltipRef: RefObject<HTMLElement | null>,
 ) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -34,12 +34,12 @@ export function useTooltipPosition(
     };
 
     updatePosition();
-    window.addEventListener("scroll", updatePosition);
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener('scroll', updatePosition);
+    window.addEventListener('resize', updatePosition);
 
     return () => {
-      window.removeEventListener("scroll", updatePosition);
-      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+      window.removeEventListener('resize', updatePosition);
     };
   }, [isHovered, containerRef, tooltipRef]);
 

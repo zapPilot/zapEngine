@@ -1,4 +1,4 @@
-import { IconBadge } from "./IconBadge";
+import { IconBadge } from './IconBadge';
 
 interface TokenIconStackProps {
   /** Token list with symbols */
@@ -23,14 +23,14 @@ export function TokenIconStack({
   return (
     <div className="flex items-center flex-wrap gap-2">
       {/* Token list with icon + symbol text */}
-      {visible.map(token => (
+      {visible.map((token) => (
         <div key={token.symbol} className="flex items-center gap-1">
           {/* Token Icon */}
           <IconBadge
             src={`https://zap-assets-worker.davidtnfsh.workers.dev/tokenPictures/${token.symbol.toLowerCase()}.webp`}
             alt={`${token.symbol} icon`}
             size="sm"
-            fallback={{ type: "letter", content: token.symbol }}
+            fallback={{ type: 'letter', content: token.symbol }}
           />
           {/* Token Symbol Text */}
           <span className="text-xs text-gray-300 font-medium">

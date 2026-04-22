@@ -1,17 +1,17 @@
-import { logger } from "../../utils/logger.js";
-import { DeFiLlamaFetcher } from "../../modules/pool/fetcher.js";
-import { PoolDataTransformer } from "../../modules/pool/transformer.js";
-import { PoolWriter } from "../../modules/pool/writer.js";
 import {
-  executeETLFlow,
-  withValidatedJob,
   type BaseETLProcessor,
   type ETLProcessResult,
+  executeETLFlow,
   type HealthCheckResult,
-} from "../../core/processors/baseETLProcessor.js";
-import type { ETLJob, PoolData } from "../../types/index.js";
-import type { PoolAprSnapshotInsert } from "../../types/database.js";
-import { wrapHealthCheck } from "../../utils/healthCheck.js";
+  withValidatedJob,
+} from '../../core/processors/baseETLProcessor.js';
+import { DeFiLlamaFetcher } from '../../modules/pool/fetcher.js';
+import { PoolDataTransformer } from '../../modules/pool/transformer.js';
+import { PoolWriter } from '../../modules/pool/writer.js';
+import type { PoolAprSnapshotInsert } from '../../types/database.js';
+import type { ETLJob, PoolData } from '../../types/index.js';
+import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * ETL processor for pool APR data from DeFiLlama
@@ -31,30 +31,30 @@ export class PoolETLProcessor implements BaseETLProcessor {
     const filters = job.filters;
     const tvlThreshold = filters?.minTvl ?? 0;
 
-    logger.info("Fetching DeFiLlama pools", {
+    logger.info('Fetching DeFiLlama pools', {
       jobId: job.jobId,
       tvlThreshold,
     });
 
-    return withValidatedJob(job, "defillama", () =>
+    return withValidatedJob(job, 'defillama', () =>
       executeETLFlow<PoolData, PoolAprSnapshotInsert>(
         job,
-        "defillama",
+        'defillama',
         () => this.fetcher.fetchAllPools(tvlThreshold),
         async (rawData) => {
           const transformedData = this.transformer.transformBatch(
             rawData,
-            "defillama",
+            'defillama',
           );
           if (transformedData.length === 0) {
-            logger.warn("No valid data after transformation", {
+            logger.warn('No valid data after transformation', {
               jobId: job.jobId,
             });
           }
           return transformedData;
         },
         async (transformedData) =>
-          this.writer.writePoolSnapshots(transformedData, "defillama"),
+          this.writer.writePoolSnapshots(transformedData, 'defillama'),
       ),
     );
   }
@@ -70,6 +70,6 @@ export class PoolETLProcessor implements BaseETLProcessor {
   }
 
   getSourceType(): string {
-    return "defillama";
+    return 'defillama';
   }
 }

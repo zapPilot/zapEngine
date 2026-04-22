@@ -3,8 +3,8 @@
  * Uses service-specific HTTP utilities for consistent error handling
  */
 
-import { buildAnalyticsQueryString } from "@/lib/analytics/queryStringUtils";
-import { httpUtils } from "@/lib/http";
+import { buildAnalyticsQueryString } from '@/lib/analytics/queryStringUtils';
+import { httpUtils } from '@/lib/http';
 import {
   type BorrowingPositionsResponse,
   type DailyYieldReturnsResponse,
@@ -16,7 +16,7 @@ import {
   validateLandingPageResponse,
   validateMarketDashboardResponse,
   validateUnifiedDashboardResponse,
-} from "@/schemas/api/analyticsSchemas";
+} from '@/schemas/api/analyticsSchemas';
 
 // Re-export types for external use
 export type {
@@ -30,7 +30,7 @@ export type {
   PoolDetail,
   RiskMetrics,
   UnifiedDashboardResponse,
-} from "@/schemas/api/analyticsSchemas";
+} from '@/schemas/api/analyticsSchemas';
 
 /**
  * Query parameters for the unified dashboard endpoint.
@@ -56,7 +56,7 @@ export interface DashboardWindowParams {
  * in a single API call for optimal performance. Implements BFF pattern.
  */
 export async function getLandingPagePortfolioData(
-  userId: string
+  userId: string,
 ): Promise<LandingPageResponse> {
   const endpoint = `/api/v2/portfolio/${userId}/landing`;
   const response = await httpUtils.analyticsEngine.get(endpoint);
@@ -104,7 +104,7 @@ export async function getLandingPagePortfolioData(
  */
 export async function getPortfolioDashboard(
   userId: string,
-  params: DashboardWindowParams = {}
+  params: DashboardWindowParams = {},
 ): Promise<UnifiedDashboardResponse> {
   const endpoint = `/api/v2/analytics/${userId}/dashboard${buildAnalyticsQueryString(params)}`;
   const response = await httpUtils.analyticsEngine.get(endpoint);
@@ -143,11 +143,11 @@ export async function getPortfolioDashboard(
 export async function getDailyYieldReturns(
   userId: string,
   days = 30,
-  walletAddress?: string
+  walletAddress?: string,
 ): Promise<DailyYieldReturnsResponse> {
   const params = new URLSearchParams({ days: String(days) });
   if (walletAddress) {
-    params.append("walletAddress", walletAddress);
+    params.append('walletAddress', walletAddress);
   }
   const endpoint = `/api/v2/analytics/${userId}/yield/daily?${params}`;
   const response = await httpUtils.analyticsEngine.get(endpoint);
@@ -181,7 +181,7 @@ export async function getDailyYieldReturns(
  * ```
  */
 export async function getBorrowingPositions(
-  userId: string
+  userId: string,
 ): Promise<BorrowingPositionsResponse> {
   const endpoint = `/api/v2/analytics/${userId}/borrowing/positions`;
   const response = await httpUtils.analyticsEngine.get(endpoint);
@@ -203,7 +203,7 @@ export async function getBorrowingPositions(
  */
 export async function getMarketDashboardData(
   days = 365,
-  token = "btc"
+  token = 'btc',
 ): Promise<MarketDashboardResponse> {
   const params = new URLSearchParams({ days: String(days), token });
   const endpoint = `/api/v2/market/dashboard?${params}`;

@@ -2,16 +2,16 @@
  * React Query hook for fetching daily strategy suggestions.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { getDailySuggestion } from "@/services";
-import type { DailySuggestionResponse } from "@/types/strategy";
+import { getDailySuggestion } from '@/services';
+import type { DailySuggestionResponse } from '@/types/strategy';
 
 /**
  * Query key factory for strategy suggestions
  */
 export const suggestionKeys = {
-  all: ["suggestion"] as const,
+  all: ['suggestion'] as const,
   detail: (userId: string, configId?: string) =>
     [...suggestionKeys.all, userId, configId] as const,
 };
@@ -37,13 +37,13 @@ export const suggestionKeys = {
 export function useDailySuggestion(
   userId: string | undefined,
   configId?: string,
-  enabled?: boolean
+  enabled?: boolean,
 ) {
   return useQuery<DailySuggestionResponse, Error>({
-    queryKey: suggestionKeys.detail(userId ?? "", configId),
+    queryKey: suggestionKeys.detail(userId ?? '', configId),
     queryFn: () => {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new Error('User ID is required');
       }
       return getDailySuggestion(userId, configId);
     },

@@ -1,8 +1,8 @@
-import { AlertTriangle, Trash2 } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import { AlertTriangle, Trash2 } from 'lucide-react';
+import { type ReactElement, useState } from 'react';
 
-import { GradientButton } from "@/components/ui";
-import { GRADIENTS } from "@/constants/design-system";
+import { GradientButton } from '@/components/ui';
+import { GRADIENTS } from '@/constants/design-system';
 
 interface DeleteAccountButtonProps {
   onDelete: () => void;
@@ -60,7 +60,7 @@ export function DeleteAccountButton({
           disabled={isDeleting}
           className="flex-1"
         >
-          {isDeleting ? "Deleting..." : "Yes, Delete Account"}
+          {isDeleting ? 'Deleting...' : 'Yes, Delete Account'}
         </GradientButton>
         <button
           onClick={() => setShowConfirm(false)}

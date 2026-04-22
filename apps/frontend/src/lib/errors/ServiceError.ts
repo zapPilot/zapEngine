@@ -14,10 +14,10 @@ export class ServiceError extends Error {
     message: string,
     public readonly status: number,
     public readonly code?: string,
-    public readonly details?: Record<string, unknown>
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
-    this.name = "ServiceError";
+    this.name = 'ServiceError';
   }
 }
 
@@ -36,26 +36,26 @@ function createServiceErrorClass(name: string) {
  * Account-specific service errors
  */
 export class AccountServiceError extends createServiceErrorClass(
-  "AccountServiceError"
+  'AccountServiceError',
 ) {}
 
 /**
  * Analytics-specific service errors
  */
 export class AnalyticsServiceError extends createServiceErrorClass(
-  "AnalyticsServiceError"
+  'AnalyticsServiceError',
 ) {}
 
 /**
  * Intent-specific service errors (ZapIn, ZapOut, Optimize)
  */
 export class IntentServiceError extends createServiceErrorClass(
-  "IntentServiceError"
+  'IntentServiceError',
 ) {}
 
 /**
  * Bundle-specific service errors
  */
 export class BundleServiceError extends createServiceErrorClass(
-  "BundleServiceError"
+  'BundleServiceError',
 ) {}

@@ -1,5 +1,5 @@
-import { CACHE_WINDOW } from "@/config/cacheWindow";
-import { queryClient } from "@/lib/state/queryClient";
+import { CACHE_WINDOW } from '@/config/cacheWindow';
+import { queryClient } from '@/lib/state/queryClient';
 
 export interface CacheHint {
   staleTimeMs: number;
@@ -19,7 +19,7 @@ let appliedCacheHint: CacheHint = DEFAULT_CACHE_HINT;
 
 function parseDirectiveSeconds(
   directive: string,
-  key: string
+  key: string,
 ): number | undefined {
   if (!directive.startsWith(key)) {
     return undefined;
@@ -30,7 +30,7 @@ function parseDirectiveSeconds(
 }
 
 export function parseCacheControlForHint(
-  value?: string | null
+  value?: string | null,
 ): CacheHint | null {
   if (!value) {
     return null;
@@ -38,8 +38,8 @@ export function parseCacheControlForHint(
 
   const directives = value
     .toLowerCase()
-    .split(",")
-    .map(part => part.trim())
+    .split(',')
+    .map((part) => part.trim())
     .filter(Boolean);
 
   let maxAgeSeconds: number | undefined;
@@ -48,15 +48,15 @@ export function parseCacheControlForHint(
   for (const directive of directives) {
     if (maxAgeSeconds === undefined) {
       maxAgeSeconds =
-        parseDirectiveSeconds(directive, "max-age=") ??
-        parseDirectiveSeconds(directive, "s-maxage=");
+        parseDirectiveSeconds(directive, 'max-age=') ??
+        parseDirectiveSeconds(directive, 's-maxage=');
       if (maxAgeSeconds !== undefined) continue;
     }
 
     if (staleWhileRevalidateSeconds === undefined) {
       staleWhileRevalidateSeconds = parseDirectiveSeconds(
         directive,
-        "stale-while-revalidate="
+        'stale-while-revalidate=',
       );
     }
   }
@@ -98,9 +98,9 @@ export function syncQueryCacheDefaultsFromHint(hint: CacheHint): void {
 
 export function hasHeaders(value: unknown): value is ResponseLikeWithHeaders {
   return (
-    typeof value === "object" &&
+    typeof value === 'object' &&
     value !== null &&
-    "headers" in value &&
-    typeof (value as ResponseLikeWithHeaders).headers?.get === "function"
+    'headers' in value &&
+    typeof (value as ResponseLikeWithHeaders).headers?.get === 'function'
   );
 }

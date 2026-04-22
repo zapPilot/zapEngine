@@ -11,14 +11,14 @@ import {
   downloadCSV,
   generateAnalyticsCSV,
   generateExportFilename,
-} from "@/lib/csvGenerator";
+} from '@/lib/csvGenerator';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
-} from "@/types/analytics";
-import type { ExportMetadata, ExportResult } from "@/types/export";
-import { logger } from "@/utils/logger";
+} from '@/types/analytics';
+import type { ExportMetadata, ExportResult } from '@/types/export';
+import { logger } from '@/utils/logger';
 
 // =============================================================================
 // EXPORT FUNCTIONS
@@ -61,18 +61,18 @@ export async function exportAnalyticsToCSV(
   userId: string,
   data: AnalyticsData,
   timePeriod: AnalyticsTimePeriod,
-  walletFilter?: WalletFilter
+  walletFilter?: WalletFilter,
 ): Promise<ExportResult> {
   try {
     // Import validation utility dynamically to avoid circular dependencies
     const { validateExportData } =
-      await import("@/lib/analytics/analyticsValidation");
+      await import('@/lib/analytics/analyticsValidation');
 
     // Validate user ID
-    if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
+    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
       return {
         success: false,
-        error: "User ID is required for export",
+        error: 'User ID is required for export',
       };
     }
 
@@ -80,7 +80,7 @@ export async function exportAnalyticsToCSV(
     if (!validateExportData(data)) {
       return {
         success: false,
-        error: "Invalid analytics data - missing required fields",
+        error: 'Invalid analytics data - missing required fields',
       };
     }
 
@@ -100,7 +100,7 @@ export async function exportAnalyticsToCSV(
     const filename = generateExportFilename(
       userId,
       metadata.timestamp,
-      walletFilter
+      walletFilter,
     );
 
     // Trigger browser download
@@ -112,14 +112,14 @@ export async function exportAnalyticsToCSV(
     };
   } catch (error) {
     // Log error for debugging
-    logger.error("Export failed", error, "analyticsExportService");
+    logger.error('Export failed', error, 'analyticsExportService');
 
     return {
       success: false,
       error:
         error instanceof Error
           ? `Failed to generate CSV file: ${error.message}`
-          : "Failed to generate CSV file",
+          : 'Failed to generate CSV file',
     };
   }
 }

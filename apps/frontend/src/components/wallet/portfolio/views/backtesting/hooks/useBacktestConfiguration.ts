@@ -1,28 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useBacktestMutation } from "@/hooks/mutations/useBacktestMutation";
-import { getStrategyConfigs } from "@/services";
-import type { BacktestRequest } from "@/types/backtesting";
-import type { StrategyConfigsResponse } from "@/types/strategy";
+import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
+import { getStrategyConfigs } from '@/services';
+import type { BacktestRequest } from '@/types/backtesting';
+import type { StrategyConfigsResponse } from '@/types/strategy';
 
-import { DEFAULT_DAYS, ETH_BTC_ROTATION_STRATEGY_ID } from "../constants";
+import { DEFAULT_DAYS, ETH_BTC_ROTATION_STRATEGY_ID } from '../constants';
 import {
   normalizePresetBackedConfigs,
   parseConfigStrategyIdWithPresets,
   parseJsonField,
-} from "../utils/jsonConfigurationHelpers";
+} from '../utils/jsonConfigurationHelpers';
 import {
   buildDefaultPayloadFromPresets,
   buildDefaultPayloadFromStrategies,
   FALLBACK_DEFAULTS,
-} from "./backtestConfigurationBuilders";
+} from './backtestConfigurationBuilders';
 import {
   backtestRequestSchema,
   formatValidationError,
   normalizeParams,
   type ParsedBacktestRequest,
   validateConfigsStrategyIdsAgainstCatalog,
-} from "./backtestRequestValidation";
+} from './backtestRequestValidation';
 
 export function useBacktestConfiguration() {
   const {
@@ -38,8 +38,8 @@ export function useBacktestConfiguration() {
     JSON.stringify(
       buildDefaultPayloadFromStrategies(null, FALLBACK_DEFAULTS),
       null,
-      2
-    )
+      2,
+    ),
   );
   const [editorError, setEditorError] = useState<string | null>(null);
   const [defaultsReady, setDefaultsReady] = useState(false);
@@ -55,13 +55,13 @@ export function useBacktestConfiguration() {
       const [configsResult] = await Promise.allSettled([getStrategyConfigs()]);
       if (cancelled) return;
 
-      if (configsResult.status === "fulfilled") {
+      if (configsResult.status === 'fulfilled') {
         const configs = configsResult.value;
         setStrategyConfigs(configs);
         if (!userEdited.current && configs.presets.length > 0) {
           const payload = buildDefaultPayloadFromPresets(
             configs.presets,
-            configs.backtest_defaults
+            configs.backtest_defaults,
           );
           setEditorValue(JSON.stringify(payload, null, 2));
           setDefaultsReady(true);
@@ -70,7 +70,7 @@ export function useBacktestConfiguration() {
         if (!userEdited.current) {
           const payload = buildDefaultPayloadFromStrategies(
             configs.strategies,
-            configs.backtest_defaults
+            configs.backtest_defaults,
           );
           setEditorValue(JSON.stringify(payload, null, 2));
         }
@@ -97,10 +97,10 @@ export function useBacktestConfiguration() {
   const submitBacktest = useCallback(
     (
       parsedData: ParsedBacktestRequest,
-      options?: Parameters<typeof mutate>[1]
+      options?: Parameters<typeof mutate>[1],
     ) => {
-      const configs: BacktestRequest["configs"] = parsedData.configs.map(
-        cfg => {
+      const configs: BacktestRequest['configs'] = parsedData.configs.map(
+        (cfg) => {
           if (cfg.saved_config_id) {
             return {
               config_id: cfg.config_id,
@@ -110,7 +110,7 @@ export function useBacktestConfiguration() {
           const strategyId = cfg.strategy_id;
           if (!strategyId) {
             throw new Error(
-              "Backtest compare config is missing strategy_id for ad-hoc request"
+              'Backtest compare config is missing strategy_id for ad-hoc request',
             );
           }
           const params = normalizeParams(cfg.params);
@@ -119,7 +119,7 @@ export function useBacktestConfiguration() {
             strategy_id: strategyId,
             ...(params !== undefined && { params }),
           };
-        }
+        },
       );
 
       const request: BacktestRequest = {
@@ -143,12 +143,12 @@ export function useBacktestConfiguration() {
         mutate(request);
       }
     },
-    [mutate]
+    [mutate],
   );
 
   const validatePayload = useCallback(() => {
     if (!parsedEditorPayload) {
-      return { ok: false as const, error: "Invalid JSON: unable to parse." };
+      return { ok: false as const, error: 'Invalid JSON: unable to parse.' };
     }
     const parsed = backtestRequestSchema.safeParse(parsedEditorPayload);
     if (!parsed.success) {
@@ -159,7 +159,7 @@ export function useBacktestConfiguration() {
     }
     const catalogError = validateConfigsStrategyIdsAgainstCatalog(
       parsed.data.configs,
-      strategyConfigs?.strategies
+      strategyConfigs?.strategies,
     );
     if (catalogError) {
       return { ok: false as const, error: catalogError };
@@ -208,7 +208,7 @@ export function useBacktestConfiguration() {
         ? buildDefaultPayloadFromPresets(strategyConfigs.presets, defaults)
         : buildDefaultPayloadFromStrategies(
             strategyConfigs?.strategies ?? null,
-            defaults
+            defaults,
           );
     userEdited.current = false;
     setEditorValue(JSON.stringify(payload, null, 2));
@@ -218,23 +218,23 @@ export function useBacktestConfiguration() {
   const updateEditorValue = (val: string) => {
     userEdited.current = true;
     setEditorValue(
-      normalizePresetBackedConfigs(val, strategyConfigs?.presets ?? [])
+      normalizePresetBackedConfigs(val, strategyConfigs?.presets ?? []),
     );
   };
 
   // Compute display values from the editor JSON
-  const days = parseJsonField(editorValue, "days", DEFAULT_DAYS);
+  const days = parseJsonField(editorValue, 'days', DEFAULT_DAYS);
   const selectedStrategyId = parseConfigStrategyIdWithPresets(
     editorValue,
     ETH_BTC_ROTATION_STRATEGY_ID,
-    strategyConfigs?.presets ?? []
+    strategyConfigs?.presets ?? [],
   );
 
   const strategyOptions = useMemo(() => {
     if (!strategyConfigs?.strategies?.length) {
       return [{ value: selectedStrategyId, label: selectedStrategyId }];
     }
-    return strategyConfigs.strategies.map(s => ({
+    return strategyConfigs.strategies.map((s) => ({
       value: s.strategy_id,
       label: s.display_name,
     }));

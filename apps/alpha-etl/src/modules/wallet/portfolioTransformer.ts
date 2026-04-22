@@ -1,15 +1,15 @@
-import { logger } from "../../utils/logger.js";
-import { maskWalletAddress } from "../../utils/mask.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import {
-  resolveSnapshotTime,
-  type SnapshotTimeContext,
-} from "../../utils/dateUtils.js";
-import type { PortfolioItemSnapshotInsert } from "../../types/database.js";
 import type {
   DeBankProtocol,
   DeBankProtocolItem,
-} from "../../modules/wallet/fetcher.js";
+} from '../../modules/wallet/fetcher.js';
+import type { PortfolioItemSnapshotInsert } from '../../types/database.js';
+import {
+  resolveSnapshotTime,
+  type SnapshotTimeContext,
+} from '../../utils/dateUtils.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
 
 export interface TransformPortfolioParams {
   protocol: DeBankProtocol;
@@ -33,19 +33,24 @@ export class DeBankPortfolioTransformer {
     walletAddress: string,
     snapshot: SnapshotTimeContext,
   ): PortfolioItemSnapshotInsert {
+    const poolId = item.pool['id'];
+    if (typeof poolId !== 'string') {
+      throw new Error('DeBank portfolio item missing pool id');
+    }
+
     return {
       wallet: walletAddress.toLowerCase(),
       chain: protocol.chain,
       name: protocol.name,
       name_item: item.name,
-      id_raw: item.pool.id as string,
+      id_raw: poolId,
       asset_usd_value: item.stats.asset_usd_value,
       debt_usd_value: item.stats.debt_usd_value,
       net_usd_value: item.stats.net_usd_value,
       snapshot_at: snapshot.snapshotAt,
       update_at: item.update_at || snapshot.epochSeconds,
       has_supported_portfolio: protocol.has_supported_portfolio,
-      site_url: protocol.logo_url || "",
+      site_url: protocol.logo_url || '',
       detail: item.detail,
       asset_dict: item.asset_dict,
       asset_token_list: item.asset_token_list,
@@ -66,7 +71,7 @@ export class DeBankPortfolioTransformer {
   }: TransformPortfolioParams): PortfolioItemSnapshotInsert | null {
     try {
       if (!this.isFiniteStats(item)) {
-        logger.warn("DeBank portfolio item contains invalid numeric values", {
+        logger.warn('DeBank portfolio item contains invalid numeric values', {
           wallet: maskWalletAddress(walletAddress),
           protocol: protocol.name,
           itemName: item.name,
@@ -77,7 +82,7 @@ export class DeBankPortfolioTransformer {
       const snapshot = resolveSnapshotTime(timestamp);
       return this.buildSnapshot(protocol, item, walletAddress, snapshot);
     } catch (error) {
-      logger.error("Failed to transform DeBank portfolio item", {
+      logger.error('Failed to transform DeBank portfolio item', {
         error: toErrorMessage(error),
         wallet: maskWalletAddress(walletAddress),
         protocol: protocol.name,
@@ -99,7 +104,7 @@ export class DeBankPortfolioTransformer {
       0,
     );
 
-    logger.debug("Portfolio transformation starting", {
+    logger.debug('Portfolio transformation starting', {
       wallet: maskWalletAddress(walletAddress),
       protocolsCount: protocols.length,
       totalItemsToProcess: totalItemsBeforeFilter,
@@ -131,16 +136,16 @@ export class DeBankPortfolioTransformer {
     const filteredCount = totalItemsBeforeFilter - results.length;
 
     if (filteredCount > 0) {
-      logger.warn("Portfolio items filtered out", {
+      logger.warn('Portfolio items filtered out', {
         wallet: maskWalletAddress(walletAddress),
         totalItems: totalItemsBeforeFilter,
         validItems: results.length,
         filteredItems: filteredCount,
-        reason: "Invalid numeric values (NaN/Infinity in USD fields)",
+        reason: 'Invalid numeric values (NaN/Infinity in USD fields)',
       });
     }
 
-    logger.debug("Portfolio transformation complete", {
+    logger.debug('Portfolio transformation complete', {
       wallet: maskWalletAddress(walletAddress),
       protocolsProcessed: protocols.length,
       itemsTransformed: results.length,

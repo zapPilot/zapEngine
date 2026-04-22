@@ -1,12 +1,12 @@
-import { Router } from "express";
-import { z } from "zod";
-import { TokenPriceETLProcessor } from "../modules/token-price/index.js";
-import type { BackfillPayload, BackfillResult } from "../types/index.js";
-import { toErrorMessage } from "../utils/errors.js";
-import { logger } from "../utils/logger.js";
-import { sleep } from "../utils/sleep.js";
+import { Router } from 'express';
+import { z } from 'zod';
+
+import { TokenPriceETLProcessor } from '../modules/token-price/index.js';
+import type { BackfillPayload, BackfillResult } from '../types/index.js';
+import { toErrorMessage } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
+import { sleep } from '../utils/sleep.js';
 import {
-  type DmaRetryResult,
   buildApiErrorResponse,
   buildSuccessResponse,
   buildValidationErrorResponse,
@@ -14,8 +14,9 @@ import {
   createProcessingFailureOutcome,
   createSuccessfulBackfillContext,
   createSuccessfulTokenOutcome,
+  type DmaRetryResult,
   getRequestId,
-} from "./backfill.helpers.js";
+} from './backfill.helpers.js';
 
 const router: Router = Router();
 const processor = new TokenPriceETLProcessor();
@@ -31,7 +32,7 @@ const tokenConfigSchema = z.object({
 
 const backfillPayloadSchema = z.object({
   tokens: z.array(tokenConfigSchema).min(1).max(10), // Max 10 tokens per request
-  trigger: z.enum(["manual", "scheduled"]),
+  trigger: z.enum(['manual', 'scheduled']),
 });
 type TokenConfig = z.infer<typeof tokenConfigSchema>;
 
@@ -70,7 +71,7 @@ async function updateDmaWithRetry(
       const nextRetry = retries + 1;
       const delay = DMA_RETRY_DELAY_MS * nextRetry;
 
-      logger.warn("DMA update failed, retrying", {
+      logger.warn('DMA update failed, retrying', {
         requestId,
         tokenSymbol,
         tokenId,
@@ -84,7 +85,7 @@ async function updateDmaWithRetry(
   }
 
   /* c8 ignore start */
-  return Promise.reject(new Error("DMA retry loop exhausted unexpectedly"));
+  return Promise.reject(new Error('DMA retry loop exhausted unexpectedly'));
   /* c8 ignore stop */
 }
 
@@ -96,7 +97,7 @@ async function processTokenBackfill(
   const daysBack = tokenConfig.daysBack ?? 30;
 
   try {
-    logger.info("Starting backfill", {
+    logger.info('Starting backfill', {
       requestId,
       tokenSymbol: tokenConfig.tokenSymbol,
       tokenId: tokenConfig.tokenId,
@@ -135,7 +136,7 @@ async function processTokenBackfill(
       );
     }
 
-    logger.info("Backfill completed", {
+    logger.info('Backfill completed', {
       requestId,
       tokenSymbol: tokenConfig.tokenSymbol,
       ...result,
@@ -181,13 +182,13 @@ async function processBackfillTokens(
   return { results, successCount, failureCount };
 }
 
-router.post("/", async (req, res) => {
+router.post('/', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
     const payload: BackfillPayload = backfillPayloadSchema.parse(req.body);
 
-    logger.info("Backfill request received", {
+    logger.info('Backfill request received', {
       requestId,
       trigger: payload.trigger,
       tokenCount: payload.tokens.length,
@@ -199,7 +200,7 @@ router.post("/", async (req, res) => {
     );
 
     if (failureCount > 0 && successCount === 0) {
-      return res.json(buildApiErrorResponse("All backfill requests failed"));
+      return res.json(buildApiErrorResponse('All backfill requests failed'));
     }
 
     return res.json(buildSuccessResponse(results));
@@ -208,7 +209,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json(buildValidationErrorResponse(error));
     }
 
-    logger.error("Backfill request failed:", { error, requestId });
+    logger.error('Backfill request failed:', { error, requestId });
     return res.status(500).json(buildApiErrorResponse(toErrorMessage(error)));
   }
 });

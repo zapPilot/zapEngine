@@ -18,27 +18,27 @@
  * - Cache invalidation
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { renderHook, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { useLandingPageData } from "../../src/hooks/queries/analytics/usePortfolioQuery";
-import { queryKeys } from "../../src/lib/state/queryClient";
+import { useLandingPageData } from '../../src/hooks/queries/analytics/usePortfolioQuery';
+import { queryKeys } from '../../src/lib/state/queryClient';
 import type {
   LandingPageResponse,
   PoolDetail,
   PortfolioAPRSummary,
   YieldReturnsSummaryResponse,
-} from "../../src/services/analyticsService";
-import * as analyticsService from "../../src/services/analyticsService";
-import { createMockArray } from "./helpers/mock-factories";
-import { TEST_TIMEOUT } from "./helpers/test-constants";
-import { createQueryWrapper, setupMockCleanup } from "./helpers/test-setup";
+} from '../../src/services/analyticsService';
+import * as analyticsService from '../../src/services/analyticsService';
+import { createMockArray } from './helpers/mock-factories';
+import { TEST_TIMEOUT } from './helpers/test-constants';
+import { createQueryWrapper, setupMockCleanup } from './helpers/test-setup';
 
 // Mock the analytics service
-vi.mock("../../src/services/analyticsService", async () => {
+vi.mock('../../src/services/analyticsService', async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/services/analyticsService")
-  >("../../src/services/analyticsService");
+    typeof import('../../src/services/analyticsService')
+  >('../../src/services/analyticsService');
   return {
     ...actual,
     getLandingPagePortfolioData: vi.fn(),
@@ -50,17 +50,17 @@ setupMockCleanup();
 
 function createWrapper(): ReturnType<
   typeof createQueryWrapper
->["QueryWrapper"] {
+>['QueryWrapper'] {
   return createQueryWrapper().QueryWrapper;
 }
 
 // Mock data generators
 function createMockPoolDetails(count = 3): PoolDetail[] {
-  const pools = createMockArray(count, index => {
+  const pools = createMockArray(count, (index) => {
     const assetValue = 10_000 + index * 5_000;
     return {
       snapshot_id: `snapshot-${index}`,
-      chain: "ethereum",
+      chain: 'ethereum',
       protocol: `protocol-${index}`,
       protocol_name: `Protocol ${index}`,
       asset_usd_value: assetValue,
@@ -73,7 +73,7 @@ function createMockPoolDetails(count = 3): PoolDetail[] {
         apr: 5 + index * 2.5,
         apr_base: 3 + index * 1.5,
         apr_reward: 2 + index,
-        apr_updated_at: new Date("2025-01-01").toISOString(),
+        apr_updated_at: new Date('2025-01-01').toISOString(),
       },
       contribution_to_portfolio: 0,
     } satisfies PoolDetail;
@@ -81,7 +81,7 @@ function createMockPoolDetails(count = 3): PoolDetail[] {
 
   const totalValue = pools.reduce((sum, pool) => sum + pool.asset_usd_value, 0);
 
-  return pools.map(pool => ({
+  return pools.map((pool) => ({
     ...pool,
     contribution_to_portfolio:
       totalValue > 0 ? pool.asset_usd_value / totalValue : 0,
@@ -90,9 +90,9 @@ function createMockPoolDetails(count = 3): PoolDetail[] {
 
 function createMockAPRSummary(pools: PoolDetail[]): PortfolioAPRSummary {
   const totalValue = pools.reduce((sum, pool) => sum + pool.asset_usd_value, 0);
-  const matchedPools = pools.filter(p => p.protocol_matched).length;
+  const matchedPools = pools.filter((p) => p.protocol_matched).length;
   const matchedValue = pools
-    .filter(p => p.protocol_matched)
+    .filter((p) => p.protocol_matched)
     .reduce((sum, pool) => sum + pool.asset_usd_value, 0);
 
   const weightedAPR = pools.reduce((sum, pool) => {
@@ -112,13 +112,13 @@ function createMockAPRSummary(pools: PoolDetail[]): PortfolioAPRSummary {
 
 function createMockLandingPageResponse(
   poolCount = 3,
-  overrides?: Partial<LandingPageResponse>
+  overrides?: Partial<LandingPageResponse>,
 ): LandingPageResponse {
   const pools = createMockPoolDetails(poolCount);
   const aprSummary = createMockAPRSummary(pools);
 
   return {
-    user_id: "test-user-123",
+    user_id: 'test-user-123',
     portfolio_summary: aprSummary,
     pool_details: pools,
     ...overrides,
@@ -126,13 +126,13 @@ function createMockLandingPageResponse(
 }
 
 function createMockYieldSummary(
-  overrides: Partial<YieldReturnsSummaryResponse> = {}
+  overrides: Partial<YieldReturnsSummaryResponse> = {},
 ): YieldReturnsSummaryResponse {
   return {
-    user_id: "test-user-123",
+    user_id: 'test-user-123',
     period: {
-      start_date: "2025-10-09",
-      end_date: "2025-11-08",
+      start_date: '2025-10-09',
+      end_date: '2025-11-08',
       days: 30,
     },
     average_daily_yield_usd: 15,
@@ -148,7 +148,7 @@ function createMockYieldSummary(
       filtered_days: 30,
       outliers_removed: 0,
     },
-    outlier_strategy: "iqr",
+    outlier_strategy: 'iqr',
     outliers_detected: [],
     ...overrides,
   };
@@ -156,32 +156,32 @@ function createMockYieldSummary(
 
 beforeEach(() => {
   vi.mocked(analyticsService.getYieldReturnsSummary).mockResolvedValue(
-    createMockYieldSummary()
+    createMockYieldSummary(),
   );
 });
 
-describe("useLandingPageData - APR Calculations", () => {
+describe('useLandingPageData - APR Calculations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(analyticsService.getYieldReturnsSummary).mockResolvedValue(
-      createMockYieldSummary()
+      createMockYieldSummary(),
     );
   });
 
-  it("calculates weighted average APR correctly", async () => {
+  it('calculates weighted average APR correctly', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "uniswap",
-        protocol_name: "Uniswap V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'uniswap',
+        protocol_name: 'Uniswap V3',
         asset_usd_value: 10000,
-        pool_symbols: ["ETH", "USDC"],
+        pool_symbols: ['ETH', 'USDC'],
         final_apr: 10,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "uniswap",
-          apr_symbol: "ETH-USDC",
+          apr_protocol: 'uniswap',
+          apr_symbol: 'ETH-USDC',
           apr: 10,
           apr_base: 6,
           apr_reward: 4,
@@ -190,17 +190,17 @@ describe("useLandingPageData - APR Calculations", () => {
         contribution_to_portfolio: 0.5,
       },
       {
-        snapshot_id: "2",
-        chain: "ethereum",
-        protocol: "aave",
-        protocol_name: "Aave V3",
+        snapshot_id: '2',
+        chain: 'ethereum',
+        protocol: 'aave',
+        protocol_name: 'Aave V3',
         asset_usd_value: 10000,
-        pool_symbols: ["USDC"],
+        pool_symbols: ['USDC'],
         final_apr: 5,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "aave",
-          apr_symbol: "aUSDC",
+          apr_protocol: 'aave',
+          apr_symbol: 'aUSDC',
           apr: 5,
           apr_base: 5,
           apr_reward: 0,
@@ -216,10 +216,10 @@ describe("useLandingPageData - APR Calculations", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -229,24 +229,24 @@ describe("useLandingPageData - APR Calculations", () => {
 
     expect(result.current.data?.portfolio_summary.weighted_apr).toBeCloseTo(
       7.5,
-      2
+      2,
     );
   });
 
-  it("handles zero allocation pools", async () => {
+  it('handles zero allocation pools', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "uniswap",
-        protocol_name: "Uniswap V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'uniswap',
+        protocol_name: 'Uniswap V3',
         asset_usd_value: 0, // Zero allocation
-        pool_symbols: ["ETH", "USDC"],
+        pool_symbols: ['ETH', 'USDC'],
         final_apr: 15,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "uniswap",
-          apr_symbol: "ETH-USDC",
+          apr_protocol: 'uniswap',
+          apr_symbol: 'ETH-USDC',
           apr: 15,
           apr_base: 10,
           apr_reward: 5,
@@ -255,17 +255,17 @@ describe("useLandingPageData - APR Calculations", () => {
         contribution_to_portfolio: 0,
       },
       {
-        snapshot_id: "2",
-        chain: "ethereum",
-        protocol: "aave",
-        protocol_name: "Aave V3",
+        snapshot_id: '2',
+        chain: 'ethereum',
+        protocol: 'aave',
+        protocol_name: 'Aave V3',
         asset_usd_value: 10000,
-        pool_symbols: ["USDC"],
+        pool_symbols: ['USDC'],
         final_apr: 5,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "aave",
-          apr_symbol: "aUSDC",
+          apr_protocol: 'aave',
+          apr_symbol: 'aUSDC',
           apr: 5,
           apr_base: 5,
           apr_reward: 0,
@@ -281,10 +281,10 @@ describe("useLandingPageData - APR Calculations", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -295,24 +295,24 @@ describe("useLandingPageData - APR Calculations", () => {
     // Weighted APR should be 5% (only non-zero pool)
     expect(result.current.data?.portfolio_summary.weighted_apr).toBeCloseTo(
       5,
-      2
+      2,
     );
   });
 
-  it("aggregates APR across DeFi protocols", async () => {
+  it('aggregates APR across DeFi protocols', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "uniswap",
-        protocol_name: "Uniswap V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'uniswap',
+        protocol_name: 'Uniswap V3',
         asset_usd_value: 5000,
-        pool_symbols: ["ETH", "USDC"],
+        pool_symbols: ['ETH', 'USDC'],
         final_apr: 12,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "uniswap",
-          apr_symbol: "ETH-USDC",
+          apr_protocol: 'uniswap',
+          apr_symbol: 'ETH-USDC',
           apr: 12,
           apr_base: 8,
           apr_reward: 4,
@@ -321,17 +321,17 @@ describe("useLandingPageData - APR Calculations", () => {
         contribution_to_portfolio: 0.25,
       },
       {
-        snapshot_id: "2",
-        chain: "polygon",
-        protocol: "quickswap",
-        protocol_name: "QuickSwap",
+        snapshot_id: '2',
+        chain: 'polygon',
+        protocol: 'quickswap',
+        protocol_name: 'QuickSwap',
         asset_usd_value: 5000,
-        pool_symbols: ["MATIC", "USDC"],
+        pool_symbols: ['MATIC', 'USDC'],
         final_apr: 8,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "quickswap",
-          apr_symbol: "MATIC-USDC",
+          apr_protocol: 'quickswap',
+          apr_symbol: 'MATIC-USDC',
           apr: 8,
           apr_base: 5,
           apr_reward: 3,
@@ -340,12 +340,12 @@ describe("useLandingPageData - APR Calculations", () => {
         contribution_to_portfolio: 0.25,
       },
       {
-        snapshot_id: "3",
-        chain: "ethereum",
-        protocol: "wallet",
-        protocol_name: "Wallet Holdings",
+        snapshot_id: '3',
+        chain: 'ethereum',
+        protocol: 'wallet',
+        protocol_name: 'Wallet Holdings',
         asset_usd_value: 10000,
-        pool_symbols: ["ETH"],
+        pool_symbols: ['ETH'],
         final_apr: 0,
         protocol_matched: false,
         apr_data: {
@@ -366,10 +366,10 @@ describe("useLandingPageData - APR Calculations", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -383,20 +383,20 @@ describe("useLandingPageData - APR Calculations", () => {
     expect(summary?.coverage_percentage).toBeCloseTo(50, 1);
   });
 
-  it("handles negative APR values", async () => {
+  it('handles negative APR values', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "uniswap",
-        protocol_name: "Uniswap V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'uniswap',
+        protocol_name: 'Uniswap V3',
         asset_usd_value: 10000,
-        pool_symbols: ["ETH", "USDC"],
+        pool_symbols: ['ETH', 'USDC'],
         final_apr: -5, // Impermanent loss
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "uniswap",
-          apr_symbol: "ETH-USDC",
+          apr_protocol: 'uniswap',
+          apr_symbol: 'ETH-USDC',
           apr: -5,
           apr_base: 3,
           apr_reward: -8,
@@ -412,10 +412,10 @@ describe("useLandingPageData - APR Calculations", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -426,20 +426,20 @@ describe("useLandingPageData - APR Calculations", () => {
     expect(result.current.data?.portfolio_summary.weighted_apr).toBe(-5);
   });
 
-  it("handles extreme APR values", async () => {
+  it('handles extreme APR values', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "scam-protocol",
-        protocol_name: "Too Good To Be True",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'scam-protocol',
+        protocol_name: 'Too Good To Be True',
         asset_usd_value: 1000,
-        pool_symbols: ["SCAM", "USDC"],
+        pool_symbols: ['SCAM', 'USDC'],
         final_apr: 10000, // Suspicious 10000%
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "scam-protocol",
-          apr_symbol: "SCAM-USDC",
+          apr_protocol: 'scam-protocol',
+          apr_symbol: 'SCAM-USDC',
           apr: 10000,
           apr_base: 10000,
           apr_reward: 0,
@@ -448,17 +448,17 @@ describe("useLandingPageData - APR Calculations", () => {
         contribution_to_portfolio: 0.1,
       },
       {
-        snapshot_id: "2",
-        chain: "ethereum",
-        protocol: "aave",
-        protocol_name: "Aave V3",
+        snapshot_id: '2',
+        chain: 'ethereum',
+        protocol: 'aave',
+        protocol_name: 'Aave V3',
         asset_usd_value: 9000,
-        pool_symbols: ["USDC"],
+        pool_symbols: ['USDC'],
         final_apr: 5,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "aave",
-          apr_symbol: "aUSDC",
+          apr_protocol: 'aave',
+          apr_symbol: 'aUSDC',
           apr: 5,
           apr_base: 5,
           apr_reward: 0,
@@ -474,10 +474,10 @@ describe("useLandingPageData - APR Calculations", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -491,14 +491,14 @@ describe("useLandingPageData - APR Calculations", () => {
   });
 });
 
-describe("useLandingPageData - Edge Cases", () => {
+describe('useLandingPageData - Edge Cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("handles empty portfolio", async () => {
+  it('handles empty portfolio', async () => {
     const mockResponse: LandingPageResponse = {
-      user_id: "test-user",
+      user_id: 'test-user',
       portfolio_summary: {
         total_asset_value_usd: 0,
         weighted_apr: 0,
@@ -511,10 +511,10 @@ describe("useLandingPageData - Edge Cases", () => {
     };
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -523,13 +523,13 @@ describe("useLandingPageData - Edge Cases", () => {
     });
 
     expect(result.current.data?.portfolio_summary.total_asset_value_usd).toBe(
-      0
+      0,
     );
     expect(result.current.data?.portfolio_summary.weighted_apr).toBe(0);
     expect(result.current.data?.pool_details).toEqual([]);
   });
 
-  it("handles missing userId", () => {
+  it('handles missing userId', () => {
     const { result } = renderHook(() => useLandingPageData(null), {
       wrapper: createWrapper(),
     });
@@ -540,7 +540,7 @@ describe("useLandingPageData - Edge Cases", () => {
     expect(analyticsService.getLandingPagePortfolioData).not.toHaveBeenCalled();
   });
 
-  it("handles undefined userId", () => {
+  it('handles undefined userId', () => {
     const { result } = renderHook(() => useLandingPageData(), {
       wrapper: createWrapper(),
     });
@@ -549,26 +549,26 @@ describe("useLandingPageData - Edge Cases", () => {
     expect(analyticsService.getLandingPagePortfolioData).not.toHaveBeenCalled();
   });
 
-  it("disables fetching while ETL is in progress", () => {
+  it('disables fetching while ETL is in progress', () => {
     const { QueryWrapper } = createQueryWrapper();
-    const { result } = renderHook(() => useLandingPageData("test-user", true), {
+    const { result } = renderHook(() => useLandingPageData('test-user', true), {
       wrapper: QueryWrapper,
     });
 
-    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
     expect(analyticsService.getLandingPagePortfolioData).not.toHaveBeenCalled();
   });
 
-  it("handles missing APR data in pools", async () => {
+  it('handles missing APR data in pools', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "unknown",
-        protocol_name: "Unknown Protocol",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'unknown',
+        protocol_name: 'Unknown Protocol',
         asset_usd_value: 10000,
-        pool_symbols: ["TOKEN1", "TOKEN2"],
+        pool_symbols: ['TOKEN1', 'TOKEN2'],
         final_apr: 0,
         protocol_matched: false,
         apr_data: {
@@ -589,10 +589,10 @@ describe("useLandingPageData - Edge Cases", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -604,28 +604,28 @@ describe("useLandingPageData - Edge Cases", () => {
     expect(result.current.data?.portfolio_summary.weighted_apr).toBe(0);
   });
 
-  it("handles malformed pool data", async () => {
+  it('handles malformed pool data', async () => {
     const malformedResponse: any = {
-      user_id: "test-user",
+      user_id: 'test-user',
       portfolio_summary: {
         total_asset_value_usd: 10000,
-        weighted_apr: "invalid", // Invalid type
+        weighted_apr: 'invalid', // Invalid type
         matched_pools: 1,
         total_pools: 1,
       },
       pool_details: [
         {
-          snapshot_id: "1",
+          snapshot_id: '1',
           // Missing required fields
         },
       ],
     };
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      malformedResponse
+      malformedResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -638,23 +638,23 @@ describe("useLandingPageData - Edge Cases", () => {
   });
 });
 
-describe("useLandingPageData - Loading and Errors", () => {
+describe('useLandingPageData - Loading and Errors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockReset();
   });
 
-  it("shows loading state while fetching", async () => {
+  it('shows loading state while fetching', async () => {
     const mockResponse = createMockLandingPageResponse(3);
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockImplementation(
       () =>
-        new Promise(resolve => {
+        new Promise((resolve) => {
           setTimeout(() => resolve(mockResponse), 100);
-        })
+        }),
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -668,14 +668,14 @@ describe("useLandingPageData - Loading and Errors", () => {
     expect(result.current.data).toBeDefined();
   });
 
-  it("handles API errors gracefully", async () => {
-    const errorMessage = "Failed to fetch portfolio data";
+  it('handles API errors gracefully', async () => {
+    const errorMessage = 'Failed to fetch portfolio data';
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockRejectedValue(
-      new Error(errorMessage)
+      new Error(errorMessage),
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user-error"), {
+    const { result } = renderHook(() => useLandingPageData('test-user-error'), {
       wrapper: createWrapper(),
     });
 
@@ -683,63 +683,63 @@ describe("useLandingPageData - Loading and Errors", () => {
       () => {
         expect(result.current.isError).toBe(true);
       },
-      { timeout: TEST_TIMEOUT }
+      { timeout: TEST_TIMEOUT },
     );
 
     expect(result.current.error).toBeDefined();
     expect(result.current.data).toBeUndefined();
   });
 
-  it("handles 404 user not found", async () => {
+  it('handles 404 user not found', async () => {
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockRejectedValue(
-      new Error("USER_NOT_FOUND")
+      new Error('USER_NOT_FOUND'),
     );
 
     const { result } = renderHook(
-      () => useLandingPageData("nonexistent-user"),
-      { wrapper: createWrapper() }
+      () => useLandingPageData('nonexistent-user'),
+      { wrapper: createWrapper() },
     );
 
     await waitFor(
       () => {
         expect(result.current.isError).toBe(true);
       },
-      { timeout: TEST_TIMEOUT }
+      { timeout: TEST_TIMEOUT },
     );
   });
 
-  it("handles network timeout", async () => {
+  it('handles network timeout', async () => {
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockRejectedValue(
-      new Error("Network timeout")
+      new Error('Network timeout'),
     );
 
     const { result } = renderHook(
-      () => useLandingPageData("test-user-timeout"),
-      { wrapper: createWrapper() }
+      () => useLandingPageData('test-user-timeout'),
+      { wrapper: createWrapper() },
     );
 
     await waitFor(
       () => {
         expect(result.current.isError).toBe(true);
       },
-      { timeout: TEST_TIMEOUT }
+      { timeout: TEST_TIMEOUT },
     );
   });
 });
 
-describe("useLandingPageData - Refetch Behavior", () => {
+describe('useLandingPageData - Refetch Behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("supports manual refetch", async () => {
+  it('supports manual refetch', async () => {
     const mockResponse = createMockLandingPageResponse(2);
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -755,12 +755,12 @@ describe("useLandingPageData - Refetch Behavior", () => {
 
     await waitFor(() => {
       expect(
-        analyticsService.getLandingPagePortfolioData
+        analyticsService.getLandingPagePortfolioData,
       ).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("updates data on userId change", async () => {
+  it('updates data on userId change', async () => {
     const mockResponse1 = createMockLandingPageResponse(2);
     const mockResponse2 = createMockLandingPageResponse(3);
 
@@ -772,8 +772,8 @@ describe("useLandingPageData - Refetch Behavior", () => {
       ({ userId }) => useLandingPageData(userId),
       {
         wrapper: createWrapper(),
-        initialProps: { userId: "user-1" },
-      }
+        initialProps: { userId: 'user-1' },
+      },
     );
 
     await waitFor(() => {
@@ -783,61 +783,61 @@ describe("useLandingPageData - Refetch Behavior", () => {
     expect(result.current.data?.pool_details).toHaveLength(2);
 
     // Change userId
-    rerender({ userId: "user-2" });
+    rerender({ userId: 'user-2' });
 
     await waitFor(() => {
       expect(result.current.data?.pool_details).toHaveLength(3);
     });
   });
 
-  it("uses the expected query key and refetch interval when enabled", async () => {
+  it('uses the expected query key and refetch interval when enabled', async () => {
     const mockResponse = createMockLandingPageResponse(2);
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
     const { QueryWrapper, queryClient } = createQueryWrapper();
 
-    renderHook(() => useLandingPageData("test-user"), {
+    renderHook(() => useLandingPageData('test-user'), {
       wrapper: QueryWrapper,
     });
 
     await waitFor(() => {
       expect(analyticsService.getLandingPagePortfolioData).toHaveBeenCalledWith(
-        "test-user"
+        'test-user',
       );
     });
 
     const query = queryClient.getQueryCache().find({
-      queryKey: queryKeys.portfolio.landingPage("test-user"),
+      queryKey: queryKeys.portfolio.landingPage('test-user'),
     });
 
     expect(query?.queryKey).toEqual(
-      queryKeys.portfolio.landingPage("test-user")
+      queryKeys.portfolio.landingPage('test-user'),
     );
     expect(query?.options.refetchInterval).toBe(5 * 60 * 1000);
   });
 });
 
-describe("useLandingPageData - Coverage Metrics", () => {
+describe('useLandingPageData - Coverage Metrics', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("calculates coverage percentage correctly", async () => {
+  it('calculates coverage percentage correctly', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "uniswap",
-        protocol_name: "Uniswap V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'uniswap',
+        protocol_name: 'Uniswap V3',
         asset_usd_value: 6000,
-        pool_symbols: ["ETH", "USDC"],
+        pool_symbols: ['ETH', 'USDC'],
         final_apr: 10,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "uniswap",
-          apr_symbol: "ETH-USDC",
+          apr_protocol: 'uniswap',
+          apr_symbol: 'ETH-USDC',
           apr: 10,
           apr_base: 6,
           apr_reward: 4,
@@ -846,12 +846,12 @@ describe("useLandingPageData - Coverage Metrics", () => {
         contribution_to_portfolio: 0.6,
       },
       {
-        snapshot_id: "2",
-        chain: "ethereum",
-        protocol: "wallet",
-        protocol_name: "Wallet Holdings",
+        snapshot_id: '2',
+        chain: 'ethereum',
+        protocol: 'wallet',
+        protocol_name: 'Wallet Holdings',
         asset_usd_value: 4000,
-        pool_symbols: ["ETH"],
+        pool_symbols: ['ETH'],
         final_apr: 0,
         protocol_matched: false,
         apr_data: {
@@ -872,10 +872,10 @@ describe("useLandingPageData - Coverage Metrics", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -889,20 +889,20 @@ describe("useLandingPageData - Coverage Metrics", () => {
     expect(summary?.coverage_percentage).toBeCloseTo(60, 1);
   });
 
-  it("handles 100% coverage", async () => {
+  it('handles 100% coverage', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "aave",
-        protocol_name: "Aave V3",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'aave',
+        protocol_name: 'Aave V3',
         asset_usd_value: 10000,
-        pool_symbols: ["USDC"],
+        pool_symbols: ['USDC'],
         final_apr: 5,
         protocol_matched: true,
         apr_data: {
-          apr_protocol: "aave",
-          apr_symbol: "aUSDC",
+          apr_protocol: 'aave',
+          apr_symbol: 'aUSDC',
           apr: 5,
           apr_base: 5,
           apr_reward: 0,
@@ -918,10 +918,10 @@ describe("useLandingPageData - Coverage Metrics", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 
@@ -930,19 +930,19 @@ describe("useLandingPageData - Coverage Metrics", () => {
     });
 
     expect(result.current.data?.portfolio_summary.coverage_percentage).toBe(
-      100
+      100,
     );
   });
 
-  it("handles 0% coverage", async () => {
+  it('handles 0% coverage', async () => {
     const mockPools: PoolDetail[] = [
       {
-        snapshot_id: "1",
-        chain: "ethereum",
-        protocol: "wallet",
-        protocol_name: "Wallet Holdings",
+        snapshot_id: '1',
+        chain: 'ethereum',
+        protocol: 'wallet',
+        protocol_name: 'Wallet Holdings',
         asset_usd_value: 10000,
-        pool_symbols: ["ETH"],
+        pool_symbols: ['ETH'],
         final_apr: 0,
         protocol_matched: false,
         apr_data: {
@@ -963,10 +963,10 @@ describe("useLandingPageData - Coverage Metrics", () => {
     });
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockResolvedValue(
-      mockResponse
+      mockResponse,
     );
 
-    const { result } = renderHook(() => useLandingPageData("test-user"), {
+    const { result } = renderHook(() => useLandingPageData('test-user'), {
       wrapper: createWrapper(),
     });
 

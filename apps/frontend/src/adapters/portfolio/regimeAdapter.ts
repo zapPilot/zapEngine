@@ -1,15 +1,15 @@
-import { toInvestCompositionTarget } from "@/components/wallet/regime/investAllocation";
+import { toInvestCompositionTarget } from '@/components/wallet/regime/investAllocation';
 import {
   getRegimeAllocation,
   type RegimeId,
   regimes,
-} from "@/components/wallet/regime/regimeData";
-import { getActiveStrategy } from "@/lib/domain/strategySelector";
+} from '@/components/wallet/regime/regimeData';
+import { getActiveStrategy } from '@/lib/domain/strategySelector';
 import type {
   DirectionType,
   DurationInfo,
-} from "@/schemas/api/regimeHistorySchemas";
-import type { RegimeHistoryData } from "@/services";
+} from '@/schemas/api/regimeHistorySchemas';
+import type { RegimeHistoryData } from '@/services';
 
 export interface TargetAllocation {
   crypto: number;
@@ -24,7 +24,7 @@ function createFallbackTargetAllocation(): TargetAllocation {
  * Gets target allocation for a regime
  */
 export function getTargetAllocation(regimeId: RegimeId): TargetAllocation {
-  const regime = regimes.find(r => r.id === regimeId);
+  const regime = regimes.find((r) => r.id === regimeId);
 
   if (!regime) {
     return createFallbackTargetAllocation();
@@ -44,12 +44,12 @@ export interface RegimeStrategyInfo {
  * Derives strategy information from regime history
  */
 export function getRegimeStrategyInfo(
-  regimeHistoryData: RegimeHistoryData | null
+  regimeHistoryData: RegimeHistoryData | null,
 ): RegimeStrategyInfo {
   if (!regimeHistoryData) {
     return {
       previousRegime: null,
-      strategyDirection: "default",
+      strategyDirection: 'default',
       regimeDuration: null,
     };
   }
@@ -59,7 +59,7 @@ export function getRegimeStrategyInfo(
     strategyDirection: getActiveStrategy(
       regimeHistoryData.direction,
       regimeHistoryData.currentRegime,
-      regimeHistoryData.previousRegime
+      regimeHistoryData.previousRegime,
     ),
     regimeDuration: regimeHistoryData.duration,
   };

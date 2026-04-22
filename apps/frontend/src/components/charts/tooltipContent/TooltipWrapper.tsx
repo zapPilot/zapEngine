@@ -5,15 +5,15 @@
 interface TooltipWrapperProps {
   date: string;
   children: React.ReactNode;
-  spacing?: "normal" | "tight";
+  spacing?: 'normal' | 'tight';
 }
 
 export function TooltipWrapper({
   date,
   children,
-  spacing = "normal",
+  spacing = 'normal',
 }: TooltipWrapperProps) {
-  const spacingClass = spacing === "tight" ? "space-y-1" : "space-y-1.5";
+  const spacingClass = spacing === 'tight' ? 'space-y-1' : 'space-y-1.5';
 
   return (
     <>

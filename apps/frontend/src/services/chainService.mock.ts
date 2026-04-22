@@ -10,29 +10,29 @@
  * @future Replace with real chain service when backend is ready
  */
 
-import { delay } from "@/lib/http/retry";
-import type { ChainData } from "@/types/domain/transaction";
+import { delay } from '@/lib/http/retry';
+import type { ChainData } from '@/types/domain/transaction';
 
 const MOCK_CHAIN_DATA: ChainData[] = [
   {
     chainId: 1,
-    name: "Ethereum",
-    symbol: "ETH",
-    iconUrl: "/chains/eth.svg",
+    name: 'Ethereum',
+    symbol: 'ETH',
+    iconUrl: '/chains/eth.svg',
     isActive: true,
   },
   {
     chainId: 137,
-    name: "Polygon",
-    symbol: "MATIC",
-    iconUrl: "/chains/polygon.svg",
+    name: 'Polygon',
+    symbol: 'MATIC',
+    iconUrl: '/chains/polygon.svg',
     isActive: true,
   },
   {
     chainId: 42161,
-    name: "Arbitrum",
-    symbol: "ARB",
-    iconUrl: "/chains/arbitrum.svg",
+    name: 'Arbitrum',
+    symbol: 'ARB',
+    iconUrl: '/chains/arbitrum.svg',
     isActive: false,
   },
 ];
@@ -43,8 +43,8 @@ export async function getSupportedChains(): Promise<ChainData[]> {
 }
 
 export async function getChainById(
-  chainId: number
+  chainId: number,
 ): Promise<ChainData | undefined> {
   await delay(120);
-  return MOCK_CHAIN_DATA.find(chain => chain.chainId === chainId);
+  return MOCK_CHAIN_DATA.find((chain) => chain.chainId === chainId);
 }

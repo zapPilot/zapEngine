@@ -2,18 +2,18 @@ import {
   type DefaultOptions,
   QueryClient,
   QueryClientProvider,
-} from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { afterEach, beforeEach, vi } from "vitest";
+} from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, vi } from 'vitest';
 
-import { DEFAULT_QUERY_CONFIG } from "./test-constants";
+import { DEFAULT_QUERY_CONFIG } from './test-constants';
 
 export interface TestQueryClientOptions {
   defaultOptions?: DefaultOptions;
 }
 
 export function createTestQueryClient(
-  options: TestQueryClientOptions = {}
+  options: TestQueryClientOptions = {},
 ): QueryClient {
   const defaultQueryOptions = {
     queries: {
@@ -31,7 +31,7 @@ export function createTestQueryClient(
 }
 
 export function createQueryWrapper(
-  client: QueryClient = createTestQueryClient()
+  client: QueryClient = createTestQueryClient(),
 ) {
   function QueryWrapper({ children }: { children: ReactNode }) {
     return (
@@ -39,7 +39,7 @@ export function createQueryWrapper(
     );
   }
 
-  QueryWrapper.displayName = "TestQueryWrapper";
+  QueryWrapper.displayName = 'TestQueryWrapper';
 
   return { QueryWrapper, queryClient: client };
 }

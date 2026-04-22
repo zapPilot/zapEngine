@@ -18,7 +18,7 @@ See [CLAUDE.md](./CLAUDE.md) for the full command list and gotchas.
 Grouped under `/api/v2`:
 
 - `portfolio/{user_id}/landing` — unified landing-page payload
-- `analytics/{user_id}/trend` · `risk` · `risk/summary` · `yield/summary` · `dashboard`
+- `analytics/{user_id}/trend` · `yield/daily` · `dashboard`
 - `market/sentiment` · `sentiment/history` · `regime/history` · `sentiment/health`
 
 Interactive docs at `/docs`.

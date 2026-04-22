@@ -8,26 +8,26 @@
  * a component that renders the fallback directly, exercising those lines.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-import { WalletPortfolioPresenter } from "@/components/wallet/portfolio/WalletPortfolioPresenter";
+import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
 
-import { MOCK_DATA } from "../../../../fixtures/mockPortfolioData";
-import { render, screen } from "../../../../test-utils";
+import { MOCK_DATA } from '../../../../fixtures/mockPortfolioData';
+import { render, screen } from '../../../../test-utils';
 
 // ── Make lazyImport render the fallback instead of the actual lazy component ──
 // This is hoisted before WalletPortfolioPresenter loads, so all LazyXxx consts
 // inside the component receive this mock implementation.
-vi.mock("@/lib/lazy/lazyImport", () => ({
+vi.mock('@/lib/lazy/lazyImport', () => ({
   lazyImport: (
     _loader: unknown,
     select: ((m: Record<string, unknown>) => unknown) | unknown,
-    options?: { fallback?: React.ReactNode }
+    options?: { fallback?: React.ReactNode },
   ) => {
     // Call the selectExport function with a dummy module so V8 counts it as covered.
     // The loader (async import) is intentionally not invoked here — dynamic module
     // resolution chains are tested via E2E; see v8 ignore comments in the component.
-    if (typeof select === "function") {
+    if (typeof select === 'function') {
       (select as (m: Record<string, unknown>) => unknown)({});
     }
     return function FallbackComponent() {
@@ -38,20 +38,20 @@ vi.mock("@/lib/lazy/lazyImport", () => ({
 
 // ── Minimal dependency mocks ──────────────────────────────────────────────────
 
-vi.mock("@/lib/routing", () => ({
+vi.mock('@/lib/routing', () => ({
   useAppRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useAppSearchParams: () => new URLSearchParams("tab=invest"),
-  useAppPathname: () => "/bundle",
+  useAppSearchParams: () => new URLSearchParams('tab=invest'),
+  useAppPathname: () => '/bundle',
 }));
 
-vi.mock("@/providers/ToastProvider", () => ({
+vi.mock('@/providers/ToastProvider', () => ({
   useToast: () => ({ showToast: vi.fn() }),
   ToastProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
 }));
 
-vi.mock("@/providers/WalletProvider", () => ({
+vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     connectedWallets: [],
     activeWallet: null,
@@ -65,15 +65,15 @@ vi.mock("@/providers/WalletProvider", () => ({
   ),
 }));
 
-vi.mock("@/components/wallet/portfolio/components/navigation", () => ({
+vi.mock('@/components/wallet/portfolio/components/navigation', () => ({
   WalletNavigation: () => <nav data-testid="wallet-navigation" />,
 }));
 
-vi.mock("@/components/Footer/Footer", () => ({
+vi.mock('@/components/Footer/Footer', () => ({
   Footer: () => <footer />,
 }));
 
-vi.mock("@/hooks/queries/analytics/useAllocationWeights", () => ({
+vi.mock('@/hooks/queries/analytics/useAllocationWeights', () => ({
   useAllocationWeights: vi.fn().mockReturnValue({
     data: null,
     isLoading: false,
@@ -81,9 +81,9 @@ vi.mock("@/hooks/queries/analytics/useAllocationWeights", () => ({
   }),
 }));
 
-vi.mock("framer-motion", async () => {
+vi.mock('framer-motion', async () => {
   const { setupFramerMotionMocks } =
-    await import("../../../../utils/framerMotionMocks");
+    await import('../../../../utils/framerMotionMocks');
   return setupFramerMotionMocks();
 });
 
@@ -91,7 +91,7 @@ vi.mock("framer-motion", async () => {
 
 const DEFAULT_ETL_STATE = {
   jobId: null,
-  status: "idle" as const,
+  status: 'idle' as const,
   errorMessage: undefined,
   isLoading: false,
   isInProgress: false,
@@ -143,8 +143,8 @@ function createMockSections() {
   };
 }
 
-describe("WalletPortfolioPresenter - PortfolioTabLoadingState", () => {
-  it("renders the tab loading spinner as the lazy-import fallback", () => {
+describe('WalletPortfolioPresenter - PortfolioTabLoadingState', () => {
+  it('renders the tab loading spinner as the lazy-import fallback', () => {
     // With tab=invest the component renders LazyInvestView, whose fallback is
     // <PortfolioTabLoadingState />. Since lazyImport is mocked to return the
     // fallback directly, the function body of PortfolioTabLoadingState executes.
@@ -153,10 +153,10 @@ describe("WalletPortfolioPresenter - PortfolioTabLoadingState", () => {
         data={MOCK_DATA}
         sections={createMockSections()}
         etlState={DEFAULT_ETL_STATE}
-      />
+      />,
     );
 
-    expect(screen.getByTestId("portfolio-tab-loading")).toBeInTheDocument();
-    expect(screen.getByText("Loading view...")).toBeInTheDocument();
+    expect(screen.getByTestId('portfolio-tab-loading')).toBeInTheDocument();
+    expect(screen.getByText('Loading view...')).toBeInTheDocument();
   });
 });

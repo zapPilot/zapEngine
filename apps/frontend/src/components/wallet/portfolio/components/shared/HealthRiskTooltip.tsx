@@ -1,7 +1,7 @@
-import { RISK_DISPLAY_CONFIG, RiskLevel } from "@/constants/riskThresholds";
-import type { RiskMetrics } from "@/services";
+import { RISK_DISPLAY_CONFIG, RiskLevel } from '@/constants/riskThresholds';
+import type { RiskMetrics } from '@/services';
 
-import { FinancialMetricRow } from "./FinancialMetricRow";
+import { FinancialMetricRow } from './FinancialMetricRow';
 
 interface HealthRiskTooltipProps {
   /** Risk metrics from the analytics service */
@@ -70,10 +70,10 @@ export function HealthRiskTooltip({
         return `Low safety buffer. Consider adding collateral to reduce risk.`;
       case RiskLevel.CRITICAL:
         return isOwnBundle
-          ? "Liquidation risk high. Add collateral or repay debt immediately."
-          : "This position is at high risk of liquidation.";
+          ? 'Liquidation risk high. Add collateral or repay debt immediately.'
+          : 'This position is at high risk of liquidation.';
       default:
-        return "Monitor your position health regularly.";
+        return 'Monitor your position health regularly.';
     }
   };
 
@@ -111,7 +111,7 @@ export function HealthRiskTooltip({
       <div className="mb-3 space-y-1">
         <div className="text-xs text-gray-400">Liquidation Buffer</div>
         <div className="text-sm font-medium text-white">
-          {buffer >= 0 ? "+" : ""}
+          {buffer >= 0 ? '+' : ''}
           {buffer.toFixed(2)} above threshold (
           {liquidation_threshold.toFixed(2)})
         </div>
@@ -156,7 +156,7 @@ export function HealthRiskTooltip({
       {/* Action Button (if handler provided) */}
       {onViewDetails && isOwnBundle && (
         <button
-          onClick={e => {
+          onClick={(e) => {
             e.stopPropagation();
             onViewDetails();
           }}

@@ -1,6 +1,6 @@
-import dayjs, { type Dayjs } from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import utc from "dayjs/plugin/utc";
+import dayjs, { type Dayjs } from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import utc from 'dayjs/plugin/utc';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -24,9 +24,9 @@ export function parseUtcDate(dateString: string): Dayjs | null {
 
 export function normalizeFormatOptions<T extends BaseFormatOptions>(
   optionsOrIsHidden: T | boolean,
-  defaults: T
+  defaults: T,
 ): T {
-  return typeof optionsOrIsHidden === "boolean"
+  return typeof optionsOrIsHidden === 'boolean'
     ? { ...defaults, isHidden: optionsOrIsHidden }
     : { ...defaults, ...optionsOrIsHidden };
 }
