@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: [{ find: /^@\/(.*)$/, replacement: path.resolve(__dirname, 'src/$1') }],
+    alias: [{ find: /^@\/(.*)$/, replacement: path.resolve(import.meta.dirname, 'src/$1') }],
   },
   test: {
     globals: true,
