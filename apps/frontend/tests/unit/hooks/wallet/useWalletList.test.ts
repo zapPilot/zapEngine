@@ -6,12 +6,11 @@ import type { WalletData } from "@/lib/validation/walletUtils";
 
 import { act, renderHook, waitFor } from "../../../test-utils";
 
-vi.mock("@/components/WalletManager/services/WalletService", () => ({
+vi.mock("@/services", () => ({
   loadWallets: vi.fn(),
 }));
 
-const { loadWallets: mockLoadWallets } =
-  await import("@/components/WalletManager/services/WalletService");
+const { loadWallets: mockLoadWallets } = await import("@/services");
 
 const MOCK_WALLETS = [
   { address: "0xABC123", label: "Main", isActive: false },

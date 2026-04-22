@@ -2,11 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EditWalletModal } from "@/components/WalletManager/components/EditWalletModal";
-import type {
-  EditingWallet,
-  WalletOperations,
-} from "@/components/WalletManager/types/wallet.types";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import type { EditingWallet, WalletOperations } from "@/types";
 
 // Mock UI components
 vi.mock("@/components/ui", () => ({

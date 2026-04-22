@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WalletManager } from "../../../src/components/WalletManager";
-import * as walletService from "../../../src/components/WalletManager/services/WalletService";
+import * as walletService from "../../../src/services";
 import { render } from "../../test-utils";
 
 vi.mock("../../../src/providers/WalletProvider", () => {
@@ -130,21 +130,23 @@ vi.mock("../../../src/components/ui/LoadingSpinner", () => ({
 }));
 
 // Mock service layer
-vi.mock("../../../src/components/WalletManager/services/WalletService", () => {
+vi.mock("../../../src/services", () => {
   const loadWallets = vi.fn();
   const addWallet = vi.fn();
   const removeWallet = vi.fn();
-  const updateWalletLabel = vi.fn();
+  const updateManagedWalletLabel = vi.fn();
   const updateUserEmailSubscription = vi.fn();
   const unsubscribeUserEmail = vi.fn();
+  const deleteUser = vi.fn();
 
   return {
     loadWallets,
     addWallet,
     removeWallet,
-    updateWalletLabel,
+    updateManagedWalletLabel,
     updateUserEmailSubscription,
     unsubscribeUserEmail,
+    deleteUser,
   };
 });
 

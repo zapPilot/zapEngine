@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { WalletActionMenu } from "@/components/WalletManager/components/WalletActionMenu";
-import type { WalletOperations } from "@/components/WalletManager/types/wallet.types";
+import type { WalletOperations } from "@/types";
 
 import {
   DEFAULT_WALLET_OPERATIONS,

@@ -1,15 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  addWallet,
-  removeWallet,
-} from "@/components/WalletManager/services/WalletService";
-import type {
-  NewWallet,
-  WalletOperations,
-  WalletOperationStateSetter,
-} from "@/components/WalletManager/types/wallet.types";
-import { validateNewWallet } from "@/components/WalletManager/utils/validation";
 import { useUser } from "@/contexts/UserContext";
 import { invalidateAndRefetch } from "@/hooks/utils/useQueryInvalidation";
 import { useWalletMutations } from "@/hooks/wallet/useWalletMutations";
@@ -17,15 +7,22 @@ import {
   handleWalletError,
   type WalletData,
 } from "@/lib/validation/walletUtils";
+import { addWallet, removeWallet } from "@/services";
+import type {
+  NewWallet,
+  WalletOperations,
+  WalletOperationStateSetter,
+} from "@/types";
+import { validateNewWallet } from "@/utils";
 
 import { act, renderHook, waitFor } from "../../../test-utils";
 
-vi.mock("@/components/WalletManager/services/WalletService", () => ({
+vi.mock("@/services", () => ({
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
 }));
 
-vi.mock("@/components/WalletManager/utils/validation", () => ({
+vi.mock("@/utils", () => ({
   validateNewWallet: vi.fn(),
 }));
 

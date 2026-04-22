@@ -15,14 +15,9 @@ import {
 } from "@/lib/validation/walletUtils";
 import { useToast } from "@/providers/ToastProvider";
 import { useWalletProvider } from "@/providers/WalletProvider";
+import type { EditingWallet, NewWallet, WalletOperations } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { formatAddress } from "@/utils/formatters";
-
-import type {
-  EditingWallet,
-  NewWallet,
-  WalletOperations,
-} from "../types/wallet.types";
 
 const EMPTY_CONNECTED_WALLETS: WalletData[] = [];
 

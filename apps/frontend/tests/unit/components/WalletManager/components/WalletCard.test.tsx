@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { WalletCard } from "@/components/WalletManager/components/WalletCard";
-import type { WalletOperations } from "@/components/WalletManager/types/wallet.types";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import type { WalletOperations } from "@/types";
 
 vi.mock("framer-motion", async () => {
   const { setupFramerMotionMocks } =

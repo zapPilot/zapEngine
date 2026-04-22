@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { EmailSubscription } from "@/components/WalletManager/components/EmailSubscription";
-import type { OperationState } from "@/components/WalletManager/types/wallet.types";
+import type { OperationState } from "@/types";
 
 describe("EmailSubscription", () => {
   const defaultSubscriptionOperation: OperationState = {

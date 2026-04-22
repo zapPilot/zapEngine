@@ -1,8 +1,7 @@
 import type { ReactElement } from "react";
 
 import { GradientButton, LoadingSpinner } from "@/components/ui";
-
-import type { OperationState } from "../types/wallet.types";
+import type { OperationState } from "@/types";
 
 interface EmailSubscriptionProps {
   email: string;

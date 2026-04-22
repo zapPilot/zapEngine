@@ -8,6 +8,7 @@ import { ModalBackdrop } from "@/components/ui/modal";
 import { GRADIENTS } from "@/constants/design-system";
 import { useUser } from "@/contexts/UserContext";
 import { useAsyncRetryButton } from "@/hooks/ui/useAsyncRetryButton";
+import type { WalletManagerProps } from "@/types";
 import { logger } from "@/utils";
 
 import { DeleteAccountButton } from "./components/DeleteAccountButton";
@@ -18,7 +19,6 @@ import { WalletListProvider } from "./contexts/WalletListContext";
 import { useDropdownMenu } from "./hooks/useDropdownMenu";
 import { useEmailSubscription } from "./hooks/useEmailSubscription";
 import { useWalletOperations } from "./hooks/useWalletOperations";
-import type { WalletManagerProps } from "./types/wallet.types";
 import {
   getWalletDescription,
   getWalletManagerIdentity,

@@ -5,12 +5,9 @@ import { memo } from "react";
 import { LoadingSpinner } from "@/components/ui";
 import { fadeInUp, SMOOTH_TRANSITION } from "@/lib/ui/animationVariants";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import type { WalletMenuHandlers, WalletOperations } from "@/types";
 import { formatAddress } from "@/utils/formatters";
 
-import type {
-  WalletMenuHandlers,
-  WalletOperations,
-} from "../types/wallet.types";
 import { WalletActionMenu } from "./WalletActionMenu";
 
 interface WalletCardProps extends WalletMenuHandlers {

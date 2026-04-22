@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { NewWallet } from "@/components/WalletManager/types/wallet.types";
-import {
-  validateEmail,
-  validateNewWallet,
-} from "@/components/WalletManager/utils/validation";
+import type { NewWallet } from "@/types";
+import { validateEmail, validateNewWallet } from "@/utils";
 
 // Mock the wallet address validation utility
 vi.mock("@/lib/validation/walletUtils", () => ({

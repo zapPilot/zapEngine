@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import * as walletService from "@/components/WalletManager/services/WalletService";
 import type { UserCryptoWallet } from "@/schemas/api/accountSchemas";
 import * as accountService from "@/services/accountService";
+import * as walletService from "@/services/walletService";
 
 // Mock account service functions
 vi.mock("@/services/accountService", () => ({
@@ -272,13 +272,13 @@ describe("WalletService", () => {
     });
   });
 
-  describe("updateWalletLabel", () => {
+  describe("updateManagedWalletLabel", () => {
     it("should update wallet label successfully", async () => {
       vi.mocked(accountService.updateWalletLabel).mockResolvedValue({
         message: "Label updated successfully",
       });
 
-      const result = await walletService.updateWalletLabel(
+      const result = await walletService.updateManagedWalletLabel(
         "user123",
         "0x1234567890123456789012345678901234567890",
         "Updated Label"
@@ -298,7 +298,7 @@ describe("WalletService", () => {
         message: "Label updated successfully",
       });
 
-      const result = await walletService.updateWalletLabel(
+      const result = await walletService.updateManagedWalletLabel(
         "user123",
         "0x1234567890123456789012345678901234567890",
         ""
@@ -318,7 +318,7 @@ describe("WalletService", () => {
         notFoundError
       );
 
-      const result = await walletService.updateWalletLabel(
+      const result = await walletService.updateManagedWalletLabel(
         "user123",
         "0xnonexistent",
         "New Label"
@@ -336,7 +336,7 @@ describe("WalletService", () => {
         validationError
       );
 
-      const result = await walletService.updateWalletLabel(
+      const result = await walletService.updateManagedWalletLabel(
         "user123",
         "0x1234567890123456789012345678901234567890",
         "a"
@@ -472,9 +472,9 @@ describe("WalletService", () => {
       expect(removeResult.success).toBe(false);
       expect(removeResult.error).toBe("Test error");
 
-      // Test updateWalletLabel error handling
+      // Test updateManagedWalletLabel error handling
       vi.mocked(accountService.updateWalletLabel).mockRejectedValue(testError);
-      const updateResult = await walletService.updateWalletLabel(
+      const updateResult = await walletService.updateManagedWalletLabel(
         "user123",
         "0x1234567890123456789012345678901234567890",
         "New Label"

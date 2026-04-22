@@ -1,12 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import * as WalletService from "@/components/WalletManager/services/WalletService";
 import { useWalletLabels } from "@/hooks/wallet/useWalletLabels";
 import * as validation from "@/lib/validation/walletUtils";
+import * as WalletService from "@/services";
 
 // Mock dependencies
-vi.mock("@/components/WalletManager/services/WalletService");
+vi.mock("@/services");
 vi.mock("@/lib/validation/walletUtils");
 
 describe("useWalletLabels", () => {
@@ -56,7 +56,7 @@ describe("useWalletLabels", () => {
 
   it("uses UPDATE_LABEL_FAILED_ERROR when response.error is undefined", async () => {
     // Exercises the `response.error ?? UPDATE_LABEL_FAILED_ERROR` false branch
-    vi.spyOn(WalletService, "updateWalletLabel").mockResolvedValue({
+    vi.spyOn(WalletService, "updateManagedWalletLabel").mockResolvedValue({
       success: false,
       // no error field → response.error is undefined → fallback message used
     });
@@ -83,7 +83,7 @@ describe("useWalletLabels", () => {
   });
 
   it("should handle successful label update", async () => {
-    vi.spyOn(WalletService, "updateWalletLabel").mockResolvedValue({
+    vi.spyOn(WalletService, "updateManagedWalletLabel").mockResolvedValue({
       success: true,
       message: "Updated",
     });
@@ -110,7 +110,7 @@ describe("useWalletLabels", () => {
   });
 
   it("should rollback on API failure", async () => {
-    vi.spyOn(WalletService, "updateWalletLabel").mockResolvedValue({
+    vi.spyOn(WalletService, "updateManagedWalletLabel").mockResolvedValue({
       success: false,
       error: "Failed",
     });
@@ -128,7 +128,7 @@ describe("useWalletLabels", () => {
   });
 
   it("should rollback on exception", async () => {
-    vi.spyOn(WalletService, "updateWalletLabel").mockRejectedValue(
+    vi.spyOn(WalletService, "updateManagedWalletLabel").mockRejectedValue(
       new Error("Crash")
     );
     vi.spyOn(validation, "handleWalletError").mockReturnValue("Crash error");

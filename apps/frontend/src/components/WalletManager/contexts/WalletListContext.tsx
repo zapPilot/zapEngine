@@ -4,7 +4,7 @@ import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from "../types/wallet.types";
+} from "@/types";
 
 /**
  * Context for WalletList component to reduce prop drilling

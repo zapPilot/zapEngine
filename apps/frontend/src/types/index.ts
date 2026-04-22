@@ -22,6 +22,7 @@ export * from "./portfolio";
 export * from "./portfolio-progressive";
 export * from "./strategy";
 export * from "./strategyAdmin";
+export * from "./wallet";
 
 // ============================================================================
 // DOMAIN TYPES

@@ -33,6 +33,16 @@ export {
   updateWalletLabel,
 } from "./accountService";
 
+// Wallet Management
+export {
+  addWallet,
+  loadWallets,
+  removeWallet,
+  unsubscribeUserEmail,
+  updateManagedWalletLabel,
+  updateUserEmailSubscription,
+} from "./walletService";
+
 // Analytics & Portfolio Data
 export {
   type BorrowingPosition,

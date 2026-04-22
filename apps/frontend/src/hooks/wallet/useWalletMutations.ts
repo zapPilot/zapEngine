@@ -1,16 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type Dispatch, type SetStateAction, useCallback } from "react";
 
-import {
-  addWallet as addWalletToBundle,
-  removeWallet as removeWalletFromBundle,
-} from "@/components/WalletManager/services/WalletService";
-import type {
-  NewWallet,
-  WalletOperations,
-  WalletOperationStateSetter,
-} from "@/components/WalletManager/types/wallet.types";
-import { validateNewWallet } from "@/components/WalletManager/utils/validation";
 import { useUser } from "@/contexts/UserContext";
 import { invalidateAndRefetch } from "@/hooks/utils/useQueryInvalidation";
 import { queryKeys } from "@/lib/state/queryClient";
@@ -18,6 +8,16 @@ import {
   handleWalletError,
   type WalletData,
 } from "@/lib/validation/walletUtils";
+import {
+  addWallet as addWalletToBundle,
+  removeWallet as removeWalletFromBundle,
+} from "@/services";
+import type {
+  NewWallet,
+  WalletOperations,
+  WalletOperationStateSetter,
+} from "@/types";
+import { validateNewWallet } from "@/utils";
 
 interface UseWalletMutationsParams {
   userId: string;

@@ -6,9 +6,9 @@ import {
   useState,
 } from "react";
 
-import { loadWallets as fetchWallets } from "@/components/WalletManager/services/WalletService";
 import { TIMINGS } from "@/constants/timings";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import { loadWallets as fetchWallets } from "@/services";
 
 interface ConnectedWallet {
   address: string;

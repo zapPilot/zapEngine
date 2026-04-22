@@ -4,8 +4,7 @@ import { type ChangeEvent, type ReactElement } from "react";
 
 import { GradientButton, LoadingSpinner } from "@/components/ui";
 import { ANIMATIONS, GRADIENTS } from "@/constants/design-system";
-
-import type { NewWallet, WalletOperations } from "../types/wallet.types";
+import type { NewWallet, WalletOperations } from "@/types";
 
 interface AddWalletFormProps {
   isAdding: boolean;

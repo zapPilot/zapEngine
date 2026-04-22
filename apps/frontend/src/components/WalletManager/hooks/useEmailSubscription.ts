@@ -10,13 +10,9 @@ import { useUser } from "@/contexts/UserContext";
 import { useOperationStateHandlers } from "@/hooks/utils/useOperationState";
 import { handleWalletError } from "@/lib/validation/walletUtils";
 import { useToast } from "@/providers/ToastProvider";
-
-import {
-  unsubscribeUserEmail,
-  updateUserEmailSubscription,
-} from "../services/WalletService";
-import type { OperationState } from "../types/wallet.types";
-import { validateEmail } from "../utils/validation";
+import { unsubscribeUserEmail, updateUserEmailSubscription } from "@/services";
+import type { OperationState } from "@/types";
+import { validateEmail } from "@/utils";
 
 interface UseEmailSubscriptionParams {
   viewingUserId: string;

@@ -2,15 +2,15 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWalletOperations } from "@/components/WalletManager/hooks/useWalletOperations";
+import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/providers/ToastProvider";
+import { useWalletProvider } from "@/providers/WalletProvider";
 import {
   addWallet as addWalletToBundle,
   loadWallets as fetchWallets,
   removeWallet as removeWalletFromBundle,
-  updateWalletLabel,
-} from "@/components/WalletManager/services/WalletService";
-import { useUser } from "@/contexts/UserContext";
-import { useToast } from "@/providers/ToastProvider";
-import { useWalletProvider } from "@/providers/WalletProvider";
+  updateManagedWalletLabel,
+} from "@/services";
 
 // Mock dependencies
 vi.mock("@/contexts/UserContext", () => ({
@@ -35,11 +35,12 @@ vi.mock("@tanstack/react-query", async () => {
   };
 });
 
-vi.mock("@/components/WalletManager/services/WalletService", () => ({
+vi.mock("@/services", () => ({
   loadWallets: vi.fn(),
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
-  updateWalletLabel: vi.fn(),
+  updateManagedWalletLabel: vi.fn(),
+  deleteUser: vi.fn(),
 }));
 
 vi.mock("@/hooks/utils/useQueryInvalidation", () => ({
@@ -198,7 +199,7 @@ describe("useWalletOperations", () => {
   it("handleEditLabel updates label optimistically and calls API", async () => {
     const mockWallets = [{ id: "w1", address: "0x123", label: "Old" }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
-    vi.mocked(updateWalletLabel).mockResolvedValue({ success: true });
+    vi.mocked(updateManagedWalletLabel).mockResolvedValue({ success: true });
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));
 
@@ -212,13 +213,17 @@ describe("useWalletOperations", () => {
 
     // Should update optimistically
     expect(result.current.wallets[0].label).toBe("New");
-    expect(updateWalletLabel).toHaveBeenCalledWith("user-123", "0x123", "New");
+    expect(updateManagedWalletLabel).toHaveBeenCalledWith(
+      "user-123",
+      "0x123",
+      "New"
+    );
   });
 
   it("handleEditLabel reverts optimistic update on API failure", async () => {
     const mockWallets = [{ id: "w1", address: "0x123", label: "Old" }];
     vi.mocked(fetchWallets).mockResolvedValue(mockWallets);
-    vi.mocked(updateWalletLabel).mockResolvedValue({
+    vi.mocked(updateManagedWalletLabel).mockResolvedValue({
       success: false,
       error: "API Error",
     });

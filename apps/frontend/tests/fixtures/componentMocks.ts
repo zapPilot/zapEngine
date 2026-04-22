@@ -5,11 +5,8 @@
  * objects across AddWalletForm, WalletList, and WalletActionMenu tests.
  */
 
-import type {
-  NewWallet,
-  WalletOperations,
-} from "@/components/WalletManager/types/wallet.types";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import type { NewWallet, WalletOperations } from "@/types";
 
 /** Idle operations state with no loading or errors */
 export const DEFAULT_WALLET_OPERATIONS: WalletOperations = {

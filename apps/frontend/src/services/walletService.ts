@@ -3,6 +3,7 @@ import {
   transformWalletData,
   type WalletData,
 } from "@/lib/validation/walletUtils";
+
 import {
   addWalletToBundle,
   getUserWallets,
@@ -10,7 +11,7 @@ import {
   removeWalletFromBundle,
   updateUserEmail,
   updateWalletLabel as updateWalletLabelRequest,
-} from "@/services";
+} from "./accountService";
 
 /**
  * Load wallets for a specific user and normalise the API response.
@@ -53,7 +54,7 @@ export async function removeWallet(
 /**
  * Update a wallet label within the user's bundle.
  */
-export async function updateWalletLabel(
+export async function updateManagedWalletLabel(
   userId: string,
   walletAddress: string,
   newLabel: string

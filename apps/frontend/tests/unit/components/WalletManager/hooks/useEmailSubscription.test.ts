@@ -2,13 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEmailSubscription } from "@/components/WalletManager/hooks/useEmailSubscription";
-import {
-  unsubscribeUserEmail,
-  updateUserEmailSubscription,
-} from "@/components/WalletManager/services/WalletService";
-import { validateEmail } from "@/components/WalletManager/utils/validation";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/providers/ToastProvider";
+import { unsubscribeUserEmail, updateUserEmailSubscription } from "@/services";
+import { validateEmail } from "@/utils";
 
 // Mock dependencies
 vi.mock("@/contexts/UserContext", () => ({
@@ -19,13 +16,13 @@ vi.mock("@/providers/ToastProvider", () => ({
   useToast: vi.fn(),
 }));
 
-vi.mock("@/components/WalletManager/services/WalletService", () => ({
+vi.mock("@/services", () => ({
   updateUserEmailSubscription: vi.fn(),
   unsubscribeUserEmail: vi.fn(),
 }));
 
 // Mock validation
-vi.mock("@/components/WalletManager/utils/validation", () => ({
+vi.mock("@/utils", () => ({
   validateEmail: vi.fn(),
 }));
 

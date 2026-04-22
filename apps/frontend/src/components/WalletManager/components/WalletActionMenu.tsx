@@ -4,12 +4,11 @@ import { memo, type ReactElement } from "react";
 import { Portal } from "@/components/ui/Portal";
 import { Z_INDEX } from "@/constants/design-system";
 import type { WalletData } from "@/lib/validation/walletUtils";
-
 import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from "../types/wallet.types";
+} from "@/types";
 
 interface WalletActionMenuProps extends WalletMenuHandlers {
   wallet: WalletData;

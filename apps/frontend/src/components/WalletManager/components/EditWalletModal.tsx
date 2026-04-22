@@ -9,9 +9,8 @@ import {
 import { BaseCard, GradientButton, LoadingSpinner } from "@/components/ui";
 import { ModalBackdrop } from "@/components/ui/modal";
 import type { WalletData } from "@/lib/validation/walletUtils";
+import type { EditingWallet, WalletOperations } from "@/types";
 import { formatAddress } from "@/utils/formatters";
-
-import type { EditingWallet, WalletOperations } from "../types/wallet.types";
 
 interface EditWalletModalProps {
   editingWallet: EditingWallet | null;
