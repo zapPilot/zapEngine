@@ -51,3 +51,6 @@ coverage/
 
 # TODO reports for vibe coding
 .todos/
+
+# git
+.worktrees
