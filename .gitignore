@@ -48,3 +48,6 @@ coverage/
 # claude
 .claude/scheduled_tasks.lock
 .claude/worktrees
+
+# TODO reports for vibe coding
+.todos/
