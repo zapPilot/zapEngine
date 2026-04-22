@@ -257,13 +257,6 @@ teardown() {
     echo "$script_content" | grep -q 'execute_sql_file()'
     echo "$script_content" | grep -q 'setup_database_schema()'
     echo "$script_content" | grep -q 'ensure_extensions_and_roles()'
-    echo "$script_content" | grep -q 'run_dma_signal_coverage_gate()'
-}
-
-@test "script runs focused DMA signal coverage gate through make target" {
-    script_content=$(cat "$TEST_SCRIPT")
-
-    echo "$script_content" | grep -q 'make test-backtesting-signal-coverage'
 }
 
 @test "script uses proper error handling with set -euo pipefail" {

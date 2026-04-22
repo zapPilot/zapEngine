@@ -168,11 +168,13 @@ def _calculate_aggregation_stats(self, data: list[dict[str, Any]]) -> dict[str, 
 All code must pass these checks before merging:
 
 ```bash
-make format      # Auto-format with ruff
-make lint        # Run ruff linting
-make type-check  # Run mypy type checking
-make test        # Run pytest with coverage
+pnpm --filter @zapengine/analytics-engine format      # Auto-format with ruff
+pnpm --filter @zapengine/analytics-engine lint        # ruff + mypy
+pnpm --filter @zapengine/analytics-engine type-check  # mypy only
+pnpm --filter @zapengine/analytics-engine test        # pytest with coverage
 ```
+
+From inside this directory, drop the `--filter …` prefix: `pnpm format`, `pnpm lint`, etc.
 
 **Minimum Standards**:
 - ✅ Zero linting errors
@@ -186,4 +188,4 @@ make test        # Run pytest with coverage
 
 - SQL Parameter Audit: `docs/sql_parameter_audit.md`
 - Project Architecture: `CLAUDE.md`
-- Development Commands: `Makefile`
+- Development Commands: `package.json` (see `CLAUDE.md` for full list)

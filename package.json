@@ -18,7 +18,7 @@
     "dup:check": "turbo run dup:check",
     "check:local": "pnpm format:check && turbo run lint type-check test --affected && bash scripts/check-dead-env.sh",
     "check:ci": "pnpm format:check && turbo run lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci && bash scripts/check-dead-env.sh",
-    "security:audit": "pnpm audit --audit-level=moderate",
+    "security:audit": "pnpm audit --audit-level=moderate && turbo run security:audit",
     "verify:account-engine-package": "bash scripts/verify-account-engine-package.sh",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
