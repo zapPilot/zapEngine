@@ -64,6 +64,14 @@ afterEach(() => {
   console.error = originalConsoleError;
 });
 
+// Reset fake timers between tests so a test that throws before its own
+// vi.useRealTimers() cleanup cannot leak fake timers into subsequent
+// tests — which would hang their `waitFor` polling until the vitest
+// testTimeout fires.
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
   root: Element | null = null;
