@@ -6,14 +6,9 @@ IMPORTANT: `packages/types` (and other packages) must be built before running `t
 
 # Per-app tooling
 
-analytics-engine is Python (FastAPI). Use `make <command>` instead of `pnpm`:
+All apps — including analytics-engine (Python/FastAPI) — expose the same `pnpm <script>` surface (`dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, `security:audit`, etc.). Under the hood, analytics-engine scripts wrap `uv run …`, but the CLI is uniform.
 
-- `make dev` — start dev server
-- `make test` — run the unified local test suite
-- `make lint` — ruff + mypy
-- `make install` — uv sync (first time setup)
-
-All TypeScript apps use `pnpm <script>`. Frontend uses `pnpm test:unit` (not `pnpm test`) for unit tests.
+First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`). Frontend uses `pnpm test:unit` (not `pnpm test`) for unit tests.
 
 # Code style
 

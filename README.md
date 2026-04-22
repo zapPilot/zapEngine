@@ -48,10 +48,10 @@ cp apps/frontend/.env.example apps/frontend/.env
 cp apps/landing-page/.env.example apps/landing-page/.env
 ```
 
-For analytics-engine specifically:
+For analytics-engine's Python venv (first-time only):
 
 ```bash
-cd apps/analytics-engine && make install
+pnpm --filter @zapengine/analytics-engine run build   # wraps `uv sync --locked`
 ```
 
 ## Development
@@ -67,7 +67,7 @@ pnpm dev:landing
 pnpm dev:all
 ```
 
-analytics-engine runs via `make dev` from its own directory (uvicorn, not pnpm).
+All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform.
 
 ## Common Tasks
 
@@ -81,17 +81,20 @@ pnpm type-check
 # Lint
 pnpm lint
 
-# Test all (JS/TS)
+# Test all (JS/TS + Python)
 pnpm test
 
 # Run the full CI-equivalent suite
 pnpm test:ci
 
-# Test analytics-engine (Python)
-cd apps/analytics-engine && make test
+# Test just analytics-engine
+pnpm --filter @zapengine/analytics-engine test
 
 # Format
 pnpm format
+
+# Security audit (Node workspace + Python pip-audit)
+pnpm security:audit
 ```
 
 ## Testing
@@ -100,7 +103,7 @@ pnpm format
 |---|---|---|
 | account-engine | Vitest 4 | `pnpm test` (from app dir) |
 | alpha-etl | Vitest 4 | `pnpm test` |
-| analytics-engine | pytest 8 | `make test` (local) / `pnpm --filter analytics-engine test:ci` |
+| analytics-engine | pytest 8 | `pnpm --filter @zapengine/analytics-engine test` (local) / `… test:ci` (CI-equivalent) |
 | frontend | Vitest 4 + Playwright | `pnpm test:unit` / `pnpm test:e2e` / `pnpm test:ci` |
 | landing-page | Vitest 4 | `pnpm test` |
 

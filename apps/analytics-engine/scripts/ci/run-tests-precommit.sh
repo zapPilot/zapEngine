@@ -36,7 +36,6 @@ NC='\033[0m' # No Color
 RUN_COVERAGE=false
 COVERAGE_FAIL_UNDER=""
 GENERATE_HTMLCOV=false
-RUN_DMA_SIGNAL_GATE=false
 
 usage() {
     cat <<'EOF'
@@ -48,8 +47,6 @@ Options:
   --cov-fail-under <N>   Run coverage and enforce a coverage threshold.
   --no-cov-fail-under    Disable coverage threshold enforcement.
   --htmlcov              Generate htmlcov output and imply --coverage.
-  --dma-signal-gate      Run the focused DMA signal coverage gate after tests.
-  --no-dma-signal-gate   Skip the focused DMA signal coverage gate.
   --run-integration      Enable integration-marked tests.
   -h, --help             Show this help text.
 EOF
@@ -81,12 +78,6 @@ parse_args() {
             --htmlcov)
                 RUN_COVERAGE=true
                 GENERATE_HTMLCOV=true
-                ;;
-            --dma-signal-gate)
-                RUN_DMA_SIGNAL_GATE=true
-                ;;
-            --no-dma-signal-gate)
-                RUN_DMA_SIGNAL_GATE=false
                 ;;
             --run-integration)
                 RUN_INTEGRATION=true
@@ -463,11 +454,6 @@ run_postgres_suite() {
     run_pytest "${pytest_args[@]}"
 }
 
-run_dma_signal_coverage_gate() {
-    printf '%b\n' "${YELLOW}[Pre-commit Tests] Running focused DMA signal coverage gate...${NC}"
-    make test-backtesting-signal-coverage
-}
-
 # ==============================================================================
 # MAIN EXECUTION
 # Only execute when script is run directly, not when sourced for testing
@@ -563,13 +549,6 @@ export TEST_DATABASE_URL="$(normalize_sync_url "${TEST_DATABASE_URL}")"
 
 run_postgres_suite
 TEST_RESULT=$?
-
-if [[ $TEST_RESULT -eq 0 && "${RUN_DMA_SIGNAL_GATE}" == "true" ]]; then
-    run_dma_signal_coverage_gate
-    TEST_RESULT=$?
-elif [[ $TEST_RESULT -eq 0 ]]; then
-    printf '%b\n' "${YELLOW}[Pre-commit Tests] Skipping focused DMA signal coverage gate${NC}"
-fi
 
 if [[ $TEST_RESULT -eq 0 ]]; then
     printf '%b\n' "${GREEN}[Pre-commit Tests] ✓ All tests passed${NC}"

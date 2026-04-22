@@ -193,6 +193,16 @@
       ],
       "outputs": []
     },
+    "security:audit": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "pyproject.toml",
+        "uv.lock",
+        "package.json"
+      ],
+      "outputs": [],
+      "cache": false
+    },
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,

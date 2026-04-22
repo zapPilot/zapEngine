@@ -2,12 +2,15 @@ See @README.md for project overview.
 
 # Commands
 
-Use `make`, not `pnpm`:
+Same `pnpm <script>` surface as the rest of the monorepo — scripts wrap `uv run …`:
 
-- `make dev` — start server (uvicorn, hot reload)
-- `make test` — run pytest
-- `make lint` / `make format` — ruff + mypy
-- `make install` — uv sync (first-time setup)
+- `pnpm --filter @zapengine/analytics-engine dev` — start server (uvicorn, hot reload)
+- `pnpm --filter @zapengine/analytics-engine test` — run pytest via `scripts/ci/run-tests-precommit.sh`
+- `pnpm --filter @zapengine/analytics-engine lint` / `format` — ruff + mypy
+- `pnpm --filter @zapengine/analytics-engine build` — first-time setup (`uv sync --locked`)
+- `pnpm --filter @zapengine/analytics-engine security:audit` — `pip-audit` via uvx
+
+From inside this directory, drop the `--filter …` prefix: `pnpm dev`, `pnpm test`, etc.
 
 # Database
 

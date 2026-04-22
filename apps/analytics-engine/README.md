@@ -5,10 +5,11 @@ FastAPI read-only analytics backend for the Zap Pilot ecosystem. Serves portfoli
 ## Setup
 
 ```bash
-make install                  # uv sync
-uv run pre-commit install     # once per clone
-make dev                      # http://localhost:8001
+pnpm --filter @zapengine/analytics-engine build   # uv sync --locked (first-time setup)
+pnpm --filter @zapengine/analytics-engine dev     # http://localhost:8001
 ```
+
+From inside this directory, drop the `--filter …` prefix: `pnpm build`, `pnpm dev`, etc.
 
 See [CLAUDE.md](./CLAUDE.md) for the full command list and gotchas.
 
