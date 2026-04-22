@@ -44,7 +44,11 @@ export const STATISTICS: Stat[] = [
     icons: [
       { src: '/protocols/morpho.webp', alt: 'Morpho', name: 'Morpho' },
       { src: '/protocols/gmx-v2.webp', alt: 'GMX v2', name: 'GMX' },
-      { src: '/protocols/hyperliquid.webp', alt: 'Hyperliquid', name: 'Hyperliquid' },
+      {
+        src: '/protocols/hyperliquid.webp',
+        alt: 'Hyperliquid',
+        name: 'Hyperliquid',
+      },
       { src: '/protocols/aster.webp', alt: 'Aster', name: 'Aster' },
     ],
   },

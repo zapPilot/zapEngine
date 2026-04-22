@@ -1,17 +1,17 @@
-import { AlertCircle, CheckCircle2, Loader2, Send, Unlink } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { AlertCircle, CheckCircle2, Loader2, Send, Unlink } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
 
 import {
   Modal,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from "@/components/ui/modal";
+} from '@/components/ui/modal';
 
 import {
   type TelegramConnectionViewState,
   useTelegramConnectionState,
-} from "./useTelegramConnectionState";
+} from './useTelegramConnectionState';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -66,15 +66,15 @@ const renderSettingsContent = ({
     return <NoUserMessage />;
   }
 
-  if (view.kind === "loading") {
+  if (view.kind === 'loading') {
     return <LoadingState />;
   }
 
-  if (view.kind === "error") {
+  if (view.kind === 'error') {
     return <ErrorState message={view.message} onRetry={onRetry} />;
   }
 
-  if (view.kind === "connecting") {
+  if (view.kind === 'connecting') {
     return <ConnectingState deepLink={view.deepLink} />;
   }
 

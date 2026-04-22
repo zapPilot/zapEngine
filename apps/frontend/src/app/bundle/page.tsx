@@ -1,6 +1,6 @@
-import { Suspense } from "react";
+import { Suspense } from 'react';
 
-import { BundlePageEntry } from "./BundlePageEntry";
+import { BundlePageEntry } from './BundlePageEntry';
 
 export function BundlePage() {
   return (

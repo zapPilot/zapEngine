@@ -1,28 +1,28 @@
-import { AnimatePresence } from "framer-motion";
-import { AlertTriangle, Wallet, X } from "lucide-react";
-import { memo, type ReactElement, useCallback } from "react";
+import { AnimatePresence } from 'framer-motion';
+import { AlertTriangle, Wallet, X } from 'lucide-react';
+import { memo, type ReactElement, useCallback } from 'react';
 
-import { BaseCard } from "@/components/ui";
-import { Skeleton } from "@/components/ui/LoadingSystem";
-import { ModalBackdrop } from "@/components/ui/modal";
-import { GRADIENTS } from "@/constants/design-system";
-import { useUser } from "@/contexts/UserContext";
-import { useAsyncRetryButton } from "@/hooks/ui/useAsyncRetryButton";
-import type { WalletManagerProps } from "@/types";
-import { logger } from "@/utils";
+import { BaseCard } from '@/components/ui';
+import { Skeleton } from '@/components/ui/LoadingSystem';
+import { ModalBackdrop } from '@/components/ui/modal';
+import { GRADIENTS } from '@/constants/design-system';
+import { useUser } from '@/contexts/UserContext';
+import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
+import type { WalletManagerProps } from '@/types';
+import { logger } from '@/utils';
 
-import { DeleteAccountButton } from "./components/DeleteAccountButton";
-import { EditWalletModal } from "./components/EditWalletModal";
-import { EmailSubscription } from "./components/EmailSubscription";
-import { WalletList } from "./components/WalletList";
-import { WalletListProvider } from "./contexts/WalletListContext";
-import { useDropdownMenu } from "./hooks/useDropdownMenu";
-import { useEmailSubscription } from "./hooks/useEmailSubscription";
-import { useWalletOperations } from "./hooks/useWalletOperations";
+import { DeleteAccountButton } from './components/DeleteAccountButton';
+import { EditWalletModal } from './components/EditWalletModal';
+import { EmailSubscription } from './components/EmailSubscription';
+import { WalletList } from './components/WalletList';
+import { WalletListProvider } from './contexts/WalletListContext';
+import { useDropdownMenu } from './hooks/useDropdownMenu';
+import { useEmailSubscription } from './hooks/useEmailSubscription';
+import { useWalletOperations } from './hooks/useWalletOperations';
 import {
   getWalletDescription,
   getWalletManagerIdentity,
-} from "./walletManagerUtils";
+} from './walletManagerUtils';
 
 type WalletOperationsState = ReturnType<typeof useWalletOperations>;
 type EmailSubscriptionState = ReturnType<typeof useEmailSubscription>;
@@ -89,7 +89,7 @@ function WalletManagerLoadingState({
         />
       </div>
       <p className="text-gray-400 text-sm">
-        {isRefreshing ? "Refreshing wallets..." : "Loading bundled wallets..."}
+        {isRefreshing ? 'Refreshing wallets...' : 'Loading bundled wallets...'}
       </p>
     </div>
   );
@@ -119,7 +119,7 @@ function WalletManagerErrorState({
         disabled={isRetrying}
         className="px-3 py-1 text-xs bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isRetrying ? "Retrying..." : "Retry"}
+        {isRetrying ? 'Retrying...' : 'Retry'}
       </button>
     </div>
   );
@@ -135,7 +135,7 @@ interface WalletManagerSectionProps {
   emailSubscription: EmailSubscriptionState;
   dropdownMenu: DropdownMenuState;
   onWalletChange: (
-    changes: Partial<WalletOperationsState["newWallet"]>
+    changes: Partial<WalletOperationsState['newWallet']>,
   ) => void;
   onEditWallet: (walletId: string, label: string) => void;
   onCancelAdding: () => void;
@@ -255,7 +255,7 @@ function WalletManagerComponent({
   const { userInfo, loading, error, isConnected, refetch } = useUser();
   const { realUserId, viewingUserId, isOwnerView } = getWalletManagerIdentity(
     urlUserId,
-    userInfo?.userId
+    userInfo?.userId,
   );
 
   const walletOperations = useWalletOperations({
@@ -278,28 +278,28 @@ function WalletManagerComponent({
     onRetry: async () => {
       await refetch();
     },
-    errorContext: "refetch user data in WalletManager",
+    errorContext: 'refetch user data in WalletManager',
     logger,
   });
 
   // Handle wallet operations
   const handleWalletChange = useCallback(
     (changes: Partial<typeof walletOperations.newWallet>) => {
-      walletOperations.setNewWallet(prev => ({ ...prev, ...changes }));
+      walletOperations.setNewWallet((prev) => ({ ...prev, ...changes }));
     },
-    [walletOperations]
+    [walletOperations],
   );
 
   const handleEditWallet = useCallback(
     (walletId: string, label: string) => {
       walletOperations.setEditingWallet({ id: walletId, label });
     },
-    [walletOperations]
+    [walletOperations],
   );
 
   const handleCancelAdding = useCallback(() => {
     walletOperations.setIsAdding(false);
-    walletOperations.setNewWallet({ address: "", label: "" });
+    walletOperations.setNewWallet({ address: '', label: '' });
     walletOperations.setValidationError(null);
   }, [walletOperations]);
 

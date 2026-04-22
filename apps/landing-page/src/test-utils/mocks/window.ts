@@ -52,7 +52,10 @@ export interface WindowMockSetup {
   open: () => Mock<(...args: unknown[]) => void>;
   scrollY: (initialValue?: number) => ScrollYController;
   innerWidth: (initialValue?: number) => InnerWidthController;
-  matchMedia: (query: string, matches?: boolean) => Mock<(q: string) => MockMediaQueryList>;
+  matchMedia: (
+    query: string,
+    matches?: boolean,
+  ) => Mock<(q: string) => MockMediaQueryList>;
 }
 
 /**
@@ -141,7 +144,10 @@ export const setupWindowMock: WindowMockSetup = {
    * setupWindowMock.matchMedia('(max-width: 768px)', true);
    * // Now media queries will return matches: true
    */
-  matchMedia: (query: string, matches = false): Mock<(q: string) => MockMediaQueryList> => {
+  matchMedia: (
+    query: string,
+    matches = false,
+  ): Mock<(q: string) => MockMediaQueryList> => {
     const mockMatchMedia = vi.fn().mockImplementation(
       (q: string): MockMediaQueryList => ({
         matches: q === query ? matches : false,
@@ -152,7 +158,7 @@ export const setupWindowMock: WindowMockSetup = {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         dispatchEvent: vi.fn(),
-      })
+      }),
     );
 
     Object.defineProperty(window, 'matchMedia', {

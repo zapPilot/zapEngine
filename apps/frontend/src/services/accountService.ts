@@ -1,9 +1,9 @@
-import type { EtlJobStatus } from "@zapengine/types/etl";
+import type { EtlJobStatus } from '@zapengine/types/etl';
 
-import { AccountServiceError } from "@/lib/errors";
-import { httpUtils } from "@/lib/http";
-import { createServiceCaller } from "@/lib/http/createServiceCaller";
-import { createServiceError } from "@/lib/http/serviceErrorUtils";
+import { AccountServiceError } from '@/lib/errors';
+import { httpUtils } from '@/lib/http';
+import { createServiceCaller } from '@/lib/http/createServiceCaller';
+import { createServiceError } from '@/lib/http/serviceErrorUtils';
 import {
   type AddWalletResponse,
   type ConnectWalletResponse,
@@ -17,8 +17,8 @@ import {
   validateUpdateEmailResponse,
   validateUserProfileResponse,
   validateUserWallets,
-} from "@/schemas/api/accountSchemas";
-import { logger } from "@/utils/logger";
+} from '@/schemas/api/accountSchemas';
+import { logger } from '@/utils/logger';
 
 export { AccountServiceError };
 
@@ -32,21 +32,21 @@ export interface EtlJobResponse {
   rate_limited?: boolean;
 }
 
-export type { EtlJobStatus } from "@zapengine/types/etl";
+export type { EtlJobStatus } from '@zapengine/types/etl';
 
-const ACCOUNT_SERVICE_ERROR_MESSAGE = "Account service error";
+const ACCOUNT_SERVICE_ERROR_MESSAGE = 'Account service error';
 
 function mapConflictMessage(message: string | undefined): string {
-  if (message?.includes("wallet already belongs to another user")) {
+  if (message?.includes('wallet already belongs to another user')) {
     return message;
   }
 
-  if (message?.includes("wallet")) {
-    return "This wallet is already associated with an account.";
+  if (message?.includes('wallet')) {
+    return 'This wallet is already associated with an account.';
   }
 
-  if (message?.includes("email")) {
-    return "This email address is already in use.";
+  if (message?.includes('email')) {
+    return 'This email address is already in use.';
   }
 
   return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
@@ -54,21 +54,21 @@ function mapConflictMessage(message: string | undefined): string {
 
 function mapAccountServiceErrorMessage(
   status: number | undefined,
-  message: string | undefined
+  message: string | undefined,
 ): string {
   switch (status) {
     case 400:
-      if (message?.includes("wallet")) {
-        return "Invalid wallet address format. Must be a 42-character Ethereum address.";
+      if (message?.includes('wallet')) {
+        return 'Invalid wallet address format. Must be a 42-character Ethereum address.';
       }
 
       return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
     case 404:
-      return "User account not found. Please connect your wallet first.";
+      return 'User account not found. Please connect your wallet first.';
     case 409:
       return mapConflictMessage(message);
     case 422:
-      return "Invalid request data. Please check your input and try again.";
+      return 'Invalid request data. Please check your input and try again.';
     default:
       return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
   }
@@ -79,20 +79,20 @@ const createAccountServiceError = (error: unknown): AccountServiceError =>
     error,
     AccountServiceError,
     ACCOUNT_SERVICE_ERROR_MESSAGE,
-    mapAccountServiceErrorMessage
+    mapAccountServiceErrorMessage,
   );
 
 function validateConnectWalletResponse(
-  response: unknown
+  response: unknown,
 ): ConnectWalletResponse {
   const validationResult = connectWalletResponseSchema.safeParse(response);
   if (!validationResult.success) {
-    logger.error("❌ Validation failed:", validationResult.error.issues);
+    logger.error('❌ Validation failed:', validationResult.error.issues);
     throw new AccountServiceError(
-      "Connect wallet response validation failed",
+      'Connect wallet response validation failed',
       500,
-      "VALIDATION_ERROR",
-      { issues: validationResult.error.issues }
+      'VALIDATION_ERROR',
+      { issues: validationResult.error.issues },
     );
   }
 
@@ -104,7 +104,7 @@ const callAccountApi = createServiceCaller(createAccountServiceError);
 
 async function requestAndValidate<TResponse, TResult>(
   request: () => Promise<TResponse>,
-  validate: (response: unknown) => TResult
+  validate: (response: unknown) => TResult,
 ): Promise<TResult> {
   const response = await callAccountApi(request);
   return validate(response);
@@ -116,16 +116,18 @@ async function getAccountResource<T>(path: string): Promise<T> {
 
 async function postAccountResource<T>(
   path: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
 ): Promise<T> {
   return callAccountApi(() =>
-    body ? accountApiClient.post<T>(path, body) : accountApiClient.post<T>(path)
+    body
+      ? accountApiClient.post<T>(path, body)
+      : accountApiClient.post<T>(path),
   );
 }
 
 async function putAccountResource<T>(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
 ): Promise<T> {
   return callAccountApi(() => accountApiClient.put<T>(path, body));
 }
@@ -138,13 +140,13 @@ async function deleteAccountResource<T>(path: string): Promise<T> {
  * Connect wallet and create/retrieve user.
  */
 export async function connectWallet(
-  walletAddress: string
+  walletAddress: string,
 ): Promise<ConnectWalletResponse> {
   const response = await postAccountResource<ConnectWalletResponse>(
-    "/users/connect-wallet",
+    '/users/connect-wallet',
     {
       wallet: walletAddress,
-    }
+    },
   );
 
   return validateConnectWalletResponse(response);
@@ -154,11 +156,11 @@ export async function connectWallet(
  * Get complete user profile.
  */
 export async function getUserProfile(
-  userId: string
+  userId: string,
 ): Promise<UserProfileResponse> {
   return requestAndValidate(
     () => getAccountResource<UserProfileResponse>(`/users/${userId}`),
-    validateUserProfileResponse
+    validateUserProfileResponse,
   );
 }
 
@@ -167,21 +169,21 @@ export async function getUserProfile(
  */
 export async function updateUserEmail(
   userId: string,
-  email: string
+  email: string,
 ): Promise<UpdateEmailResponse> {
   return requestAndValidate(
     () =>
       putAccountResource<UpdateEmailResponse>(`/users/${userId}/email`, {
         email,
       }),
-    validateUpdateEmailResponse
+    validateUpdateEmailResponse,
   );
 }
 
 async function deleteUserResource(path: string): Promise<UpdateEmailResponse> {
   return requestAndValidate(
     () => deleteAccountResource<UpdateEmailResponse>(path),
-    validateUpdateEmailResponse
+    validateUpdateEmailResponse,
   );
 }
 
@@ -189,7 +191,7 @@ async function deleteUserResource(path: string): Promise<UpdateEmailResponse> {
  * Remove user email (unsubscribe from email-based reports).
  */
 export async function removeUserEmail(
-  userId: string
+  userId: string,
 ): Promise<UpdateEmailResponse> {
   return deleteUserResource(`/users/${userId}/email`);
 }
@@ -206,11 +208,11 @@ export async function deleteUser(userId: string): Promise<UpdateEmailResponse> {
  * Get all user wallets.
  */
 export async function getUserWallets(
-  userId: string
+  userId: string,
 ): Promise<UserCryptoWallet[]> {
   return requestAndValidate(
     () => getAccountResource<UserCryptoWallet[]>(`/users/${userId}/wallets`),
-    validateUserWallets
+    validateUserWallets,
   );
 }
 
@@ -220,7 +222,7 @@ export async function getUserWallets(
 export async function addWalletToBundle(
   userId: string,
   walletAddress: string,
-  label?: string
+  label?: string,
 ): Promise<AddWalletResponse> {
   return requestAndValidate(
     () =>
@@ -228,7 +230,7 @@ export async function addWalletToBundle(
         wallet: walletAddress,
         label,
       }),
-    validateAddWalletResponse
+    validateAddWalletResponse,
   );
 }
 
@@ -237,14 +239,14 @@ export async function addWalletToBundle(
  */
 export async function removeWalletFromBundle(
   userId: string,
-  walletId: string
+  walletId: string,
 ): Promise<{ message: string }> {
   return requestAndValidate(
     () =>
       deleteAccountResource<{ message: string }>(
-        `/users/${userId}/wallets/${walletId}`
+        `/users/${userId}/wallets/${walletId}`,
       ),
-    validateMessageResponse
+    validateMessageResponse,
   );
 }
 
@@ -254,15 +256,15 @@ export async function removeWalletFromBundle(
 export async function updateWalletLabel(
   userId: string,
   walletAddress: string,
-  label: string
+  label: string,
 ): Promise<{ message: string }> {
   return requestAndValidate(
     () =>
       putAccountResource<{ message: string }>(
         `/users/${userId}/wallets/${walletAddress}/label`,
-        { label }
+        { label },
       ),
-    validateMessageResponse
+    validateMessageResponse,
   );
 }
 
@@ -271,10 +273,10 @@ export async function updateWalletLabel(
  */
 export async function triggerWalletDataFetch(
   userId: string,
-  walletAddress: string
+  walletAddress: string,
 ): Promise<EtlJobResponse> {
   return postAccountResource<EtlJobResponse>(
-    `/users/${userId}/wallets/${walletAddress}/fetch-data`
+    `/users/${userId}/wallets/${walletAddress}/fetch-data`,
   );
 }
 
@@ -284,19 +286,19 @@ export async function triggerWalletDataFetch(
 export async function getEtlJobStatus(jobId: string): Promise<EtlJobStatus> {
   return requestAndValidate(
     () => getAccountResource<unknown>(`/etl/jobs/${jobId}`),
-    response => {
+    (response) => {
       const raw = etlJobStatusResponseSchema.parse(response);
       return {
         jobId: raw.job_id,
         status: raw.status,
-        trigger: raw.trigger ?? "manual",
-        createdAt: raw.created_at ?? "",
+        trigger: raw.trigger ?? 'manual',
+        createdAt: raw.created_at ?? '',
         recordsProcessed: raw.records_processed,
         recordsInserted: raw.records_inserted,
         duration: raw.duration,
         completedAt: raw.completed_at,
         error: raw.error,
       } satisfies EtlJobStatus;
-    }
+    },
   );
 }

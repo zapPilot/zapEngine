@@ -4,24 +4,24 @@
  * Displays the 4 primary analytics metrics
  */
 
-import { Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { Activity, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
-import type { KeyMetrics, MetricData } from "@/types/analytics";
+import { BaseCard } from '@/components/ui/BaseCard';
+import type { KeyMetrics, MetricData } from '@/types/analytics';
 
 /** Trend icons mapped by trend direction for cleaner conditional rendering */
-const TREND_ICONS: Record<MetricData["trend"], ReactNode> = {
+const TREND_ICONS: Record<MetricData['trend'], ReactNode> = {
   up: <ArrowUpRight className="w-3.5 h-3.5" />,
   down: <ArrowDownRight className="w-3.5 h-3.5" />,
   neutral: <Activity className="w-3.5 h-3.5" />,
 };
 
 /** Trend color classes mapped by trend direction */
-const TREND_COLORS: Record<MetricData["trend"], string> = {
-  up: "bg-green-500/10 text-green-400",
-  down: "bg-red-500/10 text-red-400",
-  neutral: "bg-gray-500/10 text-gray-400",
+const TREND_COLORS: Record<MetricData['trend'], string> = {
+  up: 'bg-green-500/10 text-green-400',
+  down: 'bg-red-500/10 text-red-400',
+  neutral: 'bg-gray-500/10 text-gray-400',
 };
 
 /**
@@ -49,10 +49,10 @@ export function KeyMetricsGrid({
   ];
 
   const labels = [
-    "Time-Weighted Return",
-    "Max Drawdown",
-    "Sharpe Ratio",
-    "Win Rate",
+    'Time-Weighted Return',
+    'Max Drawdown',
+    'Sharpe Ratio',
+    'Win Rate',
   ];
 
   return (

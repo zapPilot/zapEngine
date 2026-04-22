@@ -5,12 +5,12 @@
  * Shows "All Wallets" (bundle aggregation) or individual wallet options.
  */
 
-import { Check, ChevronDown, Wallet } from "lucide-react";
-import { type ReactElement, useRef, useState } from "react";
+import { Check, ChevronDown, Wallet } from 'lucide-react';
+import { type ReactElement, useRef, useState } from 'react';
 
-import { useClickOutside } from "@/hooks/ui/useClickOutside";
-import type { WalletFilter, WalletOption } from "@/types/analytics";
-import { formatAddress } from "@/utils/formatters";
+import { useClickOutside } from '@/hooks/ui/useClickOutside';
+import type { WalletFilter, WalletOption } from '@/types/analytics';
+import { formatAddress } from '@/utils/formatters';
 
 /**
  * Props for WalletFilterSelector component
@@ -61,10 +61,10 @@ export function WalletFilterSelector({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  let currentLabel = "All Wallets";
+  let currentLabel = 'All Wallets';
   if (selectedWallet !== null) {
     const selectedWalletLabel = availableWallets.find(
-      wallet => wallet.address === selectedWallet
+      (wallet) => wallet.address === selectedWallet,
     )?.label;
     currentLabel = selectedWalletLabel || formatAddress(selectedWallet);
   }
@@ -84,7 +84,7 @@ export function WalletFilterSelector({
     <div className="relative" ref={dropdownRef}>
       {/* Dropdown trigger button */}
       <button
-        onClick={() => setIsOpen(previous => !previous)}
+        onClick={() => setIsOpen((previous) => !previous)}
         disabled={isLoading}
         className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Filter by wallet"
@@ -95,7 +95,7 @@ export function WalletFilterSelector({
         <span className="text-gray-200">{currentLabel}</span>
         <ChevronDown
           className={`w-4 h-4 text-gray-400 transition-transform ${
-            isOpen ? "rotate-180" : ""
+            isOpen ? 'rotate-180' : ''
           }`}
           aria-hidden="true"
         />
@@ -112,7 +112,7 @@ export function WalletFilterSelector({
           <button
             onClick={() => handleSelect(null)}
             className={`w-full px-4 py-3 text-left hover:bg-gray-800 flex items-center justify-between transition-colors ${
-              selectedWallet === null ? "bg-gray-800/50" : ""
+              selectedWallet === null ? 'bg-gray-800/50' : ''
             }`}
             role="option"
             aria-selected={selectedWallet === null}
@@ -127,12 +127,12 @@ export function WalletFilterSelector({
           <div className="border-t border-gray-800" role="separator" />
 
           {/* Individual wallet options */}
-          {availableWallets.map(wallet => (
+          {availableWallets.map((wallet) => (
             <button
               key={wallet.address}
               onClick={() => handleSelect(wallet.address)}
               className={`w-full px-4 py-3 text-left hover:bg-gray-800 flex items-center justify-between gap-3 transition-colors ${
-                selectedWallet === wallet.address ? "bg-gray-800/50" : ""
+                selectedWallet === wallet.address ? 'bg-gray-800/50' : ''
               }`}
               role="option"
               aria-selected={selectedWallet === wallet.address}

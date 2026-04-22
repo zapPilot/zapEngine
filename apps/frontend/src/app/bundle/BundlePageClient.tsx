@@ -1,21 +1,21 @@
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { QuickSwitchFAB } from "@/components/bundle";
-import { EmailReminderBanner } from "@/components/layout/banners/EmailReminderBanner";
-import { SwitchPromptBanner } from "@/components/layout/banners/SwitchPromptBanner";
-import { DashboardShell } from "@/components/wallet/portfolio/DashboardShell";
-import { useUser } from "@/contexts/UserContext";
-import { useBundlePage } from "@/hooks/bundle/useBundlePage";
-import { lazyImport } from "@/lib/lazy/lazyImport";
+import { QuickSwitchFAB } from '@/components/bundle';
+import { EmailReminderBanner } from '@/components/layout/banners/EmailReminderBanner';
+import { SwitchPromptBanner } from '@/components/layout/banners/SwitchPromptBanner';
+import { DashboardShell } from '@/components/wallet/portfolio/DashboardShell';
+import { useUser } from '@/contexts/UserContext';
+import { useBundlePage } from '@/hooks/bundle/useBundlePage';
+import { lazyImport } from '@/lib/lazy/lazyImport';
 import {
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
-} from "@/lib/routing";
+} from '@/lib/routing';
 
 const LazyWalletManager = lazyImport(
-  async () => import("@/components/WalletManager"),
-  mod => mod.WalletManager
+  async () => import('@/components/WalletManager'),
+  (mod) => mod.WalletManager,
 );
 
 interface BundlePageClientProps {
@@ -43,12 +43,12 @@ export function BundlePageClient({
     }
 
     const shouldRedirectToUserBundle =
-      isConnected && userInfo?.userId && !userId && pathname === "/";
+      isConnected && userInfo?.userId && !userId && pathname === '/';
     if (shouldRedirectToUserBundle) {
       const current = new URLSearchParams(Array.from(searchParams.entries()));
-      current.set("userId", userInfo.userId);
+      current.set('userId', userInfo.userId);
       if (userInfo.etlJobId) {
-        current.set("etlJobId", userInfo.etlJobId);
+        current.set('etlJobId', userInfo.etlJobId);
       }
       const queryString = current.toString();
       const newUrl = `/bundle?${queryString}`;
@@ -67,11 +67,11 @@ export function BundlePageClient({
 
   useEffect(() => {
     const sanitizeInlineScripts = () => {
-      const scripts = document.querySelectorAll("body script");
+      const scripts = document.querySelectorAll('body script');
       for (const script of scripts) {
         if (!script.textContent) continue;
         if (/@[^@\s]+\.[^@\s]+/.test(script.textContent)) {
-          script.textContent = "";
+          script.textContent = '';
         }
       }
     };

@@ -9,24 +9,24 @@
  * 4. Writer inserts to database
  */
 
-import { ETLPipelineFactory } from "../src/modules/core/pipelineFactory.js";
-import { logger } from "../src/utils/logger.js";
-import type { ETLJob } from "../src/types/index.js";
+import { ETLPipelineFactory } from '../src/modules/core/pipelineFactory.js';
+import type { ETLJob } from '../src/types/index.js';
+import { logger } from '../src/utils/logger.js';
 
-const TEST_CHAIN = "ethereum";
+const TEST_CHAIN = 'ethereum';
 const TEST_MIN_TVL = 1_000_000;
 
 function createTestJob(): ETLJob {
   return {
     jobId: `test-pipeline-${Date.now()}`,
-    trigger: "manual",
-    sources: ["defillama"],
+    trigger: 'manual',
+    sources: ['defillama'],
     filters: {
       minTvl: TEST_MIN_TVL,
       chains: [TEST_CHAIN],
     },
     createdAt: new Date(),
-    status: "pending",
+    status: 'pending',
   };
 }
 
@@ -35,7 +35,7 @@ function getSuccessRateLabel(
   recordsProcessed: number,
 ): string {
   if (recordsProcessed <= 0) {
-    return "0%";
+    return '0%';
   }
 
   return `${((recordsInserted / recordsProcessed) * 100).toFixed(2)}%`;
@@ -50,7 +50,7 @@ function exitWithFailure(
 }
 
 async function testETLPipeline(): Promise<void> {
-  logger.info("Starting ETL pipeline test");
+  logger.info('Starting ETL pipeline test');
 
   try {
     const processor = new ETLPipelineFactory();
@@ -58,7 +58,7 @@ async function testETLPipeline(): Promise<void> {
     // Create a test job similar to what would come from webhook
     const testJob = createTestJob();
 
-    logger.info("Processing test job", {
+    logger.info('Processing test job', {
       jobId: testJob.jobId,
       sources: testJob.sources,
       filters: testJob.filters,
@@ -67,7 +67,7 @@ async function testETLPipeline(): Promise<void> {
     // This should reproduce the exact same flow that failed before
     const result = await processor.processJob(testJob);
 
-    logger.info("ETL pipeline test results", {
+    logger.info('ETL pipeline test results', {
       success: result.success,
       recordsProcessed: result.recordsProcessed,
       recordsInserted: result.recordsInserted,
@@ -76,18 +76,18 @@ async function testETLPipeline(): Promise<void> {
     });
 
     if (!result.success) {
-      exitWithFailure("ETL pipeline test failed", {
+      exitWithFailure('ETL pipeline test failed', {
         errors: result.errors.slice(0, 10),
       });
     }
 
     if (result.recordsInserted === 0 && result.recordsProcessed > 0) {
       exitWithFailure(
-        "Zero records inserted despite processing records - this was the original bug!",
+        'Zero records inserted despite processing records - this was the original bug!',
       );
     }
 
-    logger.info("✅ ETL pipeline test passed successfully!");
+    logger.info('✅ ETL pipeline test passed successfully!');
 
     // Log some stats
     for (const [source, sourceResult] of Object.entries(result.sourceResults)) {
@@ -102,13 +102,13 @@ async function testETLPipeline(): Promise<void> {
       });
     }
   } catch (error) {
-    exitWithFailure("ETL pipeline test failed with exception:", {
-      error: error instanceof Error ? error.message : "Unknown error",
+    exitWithFailure('ETL pipeline test failed with exception:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 }
 
 // Run the test
 testETLPipeline().catch((error) => {
-  exitWithFailure("Unhandled error in ETL pipeline test:", { error });
+  exitWithFailure('Unhandled error in ETL pipeline test:', { error });
 });

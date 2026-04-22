@@ -1,8 +1,8 @@
-import { motion } from "framer-motion";
-import type { ReactElement } from "react";
+import { motion } from 'framer-motion';
+import type { ReactElement } from 'react';
 
-import { type BaseLoadingProps, DATA_TEST_ID_PROP } from "../constants";
-import { Skeleton } from "../Skeleton";
+import { type BaseLoadingProps, DATA_TEST_ID_PROP } from '../constants';
+import { Skeleton } from '../Skeleton';
 
 interface SkeletonLegendProps {
   rows?: number;
@@ -33,7 +33,7 @@ interface CircularSkeletonSectionProps extends BaseLoadingProps {
 
 function CircularSkeletonSection({
   size,
-  className = "",
+  className = '',
   [DATA_TEST_ID_PROP]: testId,
 }: CircularSkeletonSectionProps): ReactElement {
   return (
@@ -54,7 +54,7 @@ function CircularSkeletonSection({
   );
 }
 
-interface ChartSkeletonProps extends Pick<BaseLoadingProps, "className"> {
+interface ChartSkeletonProps extends Pick<BaseLoadingProps, 'className'> {
   size?: number;
   [DATA_TEST_ID_PROP]?: string;
 }
@@ -65,8 +65,8 @@ interface ChartSkeletonProps extends Pick<BaseLoadingProps, "className"> {
  */
 export function ChartSkeleton({
   size = 200,
-  className = "",
-  [DATA_TEST_ID_PROP]: testId = "chart-skeleton",
+  className = '',
+  [DATA_TEST_ID_PROP]: testId = 'chart-skeleton',
 }: ChartSkeletonProps): ReactElement {
   return (
     <CircularSkeletonSection
@@ -77,4 +77,4 @@ export function ChartSkeleton({
   );
 }
 
-ChartSkeleton.displayName = "ChartSkeleton";
+ChartSkeleton.displayName = 'ChartSkeleton';

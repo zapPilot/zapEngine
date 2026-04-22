@@ -4,14 +4,14 @@
  * Fetches detailed borrowing position data with on-demand loading.
  * Only fetches when enabled (e.g., on tooltip expand).
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
 import {
   createQueryConfig,
   logQueryError,
-} from "@/hooks/queries/queryDefaults";
-import { queryKeys } from "@/lib/state/queryClient";
-import { getBorrowingPositions } from "@/services";
+} from '@/hooks/queries/queryDefaults';
+import { queryKeys } from '@/lib/state/queryClient';
+import { getBorrowingPositions } from '@/services';
 
 const BORROWING_POSITIONS_CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (matches backend)
 
@@ -31,20 +31,20 @@ const BORROWING_POSITIONS_CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (matches b
  */
 export function useBorrowingPositions(
   userId: string | undefined,
-  enabled = false
+  enabled = false,
 ) {
   return useQuery({
     ...createQueryConfig(), // Uses 12hr cache (overridden below)
     queryKey: userId ? queryKeys.portfolio.borrowingPositions(userId) : [],
     queryFn: async () => {
       if (!userId) {
-        throw new Error("userId is required to fetch borrowing positions");
+        throw new Error('userId is required to fetch borrowing positions');
       }
 
       try {
         return await getBorrowingPositions(userId);
       } catch (error) {
-        logQueryError("Failed to fetch borrowing positions", error);
+        logQueryError('Failed to fetch borrowing positions', error);
         throw error;
       }
     },

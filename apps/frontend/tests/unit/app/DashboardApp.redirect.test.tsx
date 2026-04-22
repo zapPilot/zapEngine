@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LandingPage } from "@/app/page";
+import { LandingPage } from '@/app/page';
 
-import { render, screen, waitFor } from "../../test-utils";
+import { render, screen, waitFor } from '../../test-utils';
 
 function defaultBundlePageEntry() {
   return <div data-testid="bundle-page-entry">Bundle Page Entry Component</div>;
@@ -12,27 +12,27 @@ const { mockBundlePageEntry } = vi.hoisted(() => ({
   mockBundlePageEntry: vi.fn(),
 }));
 
-vi.mock("@/app/bundle/BundlePageEntry", () => ({
+vi.mock('@/app/bundle/BundlePageEntry', () => ({
   BundlePageEntry: mockBundlePageEntry,
 }));
 
-describe("LandingPage", () => {
+describe('LandingPage', () => {
   beforeEach(() => {
     mockBundlePageEntry.mockReset();
     mockBundlePageEntry.mockImplementation(defaultBundlePageEntry);
   });
 
-  it("renders the bundle page entry", () => {
+  it('renders the bundle page entry', () => {
     render(<LandingPage />);
 
-    expect(screen.getByTestId("bundle-page-entry")).toBeInTheDocument();
+    expect(screen.getByTestId('bundle-page-entry')).toBeInTheDocument();
   });
 
-  it("shows the suspense fallback while the entry component is loading", async () => {
+  it('shows the suspense fallback while the entry component is loading', async () => {
     let resolveEntry: () => void = () => {
       /* Will be assigned by Promise */
     };
-    const pendingEntry = new Promise<void>(resolve => {
+    const pendingEntry = new Promise<void>((resolve) => {
       resolveEntry = resolve;
     });
 
@@ -43,19 +43,19 @@ describe("LandingPage", () => {
     render(<LandingPage />);
 
     expect(
-      await screen.findByTestId("bundle-suspense-fallback")
+      await screen.findByTestId('bundle-suspense-fallback'),
     ).toBeInTheDocument();
 
     mockBundlePageEntry.mockImplementation(defaultBundlePageEntry);
     resolveEntry();
 
     await waitFor(() => {
-      expect(screen.getByTestId("bundle-page-entry")).toBeInTheDocument();
+      expect(screen.getByTestId('bundle-page-entry')).toBeInTheDocument();
     });
   });
 
-  it("propagates errors thrown by the entry component", () => {
-    const error = new Error("Import failed");
+  it('propagates errors thrown by the entry component', () => {
+    const error = new Error('Import failed');
     mockBundlePageEntry.mockImplementation(() => {
       throw error;
     });
@@ -63,8 +63,8 @@ describe("LandingPage", () => {
     expect(() => render(<LandingPage />)).toThrow(error);
   });
 
-  it("exports landing page as a component", () => {
+  it('exports landing page as a component', () => {
     expect(LandingPage).toBeDefined();
-    expect(typeof LandingPage).toBe("function");
+    expect(typeof LandingPage).toBe('function');
   });
 });

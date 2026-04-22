@@ -10,7 +10,8 @@ import { scaleOnHover, containerWithStagger } from '@/lib/motion/animations';
 import { GRADIENTS } from '@/config/gradients';
 
 export function Hero() {
-  const { container: containerVariants, item: itemVariants } = containerWithStagger();
+  const { container: containerVariants, item: itemVariants } =
+    containerWithStagger();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-16">
@@ -28,7 +29,9 @@ export function Hero() {
             className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 mb-8"
           >
             <Sparkles className="w-4 h-4 text-purple-400 mr-2" />
-            <span className="text-sm font-medium text-purple-300">{MESSAGES.hero.badge}</span>
+            <span className="text-sm font-medium text-purple-300">
+              {MESSAGES.hero.badge}
+            </span>
           </motion.div>
 
           {/* Main Heading */}
@@ -88,7 +91,12 @@ export function Hero() {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-10 lg:gap-12 max-w-5xl mx-auto"
           >
             {STATISTICS.map((stat, index) => (
-              <StatDisplay key={stat.label} stat={stat} index={index} variant="hero" />
+              <StatDisplay
+                key={stat.label}
+                stat={stat}
+                index={index}
+                variant="hero"
+              />
             ))}
           </motion.div>
         </motion.div>

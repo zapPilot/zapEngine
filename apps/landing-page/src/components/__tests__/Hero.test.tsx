@@ -37,7 +37,9 @@ describe('Hero', () => {
       render(<Hero />);
 
       expect(
-        screen.getByRole('button', { name: new RegExp(MESSAGES.hero.ctaPrimary) })
+        screen.getByRole('button', {
+          name: new RegExp(MESSAGES.hero.ctaPrimary),
+        }),
       ).toBeInTheDocument();
     });
 
@@ -45,7 +47,9 @@ describe('Hero', () => {
       render(<Hero />);
 
       expect(
-        screen.getByRole('button', { name: new RegExp(MESSAGES.hero.ctaSecondary) })
+        screen.getByRole('button', {
+          name: new RegExp(MESSAGES.hero.ctaSecondary),
+        }),
       ).toBeInTheDocument();
     });
   });
@@ -55,7 +59,7 @@ describe('Hero', () => {
       render(<Hero />);
 
       // Each stat should have its label rendered
-      STATISTICS.forEach(stat => {
+      STATISTICS.forEach((stat) => {
         expect(screen.getByText(stat.label)).toBeInTheDocument();
       });
     });
@@ -63,8 +67,8 @@ describe('Hero', () => {
     it('should render stat values for text-type stats', () => {
       render(<Hero />);
 
-      const textStats = STATISTICS.filter(s => s.type === 'text' && s.value);
-      textStats.forEach(stat => {
+      const textStats = STATISTICS.filter((s) => s.type === 'text' && s.value);
+      textStats.forEach((stat) => {
         expect(screen.getByText(stat.value!)).toBeInTheDocument();
       });
     });
@@ -79,7 +83,11 @@ describe('Hero', () => {
       });
       fireEvent.click(primaryButton);
 
-      expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        LINKS.app,
+        '_blank',
+        'noopener,noreferrer',
+      );
     });
 
     it('should open YouTube link when secondary CTA is clicked', () => {
@@ -93,7 +101,7 @@ describe('Hero', () => {
       expect(mockWindowOpen).toHaveBeenCalledWith(
         LINKS.social.youtube,
         '_blank',
-        'noopener,noreferrer'
+        'noopener,noreferrer',
       );
     });
   });

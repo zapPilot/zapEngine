@@ -1,9 +1,9 @@
 {
   "extends": "@zapengine/tsconfig/react.json",
   "compilerOptions": {
-    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
+    // Frontend app; do not emit package declarations.
     "declaration": false,
     "declarationMap": false,
     "resolveJsonModule": true,

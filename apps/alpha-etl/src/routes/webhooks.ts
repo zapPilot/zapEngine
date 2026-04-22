@@ -1,35 +1,36 @@
-import { Router } from "express";
-import { z } from "zod";
-import { logger } from "../utils/logger.js";
-import { ETLJobQueue } from "../modules/core/jobQueue.js";
-import { toErrorMessage } from "../utils/errors.js";
-import { maskWalletAddress } from "../utils/mask.js";
+import { Router } from 'express';
+import { z } from 'zod';
+
+import { ETLJobQueue } from '../modules/core/jobQueue.js';
 import {
-  buildSuccessApiResponse,
   buildErrorApiResponse,
+  buildSuccessApiResponse,
   buildWebhookErrorApiResponse,
   getRequestId,
-} from "../utils/apiResponse.js";
-import { webhookPayloadSchema, walletFetchSchema } from "./webhooks.schemas.js";
+} from '../utils/apiResponse.js';
+import { toErrorMessage } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
+import { maskWalletAddress } from '../utils/mask.js';
 import {
   buildJobStatusApiResponse,
   buildJobStatusResponse,
   determineJobStatusCode,
   validateJobStatusResponse,
-} from "./webhooks.responses.js";
+} from './webhooks.responses.js';
+import { walletFetchSchema, webhookPayloadSchema } from './webhooks.schemas.js';
 
 const router: Router = Router();
 const jobQueue = new ETLJobQueue();
-const DEFAULT_SOURCES = ["defillama", "debank", "hyperliquid"] as const;
+const DEFAULT_SOURCES = ['defillama', 'debank', 'hyperliquid'] as const;
 
-router.post("/pipedream", async (req, res) => {
+router.post('/pipedream', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
     // parse returns the transformed data
     const payload = webhookPayloadSchema.parse(req.body);
 
-    logger.info("Webhook received from Pipedream", {
+    logger.info('Webhook received from Pipedream', {
       requestId,
       trigger: payload.trigger,
       sources: payload.sources,
@@ -41,18 +42,18 @@ router.post("/pipedream", async (req, res) => {
       filters: payload.filters,
     });
 
-    logger.info("ETL job queued successfully", {
+    logger.info('ETL job queued successfully', {
       requestId,
       jobId: job.jobId,
     });
 
     return res.json(buildSuccessApiResponse({ jobId: job.jobId }));
   } catch (error) {
-    logger.error("Webhook processing failed:", { error, requestId });
+    logger.error('Webhook processing failed:', { error, requestId });
 
     const response = buildWebhookErrorApiResponse(
-      "API_ERROR",
-      error instanceof Error ? error.message : "Unknown error",
+      'API_ERROR',
+      error instanceof Error ? error.message : 'Unknown error',
       requestId,
     );
 
@@ -69,16 +70,17 @@ router.post("/pipedream", async (req, res) => {
  * (which batch-processes VIP users), this endpoint processes a single wallet
  * address and returns immediately with a jobId for status tracking.
  */
-router.post("/wallet-fetch", async (req, res) => {
+router.post('/wallet-fetch', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
     const payload = walletFetchSchema.parse(req.body);
 
     // Validate webhook secret if configured
-    if (process.env.WEBHOOK_SECRET) {
-      if (!payload.secret || payload.secret !== process.env.WEBHOOK_SECRET) {
-        logger.warn("Invalid webhook secret", {
+    const webhookSecret = process.env['WEBHOOK_SECRET'];
+    if (webhookSecret) {
+      if (!payload.secret || payload.secret !== webhookSecret) {
+        logger.warn('Invalid webhook secret', {
           requestId,
           userId: payload.userId,
           wallet: maskWalletAddress(payload.walletAddress),
@@ -87,15 +89,15 @@ router.post("/wallet-fetch", async (req, res) => {
           .status(401)
           .json(
             buildWebhookErrorApiResponse(
-              "UNAUTHORIZED",
-              "Invalid webhook secret",
+              'UNAUTHORIZED',
+              'Invalid webhook secret',
               requestId,
             ),
           );
       }
     }
 
-    logger.info("Wallet fetch webhook received", {
+    logger.info('Wallet fetch webhook received', {
       requestId,
       userId: payload.userId,
       walletAddress: maskWalletAddress(payload.walletAddress),
@@ -105,15 +107,15 @@ router.post("/wallet-fetch", async (req, res) => {
     // Enqueue job with metadata for single wallet processing
     const job = await jobQueue.enqueue({
       trigger: payload.trigger,
-      sources: ["debank"],
+      sources: ['debank'],
       metadata: {
         userId: payload.userId,
         walletAddress: payload.walletAddress,
-        jobType: "wallet_fetch",
+        jobType: 'wallet_fetch',
       },
     });
 
-    logger.info("Wallet fetch job queued successfully", {
+    logger.info('Wallet fetch job queued successfully', {
       requestId,
       jobId: job.jobId,
       userId: payload.userId,
@@ -122,15 +124,15 @@ router.post("/wallet-fetch", async (req, res) => {
 
     return res.status(202).json(buildSuccessApiResponse({ jobId: job.jobId }));
   } catch (error) {
-    logger.error("Wallet fetch webhook processing failed:", {
+    logger.error('Wallet fetch webhook processing failed:', {
       error,
       requestId,
     });
 
     if (error instanceof z.ZodError) {
       const response = buildWebhookErrorApiResponse(
-        "VALIDATION_ERROR",
-        "Invalid wallet fetch payload",
+        'VALIDATION_ERROR',
+        'Invalid wallet fetch payload',
         requestId,
         { errors: error.issues },
       );
@@ -138,7 +140,7 @@ router.post("/wallet-fetch", async (req, res) => {
     }
 
     const response = buildWebhookErrorApiResponse(
-      "API_ERROR",
+      'API_ERROR',
       toErrorMessage(error),
       requestId,
     );
@@ -147,7 +149,7 @@ router.post("/wallet-fetch", async (req, res) => {
   }
 });
 
-router.get("/jobs/:jobId", async (req, res) => {
+router.get('/jobs/:jobId', async (req, res) => {
   const { jobId } = req.params;
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
@@ -157,16 +159,16 @@ router.get("/jobs/:jobId", async (req, res) => {
     if (!job) {
       return res.status(404).json(
         buildErrorApiResponse({
-          code: "API_ERROR",
-          message: "Job not found",
-          source: "system",
+          code: 'API_ERROR',
+          message: 'Job not found',
+          source: 'system',
         }),
       );
     }
 
     const result = jobQueue.getResult(jobId);
 
-    logger.info("Job status requested", {
+    logger.info('Job status requested', {
       requestId,
       jobId,
       status: job.status,
@@ -177,7 +179,7 @@ router.get("/jobs/:jobId", async (req, res) => {
     const { validated, validationError } = validateJobStatusResponse(response);
 
     if (validationError) {
-      logger.warn("Job status schema validation failed", {
+      logger.warn('Job status schema validation failed', {
         jobId,
         error: validationError,
       });
@@ -192,13 +194,13 @@ router.get("/jobs/:jobId", async (req, res) => {
 
     return res.status(statusCode).json(apiResponse);
   } catch (error) {
-    logger.error("Job status retrieval failed:", { error, requestId, jobId });
+    logger.error('Job status retrieval failed:', { error, requestId, jobId });
 
     return res.status(500).json(
       buildErrorApiResponse({
-        code: "API_ERROR",
-        message: "Failed to retrieve job status",
-        source: "system",
+        code: 'API_ERROR',
+        message: 'Failed to retrieve job status',
+        source: 'system',
       }),
     );
   }

@@ -31,7 +31,7 @@ export {
   triggerWalletDataFetch,
   updateUserEmail,
   updateWalletLabel,
-} from "./accountService";
+} from './accountService';
 
 // Wallet Management
 export {
@@ -41,7 +41,7 @@ export {
   unsubscribeUserEmail,
   updateManagedWalletLabel,
   updateUserEmailSubscription,
-} from "./walletService";
+} from './walletService';
 
 // Analytics & Portfolio Data
 export {
@@ -61,7 +61,7 @@ export {
   type PoolDetail,
   type RiskMetrics,
   type UnifiedDashboardResponse,
-} from "./analyticsService";
+} from './analyticsService';
 
 // Bundle Sharing
 export {
@@ -69,31 +69,31 @@ export {
   generateBundleUrl,
   getBundleUser,
   isOwnBundle,
-} from "./bundleService";
+} from './bundleService';
 
 // Market Data
 export {
   type BtcPriceHistoryResponse,
   type BtcPriceSnapshot,
   getBtcPriceHistory,
-} from "./btcPriceService";
+} from './btcPriceService';
 
 // Sentiment & Regime Analysis
 export {
   DEFAULT_REGIME_HISTORY,
   fetchRegimeHistory,
   type RegimeHistoryData,
-} from "./regimeHistoryService";
+} from './regimeHistoryService';
 export {
   fetchMarketSentiment,
   type MarketSentimentData,
-} from "./sentimentService";
+} from './sentimentService';
 
 // Analytics Export
-export { exportAnalyticsToCSV } from "./analyticsExportService";
+export { exportAnalyticsToCSV } from './analyticsExportService';
 
 // Backtesting
-export { getBacktestingStrategiesV3, runBacktest } from "./backtestingService";
+export { getBacktestingStrategiesV3, runBacktest } from './backtestingService';
 
 // Strategy Suggestions
 export {
@@ -103,7 +103,7 @@ export {
   getStrategyConfigs,
   type StrategyConfigsResponse,
   type StrategyPreset,
-} from "./strategyService";
+} from './strategyService';
 
 // Strategy Admin
 export {
@@ -112,7 +112,7 @@ export {
   getStrategyAdminConfigs,
   setDefaultStrategyConfig,
   updateStrategyConfig,
-} from "./strategyAdminService";
+} from './strategyAdminService';
 
 // Telegram Integration
 export {
@@ -122,12 +122,12 @@ export {
   type TelegramDisconnectResponse,
   type TelegramStatus,
   type TelegramTokenResponse,
-} from "./telegramService";
+} from './telegramService';
 
 // ============================================================================
 // MOCK SERVICES (Development/Testing Only)
 // ============================================================================
 
 // New explicit mock exports (preferred)
-export * as chainServiceMock from "./chainService.mock";
-export * as transactionServiceMock from "./transactionService.mock";
+export * as chainServiceMock from './chainService.mock';
+export * as transactionServiceMock from './transactionService.mock';

@@ -1,6 +1,6 @@
-import { ProgressBar } from "@/components/ui/ProgressBar";
-import { buildInvestAllocationEntries } from "@/components/wallet/regime/investAllocation";
-import type { RegimeAllocationBreakdown } from "@/types/domain/allocation";
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { buildInvestAllocationEntries } from '@/components/wallet/regime/investAllocation';
+import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
 
 interface StrategyAllocationDisplayProps {
   targetAllocation: RegimeAllocationBreakdown;
@@ -9,7 +9,7 @@ interface StrategyAllocationDisplayProps {
 
 const STYLES = {
   allocationContainer:
-    "bg-gray-800/50 rounded-lg p-4 border border-gray-700 mt-4",
+    'bg-gray-800/50 rounded-lg p-4 border border-gray-700 mt-4',
 } as const;
 
 /**
@@ -42,7 +42,7 @@ export function StrategyAllocationDisplay({
           label={bucket.progressLabel}
           percentage={bucket.value}
           color={bucket.progressColor}
-          className={index < 1 ? "mb-4" : ""}
+          className={index < 1 ? 'mb-4' : ''}
         />
       ))}
     </div>

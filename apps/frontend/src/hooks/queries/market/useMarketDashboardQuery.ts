@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { getMarketDashboardData } from "@/services";
+import { getMarketDashboardData } from '@/services';
 
-import { createQueryConfig } from "../queryDefaults";
+import { createQueryConfig } from '../queryDefaults';
 
 /**
  * React Query hook for fetching market dashboard data
@@ -23,12 +23,12 @@ import { createQueryConfig } from "../queryDefaults";
  * }
  * ```
  */
-export function useMarketDashboardQuery(days = 365, token = "btc") {
+export function useMarketDashboardQuery(days = 365, token = 'btc') {
   return useQuery({
-    queryKey: ["market-dashboard", days, token.toLowerCase()],
+    queryKey: ['market-dashboard', days, token.toLowerCase()],
     queryFn: () => getMarketDashboardData(days, token),
     ...createQueryConfig({
-      dataType: "etl",
+      dataType: 'etl',
     }),
     refetchOnWindowFocus: false,
   });

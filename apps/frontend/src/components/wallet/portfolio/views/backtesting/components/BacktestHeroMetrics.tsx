@@ -1,5 +1,5 @@
-import type { HeroMetric } from "./backtestTerminalMetrics";
-import { phosphorGlowStyle } from "./terminalStyles";
+import type { HeroMetric } from './backtestTerminalMetrics';
+import { phosphorGlowStyle } from './terminalStyles';
 
 export interface BacktestHeroMetricsProps {
   /** Hero metric entries to display */
@@ -31,7 +31,7 @@ export function BacktestHeroMetrics({
           <div
             key={metric.label}
             className={`px-4 py-3 border-t-2 border-emerald-400/20 ${
-              index > 0 ? "md:border-l border-emerald-400/20" : ""
+              index > 0 ? 'md:border-l border-emerald-400/20' : ''
             }`}
           >
             <div

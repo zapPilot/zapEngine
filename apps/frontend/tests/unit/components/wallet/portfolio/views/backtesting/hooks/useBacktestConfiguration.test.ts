@@ -1,22 +1,22 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   formatValidationError,
   normalizeParams,
   validateConfigsStrategyIdsAgainstCatalog,
-} from "@/components/wallet/portfolio/views/backtesting/hooks/backtestRequestValidation";
-import { useBacktestConfiguration } from "@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration";
-import { useBacktestMutation } from "@/hooks/mutations/useBacktestMutation";
-import { getBacktestingStrategiesV3 } from "@/services/backtestingService";
-import { getStrategyConfigs } from "@/services/strategyService";
-import type { BacktestStrategyCatalogResponseV3 } from "@/types/backtesting";
+} from '@/components/wallet/portfolio/views/backtesting/hooks/backtestRequestValidation';
+import { useBacktestConfiguration } from '@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration';
+import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
+import { getBacktestingStrategiesV3 } from '@/services/backtestingService';
+import { getStrategyConfigs } from '@/services/strategyService';
+import type { BacktestStrategyCatalogResponseV3 } from '@/types/backtesting';
 
-import { QueryClientWrapper } from "../../../../../../../test-utils";
+import { QueryClientWrapper } from '../../../../../../../test-utils';
 
-vi.mock("@/hooks/mutations/useBacktestMutation");
-vi.mock("@/services/backtestingService");
-vi.mock("@/services/strategyService");
+vi.mock('@/hooks/mutations/useBacktestMutation');
+vi.mock('@/services/backtestingService');
+vi.mock('@/services/strategyService');
 
 const mockRotationPresetParams = {
   signal: {
@@ -41,9 +41,9 @@ const mockCatalogRotationDefaultParams = {
 const mockStrategyConfigs = {
   strategies: [
     {
-      strategy_id: "eth_btc_rotation" as const,
-      display_name: "ETH/BTC Rotation",
-      description: "Rotation strategy",
+      strategy_id: 'eth_btc_rotation' as const,
+      display_name: 'ETH/BTC Rotation',
+      description: 'Rotation strategy',
       param_schema: {},
       default_params: mockCatalogRotationDefaultParams,
       supports_daily_suggestion: true,
@@ -51,10 +51,10 @@ const mockStrategyConfigs = {
   ],
   presets: [
     {
-      config_id: "eth_btc_rotation_default",
-      display_name: "ETH/BTC RS Rotation",
-      description: "Curated rotation preset",
-      strategy_id: "eth_btc_rotation" as const,
+      config_id: 'eth_btc_rotation_default',
+      display_name: 'ETH/BTC RS Rotation',
+      description: 'Curated rotation preset',
+      strategy_id: 'eth_btc_rotation' as const,
       params: mockRotationPresetParams,
       is_benchmark: false,
       is_default: true,
@@ -67,12 +67,12 @@ const mockStrategyConfigs = {
 };
 
 const mockCatalog = {
-  catalog_version: "2.0.0",
+  catalog_version: '2.0.0',
   strategies: [
     {
-      strategy_id: "eth_btc_rotation" as const,
-      display_name: "ETH/BTC Rotation",
-      description: "Rotation strategy",
+      strategy_id: 'eth_btc_rotation' as const,
+      display_name: 'ETH/BTC Rotation',
+      description: 'Rotation strategy',
       param_schema: {},
       default_params: mockCatalogRotationDefaultParams,
       supports_daily_suggestion: true,
@@ -82,18 +82,18 @@ const mockCatalog = {
 
 function mockPendingDefaults() {
   vi.mocked(getStrategyConfigs).mockImplementation(
-    () => new Promise(() => undefined)
+    () => new Promise(() => undefined),
   );
   vi.mocked(getBacktestingStrategiesV3).mockImplementation(
-    () => new Promise(() => undefined)
+    () => new Promise(() => undefined),
   );
 }
 
-describe("useBacktestConfiguration", () => {
+describe('useBacktestConfiguration', () => {
   const mockMutate = vi.fn(
     (_request: unknown, options?: { onSettled?: () => void }) => {
       options?.onSettled?.();
-    }
+    },
   );
 
   beforeEach(() => {
@@ -110,7 +110,7 @@ describe("useBacktestConfiguration", () => {
   // Initialization and defaults
   // -------------------------------------------------------------------------
 
-  it("starts with fallback rotation editor defaults", () => {
+  it('starts with fallback rotation editor defaults', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -121,10 +121,10 @@ describe("useBacktestConfiguration", () => {
     expect(parsed.days).toBe(500);
     expect(parsed.total_capital).toBe(10000);
     expect(parsed.configs).toHaveLength(1);
-    expect(parsed.configs[0].config_id).toBe("eth_btc_rotation_default");
+    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
   });
 
-  it("loads presets, seeds the editor, and auto-runs once", async () => {
+  it('loads presets, seeds the editor, and auto-runs once', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue(mockStrategyConfigs);
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
@@ -135,7 +135,7 @@ describe("useBacktestConfiguration", () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(90);
-      expect(parsed.configs[0].config_id).toBe("eth_btc_rotation_default");
+      expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
     });
 
     await waitFor(() => {
@@ -143,9 +143,9 @@ describe("useBacktestConfiguration", () => {
     });
   });
 
-  it("falls back to catalog defaults when presets fail", async () => {
+  it('falls back to catalog defaults when presets fail', async () => {
     vi.mocked(getStrategyConfigs).mockRejectedValue(
-      new Error("Presets unavailable")
+      new Error('Presets unavailable'),
     );
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -155,19 +155,19 @@ describe("useBacktestConfiguration", () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(500);
-      expect(parsed.configs[0].config_id).toBe("eth_btc_rotation_default");
-      expect(parsed.configs[0].strategy_id).toBe("eth_btc_rotation");
+      expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
+      expect(parsed.configs[0].strategy_id).toBe('eth_btc_rotation');
     });
   });
 
-  it("does not override user edits while defaults are still loading", async () => {
+  it('does not override user edits while defaults are still loading', async () => {
     vi.useFakeTimers();
     try {
       vi.mocked(getStrategyConfigs).mockImplementation(
         () =>
-          new Promise(resolve => {
+          new Promise((resolve) => {
             setTimeout(() => resolve(mockStrategyConfigs), 50);
-          })
+          }),
       );
       vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
@@ -194,10 +194,10 @@ describe("useBacktestConfiguration", () => {
   // Catalog-only path (branch: catalogData available, presets failed)
   // -------------------------------------------------------------------------
 
-  it("uses fallback defaults when both presets and catalog fail", async () => {
-    vi.mocked(getStrategyConfigs).mockRejectedValue(new Error("Presets fail"));
+  it('uses fallback defaults when both presets and catalog fail', async () => {
+    vi.mocked(getStrategyConfigs).mockRejectedValue(new Error('Presets fail'));
     vi.mocked(getBacktestingStrategiesV3).mockRejectedValue(
-      new Error("Catalog fail")
+      new Error('Catalog fail'),
     );
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -215,17 +215,17 @@ describe("useBacktestConfiguration", () => {
     expect(parsed.total_capital).toBe(10000);
   });
 
-  it("does not update editor from catalog when user has already edited and presets fail", async () => {
+  it('does not update editor from catalog when user has already edited and presets fail', async () => {
     vi.useFakeTimers();
     try {
       vi.mocked(getStrategyConfigs).mockRejectedValue(
-        new Error("Presets fail")
+        new Error('Presets fail'),
       );
       vi.mocked(getBacktestingStrategiesV3).mockImplementation(
         () =>
-          new Promise(resolve => {
+          new Promise((resolve) => {
             setTimeout(() => resolve(mockCatalog), 50);
-          })
+          }),
       );
 
       const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -253,7 +253,7 @@ describe("useBacktestConfiguration", () => {
   // presets fulfilled but presets.length === 0 (catalog fallback branch)
   // -------------------------------------------------------------------------
 
-  it("falls back to catalog when presets array is empty", async () => {
+  it('falls back to catalog when presets array is empty', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue({
       strategies: mockCatalog.strategies,
       presets: [],
@@ -275,7 +275,7 @@ describe("useBacktestConfiguration", () => {
   // handleRunBacktest – valid payload
   // -------------------------------------------------------------------------
 
-  it("submits a valid DMA-first payload and strips empty params", () => {
+  it('submits a valid DMA-first payload and strips empty params', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -290,13 +290,13 @@ describe("useBacktestConfiguration", () => {
             days: 180,
             configs: [
               {
-                config_id: "dca_classic",
-                strategy_id: "dca_classic",
+                config_id: 'dca_classic',
+                strategy_id: 'dca_classic',
                 params: {},
               },
               {
-                config_id: "dma_gated_fgi_default",
-                strategy_id: "dma_gated_fgi",
+                config_id: 'dma_gated_fgi_default',
+                strategy_id: 'dma_gated_fgi',
                 params: {
                   signal: {
                     cross_cooldown_days: 30,
@@ -310,8 +310,8 @@ describe("useBacktestConfiguration", () => {
             ],
           },
           null,
-          2
-        )
+          2,
+        ),
       );
     });
 
@@ -324,12 +324,12 @@ describe("useBacktestConfiguration", () => {
       days: 180,
       configs: [
         {
-          config_id: "dca_classic",
-          strategy_id: "dca_classic",
+          config_id: 'dca_classic',
+          strategy_id: 'dca_classic',
         },
         {
-          config_id: "dma_gated_fgi_default",
-          strategy_id: "dma_gated_fgi",
+          config_id: 'dma_gated_fgi_default',
+          strategy_id: 'dma_gated_fgi',
           params: {
             signal: {
               cross_cooldown_days: 30,
@@ -345,7 +345,7 @@ describe("useBacktestConfiguration", () => {
     expect(result.current.editorError).toBeNull();
   });
 
-  it("includes token_symbol, start_date, and end_date when provided", () => {
+  it('includes token_symbol, start_date, and end_date when provided', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -356,16 +356,16 @@ describe("useBacktestConfiguration", () => {
       result.current.updateEditorValue(
         JSON.stringify({
           total_capital: 5000,
-          token_symbol: "ETH",
-          start_date: "2023-01-01",
-          end_date: "2023-12-31",
+          token_symbol: 'ETH',
+          start_date: '2023-01-01',
+          end_date: '2023-12-31',
           configs: [
             {
-              config_id: "dca_classic",
-              strategy_id: "dca_classic",
+              config_id: 'dca_classic',
+              strategy_id: 'dca_classic',
             },
           ],
-        })
+        }),
       );
     });
 
@@ -375,15 +375,15 @@ describe("useBacktestConfiguration", () => {
 
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        token_symbol: "ETH",
-        start_date: "2023-01-01",
-        end_date: "2023-12-31",
+        token_symbol: 'ETH',
+        start_date: '2023-01-01',
+        end_date: '2023-12-31',
         total_capital: 5000,
-      })
+      }),
     );
   });
 
-  it("omits optional fields from request when absent in payload", () => {
+  it('omits optional fields from request when absent in payload', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -396,11 +396,11 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dca_classic",
-              strategy_id: "dca_classic",
+              config_id: 'dca_classic',
+              strategy_id: 'dca_classic',
             },
           ],
-        })
+        }),
       );
     });
 
@@ -409,17 +409,17 @@ describe("useBacktestConfiguration", () => {
     });
 
     const callArg = mockMutate.mock.calls[0]?.[0];
-    expect(callArg).not.toHaveProperty("token_symbol");
-    expect(callArg).not.toHaveProperty("start_date");
-    expect(callArg).not.toHaveProperty("end_date");
-    expect(callArg).not.toHaveProperty("days");
+    expect(callArg).not.toHaveProperty('token_symbol');
+    expect(callArg).not.toHaveProperty('start_date');
+    expect(callArg).not.toHaveProperty('end_date');
+    expect(callArg).not.toHaveProperty('days');
   });
 
   // -------------------------------------------------------------------------
   // handleRunBacktest – invalid JSON branch
   // -------------------------------------------------------------------------
 
-  it("rejects invalid JSON", () => {
+  it('rejects invalid JSON', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -427,15 +427,15 @@ describe("useBacktestConfiguration", () => {
     });
 
     act(() => {
-      result.current.updateEditorValue("{ invalid");
+      result.current.updateEditorValue('{ invalid');
     });
     act(() => {
       result.current.handleRunBacktest();
     });
-    expect(result.current.editorError).toBe("Invalid JSON: unable to parse.");
+    expect(result.current.editorError).toBe('Invalid JSON: unable to parse.');
   });
 
-  it("rejects unknown params that are outside the nested public contract", () => {
+  it('rejects unknown params that are outside the nested public contract', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -448,21 +448,21 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dma_gated_fgi_default",
-              strategy_id: "dma_gated_fgi",
+              config_id: 'dma_gated_fgi_default',
+              strategy_id: 'dma_gated_fgi',
               params: {
-                signal_provider: "fgi",
+                signal_provider: 'fgi',
               },
             },
           ],
-        })
+        }),
       );
     });
     act(() => {
       result.current.handleRunBacktest();
     });
 
-    expect(result.current.editorError).toContain("signal_provider");
+    expect(result.current.editorError).toContain('signal_provider');
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
@@ -470,7 +470,7 @@ describe("useBacktestConfiguration", () => {
   // handleRunBacktest – schema validation failure branch
   // -------------------------------------------------------------------------
 
-  it("sets editorError when schema validation fails due to missing total_capital", () => {
+  it('sets editorError when schema validation fails due to missing total_capital', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -483,11 +483,11 @@ describe("useBacktestConfiguration", () => {
           // total_capital is required but missing
           configs: [
             {
-              config_id: "dca_classic",
-              strategy_id: "dca_classic",
+              config_id: 'dca_classic',
+              strategy_id: 'dca_classic',
             },
           ],
-        })
+        }),
       );
     });
 
@@ -499,7 +499,7 @@ describe("useBacktestConfiguration", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  it("sets editorError when configs array is empty", () => {
+  it('sets editorError when configs array is empty', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -511,7 +511,7 @@ describe("useBacktestConfiguration", () => {
         JSON.stringify({
           total_capital: 10000,
           configs: [],
-        })
+        }),
       );
     });
 
@@ -523,7 +523,7 @@ describe("useBacktestConfiguration", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  it("sets editorError when params use stale flat cooldown keys", () => {
+  it('sets editorError when params use stale flat cooldown keys', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -536,14 +536,14 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "eth_btc_rotation_default",
-              strategy_id: "eth_btc_rotation",
+              config_id: 'eth_btc_rotation_default',
+              strategy_id: 'eth_btc_rotation',
               params: {
                 rotation_cooldown_days: 7,
               },
             },
           ],
-        })
+        }),
       );
     });
 
@@ -551,7 +551,7 @@ describe("useBacktestConfiguration", () => {
       result.current.handleRunBacktest();
     });
 
-    expect(result.current.editorError).toContain("rotation_cooldown_days");
+    expect(result.current.editorError).toContain('rotation_cooldown_days');
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
@@ -559,7 +559,7 @@ describe("useBacktestConfiguration", () => {
   // normalizeParams – supported DMA public params
   // -------------------------------------------------------------------------
 
-  it("includes supported DMA public params when provided", () => {
+  it('includes supported DMA public params when provided', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -572,8 +572,8 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dma_gated_fgi_default",
-              strategy_id: "dma_gated_fgi",
+              config_id: 'dma_gated_fgi_default',
+              strategy_id: 'dma_gated_fgi',
               params: {
                 signal: {
                   cross_cooldown_days: 21,
@@ -591,7 +591,7 @@ describe("useBacktestConfiguration", () => {
               },
             },
           ],
-        })
+        }),
       );
     });
 
@@ -620,7 +620,7 @@ describe("useBacktestConfiguration", () => {
             },
           }),
         ],
-      })
+      }),
     );
   });
 
@@ -628,7 +628,7 @@ describe("useBacktestConfiguration", () => {
   // normalizeParams – empty params object stripped to undefined
   // -------------------------------------------------------------------------
 
-  it("strips params from request when params object has no recognized keys", () => {
+  it('strips params from request when params object has no recognized keys', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -641,13 +641,13 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dca_classic",
-              strategy_id: "dca_classic",
+              config_id: 'dca_classic',
+              strategy_id: 'dca_classic',
               // params is valid but all optional fields absent → normalized to undefined
               params: {},
             },
           ],
-        })
+        }),
       );
     });
 
@@ -656,14 +656,14 @@ describe("useBacktestConfiguration", () => {
     });
 
     const callArg = mockMutate.mock.calls[0]?.[0];
-    expect(callArg.configs[0]).not.toHaveProperty("params");
+    expect(callArg.configs[0]).not.toHaveProperty('params');
   });
 
   // -------------------------------------------------------------------------
   // normalizeParams – undefined params (no params key at all)
   // -------------------------------------------------------------------------
 
-  it("omits params key entirely when config has no params field", () => {
+  it('omits params key entirely when config has no params field', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -676,12 +676,12 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dca_classic",
-              strategy_id: "dca_classic",
+              config_id: 'dca_classic',
+              strategy_id: 'dca_classic',
               // no params key
             },
           ],
-        })
+        }),
       );
     });
 
@@ -690,14 +690,14 @@ describe("useBacktestConfiguration", () => {
     });
 
     const callArg = mockMutate.mock.calls[0]?.[0];
-    expect(callArg.configs[0]).not.toHaveProperty("params");
+    expect(callArg.configs[0]).not.toHaveProperty('params');
   });
 
   // -------------------------------------------------------------------------
   // Auto-run useEffect – !defaultsReady guard (initialRunStarted.current guard)
   // -------------------------------------------------------------------------
 
-  it("does not run auto-submit more than once even when editorValue changes", async () => {
+  it('does not run auto-submit more than once even when editorValue changes', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue(mockStrategyConfigs);
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
@@ -722,8 +722,8 @@ describe("useBacktestConfiguration", () => {
       result.current.updateEditorValue(
         JSON.stringify({
           total_capital: 9999,
-          configs: [{ config_id: "dca_classic", strategy_id: "dca_classic" }],
-        })
+          configs: [{ config_id: 'dca_classic', strategy_id: 'dca_classic' }],
+        }),
       );
     });
 
@@ -735,7 +735,7 @@ describe("useBacktestConfiguration", () => {
   // Auto-run useEffect – !parsedEditorPayload branch sets initialRunSettled
   // -------------------------------------------------------------------------
 
-  it("marks initialRunSettled and sets error when initial editor value is invalid JSON", async () => {
+  it('marks initialRunSettled and sets error when initial editor value is invalid JSON', async () => {
     // Resolve immediately with presets but use a trick:
     // inject an invalid editor value via a mock that triggers invalid JSON
     // We achieve this by making presets succeed but providing an invalid
@@ -752,14 +752,14 @@ describe("useBacktestConfiguration", () => {
 
     // Force invalid JSON so parsedEditorPayload becomes null
     act(() => {
-      result.current.updateEditorValue("{ not valid json }}}");
+      result.current.updateEditorValue('{ not valid json }}}');
     });
 
     act(() => {
       result.current.handleRunBacktest();
     });
 
-    expect(result.current.editorError).toBe("Invalid JSON: unable to parse.");
+    expect(result.current.editorError).toBe('Invalid JSON: unable to parse.');
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
@@ -767,7 +767,7 @@ describe("useBacktestConfiguration", () => {
   // Auto-run useEffect – schema parse failure branch sets initialRunSettled
   // -------------------------------------------------------------------------
 
-  it("sets error and marks initialRunSettled when initial payload fails schema validation", async () => {
+  it('sets error and marks initialRunSettled when initial payload fails schema validation', async () => {
     vi.useFakeTimers();
     try {
       // Provide presets with a structurally invalid payload shape so the
@@ -777,7 +777,7 @@ describe("useBacktestConfiguration", () => {
       // updateEditorValue before defaultsReady fires by using delayed presets.
       vi.mocked(getStrategyConfigs).mockImplementation(
         () =>
-          new Promise(resolve => {
+          new Promise((resolve) => {
             setTimeout(
               () =>
                 resolve({
@@ -785,15 +785,15 @@ describe("useBacktestConfiguration", () => {
                   presets: [],
                   backtest_defaults: { days: 90, total_capital: 10000 },
                 }),
-              20
+              20,
             );
-          })
+          }),
       );
       vi.mocked(getBacktestingStrategiesV3).mockImplementation(
         () =>
-          new Promise(resolve => {
+          new Promise((resolve) => {
             setTimeout(() => resolve(mockCatalog), 20);
-          })
+          }),
       );
 
       const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -806,7 +806,7 @@ describe("useBacktestConfiguration", () => {
           JSON.stringify({
             // missing total_capital and configs
             bad_field: true,
-          })
+          }),
         );
       });
 
@@ -826,7 +826,7 @@ describe("useBacktestConfiguration", () => {
   // isInitializing – true when pending, false when settled
   // -------------------------------------------------------------------------
 
-  it("isInitializing is true before initial run settles", () => {
+  it('isInitializing is true before initial run settles', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -837,7 +837,7 @@ describe("useBacktestConfiguration", () => {
     expect(result.current.isInitializing).toBe(true);
   });
 
-  it("isInitializing is false when backtestData is available", () => {
+  it('isInitializing is false when backtestData is available', () => {
     mockPendingDefaults();
     vi.mocked(useBacktestMutation).mockReturnValue({
       mutate: mockMutate,
@@ -853,13 +853,13 @@ describe("useBacktestConfiguration", () => {
     expect(result.current.isInitializing).toBe(false);
   });
 
-  it("isInitializing is false when mutation error is present", () => {
+  it('isInitializing is false when mutation error is present', () => {
     mockPendingDefaults();
     vi.mocked(useBacktestMutation).mockReturnValue({
       mutate: mockMutate,
       data: undefined,
       isPending: false,
-      error: new Error("Mutation failed"),
+      error: new Error('Mutation failed'),
     } as any);
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -869,7 +869,7 @@ describe("useBacktestConfiguration", () => {
     expect(result.current.isInitializing).toBe(false);
   });
 
-  it("isInitializing is false when editorError is set", () => {
+  it('isInitializing is false when editorError is set', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -877,7 +877,7 @@ describe("useBacktestConfiguration", () => {
     });
 
     act(() => {
-      result.current.updateEditorValue("{ bad json");
+      result.current.updateEditorValue('{ bad json');
     });
     act(() => {
       result.current.handleRunBacktest();
@@ -890,9 +890,9 @@ describe("useBacktestConfiguration", () => {
   // resetConfiguration – catalog fallback when no strategyConfigs
   // -------------------------------------------------------------------------
 
-  it("resetConfiguration uses catalog when strategyConfigs is null", async () => {
+  it('resetConfiguration uses catalog when strategyConfigs is null', async () => {
     // Only catalog resolves; presets fail
-    vi.mocked(getStrategyConfigs).mockRejectedValue(new Error("No presets"));
+    vi.mocked(getStrategyConfigs).mockRejectedValue(new Error('No presets'));
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -905,7 +905,7 @@ describe("useBacktestConfiguration", () => {
 
     // Corrupt the editor
     act(() => {
-      result.current.updateEditorValue("{ invalid");
+      result.current.updateEditorValue('{ invalid');
     });
     act(() => {
       result.current.handleRunBacktest();
@@ -918,11 +918,11 @@ describe("useBacktestConfiguration", () => {
 
     // Should restore catalog-based defaults and clear error
     const parsed = JSON.parse(result.current.editorValue);
-    expect(parsed.configs[0].config_id).toBe("eth_btc_rotation_default");
+    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
     expect(result.current.editorError).toBeNull();
   });
 
-  it("resetConfiguration uses catalog when strategyConfigs has empty presets", async () => {
+  it('resetConfiguration uses catalog when strategyConfigs has empty presets', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue({
       strategies: mockCatalog.strategies,
       presets: [],
@@ -938,7 +938,7 @@ describe("useBacktestConfiguration", () => {
     });
 
     act(() => {
-      result.current.updateEditorValue("{ invalid");
+      result.current.updateEditorValue('{ invalid');
     });
     act(() => {
       result.current.handleRunBacktest();
@@ -958,7 +958,7 @@ describe("useBacktestConfiguration", () => {
   // resetConfiguration – preset path (strategyConfigs with presets)
   // -------------------------------------------------------------------------
 
-  it("resetConfiguration restores preset defaults and clears editor errors", async () => {
+  it('resetConfiguration restores preset defaults and clears editor errors', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue(mockStrategyConfigs);
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
@@ -968,12 +968,12 @@ describe("useBacktestConfiguration", () => {
 
     await waitFor(() => {
       expect(JSON.parse(result.current.editorValue).configs[0].config_id).toBe(
-        "eth_btc_rotation_default"
+        'eth_btc_rotation_default',
       );
     });
 
     act(() => {
-      result.current.updateEditorValue("{ invalid");
+      result.current.updateEditorValue('{ invalid');
     });
     act(() => {
       result.current.handleRunBacktest();
@@ -986,7 +986,7 @@ describe("useBacktestConfiguration", () => {
 
     const parsed = JSON.parse(result.current.editorValue);
     expect(parsed.days).toBe(90);
-    expect(parsed.configs[0].config_id).toBe("eth_btc_rotation_default");
+    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
     expect(result.current.editorError).toBeNull();
   });
 
@@ -994,7 +994,7 @@ describe("useBacktestConfiguration", () => {
   // setEditorError – exposed on return value
   // -------------------------------------------------------------------------
 
-  it("setEditorError can be called directly to set or clear the error", () => {
+  it('setEditorError can be called directly to set or clear the error', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -1002,9 +1002,9 @@ describe("useBacktestConfiguration", () => {
     });
 
     act(() => {
-      result.current.setEditorError("custom error message");
+      result.current.setEditorError('custom error message');
     });
-    expect(result.current.editorError).toBe("custom error message");
+    expect(result.current.editorError).toBe('custom error message');
 
     act(() => {
       result.current.setEditorError(null);
@@ -1016,7 +1016,7 @@ describe("useBacktestConfiguration", () => {
   // updateEditorValue – marks userEdited ref
   // -------------------------------------------------------------------------
 
-  it("updateEditorValue updates the editor value", () => {
+  it('updateEditorValue updates the editor value', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -1035,7 +1035,7 @@ describe("useBacktestConfiguration", () => {
   // normalizeParams – single supported param
   // -------------------------------------------------------------------------
 
-  it("includes a single supported param when other optional fields are absent", () => {
+  it('includes a single supported param when other optional fields are absent', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -1048,8 +1048,8 @@ describe("useBacktestConfiguration", () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: "dma_gated_fgi_default",
-              strategy_id: "dma_gated_fgi",
+              config_id: 'dma_gated_fgi_default',
+              strategy_id: 'dma_gated_fgi',
               params: {
                 pacing: {
                   k: 4,
@@ -1057,7 +1057,7 @@ describe("useBacktestConfiguration", () => {
               },
             },
           ],
-        })
+        }),
       );
     });
 
@@ -1076,7 +1076,7 @@ describe("useBacktestConfiguration", () => {
             },
           }),
         ],
-      })
+      }),
     );
   });
 
@@ -1084,7 +1084,7 @@ describe("useBacktestConfiguration", () => {
   // auto-run – onSettled callback fires and marks initialRunSettled
   // -------------------------------------------------------------------------
 
-  it("calls mutate with onSettled option during auto-run and marks initialRunSettled", async () => {
+  it('calls mutate with onSettled option during auto-run and marks initialRunSettled', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue(mockStrategyConfigs);
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
@@ -1098,7 +1098,7 @@ describe("useBacktestConfiguration", () => {
 
     // Verify mutate was called with an options object containing onSettled
     const [, options] = mockMutate.mock.calls[0] ?? [];
-    expect(typeof options?.onSettled).toBe("function");
+    expect(typeof options?.onSettled).toBe('function');
 
     // Simulate onSettled firing
     act(() => {
@@ -1113,31 +1113,31 @@ describe("useBacktestConfiguration", () => {
   // Return value shape
   // -------------------------------------------------------------------------
 
-  it("exposes all expected properties from the hook", () => {
+  it('exposes all expected properties from the hook', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
       wrapper: QueryClientWrapper,
     });
 
-    expect(result.current).toHaveProperty("backtestData");
-    expect(result.current).toHaveProperty("strategyConfigs");
-    expect(result.current).toHaveProperty("editorError");
-    expect(result.current).toHaveProperty("editorValue");
-    expect(result.current).toHaveProperty("error");
-    expect(result.current).toHaveProperty("isInitializing");
-    expect(result.current).toHaveProperty("isPending");
-    expect(result.current).toHaveProperty("setEditorError");
-    expect(result.current).toHaveProperty("handleRunBacktest");
-    expect(result.current).toHaveProperty("resetConfiguration");
-    expect(result.current).toHaveProperty("updateEditorValue");
+    expect(result.current).toHaveProperty('backtestData');
+    expect(result.current).toHaveProperty('strategyConfigs');
+    expect(result.current).toHaveProperty('editorError');
+    expect(result.current).toHaveProperty('editorValue');
+    expect(result.current).toHaveProperty('error');
+    expect(result.current).toHaveProperty('isInitializing');
+    expect(result.current).toHaveProperty('isPending');
+    expect(result.current).toHaveProperty('setEditorError');
+    expect(result.current).toHaveProperty('handleRunBacktest');
+    expect(result.current).toHaveProperty('resetConfiguration');
+    expect(result.current).toHaveProperty('updateEditorValue');
   });
 });
 
 function makeStrategyCatalog(
-  strategyIds: string[]
-): BacktestStrategyCatalogResponseV3["strategies"] {
-  return strategyIds.map(strategy_id => ({
+  strategyIds: string[],
+): BacktestStrategyCatalogResponseV3['strategies'] {
+  return strategyIds.map((strategy_id) => ({
     strategy_id,
     display_name: strategy_id,
     description: null,
@@ -1147,66 +1147,66 @@ function makeStrategyCatalog(
   }));
 }
 
-describe("validateConfigsStrategyIdsAgainstCatalog", () => {
-  it("returns null when catalog is null", () => {
+describe('validateConfigsStrategyIdsAgainstCatalog', () => {
+  it('returns null when catalog is null', () => {
     expect(
       validateConfigsStrategyIdsAgainstCatalog(
-        [{ strategy_id: "any_new_engine" }],
-        null
-      )
+        [{ strategy_id: 'any_new_engine' }],
+        null,
+      ),
     ).toBeNull();
   });
 
-  it("returns null when catalog strategies array is empty", () => {
+  it('returns null when catalog strategies array is empty', () => {
     expect(
       validateConfigsStrategyIdsAgainstCatalog(
-        [{ strategy_id: "dma_gated_fgi" }],
-        []
-      )
+        [{ strategy_id: 'dma_gated_fgi' }],
+        [],
+      ),
     ).toBeNull();
   });
 
-  it("skips configs without a strategy_id and returns null", () => {
+  it('skips configs without a strategy_id and returns null', () => {
     // Exercises the `if (!strategyId) continue` branch
-    const catalog = makeStrategyCatalog(["dca_classic"]);
+    const catalog = makeStrategyCatalog(['dca_classic']);
     expect(
       validateConfigsStrategyIdsAgainstCatalog(
         [
           { strategy_id: undefined },
           { strategy_id: null as unknown as string },
         ],
-        catalog
-      )
+        catalog,
+      ),
     ).toBeNull();
   });
 
-  it("returns null when every strategy_id is listed in the catalog", () => {
-    const catalog = makeStrategyCatalog(["dca_classic", "dma_gated_fgi"]);
+  it('returns null when every strategy_id is listed in the catalog', () => {
+    const catalog = makeStrategyCatalog(['dca_classic', 'dma_gated_fgi']);
     expect(
       validateConfigsStrategyIdsAgainstCatalog(
-        [{ strategy_id: "dca_classic" }, { strategy_id: "dma_gated_fgi" }],
-        catalog
-      )
+        [{ strategy_id: 'dca_classic' }, { strategy_id: 'dma_gated_fgi' }],
+        catalog,
+      ),
     ).toBeNull();
   });
 
-  it("returns a path-style error when a strategy_id is not in the catalog", () => {
-    const catalog = makeStrategyCatalog(["dma_gated_fgi"]);
+  it('returns a path-style error when a strategy_id is not in the catalog', () => {
+    const catalog = makeStrategyCatalog(['dma_gated_fgi']);
     const message = validateConfigsStrategyIdsAgainstCatalog(
-      [{ strategy_id: "dma_gated_fgi" }, { strategy_id: "brand_new_strategy" }],
-      catalog
+      [{ strategy_id: 'dma_gated_fgi' }, { strategy_id: 'brand_new_strategy' }],
+      catalog,
     );
-    expect(message).toContain("configs.1.strategy_id");
-    expect(message).toContain("brand_new_strategy");
-    expect(message).toContain("dma_gated_fgi");
+    expect(message).toContain('configs.1.strategy_id');
+    expect(message).toContain('brand_new_strategy');
+    expect(message).toContain('dma_gated_fgi');
   });
 });
 
-describe("useBacktestConfiguration catalog strategy_id refine", () => {
+describe('useBacktestConfiguration catalog strategy_id refine', () => {
   const mockMutate = vi.fn(
     (_request: unknown, options?: { onSettled?: () => void }) => {
       options?.onSettled?.();
-    }
+    },
   );
 
   beforeEach(() => {
@@ -1219,7 +1219,7 @@ describe("useBacktestConfiguration catalog strategy_id refine", () => {
     } as any);
   });
 
-  it("rejects run when catalog lists strategies but payload uses an unknown strategy_id", async () => {
+  it('rejects run when catalog lists strategies but payload uses an unknown strategy_id', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue(mockStrategyConfigs);
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -1237,11 +1237,11 @@ describe("useBacktestConfiguration catalog strategy_id refine", () => {
           days: 30,
           configs: [
             {
-              config_id: "unknown_default",
-              strategy_id: "not_in_catalog",
+              config_id: 'unknown_default',
+              strategy_id: 'not_in_catalog',
             },
           ],
-        })
+        }),
       );
     });
 
@@ -1249,47 +1249,47 @@ describe("useBacktestConfiguration catalog strategy_id refine", () => {
       result.current.handleRunBacktest();
     });
 
-    expect(result.current.editorError).toContain("configs.0.strategy_id");
-    expect(result.current.editorError).toContain("not_in_catalog");
+    expect(result.current.editorError).toContain('configs.0.strategy_id');
+    expect(result.current.editorError).toContain('not_in_catalog');
     expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("formatValidationError", () => {
-  it("uses field path when issue has a non-empty path", () => {
-    const { ZodError } = require("zod");
+describe('formatValidationError', () => {
+  it('uses field path when issue has a non-empty path', () => {
+    const { ZodError } = require('zod');
     const error = new ZodError([
       {
-        code: "custom",
-        path: ["configs", "0", "strategy_id"],
-        message: "Unknown strategy",
+        code: 'custom',
+        path: ['configs', '0', 'strategy_id'],
+        message: 'Unknown strategy',
       },
     ]);
     expect(formatValidationError(error)).toBe(
-      "configs.0.strategy_id: Unknown strategy"
+      'configs.0.strategy_id: Unknown strategy',
     );
   });
 
   it("falls back to 'payload' label when issue path is empty", () => {
     // Exercises the `issue.path.join(".") || "payload"` false branch.
     // An issue with path: [] produces "" after join, which is falsy → "payload" is used.
-    const { ZodError } = require("zod");
+    const { ZodError } = require('zod');
     const error = new ZodError([
-      { code: "custom", path: [], message: "Root-level error" },
+      { code: 'custom', path: [], message: 'Root-level error' },
     ]);
-    expect(formatValidationError(error)).toBe("payload: Root-level error");
+    expect(formatValidationError(error)).toBe('payload: Root-level error');
   });
 });
 
-describe("normalizeParams pruneUndefinedDeep", () => {
-  it("prunes keys with undefined values from a nested object", () => {
+describe('normalizeParams pruneUndefinedDeep', () => {
+  it('prunes keys with undefined values from a nested object', () => {
     // Exercises the `normalizedEntry === undefined ? [] : [[key, normalizedEntry]]`
     // both branches: the [] branch fires for undefined values, [[...]] for defined values.
     const result = normalizeParams({ signal: { cross_cooldown_days: 7 } });
     expect(result).toEqual({ signal: { cross_cooldown_days: 7 } });
   });
 
-  it("prunes nested object keys that are explicitly undefined", () => {
+  it('prunes nested object keys that are explicitly undefined', () => {
     // `{ k: undefined }` → after pruning → pruneUndefinedDeep returns undefined → normalizeParams returns undefined
     const result = normalizeParams({
       pacing: { k: undefined, r_max: undefined },

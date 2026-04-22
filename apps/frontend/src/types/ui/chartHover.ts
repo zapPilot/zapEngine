@@ -32,7 +32,7 @@ interface BaseHoverData {
  * Shows portfolio value
  */
 export interface PerformanceHoverData extends BaseHoverData {
-  chartType: "performance";
+  chartType: 'performance';
   /** Portfolio value in USD */
   value: number;
   /** DeFi portion of the portfolio value in USD */
@@ -46,7 +46,7 @@ export interface PerformanceHoverData extends BaseHoverData {
  * Shows percentage breakdown across asset categories
  */
 export interface AllocationHoverData extends BaseHoverData {
-  chartType: "asset-allocation";
+  chartType: 'asset-allocation';
   /** BTC allocation percentage (0-100) */
   btc: number;
   /** ETH allocation percentage (0-100) */
@@ -62,7 +62,7 @@ export interface AllocationHoverData extends BaseHoverData {
  * Shows drawdown percentage and peak information
  */
 export interface DrawdownHoverData extends BaseHoverData {
-  chartType: "drawdown-recovery";
+  chartType: 'drawdown-recovery';
   /** Drawdown percentage (negative value) */
   drawdown: number;
   /** Date of the peak value before drawdown */
@@ -82,11 +82,11 @@ export interface DrawdownHoverData extends BaseHoverData {
  * Shows risk-adjusted return metric with 5-level interpretation
  */
 export interface SharpeHoverData extends BaseHoverData {
-  chartType: "sharpe";
+  chartType: 'sharpe';
   /** Rolling Sharpe ratio value */
   sharpe: number;
   /** Human-readable interpretation of Sharpe value (5-level system) */
-  interpretation: "Excellent" | "Good" | "Fair" | "Poor" | "Very Poor";
+  interpretation: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Very Poor';
 }
 
 /**
@@ -94,11 +94,11 @@ export interface SharpeHoverData extends BaseHoverData {
  * Shows 30-day rolling volatility with risk assessment
  */
 export interface VolatilityHoverData extends BaseHoverData {
-  chartType: "volatility";
+  chartType: 'volatility';
   /** 30-day volatility percentage (annualized) */
   volatility: number;
   /** Risk level assessment based on volatility */
-  riskLevel: "Low" | "Moderate" | "High" | "Very High";
+  riskLevel: 'Low' | 'Moderate' | 'High' | 'Very High';
 }
 
 /**
@@ -106,7 +106,7 @@ export interface VolatilityHoverData extends BaseHoverData {
  * Shows daily yield returns with per-protocol breakdown
  */
 export interface DailyYieldHoverData extends BaseHoverData {
-  chartType: "daily-yield";
+  chartType: 'daily-yield';
   /** Total yield for the day in USD */
   totalYield: number;
   /** Number of protocols contributing to yield */
@@ -143,18 +143,18 @@ export type ChartHoverState =
  * Factory for chart hover type guard functions
  */
 function createHoverGuard<T extends ChartHoverState>(
-  chartType: T["chartType"]
+  chartType: T['chartType'],
 ) {
   return (state: ChartHoverState | null): state is T =>
     state?.chartType === chartType;
 }
 
 export const isPerformanceHover =
-  createHoverGuard<PerformanceHoverData>("performance");
+  createHoverGuard<PerformanceHoverData>('performance');
 export const isAllocationHover =
-  createHoverGuard<AllocationHoverData>("asset-allocation");
+  createHoverGuard<AllocationHoverData>('asset-allocation');
 export const isDrawdownHover =
-  createHoverGuard<DrawdownHoverData>("drawdown-recovery");
-export const isSharpeHover = createHoverGuard<SharpeHoverData>("sharpe");
+  createHoverGuard<DrawdownHoverData>('drawdown-recovery');
+export const isSharpeHover = createHoverGuard<SharpeHoverData>('sharpe');
 export const isVolatilityHover =
-  createHoverGuard<VolatilityHoverData>("volatility");
+  createHoverGuard<VolatilityHoverData>('volatility');

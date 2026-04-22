@@ -1,8 +1,8 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useTelegramConnectionState } from "@/components/wallet/portfolio/modals/useTelegramConnectionState";
-import type { TelegramStatus } from "@/services";
+import { useTelegramConnectionState } from '@/components/wallet/portfolio/modals/useTelegramConnectionState';
+import type { TelegramStatus } from '@/services';
 
 const {
   mockDisconnectTelegram,
@@ -14,7 +14,7 @@ const {
   mockRequestTelegramToken: vi.fn(),
 }));
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   disconnectTelegram: mockDisconnectTelegram,
   getTelegramStatus: mockGetTelegramStatus,
   requestTelegramToken: mockRequestTelegramToken,
@@ -29,28 +29,28 @@ const disconnectedStatus: TelegramStatus = {
 const connectedStatus: TelegramStatus = {
   isConnected: true,
   isEnabled: true,
-  connectedAt: "2025-03-01T10:00:00Z",
+  connectedAt: '2025-03-01T10:00:00Z',
 };
 
 const telegramTokenResponse = {
-  token: "abc123",
-  botName: "zap_pilot_bot",
-  deepLink: "https://t.me/zap_pilot_bot?start=abc123",
-  expiresAt: "2025-03-01T10:05:00Z",
+  token: 'abc123',
+  botName: 'zap_pilot_bot',
+  deepLink: 'https://t.me/zap_pilot_bot?start=abc123',
+  expiresAt: '2025-03-01T10:05:00Z',
 };
 
 const mockPollingTimer = () => {
   let intervalCallback: (() => void) | undefined;
 
   const setIntervalSpy = vi
-    .spyOn(globalThis, "setInterval")
-    .mockImplementation(callback => {
+    .spyOn(globalThis, 'setInterval')
+    .mockImplementation((callback) => {
       intervalCallback = callback as () => void;
       return 1 as unknown as ReturnType<typeof setInterval>;
     });
 
   const clearIntervalSpy = vi
-    .spyOn(globalThis, "clearInterval")
+    .spyOn(globalThis, 'clearInterval')
     .mockImplementation(() => undefined);
 
   return {
@@ -65,7 +65,7 @@ const mockPollingTimer = () => {
   };
 };
 
-describe("useTelegramConnectionState", () => {
+describe('useTelegramConnectionState', () => {
   let originalWindowOpen: typeof window.open;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe("useTelegramConnectionState", () => {
     mockRequestTelegramToken.mockResolvedValue(telegramTokenResponse);
     mockDisconnectTelegram.mockResolvedValue({
       success: true,
-      message: "Disconnected",
+      message: 'Disconnected',
     });
   });
 
@@ -88,39 +88,39 @@ describe("useTelegramConnectionState", () => {
     window.open = originalWindowOpen;
   });
 
-  it("loads the current Telegram status when the modal opens", async () => {
+  it('loads the current Telegram status when the modal opens', async () => {
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: true, userId: 'user-1' }),
     );
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "idle",
+        kind: 'idle',
         status: disconnectedStatus,
       });
     });
 
-    expect(mockGetTelegramStatus).toHaveBeenCalledWith("user-1");
+    expect(mockGetTelegramStatus).toHaveBeenCalledWith('user-1');
   });
 
-  it("shows a load error when the initial status request fails", async () => {
-    mockGetTelegramStatus.mockRejectedValueOnce(new Error("load failed"));
+  it('shows a load error when the initial status request fails', async () => {
+    mockGetTelegramStatus.mockRejectedValueOnce(new Error('load failed'));
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: true, userId: 'user-1' }),
     );
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "error",
-        message: "Failed to load Telegram status.",
+        kind: 'error',
+        message: 'Failed to load Telegram status.',
       });
     });
   });
 
-  it("keeps the hook in a no-op state when there is no userId", async () => {
+  it('keeps the hook in a no-op state when there is no userId', async () => {
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true })
+      useTelegramConnectionState({ isOpen: true }),
     );
 
     expect(mockGetTelegramStatus).not.toHaveBeenCalled();
@@ -134,40 +134,40 @@ describe("useTelegramConnectionState", () => {
     expect(mockRequestTelegramToken).not.toHaveBeenCalled();
     expect(mockDisconnectTelegram).not.toHaveBeenCalled();
     expect(mockGetTelegramStatus).not.toHaveBeenCalled();
-    expect(result.current.view).toEqual({ kind: "loading" });
+    expect(result.current.view).toEqual({ kind: 'loading' });
     expect(result.current.isDisconnecting).toBe(false);
   });
 
-  it("opens the Telegram deep link when connect succeeds", async () => {
+  it('opens the Telegram deep link when connect succeeds', async () => {
     const { result, unmount } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: false, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: false, userId: 'user-1' }),
     );
 
     await act(async () => {
       await result.current.handleConnect();
     });
 
-    expect(mockRequestTelegramToken).toHaveBeenCalledWith("user-1");
+    expect(mockRequestTelegramToken).toHaveBeenCalledWith('user-1');
     expect(window.open).toHaveBeenCalledWith(
       telegramTokenResponse.deepLink,
-      "_blank"
+      '_blank',
     );
     expect(result.current.view).toEqual({
-      kind: "connecting",
+      kind: 'connecting',
       deepLink: telegramTokenResponse.deepLink,
     });
 
     unmount();
   });
 
-  it("polls until Telegram is connected", async () => {
+  it('polls until Telegram is connected', async () => {
     const { clearIntervalSpy, triggerInterval } = mockPollingTimer();
     mockGetTelegramStatus
       .mockResolvedValueOnce(disconnectedStatus)
       .mockResolvedValueOnce(connectedStatus);
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: false, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: false, userId: 'user-1' }),
     );
 
     await act(async () => {
@@ -177,26 +177,26 @@ describe("useTelegramConnectionState", () => {
     await triggerInterval();
 
     expect(result.current.view).toEqual({
-      kind: "connecting",
+      kind: 'connecting',
       deepLink: telegramTokenResponse.deepLink,
     });
 
     await triggerInterval();
 
     expect(result.current.view).toEqual({
-      kind: "idle",
+      kind: 'idle',
       status: connectedStatus,
     });
     expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
-  it("surfaces a timeout error when polling runs too long", async () => {
+  it('surfaces a timeout error when polling runs too long', async () => {
     const { clearIntervalSpy, triggerInterval } = mockPollingTimer();
-    const dateNowSpy = vi.spyOn(Date, "now");
+    const dateNowSpy = vi.spyOn(Date, 'now');
     dateNowSpy.mockReturnValue(0);
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: false, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: false, userId: 'user-1' }),
     );
 
     await act(async () => {
@@ -207,19 +207,19 @@ describe("useTelegramConnectionState", () => {
     await triggerInterval();
 
     expect(result.current.view).toEqual({
-      kind: "error",
-      message: "Connection timed out. Please try again.",
+      kind: 'error',
+      message: 'Connection timed out. Please try again.',
     });
     expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
-  it("shows the request-token error message when connect fails", async () => {
+  it('shows the request-token error message when connect fails', async () => {
     mockRequestTelegramToken.mockRejectedValueOnce(
-      new Error("Failed to generate connection link.")
+      new Error('Failed to generate connection link.'),
     );
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: false, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: false, userId: 'user-1' }),
     );
 
     await act(async () => {
@@ -227,23 +227,23 @@ describe("useTelegramConnectionState", () => {
     });
 
     expect(result.current.view).toEqual({
-      kind: "error",
-      message: "Failed to generate connection link.",
+      kind: 'error',
+      message: 'Failed to generate connection link.',
     });
   });
 
-  it("refreshes the status after a successful disconnect", async () => {
+  it('refreshes the status after a successful disconnect', async () => {
     mockGetTelegramStatus
       .mockResolvedValueOnce(connectedStatus)
       .mockResolvedValueOnce(disconnectedStatus);
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: true, userId: 'user-1' }),
     );
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "idle",
+        kind: 'idle',
         status: connectedStatus,
       });
     });
@@ -252,27 +252,27 @@ describe("useTelegramConnectionState", () => {
       await result.current.handleDisconnect();
     });
 
-    expect(mockDisconnectTelegram).toHaveBeenCalledWith("user-1");
+    expect(mockDisconnectTelegram).toHaveBeenCalledWith('user-1');
     expect(result.current.isDisconnecting).toBe(false);
     expect(result.current.view).toEqual({
-      kind: "idle",
+      kind: 'idle',
       status: disconnectedStatus,
     });
   });
 
-  it("shows the disconnect error message when disconnect fails", async () => {
+  it('shows the disconnect error message when disconnect fails', async () => {
     mockGetTelegramStatus.mockResolvedValueOnce(connectedStatus);
     mockDisconnectTelegram.mockRejectedValueOnce(
-      new Error("Failed to disconnect Telegram.")
+      new Error('Failed to disconnect Telegram.'),
     );
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: true, userId: 'user-1' }),
     );
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "idle",
+        kind: 'idle',
         status: connectedStatus,
       });
     });
@@ -283,30 +283,30 @@ describe("useTelegramConnectionState", () => {
 
     expect(result.current.isDisconnecting).toBe(false);
     expect(result.current.view).toEqual({
-      kind: "error",
-      message: "Failed to disconnect Telegram.",
+      kind: 'error',
+      message: 'Failed to disconnect Telegram.',
     });
   });
 
-  it("resets to loading and refetches when retry is requested", async () => {
+  it('resets to loading and refetches when retry is requested', async () => {
     let resolveStatus: ((status: TelegramStatus) => void) | undefined;
 
-    mockGetTelegramStatus.mockRejectedValueOnce(new Error("load failed"));
+    mockGetTelegramStatus.mockRejectedValueOnce(new Error('load failed'));
     mockGetTelegramStatus.mockImplementationOnce(
       () =>
-        new Promise<TelegramStatus>(resolve => {
+        new Promise<TelegramStatus>((resolve) => {
           resolveStatus = resolve;
-        })
+        }),
     );
 
     const { result } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: true, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: true, userId: 'user-1' }),
     );
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "error",
-        message: "Failed to load Telegram status.",
+        kind: 'error',
+        message: 'Failed to load Telegram status.',
       });
     });
 
@@ -314,7 +314,7 @@ describe("useTelegramConnectionState", () => {
       result.current.handleRetry();
     });
 
-    expect(result.current.view).toEqual({ kind: "loading" });
+    expect(result.current.view).toEqual({ kind: 'loading' });
 
     await act(async () => {
       resolveStatus?.(connectedStatus);
@@ -323,16 +323,16 @@ describe("useTelegramConnectionState", () => {
 
     await waitFor(() => {
       expect(result.current.view).toEqual({
-        kind: "idle",
+        kind: 'idle',
         status: connectedStatus,
       });
     });
   });
 
-  it("stops polling when the hook unmounts", async () => {
+  it('stops polling when the hook unmounts', async () => {
     const { clearIntervalSpy } = mockPollingTimer();
     const { result, unmount } = renderHook(() =>
-      useTelegramConnectionState({ isOpen: false, userId: "user-1" })
+      useTelegramConnectionState({ isOpen: false, userId: 'user-1' }),
     );
 
     await act(async () => {

@@ -1,9 +1,9 @@
-import { AlertTriangle, ArrowLeft, Copy } from "lucide-react";
-import type { ReactElement } from "react";
+import { AlertTriangle, ArrowLeft, Copy } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-import type { SavedStrategyConfig } from "@/types";
+import type { SavedStrategyConfig } from '@/types';
 
-import { type ConfigEditorMode, getEditorTitle } from "./configEditorShared";
+import { type ConfigEditorMode, getEditorTitle } from './configEditorShared';
 
 interface ConfigEditorHeaderProps {
   configIdInput: string;
@@ -35,13 +35,13 @@ export function ConfigEditorHeader({
           <h3 className="text-lg font-semibold text-white">
             {getEditorTitle(mode)}
           </h3>
-          {mode === "edit" && (
+          {mode === 'edit' && (
             <span className="rounded-full bg-gray-800 px-3 py-1 font-mono text-xs text-gray-400">
               {configIdInput}
             </span>
           )}
         </div>
-        {mode === "edit" && !isBenchmark && existingConfig && (
+        {mode === 'edit' && !isBenchmark && existingConfig && (
           <button
             onClick={() => onDuplicate(existingConfig)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"

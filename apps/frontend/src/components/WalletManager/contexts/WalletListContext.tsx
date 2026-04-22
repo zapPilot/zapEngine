@@ -1,10 +1,10 @@
-import { createContext, type PropsWithChildren, useContext } from "react";
+import { createContext, type PropsWithChildren, useContext } from 'react';
 
 import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from "@/types";
+} from '@/types';
 
 /**
  * Context for WalletList component to reduce prop drilling
@@ -53,7 +53,7 @@ export function WalletListProvider({
 export function useWalletList() {
   const context = useContext(WalletListContext);
   if (!context) {
-    throw new Error("useWalletList must be used within WalletListProvider");
+    throw new Error('useWalletList must be used within WalletListProvider');
   }
   return context;
 }

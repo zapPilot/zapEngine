@@ -1,8 +1,8 @@
-import { transactionServiceMock as depositTransactionService } from "@/services";
-import type { DepositModalProps } from "@/types/ui/ui.types";
+import { transactionServiceMock as depositTransactionService } from '@/services';
+import type { DepositModalProps } from '@/types/ui/ui.types';
 
-import { TransactionModalBase } from "./base/TransactionModalBase";
-import * as modalDeps from "./transactionModalDependencies";
+import { TransactionModalBase } from './base/TransactionModalBase';
+import * as modalDeps from './transactionModalDependencies';
 
 export function DepositModal({
   isOpen,
@@ -28,35 +28,35 @@ export function DepositModal({
       }
       modalContentClassName="p-0 overflow-visible bg-gray-950 border-gray-800"
     >
-      {modalState => {
+      {(modalState) => {
         const { handlePercentage, isValid } = modalDeps.buildModalFormState(
           modalState.form,
           () =>
             parseFloat(
-              modalState.transactionData.balanceQuery.data?.balance || "0"
-            )
+              modalState.transactionData.balanceQuery.data?.balance || '0',
+            ),
         );
 
         const hasSelectedToken = Boolean(
-          modalState.transactionData.selectedToken
+          modalState.transactionData.selectedToken,
         );
         const actionLabel = modalDeps.resolveActionLabel({
           isConnected,
           hasSelection: hasSelectedToken,
           isReady: isValid,
-          selectionLabel: "Select Asset",
-          notReadyLabel: "Enter Amount",
-          readyLabel: "Review & Deposit",
+          selectionLabel: 'Select Asset',
+          notReadyLabel: 'Enter Amount',
+          readyLabel: 'Review & Deposit',
         });
 
         const assetContent = (
           <div className="max-h-80 overflow-y-auto custom-scrollbar p-2">
-            {modalState.transactionData.tokenQuery.data?.map(token => {
+            {modalState.transactionData.tokenQuery.data?.map((token) => {
               const isSelected =
                 modalState.transactionData.selectedToken?.address ===
                 token.address;
               const balance =
-                modalState.transactionData.balanceQuery.data?.balance || "0";
+                modalState.transactionData.balanceQuery.data?.balance || '0';
               return (
                 <modalDeps.TokenOptionButton
                   key={token.address}
@@ -64,7 +64,7 @@ export function DepositModal({
                   balanceLabel={`${balance} available`}
                   isSelected={isSelected}
                   onSelect={() => {
-                    modalState.form.setValue("tokenAddress", token.address);
+                    modalState.form.setValue('tokenAddress', token.address);
                     dropdownState.closeDropdowns();
                   }}
                 />

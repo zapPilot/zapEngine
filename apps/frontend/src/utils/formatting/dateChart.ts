@@ -5,15 +5,15 @@
  * @returns Human-readable US date string
  */
 export function formatChartDate(date: string | Date): string {
-  const parsed = typeof date === "string" ? new Date(date) : date;
+  const parsed = typeof date === 'string' ? new Date(date) : date;
   if (Number.isNaN(parsed.getTime())) {
-    return typeof date === "string" ? date : "";
+    return typeof date === 'string' ? date : '';
   }
 
-  return parsed.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
 }
 
@@ -25,8 +25,8 @@ export function formatChartDate(date: string | Date): string {
  */
 export function formatChartAxisDate(value: string | number): string {
   return new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    year: "2-digit",
+    month: 'short',
+    year: '2-digit',
   });
 }
 
@@ -47,8 +47,8 @@ export function formatCurrencyAxis(value: string | number): string {
  * @returns Label string for well-known anchor points or the numeric value
  */
 export function formatSentiment(value: number): string {
-  if (value === 0) return "Fear";
-  if (value === 50) return "Neutral";
-  if (value === 100) return "Greed";
+  if (value === 0) return 'Fear';
+  if (value === 50) return 'Neutral';
+  if (value === 100) return 'Greed';
   return String(value);
 }

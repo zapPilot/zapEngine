@@ -8,7 +8,7 @@
  * @see https://www.framer.com/motion/animation/
  */
 
-import type { Transition, Variants } from "framer-motion";
+import type { Transition, Variants } from 'framer-motion';
 
 // ============================================================================
 // Transition Presets

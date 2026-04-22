@@ -528,19 +528,22 @@ All hooks use React's `useMemo` to prevent unnecessary recalculations:
 **Individual Import**:
 
 ```typescript
-import { usePortfolioHistoryData } from "@/hooks/charts/usePortfolioHistoryData";
+import { usePortfolioHistoryData } from '@/hooks/charts/usePortfolioHistoryData';
 ```
 
 **Barrel Import** (recommended):
 
 ```typescript
-import { usePortfolioHistoryData } from "@/hooks/charts";
+import { usePortfolioHistoryData } from '@/hooks/charts';
 ```
 
 **Type Imports**:
 
 ```typescript
-import type { UsePortfolioHistoryDataParams, UsePortfolioHistoryDataResult } from "@/hooks/charts";
+import type {
+  UsePortfolioHistoryDataParams,
+  UsePortfolioHistoryDataResult,
+} from '@/hooks/charts';
 ```
 
 ---
@@ -554,21 +557,20 @@ If you're currently using `useChartData` and only need portfolio performance dat
 **Before**:
 
 ```typescript
-const { portfolioHistory, currentValue, totalReturn, isLoading, error } = useChartData(
-  userId,
-  selectedPeriod
-);
+const { portfolioHistory, currentValue, totalReturn, isLoading, error } =
+  useChartData(userId, selectedPeriod);
 ```
 
 **After**:
 
 ```typescript
 const dashboardQuery = usePortfolioDashboard(userId);
-const { performanceData, currentValue, totalReturn, isLoading, error } = usePortfolioHistoryData({
-  portfolioHistory: dashboardQuery.portfolioHistory,
-  isLoading: dashboardQuery.isLoading,
-  error: dashboardQuery.error?.message,
-});
+const { performanceData, currentValue, totalReturn, isLoading, error } =
+  usePortfolioHistoryData({
+    portfolioHistory: dashboardQuery.portfolioHistory,
+    isLoading: dashboardQuery.isLoading,
+    error: dashboardQuery.error?.message,
+  });
 ```
 
 **Benefits**:
@@ -585,18 +587,22 @@ If you're currently using `useChartData` and only need allocation data:
 **Before**:
 
 ```typescript
-const { allocationHistory, isLoading, error } = useChartData(userId, selectedPeriod);
+const { allocationHistory, isLoading, error } = useChartData(
+  userId,
+  selectedPeriod,
+);
 ```
 
 **After**:
 
 ```typescript
 const dashboardQuery = usePortfolioDashboard(userId);
-const { allocationData, currentAllocation, pieChartData, isLoading, error } = useAllocationData({
-  allocationHistory: dashboardQuery.allocationHistory,
-  isLoading: dashboardQuery.isLoading,
-  error: dashboardQuery.error?.message,
-});
+const { allocationData, currentAllocation, pieChartData, isLoading, error } =
+  useAllocationData({
+    allocationHistory: dashboardQuery.allocationHistory,
+    isLoading: dashboardQuery.isLoading,
+    error: dashboardQuery.error?.message,
+  });
 ```
 
 **Benefits**:

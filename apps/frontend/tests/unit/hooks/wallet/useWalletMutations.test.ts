@@ -1,42 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useUser } from "@/contexts/UserContext";
-import { invalidateAndRefetch } from "@/hooks/utils/useQueryInvalidation";
-import { useWalletMutations } from "@/hooks/wallet/useWalletMutations";
+import { useUser } from '@/contexts/UserContext';
+import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
+import { useWalletMutations } from '@/hooks/wallet/useWalletMutations';
 import {
   handleWalletError,
   type WalletData,
-} from "@/lib/validation/walletUtils";
-import { addWallet, removeWallet } from "@/services";
+} from '@/lib/validation/walletUtils';
+import { addWallet, removeWallet } from '@/services';
 import type {
   NewWallet,
   WalletOperations,
   WalletOperationStateSetter,
-} from "@/types";
-import { validateNewWallet } from "@/utils";
+} from '@/types';
+import { validateNewWallet } from '@/utils';
 
-import { act, renderHook, waitFor } from "../../../test-utils";
+import { act, renderHook, waitFor } from '../../../test-utils';
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
 }));
 
-vi.mock("@/utils", () => ({
+vi.mock('@/utils', () => ({
   validateNewWallet: vi.fn(),
 }));
 
-vi.mock("@/contexts/UserContext", () => ({
+vi.mock('@/contexts/UserContext', () => ({
   useUser: vi.fn(() => ({ refetch: vi.fn() })),
 }));
 
-vi.mock("@/hooks/utils/useQueryInvalidation", () => ({
+vi.mock('@/hooks/utils/useQueryInvalidation', () => ({
   invalidateAndRefetch: vi.fn(),
 }));
 
-vi.mock("@/lib/validation/walletUtils", () => ({
+vi.mock('@/lib/validation/walletUtils', () => ({
   handleWalletError: vi.fn((error: unknown) =>
-    error instanceof Error ? error.message : "Unknown error"
+    error instanceof Error ? error.message : 'Unknown error',
   ),
 }));
 
@@ -53,29 +53,29 @@ type WalletOperationsUpdater =
   | WalletOperations
   | ((previous: WalletOperations) => WalletOperations);
 
-const mockUserId = "0x1234567890123456789012345678901234567890";
-const mockWalletId = "wallet-1";
+const mockUserId = '0x1234567890123456789012345678901234567890';
+const mockWalletId = 'wallet-1';
 const mockWallets: WalletData[] = [
   {
-    id: "wallet-1",
-    address: "0xabc",
-    label: "Wallet 1",
+    id: 'wallet-1',
+    address: '0xabc',
+    label: 'Wallet 1',
     isMain: false,
     isActive: false,
-    createdAt: "2024-01-01",
+    createdAt: '2024-01-01',
   },
   {
-    id: "wallet-2",
-    address: "0xdef",
-    label: "Wallet 2",
+    id: 'wallet-2',
+    address: '0xdef',
+    label: 'Wallet 2',
     isMain: false,
     isActive: false,
-    createdAt: "2024-01-02",
+    createdAt: '2024-01-02',
   },
 ];
 const mockNewWallet: NewWallet = {
-  address: "0x9876543210987654321098765432109876543210",
-  label: "New Wallet",
+  address: '0x9876543210987654321098765432109876543210',
+  label: 'New Wallet',
 };
 
 function createOperationsState(): WalletOperations {
@@ -89,16 +89,16 @@ function createOperationsState(): WalletOperations {
 
 function applyOperationsUpdater(
   updater: WalletOperationsUpdater,
-  current: WalletOperations
+  current: WalletOperations,
 ): WalletOperations {
-  if (typeof updater === "function") {
+  if (typeof updater === 'function') {
     return updater(current);
   }
 
   return updater;
 }
 
-describe("useWalletMutations", () => {
+describe('useWalletMutations', () => {
   let mockOperations: WalletOperations;
   let mockSetOperations: ReturnType<typeof vi.fn>;
   let mockSetWallets: ReturnType<typeof vi.fn>;
@@ -138,9 +138,9 @@ describe("useWalletMutations", () => {
     } as ReturnType<typeof useUser>);
   });
 
-  describe("handleDeleteWallet", () => {
-    it("returns early when userId is missing", async () => {
-      const { result } = renderUseWalletMutations({ userId: "" });
+  describe('handleDeleteWallet', () => {
+    it('returns early when userId is missing', async () => {
+      const { result } = renderUseWalletMutations({ userId: '' });
 
       await act(async () => {
         await result.current.handleDeleteWallet(mockWalletId);
@@ -150,7 +150,7 @@ describe("useWalletMutations", () => {
       expect(removeWallet).not.toHaveBeenCalled();
     });
 
-    it("deletes wallet and updates optimistic and loading state", async () => {
+    it('deletes wallet and updates optimistic and loading state', async () => {
       vi.mocked(removeWallet).mockResolvedValue({ success: true });
 
       const { result } = renderUseWalletMutations();
@@ -160,18 +160,18 @@ describe("useWalletMutations", () => {
       });
 
       expect(mockSetWalletOperationState).toHaveBeenCalledWith(
-        "removing",
+        'removing',
         mockWalletId,
         {
           isLoading: true,
           error: null,
-        }
+        },
       );
       expect(removeWallet).toHaveBeenCalledWith(mockUserId, mockWalletId);
 
       expect(mockSetWallets).toHaveBeenCalledWith(expect.any(Function));
       const setWalletsUpdater = mockSetWallets.mock.calls[0][0] as (
-        wallets: WalletData[]
+        wallets: WalletData[],
       ) => WalletData[];
       expect(setWalletsUpdater(mockWallets)).toEqual([mockWallets[1]]);
 
@@ -180,19 +180,19 @@ describe("useWalletMutations", () => {
       });
 
       expect(mockSetWalletOperationState).toHaveBeenCalledWith(
-        "removing",
+        'removing',
         mockWalletId,
         {
           isLoading: false,
           error: null,
-        }
+        },
       );
     });
 
-    it("stores API error message when deletion response fails with error", async () => {
+    it('stores API error message when deletion response fails with error', async () => {
       vi.mocked(removeWallet).mockResolvedValue({
         success: false,
-        error: "Network error occurred",
+        error: 'Network error occurred',
       });
 
       const { result } = renderUseWalletMutations();
@@ -202,16 +202,16 @@ describe("useWalletMutations", () => {
       });
 
       expect(mockSetWalletOperationState).toHaveBeenCalledWith(
-        "removing",
+        'removing',
         mockWalletId,
         {
           isLoading: false,
-          error: "Network error occurred",
-        }
+          error: 'Network error occurred',
+        },
       );
     });
 
-    it("uses default delete error when API failure has no message", async () => {
+    it('uses default delete error when API failure has no message', async () => {
       vi.mocked(removeWallet).mockResolvedValue({ success: false });
 
       const { result } = renderUseWalletMutations();
@@ -221,19 +221,19 @@ describe("useWalletMutations", () => {
       });
 
       expect(mockSetWalletOperationState).toHaveBeenCalledWith(
-        "removing",
+        'removing',
         mockWalletId,
         {
           isLoading: false,
-          error: "Failed to remove wallet",
-        }
+          error: 'Failed to remove wallet',
+        },
       );
     });
 
-    it("maps exceptions through handleWalletError during deletion", async () => {
-      const error = new Error("Exception occurred");
+    it('maps exceptions through handleWalletError during deletion', async () => {
+      const error = new Error('Exception occurred');
       vi.mocked(removeWallet).mockRejectedValue(error);
-      vi.mocked(handleWalletError).mockReturnValue("Exception occurred");
+      vi.mocked(handleWalletError).mockReturnValue('Exception occurred');
 
       const { result } = renderUseWalletMutations();
 
@@ -243,19 +243,19 @@ describe("useWalletMutations", () => {
 
       expect(handleWalletError).toHaveBeenCalledWith(error);
       expect(mockSetWalletOperationState).toHaveBeenCalledWith(
-        "removing",
+        'removing',
         mockWalletId,
         {
           isLoading: false,
-          error: "Exception occurred",
-        }
+          error: 'Exception occurred',
+        },
       );
     });
   });
 
-  describe("handleAddWallet", () => {
-    it("returns user-id validation error when userId is missing", async () => {
-      const { result } = renderUseWalletMutations({ userId: "" });
+  describe('handleAddWallet', () => {
+    it('returns user-id validation error when userId is missing', async () => {
+      const { result } = renderUseWalletMutations({ userId: '' });
 
       let addResult: Awaited<ReturnType<typeof result.current.handleAddWallet>>;
       await act(async () => {
@@ -264,15 +264,15 @@ describe("useWalletMutations", () => {
 
       expect(addResult!).toEqual({
         success: false,
-        error: "User ID is required",
+        error: 'User ID is required',
       });
       expect(addWallet).not.toHaveBeenCalled();
     });
 
-    it("returns validation error when new wallet data is invalid", async () => {
+    it('returns validation error when new wallet data is invalid', async () => {
       vi.mocked(validateNewWallet).mockReturnValue({
         isValid: false,
-        error: "Invalid address format",
+        error: 'Invalid address format',
       });
 
       const { result } = renderUseWalletMutations();
@@ -285,12 +285,12 @@ describe("useWalletMutations", () => {
       expect(validateNewWallet).toHaveBeenCalledWith(mockNewWallet);
       expect(addResult!).toEqual({
         success: false,
-        error: "Invalid address format",
+        error: 'Invalid address format',
       });
       expect(addWallet).not.toHaveBeenCalled();
     });
 
-    it("adds wallet successfully and resets adding state", async () => {
+    it('adds wallet successfully and resets adding state', async () => {
       vi.mocked(validateNewWallet).mockReturnValue({ isValid: true });
       vi.mocked(addWallet).mockResolvedValue({ success: true });
 
@@ -304,7 +304,7 @@ describe("useWalletMutations", () => {
       expect(addWallet).toHaveBeenCalledWith(
         mockUserId,
         mockNewWallet.address,
-        mockNewWallet.label
+        mockNewWallet.label,
       );
 
       await waitFor(() => {
@@ -319,11 +319,11 @@ describe("useWalletMutations", () => {
       expect(addResult!).toEqual({ success: true });
     });
 
-    it("returns API failure for wallet addition", async () => {
+    it('returns API failure for wallet addition', async () => {
       vi.mocked(validateNewWallet).mockReturnValue({ isValid: true });
       vi.mocked(addWallet).mockResolvedValue({
         success: false,
-        error: "Wallet already exists",
+        error: 'Wallet already exists',
       });
 
       const { result } = renderUseWalletMutations();
@@ -335,19 +335,19 @@ describe("useWalletMutations", () => {
 
       expect(addResult!).toEqual({
         success: false,
-        error: "Wallet already exists",
+        error: 'Wallet already exists',
       });
       expect(mockOperations.adding).toEqual({
         isLoading: false,
-        error: "Wallet already exists",
+        error: 'Wallet already exists',
       });
     });
 
-    it("returns mapped exception from handleWalletError for wallet addition", async () => {
-      const error = new Error("Network failure");
+    it('returns mapped exception from handleWalletError for wallet addition', async () => {
+      const error = new Error('Network failure');
       vi.mocked(validateNewWallet).mockReturnValue({ isValid: true });
       vi.mocked(addWallet).mockRejectedValue(error);
-      vi.mocked(handleWalletError).mockReturnValue("Network failure");
+      vi.mocked(handleWalletError).mockReturnValue('Network failure');
 
       const { result } = renderUseWalletMutations();
 
@@ -357,17 +357,17 @@ describe("useWalletMutations", () => {
       });
 
       expect(handleWalletError).toHaveBeenCalledWith(error);
-      expect(addResult!).toEqual({ success: false, error: "Network failure" });
+      expect(addResult!).toEqual({ success: false, error: 'Network failure' });
       expect(mockOperations.adding).toEqual({
         isLoading: false,
-        error: "Network failure",
+        error: 'Network failure',
       });
     });
   });
 
-  it("exposes operations.adding as addingState", () => {
+  it('exposes operations.adding as addingState', () => {
     const customOperations: WalletOperations = {
-      adding: { isLoading: true, error: "Test error" },
+      adding: { isLoading: true, error: 'Test error' },
       removing: {},
       editing: {},
       subscribing: { isLoading: false, error: null },
@@ -379,7 +379,7 @@ describe("useWalletMutations", () => {
 
     expect(result.current.addingState).toEqual({
       isLoading: true,
-      error: "Test error",
+      error: 'Test error',
     });
   });
 });

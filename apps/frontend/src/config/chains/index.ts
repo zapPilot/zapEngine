@@ -6,7 +6,7 @@
  */
 
 // Canonical chain definitions
-export { SUPPORTED_CHAINS } from "./definitions";
+export { SUPPORTED_CHAINS } from './definitions';
 
 // Adapter functions
-export { getMainnetChains } from "./adapters";
+export { getMainnetChains } from './adapters';

@@ -1,7 +1,7 @@
-import { Check } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check } from 'lucide-react';
+import type { ReactNode } from 'react';
 
-import { IntentVisualizer } from "../visualizers/IntentVisualizer";
+import { IntentVisualizer } from '../visualizers/IntentVisualizer';
 
 interface TransactionModalHeaderProps {
   title: string;
@@ -35,11 +35,11 @@ export function TransactionModalHeader({
   );
 }
 
-type SuccessTone = "green" | "indigo";
+type SuccessTone = 'green' | 'indigo';
 
 const SUCCESS_TONE_STYLES: Record<SuccessTone, string> = {
-  green: "bg-green-500/10 border border-green-500/20 text-green-400",
-  indigo: "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400",
+  green: 'bg-green-500/10 border border-green-500/20 text-green-400',
+  indigo: 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400',
 };
 
 interface SuccessBannerProps {
@@ -70,7 +70,7 @@ interface SubmittingStateProps {
 export function SubmittingState({
   isSuccess,
   successMessage,
-  successTone = "indigo",
+  successTone = 'indigo',
   successExtra,
 }: SubmittingStateProps) {
   return (

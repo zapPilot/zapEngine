@@ -110,7 +110,7 @@ function validateEmailB(email: string) {
 }
 
 // After: Shared utility
-import { validateEmail } from "@/lib/validation";
+import { validateEmail } from '@/lib/validation';
 ```
 
 ## Coding Standards

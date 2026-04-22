@@ -90,7 +90,7 @@ export interface BacktestAssetAllocation {
   alt: number;
 }
 
-export type BacktestSpotAssetSymbol = "BTC" | "ETH";
+export type BacktestSpotAssetSymbol = 'BTC' | 'ETH';
 
 export interface BacktestStrategyPortfolio {
   spot_usd: number;
@@ -104,16 +104,16 @@ export interface BacktestStrategyPortfolio {
 export interface BacktestDmaSignalDetails {
   dma_200: number | null;
   distance: number | null;
-  zone: "above" | "below" | "at" | null;
-  cross_event: "cross_up" | "cross_down" | null;
+  zone: 'above' | 'below' | 'at' | null;
+  cross_event: 'cross_up' | 'cross_down' | null;
   cooldown_active: boolean | null;
   cooldown_remaining_days: number | null;
-  cooldown_blocked_zone: "above" | "below" | null;
+  cooldown_blocked_zone: 'above' | 'below' | null;
   fgi_slope: number | null;
 }
 
 export interface BacktestSignalDetails {
-  ath_event?: "token_ath" | "portfolio_ath" | "both_ath" | null;
+  ath_event?: 'token_ath' | 'portfolio_ath' | 'both_ath' | null;
   dma?: BacktestDmaSignalDetails | null;
   [key: string]: unknown;
 }
@@ -135,16 +135,16 @@ export interface BacktestDecisionDetails {
 }
 
 export interface BacktestDecision {
-  action: "buy" | "sell" | "hold";
+  action: 'buy' | 'sell' | 'hold';
   reason: string;
   rule_group:
-    | "cross"
-    | "cooldown"
-    | "dma_fgi"
-    | "ath"
-    | "fgi"
-    | "rotation"
-    | "none";
+    | 'cross'
+    | 'cooldown'
+    | 'dma_fgi'
+    | 'ath'
+    | 'fgi'
+    | 'rotation'
+    | 'none';
   target_allocation: BacktestPortfolioAllocation;
   target_asset_allocation: BacktestAssetAllocation;
   immediate: boolean;
@@ -152,10 +152,10 @@ export interface BacktestDecision {
 }
 
 /** Allocation display buckets (portfolio pie chart). */
-export type BacktestAllocationBucket = "spot" | "stable";
+export type BacktestAllocationBucket = 'spot' | 'stable';
 
 /** All valid transfer bucket identifiers including per-asset buckets. */
-export type BacktestBucket = BacktestAllocationBucket | "eth" | "btc" | "alt";
+export type BacktestBucket = BacktestAllocationBucket | 'eth' | 'btc' | 'alt';
 
 export interface BacktestTransferMetadata {
   from_bucket: BacktestBucket;

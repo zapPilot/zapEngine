@@ -1,14 +1,14 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from 'react';
 
 import type {
   BacktestCompareParamsV3,
   SavedStrategyConfig,
   StrategyComposition,
-} from "@/types";
+} from '@/types';
 
 export interface ConfigEditorViewProps {
   configId: string | null;
-  mode: "create" | "edit";
+  mode: 'create' | 'edit';
   duplicateFrom: SavedStrategyConfig | null;
   onCancel: () => void;
   onSaved: () => void;
@@ -16,10 +16,10 @@ export interface ConfigEditorViewProps {
 }
 
 export const CONFIG_ID_PATTERN = /^[a-z0-9_]+$/;
-export const JSON_TABS = ["params", "composition"] as const;
+export const JSON_TABS = ['params', 'composition'] as const;
 
 export type JsonTab = (typeof JSON_TABS)[number];
-export type ConfigEditorMode = ConfigEditorViewProps["mode"];
+export type ConfigEditorMode = ConfigEditorViewProps['mode'];
 
 export interface ParsedJsonResult<T> {
   parsed: T | null;
@@ -56,14 +56,14 @@ export interface JsonEditorPanelProps {
 }
 
 export const INITIAL_FORM_STATE: ConfigEditorFormState = {
-  configIdInput: "",
-  displayName: "",
-  description: "",
-  strategyId: "",
-  primaryAsset: "",
+  configIdInput: '',
+  displayName: '',
+  description: '',
+  strategyId: '',
+  primaryAsset: '',
   supportsDailySuggestion: false,
-  paramsJson: "{}",
-  compositionJson: "{}",
+  paramsJson: '{}',
+  compositionJson: '{}',
 };
 
 export function tryParseJson<T>(value: string): ParsedJsonResult<T> {
@@ -77,26 +77,26 @@ export function tryParseJson<T>(value: string): ParsedJsonResult<T> {
 export function getSeedConfig(
   mode: ConfigEditorMode,
   existingConfig: SavedStrategyConfig | null | undefined,
-  duplicateFrom: SavedStrategyConfig | null
+  duplicateFrom: SavedStrategyConfig | null,
 ): SavedStrategyConfig | null {
-  return mode === "edit" ? (existingConfig ?? null) : duplicateFrom;
+  return mode === 'edit' ? (existingConfig ?? null) : duplicateFrom;
 }
 
 export function getSeededFormState(
   mode: ConfigEditorMode,
-  seedConfig: SavedStrategyConfig | null
+  seedConfig: SavedStrategyConfig | null,
 ): ConfigEditorFormState {
   if (!seedConfig) {
     return INITIAL_FORM_STATE;
   }
 
   return {
-    configIdInput: mode === "edit" ? seedConfig.config_id : "",
+    configIdInput: mode === 'edit' ? seedConfig.config_id : '',
     displayName:
-      mode === "edit"
+      mode === 'edit'
         ? seedConfig.display_name
         : `${seedConfig.display_name} (copy)`,
-    description: seedConfig.description ?? "",
+    description: seedConfig.description ?? '',
     strategyId: seedConfig.strategy_id,
     primaryAsset: seedConfig.primary_asset,
     supportsDailySuggestion: seedConfig.supports_daily_suggestion,
@@ -106,17 +106,17 @@ export function getSeededFormState(
 }
 
 export function getEditorTitle(mode: ConfigEditorMode): string {
-  return mode === "create" ? "Create Configuration" : "Edit Configuration";
+  return mode === 'create' ? 'Create Configuration' : 'Edit Configuration';
 }
 
 export function getMutationErrorTitle(mode: ConfigEditorMode): string {
-  return mode === "create" ? "Create failed" : "Update failed";
+  return mode === 'create' ? 'Create failed' : 'Update failed';
 }
 
 export function buildFieldsPayload(
   formState: ConfigEditorFormState,
   params: BacktestCompareParamsV3,
-  composition: StrategyComposition
+  composition: StrategyComposition,
 ): ConfigFieldsPayload {
   return {
     display_name: formState.displayName.trim(),
@@ -134,13 +134,13 @@ export function getActiveJsonEditorState(
   formState: ConfigEditorFormState,
   paramsValidation: ParsedJsonResult<BacktestCompareParamsV3>,
   compositionValidation: ParsedJsonResult<StrategyComposition>,
-  setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>
+  setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
 ): JsonEditorPanelProps {
-  if (activeJsonTab === "params") {
+  if (activeJsonTab === 'params') {
     return {
       value: formState.paramsJson,
       onChange: function onChange(value: string): void {
-        setFormState(previous => ({ ...previous, paramsJson: value }));
+        setFormState((previous) => ({ ...previous, paramsJson: value }));
       },
       valid: paramsValidation.valid,
       rows: 12,
@@ -151,7 +151,7 @@ export function getActiveJsonEditorState(
   return {
     value: formState.compositionJson,
     onChange: function onChange(value: string): void {
-      setFormState(previous => ({ ...previous, compositionJson: value }));
+      setFormState((previous) => ({ ...previous, compositionJson: value }));
     },
     valid: compositionValidation.valid,
     rows: 16,

@@ -1,11 +1,11 @@
-import type { Hash, WalletClient } from "viem";
-import { sendCalls, waitForCallsStatus } from "viem/actions";
+import type { Hash, WalletClient } from 'viem';
+import { sendCalls, waitForCallsStatus } from 'viem/actions';
 
-import { ExecutionError } from "../errors/intent.errors.js";
+import { ExecutionError } from '../errors/intent.errors.js';
 import type {
   ExecutionResult,
   PreparedTransaction,
-} from "../types/transaction.types.js";
+} from '../types/transaction.types.js';
 
 /**
  * Execute a batch of transactions via EIP-5792 `wallet_sendCalls`.
@@ -21,20 +21,20 @@ import type {
  */
 export async function executeWithEIP7702(
   txs: PreparedTransaction[],
-  wallet: WalletClient
+  wallet: WalletClient,
 ): Promise<ExecutionResult> {
   if (!txs || txs.length === 0) {
-    throw new ExecutionError("Cannot execute empty transaction array");
+    throw new ExecutionError('Cannot execute empty transaction array');
   }
 
   try {
     if (!wallet || !wallet.account) {
-      throw new ExecutionError("Wallet has no connected account");
+      throw new ExecutionError('Wallet has no connected account');
     }
 
     const { id: callsId } = await sendCalls(wallet, {
       account: wallet.account,
-      calls: txs.map(tx => ({
+      calls: txs.map((tx) => ({
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,
         value: BigInt(tx.value),
@@ -52,7 +52,7 @@ export async function executeWithEIP7702(
       error:
         error instanceof Error
           ? error.message
-          : "Unknown error during EIP-7702 execution",
+          : 'Unknown error during EIP-7702 execution',
     };
   }
 }
@@ -69,9 +69,9 @@ export async function executeWithEIP7702(
  */
 export async function waitForEIP7702Confirmation(
   callsId: string,
-  wallet: WalletClient
+  wallet: WalletClient,
 ): Promise<{
-  status: "success" | "failure";
+  status: 'success' | 'failure';
   transactionHash?: Hash;
   receipts?: readonly unknown[];
 }> {
@@ -83,7 +83,7 @@ export async function waitForEIP7702Confirmation(
   const firstTxHash = result.receipts?.[0]?.transactionHash;
 
   return {
-    status: result.status === "success" ? "success" : "failure",
+    status: result.status === 'success' ? 'success' : 'failure',
     transactionHash: firstTxHash,
     receipts: result.receipts,
   };

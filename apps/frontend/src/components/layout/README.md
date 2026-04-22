@@ -10,7 +10,7 @@ Layout components handle page structure and positioning concerns.
 ## Usage
 
 ```typescript
-import { StickyBannerShell, GhostModeOverlay } from "@/components/layout";
+import { StickyBannerShell, GhostModeOverlay } from '@/components/layout';
 ```
 
 ## Guidelines

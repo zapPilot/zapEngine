@@ -44,7 +44,7 @@ export function buildDateRange(values: { date?: string }[]): {
 export function normalizeToScale(
   value: number,
   min: number,
-  range: number
+  range: number,
 ): number {
   if (range <= 0) {
     return 50;

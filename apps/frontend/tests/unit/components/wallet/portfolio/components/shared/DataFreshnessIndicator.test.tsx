@@ -1,15 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-import { DataFreshnessIndicator } from "@/components/wallet/portfolio/components/shared/DataFreshnessIndicator";
+import { DataFreshnessIndicator } from '@/components/wallet/portfolio/components/shared/DataFreshnessIndicator';
 
-describe("DataFreshnessIndicator", () => {
+describe('DataFreshnessIndicator', () => {
   it("shows 'fresh' state for recent data", () => {
     const recentTime = new Date(Date.now() - 1000 * 60).toISOString(); // 1 min ago
     render(<DataFreshnessIndicator lastUpdated={recentTime} />);
 
     expect(screen.getByText(/a minute ago/i)).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
   });
 
   it("shows 'stale' state for old data", () => {
@@ -32,27 +32,27 @@ describe("DataFreshnessIndicator", () => {
     expect(screen.getByText(/Unknown/i)).toBeInTheDocument();
   });
 
-  it("renders icon-only variant", () => {
+  it('renders icon-only variant', () => {
     const recentTime = new Date(Date.now() - 1000 * 60).toISOString();
     const { container } = render(
-      <DataFreshnessIndicator lastUpdated={recentTime} variant="icon-only" />
+      <DataFreshnessIndicator lastUpdated={recentTime} variant="icon-only" />,
     );
 
     // Icon should be present, text should be hidden
-    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
-  it("renders responsive variant with correct classes", () => {
+  it('renders responsive variant with correct classes', () => {
     const recentTime = new Date(Date.now() - 1000 * 60).toISOString();
     const { container } = render(
-      <DataFreshnessIndicator lastUpdated={recentTime} variant="responsive" />
+      <DataFreshnessIndicator lastUpdated={recentTime} variant="responsive" />,
     );
 
     // Check for responsive classes - component uses md: breakpoint, not sm:
-    expect(container.querySelector(".hidden.md\\:inline")).toBeInTheDocument();
+    expect(container.querySelector('.hidden.md\\:inline')).toBeInTheDocument();
   });
 
-  it("handles undefined lastUpdated", () => {
+  it('handles undefined lastUpdated', () => {
     render(<DataFreshnessIndicator lastUpdated={undefined} />);
 
     expect(screen.getByText(/Unknown/i)).toBeInTheDocument();

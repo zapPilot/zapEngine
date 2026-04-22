@@ -1,4 +1,10 @@
-import { Brain, Shield, Calendar, LineChart, type LucideIcon } from 'lucide-react';
+import {
+  Brain,
+  Shield,
+  Calendar,
+  LineChart,
+  type LucideIcon,
+} from 'lucide-react';
 import { MESSAGES } from './messages';
 import { LINKS } from './links';
 
@@ -61,7 +67,7 @@ export function getFeatures(): Feature[] {
   if (itemsLength !== visualsLength) {
     throw new Error(
       `Features configuration mismatch: MESSAGES.features.items has ${itemsLength} items, ` +
-        `but FEATURE_VISUALS has ${visualsLength} items. These arrays must be synchronized.`
+        `but FEATURE_VISUALS has ${visualsLength} items. These arrays must be synchronized.`,
     );
   }
 

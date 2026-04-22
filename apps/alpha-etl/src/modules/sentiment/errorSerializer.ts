@@ -44,17 +44,17 @@ function serializeKnownError(error: KnownError): Record<string, unknown> {
     stack: error.stack,
   };
 
-  setIfDefined(serialized, "statusCode", error.statusCode);
-  setIfDefined(serialized, "url", error.url);
-  setIfDefined(serialized, "source", error.source);
-  setIfDefined(serialized, "operation", error.operation);
-  setIfDefined(serialized, "field", error.field);
-  setIfDefined(serialized, "value", error.value);
-  setIfDefined(serialized, "record", error.record);
+  setIfDefined(serialized, 'statusCode', error.statusCode);
+  setIfDefined(serialized, 'url', error.url);
+  setIfDefined(serialized, 'source', error.source);
+  setIfDefined(serialized, 'operation', error.operation);
+  setIfDefined(serialized, 'field', error.field);
+  setIfDefined(serialized, 'value', error.value);
+  setIfDefined(serialized, 'record', error.record);
 
   // Handle Error.cause (ES2022 feature) - recursively serialize
   if (error.cause) {
-    serialized.cause = serializeError(error.cause);
+    serialized['cause'] = serializeError(error.cause);
   }
 
   return serialized;
@@ -64,20 +64,20 @@ function serializeObjectError(error: object): Record<string, unknown> {
   const obj = error as Record<string, unknown>;
   const serialized: Record<string, unknown> = {};
 
-  setIfDefined(serialized, "message", obj.message);
-  setIfDefined(serialized, "name", obj.name);
-  setIfDefined(serialized, "code", obj.code);
-  setIfDefined(serialized, "type", obj.type);
+  setIfDefined(serialized, 'message', obj['message']);
+  setIfDefined(serialized, 'name', obj['name']);
+  setIfDefined(serialized, 'code', obj['code']);
+  setIfDefined(serialized, 'type', obj['type']);
 
   return Object.keys(serialized).length > 0
     ? serialized
-    : { error: "Unknown error object", raw: String(error) };
+    : { error: 'Unknown error object', raw: String(error) };
 }
 
 export function serializeError(error: unknown): Record<string, unknown> {
   // Handle null/undefined (but not other falsy values like 0, '', false)
   if (error === null || error === undefined) {
-    return { error: "Unknown error (null/undefined)" };
+    return { error: 'Unknown error (null/undefined)' };
   }
 
   // Handle Error instances (including APIError, DatabaseError, etc.)
@@ -86,11 +86,11 @@ export function serializeError(error: unknown): Record<string, unknown> {
   }
 
   // Handle non-Error objects (fetch API errors, plain objects)
-  if (typeof error === "object") {
+  if (typeof error === 'object') {
     try {
       return serializeObjectError(error);
     } catch {
-      return { error: "Error serialization failed", raw: String(error) };
+      return { error: 'Error serialization failed', raw: String(error) };
     }
   }
 

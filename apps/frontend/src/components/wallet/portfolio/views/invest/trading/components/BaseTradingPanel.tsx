@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
-import { ActionCard } from "./ActionCard";
-import { ReviewModal } from "./ReviewModal";
+import { ActionCard } from './ActionCard';
+import { ReviewModal } from './ReviewModal';
 
 interface BaseTradingPanelProps {
   /** Page-level title (e.g. "Portfolio Health", "Deposit") */
@@ -51,7 +51,7 @@ export function BaseTradingPanel({
   onCloseReview,
   onConfirmReview,
   isSubmitting = false,
-  reviewTitle = "Review Execution",
+  reviewTitle = 'Review Execution',
 }: BaseTradingPanelProps) {
   return (
     <>

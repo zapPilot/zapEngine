@@ -6,7 +6,9 @@ describe('cn (className utility)', () => {
   });
 
   it('should handle conditional classes', () => {
-    expect(cn('base', false && 'hidden', true && 'visible')).toBe('base visible');
+    expect(cn('base', false && 'hidden', true && 'visible')).toBe(
+      'base visible',
+    );
   });
 
   it('should merge Tailwind conflicting classes', () => {

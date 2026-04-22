@@ -1,11 +1,11 @@
-import { Save } from "lucide-react";
-import type { ReactElement } from "react";
+import { Save } from 'lucide-react';
+import type { ReactElement } from 'react';
 
 import {
   JSON_TABS,
   type JsonEditorPanelProps,
   type JsonTab,
-} from "./configEditorShared";
+} from './configEditorShared';
 
 interface ConfigEditorJsonSectionProps {
   activeJsonEditor: JsonEditorPanelProps;
@@ -29,7 +29,7 @@ function JsonEditorPanel({
     <div>
       <textarea
         value={value}
-        onChange={event => onChange(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         rows={rows}
         spellCheck={false}
         className="w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 font-mono text-sm text-green-400 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y"
@@ -37,11 +37,11 @@ function JsonEditorPanel({
       />
       {value.trim() && (
         <p
-          className={`mt-1.5 text-xs ${valid ? "text-green-500" : "text-red-400"}`}
+          className={`mt-1.5 text-xs ${valid ? 'text-green-500' : 'text-red-400'}`}
         >
           {valid
-            ? "Valid JSON"
-            : "Invalid JSON — fix syntax errors before saving"}
+            ? 'Valid JSON'
+            : 'Invalid JSON — fix syntax errors before saving'}
         </p>
       )}
     </div>
@@ -62,14 +62,14 @@ export function ConfigEditorJsonSection({
     <>
       <div className="rounded-xl border border-gray-800 bg-gray-900/40">
         <div className="flex border-b border-gray-800">
-          {JSON_TABS.map(tab => (
+          {JSON_TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveJsonTab(tab)}
               className={`px-4 py-3 text-sm font-medium capitalize transition-colors ${
                 activeJsonTab === tab
-                  ? "border-b-2 border-purple-500 text-white"
-                  : "text-gray-500 hover:text-gray-300"
+                  ? 'border-b-2 border-purple-500 text-white'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               {tab}
@@ -97,7 +97,7 @@ export function ConfigEditorJsonSection({
             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="h-4 w-4" />
-            {isSaving ? "Saving..." : "Save"}
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>
       )}

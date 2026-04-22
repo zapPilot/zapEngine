@@ -16,22 +16,25 @@ components, including:
 ## Quick Start
 
 ```typescript
-import { vi } from "vitest";
-import * as UserContext from "@/contexts/UserContext";
-import * as useChainModule from "@/hooks/useChain";
-import * as useStrategiesQuery from "@/hooks/queries/useStrategiesQuery";
-import * as intentService from "@/services/intentService";
+import { vi } from 'vitest';
+import * as UserContext from '@/contexts/UserContext';
+import * as useChainModule from '@/hooks/useChain';
+import * as useStrategiesQuery from '@/hooks/queries/useStrategiesQuery';
+import * as intentService from '@/services/intentService';
 
-import { setupSwapPageMocks, SwapPageTestScenarios } from "tests/helpers/swapPageTestUtils";
+import {
+  setupSwapPageMocks,
+  SwapPageTestScenarios,
+} from 'tests/helpers/swapPageTestUtils';
 
 // Mock dependencies
-vi.mock("@/contexts/UserContext");
-vi.mock("@/hooks/useChain");
-vi.mock("@/hooks/queries/useStrategiesQuery");
-vi.mock("@/services/intentService");
+vi.mock('@/contexts/UserContext');
+vi.mock('@/hooks/useChain');
+vi.mock('@/hooks/queries/useStrategiesQuery');
+vi.mock('@/services/intentService');
 
-describe("SwapPage", () => {
-  it("should handle connected user with strategies", () => {
+describe('SwapPage', () => {
+  it('should handle connected user with strategies', () => {
     // Use pre-built scenario
     const scenario = SwapPageTestScenarios.connectedWithStrategies();
     const mocks = setupSwapPageMocks(scenario);
@@ -39,10 +42,12 @@ describe("SwapPage", () => {
     // Apply mocks
     vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
     vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
-    vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-      mocks.useStrategiesWithPortfolioData()
+    vi.mocked(
+      useStrategiesQuery.useStrategiesWithPortfolioData,
+    ).mockReturnValue(mocks.useStrategiesWithPortfolioData());
+    vi.mocked(intentService.executeUnifiedZap).mockImplementation(
+      mocks.executeUnifiedZap,
     );
-    vi.mocked(intentService.executeUnifiedZap).mockImplementation(mocks.executeUnifiedZap);
 
     // Render and test your component
     // ...
@@ -58,7 +63,7 @@ Creates a mock SwapToken. Defaults: symbol="USDC", decimals=6, chainId=1, balanc
 
 ```typescript
 const usdc = createMockToken();
-const eth = createMockToken({ symbol: "ETH", decimals: 18, balance: 5.5 });
+const eth = createMockToken({ symbol: 'ETH', decimals: 18, balance: 5.5 });
 ```
 
 ### `createMockProtocol(overrides?)`
@@ -67,7 +72,7 @@ Creates a mock protocol. Defaults: name="Aave V3 USDC", chain="Ethereum", apy=3.
 
 ```typescript
 const aave = createMockProtocol();
-const compound = createMockProtocol({ name: "Compound V3 USDC", apy: 7.2 });
+const compound = createMockProtocol({ name: 'Compound V3 USDC', apy: 7.2 });
 ```
 
 ### `createMockAssetCategory(overrides?)`
@@ -77,8 +82,8 @@ Creates a mock asset category. Defaults: name="Stablecoins", protocols=[], color
 ```typescript
 const stables = createMockAssetCategory();
 const defi = createMockAssetCategory({
-  name: "High Yield DeFi",
-  protocols: [createMockProtocol({ name: "Aave V3", apy: 5.0 })],
+  name: 'High Yield DeFi',
+  protocols: [createMockProtocol({ name: 'Aave V3', apy: 5.0 })],
 });
 ```
 
@@ -89,7 +94,11 @@ risk="Low".
 
 ```typescript
 const conservative = createMockStrategy();
-const highYield = createMockStrategy({ name: "High Yield DeFi", apr: 15.0, risk: "High" });
+const highYield = createMockStrategy({
+  name: 'High Yield DeFi',
+  apr: 15.0,
+  risk: 'High',
+});
 ```
 
 ### `createMockSwapAction(overrides?)`
@@ -98,7 +107,10 @@ Creates a mock swap action. Defaults: operationMode="zapIn", amount="1000", slip
 
 ```typescript
 const zapIn = createMockSwapAction();
-const zapOut = createMockSwapAction({ operationMode: "zapOut", swapSettings: { amount: "500" } });
+const zapOut = createMockSwapAction({
+  operationMode: 'zapOut',
+  swapSettings: { amount: '500' },
+});
 ```
 
 ## Setup Utilities
@@ -139,8 +151,8 @@ interface SwapPageMockConfig {
 
 ```typescript
 const mocks = setupSwapPageMocks({
-  userInfo: { userId: "user-123", walletAddress: "0xabc" },
-  connectedWallet: "0xabc",
+  userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+  connectedWallet: '0xabc',
   chainId: 1,
   strategies: [createMockAssetCategory()],
 });
@@ -195,8 +207,8 @@ Triggers the onZapAction callback with a custom or default action.
 ```typescript
 const onZapAction = vi.fn();
 const customAction = createMockSwapAction({
-  operationMode: "zapOut",
-  swapSettings: { amount: "500" },
+  operationMode: 'zapOut',
+  swapSettings: { amount: '500' },
 });
 
 triggerZapAction(onZapAction, customAction);
@@ -258,7 +270,7 @@ render(
 4. **Customize Sparingly:** Only override the fields you need
 
 ```typescript
-describe("SwapPage", () => {
+describe('SwapPage', () => {
   let mocks: ReturnType<typeof setupSwapPageMocks>;
 
   beforeEach(() => {

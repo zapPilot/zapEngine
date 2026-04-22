@@ -5,13 +5,13 @@
  * pattern matching.
  */
 
-import { httpUtils } from "@/lib/http";
+import { httpUtils } from '@/lib/http';
 import type {
   BacktestDefaults,
   DailySuggestionResponse,
   StrategyConfigsResponse,
   StrategyPreset,
-} from "@/types/strategy";
+} from '@/types/strategy';
 
 // Re-export types for external use
 export type {
@@ -71,11 +71,11 @@ export async function getStrategyConfigs(): Promise<StrategyConfigsResponse> {
  */
 export async function getDailySuggestion(
   userId: string,
-  configId?: string
+  configId?: string,
 ): Promise<DailySuggestionResponse> {
   const query = configId
     ? new URLSearchParams({ config_id: configId }).toString()
-    : "";
-  const endpoint = `/api/v3/strategy/daily-suggestion/${userId}${query ? `?${query}` : ""}`;
+    : '';
+  const endpoint = `/api/v3/strategy/daily-suggestion/${userId}${query ? `?${query}` : ''}`;
   return httpUtils.analyticsEngine.get<DailySuggestionResponse>(endpoint);
 }

@@ -4,8 +4,8 @@
  * Error state for analytics view with retry functionality
  */
 
-import { Info } from "lucide-react";
-import type { ReactElement } from "react";
+import { Info } from 'lucide-react';
+import type { ReactElement } from 'react';
 
 /**
  * Analytics Error State Props
@@ -35,7 +35,7 @@ export function AnalyticsErrorState({
         Failed to Load Analytics Data
       </h3>
       <p className="text-sm text-gray-400 mb-6 text-center max-w-md">
-        {error?.message || "Unable to fetch analytics data. Please try again."}
+        {error?.message || 'Unable to fetch analytics data. Please try again.'}
       </p>
       <button
         onClick={onRetry}

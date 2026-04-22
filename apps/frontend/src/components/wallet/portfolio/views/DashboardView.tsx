@@ -1,24 +1,24 @@
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
-import { GhostModeOverlay } from "@/components/layout/overlays/GhostModeOverlay";
-import { SectionWrapper } from "@/components/shared/SectionWrapper";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import { GhostModeOverlay } from '@/components/layout/overlays/GhostModeOverlay';
+import { SectionWrapper } from '@/components/shared/SectionWrapper';
 import {
   BalanceCard,
   PortfolioComposition,
-} from "@/components/wallet/portfolio/components/shared";
-import { StrategyCard } from "@/components/wallet/portfolio/components/strategy";
+} from '@/components/wallet/portfolio/components/shared';
+import { StrategyCard } from '@/components/wallet/portfolio/components/strategy';
 import {
   BalanceCardSkeleton,
   PortfolioCompositionSkeleton,
-} from "@/components/wallet/portfolio/views/DashboardSkeleton";
-import type { Regime } from "@/components/wallet/regime/regimeData";
-import { useAppSearchParams } from "@/lib/routing";
-import type { ModalType } from "@/types/portfolio";
-import type { DashboardSections } from "@/types/portfolio-progressive";
+} from '@/components/wallet/portfolio/views/DashboardSkeleton';
+import type { Regime } from '@/components/wallet/regime/regimeData';
+import { useAppSearchParams } from '@/lib/routing';
+import type { ModalType } from '@/types/portfolio';
+import type { DashboardSections } from '@/types/portfolio-progressive';
 
 /** Layout styling constants */
 const STYLES = {
-  container: "animate-in fade-in duration-300 space-y-8", // Added space-y-8 for spacing
-  heroGrid: "grid grid-cols-1 md:grid-cols-2 gap-6",
+  container: 'animate-in fade-in duration-300 space-y-8', // Added space-y-8 for spacing
+  heroGrid: 'grid grid-cols-1 md:grid-cols-2 gap-6',
 } as const;
 
 interface DashboardViewProps {
@@ -46,7 +46,7 @@ export function DashboardView({
   userId,
 }: DashboardViewProps) {
   const searchParams = useAppSearchParams();
-  const urlUserId = searchParams.get("userId");
+  const urlUserId = searchParams.get('userId');
 
   // Only enable ghost mode on root path (no userId param)
   // Bundle URLs (/bundle?userId=xxx) are public - anyone can view without connecting wallet
@@ -77,7 +77,7 @@ export function DashboardView({
       isEmptyState={isEmptyState}
       isOwnBundle={isOwnBundle}
       isLoading={false}
-      onRebalance={() => onOpenModal("rebalance")}
+      onRebalance={() => onOpenModal('rebalance')}
     />
   );
 

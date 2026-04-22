@@ -1,5 +1,5 @@
-import type { WriteResult } from "../../core/database/baseWriter.js";
-import type { TokenPriceData } from "../../modules/token-price/fetcher.js";
+import type { WriteResult } from '../../core/database/baseWriter.js';
+import type { TokenPriceData } from '../../modules/token-price/fetcher.js';
 
 interface ProcessorStats {
   totalProcessed: number;
@@ -23,7 +23,8 @@ export async function writeSnapshotData(
   data: TokenPriceData[],
   writer: SnapshotWriter,
 ): Promise<WriteResult> {
-  await writer.insertSnapshot(data[0]);
+  const snapshot = data[0]!;
+  await writer.insertSnapshot(snapshot);
   return {
     success: true,
     recordsInserted: 1,
@@ -47,16 +48,16 @@ export function updateStatsAfterProcess(
 
 export function resolveHealthStatus(
   latestSnapshotDate: string | undefined,
-  apiStatus: "healthy" | "unhealthy",
-): { status: "healthy" | "unhealthy"; freshness: string } {
+  apiStatus: 'healthy' | 'unhealthy',
+): { status: 'healthy' | 'unhealthy'; freshness: string } {
   if (!latestSnapshotDate) {
-    return { status: "unhealthy", freshness: "unknown" };
+    return { status: 'unhealthy', freshness: 'unknown' };
   }
 
   const daysDiff = calculateDaysOld(latestSnapshotDate);
   const freshness = `${daysDiff} days old`;
   const status =
-    apiStatus === "healthy" && daysDiff <= 1 ? "healthy" : "unhealthy";
+    apiStatus === 'healthy' && daysDiff <= 1 ? 'healthy' : 'unhealthy';
 
   return { status, freshness };
 }
@@ -74,7 +75,7 @@ function calculateDaysOld(snapshotDate: string): number {
 export function buildHealthCheckDetails(
   tokenId: string,
   tokenSymbol: string,
-  apiStatus: "healthy" | "unhealthy",
+  apiStatus: 'healthy' | 'unhealthy',
   latestSnapshot: { date: string; price: number; tokenSymbol: string } | null,
   totalSnapshots: number,
   freshness: string,
@@ -93,7 +94,7 @@ export function buildHealthCheckDetails(
 
 export function calculateSuccessRate(stats: ProcessorStats): string {
   if (stats.totalProcessed === 0) {
-    return "N/A";
+    return 'N/A';
   }
 
   const successfulCount = stats.totalProcessed - stats.totalErrors;

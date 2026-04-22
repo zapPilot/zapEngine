@@ -1,6 +1,6 @@
-import type { SwapToken } from "@/types/ui/ui.types";
+import type { SwapToken } from '@/types/ui/ui.types';
 
-type TransactionType = "deposit" | "withdraw" | "rebalance";
+type TransactionType = 'deposit' | 'withdraw' | 'rebalance';
 
 export interface ChainData {
   chainId: number;
@@ -26,7 +26,7 @@ export interface TransactionFormData {
 
 export interface TransactionResult {
   type: TransactionType;
-  status: "success" | "error";
+  status: 'success' | 'error';
   txHash: string;
   amount: string;
   token: string;
@@ -36,7 +36,7 @@ export interface TransactionResult {
 
 export interface TransactionToken extends SwapToken {
   usdPrice?: number | undefined;
-  category?: "stable" | "crypto";
+  category?: 'stable' | 'crypto';
   popular?: boolean;
 }
 
@@ -50,4 +50,4 @@ export interface TransactionToken extends SwapToken {
 export type {
   AllocationBreakdown,
   RegimeAllocationBreakdown,
-} from "./allocation";
+} from './allocation';

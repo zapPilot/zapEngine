@@ -10,15 +10,15 @@
  * - Provides loading states and error handling
  */
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   type EtlJobResponse,
   type EtlJobStatus,
   getEtlJobStatus,
   triggerWalletDataFetch,
-} from "@/services";
+} from '@/services';
 
 /**
  * ETL job polling state
@@ -28,12 +28,12 @@ export interface EtlJobPollingState {
   jobId: string | null;
   /** Current job status */
   status:
-    | "idle"
-    | "pending"
-    | "processing"
-    | "completing"
-    | "completed"
-    | "failed";
+    | 'idle'
+    | 'pending'
+    | 'processing'
+    | 'completing'
+    | 'completed'
+    | 'failed';
   /** Error message if job failed */
   errorMessage: string | undefined;
   /** Whether the job is currently loading */
@@ -58,30 +58,30 @@ export interface UseEtlJobPollingReturn {
   completeTransition: () => void;
 }
 
-const ETL_JOB_QUERY_KEY = ["etl-job-status"];
+const ETL_JOB_QUERY_KEY = ['etl-job-status'];
 const POLLING_INTERVAL = 3000;
-const DEFAULT_TRIGGER_ERROR_MESSAGE = "Failed to trigger ETL";
-const PENDING_STATUS = "pending";
-const COMPLETED_STATUS = "completed";
-const FAILED_STATUS = "failed";
-const ETL_IN_PROGRESS_STATUSES: ReadonlySet<EtlJobPollingState["status"]> =
-  new Set(["pending", "processing", "completing"]);
+const DEFAULT_TRIGGER_ERROR_MESSAGE = 'Failed to trigger ETL';
+const PENDING_STATUS = 'pending';
+const COMPLETED_STATUS = 'completed';
+const FAILED_STATUS = 'failed';
+const ETL_IN_PROGRESS_STATUSES: ReadonlySet<EtlJobPollingState['status']> =
+  new Set(['pending', 'processing', 'completing']);
 
-function normalizeStatus(status: string): EtlJobPollingState["status"] {
+function normalizeStatus(status: string): EtlJobPollingState['status'] {
   if (status === COMPLETED_STATUS) {
-    return "completing";
+    return 'completing';
   }
 
-  return status as EtlJobPollingState["status"];
+  return status as EtlJobPollingState['status'];
 }
 
 function deriveStatus(
   jobId: string | null,
   jobStatus: EtlJobStatus | undefined,
-  latestStatus: EtlJobPollingState["status"] | null
-): EtlJobPollingState["status"] {
+  latestStatus: EtlJobPollingState['status'] | null,
+): EtlJobPollingState['status'] {
   if (!jobId) {
-    return "idle";
+    return 'idle';
   }
 
   if (jobStatus) {
@@ -116,14 +116,14 @@ export function useEtlJobPolling(): UseEtlJobPollingReturn {
   const [jobId, setJobId] = useState<string | null>(null);
   const [triggerError, setTriggerError] = useState<string | undefined>();
   const [latestStatus, setLatestStatus] = useState<
-    EtlJobPollingState["status"] | null
+    EtlJobPollingState['status'] | null
   >(null);
 
   const { data: jobStatus, isLoading: isPolling } = useQuery<EtlJobStatus>({
     queryKey: [...ETL_JOB_QUERY_KEY, jobId],
     queryFn: () => getEtlJobStatus(jobId!),
     enabled: !!jobId,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.status === COMPLETED_STATUS || data?.status === FAILED_STATUS) {
         return false;
@@ -160,7 +160,7 @@ export function useEtlJobPolling(): UseEtlJobPollingReturn {
       try {
         const response: EtlJobResponse = await triggerWalletDataFetch(
           userId,
-          walletAddress
+          walletAddress,
         );
 
         if (response.rate_limited) {
@@ -174,11 +174,13 @@ export function useEtlJobPolling(): UseEtlJobPollingReturn {
         }
       } catch (error) {
         setTriggerError(
-          error instanceof Error ? error.message : DEFAULT_TRIGGER_ERROR_MESSAGE
+          error instanceof Error
+            ? error.message
+            : DEFAULT_TRIGGER_ERROR_MESSAGE,
         );
       }
     },
-    []
+    [],
   );
 
   const startPolling = useCallback((existingJobId: string) => {

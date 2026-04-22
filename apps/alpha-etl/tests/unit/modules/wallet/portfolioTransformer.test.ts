@@ -57,7 +57,23 @@ describe('DeBankPortfolioTransformer', () => {
     expect(result).toBeNull();
     expect(logger.error).toHaveBeenCalledWith(
       'Failed to transform DeBank portfolio item',
-      expect.objectContaining({ protocol: 'Aave' })
+      expect.objectContaining({ protocol: 'Aave' }),
+    );
+  });
+
+  it('should reject portfolio items without a string pool id', () => {
+    const badItem = makeItem({ pool: {} });
+
+    const result = transformer.transformItem({
+      protocol: makeProtocol() as unknown,
+      item: badItem as unknown,
+      walletAddress: '0xabc',
+    });
+
+    expect(result).toBeNull();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to transform DeBank portfolio item',
+      expect.objectContaining({ protocol: 'Aave' }),
     );
   });
 });

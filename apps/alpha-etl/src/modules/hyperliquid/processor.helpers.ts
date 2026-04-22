@@ -1,7 +1,7 @@
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
-} from "../../types/database.js";
+} from '../../types/database.js';
 
 export interface HyperliquidTransformBatch {
   portfolioRecords: PortfolioItemSnapshotInsert[];

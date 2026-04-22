@@ -1,7 +1,7 @@
-import { ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronDown } from 'lucide-react';
+import type { ReactNode } from 'react';
 
-import { cn } from "@/lib/ui/classNames";
+import { cn } from '@/lib/ui/classNames';
 
 interface CompactSelectorButtonProps {
   icon: ReactNode;
@@ -25,8 +25,8 @@ export function CompactSelectorButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3 hover:border-gray-700 transition-colors text-left",
-        className
+        'w-full bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3 hover:border-gray-700 transition-colors text-left',
+        className,
       )}
     >
       {icon}
@@ -36,8 +36,8 @@ export function CompactSelectorButton({
       </div>
       <ChevronDown
         className={cn(
-          "w-4 h-4 text-gray-500 transition-transform",
-          isOpen && "rotate-180"
+          'w-4 h-4 text-gray-500 transition-transform',
+          isOpen && 'rotate-180',
         )}
       />
     </button>

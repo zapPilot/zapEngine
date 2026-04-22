@@ -4,11 +4,12 @@
  * Zod schemas and TypeScript interfaces for CoinMarketCap API responses
  */
 
-import { z } from "zod";
+import { z } from 'zod';
+
 import {
   normalizeSentimentClassification,
   SENTIMENT_CLASSIFICATIONS,
-} from "../../utils/sentimentUtils.js";
+} from '../../utils/sentimentUtils.js';
 
 // ============================================================================
 // Schemas
@@ -32,7 +33,7 @@ export const CoinMarketCapFearGreedSchema = z.object({
  * Valid sentiment classifications
  * Re-exported from sentimentUtils for convenience and backward compatibility
  */
-export { SENTIMENT_CLASSIFICATIONS } from "../../utils/sentimentUtils.js";
+export { SENTIMENT_CLASSIFICATIONS } from '../../utils/sentimentUtils.js';
 
 /**
  * Zod schema for sentiment data validation
@@ -40,22 +41,22 @@ export { SENTIMENT_CLASSIFICATIONS } from "../../utils/sentimentUtils.js";
 export const SentimentDataSchema = z.object({
   value: z
     .number()
-    .int("Sentiment value must be an integer")
-    .min(0, "Sentiment value must be >= 0")
-    .max(100, "Sentiment value must be <= 100"),
+    .int('Sentiment value must be an integer')
+    .min(0, 'Sentiment value must be >= 0')
+    .max(100, 'Sentiment value must be <= 100'),
   classification: z
     .string()
     .transform(normalizeSentimentClassification)
     .pipe(
       z.enum(SENTIMENT_CLASSIFICATIONS, {
-        error: () => "Invalid classification value",
+        error: () => 'Invalid classification value',
       }),
     ),
   timestamp: z
     .number()
-    .int("Timestamp must be an integer")
-    .positive("Timestamp must be positive"),
-  source: z.string().min(1, "Source is required"),
+    .int('Timestamp must be an integer')
+    .positive('Timestamp must be positive'),
+  source: z.string().min(1, 'Source is required'),
 });
 
 // ============================================================================

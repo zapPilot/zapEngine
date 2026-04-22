@@ -38,7 +38,7 @@ export interface ServiceResult<T = void> {
  * ```
  */
 export async function wrapServiceCall<T = void>(
-  operation: () => Promise<T>
+  operation: () => Promise<T>,
 ): Promise<ServiceResult<T>> {
   try {
     const data = await operation();
@@ -46,7 +46,7 @@ export async function wrapServiceCall<T = void>(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }

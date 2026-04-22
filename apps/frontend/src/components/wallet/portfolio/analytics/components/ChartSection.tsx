@@ -4,28 +4,28 @@
  * Main chart display with tabs and time period selector
  */
 
-import { ArrowDownRight, TrendingUp } from "lucide-react";
-import type { ElementType, ReactElement } from "react";
+import { ArrowDownRight, TrendingUp } from 'lucide-react';
+import type { ElementType, ReactElement } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
-import type { AnalyticsData, AnalyticsTimePeriod } from "@/types/analytics";
+import { BaseCard } from '@/components/ui/BaseCard';
+import type { AnalyticsData, AnalyticsTimePeriod } from '@/types/analytics';
 
-import { DrawdownChart } from "../charts/DrawdownChart";
-import { PerformanceChart } from "../charts/PerformanceChart";
-import { ANALYTICS_TIME_PERIODS } from "../constants";
+import { DrawdownChart } from '../charts/DrawdownChart';
+import { PerformanceChart } from '../charts/PerformanceChart';
+import { ANALYTICS_TIME_PERIODS } from '../constants';
 
 /**
  * Chart tab definition
  */
 interface ChartTab {
-  id: "performance" | "drawdown";
+  id: 'performance' | 'drawdown';
   label: string;
   icon: ElementType;
 }
 
 const CHART_TABS: ChartTab[] = [
-  { id: "performance", label: "Performance", icon: TrendingUp },
-  { id: "drawdown", label: "Drawdown", icon: ArrowDownRight },
+  { id: 'performance', label: 'Performance', icon: TrendingUp },
+  { id: 'drawdown', label: 'Drawdown', icon: ArrowDownRight },
 ];
 
 /**
@@ -34,9 +34,9 @@ const CHART_TABS: ChartTab[] = [
 interface ChartSectionProps {
   data: AnalyticsData;
   selectedPeriod: AnalyticsTimePeriod;
-  activeChartTab: "performance" | "drawdown";
+  activeChartTab: 'performance' | 'drawdown';
   onPeriodChange: (period: AnalyticsTimePeriod) => void;
-  onChartTabChange: (tab: "performance" | "drawdown") => void;
+  onChartTabChange: (tab: 'performance' | 'drawdown') => void;
   isLoading?: boolean;
 }
 
@@ -61,16 +61,16 @@ export function ChartSection({
       <div className="p-4 border-b border-gray-800/50 flex justify-between items-center bg-gray-900/40 rounded-t-xl">
         {/* Chart Type Tabs */}
         <div className="flex gap-1 bg-gray-800/50 p-1 rounded-lg">
-          {CHART_TABS.map(tab => (
+          {CHART_TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onChartTabChange(tab.id)}
               disabled={isLoading}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                 activeChartTab === tab.id
-                  ? "bg-gray-700 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-300"
-              } ${isLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                  ? 'bg-gray-700 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
+              } ${isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             >
               <tab.icon className="w-3.5 h-3.5" />
               {tab.label}
@@ -80,16 +80,16 @@ export function ChartSection({
 
         {/* Time Period Selector */}
         <div className="flex gap-2">
-          {ANALYTICS_TIME_PERIODS.map(period => (
+          {ANALYTICS_TIME_PERIODS.map((period) => (
             <button
               key={period.key}
               onClick={() => onPeriodChange(period)}
               disabled={isLoading}
               className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
                 selectedPeriod.key === period.key
-                  ? "bg-purple-500/20 text-purple-300"
-                  : "text-gray-500 hover:text-gray-300"
-              } ${isLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                  ? 'bg-purple-500/20 text-purple-300'
+                  : 'text-gray-500 hover:text-gray-300'
+              } ${isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             >
               {period.label}
             </button>
@@ -107,14 +107,14 @@ export function ChartSection({
           />
         ) : (
           <>
-            {activeChartTab === "performance" && (
+            {activeChartTab === 'performance' && (
               <PerformanceChart
                 chartData={data.performanceChart.points}
                 startDate={data.performanceChart.startDate}
                 endDate={data.performanceChart.endDate}
               />
             )}
-            {activeChartTab === "drawdown" && (
+            {activeChartTab === 'drawdown' && (
               <div className="space-y-3">
                 <DrawdownChart
                   chartData={data.drawdownChart.points}
@@ -123,7 +123,7 @@ export function ChartSection({
                 <p className="text-xs text-gray-500">
                   <span className="text-white font-medium">
                     Resilience Analysis:
-                  </span>{" "}
+                  </span>{' '}
                   Maximum drawdown of -12.8% with an average recovery time of 14
                   days. This is 52% better than the Bitcoin benchmark (-25%).
                 </p>

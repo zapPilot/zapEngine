@@ -1,46 +1,46 @@
 import {
   type BaseETLProcessor,
   type ETLProcessResult,
+  executeETLFlow,
   type HealthCheckResult,
   withValidatedJob,
-  executeETLFlow,
-} from "../../core/processors/baseETLProcessor.js";
-import { wrapCompositeHealthCheck } from "../../utils/healthCheck.js";
-import {
-  DeBankFetcher,
-  type DeBankTokenBalance,
-} from "../../modules/wallet/fetcher.js";
-import {
-  type WalletETLRecord,
-  createMergedFetchResult,
-  createWalletLoadCallback,
-  createWalletTransformCallback,
-} from "../../modules/wallet/helpers.js";
-import { DeBankPortfolioTransformer } from "../../modules/wallet/portfolioTransformer.js";
-import { WalletBalanceTransformer } from "../../modules/wallet/balanceTransformer.js";
-import { PortfolioItemWriter } from "../../modules/wallet/portfolioWriter.js";
-import { WalletBalanceWriter } from "../../modules/wallet/balanceWriter.js";
-import {
-  fetchAndFilterVipUsersForProcessing,
-  updatePortfolioTimestampsNonFatal,
-} from "../../modules/vip-users/processing.js";
-import { SupabaseFetcher } from "../../modules/vip-users/supabaseFetcher.js";
-import type {
-  ProcessUserResult,
-  ETLJob,
-  VipUserWithActivity,
-} from "../../types/index.js";
-import type {
-  PortfolioItemSnapshotInsert,
-  WalletBalanceSnapshotInsert,
-} from "../../types/database.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
-import { maskWalletAddress } from "../../utils/mask.js";
+} from '../../core/processors/baseETLProcessor.js';
 import {
   fetchWalletDataFromDeBank,
   mapTokenBalancesToSnapshots,
-} from "../../modules/vip-users/common.js";
+} from '../../modules/vip-users/common.js';
+import {
+  fetchAndFilterVipUsersForProcessing,
+  updatePortfolioTimestampsNonFatal,
+} from '../../modules/vip-users/processing.js';
+import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import { WalletBalanceTransformer } from '../../modules/wallet/balanceTransformer.js';
+import { WalletBalanceWriter } from '../../modules/wallet/balanceWriter.js';
+import {
+  DeBankFetcher,
+  type DeBankTokenBalance,
+} from '../../modules/wallet/fetcher.js';
+import {
+  createMergedFetchResult,
+  createWalletLoadCallback,
+  createWalletTransformCallback,
+  type WalletETLRecord,
+} from '../../modules/wallet/helpers.js';
+import { DeBankPortfolioTransformer } from '../../modules/wallet/portfolioTransformer.js';
+import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
+import type {
+  PortfolioItemSnapshotInsert,
+  WalletBalanceSnapshotInsert,
+} from '../../types/database.js';
+import type {
+  ETLJob,
+  ProcessUserResult,
+  VipUserWithActivity,
+} from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { wrapCompositeHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
 
 /**
  * ETL processor for wallet balance data and portfolio items from DeBank
@@ -63,14 +63,14 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   async process(job: ETLJob): Promise<ETLProcessResult> {
-    return withValidatedJob(job, "debank", async () => {
-      logger.info("Starting wallet balance + portfolio ETL job", {
+    return withValidatedJob(job, 'debank', async () => {
+      logger.info('Starting wallet balance + portfolio ETL job', {
         jobId: job.jobId,
       });
 
       const result = await this.executeWalletPipeline(job);
 
-      logger.info("ETL job completed", {
+      logger.info('ETL job completed', {
         jobId: job.jobId,
         walletBalances: result.recordsInserted,
       });
@@ -80,8 +80,8 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
   async healthCheck(): Promise<HealthCheckResult> {
     return wrapCompositeHealthCheck([
-      { label: "DeBank", check: () => this.debankFetcher.healthCheck() },
-      { label: "Supabase", check: () => this.supabaseFetcher.healthCheck() },
+      { label: 'DeBank', check: () => this.debankFetcher.healthCheck() },
+      { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
     ]);
   }
 
@@ -93,21 +93,21 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   getSourceType(): string {
-    return "debank";
+    return 'debank';
   }
 
   private async fetchData(job: ETLJob): Promise<{
     walletBalances: WalletBalanceSnapshotInsert[];
     portfolioItems: PortfolioItemSnapshotInsert[];
   }> {
-    logger.info("Processing DeBank data for VIP users", { jobId: job.jobId });
+    logger.info('Processing DeBank data for VIP users', { jobId: job.jobId });
 
     try {
       const { usersToUpdate, vipUsersTotal, costSavingsPercent } =
         await fetchAndFilterVipUsersForProcessing(
           this.supabaseFetcher,
           job.jobId,
-          "No VIP users found for DeBank processing",
+          'No VIP users found for DeBank processing',
         );
       const { walletBalances, portfolioItems, successfulWallets } =
         await this.fetchUserDataBatch(usersToUpdate, job.jobId);
@@ -117,7 +117,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         job.jobId,
       );
 
-      logger.info("DeBank VIP user processing completed", {
+      logger.info('DeBank VIP user processing completed', {
         jobId: job.jobId,
         totalVipUsers: vipUsersTotal,
         usersScheduled: usersToUpdate.length,
@@ -129,7 +129,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
       return { walletBalances, portfolioItems };
     } catch (error) {
-      logger.error("Failed to fetch DeBank data for VIP users:", {
+      logger.error('Failed to fetch DeBank data for VIP users:', {
         jobId: job.jobId,
         error,
       });
@@ -188,7 +188,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     const logContext = { jobId, userId: user.user_id, wallet: maskedWallet };
 
     try {
-      logger.debug("Processing VIP user wallet", logContext);
+      logger.debug('Processing VIP user wallet', logContext);
 
       const data = await this.fetchUserData(user.wallet);
 
@@ -208,7 +208,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         user.wallet,
       );
 
-      logger.debug("User data fetched successfully", {
+      logger.debug('User data fetched successfully', {
         jobId,
         wallet: maskedWallet,
         tokens: tokens.length,
@@ -224,7 +224,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     } catch (error) {
       const errorMessage = toErrorMessage(error);
       const errorMsg = `User ${maskedWallet}: ${errorMessage}`;
-      logger.error("Failed to fetch data for user", {
+      logger.error('Failed to fetch data for user', {
         ...logContext,
         error,
       });
@@ -234,7 +234,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
   private async fetchUserData(wallet: string) {
     return fetchWalletDataFromDeBank(this.debankFetcher, wallet, {
-      warningMessage: "Skipping user due to fetch failure",
+      warningMessage: 'Skipping user due to fetch failure',
     });
   }
 
@@ -249,18 +249,18 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     const transformData = createWalletTransformCallback(
       this.transformer,
       job.jobId,
-      "DeBank VIP batch",
+      'DeBank VIP batch',
     );
     const loadData = createWalletLoadCallback(
       this.writer,
       this.portfolioWriter,
       job.jobId,
-      "DeBank VIP batch",
+      'DeBank VIP batch',
     );
 
     return executeETLFlow<WalletETLRecord, WalletETLRecord>(
       job,
-      "debank",
+      'debank',
       this.fetchWalletBatch.bind(this, job),
       transformData,
       loadData,

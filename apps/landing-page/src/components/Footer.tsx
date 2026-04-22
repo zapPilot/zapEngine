@@ -17,7 +17,7 @@ function FooterLinkSection({ title, links, _delay = 0 }: LinkSectionProps) {
     <div>
       <h3 className="text-white font-semibold text-lg mb-6">{title}</h3>
       <ul className="space-y-4">
-        {links.map(link => (
+        {links.map((link) => (
           <li key={link.label}>
             <a
               href={link.href}
@@ -70,7 +70,7 @@ export function Footer() {
 
               {/* Social Links */}
               <div className="flex space-x-4">
-                {communityLinks.map(link => (
+                {communityLinks.map((link) => (
                   <motion.a
                     key={link.label}
                     href={link.href}
@@ -106,7 +106,10 @@ export function Footer() {
           <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
             {/* Copyright */}
             <div className="text-gray-300 text-sm">
-              {MESSAGES.footer.copyright.replace('{year}', new Date().getFullYear().toString())}
+              {MESSAGES.footer.copyright.replace(
+                '{year}',
+                new Date().getFullYear().toString(),
+              )}
             </div>
 
             {/* Built with love */}

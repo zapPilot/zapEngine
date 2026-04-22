@@ -5,9 +5,9 @@
  * Pure utilities moved to @/lib/bundle for better separation of concerns
  */
 
-import { formatAddress } from "@/utils/formatters";
+import { formatAddress } from '@/utils/formatters';
 
-export { generateBundleUrl, isOwnBundle } from "@/lib/bundle/bundleUtils";
+export { generateBundleUrl, isOwnBundle } from '@/lib/bundle/bundleUtils';
 
 export interface BundleUser {
   userId: string;

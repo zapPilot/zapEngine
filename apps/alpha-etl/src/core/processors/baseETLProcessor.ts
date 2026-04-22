@@ -2,12 +2,12 @@ import type {
   DataSource,
   ETLJob,
   ETLProcessResult,
-} from "../../types/index.js";
-import type { WriteResult } from "../database/baseWriter.js";
-import { logger } from "../../utils/logger.js";
-import type { HealthCheckResult } from "../../utils/healthCheck.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { validateETLJob as performValidation } from "./validation.js";
+} from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import type { HealthCheckResult } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
+import type { WriteResult } from '../database/baseWriter.js';
+import { validateETLJob as performValidation } from './validation.js';
 
 export type { ETLProcessResult, HealthCheckResult };
 
@@ -70,7 +70,7 @@ export async function executeETLFlow<TRaw, TTransformed>(
     const transformedData = await transformFn(rawData);
 
     if (transformedData.length === 0 && !allowEmptyTransform) {
-      logger.warn("No valid data after transformation", { jobId: job.jobId });
+      logger.warn('No valid data after transformation', { jobId: job.jobId });
       return result;
     }
 

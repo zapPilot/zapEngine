@@ -10,16 +10,16 @@
  * Simplified consolidation of useTransactionTokenData and useTransactionViewModel.
  */
 
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-import { useChainQuery } from "@/hooks/queries/wallet/useChainQuery";
-import { useTokenBalanceQuery } from "@/hooks/queries/wallet/useTokenBalanceQuery";
-import { transactionServiceMock } from "@/services";
+import { useChainQuery } from '@/hooks/queries/wallet/useChainQuery';
+import { useTokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalanceQuery';
+import { transactionServiceMock } from '@/services';
 import type {
   ChainData,
   TokenBalance,
   TransactionToken,
-} from "@/types/domain/transaction";
+} from '@/types/domain/transaction';
 
 interface UseTransactionDataParams {
   /**
@@ -58,7 +58,7 @@ interface UseTransactionDataResult {
 }
 
 function normalizeChainList(
-  chains: ChainData[] | ChainData | null | undefined
+  chains: ChainData[] | ChainData | null | undefined,
 ): ChainData[] {
   if (Array.isArray(chains)) {
     return chains;
@@ -73,14 +73,14 @@ function normalizeChainList(
 
 function resolveSelectedToken(
   availableTokens: TransactionToken[] | undefined,
-  tokenAddress: string | undefined
+  tokenAddress: string | undefined,
 ): TransactionToken | null {
   if (!availableTokens?.length) {
     return null;
   }
 
   const selectedToken = availableTokens.find(
-    token => token.address === tokenAddress
+    (token) => token.address === tokenAddress,
   );
 
   return selectedToken ?? availableTokens[0] ?? null;
@@ -88,7 +88,7 @@ function resolveSelectedToken(
 
 function mapTokenBalances(
   selectedToken: TransactionToken | null,
-  tokenBalance: TokenBalance | undefined
+  tokenBalance: TokenBalance | undefined,
 ): Record<string, TokenBalance> {
   if (!selectedToken || !tokenBalance) {
     return {};
@@ -101,9 +101,9 @@ function mapTokenBalances(
 
 function calculateUsdAmount(
   amount: string,
-  usdPrice: number | undefined
+  usdPrice: number | undefined,
 ): number {
-  const numericAmount = parseFloat(amount || "0");
+  const numericAmount = parseFloat(amount || '0');
   if (!usdPrice || Number.isNaN(numericAmount)) {
     return 0;
   }
@@ -121,10 +121,10 @@ export function useTransactionData({
   const chainList = normalizeChainList(chains);
 
   const tokenQuery = useQuery({
-    queryKey: ["transaction-tokens", chainId],
+    queryKey: ['transaction-tokens', chainId],
     queryFn: () => {
       if (chainId === undefined) {
-        throw new Error("Chain ID is required to load tokens");
+        throw new Error('Chain ID is required to load tokens');
       }
       return transactionServiceMock.getSupportedTokens(chainId);
     },
@@ -133,7 +133,7 @@ export function useTransactionData({
 
   const selectedToken: TransactionToken | null = resolveSelectedToken(
     tokenQuery.data,
-    tokenAddress
+    tokenAddress,
   );
 
   const balanceQuery = useTokenBalanceQuery(chainId, selectedToken?.address, {
@@ -142,13 +142,13 @@ export function useTransactionData({
 
   const balances: Record<string, TokenBalance> = mapTokenBalances(
     selectedToken,
-    balanceQuery.data
+    balanceQuery.data,
   );
 
   const usdAmount = calculateUsdAmount(amount, selectedToken?.usdPrice);
 
   const selectedChain: ChainData | null =
-    chainList.find(chain => chain.chainId === chainId) ?? null;
+    chainList.find((chain) => chain.chainId === chainId) ?? null;
   const isLoadingTokens = tokenQuery.isLoading;
   const isLoadingBalance = balanceQuery.isLoading;
 

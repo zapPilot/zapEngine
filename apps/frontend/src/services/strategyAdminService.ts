@@ -4,22 +4,22 @@
  * Provides CRUD operations against the `/api/v3/strategy/admin/configs` endpoints.
  */
 
-import { httpUtils } from "@/lib/http";
-import { createApiServiceCaller } from "@/lib/http/createServiceCaller";
+import { httpUtils } from '@/lib/http';
+import { createApiServiceCaller } from '@/lib/http/createServiceCaller';
 import type {
   CreateStrategyConfigRequest,
   StrategyAdminConfigResponse,
   StrategyAdminConfigsResponse,
   UpdateStrategyConfigRequest,
-} from "@/types/strategyAdmin";
+} from '@/types/strategyAdmin';
 
 const callAdminApi = createApiServiceCaller(
   {
-    400: "Invalid configuration. Please review your inputs.",
-    404: "Strategy configuration not found.",
-    409: "Conflict — this configuration is read-only or violates a constraint.",
+    400: 'Invalid configuration. Please review your inputs.',
+    404: 'Strategy configuration not found.',
+    409: 'Conflict — this configuration is read-only or violates a constraint.',
   },
-  "Strategy admin request failed"
+  'Strategy admin request failed',
 );
 
 /**
@@ -35,8 +35,8 @@ const callAdminApi = createApiServiceCaller(
 export async function getStrategyAdminConfigs(): Promise<StrategyAdminConfigsResponse> {
   return callAdminApi(() =>
     httpUtils.analyticsEngine.get<StrategyAdminConfigsResponse>(
-      "/api/v3/strategy/admin/configs"
-    )
+      '/api/v3/strategy/admin/configs',
+    ),
   );
 }
 
@@ -52,12 +52,12 @@ export async function getStrategyAdminConfigs(): Promise<StrategyAdminConfigsRes
  * ```
  */
 export async function getStrategyAdminConfig(
-  configId: string
+  configId: string,
 ): Promise<StrategyAdminConfigResponse> {
   return callAdminApi(() =>
     httpUtils.analyticsEngine.get<StrategyAdminConfigResponse>(
-      `/api/v3/strategy/admin/configs/${encodeURIComponent(configId)}`
-    )
+      `/api/v3/strategy/admin/configs/${encodeURIComponent(configId)}`,
+    ),
   );
 }
 
@@ -77,13 +77,13 @@ export async function getStrategyAdminConfig(
  * ```
  */
 export async function createStrategyConfig(
-  body: CreateStrategyConfigRequest
+  body: CreateStrategyConfigRequest,
 ): Promise<StrategyAdminConfigResponse> {
   return callAdminApi(() =>
     httpUtils.analyticsEngine.post<StrategyAdminConfigResponse>(
-      "/api/v3/strategy/admin/configs",
-      body
-    )
+      '/api/v3/strategy/admin/configs',
+      body,
+    ),
   );
 }
 
@@ -104,13 +104,13 @@ export async function createStrategyConfig(
  */
 export async function updateStrategyConfig(
   configId: string,
-  body: UpdateStrategyConfigRequest
+  body: UpdateStrategyConfigRequest,
 ): Promise<StrategyAdminConfigResponse> {
   return callAdminApi(() =>
     httpUtils.analyticsEngine.put<StrategyAdminConfigResponse>(
       `/api/v3/strategy/admin/configs/${encodeURIComponent(configId)}`,
-      body
-    )
+      body,
+    ),
   );
 }
 
@@ -126,12 +126,12 @@ export async function updateStrategyConfig(
  * ```
  */
 export async function setDefaultStrategyConfig(
-  configId: string
+  configId: string,
 ): Promise<StrategyAdminConfigResponse> {
   return callAdminApi(() =>
     httpUtils.analyticsEngine.post<StrategyAdminConfigResponse>(
       `/api/v3/strategy/admin/configs/${encodeURIComponent(configId)}/set-default`,
-      {}
-    )
+      {},
+    ),
   );
 }

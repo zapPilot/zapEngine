@@ -4,23 +4,24 @@
  * Transforms and validates raw sentiment data into database-ready format
  */
 
-import { z } from "zod";
-import { DATA_LIMITS } from "../../config/database.js";
-import { transformBatchWithLogging } from "../../core/transformers/baseTransformer.js";
-import type { SentimentSnapshotInsert } from "../../types/database.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
+import { z } from 'zod';
+
+import { DATA_LIMITS } from '../../config/database.js';
+import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
 import {
-  SentimentDataSchema,
   type SentimentData,
-} from "../../modules/sentiment/schema.js";
+  SentimentDataSchema,
+} from '../../modules/sentiment/schema.js';
+import type { SentimentSnapshotInsert } from '../../types/database.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 
 const SENTIMENT_CLASSIFICATION_BOUNDARIES: Record<string, [number, number]> = {
-  "Extreme Fear": [DATA_LIMITS.SENTIMENT_MIN, 25],
+  'Extreme Fear': [DATA_LIMITS.SENTIMENT_MIN, 25],
   Fear: [26, 45],
   Neutral: [46, 54],
   Greed: [55, 75],
-  "Extreme Greed": [76, DATA_LIMITS.SENTIMENT_MAX],
+  'Extreme Greed': [76, DATA_LIMITS.SENTIMENT_MAX],
 };
 
 export class SentimentDataTransformer {
@@ -43,14 +44,14 @@ export class SentimentDataTransformer {
 
   private logTransformationError(error: unknown, rawData: SentimentData): void {
     if (error instanceof z.ZodError) {
-      logger.error("Sentiment data validation failed", {
+      logger.error('Sentiment data validation failed', {
         errors: error.issues,
         rawData,
       });
       return;
     }
 
-    logger.error("Failed to transform sentiment data", {
+    logger.error('Failed to transform sentiment data', {
       error: toErrorMessage(error),
       rawData,
     });
@@ -66,7 +67,7 @@ export class SentimentDataTransformer {
           validated.classification,
         )
       ) {
-        logger.warn("Classification does not match sentiment value", {
+        logger.warn('Classification does not match sentiment value', {
           value: validated.value,
           classification: validated.classification,
         });
@@ -74,7 +75,7 @@ export class SentimentDataTransformer {
 
       const snapshotTime = this.convertTimestamp(validated.timestamp);
       if (!snapshotTime) {
-        logger.error("Failed to convert timestamp", {
+        logger.error('Failed to convert timestamp', {
           timestamp: validated.timestamp,
         });
         return null;
@@ -86,7 +87,7 @@ export class SentimentDataTransformer {
         snapshotTime,
       );
 
-      logger.debug("Successfully transformed sentiment data", {
+      logger.debug('Successfully transformed sentiment data', {
         sentiment_value: transformed.sentiment_value,
         classification: transformed.classification,
         source: transformed.source,
@@ -103,7 +104,7 @@ export class SentimentDataTransformer {
     return transformBatchWithLogging(
       rawDataArray,
       (item) => this.transform(item),
-      "Sentiment data",
+      'Sentiment data',
     );
   }
 
@@ -113,7 +114,7 @@ export class SentimentDataTransformer {
       const now = Date.now();
       const timestamp = date.getTime();
       if (this.isTimestampOutsideExpectedRange(timestamp, now)) {
-        logger.warn("Timestamp outside expected range", {
+        logger.warn('Timestamp outside expected range', {
           unixTimestamp,
           date: date.toISOString(),
         });
@@ -121,7 +122,7 @@ export class SentimentDataTransformer {
 
       return date.toISOString();
     } catch (error) {
-      logger.error("Failed to convert timestamp", {
+      logger.error('Failed to convert timestamp', {
         unixTimestamp,
         error,
       });

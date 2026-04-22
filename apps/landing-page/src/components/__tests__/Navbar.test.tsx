@@ -33,7 +33,7 @@ describe('Navbar', () => {
     it('should render all navigation items', () => {
       render(<Navbar />);
 
-      NAVIGATION.internal.forEach(item => {
+      NAVIGATION.internal.forEach((item) => {
         expect(screen.getByText(item.label)).toBeInTheDocument();
       });
     });
@@ -41,7 +41,7 @@ describe('Navbar', () => {
     it('should render navigation links with correct href', () => {
       render(<Navbar />);
 
-      NAVIGATION.internal.forEach(item => {
+      NAVIGATION.internal.forEach((item) => {
         const link = screen.getByRole('link', { name: item.label });
         expect(link).toHaveAttribute('href', item.href);
       });
@@ -61,7 +61,11 @@ describe('Navbar', () => {
       const buttons = screen.getAllByRole('button', { name: /Launch App/i });
       fireEvent.click(buttons[0]!);
 
-      expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        LINKS.app,
+        '_blank',
+        'noopener,noreferrer',
+      );
     });
   });
 
@@ -88,7 +92,9 @@ describe('Navbar', () => {
       fireEvent.click(menuButton);
 
       // Click a navigation link
-      const links = screen.getAllByRole('link', { name: NAVIGATION.internal[0].label });
+      const links = screen.getAllByRole('link', {
+        name: NAVIGATION.internal[0].label,
+      });
       // Click the mobile version (second one in DOM)
       fireEvent.click(links[links.length - 1]!);
 
@@ -109,7 +115,11 @@ describe('Navbar', () => {
       // The mobile button is inside the AnimatePresence, click the last one
       fireEvent.click(buttons[buttons.length - 1]!);
 
-      expect(mockWindowOpen).toHaveBeenCalledWith(LINKS.app, '_blank', 'noopener,noreferrer');
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        LINKS.app,
+        '_blank',
+        'noopener,noreferrer',
+      );
     });
   });
 

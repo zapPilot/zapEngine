@@ -1,5 +1,5 @@
-export { AllocationLegend } from "./AllocationLegend";
-export { UnifiedAllocationBar } from "./UnifiedAllocationBar";
+export { AllocationLegend } from './AllocationLegend';
+export { UnifiedAllocationBar } from './UnifiedAllocationBar';
 
 // Type exports
 export type {
@@ -11,7 +11,7 @@ export type {
   UnifiedAllocationBarProps,
   UnifiedCategory,
   UnifiedSegment,
-} from "./unifiedAllocationTypes";
+} from './unifiedAllocationTypes';
 
 // Utility exports
 export {
@@ -22,4 +22,4 @@ export {
   mapLegacyConstituentsToUnified,
   mapPortfolioToUnified,
   mapStrategyToUnified,
-} from "./unifiedAllocationUtils";
+} from './unifiedAllocationUtils';

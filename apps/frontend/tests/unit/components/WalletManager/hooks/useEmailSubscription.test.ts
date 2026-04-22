@@ -1,38 +1,38 @@
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useEmailSubscription } from "@/components/WalletManager/hooks/useEmailSubscription";
-import { useUser } from "@/contexts/UserContext";
-import { useToast } from "@/providers/ToastProvider";
-import { unsubscribeUserEmail, updateUserEmailSubscription } from "@/services";
-import { validateEmail } from "@/utils";
+import { useEmailSubscription } from '@/components/WalletManager/hooks/useEmailSubscription';
+import { useUser } from '@/contexts/UserContext';
+import { useToast } from '@/providers/ToastProvider';
+import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
+import { validateEmail } from '@/utils';
 
 // Mock dependencies
-vi.mock("@/contexts/UserContext", () => ({
+vi.mock('@/contexts/UserContext', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock("@/providers/ToastProvider", () => ({
+vi.mock('@/providers/ToastProvider', () => ({
   useToast: vi.fn(),
 }));
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   updateUserEmailSubscription: vi.fn(),
   unsubscribeUserEmail: vi.fn(),
 }));
 
 // Mock validation
-vi.mock("@/utils", () => ({
+vi.mock('@/utils', () => ({
   validateEmail: vi.fn(),
 }));
 
 // Mock wallet error handler
-vi.mock("@/lib/validation/walletUtils", () => ({
+vi.mock('@/lib/validation/walletUtils', () => ({
   handleWalletError: vi.fn((error: unknown) => {
     if (error instanceof Error) {
       return error.message;
     }
-    return "An error occurred";
+    return 'An error occurred';
   }),
 }));
 
@@ -42,7 +42,7 @@ let mockSetSuccess: ReturnType<typeof vi.fn>;
 let mockSetError: ReturnType<typeof vi.fn>;
 
 // Mock useOperationStateHandlers
-vi.mock("@/hooks/utils/useOperationState", () => ({
+vi.mock('@/hooks/utils/useOperationState', () => ({
   useOperationStateHandlers: () => ({
     setLoading: mockSetLoading,
     setSuccess: mockSetSuccess,
@@ -50,13 +50,13 @@ vi.mock("@/hooks/utils/useOperationState", () => ({
   }),
 }));
 
-describe("useEmailSubscription", () => {
+describe('useEmailSubscription', () => {
   const mockShowToast = vi.fn();
   const mockOnEmailSubscribed = vi.fn();
 
   const defaultParams = {
-    viewingUserId: "user-123",
-    realUserId: "user-123",
+    viewingUserId: 'user-123',
+    realUserId: 'user-123',
     isOpen: true,
     onEmailSubscribed: mockOnEmailSubscribed,
   };
@@ -69,7 +69,7 @@ describe("useEmailSubscription", () => {
 
     vi.clearAllMocks();
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "" },
+      userInfo: { email: '' },
     } as any);
     vi.mocked(useToast).mockReturnValue({ showToast: mockShowToast } as any);
 
@@ -77,36 +77,36 @@ describe("useEmailSubscription", () => {
     vi.mocked(validateEmail).mockReturnValue({ isValid: true });
   });
 
-  it("initializes with empty state", () => {
+  it('initializes with empty state', () => {
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
-    expect(result.current.email).toBe("");
+    expect(result.current.email).toBe('');
     expect(result.current.subscribedEmail).toBeNull();
     expect(result.current.isEditingSubscription).toBe(false);
   });
 
-  it("initializes email from user context when modal opens", () => {
+  it('initializes email from user context when modal opens', () => {
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "existing@example.com" },
+      userInfo: { email: 'existing@example.com' },
     } as any);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
-    expect(result.current.subscribedEmail).toBe("existing@example.com");
-    expect(result.current.email).toBe("existing@example.com");
+    expect(result.current.subscribedEmail).toBe('existing@example.com');
+    expect(result.current.email).toBe('existing@example.com');
     expect(mockOnEmailSubscribed).toHaveBeenCalled();
   });
 
-  it("handleSubscribe fails with invalid email", async () => {
+  it('handleSubscribe fails with invalid email', async () => {
     vi.mocked(validateEmail).mockReturnValue({
       isValid: false,
-      error: "Please enter a valid email address",
+      error: 'Please enter a valid email address',
     });
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("invalid");
+      result.current.setEmail('invalid');
     });
 
     await act(async () => {
@@ -116,17 +116,17 @@ describe("useEmailSubscription", () => {
     // Should not call API with invalid email
     expect(updateUserEmailSubscription).not.toHaveBeenCalled();
     expect(mockSetError).toHaveBeenCalledWith(
-      "Please enter a valid email address"
+      'Please enter a valid email address',
     );
   });
 
-  it("handleSubscribe succeeds with valid email", async () => {
+  it('handleSubscribe succeeds with valid email', async () => {
     vi.mocked(updateUserEmailSubscription).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("valid@example.com");
+      result.current.setEmail('valid@example.com');
     });
 
     await act(async () => {
@@ -134,15 +134,15 @@ describe("useEmailSubscription", () => {
     });
 
     expect(updateUserEmailSubscription).toHaveBeenCalledWith(
-      "user-123",
-      "valid@example.com"
+      'user-123',
+      'valid@example.com',
     );
     expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "success" })
+      expect.objectContaining({ type: 'success' }),
     );
   });
 
-  it("handleUnsubscribe calls API and clears email", async () => {
+  it('handleUnsubscribe calls API and clears email', async () => {
     vi.mocked(unsubscribeUserEmail).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
@@ -151,15 +151,15 @@ describe("useEmailSubscription", () => {
       await result.current.handleUnsubscribe();
     });
 
-    expect(unsubscribeUserEmail).toHaveBeenCalledWith("user-123");
+    expect(unsubscribeUserEmail).toHaveBeenCalledWith('user-123');
     expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "success", title: "Unsubscribed" })
+      expect.objectContaining({ type: 'success', title: 'Unsubscribed' }),
     );
   });
 
-  it("startEditingSubscription sets editing state", () => {
+  it('startEditingSubscription sets editing state', () => {
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "test@example.com" },
+      userInfo: { email: 'test@example.com' },
     } as any);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
@@ -169,19 +169,19 @@ describe("useEmailSubscription", () => {
     });
 
     expect(result.current.isEditingSubscription).toBe(true);
-    expect(result.current.email).toBe("test@example.com");
+    expect(result.current.email).toBe('test@example.com');
   });
 
-  it("cancelEditingSubscription resets state", () => {
+  it('cancelEditingSubscription resets state', () => {
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "test@example.com" },
+      userInfo: { email: 'test@example.com' },
     } as any);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
       result.current.startEditingSubscription();
-      result.current.setEmail("changed@example.com");
+      result.current.setEmail('changed@example.com');
     });
 
     act(() => {
@@ -189,12 +189,12 @@ describe("useEmailSubscription", () => {
     });
 
     expect(result.current.isEditingSubscription).toBe(false);
-    expect(result.current.email).toBe("test@example.com");
+    expect(result.current.email).toBe('test@example.com');
   });
 
-  it("does not initialize email when modal is closed", () => {
+  it('does not initialize email when modal is closed', () => {
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "existing@example.com" },
+      userInfo: { email: 'existing@example.com' },
     } as any);
 
     renderHook(() => useEmailSubscription({ ...defaultParams, isOpen: false }));
@@ -203,13 +203,13 @@ describe("useEmailSubscription", () => {
     expect(mockOnEmailSubscribed).not.toHaveBeenCalled();
   });
 
-  it("handleSubscribe fails when user not authenticated", async () => {
+  it('handleSubscribe fails when user not authenticated', async () => {
     const { result } = renderHook(() =>
-      useEmailSubscription({ ...defaultParams, realUserId: "" })
+      useEmailSubscription({ ...defaultParams, realUserId: '' }),
     );
 
     act(() => {
-      result.current.setEmail("valid@example.com");
+      result.current.setEmail('valid@example.com');
     });
 
     await act(async () => {
@@ -217,50 +217,50 @@ describe("useEmailSubscription", () => {
     });
 
     expect(updateUserEmailSubscription).not.toHaveBeenCalled();
-    expect(mockSetError).toHaveBeenCalledWith("User not authenticated");
+    expect(mockSetError).toHaveBeenCalledWith('User not authenticated');
   });
 
-  it("handleSubscribe displays validation error when email is empty", async () => {
+  it('handleSubscribe displays validation error when email is empty', async () => {
     vi.mocked(validateEmail).mockReturnValue({
       isValid: false,
-      error: "Email address is required",
+      error: 'Email address is required',
     });
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("");
+      result.current.setEmail('');
     });
 
     await act(async () => {
       await result.current.handleSubscribe();
     });
 
-    expect(mockSetError).toHaveBeenCalledWith("Email address is required");
+    expect(mockSetError).toHaveBeenCalledWith('Email address is required');
   });
 
-  it("handleSubscribe handles API error", async () => {
+  it('handleSubscribe handles API error', async () => {
     vi.mocked(validateEmail).mockReturnValue({ isValid: true });
 
-    const apiError = new Error("Network error");
+    const apiError = new Error('Network error');
     vi.mocked(updateUserEmailSubscription).mockRejectedValue(apiError);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("valid@example.com");
+      result.current.setEmail('valid@example.com');
     });
 
     await act(async () => {
       await result.current.handleSubscribe();
     });
 
-    expect(mockSetError).toHaveBeenCalledWith("Network error");
+    expect(mockSetError).toHaveBeenCalledWith('Network error');
   });
 
-  it("handleUnsubscribe fails when user not authenticated", async () => {
+  it('handleUnsubscribe fails when user not authenticated', async () => {
     const { result } = renderHook(() =>
-      useEmailSubscription({ ...defaultParams, realUserId: "" })
+      useEmailSubscription({ ...defaultParams, realUserId: '' }),
     );
 
     await act(async () => {
@@ -268,11 +268,11 @@ describe("useEmailSubscription", () => {
     });
 
     expect(unsubscribeUserEmail).not.toHaveBeenCalled();
-    expect(mockSetError).toHaveBeenCalledWith("User not authenticated");
+    expect(mockSetError).toHaveBeenCalledWith('User not authenticated');
   });
 
-  it("handleUnsubscribe handles API error", async () => {
-    const apiError = new Error("API failure");
+  it('handleUnsubscribe handles API error', async () => {
+    const apiError = new Error('API failure');
     vi.mocked(unsubscribeUserEmail).mockRejectedValue(apiError);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
@@ -281,10 +281,10 @@ describe("useEmailSubscription", () => {
       await result.current.handleUnsubscribe();
     });
 
-    expect(mockSetError).toHaveBeenCalledWith("API failure");
+    expect(mockSetError).toHaveBeenCalledWith('API failure');
   });
 
-  it("startEditingSubscription does not set email when no subscribedEmail", () => {
+  it('startEditingSubscription does not set email when no subscribedEmail', () => {
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
@@ -292,22 +292,22 @@ describe("useEmailSubscription", () => {
     });
 
     expect(result.current.isEditingSubscription).toBe(true);
-    expect(result.current.email).toBe("");
+    expect(result.current.email).toBe('');
   });
 
-  it("cancelEditingSubscription does not change email when no subscribedEmail", () => {
+  it('cancelEditingSubscription does not change email when no subscribedEmail', () => {
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("temp@example.com");
+      result.current.setEmail('temp@example.com');
       result.current.cancelEditingSubscription();
     });
 
     expect(result.current.isEditingSubscription).toBe(false);
-    expect(result.current.email).toBe("temp@example.com");
+    expect(result.current.email).toBe('temp@example.com');
   });
 
-  it("cancelEditingSubscription clears operation state", () => {
+  it('cancelEditingSubscription clears operation state', () => {
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
@@ -320,27 +320,27 @@ describe("useEmailSubscription", () => {
     });
   });
 
-  it("onEmailSubscribed is optional and does not break when undefined", () => {
+  it('onEmailSubscribed is optional and does not break when undefined', () => {
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "test@example.com" },
+      userInfo: { email: 'test@example.com' },
     } as any);
 
     const { result } = renderHook(() =>
-      useEmailSubscription({ ...defaultParams, onEmailSubscribed: undefined })
+      useEmailSubscription({ ...defaultParams, onEmailSubscribed: undefined }),
     );
 
     // Should not throw when onEmailSubscribed is undefined
-    expect(result.current.subscribedEmail).toBe("test@example.com");
+    expect(result.current.subscribedEmail).toBe('test@example.com');
   });
 
-  it("handleSubscribe calls onEmailSubscribed callback on success", async () => {
+  it('handleSubscribe calls onEmailSubscribed callback on success', async () => {
     vi.mocked(validateEmail).mockReturnValue({ isValid: true });
     vi.mocked(updateUserEmailSubscription).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("new@example.com");
+      result.current.setEmail('new@example.com');
     });
 
     await act(async () => {
@@ -351,40 +351,40 @@ describe("useEmailSubscription", () => {
     expect(result.current.isEditingSubscription).toBe(false);
   });
 
-  it("handleSubscribe updates subscribedEmail on success", async () => {
+  it('handleSubscribe updates subscribedEmail on success', async () => {
     vi.mocked(validateEmail).mockReturnValue({ isValid: true });
     vi.mocked(updateUserEmailSubscription).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     act(() => {
-      result.current.setEmail("updated@example.com");
+      result.current.setEmail('updated@example.com');
     });
 
     await act(async () => {
       await result.current.handleSubscribe();
     });
 
-    expect(result.current.subscribedEmail).toBe("updated@example.com");
+    expect(result.current.subscribedEmail).toBe('updated@example.com');
   });
 
-  it("handleUnsubscribe clears email and subscribedEmail on success", async () => {
+  it('handleUnsubscribe clears email and subscribedEmail on success', async () => {
     vi.mocked(unsubscribeUserEmail).mockResolvedValue(undefined);
     vi.mocked(useUser).mockReturnValue({
-      userInfo: { email: "old@example.com" },
+      userInfo: { email: 'old@example.com' },
     } as any);
 
     const { result } = renderHook(() => useEmailSubscription(defaultParams));
 
     // Initially has email from context
-    expect(result.current.subscribedEmail).toBe("old@example.com");
+    expect(result.current.subscribedEmail).toBe('old@example.com');
 
     await act(async () => {
       await result.current.handleUnsubscribe();
     });
 
     expect(result.current.subscribedEmail).toBeNull();
-    expect(result.current.email).toBe("");
+    expect(result.current.email).toBe('');
     expect(result.current.isEditingSubscription).toBe(false);
   });
 });

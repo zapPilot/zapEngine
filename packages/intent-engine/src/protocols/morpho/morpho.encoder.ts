@@ -1,5 +1,5 @@
-import { encodeFunctionData, type Address } from "viem";
-import { MORPHO_VAULT_ABI } from "./morpho.constants.js";
+import { encodeFunctionData, type Address } from 'viem';
+import { MORPHO_VAULT_ABI } from './morpho.constants.js';
 
 /**
  * Encode deposit calldata for Morpho vault
@@ -8,11 +8,11 @@ import { MORPHO_VAULT_ABI } from "./morpho.constants.js";
  */
 export function encodeDeposit(
   assets: bigint,
-  receiver: Address
+  receiver: Address,
 ): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
-    functionName: "deposit",
+    functionName: 'deposit',
     args: [assets, receiver],
   });
 }
@@ -25,7 +25,7 @@ export function encodeDeposit(
 export function encodeMint(shares: bigint, receiver: Address): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
-    functionName: "mint",
+    functionName: 'mint',
     args: [shares, receiver],
   });
 }
@@ -39,11 +39,11 @@ export function encodeMint(shares: bigint, receiver: Address): `0x${string}` {
 export function encodeWithdraw(
   assets: bigint,
   receiver: Address,
-  owner: Address
+  owner: Address,
 ): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
-    functionName: "withdraw",
+    functionName: 'withdraw',
     args: [assets, receiver, owner],
   });
 }
@@ -57,11 +57,11 @@ export function encodeWithdraw(
 export function encodeRedeem(
   shares: bigint,
   receiver: Address,
-  owner: Address
+  owner: Address,
 ): `0x${string}` {
   return encodeFunctionData({
     abi: MORPHO_VAULT_ABI,
-    functionName: "redeem",
+    functionName: 'redeem',
     args: [shares, receiver, owner],
   });
 }

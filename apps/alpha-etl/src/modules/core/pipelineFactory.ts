@@ -1,31 +1,31 @@
 import {
-  PROCESSOR_REGISTRY,
-  type ProcessorConstructor,
-} from "./processorRegistry.js";
-import {
+  type BaseETLProcessor,
   createFailedETLResult,
   type ETLProcessResult,
-  type BaseETLProcessor,
-} from "../../core/processors/baseETLProcessor.js";
-import { WalletFetchETLProcessor } from "../../modules/wallet/fetchProcessor.js";
-import type { ETLJob, DataSource } from "../../types/index.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
+} from '../../core/processors/baseETLProcessor.js';
+import { WalletFetchETLProcessor } from '../../modules/wallet/fetchProcessor.js';
+import type { DataSource, ETLJob } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 import {
-  type ETLJobProcessingResult,
-  type ProcessorHealthSummary,
   accumulateSourceResult,
   buildJobSummary,
   createProcessingResult,
   createSingleSourceFailureResult,
   createSingleSourceSuccessResult,
-} from "./pipelineFactory.helpers.js";
+  type ETLJobProcessingResult,
+  type ProcessorHealthSummary,
+} from './pipelineFactory.helpers.js';
+import {
+  PROCESSOR_REGISTRY,
+  type ProcessorConstructor,
+} from './processorRegistry.js';
 
 /**
  * Factory for creating and managing ETL processors using Strategy pattern
  */
 export class ETLPipelineFactory {
-  private processors: Map<DataSource, BaseETLProcessor> = new Map();
+  private processors = new Map<DataSource, BaseETLProcessor>();
 
   constructor(
     registry: Record<DataSource, ProcessorConstructor> = PROCESSOR_REGISTRY,
@@ -51,7 +51,7 @@ export class ETLPipelineFactory {
    * Process multiple data sources for a job
    */
   async processJob(job: ETLJob): Promise<ETLJobProcessingResult> {
-    logger.info("Starting ETL job processing with pipeline factory", {
+    logger.info('Starting ETL job processing with pipeline factory', {
       jobId: job.jobId,
       sources: job.sources,
       filters: job.filters,
@@ -59,7 +59,7 @@ export class ETLPipelineFactory {
     });
 
     // Special routing for wallet_fetch jobs
-    if (job.metadata?.jobType === "wallet_fetch") {
+    if (job.metadata?.jobType === 'wallet_fetch') {
       return this.processSingleSource(job, new WalletFetchETLProcessor());
     }
 
@@ -77,7 +77,7 @@ export class ETLPipelineFactory {
     const startTime = Date.now();
 
     try {
-      logger.info("Processing single-source job with specialized processor", {
+      logger.info('Processing single-source job with specialized processor', {
         jobId: job.jobId,
         processorType: processor.getSourceType(),
       });
@@ -85,7 +85,7 @@ export class ETLPipelineFactory {
       const sourceResult = await processor.process(job);
       const duration = Date.now() - startTime;
 
-      logger.info("Single-source job processing completed", {
+      logger.info('Single-source job processing completed', {
         jobId: job.jobId,
         success: sourceResult.success,
         recordsProcessed: sourceResult.recordsProcessed,
@@ -95,7 +95,7 @@ export class ETLPipelineFactory {
 
       return createSingleSourceSuccessResult(sourceResult);
     } catch (error) {
-      logger.error("Single-source job processing failed:", {
+      logger.error('Single-source job processing failed:', {
         jobId: job.jobId,
         error,
       });
@@ -109,7 +109,7 @@ export class ETLPipelineFactory {
     job: ETLJob,
   ): Promise<ETLProcessResult> {
     try {
-      logger.info("Processing data source with specialized processor", {
+      logger.info('Processing data source with specialized processor', {
         source,
         jobId: job.jobId,
       });
@@ -117,7 +117,7 @@ export class ETLPipelineFactory {
       const processor = this.getProcessor(source);
       const sourceResult = await processor.process(job);
 
-      logger.info("Data source processing completed", {
+      logger.info('Data source processing completed', {
         source,
         jobId: job.jobId,
         success: sourceResult.success,
@@ -128,7 +128,7 @@ export class ETLPipelineFactory {
 
       return sourceResult;
     } catch (error) {
-      logger.error("Data source processing failed:", {
+      logger.error('Data source processing failed:', {
         source,
         jobId: job.jobId,
         error,
@@ -148,7 +148,7 @@ export class ETLPipelineFactory {
       await this.processSourcesForJob(job, result);
 
       const duration = Date.now() - startTime;
-      logger.info("ETL job processing completed", {
+      logger.info('ETL job processing completed', {
         jobId: job.jobId,
         success: result.success,
         recordsProcessed: result.recordsProcessed,
@@ -181,10 +181,10 @@ export class ETLPipelineFactory {
    */
   async healthCheck(): Promise<ProcessorHealthSummary> {
     const result: ProcessorHealthSummary = {
-      status: "healthy",
+      status: 'healthy',
       sources: {} as Record<
         DataSource,
-        { status: "healthy" | "unhealthy"; details?: string }
+        { status: 'healthy' | 'unhealthy'; details?: string }
       >,
     };
 
@@ -193,15 +193,15 @@ export class ETLPipelineFactory {
         const health = await processor.healthCheck();
         result.sources[source] = health;
 
-        if (health.status === "unhealthy") {
-          result.status = "unhealthy";
+        if (health.status === 'unhealthy') {
+          result.status = 'unhealthy';
         }
       } catch (error) {
         result.sources[source] = {
-          status: "unhealthy",
+          status: 'unhealthy',
           details: toErrorMessage(error),
         };
-        result.status = "unhealthy";
+        result.status = 'unhealthy';
       }
     }
 
@@ -221,7 +221,7 @@ export class ETLPipelineFactory {
       try {
         stats[source] = processor.getStats();
       } catch (error) {
-        logger.error("Failed to get stats for processor:", { source, error });
+        logger.error('Failed to get stats for processor:', { source, error });
         stats[source] = { error: toErrorMessage(error) };
       }
     }
@@ -241,7 +241,7 @@ export class ETLPipelineFactory {
     result: ETLJobProcessingResult,
     error: unknown,
   ): void {
-    logger.error("ETL job processing failed with exception:", {
+    logger.error('ETL job processing failed with exception:', {
       jobId: job.jobId,
       error,
     });

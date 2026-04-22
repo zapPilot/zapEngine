@@ -4,11 +4,11 @@
  * Tests for clipboard utility function
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { copyTextToClipboard } from "@/utils/clipboard";
+import { copyTextToClipboard } from '@/utils/clipboard';
 
-describe("copyTextToClipboard", () => {
+describe('copyTextToClipboard', () => {
   const originalNavigator = global.navigator;
   const originalDocument = global.document;
 
@@ -18,53 +18,53 @@ describe("copyTextToClipboard", () => {
 
   afterEach(() => {
     // Restore originals
-    Object.defineProperty(global, "navigator", { value: originalNavigator });
-    Object.defineProperty(global, "document", { value: originalDocument });
+    Object.defineProperty(global, 'navigator', { value: originalNavigator });
+    Object.defineProperty(global, 'document', { value: originalDocument });
   });
 
-  describe("when navigator.clipboard is available", () => {
-    it("copies text using clipboard API and returns true", async () => {
+  describe('when navigator.clipboard is available', () => {
+    it('copies text using clipboard API and returns true', async () => {
       const writeTextMock = vi.fn().mockResolvedValue(null);
-      Object.defineProperty(global, "navigator", {
+      Object.defineProperty(global, 'navigator', {
         value: { clipboard: { writeText: writeTextMock } },
         writable: true,
       });
 
-      const result = await copyTextToClipboard("test text");
+      const result = await copyTextToClipboard('test text');
 
-      expect(writeTextMock).toHaveBeenCalledWith("test text");
+      expect(writeTextMock).toHaveBeenCalledWith('test text');
       expect(result).toBe(true);
     });
   });
 
-  describe("when navigator is undefined", () => {
-    it("returns false", async () => {
-      Object.defineProperty(global, "navigator", {
+  describe('when navigator is undefined', () => {
+    it('returns false', async () => {
+      Object.defineProperty(global, 'navigator', {
         value: undefined,
         writable: true,
       });
 
-      const result = await copyTextToClipboard("test text");
+      const result = await copyTextToClipboard('test text');
 
       expect(result).toBe(false);
     });
   });
 
-  describe("when clipboard API fails", () => {
+  describe('when clipboard API fails', () => {
     beforeEach(() => {
-      Object.defineProperty(global, "navigator", {
+      Object.defineProperty(global, 'navigator', {
         value: {
           clipboard: {
-            writeText: vi.fn().mockRejectedValue(new Error("Clipboard error")),
+            writeText: vi.fn().mockRejectedValue(new Error('Clipboard error')),
           },
         },
         writable: true,
       });
     });
 
-    it("falls back to execCommand when available", async () => {
+    it('falls back to execCommand when available', async () => {
       const mockTextArea = {
-        value: "",
+        value: '',
         setAttribute: vi.fn(),
         style: {} as CSSStyleDeclaration,
         select: vi.fn(),
@@ -74,7 +74,7 @@ describe("copyTextToClipboard", () => {
       const removeChildMock = vi.fn();
       const execCommandMock = vi.fn().mockReturnValue(true);
 
-      Object.defineProperty(global, "document", {
+      Object.defineProperty(global, 'document', {
         value: {
           createElement: createElementMock,
           body: {
@@ -86,27 +86,27 @@ describe("copyTextToClipboard", () => {
         writable: true,
       });
 
-      const result = await copyTextToClipboard("fallback text");
+      const result = await copyTextToClipboard('fallback text');
 
-      expect(createElementMock).toHaveBeenCalledWith("textarea");
-      expect(execCommandMock).toHaveBeenCalledWith("copy");
+      expect(createElementMock).toHaveBeenCalledWith('textarea');
+      expect(execCommandMock).toHaveBeenCalledWith('copy');
       expect(result).toBe(true);
     });
 
-    it("returns false when document is undefined", async () => {
-      Object.defineProperty(global, "document", {
+    it('returns false when document is undefined', async () => {
+      Object.defineProperty(global, 'document', {
         value: undefined,
         writable: true,
       });
 
-      const result = await copyTextToClipboard("test text");
+      const result = await copyTextToClipboard('test text');
 
       expect(result).toBe(false);
     });
 
-    it("returns false when execCommand throws", async () => {
+    it('returns false when execCommand throws', async () => {
       const mockTextArea = {
-        value: "",
+        value: '',
         setAttribute: vi.fn(),
         style: {} as CSSStyleDeclaration,
         select: vi.fn(),
@@ -117,10 +117,10 @@ describe("copyTextToClipboard", () => {
 
       // Mock execCommand to throw
       const execCommandMock = vi.fn().mockImplementation(() => {
-        throw new Error("Command failed");
+        throw new Error('Command failed');
       });
 
-      Object.defineProperty(global, "document", {
+      Object.defineProperty(global, 'document', {
         value: {
           createElement: createElementMock,
           body: {
@@ -132,10 +132,10 @@ describe("copyTextToClipboard", () => {
         writable: true,
       });
 
-      const result = await copyTextToClipboard("fallback text");
+      const result = await copyTextToClipboard('fallback text');
 
       expect(result).toBe(false);
-      expect(execCommandMock).toHaveBeenCalledWith("copy");
+      expect(execCommandMock).toHaveBeenCalledWith('copy');
     });
   });
 });

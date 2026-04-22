@@ -5,18 +5,18 @@ import {
   type QueryClient,
   useMutation,
   useQueryClient,
-} from "@tanstack/react-query";
+} from '@tanstack/react-query';
 
-import { queryKeys } from "@/lib/state/queryClient";
+import { queryKeys } from '@/lib/state/queryClient';
 import {
   createStrategyConfig,
   setDefaultStrategyConfig,
   updateStrategyConfig,
-} from "@/services";
+} from '@/services';
 import type {
   CreateStrategyConfigRequest,
   UpdateStrategyConfigRequest,
-} from "@/types";
+} from '@/types';
 
 function invalidateStrategyConfigs(queryClient: QueryClient) {
   void queryClient.invalidateQueries({

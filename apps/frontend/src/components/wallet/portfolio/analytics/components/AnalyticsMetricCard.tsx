@@ -4,9 +4,9 @@
  * Reusable metric card for analytics metrics display
  */
 
-import type { ElementType, ReactElement } from "react";
+import type { ElementType, ReactElement } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
+import { BaseCard } from '@/components/ui/BaseCard';
 
 /**
  * Analytics Metric Card Props
@@ -37,7 +37,7 @@ export function AnalyticsMetricCard({
   label,
   value,
   subValue,
-  valueColor = "text-white",
+  valueColor = 'text-white',
   isLoading = false,
 }: AnalyticsMetricCardProps): ReactElement {
   return (

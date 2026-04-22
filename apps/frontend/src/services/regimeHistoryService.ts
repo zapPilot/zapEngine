@@ -8,8 +8,8 @@
  * Backend API: /api/v2/market/regime/history
  */
 
-import { httpUtils } from "@/lib/http";
-import { createApiServiceCaller } from "@/lib/http/createServiceCaller";
+import { httpUtils } from '@/lib/http';
+import { createApiServiceCaller } from '@/lib/http/createServiceCaller';
 import {
   type DirectionType,
   type DurationInfo,
@@ -17,7 +17,7 @@ import {
   type RegimeId,
   type RegimeTransition,
   validateRegimeHistoryResponse,
-} from "@/schemas/api/regimeHistorySchemas";
+} from '@/schemas/api/regimeHistorySchemas';
 
 /**
  * Frontend Data Model for regime history with computed fields
@@ -52,9 +52,9 @@ export interface RegimeHistoryData {
  * Provides neutral defaults that don't disrupt the UI.
  */
 export const DEFAULT_REGIME_HISTORY: RegimeHistoryData = {
-  currentRegime: "n", // Neutral regime as default
+  currentRegime: 'n', // Neutral regime as default
   previousRegime: null,
-  direction: "default",
+  direction: 'default',
   duration: null,
   transitions: [],
   timestamp: new Date().toISOString(),
@@ -63,20 +63,20 @@ export const DEFAULT_REGIME_HISTORY: RegimeHistoryData = {
 
 const callRegimeHistoryApi = createApiServiceCaller(
   {
-    404: "Regime history endpoint not found. Using default values. (This is expected if backend v2 is not deployed)",
-    500: "An unexpected error occurred while fetching regime history. Using default values.",
-    502: "Invalid regime data received. Using default values.",
-    503: "Regime history data is temporarily unavailable. Using default values.",
-    504: "Request timed out while fetching regime history. Using default values.",
+    404: 'Regime history endpoint not found. Using default values. (This is expected if backend v2 is not deployed)',
+    500: 'An unexpected error occurred while fetching regime history. Using default values.',
+    502: 'Invalid regime data received. Using default values.',
+    503: 'Regime history data is temporarily unavailable. Using default values.',
+    504: 'Request timed out while fetching regime history. Using default values.',
   },
-  "Failed to fetch regime history"
+  'Failed to fetch regime history',
 );
 
 /**
  * Transform backend response to frontend format
  */
 function transformRegimeHistoryData(
-  response: RegimeHistoryResponse
+  response: RegimeHistoryResponse,
 ): RegimeHistoryData {
   return {
     currentRegime: response.current.to_regime,
@@ -99,11 +99,11 @@ function transformRegimeHistoryData(
  * @returns Regime history data with directional information
  */
 export async function fetchRegimeHistory(
-  limit = 2
+  limit = 2,
 ): Promise<RegimeHistoryData> {
   return callRegimeHistoryApi(async () => {
     const response = await httpUtils.analyticsEngine.get(
-      `/api/v2/market/regime/history?limit=${limit}`
+      `/api/v2/market/regime/history?limit=${limit}`,
     );
 
     const validatedResponse = validateRegimeHistoryResponse(response);

@@ -1,17 +1,17 @@
-import type { UnifiedDashboardResponse } from "@/services";
-import type { MetricData } from "@/types/analytics";
+import type { UnifiedDashboardResponse } from '@/services';
+import type { MetricData } from '@/types/analytics';
 
 /**
  * Create placeholder metric for missing data
  */
 export function createPlaceholderMetric(
   value: string,
-  subValue: string
+  subValue: string,
 ): MetricData {
   return {
     value,
     subValue,
-    trend: "neutral",
+    trend: 'neutral',
   };
 }
 
@@ -61,7 +61,7 @@ interface DrawdownSummaryExtraction {
 }
 
 function getDrawdownAnalysis(
-  dashboard: UnifiedDashboardResponse | undefined
+  dashboard: UnifiedDashboardResponse | undefined,
 ): DrawdownAnalysis | undefined {
   return dashboard?.drawdown_analysis as unknown as
     | DrawdownAnalysis
@@ -69,13 +69,13 @@ function getDrawdownAnalysis(
 }
 
 function getDrawdownSummary(
-  drawdownAnalysis: DrawdownAnalysis | undefined
+  drawdownAnalysis: DrawdownAnalysis | undefined,
 ): DrawdownSummary | undefined {
   return drawdownAnalysis?.enhanced?.summary;
 }
 
 function getUnderwaterData(
-  drawdownAnalysis: DrawdownAnalysis | undefined
+  drawdownAnalysis: DrawdownAnalysis | undefined,
 ): UnderwaterDataPoint[] {
   return drawdownAnalysis?.underwater_recovery?.underwater_data ?? [];
 }
@@ -84,7 +84,7 @@ function getUnderwaterData(
  * Safely extract drawdown summary data from response
  */
 export function extractDrawdownSummary(
-  dashboard: UnifiedDashboardResponse | undefined
+  dashboard: UnifiedDashboardResponse | undefined,
 ): DrawdownSummaryExtraction {
   const drawdownAnalysis = getDrawdownAnalysis(dashboard);
   const summary = getDrawdownSummary(drawdownAnalysis);

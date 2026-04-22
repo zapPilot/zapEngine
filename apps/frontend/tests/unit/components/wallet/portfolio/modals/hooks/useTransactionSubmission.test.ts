@@ -1,13 +1,13 @@
-import { act, renderHook } from "@testing-library/react";
-import { useForm } from "react-hook-form";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { useForm } from 'react-hook-form';
+import { describe, expect, it, vi } from 'vitest';
 
-import { useTransactionSubmission } from "@/components/wallet/portfolio/modals/hooks/useTransactionSubmission";
+import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
 
-describe("useTransactionSubmission", () => {
+describe('useTransactionSubmission', () => {
   const mockSubmitFn = vi.fn();
   const mockOnClose = vi.fn();
-  const mockSelectedToken = { address: "0x123", symbol: "TKN", usdPrice: 1 };
+  const mockSelectedToken = { address: '0x123', symbol: 'TKN', usdPrice: 1 };
 
   // const wrapper = ... unused
 
@@ -15,26 +15,26 @@ describe("useTransactionSubmission", () => {
     // We need a real form instance to pass to the hook
     let form: any;
     const { result } = renderHook(() => {
-      form = useForm({ mode: "onChange" });
+      form = useForm({ mode: 'onChange' });
       return useTransactionSubmission(
         form,
         props.isConnected ?? true,
         props.selectedToken ?? mockSelectedToken,
         props.submitFn ?? mockSubmitFn,
-        props.onClose ?? mockOnClose
+        props.onClose ?? mockOnClose,
       );
     });
     return { result, form };
   };
 
-  it("should initialize with idle status", () => {
+  it('should initialize with idle status', () => {
     const { result } = getHook();
-    expect(result.current.status).toBe("idle");
+    expect(result.current.status).toBe('idle');
     expect(result.current.result).toBeNull();
     expect(result.current.isSubmitting).toBe(false);
   });
 
-  it("should disable submit when form is invalid", () => {
+  it('should disable submit when form is invalid', () => {
     // useForm default is invalid until values are set if required,
     // but here no validation rules are defined on the *hook* call side in useForm unless passed.
     // However, useTransactionSubmission destructures isValid.
@@ -50,10 +50,10 @@ describe("useTransactionSubmission", () => {
     expect(result.current.isSubmitDisabled).toBe(true);
   });
 
-  it("should handle successful submission", async () => {
+  it('should handle successful submission', async () => {
     const { result } = getHook();
 
-    mockSubmitFn.mockResolvedValue({ success: true, txHash: "0xabc" });
+    mockSubmitFn.mockResolvedValue({ success: true, txHash: '0xabc' });
 
     // Mock isValid to true implicitly or by setting it
     // We can't easily force isValid without interacting with the form or mocking the form object passed.
@@ -63,27 +63,27 @@ describe("useTransactionSubmission", () => {
       await result.current.handleSubmit();
     });
 
-    expect(result.current.status).toBe("success");
-    expect(result.current.result).toEqual({ success: true, txHash: "0xabc" });
+    expect(result.current.status).toBe('success');
+    expect(result.current.result).toEqual({ success: true, txHash: '0xabc' });
     expect(mockSubmitFn).toHaveBeenCalled();
   });
 
-  it("should handle submission failure", async () => {
+  it('should handle submission failure', async () => {
     const { result } = getHook();
-    const error = new Error("Submit failed");
+    const error = new Error('Submit failed');
     mockSubmitFn.mockRejectedValue(error);
 
     await expect(async () => {
       await act(async () => {
         await result.current.handleSubmit();
       });
-    }).rejects.toThrow("Submit failed");
+    }).rejects.toThrow('Submit failed');
 
-    expect(result.current.status).toBe("idle");
+    expect(result.current.status).toBe('idle');
     expect(result.current.result).toBeNull();
   });
 
-  it("should reset state", () => {
+  it('should reset state', () => {
     const { result } = getHook();
 
     // valid states for test...
@@ -92,7 +92,7 @@ describe("useTransactionSubmission", () => {
       result.current.resetState();
     });
 
-    expect(result.current.status).toBe("idle");
+    expect(result.current.status).toBe('idle');
     expect(result.current.result).toBeNull();
     expect(mockOnClose).toHaveBeenCalled();
   });

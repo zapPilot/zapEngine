@@ -5,7 +5,7 @@ import {
   type MarketSection,
   PORTFOLIO_TAB_IDS,
   type TabType,
-} from "@/types";
+} from '@/types';
 
 export interface PortfolioRouteState {
   tab: TabType;
@@ -19,17 +19,17 @@ export interface PortfolioRouteStatePatch {
   market?: MarketSection;
 }
 
-type SearchParamsLike = Pick<URLSearchParams, "get" | "toString">;
+type SearchParamsLike = Pick<URLSearchParams, 'get' | 'toString'>;
 
 const DEFAULT_ROUTE_STATE: PortfolioRouteState = {
-  tab: "dashboard",
-  invest: "trading",
-  market: "overview",
+  tab: 'dashboard',
+  invest: 'trading',
+  market: 'overview',
 };
 
 function isMember<TValue extends string>(
   values: readonly TValue[],
-  value: string | null
+  value: string | null,
 ): value is TValue {
   return value !== null && values.includes(value as TValue);
 }
@@ -66,12 +66,12 @@ function parseMarketSection(value: string | null): MarketSection {
  * ```
  */
 export function readPortfolioRouteState(
-  searchParams: SearchParamsLike
+  searchParams: SearchParamsLike,
 ): PortfolioRouteState {
   return {
-    tab: parseTab(searchParams.get("tab")),
-    invest: parseInvestSubTab(searchParams.get("invest")),
-    market: parseMarketSection(searchParams.get("market")),
+    tab: parseTab(searchParams.get('tab')),
+    invest: parseInvestSubTab(searchParams.get('invest')),
+    market: parseMarketSection(searchParams.get('market')),
   };
 }
 
@@ -97,7 +97,7 @@ export function readPortfolioRouteState(
  */
 export function buildPortfolioRouteSearchParams(
   searchParams: SearchParamsLike,
-  patch: PortfolioRouteStatePatch
+  patch: PortfolioRouteStatePatch,
 ): URLSearchParams {
   const nextSearchParams = new URLSearchParams(searchParams.toString());
   const currentRouteState = readPortfolioRouteState(nextSearchParams);
@@ -106,20 +106,20 @@ export function buildPortfolioRouteSearchParams(
   const nextInvest = patch.invest ?? currentRouteState.invest;
   const nextMarket = patch.market ?? currentRouteState.market;
 
-  nextSearchParams.set("tab", nextTab);
+  nextSearchParams.set('tab', nextTab);
 
-  if (nextTab !== "invest") {
-    nextSearchParams.delete("invest");
-    nextSearchParams.delete("market");
+  if (nextTab !== 'invest') {
+    nextSearchParams.delete('invest');
+    nextSearchParams.delete('market');
     return nextSearchParams;
   }
 
-  nextSearchParams.set("invest", nextInvest);
+  nextSearchParams.set('invest', nextInvest);
 
-  if (nextInvest === "market") {
-    nextSearchParams.set("market", nextMarket);
+  if (nextInvest === 'market') {
+    nextSearchParams.set('market', nextMarket);
   } else {
-    nextSearchParams.delete("market");
+    nextSearchParams.delete('market');
   }
 
   return nextSearchParams;

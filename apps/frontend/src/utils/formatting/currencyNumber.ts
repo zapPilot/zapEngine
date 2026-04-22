@@ -1,6 +1,6 @@
-import { PORTFOLIO_CONFIG } from "@/constants/portfolio";
+import { PORTFOLIO_CONFIG } from '@/constants/portfolio';
 
-import { type BaseFormatOptions, normalizeFormatOptions } from "./shared";
+import { type BaseFormatOptions, normalizeFormatOptions } from './shared';
 
 export interface CurrencyFormatOptions extends BaseFormatOptions {
   minimumFractionDigits?: number;
@@ -34,15 +34,15 @@ function formatSmartCurrency(
   amount: number,
   threshold: number,
   showNegative: boolean,
-  minDecimals: number
+  minDecimals: number,
 ): string {
   if (amount === 0) {
-    return "$0.00";
+    return '$0.00';
   }
 
   const absValue = Math.abs(amount);
   const isNegative = amount < 0 && showNegative;
-  const prefix = isNegative ? "-" : "";
+  const prefix = isNegative ? '-' : '';
 
   if (absValue < threshold) {
     const thresholdDecimals = threshold < 0.01 ? 4 : 2;
@@ -53,8 +53,8 @@ function formatSmartCurrency(
 }
 
 function formatSmartNumber(amount: number): string {
-  if (amount === 0) return "0";
-  if (amount < 0.000001) return "< 0.000001";
+  if (amount === 0) return '0';
+  if (amount < 0.000001) return '< 0.000001';
   if (amount < 0.01) return amount.toFixed(6);
   if (amount < 1) return amount.toFixed(4);
   if (amount < 100) return amount.toFixed(2);
@@ -70,11 +70,11 @@ function formatSmartNumber(amount: number): string {
  */
 export function formatCurrency(
   amount: number,
-  optionsOrIsHidden: CurrencyFormatOptions | boolean = {}
+  optionsOrIsHidden: CurrencyFormatOptions | boolean = {},
 ): string {
   const options = normalizeFormatOptions(
     optionsOrIsHidden,
-    DEFAULT_CURRENCY_FORMAT_OPTIONS
+    DEFAULT_CURRENCY_FORMAT_OPTIONS,
   );
   if (options.isHidden) {
     return PORTFOLIO_CONFIG.HIDDEN_BALANCE_PLACEHOLDER;
@@ -88,12 +88,12 @@ export function formatCurrency(
       amount,
       options.threshold ?? 0.01,
       options.showNegative ?? true,
-      minDigits
+      minDigits,
     );
   }
 
   return new Intl.NumberFormat(options.locale, {
-    style: "currency",
+    style: 'currency',
     currency: options.currency,
     minimumFractionDigits: minDigits,
     maximumFractionDigits: maxDigits,
@@ -109,11 +109,11 @@ export function formatCurrency(
  */
 export function formatNumber(
   amount: number,
-  optionsOrIsHidden: NumberFormatOptions | boolean = {}
+  optionsOrIsHidden: NumberFormatOptions | boolean = {},
 ): string {
   const options = normalizeFormatOptions(
     optionsOrIsHidden,
-    DEFAULT_NUMBER_FORMAT_OPTIONS
+    DEFAULT_NUMBER_FORMAT_OPTIONS,
   );
   if (options.isHidden) {
     return PORTFOLIO_CONFIG.HIDDEN_NUMBER_PLACEHOLDER;

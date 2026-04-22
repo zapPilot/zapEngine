@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
-import { ConnectWalletButton } from "@/components/WalletManager/components/ConnectWalletButton";
+import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
 
 interface GhostModeOverlayProps {
   /** Content to show with blur effect */

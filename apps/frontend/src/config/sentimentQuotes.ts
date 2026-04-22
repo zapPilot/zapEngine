@@ -7,13 +7,13 @@
  */
 
 export type SentimentLabel =
-  | "Extreme Fear"
-  | "Fear"
-  | "Neutral"
-  | "Greed"
-  | "Extreme Greed";
+  | 'Extreme Fear'
+  | 'Fear'
+  | 'Neutral'
+  | 'Greed'
+  | 'Extreme Greed';
 
-const WARREN_BUFFETT = "Warren Buffett";
+const WARREN_BUFFETT = 'Warren Buffett';
 
 interface SentimentQuote {
   quote: string;
@@ -35,15 +35,15 @@ const SENTIMENT_QUOTE_CONFIG: SentimentQuoteConfig[] = [
   {
     min: 0,
     max: 24,
-    sentiment: "Extreme Fear",
+    sentiment: 'Extreme Fear',
     quotes: [
       {
-        quote: "Be greedy when others are fearful.",
+        quote: 'Be greedy when others are fearful.',
         author: WARREN_BUFFETT,
       },
       {
         quote:
-          "Opportunities come infrequently. When it rains gold, put out the bucket.",
+          'Opportunities come infrequently. When it rains gold, put out the bucket.',
         author: WARREN_BUFFETT,
       },
     ],
@@ -51,58 +51,58 @@ const SENTIMENT_QUOTE_CONFIG: SentimentQuoteConfig[] = [
   {
     min: 25,
     max: 44,
-    sentiment: "Fear",
+    sentiment: 'Fear',
     quotes: [
       {
-        quote: "Investing is most intelligent when it is most businesslike.",
-        author: "Benjamin Graham",
+        quote: 'Investing is most intelligent when it is most businesslike.',
+        author: 'Benjamin Graham',
       },
       {
         quote:
-          "The intelligent investor is a realist who sells to optimists and buys from pessimists.",
-        author: "Benjamin Graham",
+          'The intelligent investor is a realist who sells to optimists and buys from pessimists.',
+        author: 'Benjamin Graham',
       },
     ],
   },
   {
     min: 45,
     max: 55,
-    sentiment: "Neutral",
+    sentiment: 'Neutral',
     quotes: [
       {
-        quote: "Diversification is protection against ignorance.",
+        quote: 'Diversification is protection against ignorance.',
         author: WARREN_BUFFETT,
       },
       {
-        quote: "In investing, what is comfortable is rarely profitable.",
-        author: "Robert Arnott",
+        quote: 'In investing, what is comfortable is rarely profitable.',
+        author: 'Robert Arnott',
       },
     ],
   },
   {
     min: 56,
     max: 74,
-    sentiment: "Greed",
+    sentiment: 'Greed',
     quotes: [
       {
-        quote: "Bull markets are born on pessimism and die on euphoria.",
-        author: "Sir John Templeton",
+        quote: 'Bull markets are born on pessimism and die on euphoria.',
+        author: 'Sir John Templeton',
       },
       {
-        quote: "The time to get interested is when no one else is.",
-        author: "Mark Mobius",
+        quote: 'The time to get interested is when no one else is.',
+        author: 'Mark Mobius',
       },
     ],
   },
   {
     min: 75,
     max: 100,
-    sentiment: "Extreme Greed",
+    sentiment: 'Extreme Greed',
     quotes: [
       {
         quote:
           "The four most dangerous words in investing are: this time it's different.",
-        author: "Sir John Templeton",
+        author: 'Sir John Templeton',
       },
       {
         quote: "Risk comes from not knowing what you're doing.",
@@ -113,8 +113,8 @@ const SENTIMENT_QUOTE_CONFIG: SentimentQuoteConfig[] = [
 ];
 
 const DEFAULT_QUOTE: SentimentQuoteResult = {
-  sentiment: "Neutral",
-  quote: "Stay balanced when the crowd swings too far in either direction.",
+  sentiment: 'Neutral',
+  quote: 'Stay balanced when the crowd swings too far in either direction.',
   author: WARREN_BUFFETT,
 };
 
@@ -158,8 +158,9 @@ export function getQuoteForSentiment(value: number): SentimentQuoteResult {
   const normalizedValue = Math.min(Math.max(value, 0), 100);
   const config =
     SENTIMENT_QUOTE_CONFIG.find(
-      quoteConfig =>
-        normalizedValue >= quoteConfig.min && normalizedValue <= quoteConfig.max
+      (quoteConfig) =>
+        normalizedValue >= quoteConfig.min &&
+        normalizedValue <= quoteConfig.max,
     ) ??
     SENTIMENT_QUOTE_CONFIG[2] ??
     FALLBACK_CONFIG;

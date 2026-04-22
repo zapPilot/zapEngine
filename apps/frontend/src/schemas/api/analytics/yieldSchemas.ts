@@ -1,6 +1,6 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 export const protocolYieldWindowSchema = z.object({
   total_yield_usd: z.number(),
@@ -44,14 +44,14 @@ export const yieldWindowSummarySchema = z.object({
     filtered_days: z.number(),
     outliers_removed: z.number(),
   }),
-  outlier_strategy: z.enum(["iqr", "none", "zscore", "percentile"]),
+  outlier_strategy: z.enum(['iqr', 'none', 'zscore', 'percentile']),
   outliers_detected: z.array(
     z.object({
       date: z.string(),
       value: z.number(),
       reason: z.string(),
       z_score: z.number().nullable(),
-    })
+    }),
   ),
   protocol_breakdown: z.array(protocolYieldBreakdownSchema),
 });
@@ -91,8 +91,8 @@ export type DailyYieldReturnsResponse = z.infer<
 >;
 
 export const validateYieldReturnsSummaryResponse = createValidator(
-  yieldReturnsSummaryResponseSchema
+  yieldReturnsSummaryResponseSchema,
 );
 export const validateDailyYieldReturnsResponse = createValidator(
-  dailyYieldReturnsResponseSchema
+  dailyYieldReturnsResponseSchema,
 );

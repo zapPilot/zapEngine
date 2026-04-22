@@ -1,12 +1,12 @@
-import { AnimatePresence } from "framer-motion";
-import { type ReactElement, useRef, useState } from "react";
-import { useConnect, useConnectors } from "wagmi";
+import { AnimatePresence } from 'framer-motion';
+import { type ReactElement, useRef, useState } from 'react';
+import { useConnect, useConnectors } from 'wagmi';
 
-import { useClickOutside } from "@/hooks/ui/useClickOutside";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { copyTextToClipboard } from "@/utils";
+import { useClickOutside } from '@/hooks/ui/useClickOutside';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { copyTextToClipboard } from '@/utils';
 
-import { WalletMenuButton, WalletMenuDropdown } from "./WalletMenuContent";
+import { WalletMenuButton, WalletMenuDropdown } from './WalletMenuContent';
 
 interface WalletMenuProps {
   onOpenWalletManager?: () => void;
@@ -38,7 +38,7 @@ export function WalletMenu({
   };
 
   const toggleMenu = (): void => {
-    setIsMenuOpen(previousIsOpen => !previousIsOpen);
+    setIsMenuOpen((previousIsOpen) => !previousIsOpen);
   };
 
   useClickOutside(menuRef, closeMenu, isMenuOpen);
@@ -86,7 +86,7 @@ export function WalletMenu({
           accountAddress={account?.address}
           connectedWallets={connectedWallets}
           copiedAddress={copiedAddress}
-          onCopyAddress={address => {
+          onCopyAddress={(address) => {
             void copyAddress(address);
           }}
           onOpenWalletManager={onOpenWalletManager}

@@ -5,7 +5,7 @@ import {
   type ReactElement,
   type ReactNode,
   Suspense,
-} from "react";
+} from 'react';
 
 export interface LazyImportOptions {
   fallback?: ReactNode;
@@ -27,7 +27,7 @@ export interface LazyImportOptions {
 export function lazyImport<TModule, TProps>(
   loader: () => Promise<TModule>,
   selectExport: (module: TModule) => ComponentType<TProps>,
-  options?: LazyImportOptions
+  options?: LazyImportOptions,
 ): ComponentType<TProps> {
   const LazyComponent = lazy(async () => {
     const module = await loader();
@@ -40,13 +40,13 @@ export function lazyImport<TModule, TProps>(
       <Suspense fallback={options?.fallback ?? null}>
         {createElement(
           ResolvedLazyComponent as ComponentType<Record<string, unknown>>,
-          props as Record<string, unknown>
+          props as Record<string, unknown>,
         )}
       </Suspense>
     );
   }
 
-  WrappedComponent.displayName = "LazyImport";
+  WrappedComponent.displayName = 'LazyImport';
 
   return WrappedComponent;
 }

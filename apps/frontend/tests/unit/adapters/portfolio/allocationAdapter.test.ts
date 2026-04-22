@@ -5,13 +5,13 @@
  * absolute portfolio percentages from the API response.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
 import {
   calculateAllocation,
   calculateDelta,
-} from "@/adapters/portfolio/allocationAdapter";
-import type { LandingPageResponse } from "@/services/analyticsService";
+} from '@/adapters/portfolio/allocationAdapter';
+import type { LandingPageResponse } from '@/services/analyticsService';
 
 // Mock API response matching the actual API format
 const mockLandingData: LandingPageResponse = {
@@ -21,7 +21,7 @@ const mockLandingData: LandingPageResponse = {
   sol_price: 200,
   sentiment: {
     index: 65,
-    label: "Greed",
+    label: 'Greed',
   },
   portfolio_allocation: {
     btc: {
@@ -57,29 +57,29 @@ const mockLandingData: LandingPageResponse = {
     sharpe: 1.5,
     sortino: 2.0,
     maxDrawdown: -0.15,
-    currentRegime: "g",
+    currentRegime: 'g',
   },
 };
 
-describe("calculateAllocation", () => {
-  describe("Absolute Portfolio Percentages", () => {
-    it("uses percentage_of_portfolio directly from API for simplifiedCrypto", () => {
+describe('calculateAllocation', () => {
+  describe('Absolute Portfolio Percentages', () => {
+    it('uses percentage_of_portfolio directly from API for simplifiedCrypto', () => {
       const result = calculateAllocation(mockLandingData);
 
       // BTC should have API's percentage_of_portfolio value
-      const btcAsset = result.simplifiedCrypto.find(a => a.symbol === "BTC");
+      const btcAsset = result.simplifiedCrypto.find((a) => a.symbol === 'BTC');
       expect(btcAsset?.value).toBe(37.25);
 
       // ETH should have API's percentage_of_portfolio value
-      const ethAsset = result.simplifiedCrypto.find(a => a.symbol === "ETH");
+      const ethAsset = result.simplifiedCrypto.find((a) => a.symbol === 'ETH');
       expect(ethAsset?.value).toBe(17.07);
 
       // ALT (Others) should have API's percentage_of_portfolio value
-      const altAsset = result.simplifiedCrypto.find(a => a.symbol === "ALT");
+      const altAsset = result.simplifiedCrypto.find((a) => a.symbol === 'ALT');
       expect(altAsset?.value).toBe(10.06);
     });
 
-    it("returns correct crypto and stable percentages", () => {
+    it('returns correct crypto and stable percentages', () => {
       const result = calculateAllocation(mockLandingData);
 
       // Crypto percentage = BTC + ETH + Others
@@ -89,32 +89,32 @@ describe("calculateAllocation", () => {
       expect(result.stable).toBeCloseTo(35.62, 1);
     });
 
-    it("includes all non-zero crypto assets in simplifiedCrypto", () => {
+    it('includes all non-zero crypto assets in simplifiedCrypto', () => {
       const result = calculateAllocation(mockLandingData);
 
       expect(result.simplifiedCrypto).toHaveLength(3); // BTC, ETH, ALT
-      expect(result.simplifiedCrypto.map(a => a.symbol)).toEqual([
-        "BTC",
-        "ETH",
-        "ALT",
+      expect(result.simplifiedCrypto.map((a) => a.symbol)).toEqual([
+        'BTC',
+        'ETH',
+        'ALT',
       ]);
     });
 
-    it("assigns correct colors to assets", () => {
+    it('assigns correct colors to assets', () => {
       const result = calculateAllocation(mockLandingData);
 
-      const btcAsset = result.simplifiedCrypto.find(a => a.symbol === "BTC");
-      const ethAsset = result.simplifiedCrypto.find(a => a.symbol === "ETH");
-      const altAsset = result.simplifiedCrypto.find(a => a.symbol === "ALT");
+      const btcAsset = result.simplifiedCrypto.find((a) => a.symbol === 'BTC');
+      const ethAsset = result.simplifiedCrypto.find((a) => a.symbol === 'ETH');
+      const altAsset = result.simplifiedCrypto.find((a) => a.symbol === 'ALT');
 
-      expect(btcAsset?.color).toBe("#F7931A"); // BTC orange
-      expect(ethAsset?.color).toBe("#627EEA"); // ETH purple
-      expect(altAsset?.color).toBe("#6B7280"); // ALT gray
+      expect(btcAsset?.color).toBe('#F7931A'); // BTC orange
+      expect(ethAsset?.color).toBe('#627EEA'); // ETH purple
+      expect(altAsset?.color).toBe('#6B7280'); // ALT gray
     });
   });
 
-  describe("Edge Cases", () => {
-    it("handles zero total value", () => {
+  describe('Edge Cases', () => {
+    it('handles zero total value', () => {
       const zeroData: LandingPageResponse = {
         ...mockLandingData,
         portfolio_allocation: {
@@ -152,16 +152,16 @@ describe("calculateAllocation", () => {
       expect(result.simplifiedCrypto).toHaveLength(0);
     });
 
-    it("includes stablecoin constituents when stablecoins have value", () => {
+    it('includes stablecoin constituents when stablecoins have value', () => {
       const result = calculateAllocation(mockLandingData);
 
       // Stablecoins present → 60/40 USDC/USDT split
       expect(result.constituents.stable).toHaveLength(2);
-      expect(result.constituents.stable[0].symbol).toBe("USDC");
-      expect(result.constituents.stable[1].symbol).toBe("USDT");
+      expect(result.constituents.stable[0].symbol).toBe('USDC');
+      expect(result.constituents.stable[1].symbol).toBe('USDT');
     });
 
-    it("filters out assets with zero percentage", () => {
+    it('filters out assets with zero percentage', () => {
       const partialData: LandingPageResponse = {
         ...mockLandingData,
         portfolio_allocation: {
@@ -196,25 +196,25 @@ describe("calculateAllocation", () => {
 
       // Should only include BTC (ETH and Others are zero)
       expect(result.simplifiedCrypto).toHaveLength(1);
-      expect(result.simplifiedCrypto[0].symbol).toBe("BTC");
+      expect(result.simplifiedCrypto[0].symbol).toBe('BTC');
     });
   });
 });
 
-describe("calculateDelta", () => {
-  it("returns absolute difference between current and target", () => {
+describe('calculateDelta', () => {
+  it('returns absolute difference between current and target', () => {
     expect(calculateDelta(60, 70)).toBe(10);
   });
 
-  it("returns positive value when current exceeds target", () => {
+  it('returns positive value when current exceeds target', () => {
     expect(calculateDelta(80, 50)).toBe(30);
   });
 
-  it("returns zero when values are equal", () => {
+  it('returns zero when values are equal', () => {
     expect(calculateDelta(50, 50)).toBe(0);
   });
 
-  it("handles decimal values", () => {
+  it('handles decimal values', () => {
     expect(calculateDelta(64.38, 70)).toBeCloseTo(5.62, 2);
   });
 });

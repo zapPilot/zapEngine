@@ -1,17 +1,17 @@
-import { logger } from "../../utils/logger.js";
 import {
-  withValidatedJob,
-  executeETLFlow,
   type BaseETLProcessor,
   type ETLProcessResult,
+  executeETLFlow,
   type HealthCheckResult,
-} from "../../core/processors/baseETLProcessor.js";
-import type { SentimentSnapshotInsert } from "../../types/database.js";
-import type { ETLJob } from "../../types/index.js";
-import { wrapHealthCheck } from "../../utils/healthCheck.js";
-import { FearGreedFetcher, type SentimentData } from "./fetcher.js";
-import { SentimentDataTransformer } from "./transformer.js";
-import { SentimentWriter } from "./writer.js";
+  withValidatedJob,
+} from '../../core/processors/baseETLProcessor.js';
+import type { SentimentSnapshotInsert } from '../../types/database.js';
+import type { ETLJob } from '../../types/index.js';
+import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
+import { FearGreedFetcher, type SentimentData } from './fetcher.js';
+import { SentimentDataTransformer } from './transformer.js';
+import { SentimentWriter } from './writer.js';
 
 /**
  * ETL Processor for Fear & Greed Index sentiment data
@@ -33,14 +33,14 @@ export class SentimentETLProcessor implements BaseETLProcessor {
   }
 
   async process(job: ETLJob): Promise<ETLProcessResult> {
-    return withValidatedJob(job, "feargreed", () =>
+    return withValidatedJob(job, 'feargreed', () =>
       executeETLFlow<SentimentData, SentimentSnapshotInsert>(
         job,
-        "feargreed",
+        'feargreed',
         async () => {
-          logger.info("Fetching Fear & Greed Index", { jobId: job.jobId });
+          logger.info('Fetching Fear & Greed Index', { jobId: job.jobId });
           const sentimentData = await this.fetcher.fetchCurrentSentiment();
-          logger.info("Sentiment data fetched successfully", {
+          logger.info('Sentiment data fetched successfully', {
             jobId: job.jobId,
             value: sentimentData.value,
             classification: sentimentData.classification,
@@ -48,9 +48,9 @@ export class SentimentETLProcessor implements BaseETLProcessor {
           return [sentimentData];
         },
         async (rawData) => {
-          const raw = rawData[0];
+          const raw = rawData[0]!;
 
-          logger.info("Transforming sentiment data", {
+          logger.info('Transforming sentiment data', {
             jobId: job.jobId,
             value: raw.value,
             classification: raw.classification,
@@ -58,10 +58,10 @@ export class SentimentETLProcessor implements BaseETLProcessor {
 
           const transformed = this.transformer.transform(raw);
           if (!transformed) {
-            throw new Error("Sentiment data failed validation");
+            throw new Error('Sentiment data failed validation');
           }
 
-          logger.info("Sentiment transformation completed", {
+          logger.info('Sentiment transformation completed', {
             jobId: job.jobId,
             sentiment_value: transformed.sentiment_value,
             classification: transformed.classification,
@@ -70,17 +70,17 @@ export class SentimentETLProcessor implements BaseETLProcessor {
           return [transformed];
         },
         async (transformedData) => {
-          logger.info("Writing sentiment data to database", {
+          logger.info('Writing sentiment data to database', {
             jobId: job.jobId,
             recordCount: transformedData.length,
           });
 
           const writeResult = await this.writer.writeSentimentSnapshots(
             transformedData,
-            "feargreed",
+            'feargreed',
           );
 
-          logger.info("Sentiment database write completed", {
+          logger.info('Sentiment database write completed', {
             jobId: job.jobId,
             recordsInserted: writeResult.recordsInserted,
             duplicatesSkipped: writeResult.duplicatesSkipped,
@@ -105,6 +105,6 @@ export class SentimentETLProcessor implements BaseETLProcessor {
   }
 
   getSourceType(): string {
-    return "feargreed";
+    return 'feargreed';
   }
 }

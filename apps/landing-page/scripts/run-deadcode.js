@@ -74,7 +74,7 @@ const mode = MODES[modeKey];
 
 if (!mode) {
   console.error(
-    `[deadcode] Unknown mode "${modeKey}". Supported modes: ${Object.keys(MODES).join(', ')}`
+    `[deadcode] Unknown mode "${modeKey}". Supported modes: ${Object.keys(MODES).join(', ')}`,
   );
   process.exit(1);
 }
@@ -92,7 +92,8 @@ const run = (command, args, captureOutput = false) => {
   }
 
   return {
-    status: typeof result.status === 'number' ? result.status : result.signal ? 1 : 0,
+    status:
+      typeof result.status === 'number' ? result.status : result.signal ? 1 : 0,
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   };
@@ -104,36 +105,38 @@ const knipResult = run('knip', mode.knipArgs);
 const tsPruneResult = run(
   'ts-prune',
   ['-p', 'tsconfig.tsprune.json', ...mode.tsPruneArgs],
-  mode.strictTsPrune
+  mode.strictTsPrune,
 );
 
 let tsPruneStatus = 0;
 
 if (mode.strictTsPrune && tsPruneResult.stdout) {
   // Parse ts-prune output and find real dead code in components
-  const lines = tsPruneResult.stdout.split('\n').filter(line => line.trim());
+  const lines = tsPruneResult.stdout.split('\n').filter((line) => line.trim());
 
   // Filter to only component files that aren't in ignore patterns
-  const componentDeadCode = lines.filter(line => {
+  const componentDeadCode = lines.filter((line) => {
     // Must be a component file
     if (!line.includes('src/components/') || !line.includes('.tsx:')) {
       return false;
     }
     // Must not match any ignore pattern
-    return !IGNORE_PATTERNS.some(pattern => pattern.test(line));
+    return !IGNORE_PATTERNS.some((pattern) => pattern.test(line));
   });
 
   // Print all ts-prune output for visibility
   console.log(tsPruneResult.stdout);
 
   if (componentDeadCode.length > 0) {
-    console.error('\n[deadcode] ❌ STRICT MODE: Found unused component exports:');
-    componentDeadCode.forEach(line => console.error(`  ${line}`));
+    console.error(
+      '\n[deadcode] ❌ STRICT MODE: Found unused component exports:',
+    );
+    componentDeadCode.forEach((line) => console.error(`  ${line}`));
     console.error('\nThese component exports are not used anywhere. Either:');
     console.error('  1. Delete the unused component/export');
     console.error('  2. Use the export somewhere');
     console.error(
-      '  3. Add to IGNORE_PATTERNS in scripts/run-deadcode.js if this is a false positive\n'
+      '  3. Add to IGNORE_PATTERNS in scripts/run-deadcode.js if this is a false positive\n',
     );
     tsPruneStatus = 1;
   } else {

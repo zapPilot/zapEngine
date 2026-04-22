@@ -1,13 +1,13 @@
-import { motion } from "framer-motion";
-import { type ReactElement } from "react";
+import { motion } from 'framer-motion';
+import { type ReactElement } from 'react';
 
-import { dropdownMenu } from "@/lib/ui/animationVariants";
+import { dropdownMenu } from '@/lib/ui/animationVariants';
 
-import type { WalletMenuDropdownProps, WalletSectionCopyProps } from "./types";
+import type { WalletMenuDropdownProps, WalletSectionCopyProps } from './types';
 import {
   WalletMultipleWalletSection,
   WalletSingleWalletSection,
-} from "./WalletMenuSections";
+} from './WalletMenuSections';
 
 export function WalletMenuDropdown({
   accountAddress,
@@ -42,7 +42,7 @@ export function WalletMenuDropdown({
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.15, ease: "easeOut" }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border border-purple-500/30 rounded-xl shadow-2xl shadow-purple-500/10 backdrop-blur-xl z-50 overflow-hidden"
       role="menu"
       aria-label="Wallet menu"

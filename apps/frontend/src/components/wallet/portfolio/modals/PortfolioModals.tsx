@@ -1,14 +1,14 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import {
   DepositModal,
   RebalanceModal,
   WithdrawModal,
-} from "@/components/wallet/portfolio/modals";
-import type { ModalType } from "@/types";
+} from '@/components/wallet/portfolio/modals';
+import type { ModalType } from '@/types';
 
-import { SettingsModal } from "./SettingsModal";
+import { SettingsModal } from './SettingsModal';
 
 interface PortfolioModalsProps {
   activeModal: ModalType | null;
@@ -40,13 +40,13 @@ export function PortfolioModals({
   return (
     <>
       <DepositModal
-        isOpen={activeModal === "deposit"}
+        isOpen={activeModal === 'deposit'}
         onClose={onClose}
         defaultChainId={1}
       />
-      <WithdrawModal isOpen={activeModal === "withdraw"} onClose={onClose} />
+      <WithdrawModal isOpen={activeModal === 'withdraw'} onClose={onClose} />
       <RebalanceModal
-        isOpen={activeModal === "rebalance"}
+        isOpen={activeModal === 'rebalance'}
         onClose={onClose}
         currentAllocation={rebalanceAllocation}
         targetAllocation={data.targetAllocation}

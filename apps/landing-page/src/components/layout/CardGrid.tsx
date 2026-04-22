@@ -4,7 +4,11 @@ interface CardGridProps {
   className?: string;
 }
 
-export function CardGrid({ columns = 3, children, className = '' }: CardGridProps) {
+export function CardGrid({
+  columns = 3,
+  children,
+  className = '',
+}: CardGridProps) {
   const colClasses = {
     1: 'grid-cols-1',
     2: 'md:grid-cols-2',
@@ -13,6 +17,10 @@ export function CardGrid({ columns = 3, children, className = '' }: CardGridProp
   };
 
   return (
-    <div className={`grid grid-cols-1 ${colClasses[columns]} gap-8 ${className}`}>{children}</div>
+    <div
+      className={`grid grid-cols-1 ${colClasses[columns]} gap-8 ${className}`}
+    >
+      {children}
+    </div>
   );
 }

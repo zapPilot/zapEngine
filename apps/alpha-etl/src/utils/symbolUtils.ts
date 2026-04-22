@@ -1,11 +1,11 @@
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 function removeWrapChar(symbol: string): string {
   return symbol
     .toLowerCase()
-    .replace(/[()[\]{}]/g, "")
-    .replace(/\bbridged\b/gi, "")
-    .replace(/\s+/g, "")
+    .replace(/[()[\]{}]/g, '')
+    .replace(/\bbridged\b/gi, '')
+    .replace(/\s+/g, '')
     .trim();
 }
 
@@ -18,21 +18,21 @@ export interface SymbolParseLogContext {
 }
 
 export const chainNameMapping: Record<string, string> = {
-  ethereum: "ethereum",
-  arbitrum: "arbitrum",
-  optimism: "optimism",
-  polygon: "polygon",
-  base: "base",
-  avalanche: "avax",
-  bsc: "bsc",
-  fantom: "fantom",
-  moonbeam: "moonbeam",
-  gnosis: "xdai",
-  aurora: "aurora",
-  celo: "celo",
-  harmony: "harmony",
-  cronos: "cronos",
-  metis: "metis",
+  ethereum: 'ethereum',
+  arbitrum: 'arbitrum',
+  optimism: 'optimism',
+  polygon: 'polygon',
+  base: 'base',
+  avalanche: 'avax',
+  bsc: 'bsc',
+  fantom: 'fantom',
+  moonbeam: 'moonbeam',
+  gnosis: 'xdai',
+  aurora: 'aurora',
+  celo: 'celo',
+  harmony: 'harmony',
+  cronos: 'cronos',
+  metis: 'metis',
 };
 
 export function normalizeSymbolList(symbols: string[]): string[] {
@@ -42,7 +42,7 @@ export function normalizeSymbolList(symbols: string[]): string[] {
 export function checkSymbolListsEqual(
   list1: string[],
   list2: string[],
-  strict: boolean = false,
+  strict = false,
 ): boolean {
   if (list1.length !== list2.length) {
     return false;
@@ -87,7 +87,7 @@ export function parseSymbolsArray(
 
   const cleanSymbol = symbol.trim();
   const symbolParts = cleanSymbol
-    .split("-")
+    .split('-')
     .filter((part) => part.trim().length > 0);
 
   if (!underlyingTokens?.length) {
@@ -103,7 +103,7 @@ export function parseSymbolsArray(
   if (symbolParts.length > expectedParts) {
     const uniqueParts = [...new Set(symbolParts)];
     if (uniqueParts.length <= expectedParts) {
-      logParseWarning("duplicates_removed", {
+      logParseWarning('duplicates_removed', {
         symbol: cleanSymbol,
         originalParts: symbolParts.length,
         uniqueParts: uniqueParts.length,
@@ -114,7 +114,7 @@ export function parseSymbolsArray(
   }
 
   if (symbolParts.length < expectedParts) {
-    logParseWarning("hyphenated_tokens", {
+    logParseWarning('hyphenated_tokens', {
       symbol: cleanSymbol,
       actualParts: symbolParts.length,
       expectedParts,
@@ -133,7 +133,7 @@ export function cleanRewardTokens(
 
   const cleanTokens = tokens.filter(
     (token): token is string =>
-      typeof token === "string" && token.trim().length > 0,
+      typeof token === 'string' && token.trim().length > 0,
   );
 
   return cleanTokens.length > 0 ? cleanTokens : null;

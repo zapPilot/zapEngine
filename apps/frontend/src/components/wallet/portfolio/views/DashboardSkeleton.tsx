@@ -11,13 +11,13 @@ import {
   ChevronDown,
   Info,
   Zap,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { GradientButton } from "@/components/ui";
-import { ASSET_COLORS } from "@/constants/assets";
-import { GRADIENTS } from "@/constants/design-system";
+import { GradientButton } from '@/components/ui';
+import { ASSET_COLORS } from '@/constants/assets';
+import { GRADIENTS } from '@/constants/design-system';
 
-import { AllocationLegend } from "../components/allocation/AllocationLegend";
+import { AllocationLegend } from '../components/allocation/AllocationLegend';
 
 interface SkeletonButtonProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -40,13 +40,13 @@ function SkeletonButton({ icon: Icon, label }: SkeletonButtonProps) {
 
 /** Skeleton legend items with placeholder percentages using consistent ASSET_COLORS */
 const SKELETON_LEGEND_ITEMS = [
-  { symbol: "BTC", percentage: 0, color: ASSET_COLORS.BTC, label: "BTC" },
-  { symbol: "ETH", percentage: 0, color: ASSET_COLORS.ETH, label: "ETH" },
+  { symbol: 'BTC', percentage: 0, color: ASSET_COLORS.BTC, label: 'BTC' },
+  { symbol: 'ETH', percentage: 0, color: ASSET_COLORS.ETH, label: 'ETH' },
   {
-    symbol: "Stables",
+    symbol: 'Stables',
     percentage: 0,
     color: ASSET_COLORS.USDT,
-    label: "Stables",
+    label: 'Stables',
   },
 ];
 

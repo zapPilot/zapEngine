@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SettingsModal } from "@/components/wallet/portfolio/modals/SettingsModal";
+import { SettingsModal } from '@/components/wallet/portfolio/modals/SettingsModal';
 
 // Mock the modal components
-vi.mock("@/components/ui/modal", () => ({
+vi.mock('@/components/ui/modal', () => ({
   Modal: ({
     isOpen,
     children,
@@ -42,21 +42,21 @@ const mockGetTelegramStatus = vi.fn();
 const mockRequestTelegramToken = vi.fn();
 const mockDisconnectTelegram = vi.fn();
 
-vi.mock("@/services", () => ({
+vi.mock('@/services', () => ({
   getTelegramStatus: (...args: unknown[]) => mockGetTelegramStatus(...args),
   requestTelegramToken: (...args: unknown[]) =>
     mockRequestTelegramToken(...args),
   disconnectTelegram: (...args: unknown[]) => mockDisconnectTelegram(...args),
 }));
 
-vi.mock("@/utils", () => ({
+vi.mock('@/utils', () => ({
   extractErrorMessage: (err: unknown, fallback: string) => {
     if (err instanceof Error) return err.message;
     return fallback;
   },
 }));
 
-describe("SettingsModal", () => {
+describe('SettingsModal', () => {
   const mockOnClose = vi.fn();
 
   beforeEach(() => {
@@ -66,45 +66,45 @@ describe("SettingsModal", () => {
     mockDisconnectTelegram.mockReset();
   });
 
-  it("renders when open with Notifications title", () => {
+  it('renders when open with Notifications title', () => {
     render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByTestId("mock-modal")).toBeInTheDocument();
-    expect(screen.getByText("Notifications")).toBeInTheDocument();
+    expect(screen.getByTestId('mock-modal')).toBeInTheDocument();
+    expect(screen.getByText('Notifications')).toBeInTheDocument();
   });
 
-  it("does not render when closed", () => {
+  it('does not render when closed', () => {
     render(<SettingsModal isOpen={false} onClose={mockOnClose} />);
 
-    expect(screen.queryByTestId("mock-modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mock-modal')).not.toBeInTheDocument();
   });
 
-  it("displays subtitle about Telegram alerts", () => {
+  it('displays subtitle about Telegram alerts', () => {
     render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
 
     expect(
-      screen.getByText(/connect telegram to receive portfolio alerts/i)
+      screen.getByText(/connect telegram to receive portfolio alerts/i),
     ).toBeInTheDocument();
   });
 
-  it("shows connect-wallet message when no userId", () => {
+  it('shows connect-wallet message when no userId', () => {
     render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
 
     expect(screen.getByText(/connect your wallet first/i)).toBeInTheDocument();
   });
 
-  it("shows loading state initially with userId", () => {
+  it('shows loading state initially with userId', () => {
     mockGetTelegramStatus.mockReturnValue(new Promise(() => undefined));
 
     const { container } = render(
-      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
     );
 
     // Loader2 renders an SVG with the animate-spin class
-    expect(container.querySelector("svg.animate-spin")).toBeInTheDocument();
+    expect(container.querySelector('svg.animate-spin')).toBeInTheDocument();
   });
 
-  it("shows disconnected state with Connect button", async () => {
+  it('shows disconnected state with Connect button', async () => {
     mockGetTelegramStatus.mockResolvedValue({
       isConnected: false,
       isEnabled: false,
@@ -112,42 +112,42 @@ describe("SettingsModal", () => {
     });
 
     render(
-      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Telegram")).toBeInTheDocument();
+      expect(screen.getByText('Telegram')).toBeInTheDocument();
     });
 
     expect(
-      screen.getByRole("button", { name: /Connect/i })
+      screen.getByRole('button', { name: /Connect/i }),
     ).toBeInTheDocument();
   });
 
-  it("shows connected state with Disconnect button", async () => {
+  it('shows connected state with Disconnect button', async () => {
     mockGetTelegramStatus.mockResolvedValue({
       isConnected: true,
       isEnabled: true,
-      connectedAt: "2026-01-01T00:00:00Z",
+      connectedAt: '2026-01-01T00:00:00Z',
     });
 
     render(
-      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+      <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Connected")).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
     });
 
     expect(
-      screen.getByRole("button", { name: /Disconnect/i })
+      screen.getByRole('button', { name: /Disconnect/i }),
     ).toBeInTheDocument();
   });
 
-  it("calls onClose when modal header close button is clicked", () => {
+  it('calls onClose when modal header close button is clicked', () => {
     render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
 
-    const modalCloseButton = screen.getByRole("button", {
+    const modalCloseButton = screen.getByRole('button', {
       name: /Close modal/i,
     });
     fireEvent.click(modalCloseButton);
@@ -155,90 +155,90 @@ describe("SettingsModal", () => {
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onClose when footer Close button is clicked", () => {
+  it('calls onClose when footer Close button is clicked', () => {
     render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
 
-    const footerCloseButton = screen.getByRole("button", { name: /^Close$/i });
+    const footerCloseButton = screen.getByRole('button', { name: /^Close$/i });
     fireEvent.click(footerCloseButton);
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
-  describe("Connect flow", () => {
-    it("opens deep link and shows connecting state on successful connect", async () => {
+  describe('Connect flow', () => {
+    it('opens deep link and shows connecting state on successful connect', async () => {
       mockGetTelegramStatus.mockResolvedValue({
         isConnected: false,
         isEnabled: false,
         connectedAt: null,
       });
       mockRequestTelegramToken.mockResolvedValue({
-        deepLink: "https://t.me/bot?start=abc",
+        deepLink: 'https://t.me/bot?start=abc',
       });
-      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Connect/i })
+          screen.getByRole('button', { name: /Connect/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Connect/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
 
       await waitFor(() => {
         expect(openSpy).toHaveBeenCalledWith(
-          "https://t.me/bot?start=abc",
-          "_blank"
+          'https://t.me/bot?start=abc',
+          '_blank',
         );
       });
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Waiting for confirmation/i)
+          screen.getByText(/Waiting for confirmation/i),
         ).toBeInTheDocument();
       });
 
       openSpy.mockRestore();
     });
 
-    it("shows error state when connect fails", async () => {
+    it('shows error state when connect fails', async () => {
       mockGetTelegramStatus.mockResolvedValue({
         isConnected: false,
         isEnabled: false,
         connectedAt: null,
       });
       mockRequestTelegramToken.mockRejectedValue(
-        new Error("Token generation failed")
+        new Error('Token generation failed'),
       );
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Connect/i })
+          screen.getByRole('button', { name: /Connect/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Connect/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
 
       await waitFor(() => {
-        expect(screen.getByText("Token generation failed")).toBeInTheDocument();
+        expect(screen.getByText('Token generation failed')).toBeInTheDocument();
       });
     });
   });
 
-  describe("Disconnect flow", () => {
-    it("disconnects and refetches status on success", async () => {
+  describe('Disconnect flow', () => {
+    it('disconnects and refetches status on success', async () => {
       mockGetTelegramStatus
         .mockResolvedValueOnce({
           isConnected: true,
           isEnabled: true,
-          connectedAt: "2026-01-01",
+          connectedAt: '2026-01-01',
         })
         .mockResolvedValueOnce({
           isConnected: false,
@@ -248,19 +248,19 @@ describe("SettingsModal", () => {
       mockDisconnectTelegram.mockResolvedValue(undefined);
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Disconnect/i })
+          screen.getByRole('button', { name: /Disconnect/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Disconnect/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Disconnect/i }));
 
       await waitFor(() => {
-        expect(mockDisconnectTelegram).toHaveBeenCalledWith("0x123");
+        expect(mockDisconnectTelegram).toHaveBeenCalledWith('0x123');
       });
 
       await waitFor(() => {
@@ -268,36 +268,36 @@ describe("SettingsModal", () => {
       });
     });
 
-    it("shows error when disconnect fails", async () => {
+    it('shows error when disconnect fails', async () => {
       mockGetTelegramStatus.mockResolvedValue({
         isConnected: true,
         isEnabled: true,
-        connectedAt: "2026-01-01",
+        connectedAt: '2026-01-01',
       });
-      mockDisconnectTelegram.mockRejectedValue(new Error("Disconnect failed"));
+      mockDisconnectTelegram.mockRejectedValue(new Error('Disconnect failed'));
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Disconnect/i })
+          screen.getByRole('button', { name: /Disconnect/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Disconnect/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Disconnect/i }));
 
       await waitFor(() => {
-        expect(screen.getByText("Disconnect failed")).toBeInTheDocument();
+        expect(screen.getByText('Disconnect failed')).toBeInTheDocument();
       });
     });
   });
 
-  describe("Error recovery", () => {
-    it("retries fetching status when Retry is clicked", async () => {
+  describe('Error recovery', () => {
+    it('retries fetching status when Retry is clicked', async () => {
       mockGetTelegramStatus
-        .mockRejectedValueOnce(new Error("Network error"))
+        .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
           isConnected: false,
           isEnabled: false,
@@ -305,44 +305,48 @@ describe("SettingsModal", () => {
         });
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Failed to load Telegram status/i)
+          screen.getByText(/Failed to load Telegram status/i),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /Retry/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
 
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Connect/i })
+          screen.getByRole('button', { name: /Connect/i }),
         ).toBeInTheDocument();
       });
     });
   });
 
-  describe("fetchStatus without userId", () => {
-    it("shows no-user message when modal is opened without userId", () => {
+  describe('fetchStatus without userId', () => {
+    it('shows no-user message when modal is opened without userId', () => {
       render(<SettingsModal isOpen={true} onClose={mockOnClose} />);
       expect(
-        screen.getByText(/connect your wallet first/i)
+        screen.getByText(/connect your wallet first/i),
       ).toBeInTheDocument();
       expect(mockGetTelegramStatus).not.toHaveBeenCalled();
     });
 
-    it("does not call getTelegramStatus when userId is undefined and modal opens", () => {
+    it('does not call getTelegramStatus when userId is undefined and modal opens', () => {
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId={undefined} />
+        <SettingsModal
+          isOpen={true}
+          onClose={mockOnClose}
+          userId={undefined}
+        />,
       );
       expect(mockGetTelegramStatus).not.toHaveBeenCalled();
     });
   });
 
-  describe("Polling", () => {
-    it("stops polling and shows timeout error after MAX_POLL_DURATION_MS", async () => {
+  describe('Polling', () => {
+    it('stops polling and shows timeout error after MAX_POLL_DURATION_MS', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: false });
       mockGetTelegramStatus.mockResolvedValue({
         isConnected: false,
@@ -350,14 +354,14 @@ describe("SettingsModal", () => {
         connectedAt: null,
       });
       mockRequestTelegramToken.mockResolvedValue({
-        deepLink: "https://t.me/bot?start=abc",
+        deepLink: 'https://t.me/bot?start=abc',
       });
-      vi.spyOn(window, "open").mockImplementation(() => null);
+      vi.spyOn(window, 'open').mockImplementation(() => null);
 
-      const { act } = await import("@testing-library/react");
+      const { act } = await import('@testing-library/react');
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       // Flush the initial status fetch promise
@@ -366,11 +370,11 @@ describe("SettingsModal", () => {
       });
 
       expect(
-        screen.getByRole("button", { name: /Connect/i })
+        screen.getByRole('button', { name: /Connect/i }),
       ).toBeInTheDocument();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /Connect/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
         await vi.advanceTimersByTimeAsync(0);
       });
 
@@ -386,7 +390,7 @@ describe("SettingsModal", () => {
       vi.useRealTimers();
     });
 
-    it("continues polling and recovers after a transient error during polling", async () => {
+    it('continues polling and recovers after a transient error during polling', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: false });
       mockGetTelegramStatus
         .mockResolvedValueOnce({
@@ -395,22 +399,22 @@ describe("SettingsModal", () => {
           connectedAt: null,
         })
         // First poll interval: transient failure
-        .mockRejectedValueOnce(new Error("Network blip"))
+        .mockRejectedValueOnce(new Error('Network blip'))
         // Second poll interval: success — connection established
         .mockResolvedValue({
           isConnected: true,
           isEnabled: true,
-          connectedAt: "2026-01-01",
+          connectedAt: '2026-01-01',
         });
       mockRequestTelegramToken.mockResolvedValue({
-        deepLink: "https://t.me/bot?start=transient",
+        deepLink: 'https://t.me/bot?start=transient',
       });
-      vi.spyOn(window, "open").mockImplementation(() => null);
+      vi.spyOn(window, 'open').mockImplementation(() => null);
 
-      const { act } = await import("@testing-library/react");
+      const { act } = await import('@testing-library/react');
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       // Flush the initial status fetch
@@ -420,7 +424,7 @@ describe("SettingsModal", () => {
 
       // Click connect to start polling
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /Connect/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
         await vi.advanceTimersByTimeAsync(0);
       });
 
@@ -439,12 +443,12 @@ describe("SettingsModal", () => {
         await vi.advanceTimersByTimeAsync(3_100);
       });
 
-      expect(screen.getByText("Connected")).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
 
       vi.useRealTimers();
     });
 
-    it("stops polling when connection is confirmed", async () => {
+    it('stops polling when connection is confirmed', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: false });
       mockGetTelegramStatus
         .mockResolvedValueOnce({
@@ -455,17 +459,17 @@ describe("SettingsModal", () => {
         .mockResolvedValue({
           isConnected: true,
           isEnabled: true,
-          connectedAt: "2026-01-01",
+          connectedAt: '2026-01-01',
         });
       mockRequestTelegramToken.mockResolvedValue({
-        deepLink: "https://t.me/bot?start=abc",
+        deepLink: 'https://t.me/bot?start=abc',
       });
-      vi.spyOn(window, "open").mockImplementation(() => null);
+      vi.spyOn(window, 'open').mockImplementation(() => null);
 
-      const { act } = await import("@testing-library/react");
+      const { act } = await import('@testing-library/react');
 
       render(
-        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />
+        <SettingsModal isOpen={true} onClose={mockOnClose} userId="0x123" />,
       );
 
       // Flush the initial status fetch promise
@@ -474,11 +478,11 @@ describe("SettingsModal", () => {
       });
 
       expect(
-        screen.getByRole("button", { name: /Connect/i })
+        screen.getByRole('button', { name: /Connect/i }),
       ).toBeInTheDocument();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /Connect/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
         await vi.advanceTimersByTimeAsync(0);
       });
 
@@ -487,7 +491,7 @@ describe("SettingsModal", () => {
         await vi.advanceTimersByTimeAsync(3_100);
       });
 
-      expect(screen.getByText("Connected")).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
 
       vi.useRealTimers();
     });

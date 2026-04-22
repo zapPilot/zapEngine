@@ -5,24 +5,24 @@
  * Orchestrates multiple API calls and applies pure transformation functions.
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef } from 'react';
 
-import { getAnalyticsStaleTime } from "@/lib/analytics/cacheConfig";
+import { getAnalyticsStaleTime } from '@/lib/analytics/cacheConfig';
 import {
   aggregateMonthlyPnL,
   calculateKeyMetrics,
   transformToDrawdownChart,
   transformToPerformanceChart,
-} from "@/lib/analytics/transformers";
-import { getDailyYieldReturns } from "@/services";
+} from '@/lib/analytics/transformers';
+import { getDailyYieldReturns } from '@/services';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
-} from "@/types/analytics";
+} from '@/types/analytics';
 
-import { usePortfolioDashboard } from "../../analytics/usePortfolioDashboard";
+import { usePortfolioDashboard } from '../../analytics/usePortfolioDashboard';
 
 /**
  * Hook return type
@@ -71,7 +71,7 @@ interface UseAnalyticsDataReturn {
 export function useAnalyticsData(
   userId: string | undefined,
   timePeriod: AnalyticsTimePeriod,
-  walletFilter?: WalletFilter
+  walletFilter?: WalletFilter,
 ): UseAnalyticsDataReturn {
   // ============================================================================
   // PERIOD CHANGE DETECTION
@@ -102,8 +102,8 @@ export function useAnalyticsData(
       // Force refetch when period changes to bypass staleTime cache
       // Wallet-specific data: 2min cache, Bundle data: 12hr cache
       staleTime: getAnalyticsStaleTime(periodChanged, walletFilter),
-      refetchOnMount: periodChanged ? "always" : false,
-    }
+      refetchOnMount: periodChanged ? 'always' : false,
+    },
   );
 
   // ============================================================================
@@ -111,15 +111,15 @@ export function useAnalyticsData(
   // ============================================================================
 
   const monthlyPnLQuery = useQuery({
-    queryKey: ["dailyYield", userId, timePeriod.days, walletFilter], // Include wallet filter in cache key
+    queryKey: ['dailyYield', userId, timePeriod.days, walletFilter], // Include wallet filter in cache key
     queryFn: () => {
       if (!userId) {
-        throw new Error("User ID is required");
+        throw new Error('User ID is required');
       }
       return getDailyYieldReturns(
         userId,
         timePeriod.days,
-        walletFilter ?? undefined
+        walletFilter ?? undefined,
       ); // Pass wallet filter to API, convert null to undefined
     },
     enabled: !!userId && !!dashboardQuery.data,

@@ -5,18 +5,18 @@
  * Isolated from production useChartHover to reduce its cognitive footprint.
  */
 
-import { type MutableRefObject, useEffect, useRef } from "react";
+import { type MutableRefObject, useEffect, useRef } from 'react';
 
-import { isRuntimeMode } from "@/lib/env/runtimeEnv";
-import type { ChartHoverState } from "@/types/ui/chartHover";
-import { clampMin } from "@/utils/mathUtils";
+import { isRuntimeMode } from '@/lib/env/runtimeEnv';
+import type { ChartHoverState } from '@/types/ui/chartHover';
+import { clampMin } from '@/utils/mathUtils';
 
 export function calculateYPosition(
   yValue: number,
   minValue: number,
   maxValue: number,
   chartHeight: number,
-  chartPadding: number
+  chartPadding: number,
 ): number {
   const valueRange = Math.max(maxValue - minValue, 1);
   return (
@@ -39,7 +39,7 @@ export interface ChartHoverConfig<T> {
     point: T,
     x: number,
     y: number,
-    index: number
+    index: number,
   ) => ChartHoverState;
 }
 
@@ -53,7 +53,7 @@ interface UseTestAutoHoverEffectParams<T> extends ChartHoverConfig<T> {
 }
 
 export function useTestAutoHoverEffect<T>(
-  params: UseTestAutoHoverEffectParams<T>
+  params: UseTestAutoHoverEffectParams<T>,
 ): void {
   const {
     enabled,
@@ -76,7 +76,7 @@ export function useTestAutoHoverEffect<T>(
 
   useEffect(() => {
     if (
-      isRuntimeMode("test") &&
+      isRuntimeMode('test') &&
       testAutoPopulate &&
       enabled &&
       hoveredPoint == null &&
@@ -96,7 +96,7 @@ export function useTestAutoHoverEffect<T>(
         minValue,
         maxValue,
         chartHeight,
-        chartPadding
+        chartPadding,
       );
 
       setHoveredPoint(buildHoverData(point, x, y, index));
@@ -120,7 +120,7 @@ export function useTestAutoHoverEffect<T>(
   ]);
 
   useEffect(() => {
-    if (!isRuntimeMode("test") || !testAutoPopulate) return;
+    if (!isRuntimeMode('test') || !testAutoPopulate) return;
 
     if (hoveredPoint != null && isAutoHoverActiveRef.current) {
       if (testAutoHideTimerRef.current != null)

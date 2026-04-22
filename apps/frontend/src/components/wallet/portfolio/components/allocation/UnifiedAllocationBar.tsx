@@ -1,13 +1,13 @@
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 
-import { getBarStyle } from "@/constants/assets";
-import { cn } from "@/lib/ui/classNames";
+import { getBarStyle } from '@/constants/assets';
+import { cn } from '@/lib/ui/classNames';
 
-import { AllocationLegend } from "./AllocationLegend";
+import { AllocationLegend } from './AllocationLegend';
 import type {
   UnifiedAllocationBarProps,
   UnifiedSegment,
-} from "./unifiedAllocationTypes";
+} from './unifiedAllocationTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -18,16 +18,16 @@ const DEFAULT_LABEL_THRESHOLD = 10;
 
 /** Size variants for the bar height */
 const SIZE_CLASSES = {
-  sm: "h-3", // 12px - compact (tooltips)
-  md: "h-5", // 20px - standard (dashboard, strategy)
-  lg: "h-8", // 32px - large (hero sections)
+  sm: 'h-3', // 12px - compact (tooltips)
+  md: 'h-5', // 20px - standard (dashboard, strategy)
+  lg: 'h-8', // 32px - large (hero sections)
 } as const;
 
 /** Text size variants based on bar size */
 const LABEL_TEXT_CLASSES = {
-  sm: "text-[8px]",
-  md: "text-[10px]",
-  lg: "text-xs",
+  sm: 'text-[8px]',
+  md: 'text-[10px]',
+  lg: 'text-xs',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,13 +35,13 @@ const LABEL_TEXT_CLASSES = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STYLES = {
-  container: "flex flex-col gap-1",
+  container: 'flex flex-col gap-1',
   barWrapper:
-    "relative w-full rounded-lg overflow-hidden flex bg-gray-800/50 ring-1 ring-white/5",
+    'relative w-full rounded-lg overflow-hidden flex bg-gray-800/50 ring-1 ring-white/5',
   segment:
-    "relative flex items-center justify-center transition-all duration-300",
-  segmentLabel: "font-medium text-white whitespace-nowrap px-1",
-  title: "text-[10px] text-gray-500 font-medium mb-1",
+    'relative flex items-center justify-center transition-all duration-300',
+  segmentLabel: 'font-medium text-white whitespace-nowrap px-1',
+  title: 'text-[10px] text-gray-500 font-medium mb-1',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ interface SegmentProps {
   segment: UnifiedSegment;
   showLabel: boolean;
   labelThreshold: number;
-  size: "sm" | "md" | "lg";
+  size: 'sm' | 'md' | 'lg';
   testIdPrefix: string | undefined;
 }
 
@@ -116,12 +116,12 @@ export function UnifiedAllocationBar({
   showLegend = true,
   showLabels = true,
   labelThreshold = DEFAULT_LABEL_THRESHOLD,
-  size = "md",
+  size = 'md',
   className,
   title,
   testIdPrefix,
 }: UnifiedAllocationBarProps) {
-  const legendItems = segments.map(s => ({
+  const legendItems = segments.map((s) => ({
     symbol: s.category,
     label: s.label,
     percentage: s.percentage,
@@ -137,13 +137,13 @@ export function UnifiedAllocationBar({
     <div
       className={cn(STYLES.container, className)}
       data-testid={
-        testIdPrefix ? `${testIdPrefix}-container` : "unified-allocation-bar"
+        testIdPrefix ? `${testIdPrefix}-container` : 'unified-allocation-bar'
       }
     >
       {title && <div className={STYLES.title}>{title}</div>}
 
       <div className={cn(STYLES.barWrapper, SIZE_CLASSES[size])}>
-        {segments.map(segment => (
+        {segments.map((segment) => (
           <Segment
             key={segment.category}
             segment={segment}

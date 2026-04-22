@@ -1,35 +1,35 @@
-import { logger } from "../../utils/logger.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { maskWalletAddress } from "../../utils/mask.js";
 import {
-  executeETLFlow,
-  createFailedETLResult,
   type BaseETLProcessor,
+  createFailedETLResult,
   type ETLProcessResult,
+  executeETLFlow,
   type HealthCheckResult,
-} from "../../core/processors/baseETLProcessor.js";
-import type { ETLJob } from "../../types/index.js";
-import type {
-  WalletBalanceSnapshotInsert,
-  PortfolioItemSnapshotInsert,
-} from "../../types/database.js";
-import { validateWalletFetchJob } from "../../core/processors/validation.js";
-import { wrapHealthCheck } from "../../utils/healthCheck.js";
-import { DeBankFetcher } from "./fetcher.js";
-import { WalletBalanceTransformer } from "./balanceTransformer.js";
-import { DeBankPortfolioTransformer } from "./portfolioTransformer.js";
-import { WalletBalanceWriter } from "./balanceWriter.js";
-import { PortfolioItemWriter } from "./portfolioWriter.js";
+} from '../../core/processors/baseETLProcessor.js';
+import { validateWalletFetchJob } from '../../core/processors/validation.js';
 import {
   fetchWalletDataFromDeBank,
   mapTokenBalancesToSnapshots,
-} from "../../modules/vip-users/common.js";
+} from '../../modules/vip-users/common.js';
+import type {
+  PortfolioItemSnapshotInsert,
+  WalletBalanceSnapshotInsert,
+} from '../../types/database.js';
+import type { ETLJob } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
+import { WalletBalanceTransformer } from './balanceTransformer.js';
+import { WalletBalanceWriter } from './balanceWriter.js';
+import { DeBankFetcher } from './fetcher.js';
 import {
-  type WalletETLRecord,
   createMergedFetchResult,
-  createWalletTransformCallback,
   createWalletLoadCallback,
-} from "./helpers.js";
+  createWalletTransformCallback,
+  type WalletETLRecord,
+} from './helpers.js';
+import { DeBankPortfolioTransformer } from './portfolioTransformer.js';
+import { PortfolioItemWriter } from './portfolioWriter.js';
 
 /**
  * ETL processor for single-wallet fetch requests from account-engine webhooks
@@ -60,7 +60,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
       const metadata = validateWalletFetchJob(job);
       const walletAddress = metadata.walletAddress;
 
-      logger.info("Starting wallet fetch ETL job", {
+      logger.info('Starting wallet fetch ETL job', {
         jobId: job.jobId,
         wallet: maskWalletAddress(walletAddress),
         userId: job.metadata?.userId,
@@ -68,7 +68,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
 
       const result = await executeETLFlow<WalletETLRecord, WalletETLRecord>(
         job,
-        "debank",
+        'debank',
         async () => {
           const { walletBalances, portfolioItems } = await this.fetchData(
             walletAddress,
@@ -79,13 +79,13 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
         createWalletTransformCallback(
           this.transformer,
           job.jobId,
-          "Wallet fetch",
+          'Wallet fetch',
         ),
         createWalletLoadCallback(
           this.writer,
           this.portfolioWriter,
           job.jobId,
-          "Wallet fetch",
+          'Wallet fetch',
         ),
         {
           allowEmptyFetch: true,
@@ -93,7 +93,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
         },
       );
 
-      logger.info("Wallet fetch ETL job completed", {
+      logger.info('Wallet fetch ETL job completed', {
         jobId: job.jobId,
         wallet: maskWalletAddress(walletAddress),
         walletBalances: result.recordsInserted,
@@ -103,7 +103,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
     } catch (error) {
       const message = toErrorMessage(error);
       this.logProcessError(job.jobId, message, error);
-      return createFailedETLResult("debank", message);
+      return createFailedETLResult('debank', message);
     }
   }
 
@@ -118,7 +118,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
   }
 
   getSourceType(): string {
-    return "debank";
+    return 'debank';
   }
 
   private async fetchData(
@@ -128,7 +128,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
     walletBalances: WalletBalanceSnapshotInsert[];
     portfolioItems: PortfolioItemSnapshotInsert[];
   }> {
-    logger.info("Fetching DeBank data for single wallet", {
+    logger.info('Fetching DeBank data for single wallet', {
       jobId,
       wallet: maskWalletAddress(walletAddress),
     });
@@ -138,7 +138,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
         this.debankFetcher,
         walletAddress,
         {
-          warningMessage: "DeBank fetch failed - invalid response",
+          warningMessage: 'DeBank fetch failed - invalid response',
           context: { jobId },
         },
       );
@@ -158,7 +158,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
         walletAddress,
       );
 
-      logger.info("DeBank wallet fetch completed", {
+      logger.info('DeBank wallet fetch completed', {
         jobId,
         wallet: maskWalletAddress(walletAddress),
         tokens: data.tokens.length,
@@ -169,7 +169,7 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
 
       return { walletBalances, portfolioItems };
     } catch (error) {
-      logger.error("Failed to fetch DeBank data for wallet", {
+      logger.error('Failed to fetch DeBank data for wallet', {
         jobId,
         wallet: maskWalletAddress(walletAddress),
         error,
@@ -183,11 +183,11 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
     message: string,
     error: unknown,
   ): void {
-    if (message === "Wallet address missing from job metadata") {
-      logger.error("Wallet address missing from job metadata", { jobId });
+    if (message === 'Wallet address missing from job metadata') {
+      logger.error('Wallet address missing from job metadata', { jobId });
       return;
     }
 
-    logger.error("Wallet fetch ETL job failed", { jobId, error });
+    logger.error('Wallet fetch ETL job failed', { jobId, error });
   }
 }

@@ -1,39 +1,39 @@
-import { AnimatePresence } from "framer-motion";
-import { useEffect } from "react";
+import { AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
 
-import { ModalBackdrop } from "./ModalBackdrop";
-import type { ModalProps } from "./types";
+import { ModalBackdrop } from './ModalBackdrop';
+import type { ModalProps } from './types';
 
 export function Modal({
   isOpen,
   onClose,
   children,
-  maxWidth = "md",
+  maxWidth = 'md',
   closeOnBackdropClick = true,
-  className = "",
+  className = '',
 }: ModalProps) {
   // ESC key handler
   useEffect(() => {
     if (!isOpen) return;
 
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
 
-    document.addEventListener("keydown", handleEsc);
-    return () => document.removeEventListener("keydown", handleEsc);
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose]);
 
   // Body scroll lock
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
     }
     return () => {
       if (isOpen) {
-        document.body.style.overflow = "unset";
+        document.body.style.overflow = 'unset';
       }
     };
   }, [isOpen]);
@@ -41,11 +41,11 @@ export function Modal({
   if (!isOpen) return null;
 
   const maxWidthClasses = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    "2xl": "max-w-2xl",
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
   } as const;
   const maxWidthClass = maxWidthClasses[maxWidth] ?? maxWidthClasses.md;
 

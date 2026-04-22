@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 
-import type { MenuPosition } from "@/types";
+import type { MenuPosition } from '@/types';
 
 interface UseDropdownMenuResult {
   openDropdown: string | null;
@@ -30,13 +30,13 @@ export function useDropdownMenu(): UseDropdownMenuResult {
       const preferredLeft = rect.right - MENU_WIDTH;
       const left = Math.max(
         8,
-        Math.min(preferredLeft, window.innerWidth - MENU_WIDTH - 8)
+        Math.min(preferredLeft, window.innerWidth - MENU_WIDTH - 8),
       );
 
       setMenuPosition({ top, left });
       setOpenDropdown(walletId);
     },
-    []
+    [],
   );
 
   // Handle closing dropdown
@@ -54,7 +54,7 @@ export function useDropdownMenu(): UseDropdownMenuResult {
         openDropdownMenu(walletId, buttonElement);
       }
     },
-    [openDropdown, closeDropdown, openDropdownMenu]
+    [openDropdown, closeDropdown, openDropdownMenu],
   );
 
   // Click outside handler
@@ -62,8 +62,8 @@ export function useDropdownMenu(): UseDropdownMenuResult {
     if (!openDropdown) return;
 
     const handleClickOutside = () => closeDropdown();
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, [openDropdown, closeDropdown]);
 
   return {

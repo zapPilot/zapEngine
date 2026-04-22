@@ -5,12 +5,12 @@
  * Copy these patterns into your test files as needed.
  */
 
-import { vi } from "vitest";
+import { vi } from 'vitest';
 
-import * as UserContext from "@/contexts/UserContext";
-import * as useStrategiesQuery from "@/hooks/queries/useStrategiesQuery";
-import * as useChainModule from "@/hooks/useChain";
-import * as intentService from "@/services/intentService";
+import * as UserContext from '@/contexts/UserContext';
+import * as useStrategiesQuery from '@/hooks/queries/useStrategiesQuery';
+import * as useChainModule from '@/hooks/useChain';
+import * as intentService from '@/services/intentService';
 
 import {
   createMockAssetCategory,
@@ -18,14 +18,14 @@ import {
   createMockToken,
   setupSwapPageMocks,
   SwapPageTestScenarios,
-} from "../helpers/swapPageTestUtils";
+} from '../helpers/swapPageTestUtils';
 
 // Example 1: Basic mock setup for SwapPage component tests
 // Mock all dependencies
-vi.mock("@/contexts/UserContext");
-vi.mock("@/hooks/useChain");
-vi.mock("@/hooks/queries/useStrategiesQuery");
-vi.mock("@/services/intentService");
+vi.mock('@/contexts/UserContext');
+vi.mock('@/hooks/useChain');
+vi.mock('@/hooks/queries/useStrategiesQuery');
+vi.mock('@/services/intentService');
 
 // Example 1: Testing SwapPage with connected user and strategies
 export function exampleConnectedUserWithStrategies() {
@@ -37,10 +37,10 @@ export function exampleConnectedUserWithStrategies() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
   vi.mocked(intentService.executeUnifiedZap).mockImplementation(
-    mocks.executeUnifiedZap
+    mocks.executeUnifiedZap,
   );
 
   // Now render your component
@@ -56,18 +56,18 @@ export function exampleConnectedUserWithStrategies() {
 export function exampleCustomStrategies() {
   const customStrategies = [
     createMockAssetCategory({
-      name: "High Yield Stablecoins",
-      targetAssets: ["USDC", "USDT"],
+      name: 'High Yield Stablecoins',
+      targetAssets: ['USDC', 'USDT'],
     }),
     createMockAssetCategory({
-      name: "Blue Chip DeFi",
-      targetAssets: ["WBTC", "WETH"],
+      name: 'Blue Chip DeFi',
+      targetAssets: ['WBTC', 'WETH'],
     }),
   ];
 
   const mocks = setupSwapPageMocks({
-    userInfo: { userId: "custom-user", walletAddress: "0xcustom" },
-    connectedWallet: "0xcustom",
+    userInfo: { userId: 'custom-user', walletAddress: '0xcustom' },
+    connectedWallet: '0xcustom',
     chainId: 1,
     strategies: customStrategies,
   });
@@ -75,7 +75,7 @@ export function exampleCustomStrategies() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   return { mocks, customStrategies };
@@ -89,7 +89,7 @@ export function exampleLoadingState() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   // Verify loading UI is shown
@@ -106,7 +106,7 @@ export function exampleErrorState() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   // Verify error UI is shown
@@ -123,7 +123,7 @@ export function exampleDisconnectedState() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   return { mocks };
@@ -138,10 +138,10 @@ export async function exampleZapInOperation() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
   vi.mocked(intentService.executeUnifiedZap).mockImplementation(
-    mocks.executeUnifiedZap
+    mocks.executeUnifiedZap,
   );
 
   // Render component
@@ -169,15 +169,15 @@ export async function exampleZapInOperation() {
 // Example 7: Testing with custom tokens
 export function exampleCustomTokens() {
   const usdcToken = createMockToken({
-    symbol: "USDC",
+    symbol: 'USDC',
     decimals: 6,
     balance: 10000,
   });
 
   const wethToken = createMockToken({
-    symbol: "WETH",
+    symbol: 'WETH',
     decimals: 18,
-    address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
     balance: 5.5,
   });
 
@@ -192,7 +192,7 @@ export function exampleMultiChain() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   // Verify chain-specific behavior
@@ -204,7 +204,7 @@ export function exampleMultiChain() {
 // Example 9: Testing form validation
 export function exampleFormValidation() {
   const mocks = setupSwapPageMocks(
-    SwapPageTestScenarios.connectedWithStrategies()
+    SwapPageTestScenarios.connectedWithStrategies(),
   );
 
   // Create invalid swap action (no token)
@@ -230,7 +230,7 @@ export async function exampleRefetchBehavior() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
 
   // Trigger refetch
@@ -250,25 +250,25 @@ export async function exampleRefetchBehavior() {
 export async function exampleFullIntegrationTest() {
   // 1. Setup mocks
   const customStrategy = createMockStrategy({
-    name: "Conservative Yield",
+    name: 'Conservative Yield',
     apr: 5.5,
-    navigationContext: "zapIn",
+    navigationContext: 'zapIn',
   });
 
   const mocks = setupSwapPageMocks({
-    userInfo: { userId: "test-user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'test-user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [
       createMockAssetCategory({
-        name: "Stablecoins",
+        name: 'Stablecoins',
         protocols: [
           {
-            id: "aave-usdc",
-            name: "Aave V3 USDC",
+            id: 'aave-usdc',
+            name: 'Aave V3 USDC',
             allocationPercentage: 50,
-            chain: "Ethereum",
-            protocol: "aave-v3",
+            chain: 'Ethereum',
+            protocol: 'aave-v3',
             apy: 3.5,
           },
         ],
@@ -280,10 +280,10 @@ export async function exampleFullIntegrationTest() {
   vi.mocked(UserContext.useUser).mockReturnValue(mocks.useUser());
   vi.mocked(useChainModule.useChain).mockReturnValue(mocks.useChain());
   vi.mocked(useStrategiesQuery.useStrategiesWithPortfolioData).mockReturnValue(
-    mocks.useStrategiesWithPortfolioData()
+    mocks.useStrategiesWithPortfolioData(),
   );
   vi.mocked(intentService.executeUnifiedZap).mockImplementation(
-    mocks.executeUnifiedZap
+    mocks.executeUnifiedZap,
   );
 
   // 3. Render component

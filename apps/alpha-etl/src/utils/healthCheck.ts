@@ -1,7 +1,7 @@
-import { toErrorMessage } from "./errors.js";
+import { toErrorMessage } from './errors.js';
 
 export interface HealthCheckResult {
-  status: "healthy" | "unhealthy";
+  status: 'healthy' | 'unhealthy';
   details?: string;
 }
 
@@ -30,7 +30,7 @@ export async function wrapHealthCheck(
     return await healthCheckFn();
   } catch (error) {
     return {
-      status: "unhealthy",
+      status: 'unhealthy',
       details: toErrorMessage(error),
     };
   }
@@ -41,11 +41,11 @@ export function formatHealthComponent(
   status: string,
   details?: string,
 ): string {
-  return `${label}: ${status}${details ? ` (${details})` : ""}`;
+  return `${label}: ${status}${details ? ` (${details})` : ''}`;
 }
 
 export async function wrapCompositeHealthCheck(
-  checks: Array<{ label: string; check: () => Promise<HealthCheckResult> }>,
+  checks: { label: string; check: () => Promise<HealthCheckResult> }[],
 ): Promise<HealthCheckResult> {
   try {
     const results = await Promise.all(
@@ -56,24 +56,24 @@ export async function wrapCompositeHealthCheck(
     );
 
     const unhealthy = results.some(
-      ({ result }) => result.status === "unhealthy",
+      ({ result }) => result.status === 'unhealthy',
     );
 
     if (!unhealthy) {
-      return { status: "healthy" };
+      return { status: 'healthy' };
     }
 
     return {
-      status: "unhealthy",
+      status: 'unhealthy',
       details: results
         .map(({ label, result }) =>
           formatHealthComponent(label, result.status, result.details),
         )
-        .join(", "),
+        .join(', '),
     };
   } catch (error) {
     return {
-      status: "unhealthy",
+      status: 'unhealthy',
       details: toErrorMessage(error),
     };
   }

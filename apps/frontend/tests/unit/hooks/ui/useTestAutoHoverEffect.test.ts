@@ -1,15 +1,15 @@
-import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   calculateYPosition,
   type ChartHoverConfig,
   useTestAutoHoverEffect,
-} from "@/hooks/ui/useTestAutoHoverEffect";
-import type { ChartHoverState } from "@/types/ui/chartHover";
+} from '@/hooks/ui/useTestAutoHoverEffect';
+import type { ChartHoverState } from '@/types/ui/chartHover';
 
-describe("calculateYPosition", () => {
-  it("should calculate y position for value in middle of range", () => {
+describe('calculateYPosition', () => {
+  it('should calculate y position for value in middle of range', () => {
     const result = calculateYPosition(50, 0, 100, 200, 10);
     // yValue = 50, minValue = 0, maxValue = 100, chartHeight = 200, chartPadding = 10
     // valueRange = 100
@@ -18,21 +18,21 @@ describe("calculateYPosition", () => {
     expect(result).toBe(100);
   });
 
-  it("should calculate y position for value at min boundary", () => {
+  it('should calculate y position for value at min boundary', () => {
     const result = calculateYPosition(0, 0, 100, 200, 10);
     // y = 200 - 10 - ((0 - 0) / 100) * (200 - 20)
     // y = 190 - (0 * 180) = 190
     expect(result).toBe(190);
   });
 
-  it("should calculate y position for value at max boundary", () => {
+  it('should calculate y position for value at max boundary', () => {
     const result = calculateYPosition(100, 0, 100, 200, 10);
     // y = 200 - 10 - ((100 - 0) / 100) * (200 - 20)
     // y = 190 - (1 * 180) = 190 - 180 = 10
     expect(result).toBe(10);
   });
 
-  it("should handle minValue === maxValue using Math.max guard", () => {
+  it('should handle minValue === maxValue using Math.max guard', () => {
     const result = calculateYPosition(50, 50, 50, 200, 10);
     // valueRange = Math.max(50 - 50, 1) = 1
     // y = 200 - 10 - ((50 - 50) / 1) * (200 - 20)
@@ -40,7 +40,7 @@ describe("calculateYPosition", () => {
     expect(result).toBe(190);
   });
 
-  it("should handle zero padding", () => {
+  it('should handle zero padding', () => {
     const result = calculateYPosition(50, 0, 100, 200, 0);
     // y = 200 - 0 - ((50 - 0) / 100) * (200 - 0)
     // y = 200 - (0.5 * 200) = 200 - 100 = 100
@@ -53,26 +53,26 @@ interface TestDataPoint {
   label: string;
 }
 
-describe("useTestAutoHoverEffect", () => {
+describe('useTestAutoHoverEffect', () => {
   const mockSetHoveredPoint = vi.fn();
   const mockBuildHoverData = vi.fn(
     (
       point: TestDataPoint,
       x: number,
       y: number,
-      index: number
+      index: number,
     ): ChartHoverState => ({
       x,
       y,
       value: point.value,
       label: point.label,
       index,
-    })
+    }),
   );
   const mockGetYValue = vi.fn((point: TestDataPoint): number => point.value);
 
   const baseConfig: ChartHoverConfig<TestDataPoint> = {
-    chartType: "test-chart",
+    chartType: 'test-chart',
     chartWidth: 400,
     chartHeight: 200,
     chartPadding: 10,
@@ -83,16 +83,16 @@ describe("useTestAutoHoverEffect", () => {
   };
 
   const testData: TestDataPoint[] = [
-    { value: 10, label: "Point 1" },
-    { value: 50, label: "Point 2" },
-    { value: 90, label: "Point 3" },
+    { value: 10, label: 'Point 1' },
+    { value: 50, label: 'Point 2' },
+    { value: 90, label: 'Point 3' },
   ];
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     // Reset NODE_ENV to test for all tests
-    process.env.NODE_ENV = "test";
+    process.env.NODE_ENV = 'test';
   });
 
   afterEach(() => {
@@ -100,8 +100,8 @@ describe("useTestAutoHoverEffect", () => {
     vi.useRealTimers();
   });
 
-  describe("Effect 1: Auto-populate hover on initial render", () => {
-    it("should auto-populate hover point when all conditions are met", () => {
+  describe('Effect 1: Auto-populate hover on initial render', () => {
+    it('should auto-populate hover point when all conditions are met', () => {
       const isAutoHoverActiveRef = { current: false };
 
       renderHook(() =>
@@ -113,7 +113,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       // Should select middle index (1)
@@ -128,19 +128,19 @@ describe("useTestAutoHoverEffect", () => {
         expectedPoint,
         expectedX,
         expectedY,
-        expectedIndex
+        expectedIndex,
       );
       expect(mockSetHoveredPoint).toHaveBeenCalledWith({
         x: expectedX,
         y: expectedY,
         value: 50,
-        label: "Point 2",
+        label: 'Point 2',
         index: expectedIndex,
       });
       expect(isAutoHoverActiveRef.current).toBe(true);
     });
 
-    it("should skip when enabled is false", () => {
+    it('should skip when enabled is false', () => {
       const isAutoHoverActiveRef = { current: false };
 
       renderHook(() =>
@@ -152,14 +152,14 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
       expect(isAutoHoverActiveRef.current).toBe(false);
     });
 
-    it("should skip when testAutoPopulate is false", () => {
+    it('should skip when testAutoPopulate is false', () => {
       const isAutoHoverActiveRef = { current: false };
 
       renderHook(() =>
@@ -171,14 +171,14 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
       expect(isAutoHoverActiveRef.current).toBe(false);
     });
 
-    it("should skip when data is empty", () => {
+    it('should skip when data is empty', () => {
       const isAutoHoverActiveRef = { current: false };
 
       renderHook(() =>
@@ -190,20 +190,20 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
       expect(isAutoHoverActiveRef.current).toBe(false);
     });
 
-    it("should skip when hoveredPoint is already set", () => {
+    it('should skip when hoveredPoint is already set', () => {
       const isAutoHoverActiveRef = { current: false };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -216,14 +216,14 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
       expect(isAutoHoverActiveRef.current).toBe(false);
     });
 
-    it("should not auto-populate on second render (hasTestAutoPopulatedRef guard)", () => {
+    it('should not auto-populate on second render (hasTestAutoPopulatedRef guard)', () => {
       const isAutoHoverActiveRef = { current: false };
 
       const { rerender } = renderHook(
@@ -239,7 +239,7 @@ describe("useTestAutoHoverEffect", () => {
           }),
         {
           initialProps: { hoveredPoint: null },
-        }
+        },
       );
 
       // First render should trigger auto-populate
@@ -253,9 +253,9 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should handle single data point (edge case for normalizedX)", () => {
+    it('should handle single data point (edge case for normalizedX)', () => {
       const isAutoHoverActiveRef = { current: false };
-      const singleDataPoint = [{ value: 50, label: "Single" }];
+      const singleDataPoint = [{ value: 50, label: 'Single' }];
 
       renderHook(() =>
         useTestAutoHoverEffect({
@@ -266,7 +266,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       // For single point, normalizedX should be 0.5
@@ -277,12 +277,12 @@ describe("useTestAutoHoverEffect", () => {
         singleDataPoint[0],
         expectedX,
         expectedY,
-        0
+        0,
       );
     });
 
-    it("should skip when NODE_ENV is not test", () => {
-      process.env.NODE_ENV = "production";
+    it('should skip when NODE_ENV is not test', () => {
+      process.env.NODE_ENV = 'production';
       const isAutoHoverActiveRef = { current: false };
 
       renderHook(() =>
@@ -294,21 +294,21 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: null,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
   });
 
-  describe("Effect 2: Auto-hide timer", () => {
-    it("should set timer to clear hover after 1000ms when auto-hover is active", () => {
+  describe('Effect 2: Auto-hide timer', () => {
+    it('should set timer to clear hover after 1000ms when auto-hover is active', () => {
       const isAutoHoverActiveRef = { current: true };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -321,7 +321,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       // Should not be called immediately
@@ -336,13 +336,13 @@ describe("useTestAutoHoverEffect", () => {
       expect(isAutoHoverActiveRef.current).toBe(false);
     });
 
-    it("should clear timer when hoveredPoint is set but isAutoHoverActiveRef is false", () => {
+    it('should clear timer when hoveredPoint is set but isAutoHoverActiveRef is false', () => {
       const isAutoHoverActiveRef = { current: false };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -355,7 +355,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       // Advance timers - should not trigger clear
@@ -366,20 +366,20 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should clear existing timer when hoveredPoint changes while auto-hover is active", () => {
+    it('should clear existing timer when hoveredPoint changes while auto-hover is active', () => {
       const isAutoHoverActiveRef = { current: true };
       const hoverState1: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "First",
+        label: 'First',
         index: 0,
       };
       const hoverState2: ChartHoverState = {
         x: 200,
         y: 100,
         value: 50,
-        label: "Second",
+        label: 'Second',
         index: 1,
       };
 
@@ -396,7 +396,7 @@ describe("useTestAutoHoverEffect", () => {
           }),
         {
           initialProps: { hoveredPoint: hoverState1 },
-        }
+        },
       );
 
       // Advance time partially
@@ -423,13 +423,13 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).toHaveBeenCalledWith(null);
     });
 
-    it("should clear timer on unmount", () => {
+    it('should clear timer on unmount', () => {
       const isAutoHoverActiveRef = { current: true };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -442,7 +442,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       // Unmount before timer completes
@@ -457,13 +457,13 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should not set timer when testAutoPopulate is false", () => {
+    it('should not set timer when testAutoPopulate is false', () => {
       const isAutoHoverActiveRef = { current: true };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -476,7 +476,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       act(() => {
@@ -486,14 +486,14 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should not set timer when NODE_ENV is not test", () => {
-      process.env.NODE_ENV = "production";
+    it('should not set timer when NODE_ENV is not test', () => {
+      process.env.NODE_ENV = 'production';
       const isAutoHoverActiveRef = { current: true };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -506,7 +506,7 @@ describe("useTestAutoHoverEffect", () => {
           hoveredPoint: existingHoverState,
           setHoveredPoint: mockSetHoveredPoint,
           isAutoHoverActiveRef,
-        })
+        }),
       );
 
       act(() => {
@@ -516,13 +516,13 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should handle hoveredPoint changing to null before timer fires", () => {
+    it('should handle hoveredPoint changing to null before timer fires', () => {
       const isAutoHoverActiveRef = { current: true };
       const existingHoverState: ChartHoverState = {
         x: 100,
         y: 50,
         value: 25,
-        label: "Existing",
+        label: 'Existing',
         index: 0,
       };
 
@@ -539,7 +539,7 @@ describe("useTestAutoHoverEffect", () => {
           }),
         {
           initialProps: { hoveredPoint: existingHoverState },
-        }
+        },
       );
 
       // Manually clear hoveredPoint before timer fires
@@ -554,14 +554,14 @@ describe("useTestAutoHoverEffect", () => {
       expect(mockSetHoveredPoint).not.toHaveBeenCalled();
     });
 
-    it("should clear timer when user manually hovers (isAutoHoverActiveRef becomes false) while auto-timer is running", () => {
+    it('should clear timer when user manually hovers (isAutoHoverActiveRef becomes false) while auto-timer is running', () => {
       // Scenario: Auto-populate creates hover and sets a timer, then user manually hovers
       const isAutoHoverActiveRef = { current: false };
       const userHoverState: ChartHoverState = {
         x: 200,
         y: 100,
         value: 50,
-        label: "User-hovered",
+        label: 'User-hovered',
         index: 1,
       };
 
@@ -579,7 +579,7 @@ describe("useTestAutoHoverEffect", () => {
           }),
         {
           initialProps: { hoveredPoint: null },
-        }
+        },
       );
 
       // Auto-populate should have triggered

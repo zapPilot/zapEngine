@@ -1,11 +1,11 @@
-import { Copy, Edit2, Lock, Plus, Star } from "lucide-react";
-import { type ReactElement, useCallback, useMemo, useState } from "react";
+import { Copy, Edit2, Lock, Plus, Star } from 'lucide-react';
+import { type ReactElement, useCallback, useMemo, useState } from 'react';
 
-import { useSetDefaultStrategyConfig } from "@/hooks/mutations";
-import { useToast } from "@/providers/ToastProvider";
-import type { SavedStrategyConfig } from "@/types";
+import { useSetDefaultStrategyConfig } from '@/hooks/mutations';
+import { useToast } from '@/providers/ToastProvider';
+import type { SavedStrategyConfig } from '@/types';
 
-import { SetDefaultConfirmModal } from "./SetDefaultConfirmModal";
+import { SetDefaultConfirmModal } from './SetDefaultConfirmModal';
 
 interface ConfigListViewProps {
   configs: SavedStrategyConfig[];
@@ -22,20 +22,20 @@ interface ConfigActionHandlers {
 
 const ACTION_STYLES = {
   desktop: {
-    wrap: "flex justify-end gap-2",
-    edit: "rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors",
+    wrap: 'flex justify-end gap-2',
+    edit: 'rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors',
     setDefault:
-      "rounded p-1.5 text-gray-400 hover:bg-emerald-900/50 hover:text-emerald-400 transition-colors",
+      'rounded p-1.5 text-gray-400 hover:bg-emerald-900/50 hover:text-emerald-400 transition-colors',
     duplicate:
-      "rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors",
+      'rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors',
   },
   mobile: {
-    wrap: "flex gap-2 border-t border-gray-800 pt-3",
-    edit: "rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors",
+    wrap: 'flex gap-2 border-t border-gray-800 pt-3',
+    edit: 'rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors',
     setDefault:
-      "rounded-lg border border-emerald-700 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-900/30 transition-colors",
+      'rounded-lg border border-emerald-700 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-900/30 transition-colors',
     duplicate:
-      "rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors",
+      'rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors',
   },
 } as const;
 
@@ -46,11 +46,11 @@ function ConfigActions({
 }: {
   config: SavedStrategyConfig;
   handlers: ConfigActionHandlers;
-  variant: "desktop" | "mobile";
+  variant: 'desktop' | 'mobile';
 }): ReactElement | null {
   if (config.is_benchmark) return null;
   const s = ACTION_STYLES[variant];
-  const showIcon = variant === "desktop";
+  const showIcon = variant === 'desktop';
   return (
     <div className={s.wrap}>
       <button
@@ -58,7 +58,7 @@ function ConfigActions({
         title="Edit"
         className={s.edit}
       >
-        {showIcon ? <Edit2 className="h-4 w-4" /> : "Edit"}
+        {showIcon ? <Edit2 className="h-4 w-4" /> : 'Edit'}
       </button>
       {config.supports_daily_suggestion && !config.is_default && (
         <button
@@ -66,7 +66,7 @@ function ConfigActions({
           title="Set as Default"
           className={s.setDefault}
         >
-          {showIcon ? <Star className="h-4 w-4" /> : "Set Default"}
+          {showIcon ? <Star className="h-4 w-4" /> : 'Set Default'}
         </button>
       )}
       <button
@@ -74,7 +74,7 @@ function ConfigActions({
         title="Duplicate"
         className={s.duplicate}
       >
-        {showIcon ? <Copy className="h-4 w-4" /> : "Duplicate"}
+        {showIcon ? <Copy className="h-4 w-4" /> : 'Duplicate'}
       </button>
     </div>
   );
@@ -127,8 +127,8 @@ export function ConfigListView({
     useState<SavedStrategyConfig | null>(null);
 
   const currentDefault = useMemo(
-    () => configs.find(c => c.is_default),
-    [configs]
+    () => configs.find((c) => c.is_default),
+    [configs],
   );
 
   const handleSetDefault = useCallback((config: SavedStrategyConfig) => {
@@ -140,23 +140,23 @@ export function ConfigListView({
     try {
       await setDefaultMutation.mutateAsync(confirmTarget.config_id);
       showToast({
-        type: "success",
-        title: "Default updated",
+        type: 'success',
+        title: 'Default updated',
         message: `"${confirmTarget.display_name}" is now the default configuration.`,
       });
       setConfirmTarget(null);
     } catch (err) {
       showToast({
-        type: "error",
-        title: "Failed to set default",
-        message: err instanceof Error ? err.message : "Unknown error",
+        type: 'error',
+        title: 'Failed to set default',
+        message: err instanceof Error ? err.message : 'Unknown error',
       });
     }
   }, [confirmTarget, setDefaultMutation, showToast]);
 
   const actionHandlers: ConfigActionHandlers = useMemo(
     () => ({ onEdit, onDuplicate, onSetDefault: handleSetDefault }),
-    [onEdit, onDuplicate, handleSetDefault]
+    [onEdit, onDuplicate, handleSetDefault],
   );
 
   return (
@@ -189,11 +189,11 @@ export function ConfigListView({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
-            {configs.map(config => (
+            {configs.map((config) => (
               <tr
                 key={config.config_id}
                 className={`hover:bg-gray-800/30 transition-colors ${
-                  config.is_benchmark ? "opacity-60" : ""
+                  config.is_benchmark ? 'opacity-60' : ''
                 }`}
               >
                 <td className="px-4 py-3 font-mono text-xs text-gray-400">
@@ -224,11 +224,11 @@ export function ConfigListView({
 
       {/* Mobile Cards */}
       <div className="lg:hidden space-y-3">
-        {configs.map(config => (
+        {configs.map((config) => (
           <div
             key={config.config_id}
             className={`rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-3 ${
-              config.is_benchmark ? "opacity-60" : ""
+              config.is_benchmark ? 'opacity-60' : ''
             }`}
           >
             <div className="flex items-start justify-between">
@@ -266,8 +266,8 @@ export function ConfigListView({
         onClose={() => setConfirmTarget(null)}
         onConfirm={handleConfirmSetDefault}
         isPending={setDefaultMutation.isPending}
-        currentDefaultName={currentDefault?.display_name ?? "None"}
-        targetConfigName={confirmTarget?.display_name ?? ""}
+        currentDefaultName={currentDefault?.display_name ?? 'None'}
+        targetConfigName={confirmTarget?.display_name ?? ''}
       />
     </div>
   );

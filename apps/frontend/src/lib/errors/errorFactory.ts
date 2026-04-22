@@ -10,13 +10,13 @@
 // =============================================================================
 
 const MESSAGE_CANDIDATE_KEYS = [
-  "message",
-  "error",
-  "error_description",
-  "detail",
-  "title",
-  "description",
-  "reason",
+  'message',
+  'error',
+  'error_description',
+  'detail',
+  'title',
+  'description',
+  'reason',
 ] as const;
 
 interface NormalizedMessageResult {
@@ -26,24 +26,24 @@ interface NormalizedMessageResult {
 
 function normalizePrimitiveValue(
   value: unknown,
-  fallback: string
+  fallback: string,
 ): NormalizedMessageResult | null {
   if (value === undefined || value === null) {
     return { value: fallback, found: false };
   }
 
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed || trimmed === "[object Object]") {
+    if (!trimmed || trimmed === '[object Object]') {
       return { value: fallback, found: false };
     }
     return { value: trimmed, found: true };
   }
 
   if (
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    typeof value === "bigint"
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
   ) {
     return { value: String(value), found: true };
   }
@@ -54,18 +54,18 @@ function normalizePrimitiveValue(
 function normalizeErrorInstance(
   error: Error,
   fallback: string,
-  seen: WeakSet<object>
+  seen: WeakSet<object>,
 ): NormalizedMessageResult {
   const messageResult = normalizeErrorMessage(error.message, fallback, seen);
   if (messageResult.found) {
     return messageResult;
   }
 
-  if ("cause" in error && (error as { cause?: unknown }).cause !== undefined) {
+  if ('cause' in error && (error as { cause?: unknown }).cause !== undefined) {
     const causeResult = normalizeErrorMessage(
       (error as { cause?: unknown }).cause,
       fallback,
-      seen
+      seen,
     );
     if (causeResult.found) {
       return causeResult;
@@ -78,7 +78,7 @@ function normalizeErrorInstance(
 function normalizeObjectValue(
   value: Record<string, unknown>,
   fallback: string,
-  seen: WeakSet<object>
+  seen: WeakSet<object>,
 ): NormalizedMessageResult {
   if (seen.has(value)) {
     return { value: fallback, found: false };
@@ -114,7 +114,7 @@ function normalizeObjectValue(
 function normalizeErrorMessage(
   value: unknown,
   fallback: string,
-  seen = new WeakSet<object>()
+  seen = new WeakSet<object>(),
 ): NormalizedMessageResult {
   const primitiveResult = normalizePrimitiveValue(value, fallback);
   if (primitiveResult) {
@@ -125,11 +125,11 @@ function normalizeErrorMessage(
     return normalizeErrorInstance(value, fallback, seen);
   }
 
-  if (typeof value === "object" && value !== null) {
+  if (typeof value === 'object' && value !== null) {
     return normalizeObjectValue(
       value as Record<string, unknown>,
       fallback,
-      seen
+      seen,
     );
   }
 

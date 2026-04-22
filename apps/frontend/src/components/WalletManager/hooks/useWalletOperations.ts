@@ -3,21 +3,21 @@ import {
   type SetStateAction,
   useCallback,
   useState,
-} from "react";
+} from 'react';
 
-import { useAccountDeletion } from "@/hooks/wallet/useAccountDeletion";
-import { useWalletLabels } from "@/hooks/wallet/useWalletLabels";
-import { useWalletList } from "@/hooks/wallet/useWalletList";
-import { useWalletMutations } from "@/hooks/wallet/useWalletMutations";
+import { useAccountDeletion } from '@/hooks/wallet/useAccountDeletion';
+import { useWalletLabels } from '@/hooks/wallet/useWalletLabels';
+import { useWalletList } from '@/hooks/wallet/useWalletList';
+import { useWalletMutations } from '@/hooks/wallet/useWalletMutations';
 import {
   handleWalletError,
   type WalletData,
-} from "@/lib/validation/walletUtils";
-import { useToast } from "@/providers/ToastProvider";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import type { EditingWallet, NewWallet, WalletOperations } from "@/types";
-import { copyTextToClipboard } from "@/utils/clipboard";
-import { formatAddress } from "@/utils/formatters";
+} from '@/lib/validation/walletUtils';
+import { useToast } from '@/providers/ToastProvider';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import type { EditingWallet, NewWallet, WalletOperations } from '@/types';
+import { copyTextToClipboard } from '@/utils/clipboard';
+import { formatAddress } from '@/utils/formatters';
 
 const EMPTY_CONNECTED_WALLETS: WalletData[] = [];
 
@@ -29,28 +29,28 @@ interface UseWalletOperationsParams {
 }
 
 interface UseWalletOperationsReturn {
-  wallets: ReturnType<typeof useWalletList>["wallets"];
+  wallets: ReturnType<typeof useWalletList>['wallets'];
   operations: WalletOperations;
-  isRefreshing: ReturnType<typeof useWalletList>["isRefreshing"];
+  isRefreshing: ReturnType<typeof useWalletList>['isRefreshing'];
   isAdding: boolean;
   editingWallet: EditingWallet | null;
   newWallet: NewWallet;
   validationError: string | null;
-  isDeletingAccount: ReturnType<typeof useAccountDeletion>["isDeletingAccount"];
+  isDeletingAccount: ReturnType<typeof useAccountDeletion>['isDeletingAccount'];
   setIsAdding: Dispatch<SetStateAction<boolean>>;
   setEditingWallet: Dispatch<SetStateAction<EditingWallet | null>>;
   setNewWallet: Dispatch<SetStateAction<NewWallet>>;
   setValidationError: Dispatch<SetStateAction<string | null>>;
-  loadWallets: ReturnType<typeof useWalletList>["loadWallets"];
+  loadWallets: ReturnType<typeof useWalletList>['loadWallets'];
   handleDeleteWallet: ReturnType<
     typeof useWalletMutations
-  >["handleDeleteWallet"];
-  handleEditLabel: ReturnType<typeof useWalletLabels>["handleEditLabel"];
+  >['handleDeleteWallet'];
+  handleEditLabel: ReturnType<typeof useWalletLabels>['handleEditLabel'];
   handleAddWallet: () => Promise<void>;
   handleCopyAddress: (address: string) => Promise<void>;
   handleDeleteAccount: ReturnType<
     typeof useAccountDeletion
-  >["handleDeleteAccount"];
+  >['handleDeleteAccount'];
   handleSwitchWallet: (walletAddress: string) => Promise<void>;
 }
 
@@ -86,21 +86,21 @@ export function useWalletOperations({
   });
   const [isAdding, setIsAdding] = useState(false);
   const [editingWallet, setEditingWallet] = useState<EditingWallet | null>(
-    null
+    null,
   );
   const [newWallet, setNewWallet] = useState<NewWallet>({
-    address: "",
-    label: "",
+    address: '',
+    label: '',
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const setWalletOperationState = useCallback(
     (
-      key: "removing" | "editing",
+      key: 'removing' | 'editing',
       walletId: string,
-      state: { isLoading: boolean; error: string | null }
+      state: { isLoading: boolean; error: string | null },
     ) => {
-      setOperations(prev => ({
+      setOperations((prev) => ({
         ...prev,
         [key]: {
           ...prev[key],
@@ -108,7 +108,7 @@ export function useWalletOperations({
         },
       }));
     },
-    []
+    [],
   );
 
   // Compose focused hooks
@@ -147,7 +147,7 @@ export function useWalletOperations({
     if (result.success) {
       // Reset form and close adding mode
       setIsAdding(false);
-      setNewWallet({ address: "", label: "" });
+      setNewWallet({ address: '', label: '' });
       setValidationError(null);
     } else if (result.error) {
       setValidationError(result.error);
@@ -160,13 +160,13 @@ export function useWalletOperations({
       const success = await copyTextToClipboard(address);
       if (success) {
         showToast({
-          type: "success",
-          title: "Address Copied",
+          type: 'success',
+          title: 'Address Copied',
           message: `${formatAddress(address)} copied to clipboard`,
         });
       }
     },
-    [showToast]
+    [showToast],
   );
 
   // Handle wallet switching (V22 Phase 2B)
@@ -176,8 +176,8 @@ export function useWalletOperations({
         await switchActiveWallet(walletAddress);
 
         showToast({
-          type: "success",
-          title: "Wallet Switched",
+          type: 'success',
+          title: 'Wallet Switched',
           message: `Active wallet changed to ${formatAddress(walletAddress)}`,
         });
 
@@ -186,13 +186,13 @@ export function useWalletOperations({
       } catch (error) {
         const errorMessage = handleWalletError(error);
         showToast({
-          type: "error",
-          title: "Switch Failed",
+          type: 'error',
+          title: 'Switch Failed',
           message: errorMessage,
         });
       }
     },
-    [switchActiveWallet, showToast, walletList]
+    [switchActiveWallet, showToast, walletList],
   );
 
   return {

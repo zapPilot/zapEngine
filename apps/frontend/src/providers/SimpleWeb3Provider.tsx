@@ -1,7 +1,7 @@
-import { type ReactNode } from "react";
-import { WagmiProvider } from "wagmi";
+import { type ReactNode } from 'react';
+import { WagmiProvider } from 'wagmi';
 
-import { wagmiConfig } from "@/config/wagmi";
+import { wagmiConfig } from '@/config/wagmi';
 
 interface SimpleWeb3ProviderProps {
   children: ReactNode;

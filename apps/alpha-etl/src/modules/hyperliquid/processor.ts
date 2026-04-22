@@ -1,39 +1,39 @@
 import {
+  createEmptyWriteResult,
+  type WriteResult,
+} from '../../core/database/baseWriter.js';
+import {
   type BaseETLProcessor,
   type ETLProcessResult,
+  executeETLFlow,
   type HealthCheckResult,
   withValidatedJob,
-  executeETLFlow,
-} from "../../core/processors/baseETLProcessor.js";
-import { wrapCompositeHealthCheck } from "../../utils/healthCheck.js";
-import { HyperliquidFetcher } from "../../modules/hyperliquid/fetcher.js";
+} from '../../core/processors/baseETLProcessor.js';
+import { HyperliquidFetcher } from '../../modules/hyperliquid/fetcher.js';
 import {
+  collectUserTransformResult,
   type HyperliquidProcessSummary,
   type HyperliquidTransformBatch,
   type HyperliquidUserTransformResult,
-  collectUserTransformResult,
   updateProcessSummary,
-} from "../../modules/hyperliquid/processor.helpers.js";
-import {
-  createEmptyWriteResult,
-  type WriteResult,
-} from "../../core/database/baseWriter.js";
-import { HyperliquidDataTransformer } from "../../modules/hyperliquid/transformer.js";
+} from '../../modules/hyperliquid/processor.helpers.js';
+import { HyperliquidDataTransformer } from '../../modules/hyperliquid/transformer.js';
 import {
   fetchAndFilterVipUsersForProcessing,
   updatePortfolioTimestampsNonFatal,
-} from "../../modules/vip-users/processing.js";
-import { SupabaseFetcher } from "../../modules/vip-users/supabaseFetcher.js";
-import { PortfolioItemWriter } from "../../modules/wallet/portfolioWriter.js";
-import type { ETLJob, VipUserWithActivity } from "../../types/index.js";
+} from '../../modules/vip-users/processing.js';
+import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
-} from "../../types/database.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import { logger } from "../../utils/logger.js";
-import { maskWalletAddress } from "../../utils/mask.js";
-import { HyperliquidVaultAprWriter } from "./aprWriter.js";
+} from '../../types/database.js';
+import type { ETLJob, VipUserWithActivity } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { wrapCompositeHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
+import { HyperliquidVaultAprWriter } from './aprWriter.js';
 
 export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   private readonly hyperliquidFetcher: HyperliquidFetcher;
@@ -51,7 +51,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   }
 
   getSourceType(): string {
-    return "hyperliquid";
+    return 'hyperliquid';
   }
 
   async process(job: ETLJob): Promise<ETLProcessResult> {
@@ -61,12 +61,12 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       aprSnapshots: 0,
     };
 
-    return withValidatedJob(job, "hyperliquid", async () => {
-      logger.info("Processing Hyperliquid vault data", { jobId: job.jobId });
+    return withValidatedJob(job, 'hyperliquid', async () => {
+      logger.info('Processing Hyperliquid vault data', { jobId: job.jobId });
 
       const result = await this.executeProcessFlow(job, summary);
 
-      logger.info("Hyperliquid processing completed", {
+      logger.info('Hyperliquid processing completed', {
         jobId: job.jobId,
         usersProcessed: summary.usersProcessed,
         positionsTransformed: summary.positionsTransformed,
@@ -84,7 +84,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   ): Promise<ETLProcessResult> {
     return executeETLFlow<VipUserWithActivity, HyperliquidTransformBatch>(
       job,
-      "hyperliquid",
+      'hyperliquid',
       this.fetchUsersToUpdate.bind(this, job.jobId),
       async (usersToUpdate) => {
         const batch = await this.transformUsers(usersToUpdate, job.jobId);
@@ -106,7 +106,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     const { usersToUpdate } = await fetchAndFilterVipUsersForProcessing(
       this.supabaseFetcher,
       jobId,
-      "No VIP users returned for Hyperliquid processing",
+      'No VIP users returned for Hyperliquid processing',
     );
     return usersToUpdate;
   }
@@ -170,25 +170,25 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         const aprSnapshot = this.transformer.transformApr(aprData, details);
         return {
           successfulWallet: user.wallet,
-          positionRecord: transformedPosition ?? undefined,
+          ...(transformedPosition && { positionRecord: transformedPosition }),
           aprSnapshot,
         };
       } catch (aprError) {
         const message = toErrorMessage(aprError);
-        logger.error("Hyperliquid APR transformation failed", {
+        logger.error('Hyperliquid APR transformation failed', {
           jobId,
           vault: aprData.vaultAddress,
           error: message,
         });
         return {
           successfulWallet: user.wallet,
-          positionRecord: transformedPosition ?? undefined,
+          ...(transformedPosition && { positionRecord: transformedPosition }),
           errorMessage: message,
         };
       }
     } catch (error) {
       const message = toErrorMessage(error);
-      logger.error("Failed to process Hyperliquid vault for user", {
+      logger.error('Failed to process Hyperliquid vault for user', {
         jobId,
         userId: user.user_id,
         wallet: maskWalletAddress(user.wallet),
@@ -252,10 +252,10 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   async healthCheck(): Promise<HealthCheckResult> {
     return wrapCompositeHealthCheck([
       {
-        label: "Hyperliquid",
+        label: 'Hyperliquid',
         check: () => this.hyperliquidFetcher.healthCheck(),
       },
-      { label: "Supabase", check: () => this.supabaseFetcher.healthCheck() },
+      { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
     ]);
   }
 

@@ -1,7 +1,7 @@
-import { motion } from "framer-motion";
-import type { ReactNode } from "react";
+import { motion } from 'framer-motion';
+import type { ReactNode } from 'react';
 
-import type { ComponentSize, SpinnerVariant } from "@/types/ui/ui.types";
+import type { ComponentSize, SpinnerVariant } from '@/types/ui/ui.types';
 
 import {
   ARIA_HIDDEN_PROP,
@@ -13,7 +13,7 @@ import {
   type LoadingColor,
   sizeClasses,
   SR_ONLY_CLASS,
-} from "./constants";
+} from './constants';
 
 export interface SpinnerProps extends BaseLoadingProps {
   size?: ComponentSize;
@@ -24,11 +24,11 @@ export interface SpinnerProps extends BaseLoadingProps {
 
 interface SpinnerContainerProps {
   className: string;
-  "data-testid": string;
-  "data-size": ComponentSize;
-  role?: "status";
-  "aria-label"?: string;
-  "aria-hidden"?: boolean | "true" | "false";
+  'data-testid': string;
+  'data-size': ComponentSize;
+  role?: 'status';
+  'aria-label'?: string;
+  'aria-hidden'?: boolean | 'true' | 'false';
 }
 
 function buildContainerProps(
@@ -36,13 +36,13 @@ function buildContainerProps(
   className: string,
   testId: string,
   finalAriaLabel: string,
-  ariaHidden: boolean | "true" | "false" | undefined
+  ariaHidden: boolean | 'true' | 'false' | undefined,
 ): SpinnerContainerProps {
-  const isHidden = ariaHidden === true || ariaHidden === "true";
+  const isHidden = ariaHidden === true || ariaHidden === 'true';
   const baseProps: SpinnerContainerProps = {
     className: `inline-flex items-center ${sizeClasses[size]} ${className}`,
     [DATA_TEST_ID_PROP]: testId,
-    "data-size": size,
+    'data-size': size,
   };
 
   if (isHidden) {
@@ -54,7 +54,7 @@ function buildContainerProps(
 
   return {
     ...baseProps,
-    role: "status",
+    role: 'status',
     [ARIA_LABEL_PROP]: finalAriaLabel,
   };
 }
@@ -62,7 +62,7 @@ function buildContainerProps(
 function renderDotsSpinner(color: LoadingColor): ReactNode {
   return (
     <div className="flex items-center space-x-1">
-      {[0, 1, 2].map(i => (
+      {[0, 1, 2].map((i) => (
         <motion.div
           key={i}
           className={`w-2 h-2 ${colorClasses[color]} bg-current rounded-full`}
@@ -80,7 +80,7 @@ function renderDotsSpinner(color: LoadingColor): ReactNode {
 
 function renderPulseSpinner(
   size: ComponentSize,
-  color: LoadingColor
+  color: LoadingColor,
 ): ReactNode {
   return (
     <motion.div
@@ -89,7 +89,7 @@ function renderPulseSpinner(
       transition={{
         duration: 1,
         repeat: Infinity,
-        ease: "easeInOut",
+        ease: 'easeInOut',
       }}
     />
   );
@@ -97,7 +97,7 @@ function renderPulseSpinner(
 
 function renderDefaultSpinner(
   size: ComponentSize,
-  color: LoadingColor
+  color: LoadingColor,
 ): ReactNode {
   return (
     <motion.svg
@@ -109,7 +109,7 @@ function renderDefaultSpinner(
       transition={{
         duration: 1,
         repeat: Infinity,
-        ease: "linear",
+        ease: 'linear',
       }}
     >
       <circle
@@ -138,12 +138,12 @@ function renderDefaultSpinner(
 function renderSpinnerVisual(
   variant: SpinnerVariant,
   size: ComponentSize,
-  color: LoadingColor
+  color: LoadingColor,
 ): ReactNode {
   switch (variant) {
-    case "dots":
+    case 'dots':
       return renderDotsSpinner(color);
-    case "pulse":
+    case 'pulse':
       return renderPulseSpinner(size, color);
     default:
       return renderDefaultSpinner(size, color);
@@ -151,14 +151,14 @@ function renderSpinnerVisual(
 }
 
 export function Spinner({
-  size = "md",
-  color = "primary",
-  variant = "default",
-  className = "",
+  size = 'md',
+  color = 'primary',
+  variant = 'default',
+  className = '',
   label = DEFAULT_SPINNER_LABEL,
   [ARIA_LABEL_PROP]: ariaLabel,
   [ARIA_HIDDEN_PROP]: ariaHidden,
-  [DATA_TEST_ID_PROP]: testId = "loading-spinner",
+  [DATA_TEST_ID_PROP]: testId = 'loading-spinner',
 }: SpinnerProps) {
   const finalAriaLabel = ariaLabel ?? label;
   const containerProps = buildContainerProps(
@@ -166,7 +166,7 @@ export function Spinner({
     className,
     testId,
     finalAriaLabel,
-    ariaHidden
+    ariaHidden,
   );
 
   return (

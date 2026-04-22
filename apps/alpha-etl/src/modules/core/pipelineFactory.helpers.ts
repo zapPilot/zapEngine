@@ -1,5 +1,5 @@
-import type { BaseBatchResult, DataSource } from "../../types/index.js";
-import type { ETLProcessResult } from "../../core/processors/baseETLProcessor.js";
+import type { ETLProcessResult } from '../../core/processors/baseETLProcessor.js';
+import type { BaseBatchResult, DataSource } from '../../types/index.js';
 
 export interface ETLJobProcessingResult extends BaseBatchResult {
   recordsProcessed: number;
@@ -7,10 +7,10 @@ export interface ETLJobProcessingResult extends BaseBatchResult {
 }
 
 export interface ProcessorHealthSummary {
-  status: "healthy" | "unhealthy";
+  status: 'healthy' | 'unhealthy';
   sources: Record<
     DataSource,
-    { status: "healthy" | "unhealthy"; details?: string }
+    { status: 'healthy' | 'unhealthy'; details?: string }
   >;
 }
 

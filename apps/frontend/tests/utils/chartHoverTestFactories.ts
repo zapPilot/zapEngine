@@ -3,7 +3,7 @@
  * Provides builders for all chart types with proper TypeScript inference
  */
 
-import type { UseChartHoverOptions } from "@/hooks/ui/useChartHover";
+import type { UseChartHoverOptions } from '@/hooks/ui/useChartHover';
 import type {
   AllocationHoverData,
   ChartHoverState,
@@ -11,11 +11,11 @@ import type {
   PerformanceHoverData,
   SharpeHoverData,
   VolatilityHoverData,
-} from "@/types";
+} from '@/types';
 import type {
   AssetAllocationPoint,
   PortfolioDataPoint,
-} from "@/types/portfolio";
+} from '@/types/portfolio';
 
 /**
  * Base factory interface for creating typed test data
@@ -33,7 +33,7 @@ interface BaseChartDataFactory<T> {
 export const PortfolioDataFactory: BaseChartDataFactory<PortfolioDataPoint> = {
   createPoint(overrides = {}) {
     return {
-      date: "2025-01-01",
+      date: '2025-01-01',
       value: 10000,
       change: 0,
       protocols: [],
@@ -44,11 +44,11 @@ export const PortfolioDataFactory: BaseChartDataFactory<PortfolioDataPoint> = {
 
   createPoints(count, generator) {
     return Array.from({ length: count }, (_, i) => {
-      const baseDate = new Date("2025-01-01");
+      const baseDate = new Date('2025-01-01');
       baseDate.setDate(baseDate.getDate() + i);
 
       return this.createPoint({
-        date: baseDate.toISOString().split("T")[0],
+        date: baseDate.toISOString().split('T')[0],
         value: 10000 + i * 100,
         change: i * 0.01,
         ...(generator ? generator(i) : {}),
@@ -64,7 +64,7 @@ export const AllocationDataFactory: BaseChartDataFactory<AssetAllocationPoint> =
   {
     createPoint(overrides = {}) {
       return {
-        date: "2025-01-01",
+        date: '2025-01-01',
         btc: 40,
         eth: 30,
         stablecoin: 15,
@@ -76,11 +76,11 @@ export const AllocationDataFactory: BaseChartDataFactory<AssetAllocationPoint> =
 
     createPoints(count, generator) {
       return Array.from({ length: count }, (_, i) => {
-        const baseDate = new Date("2025-01-01");
+        const baseDate = new Date('2025-01-01');
         baseDate.setDate(baseDate.getDate() + i);
 
         return this.createPoint({
-          date: baseDate.toISOString().split("T")[0],
+          date: baseDate.toISOString().split('T')[0],
           ...(generator ? generator(i) : {}),
         });
       });
@@ -104,7 +104,7 @@ export interface DrawdownDataPoint {
 export const DrawdownDataFactory: BaseChartDataFactory<DrawdownDataPoint> = {
   createPoint(overrides = {}) {
     return {
-      date: "2025-01-01",
+      date: '2025-01-01',
       drawdown_pct: -5,
       portfolio_value: 10000,
       ...overrides,
@@ -113,11 +113,11 @@ export const DrawdownDataFactory: BaseChartDataFactory<DrawdownDataPoint> = {
 
   createPoints(count, generator) {
     return Array.from({ length: count }, (_, i) => {
-      const baseDate = new Date("2025-01-01");
+      const baseDate = new Date('2025-01-01');
       baseDate.setDate(baseDate.getDate() + i);
 
       return this.createPoint({
-        date: baseDate.toISOString().split("T")[0],
+        date: baseDate.toISOString().split('T')[0],
         drawdown_pct: -5 - i * 0.5,
         portfolio_value: 10000 - i * 50,
         ...(generator ? generator(i) : {}),
@@ -137,7 +137,7 @@ export interface SharpeDataPoint {
 export const SharpeDataFactory: BaseChartDataFactory<SharpeDataPoint> = {
   createPoint(overrides = {}) {
     return {
-      date: "2025-01-01",
+      date: '2025-01-01',
       rolling_sharpe_ratio: 1.5,
       ...overrides,
     };
@@ -145,11 +145,11 @@ export const SharpeDataFactory: BaseChartDataFactory<SharpeDataPoint> = {
 
   createPoints(count, generator) {
     return Array.from({ length: count }, (_, i) => {
-      const baseDate = new Date("2025-01-01");
+      const baseDate = new Date('2025-01-01');
       baseDate.setDate(baseDate.getDate() + i);
 
       return this.createPoint({
-        date: baseDate.toISOString().split("T")[0],
+        date: baseDate.toISOString().split('T')[0],
         rolling_sharpe_ratio: 1.5 + (Math.random() - 0.5) * 0.5,
         ...(generator ? generator(i) : {}),
       });
@@ -169,7 +169,7 @@ export const VolatilityDataFactory: BaseChartDataFactory<VolatilityDataPoint> =
   {
     createPoint(overrides = {}) {
       return {
-        date: "2025-01-01",
+        date: '2025-01-01',
         annualized_volatility_pct: 25,
         ...overrides,
       };
@@ -177,11 +177,11 @@ export const VolatilityDataFactory: BaseChartDataFactory<VolatilityDataPoint> =
 
     createPoints(count, generator) {
       return Array.from({ length: count }, (_, i) => {
-        const baseDate = new Date("2025-01-01");
+        const baseDate = new Date('2025-01-01');
         baseDate.setDate(baseDate.getDate() + i);
 
         return this.createPoint({
-          date: baseDate.toISOString().split("T")[0],
+          date: baseDate.toISOString().split('T')[0],
           annualized_volatility_pct: 25 + (Math.random() - 0.5) * 10,
           ...(generator ? generator(i) : {}),
         });
@@ -199,16 +199,16 @@ export const HoverDataBuilders = {
   performance(
     point: PortfolioDataPoint,
     x: number,
-    y: number
+    y: number,
   ): PerformanceHoverData {
     return {
-      chartType: "performance" as const,
+      chartType: 'performance' as const,
       x,
       y,
-      date: new Date(point.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      date: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       }),
       value: point.value,
     };
@@ -220,18 +220,18 @@ export const HoverDataBuilders = {
   allocation(
     point: AssetAllocationPoint,
     x: number,
-    y: number
+    y: number,
   ): AllocationHoverData {
     const total =
       point.btc + point.eth + point.stablecoin + point.defi + point.altcoin;
     return {
-      chartType: "asset-allocation" as const,
+      chartType: 'asset-allocation' as const,
       x,
       y,
-      date: new Date(point.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      date: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       }),
       btc: total > 0 ? (point.btc / total) * 100 : 0,
       eth: total > 0 ? (point.eth / total) * 100 : 0,
@@ -248,30 +248,30 @@ export const HoverDataBuilders = {
     x: number,
     y: number,
     index: number,
-    allPoints: DrawdownDataPoint[]
+    allPoints: DrawdownDataPoint[],
   ): DrawdownHoverData {
     const priorData = allPoints.slice(0, index + 1);
-    const peak = Math.max(...priorData.map(p => p.portfolio_value));
-    const peakIndex = priorData.findIndex(p => p.portfolio_value === peak);
+    const peak = Math.max(...priorData.map((p) => p.portfolio_value));
+    const peakIndex = priorData.findIndex((p) => p.portfolio_value === peak);
     const peakDate = priorData[peakIndex]?.date || point.date;
 
     return {
-      chartType: "drawdown-recovery" as const,
+      chartType: 'drawdown-recovery' as const,
       x,
       y,
-      date: new Date(point.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      date: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       }),
       drawdown: point.drawdown_pct,
       peakDate: new Date(point.peak_date ?? peakDate).toLocaleDateString(
-        "en-US",
+        'en-US',
         {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        },
       ),
       distanceFromPeak: point.days_from_peak ?? index - peakIndex,
       isRecoveryPoint:
@@ -286,28 +286,28 @@ export const HoverDataBuilders = {
    */
   sharpe(point: SharpeDataPoint, x: number, y: number): SharpeHoverData {
     const sharpe = point.rolling_sharpe_ratio || 0;
-    let interpretation: SharpeHoverData["interpretation"];
+    let interpretation: SharpeHoverData['interpretation'];
 
     if (sharpe >= 2.0) {
-      interpretation = "Excellent";
+      interpretation = 'Excellent';
     } else if (sharpe >= 1.5) {
-      interpretation = "Good";
+      interpretation = 'Good';
     } else if (sharpe >= 1.0) {
-      interpretation = "Fair";
+      interpretation = 'Fair';
     } else if (sharpe >= 0.5) {
-      interpretation = "Poor";
+      interpretation = 'Poor';
     } else {
-      interpretation = "Very Poor";
+      interpretation = 'Very Poor';
     }
 
     return {
-      chartType: "sharpe" as const,
+      chartType: 'sharpe' as const,
       x,
       y,
-      date: new Date(point.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      date: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       }),
       sharpe,
       interpretation,
@@ -320,29 +320,29 @@ export const HoverDataBuilders = {
   volatility(
     point: VolatilityDataPoint,
     x: number,
-    y: number
+    y: number,
   ): VolatilityHoverData {
     const vol = point.annualized_volatility_pct || 0;
-    let riskLevel: VolatilityHoverData["riskLevel"];
+    let riskLevel: VolatilityHoverData['riskLevel'];
 
     if (vol >= 35) {
-      riskLevel = "Very High";
+      riskLevel = 'Very High';
     } else if (vol >= 25) {
-      riskLevel = "High";
+      riskLevel = 'High';
     } else if (vol >= 15) {
-      riskLevel = "Moderate";
+      riskLevel = 'Moderate';
     } else {
-      riskLevel = "Low";
+      riskLevel = 'Low';
     }
 
     return {
-      chartType: "volatility" as const,
+      chartType: 'volatility' as const,
       x,
       y,
-      date: new Date(point.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      date: new Date(point.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       }),
       volatility: vol,
       riskLevel,
@@ -368,7 +368,7 @@ function createChartHoverOptions<T>(config: {
     point: T,
     x: number,
     y: number,
-    index: number
+    index: number,
   ) => ChartHoverState;
   enabled?: boolean;
 }): UseChartHoverOptions<T> {
@@ -390,14 +390,14 @@ function createChartHoverOptions<T>(config: {
  */
 export const ChartHoverOptionsFactory = {
   performance(data: PortfolioDataPoint[]) {
-    const minValue = Math.min(...data.map(d => d.value));
-    const maxValue = Math.max(...data.map(d => d.value));
+    const minValue = Math.min(...data.map((d) => d.value));
+    const maxValue = Math.max(...data.map((d) => d.value));
 
     return createChartHoverOptions<PortfolioDataPoint>({
-      chartType: "performance",
+      chartType: 'performance',
       minValue,
       maxValue,
-      getYValue: point => point.value,
+      getYValue: (point) => point.value,
       buildHoverData: (point, x, y) =>
         HoverDataBuilders.performance(point, x, y),
     });
@@ -405,7 +405,7 @@ export const ChartHoverOptionsFactory = {
 
   allocation() {
     return createChartHoverOptions<AssetAllocationPoint>({
-      chartType: "allocation",
+      chartType: 'allocation',
       minValue: 0,
       maxValue: 100,
       getYValue: () => 50,
@@ -416,10 +416,10 @@ export const ChartHoverOptionsFactory = {
 
   drawdown(data: DrawdownDataPoint[]) {
     return createChartHoverOptions<DrawdownDataPoint>({
-      chartType: "drawdown-recovery",
+      chartType: 'drawdown-recovery',
       minValue: -20,
       maxValue: 0,
-      getYValue: point => point.drawdown_pct,
+      getYValue: (point) => point.drawdown_pct,
       buildHoverData: (point, x, y, index) =>
         HoverDataBuilders.drawdown(point, x, y, index, data),
     });
@@ -427,20 +427,20 @@ export const ChartHoverOptionsFactory = {
 
   sharpe() {
     return createChartHoverOptions<SharpeDataPoint>({
-      chartType: "sharpe",
+      chartType: 'sharpe',
       minValue: 0,
       maxValue: 2.5,
-      getYValue: point => point.rolling_sharpe_ratio,
+      getYValue: (point) => point.rolling_sharpe_ratio,
       buildHoverData: (point, x, y) => HoverDataBuilders.sharpe(point, x, y),
     });
   },
 
   volatility() {
     return createChartHoverOptions<VolatilityDataPoint>({
-      chartType: "volatility",
+      chartType: 'volatility',
       minValue: 10,
       maxValue: 40,
-      getYValue: point => point.annualized_volatility_pct,
+      getYValue: (point) => point.annualized_volatility_pct,
       buildHoverData: (point, x, y) =>
         HoverDataBuilders.volatility(point, x, y),
     });

@@ -1,4 +1,4 @@
-import type { Nullable } from "./index.js";
+import type { Nullable } from './index.js';
 
 export interface PoolAprSnapshotInsert {
   pool_address: Nullable<string>;
@@ -32,37 +32,37 @@ export interface WalletBalanceSnapshotInsert {
   chain: string;
 
   // Token info (optional)
-  name?: Nullable<string>;
-  symbol?: Nullable<string>;
-  display_symbol?: Nullable<string>;
-  optimized_symbol?: Nullable<string>;
-  decimals?: Nullable<number>;
-  logo_url?: Nullable<string>;
-  protocol_id?: Nullable<string>;
+  name?: Nullable<string> | undefined;
+  symbol?: Nullable<string> | undefined;
+  display_symbol?: Nullable<string> | undefined;
+  optimized_symbol?: Nullable<string> | undefined;
+  decimals?: Nullable<number> | undefined;
+  logo_url?: Nullable<string> | undefined;
+  protocol_id?: Nullable<string> | undefined;
 
   // Pricing/flags
-  price?: Nullable<number>;
-  price_24h_change?: Nullable<number>;
-  is_verified?: Nullable<boolean>;
-  is_core?: Nullable<boolean>;
-  is_wallet?: Nullable<boolean>;
+  price?: Nullable<number> | undefined;
+  price_24h_change?: Nullable<number> | undefined;
+  is_verified?: Nullable<boolean> | undefined;
+  is_core?: Nullable<boolean> | undefined;
+  is_wallet?: Nullable<boolean> | undefined;
 
   // Time/supply
-  time_at?: Nullable<number>;
-  inserted_at?: Nullable<string>;
-  total_supply?: Nullable<number>;
-  credit_score?: Nullable<number>;
+  time_at?: Nullable<number> | undefined;
+  inserted_at?: Nullable<string> | undefined;
+  total_supply?: Nullable<number> | undefined;
+  credit_score?: Nullable<number> | undefined;
 
   // Amounts
-  amount?: Nullable<number>;
-  raw_amount?: Nullable<string | number>;
-  raw_amount_hex_str?: Nullable<string>;
+  amount?: Nullable<number> | undefined;
+  raw_amount?: Nullable<string | number> | undefined;
+  raw_amount_hex_str?: Nullable<string> | undefined;
 
   // Optional misc fields for compatibility
-  token_meta?: Nullable<Record<string, unknown>>;
-  raw_data?: Nullable<Record<string, unknown>>;
-  source?: Nullable<string>;
-  snapshot_time?: Nullable<string>;
+  token_meta?: Nullable<Record<string, unknown>> | undefined;
+  raw_data?: Nullable<Record<string, unknown>> | undefined;
+  source?: Nullable<string> | undefined;
+  snapshot_time?: Nullable<string> | undefined;
 
   // Allow passthrough extras safely
   [key: string]: unknown;

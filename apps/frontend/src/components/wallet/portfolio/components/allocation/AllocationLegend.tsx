@@ -11,14 +11,14 @@ interface AllocationLegendProps {
 }
 
 const STYLES = {
-  legend: "flex gap-3 text-[10px] text-gray-400 mt-1",
-  legendItem: "flex items-center gap-1",
-  legendDot: "w-2 h-2 rounded-full",
+  legend: 'flex gap-3 text-[10px] text-gray-400 mt-1',
+  legendItem: 'flex items-center gap-1',
+  legendDot: 'w-2 h-2 rounded-full',
 } as const;
 
 export function AllocationLegend({
   items,
-  className = "",
+  className = '',
 }: AllocationLegendProps) {
   if (items.length === 0) {
     return null;
@@ -29,7 +29,7 @@ export function AllocationLegend({
       className={`${STYLES.legend} ${className}`}
       data-testid="allocation-legend"
     >
-      {items.map(item => (
+      {items.map((item) => (
         <div key={item.symbol} className={STYLES.legendItem}>
           <div
             className={STYLES.legendDot}

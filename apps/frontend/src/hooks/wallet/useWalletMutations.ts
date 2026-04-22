@@ -1,23 +1,23 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { type Dispatch, type SetStateAction, useCallback } from "react";
+import { useQueryClient } from '@tanstack/react-query';
+import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
-import { useUser } from "@/contexts/UserContext";
-import { invalidateAndRefetch } from "@/hooks/utils/useQueryInvalidation";
-import { queryKeys } from "@/lib/state/queryClient";
+import { useUser } from '@/contexts/UserContext';
+import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
+import { queryKeys } from '@/lib/state/queryClient';
 import {
   handleWalletError,
   type WalletData,
-} from "@/lib/validation/walletUtils";
+} from '@/lib/validation/walletUtils';
 import {
   addWallet as addWalletToBundle,
   removeWallet as removeWalletFromBundle,
-} from "@/services";
+} from '@/services';
 import type {
   NewWallet,
   WalletOperations,
   WalletOperationStateSetter,
-} from "@/types";
-import { validateNewWallet } from "@/utils";
+} from '@/types';
+import { validateNewWallet } from '@/utils';
 
 interface UseWalletMutationsParams {
   userId: string;
@@ -36,15 +36,15 @@ interface WalletMutationResult {
 interface UseWalletMutationsReturn {
   handleDeleteWallet: (walletId: string) => Promise<void>;
   handleAddWallet: (newWallet: NewWallet) => Promise<WalletMutationResult>;
-  addingState: WalletOperations["adding"];
+  addingState: WalletOperations['adding'];
 }
 
-const USER_ID_REQUIRED_ERROR = "User ID is required";
-const INVALID_WALLET_DATA_ERROR = "Invalid wallet data";
-const REMOVE_WALLET_ERROR = "Failed to remove wallet";
-const ADD_WALLET_ERROR = "Failed to add wallet";
-const REMOVE_OPERATION_NAME = "wallet removal";
-const ADD_OPERATION_NAME = "adding wallet";
+const USER_ID_REQUIRED_ERROR = 'User ID is required';
+const INVALID_WALLET_DATA_ERROR = 'Invalid wallet data';
+const REMOVE_WALLET_ERROR = 'Failed to remove wallet';
+const ADD_WALLET_ERROR = 'Failed to add wallet';
+const REMOVE_OPERATION_NAME = 'wallet removal';
+const ADD_OPERATION_NAME = 'adding wallet';
 
 function createFailureResult(error: string): WalletMutationResult {
   return { success: false, error };
@@ -71,22 +71,22 @@ export function useWalletMutations({
 
   const setRemovingState = useCallback(
     (walletId: string, isLoading: boolean, error: string | null) => {
-      setWalletOperationState("removing", walletId, {
+      setWalletOperationState('removing', walletId, {
         isLoading,
         error,
       });
     },
-    [setWalletOperationState]
+    [setWalletOperationState],
   );
 
   const setAddingState = useCallback(
     (isLoading: boolean, error: string | null) => {
-      setOperations(prev => ({
+      setOperations((prev) => ({
         ...prev,
         adding: { isLoading, error },
       }));
     },
-    [setOperations]
+    [setOperations],
   );
 
   // Handle wallet deletion
@@ -104,12 +104,12 @@ export function useWalletMutations({
           setRemovingState(
             walletId,
             false,
-            response.error ?? REMOVE_WALLET_ERROR
+            response.error ?? REMOVE_WALLET_ERROR,
           );
           return;
         }
 
-        setWallets(prev => prev.filter(wallet => wallet.id !== walletId));
+        setWallets((prev) => prev.filter((wallet) => wallet.id !== walletId));
 
         await invalidateAndRefetch({
           queryClient,
@@ -124,7 +124,7 @@ export function useWalletMutations({
         setRemovingState(walletId, false, errorMessage);
       }
     },
-    [userId, queryClient, refetch, setRemovingState, setWallets]
+    [userId, queryClient, refetch, setRemovingState, setWallets],
   );
 
   // Handle adding new wallet
@@ -137,7 +137,7 @@ export function useWalletMutations({
       const validation = validateNewWallet(newWallet);
       if (!validation.isValid) {
         return createFailureResult(
-          validation.error ?? INVALID_WALLET_DATA_ERROR
+          validation.error ?? INVALID_WALLET_DATA_ERROR,
         );
       }
 
@@ -147,7 +147,7 @@ export function useWalletMutations({
         const response = await addWalletToBundle(
           userId,
           newWallet.address,
-          newWallet.label
+          newWallet.label,
         );
 
         if (!response.success) {
@@ -174,7 +174,7 @@ export function useWalletMutations({
         return createFailureResult(errorMessage);
       }
     },
-    [userId, loadWallets, queryClient, refetch, setAddingState]
+    [userId, loadWallets, queryClient, refetch, setAddingState],
   );
 
   return {

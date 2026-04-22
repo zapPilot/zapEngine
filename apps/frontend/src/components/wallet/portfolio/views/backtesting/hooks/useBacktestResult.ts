@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo } from 'react';
 
 import type {
   BacktestResponse,
   BacktestSpotAssetSymbol,
-} from "@/types/backtesting";
+} from '@/types/backtesting';
 
 import {
   buildChartPoint,
@@ -11,32 +11,32 @@ import {
   calculateYAxisDomain,
   filterToActiveStrategies,
   sortStrategyIds,
-} from "../utils/chartHelpers";
+} from '../utils/chartHelpers';
 
 export interface UseBacktestResultReturn {
   chartData: Record<string, unknown>[];
   yAxisDomain: [number, number];
-  summary: { strategies: BacktestResponse["strategies"] } | null;
+  summary: { strategies: BacktestResponse['strategies'] } | null;
   sortedStrategyIds: string[];
   actualDays: number;
 }
 
 export function useBacktestResult(
-  response: BacktestResponse | null
+  response: BacktestResponse | null,
 ): UseBacktestResultReturn {
   const actualDays = useMemo(
     () => (response ? calculateActualDays(response.timeline) : 0),
-    [response]
+    [response],
   );
 
   const sortedStrategyIds = useMemo(
     () =>
       response
         ? filterToActiveStrategies(
-            sortStrategyIds(Object.keys(response.strategies ?? {}))
+            sortStrategyIds(Object.keys(response.strategies ?? {})),
           )
         : [],
-    [response]
+    [response],
   );
 
   const chartData = useMemo(() => {
@@ -45,8 +45,8 @@ export function useBacktestResult(
     }
 
     const spotAssetTracker: Record<string, BacktestSpotAssetSymbol | null> = {};
-    return response.timeline.map(point =>
-      buildChartPoint(point, sortedStrategyIds, spotAssetTracker)
+    return response.timeline.map((point) =>
+      buildChartPoint(point, sortedStrategyIds, spotAssetTracker),
     );
   }, [response, sortedStrategyIds]);
 
@@ -54,7 +54,7 @@ export function useBacktestResult(
 
   const yAxisDomain = useMemo(
     () => calculateYAxisDomain(chartData, sortedStrategyIds),
-    [chartData, sortedStrategyIds]
+    [chartData, sortedStrategyIds],
   );
 
   return {

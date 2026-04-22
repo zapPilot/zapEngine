@@ -1,10 +1,10 @@
-import { motion } from "framer-motion";
-import { Plus } from "lucide-react";
-import { type ChangeEvent, type ReactElement } from "react";
+import { motion } from 'framer-motion';
+import { Plus } from 'lucide-react';
+import { type ChangeEvent, type ReactElement } from 'react';
 
-import { GradientButton, LoadingSpinner } from "@/components/ui";
-import { ANIMATIONS, GRADIENTS } from "@/constants/design-system";
-import type { NewWallet, WalletOperations } from "@/types";
+import { GradientButton, LoadingSpinner } from '@/components/ui';
+import { ANIMATIONS, GRADIENTS } from '@/constants/design-system';
+import type { NewWallet, WalletOperations } from '@/types';
 
 interface AddWalletFormProps {
   isAdding: boolean;
@@ -84,7 +84,7 @@ export function AddWalletForm({
                   <span>Adding...</span>
                 </div>
               ) : (
-                "Add to Bundle"
+                'Add to Bundle'
               )}
             </GradientButton>
             <button

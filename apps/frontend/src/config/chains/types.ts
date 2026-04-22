@@ -45,7 +45,7 @@ export interface BaseChainConfig {
     /** Average block time in seconds */
     blockTime?: number;
     /** Layer type (L1, L2, etc.) */
-    layer?: "L1" | "L2" | "L3";
+    layer?: 'L1' | 'L2' | 'L3';
     /** Parent chain for L2s */
     parentChain?: number;
   };

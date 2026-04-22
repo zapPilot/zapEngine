@@ -1,6 +1,6 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from 'lucide-react';
 
-import { GradientButton } from "@/components/ui/GradientButton";
+import { GradientButton } from '@/components/ui/GradientButton';
 
 interface TransactionActionButtonProps {
   gradient: string;

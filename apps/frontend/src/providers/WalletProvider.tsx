@@ -6,8 +6,8 @@ import {
   useContext,
   useMemo,
   useState,
-} from "react";
-import { formatUnits } from "viem";
+} from 'react';
+import { formatUnits } from 'viem';
 import {
   useBalance,
   useConnect,
@@ -16,7 +16,7 @@ import {
   useDisconnect,
   useSignMessage,
   useSwitchChain,
-} from "wagmi";
+} from 'wagmi';
 
 import {
   buildWalletAccount,
@@ -25,9 +25,9 @@ import {
   type SimplifiedChain,
   type SimplifiedWalletAccount,
   type WalletError,
-} from "@/providers/walletProviderUtils";
-import type { WalletProviderInterface } from "@/types";
-import { walletLogger } from "@/utils";
+} from '@/providers/walletProviderUtils';
+import type { WalletProviderInterface } from '@/types';
+import { walletLogger } from '@/utils';
 
 type WalletContextValue = WalletProviderInterface;
 
@@ -67,9 +67,9 @@ export function WalletProvider({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (_address: string): Promise<void> => {
       // wagmi uses a single-account model; multi-wallet switching is not applicable
-      walletLogger.info("switchActiveWallet is a no-op in wagmi mode");
+      walletLogger.info('switchActiveWallet is a no-op in wagmi mode');
     },
-    []
+    [],
   );
 
   const formattedBalance: string | undefined = useMemo(
@@ -77,7 +77,7 @@ export function WalletProvider({
       balance.data
         ? formatUnits(balance.data.value, balance.data.decimals)
         : undefined,
-    [balance.data]
+    [balance.data],
   );
 
   const walletAccount = useMemo((): SimplifiedWalletAccount | null => {
@@ -99,8 +99,8 @@ export function WalletProvider({
     if (!connector) {
       setError({
         message:
-          "No wallet detected. Please install MetaMask or another wallet extension.",
-        code: "NO_WALLET",
+          'No wallet detected. Please install MetaMask or another wallet extension.',
+        code: 'NO_WALLET',
       });
       return;
     }
@@ -112,9 +112,9 @@ export function WalletProvider({
       handleWalletOperationError(
         setError,
         err,
-        "Failed to connect wallet",
-        "CONNECT_ERROR",
-        "Failed to connect wallet:"
+        'Failed to connect wallet',
+        'CONNECT_ERROR',
+        'Failed to connect wallet:',
       );
     }
   }, [connectAsync, connectors]);
@@ -127,9 +127,9 @@ export function WalletProvider({
       handleWalletOperationError(
         setError,
         err,
-        "Failed to disconnect wallet",
-        "DISCONNECT_ERROR",
-        "Failed to disconnect wallet:"
+        'Failed to disconnect wallet',
+        'DISCONNECT_ERROR',
+        'Failed to disconnect wallet:',
       );
     }
   }, [disconnectAsync]);
@@ -141,27 +141,27 @@ export function WalletProvider({
       try {
         await switchChainAsync({ chainId });
       } catch (err) {
-        walletLogger.error("Failed to switch chain:", err);
+        walletLogger.error('Failed to switch chain:', err);
         throw err;
       }
     },
-    [switchChainAsync]
+    [switchChainAsync],
   );
 
   const signMessage = useCallback(
     async (message: string): Promise<string> => {
       if (!address) {
-        throw new Error("No account connected");
+        throw new Error('No account connected');
       }
 
       try {
         return await signMessageAsync({ message });
       } catch (err) {
-        walletLogger.error("Failed to sign message:", err);
+        walletLogger.error('Failed to sign message:', err);
         throw err;
       }
     },
-    [address, signMessageAsync]
+    [address, signMessageAsync],
   );
 
   const contextValue = useMemo<WalletContextValue>(
@@ -195,7 +195,7 @@ export function WalletProvider({
       signMessage,
       walletList,
       handleSwitchActiveWallet,
-    ]
+    ],
   );
 
   return (
@@ -208,7 +208,7 @@ export function WalletProvider({
 export function useWalletProvider(): WalletProviderInterface {
   const context = useContext(WalletContext);
   if (!context) {
-    throw new Error("useWalletProvider must be used within a WalletProvider");
+    throw new Error('useWalletProvider must be used within a WalletProvider');
   }
   return context;
 }

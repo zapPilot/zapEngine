@@ -14,20 +14,20 @@
 import {
   transformToWalletPortfolioDataWithDirection,
   type WalletPortfolioDataWithDirection,
-} from "@/adapters/walletPortfolioDataAdapter";
-import { useRegimeHistory } from "@/hooks/queries/market/useRegimeHistoryQuery";
-import { useSentimentData } from "@/hooks/queries/market/useSentimentQuery";
+} from '@/adapters/walletPortfolioDataAdapter';
+import { useRegimeHistory } from '@/hooks/queries/market/useRegimeHistoryQuery';
+import { useSentimentData } from '@/hooks/queries/market/useSentimentQuery';
 import {
   combineStrategyData,
   extractBalanceData,
   extractCompositionData,
   extractSentimentData,
-} from "@/lib/portfolio/portfolioTransformers";
-import { createSectionState } from "@/lib/portfolio/sectionHelpers";
-import type { DashboardProgressiveState } from "@/types/portfolio-progressive";
-import { logger } from "@/utils";
+} from '@/lib/portfolio/portfolioTransformers';
+import { createSectionState } from '@/lib/portfolio/sectionHelpers';
+import type { DashboardProgressiveState } from '@/types/portfolio-progressive';
+import { logger } from '@/utils';
 
-import { useLandingPageData } from "./usePortfolioQuery";
+import { useLandingPageData } from './usePortfolioQuery';
 
 type LandingQuery = ReturnType<typeof useLandingPageData>;
 type SentimentQuery = ReturnType<typeof useSentimentData>;
@@ -38,22 +38,22 @@ function logProgressiveQueryStates(
   isEtlInProgress: boolean,
   landingQuery: LandingQuery,
   sentimentQuery: SentimentQuery,
-  regimeQuery: RegimeQuery
+  regimeQuery: RegimeQuery,
 ): void {
-  logger.debug("[usePortfolioDataProgressive] Query States:", {
+  logger.debug('[usePortfolioDataProgressive] Query States:', {
     userId,
     isEtlInProgress,
     landingQuery: {
-      data: landingQuery.data ? "exists" : "null",
+      data: landingQuery.data ? 'exists' : 'null',
       isLoading: landingQuery.isLoading,
       error: landingQuery.error ? (landingQuery.error as Error).message : null,
     },
     sentimentQuery: {
-      data: sentimentQuery.data ? "exists" : "null",
+      data: sentimentQuery.data ? 'exists' : 'null',
       isLoading: sentimentQuery.isLoading,
     },
     regimeQuery: {
-      data: regimeQuery.data ? "exists" : "null",
+      data: regimeQuery.data ? 'exists' : 'null',
       isLoading: regimeQuery.isLoading,
     },
   });
@@ -62,7 +62,7 @@ function logProgressiveQueryStates(
 function buildUnifiedData(
   landingQuery: LandingQuery,
   sentimentQuery: SentimentQuery,
-  regimeQuery: RegimeQuery
+  regimeQuery: RegimeQuery,
 ): WalletPortfolioDataWithDirection | null {
   if (!landingQuery.data) {
     return null;
@@ -71,24 +71,24 @@ function buildUnifiedData(
   return transformToWalletPortfolioDataWithDirection(
     landingQuery.data,
     sentimentQuery.data ?? null,
-    regimeQuery.data ?? null
+    regimeQuery.data ?? null,
   );
 }
 
 function hasAnyLoadingState(
   landingQuery: LandingQuery,
   sentimentQuery: SentimentQuery,
-  regimeQuery: RegimeQuery
+  regimeQuery: RegimeQuery,
 ): boolean {
   return Boolean(
-    landingQuery.isLoading || sentimentQuery.isLoading || regimeQuery.isLoading
+    landingQuery.isLoading || sentimentQuery.isLoading || regimeQuery.isLoading,
   );
 }
 
 function getProgressiveError(
   landingQuery: LandingQuery,
   sentimentQuery: SentimentQuery,
-  regimeQuery: RegimeQuery
+  regimeQuery: RegimeQuery,
 ): Error | null {
   const firstError =
     (landingQuery.error as Error) ||
@@ -110,7 +110,7 @@ function getProgressiveError(
  */
 export function usePortfolioDataProgressive(
   userId: string,
-  isEtlInProgress = false
+  isEtlInProgress = false,
 ): DashboardProgressiveState {
   // Fetch data from independent sources
   const landingQuery = useLandingPageData(userId, isEtlInProgress);
@@ -123,7 +123,7 @@ export function usePortfolioDataProgressive(
   // 2. Composition Section (Depends only on Landing, uses static sentiment fallback)
   const compositionSection = createSectionState(
     [landingQuery],
-    extractCompositionData
+    extractCompositionData,
   );
 
   // 3. Strategy Section (Depends on Landing + Sentiment + Regime)
@@ -132,13 +132,13 @@ export function usePortfolioDataProgressive(
   // We'll mark it loading if landing is loading.
   const strategySection = createSectionState(
     [landingQuery, sentimentQuery, regimeQuery],
-    combineStrategyData
+    combineStrategyData,
   );
 
   // 4. Independent Sentiment Section (Depends only on Sentiment)
   const sentimentSection = createSectionState(
     [sentimentQuery],
-    extractSentimentData
+    extractSentimentData,
   );
 
   logProgressiveQueryStates(
@@ -146,12 +146,12 @@ export function usePortfolioDataProgressive(
     isEtlInProgress,
     landingQuery,
     sentimentQuery,
-    regimeQuery
+    regimeQuery,
   );
   const unifiedData = buildUnifiedData(
     landingQuery,
     sentimentQuery,
-    regimeQuery
+    regimeQuery,
   );
 
   const refetchAll = async () => {

@@ -23,7 +23,7 @@ describe('Footer', () => {
       render(<Footer />);
 
       expect(
-        screen.getByText(/Sentiment-driven rebalancing for BTC\/ETH investors/)
+        screen.getByText(/Sentiment-driven rebalancing for BTC\/ETH investors/),
       ).toBeInTheDocument();
     });
   });
@@ -34,7 +34,7 @@ describe('Footer', () => {
 
       const discordLinks = screen
         .getAllByRole('link')
-        .filter(link => link.getAttribute('href') === LINKS.social.discord);
+        .filter((link) => link.getAttribute('href') === LINKS.social.discord);
       expect(discordLinks.length).toBeGreaterThan(0);
     });
 
@@ -43,7 +43,7 @@ describe('Footer', () => {
 
       const twitterLinks = screen
         .getAllByRole('link')
-        .filter(link => link.getAttribute('href') === LINKS.social.twitter);
+        .filter((link) => link.getAttribute('href') === LINKS.social.twitter);
       expect(twitterLinks.length).toBeGreaterThan(0);
     });
 
@@ -52,7 +52,7 @@ describe('Footer', () => {
 
       const githubLinks = screen
         .getAllByRole('link')
-        .filter(link => link.getAttribute('href') === LINKS.social.github);
+        .filter((link) => link.getAttribute('href') === LINKS.social.github);
       expect(githubLinks.length).toBeGreaterThan(0);
     });
 
@@ -61,7 +61,9 @@ describe('Footer', () => {
 
       const emailLinks = screen
         .getAllByRole('link')
-        .filter(link => link.getAttribute('href') === LINKS.support.contactUs);
+        .filter(
+          (link) => link.getAttribute('href') === LINKS.support.contactUs,
+        );
       expect(emailLinks.length).toBeGreaterThan(0);
     });
 
@@ -70,7 +72,7 @@ describe('Footer', () => {
 
       const socialLinks = screen
         .getAllByRole('link')
-        .filter(link => link.getAttribute('target') === '_blank');
+        .filter((link) => link.getAttribute('target') === '_blank');
       expect(socialLinks.length).toBeGreaterThan(0);
     });
   });
@@ -85,8 +87,10 @@ describe('Footer', () => {
     it('should render all product navigation links', () => {
       render(<Footer />);
 
-      NAVIGATION.footer.product.forEach(link => {
-        expect(screen.getByRole('link', { name: link.label })).toBeInTheDocument();
+      NAVIGATION.footer.product.forEach((link) => {
+        expect(
+          screen.getByRole('link', { name: link.label }),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -101,8 +105,10 @@ describe('Footer', () => {
     it('should render all resource navigation links', () => {
       render(<Footer />);
 
-      NAVIGATION.footer.resources.forEach(link => {
-        expect(screen.getByRole('link', { name: link.label })).toBeInTheDocument();
+      NAVIGATION.footer.resources.forEach((link) => {
+        expect(
+          screen.getByRole('link', { name: link.label }),
+        ).toBeInTheDocument();
       });
     });
 
@@ -120,7 +126,7 @@ describe('Footer', () => {
 
       const currentYear = new Date().getFullYear();
       expect(
-        screen.getByText(`© ${currentYear} Zap Pilot. All rights reserved.`)
+        screen.getByText(`© ${currentYear} Zap Pilot. All rights reserved.`),
       ).toBeInTheDocument();
     });
 

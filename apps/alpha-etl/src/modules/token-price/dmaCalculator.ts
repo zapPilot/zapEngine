@@ -1,7 +1,7 @@
 import type {
   TokenPairRatioDmaSnapshotInsert,
   TokenPriceDmaSnapshotInsert,
-} from "../../types/database.js";
+} from '../../types/database.js';
 
 export interface PriceRow {
   token_symbol: string;
@@ -39,12 +39,12 @@ interface RollingDmaMetric {
 }
 
 export const DMA_WINDOW_SIZE = 200;
-export const DMA_SOURCE = "coingecko";
+export const DMA_SOURCE = 'coingecko';
 export const ETH_BTC_RATIO_CONTEXT: PairRatioContext = {
-  baseTokenSymbol: "ETH",
-  baseTokenId: "ethereum",
-  quoteTokenSymbol: "BTC",
-  quoteTokenId: "bitcoin",
+  baseTokenSymbol: 'ETH',
+  baseTokenId: 'ethereum',
+  quoteTokenSymbol: 'BTC',
+  quoteTokenId: 'bitcoin',
 };
 
 export function computeDma(

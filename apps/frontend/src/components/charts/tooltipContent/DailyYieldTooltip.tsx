@@ -2,21 +2,21 @@
  * DailyYieldTooltip - Daily yield with protocol breakdown
  */
 
-import type { DailyYieldHoverData } from "@/types/ui/chartHover";
-import { formatters } from "@/utils/formatters";
+import type { DailyYieldHoverData } from '@/types/ui/chartHover';
+import { formatters } from '@/utils/formatters';
 
-import { TooltipRow } from "./TooltipRow";
-import { TooltipWrapper } from "./TooltipWrapper";
+import { TooltipRow } from './TooltipRow';
+import { TooltipWrapper } from './TooltipWrapper';
 
 export function DailyYieldTooltip({ data }: { data: DailyYieldHoverData }) {
   const isPositive = data.totalYield >= 0;
-  const colorClass = isPositive ? "text-emerald-400" : "text-red-400";
+  const colorClass = isPositive ? 'text-emerald-400' : 'text-red-400';
 
   const sortedProtocols =
     data.protocols
       ?.slice()
       .sort(
-        (a, b) => Math.abs(b.yield_return_usd) - Math.abs(a.yield_return_usd)
+        (a, b) => Math.abs(b.yield_return_usd) - Math.abs(a.yield_return_usd),
       ) ?? [];
 
   return (
@@ -27,7 +27,7 @@ export function DailyYieldTooltip({ data }: { data: DailyYieldHoverData }) {
         value={data.totalYield}
         valueColor={colorClass}
         format="currency"
-        prefix={isPositive ? "+" : ""}
+        prefix={isPositive ? '+' : ''}
       />
       {data.cumulativeYield !== undefined && (
         <TooltipRow
@@ -46,8 +46,8 @@ export function DailyYieldTooltip({ data }: { data: DailyYieldHoverData }) {
             {sortedProtocols.map((protocol, idx) => {
               const protocolPositive = protocol.yield_return_usd >= 0;
               const protocolColor = protocolPositive
-                ? "text-emerald-300"
-                : "text-red-300";
+                ? 'text-emerald-300'
+                : 'text-red-300';
               return (
                 <div
                   key={`${protocol.protocol_name}-${protocol.chain}-${idx}`}
@@ -60,7 +60,7 @@ export function DailyYieldTooltip({ data }: { data: DailyYieldHoverData }) {
                     </span>
                   </span>
                   <span className={`text-xs font-semibold ${protocolColor}`}>
-                    {protocolPositive ? "+" : ""}
+                    {protocolPositive ? '+' : ''}
                     {formatters.currency(protocol.yield_return_usd)}
                   </span>
                 </div>

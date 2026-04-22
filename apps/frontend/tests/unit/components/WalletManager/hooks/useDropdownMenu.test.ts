@@ -1,23 +1,23 @@
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { useDropdownMenu } from "@/components/WalletManager/hooks/useDropdownMenu";
+import { useDropdownMenu } from '@/components/WalletManager/hooks/useDropdownMenu';
 
-describe("useDropdownMenu", () => {
-  it("should initialize with closed state", () => {
+describe('useDropdownMenu', () => {
+  it('should initialize with closed state', () => {
     const { result } = renderHook(() => useDropdownMenu());
 
     expect(result.current.openDropdown).toBeNull();
     expect(result.current.menuPosition).toBeNull();
   });
 
-  it("should open dropdown and calculate position correctly (default bottom-left)", () => {
+  it('should open dropdown and calculate position correctly (default bottom-left)', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
+    const mockButton = document.createElement('button');
 
     // Mock getBoundingClientRect
     // Button at (100, 100), size 50x30
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 100,
       left: 100,
       bottom: 130,
@@ -32,14 +32,14 @@ describe("useDropdownMenu", () => {
     } as DOMRect);
 
     // Mock window dimensions
-    vi.stubGlobal("innerWidth", 1024);
-    vi.stubGlobal("innerHeight", 768);
+    vi.stubGlobal('innerWidth', 1024);
+    vi.stubGlobal('innerHeight', 768);
 
     act(() => {
-      result.current.openDropdownMenu("wallet-1", mockButton);
+      result.current.openDropdownMenu('wallet-1', mockButton);
     });
 
-    expect(result.current.openDropdown).toBe("wallet-1");
+    expect(result.current.openDropdown).toBe('wallet-1');
     // Top = rect.bottom + 4 = 130 + 4 = 134
     // Left logic:
     // preferredLeft = rect.right - MENU_WIDTH (192) = 150 - 192 = -42
@@ -47,13 +47,13 @@ describe("useDropdownMenu", () => {
     expect(result.current.menuPosition).toEqual({ top: 134, left: 8 });
   });
 
-  it("should calculating position correctly when opening upwards (near bottom edge)", () => {
+  it('should calculating position correctly when opening upwards (near bottom edge)', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
+    const mockButton = document.createElement('button');
 
     // Button near bottom: window height 768, rect.bottom 700.
     // estimatedHeight = 210. 700 + 210 = 910 > 768 - 8 (760). So openUp = true.
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 670,
       left: 500,
       bottom: 700,
@@ -67,11 +67,11 @@ describe("useDropdownMenu", () => {
       },
     } as DOMRect);
 
-    vi.stubGlobal("innerWidth", 1024);
-    vi.stubGlobal("innerHeight", 768);
+    vi.stubGlobal('innerWidth', 1024);
+    vi.stubGlobal('innerHeight', 768);
 
     act(() => {
-      result.current.openDropdownMenu("wallet-2", mockButton);
+      result.current.openDropdownMenu('wallet-2', mockButton);
     });
 
     // openUp is true.
@@ -83,10 +83,10 @@ describe("useDropdownMenu", () => {
     });
   });
 
-  it("should close dropdown when calling closeDropdown", () => {
+  it('should close dropdown when calling closeDropdown', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    const mockButton = document.createElement('button');
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       left: 0,
       bottom: 0,
@@ -101,9 +101,9 @@ describe("useDropdownMenu", () => {
     } as DOMRect);
 
     act(() => {
-      result.current.openDropdownMenu("wallet-1", mockButton);
+      result.current.openDropdownMenu('wallet-1', mockButton);
     });
-    expect(result.current.openDropdown).toBe("wallet-1");
+    expect(result.current.openDropdown).toBe('wallet-1');
 
     act(() => {
       result.current.closeDropdown();
@@ -113,10 +113,10 @@ describe("useDropdownMenu", () => {
     expect(result.current.menuPosition).toBeNull();
   });
 
-  it("should toggle dropdown (close if already open)", () => {
+  it('should toggle dropdown (close if already open)', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    const mockButton = document.createElement('button');
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       left: 0,
       bottom: 0,
@@ -132,21 +132,21 @@ describe("useDropdownMenu", () => {
 
     // Open first
     act(() => {
-      result.current.toggleDropdown("wallet-1", mockButton);
+      result.current.toggleDropdown('wallet-1', mockButton);
     });
-    expect(result.current.openDropdown).toBe("wallet-1");
+    expect(result.current.openDropdown).toBe('wallet-1');
 
     // Toggle same wallet -> Close
     act(() => {
-      result.current.toggleDropdown("wallet-1", mockButton);
+      result.current.toggleDropdown('wallet-1', mockButton);
     });
     expect(result.current.openDropdown).toBeNull();
   });
 
-  it("should toggle dropdown (open new if different)", () => {
+  it('should toggle dropdown (open new if different)', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    const mockButton = document.createElement('button');
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       left: 0,
       bottom: 0,
@@ -162,21 +162,21 @@ describe("useDropdownMenu", () => {
 
     // Open wallet-1
     act(() => {
-      result.current.toggleDropdown("wallet-1", mockButton);
+      result.current.toggleDropdown('wallet-1', mockButton);
     });
-    expect(result.current.openDropdown).toBe("wallet-1");
+    expect(result.current.openDropdown).toBe('wallet-1');
 
     // Toggle wallet-2 -> Open wallet-2 (replaces wallet-1)
     act(() => {
-      result.current.toggleDropdown("wallet-2", mockButton);
+      result.current.toggleDropdown('wallet-2', mockButton);
     });
-    expect(result.current.openDropdown).toBe("wallet-2");
+    expect(result.current.openDropdown).toBe('wallet-2');
   });
 
-  it("should close dropdown when clicking outside", () => {
+  it('should close dropdown when clicking outside', () => {
     const { result } = renderHook(() => useDropdownMenu());
-    const mockButton = document.createElement("button");
-    vi.spyOn(mockButton, "getBoundingClientRect").mockReturnValue({
+    const mockButton = document.createElement('button');
+    vi.spyOn(mockButton, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       left: 0,
       bottom: 0,
@@ -191,13 +191,13 @@ describe("useDropdownMenu", () => {
     } as DOMRect);
 
     act(() => {
-      result.current.openDropdownMenu("wallet-1", mockButton);
+      result.current.openDropdownMenu('wallet-1', mockButton);
     });
-    expect(result.current.openDropdown).toBe("wallet-1");
+    expect(result.current.openDropdown).toBe('wallet-1');
 
     // Simulate click on document
     act(() => {
-      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      document.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     expect(result.current.openDropdown).toBeNull();

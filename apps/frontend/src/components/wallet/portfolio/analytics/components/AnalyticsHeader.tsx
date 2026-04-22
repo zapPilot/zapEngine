@@ -4,12 +4,12 @@
  * Header section for analytics view with wallet filter selector
  */
 
-import { AlertCircle, Download, Loader2, TrendingUp } from "lucide-react";
-import type { ReactElement } from "react";
+import { AlertCircle, Download, Loader2, TrendingUp } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-import type { WalletFilter, WalletOption } from "@/types/analytics";
+import type { WalletFilter, WalletOption } from '@/types/analytics';
 
-import { WalletFilterSelector } from "./WalletFilterSelector";
+import { WalletFilterSelector } from './WalletFilterSelector';
 
 export interface AnalyticsHeaderProps {
   /** Export handler function */
@@ -80,7 +80,7 @@ export function AnalyticsHeader({
             ) : (
               <Download className="w-3.5 h-3.5" />
             )}
-            {isExporting ? "Exporting..." : "Export Report"}
+            {isExporting ? 'Exporting...' : 'Export Report'}
           </button>
 
           {exportError && (

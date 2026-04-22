@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #0a0a0f;
@@ -10,10 +10,10 @@
   --blue-primary: #3b82f6;
   --gradient-purple-blue: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
   --font-app-sans:
-    "SF Pro Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+    'SF Pro Text', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
     sans-serif;
   --font-app-mono:
-    "SFMono-Regular", "SF Mono", ui-monospace, Menlo, Monaco, monospace;
+    'SFMono-Regular', 'SF Mono', ui-monospace, Menlo, Monaco, monospace;
   /* Removed: --gradient-extended (unused) */
 }
 
@@ -49,8 +49,8 @@ body {
   color: var(--foreground);
   font-family: var(--font-app-sans);
   font-feature-settings:
-    "rlig" 1,
-    "calt" 1;
+    'rlig' 1,
+    'calt' 1;
   min-height: 100vh;
   overflow-x: hidden;
 }

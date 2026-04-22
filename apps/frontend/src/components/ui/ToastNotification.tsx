@@ -6,12 +6,12 @@ import {
   type LucideIcon,
   X,
   XCircle,
-} from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface Toast {
   id: string;
-  type: "success" | "error" | "info" | "warning";
+  type: 'success' | 'error' | 'info' | 'warning';
   title: string;
   message?: string;
   link?:
@@ -35,32 +35,32 @@ interface ToastNotificationProps {
 }
 
 const TOAST_STYLES: Record<
-  Toast["type"],
+  Toast['type'],
   { Icon: LucideIcon; iconColor: string; borderColor: string; bgColor: string }
 > = {
   success: {
     Icon: CheckCircle,
-    iconColor: "text-green-400",
-    borderColor: "border-green-600/30",
-    bgColor: "bg-green-900/20",
+    iconColor: 'text-green-400',
+    borderColor: 'border-green-600/30',
+    bgColor: 'bg-green-900/20',
   },
   error: {
     Icon: XCircle,
-    iconColor: "text-red-400",
-    borderColor: "border-red-600/30",
-    bgColor: "bg-red-900/20",
+    iconColor: 'text-red-400',
+    borderColor: 'border-red-600/30',
+    bgColor: 'bg-red-900/20',
   },
   info: {
     Icon: AlertCircle,
-    iconColor: "text-blue-400",
-    borderColor: "border-blue-600/30",
-    bgColor: "bg-blue-900/20",
+    iconColor: 'text-blue-400',
+    borderColor: 'border-blue-600/30',
+    bgColor: 'bg-blue-900/20',
   },
   warning: {
     Icon: AlertTriangle,
-    iconColor: "text-amber-400",
-    borderColor: "border-amber-500/30",
-    bgColor: "bg-amber-900/20",
+    iconColor: 'text-amber-400',
+    borderColor: 'border-amber-500/30',
+    bgColor: 'bg-amber-900/20',
   },
 };
 
@@ -97,8 +97,8 @@ export function ToastNotification({ toast, onClose }: ToastNotificationProps) {
         ${borderColor} ${bgColor}
         ${
           isVisible && !isExiting
-            ? "translate-x-0 opacity-100"
-            : "translate-x-full opacity-0"
+            ? 'translate-x-0 opacity-100'
+            : 'translate-x-full opacity-0'
         }
       `}
     >
@@ -129,7 +129,7 @@ export function ToastNotification({ toast, onClose }: ToastNotificationProps) {
               {/* Action button */}
               {toast.action && (
                 <button
-                  onClick={e => {
+                  onClick={(e) => {
                     e.stopPropagation();
                     toast.action?.onClick();
                     handleClose();

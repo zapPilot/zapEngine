@@ -1,26 +1,27 @@
-import { z } from "zod";
-import { logger } from "../../utils/logger.js";
+import { z } from 'zod';
+
+import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
+import type { PoolAprSnapshotInsert } from '../../types/database.js';
+import type { PoolData } from '../../types/index.js';
 import {
-  validateApr,
-  validateApy,
   convertDailyCompoundedApyToApr,
   normalizePercentage,
-} from "../../utils/aprUtils.js";
+  validateApr,
+  validateApy,
+} from '../../utils/aprUtils.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 import {
   cleanRewardTokens,
   parseSymbolsArray,
-} from "../../utils/symbolUtils.js";
-import { toErrorMessage } from "../../utils/errors.js";
-import type { PoolData } from "../../types/index.js";
-import type { PoolAprSnapshotInsert } from "../../types/database.js";
-import { transformBatchWithLogging } from "../../core/transformers/baseTransformer.js";
+} from '../../utils/symbolUtils.js';
 
 const poolDataSchema = z.object({
   pool_address: z.string().nullable().optional(), // Nullable for sources like DeFiLlama
   protocol_address: z.string().nullable().optional(), // Nullable for sources like DeFiLlama
-  chain: z.string().min(1, "Chain is required"),
-  protocol: z.string().min(1, "Protocol is required"),
-  symbol: z.string().min(1, "Symbol is required"),
+  chain: z.string().min(1, 'Chain is required'),
+  protocol: z.string().min(1, 'Protocol is required'),
+  symbol: z.string().min(1, 'Symbol is required'),
   symbols: z.array(z.string()).nullable().optional(), // Array of individual token symbols
   underlying_tokens: z.array(z.string()).nullable().optional(), // Added to match DeFiLlama fetcher output
   tvl_usd: z.number().positive().nullable().optional(),
@@ -28,10 +29,10 @@ const poolDataSchema = z.object({
   apy_base: z.number().min(0).nullable().optional(),
   apy_reward: z.number().min(0).nullable().optional(),
   volume_usd_1d: z.number().positive().nullable().optional(),
-  exposure: z.enum(["single", "multi", "stable"]).nullable().optional(),
+  exposure: z.enum(['single', 'multi', 'stable']).nullable().optional(),
   reward_tokens: z.array(z.string().nullable()).nullable().optional(),
   pool_meta: z.record(z.string(), z.unknown()).nullable().optional(),
-  source: z.string().min(1, "Source is required"),
+  source: z.string().min(1, 'Source is required'),
   raw_data: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
@@ -51,7 +52,7 @@ export class PoolDataTransformer {
         validated.source,
       );
       if (apr === null) {
-        logger.warn("Failed to convert APY to valid APR, rejecting record", {
+        logger.warn('Failed to convert APY to valid APR, rejecting record', {
           apy: validated.apy,
           source: validated.source,
         });
@@ -62,7 +63,7 @@ export class PoolDataTransformer {
 
       /* v8 ignore start -- defense-in-depth: Zod validation guarantees transformed record passes isValidRecord checks */
       if (!this.isValidRecord(transformed)) {
-        logger.warn("Record failed validation after transformation", {
+        logger.warn('Record failed validation after transformation', {
           pool_address: transformed.pool_address,
           protocol_address: transformed.protocol_address,
         });
@@ -72,7 +73,7 @@ export class PoolDataTransformer {
 
       return transformed;
     } catch (error) {
-      logger.error("Failed to transform pool data:", {
+      logger.error('Failed to transform pool data:', {
         error: toErrorMessage(error),
         pool_address: rawData?.pool_address || null,
         protocol_address: rawData?.protocol_address || null,
@@ -85,10 +86,10 @@ export class PoolDataTransformer {
     rawDataList: PoolData[],
     source: string,
   ): PoolAprSnapshotInsert[] {
-    if (source === "debank") {
+    if (source === 'debank') {
       // For debank data, return the raw data as-is since it should be handled by WalletBalanceTransformer
       logger.warn(
-        "PoolDataTransformer received debank data - this should be handled by WalletBalanceTransformer",
+        'PoolDataTransformer received debank data - this should be handled by WalletBalanceTransformer',
         {
           source,
           recordCount: rawDataList.length,
@@ -101,7 +102,7 @@ export class PoolDataTransformer {
     return transformBatchWithLogging(
       rawDataList,
       (item) => this.transform(item),
-      "Pool data",
+      'Pool data',
     );
   }
 
@@ -116,7 +117,7 @@ export class PoolDataTransformer {
     const normalizedApy = normalizePercentage(apy, apy <= 1);
     /* v8 ignore start -- defense-in-depth: Zod v4 z.number().min(0) rejects NaN/Infinity; normalizePercentage preserves finiteness */
     if (!validateApy(normalizedApy)) {
-      logger.warn("Invalid APY value detected", { apy, normalizedApy, source });
+      logger.warn('Invalid APY value detected', { apy, normalizedApy, source });
       return null;
     }
     /* v8 ignore stop */
@@ -124,7 +125,7 @@ export class PoolDataTransformer {
     // Convert APY to APR based on source type
     const apr = this.convertApyToApr(normalizedApy, source);
     if (!validateApr(apr)) {
-      logger.warn("Invalid APR value after conversion", {
+      logger.warn('Invalid APR value after conversion', {
         apy: normalizedApy,
         apr,
         source,
@@ -136,7 +137,7 @@ export class PoolDataTransformer {
   }
 
   private convertApyToApr(apy: number, source?: string): number {
-    const isDeFiLlama = source?.toLowerCase() === "defillama";
+    const isDeFiLlama = source?.toLowerCase() === 'defillama';
 
     if (isDeFiLlama) {
       // DeFiLlama uses daily-compounded APY
@@ -199,10 +200,10 @@ export class PoolDataTransformer {
     ) {
       return false;
     }
-    if (typeof record.chain !== "string" || record.chain.length === 0) {
+    if (typeof record.chain !== 'string' || record.chain.length === 0) {
       return false;
     }
-    if (typeof record.protocol !== "string" || record.protocol.length === 0) {
+    if (typeof record.protocol !== 'string' || record.protocol.length === 0) {
       return false;
     }
     return true;

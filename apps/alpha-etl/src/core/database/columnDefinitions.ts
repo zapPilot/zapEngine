@@ -1,3 +1,4 @@
+import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PoolAprSnapshotInsert,
@@ -6,16 +7,15 @@ import type {
   TokenPairRatioDmaSnapshotInsert,
   TokenPriceDmaSnapshotInsert,
   WalletBalanceSnapshotInsert,
-} from "../../types/database.js";
-import type { TokenPriceData } from "../../modules/token-price/schema.js";
-import { formatDateToYYYYMMDD } from "../../utils/dateUtils.js";
-import { buildGenericInsertValues } from "./columnHelpers.js";
+} from '../../types/database.js';
+import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
+import { buildGenericInsertValues } from './columnHelpers.js';
 
-type InsertValuesResult<K extends string> = {
-  columns: ReadonlyArray<K>;
+interface InsertValuesResult<K extends string> {
+  columns: readonly K[];
   placeholders: string;
   values: unknown[];
-};
+}
 
 type InsertValueTransformer<T, K extends keyof T & string> = (
   column: K,
@@ -40,16 +40,16 @@ function toNullishSqlValue(value: unknown): unknown {
 }
 
 function buildInsertValuesFor<T, K extends keyof T & string>(
-  records: ReadonlyArray<T>,
-  columns: ReadonlyArray<K>,
+  records: readonly T[],
+  columns: readonly K[],
   valueTransformer?: InsertValueTransformer<T, K>,
 ): InsertValuesResult<K> {
   return buildGenericInsertValues(records, columns, valueTransformer);
 }
 
 function buildNullableInsertValuesFor<T, K extends keyof T & string>(
-  records: ReadonlyArray<T>,
-  columns: ReadonlyArray<K>,
+  records: readonly T[],
+  columns: readonly K[],
 ): InsertValuesResult<K> {
   return buildInsertValuesFor(records, columns, (_column, value) =>
     toNullishSqlValue(value),
@@ -73,32 +73,32 @@ function mapTokenPriceRecord(record: TokenPriceData): TokenPriceInsertRecord {
 /**
  * Centralized column definitions and insert helpers for database writers.
  */
-export const POOL_APR_COLUMNS: ReadonlyArray<keyof PoolAprSnapshotInsert> = [
-  "pool_address",
-  "protocol_address",
-  "chain",
-  "protocol",
-  "symbol",
-  "symbols",
-  "underlying_tokens",
-  "tvl_usd",
-  "apr",
-  "apr_base",
-  "apr_reward",
-  "volume_usd_1d",
-  "exposure",
-  "reward_tokens",
-  "pool_meta",
-  "raw_data",
-  "source",
-  "snapshot_time",
+export const POOL_APR_COLUMNS: readonly (keyof PoolAprSnapshotInsert)[] = [
+  'pool_address',
+  'protocol_address',
+  'chain',
+  'protocol',
+  'symbol',
+  'symbols',
+  'underlying_tokens',
+  'tvl_usd',
+  'apr',
+  'apr_base',
+  'apr_reward',
+  'volume_usd_1d',
+  'exposure',
+  'reward_tokens',
+  'pool_meta',
+  'raw_data',
+  'source',
+  'snapshot_time',
 ] as const;
 
 export function buildPoolInsertValues(
   records: PoolAprSnapshotInsert[],
 ): InsertValuesResult<keyof PoolAprSnapshotInsert & string> {
   return buildInsertValuesFor(records, POOL_APR_COLUMNS, (column, value) => {
-    if (column === "snapshot_time" && (value === null || value === undefined)) {
+    if (column === 'snapshot_time' && (value === null || value === undefined)) {
       return new Date().toISOString();
     }
     return toNullishSqlValue(value);
@@ -106,27 +106,27 @@ export function buildPoolInsertValues(
 }
 
 export const WALLET_BALANCE_COLUMNS = [
-  "user_wallet_address",
-  "token_address",
-  "chain",
-  "name",
-  "symbol",
-  "display_symbol",
-  "optimized_symbol",
-  "decimals",
-  "logo_url",
-  "protocol_id",
-  "price",
-  "price_24h_change",
-  "is_verified",
-  "is_core",
-  "is_wallet",
-  "time_at",
-  "total_supply",
-  "credit_score",
-  "amount",
-  "raw_amount",
-  "raw_amount_hex_str",
+  'user_wallet_address',
+  'token_address',
+  'chain',
+  'name',
+  'symbol',
+  'display_symbol',
+  'optimized_symbol',
+  'decimals',
+  'logo_url',
+  'protocol_id',
+  'price',
+  'price_24h_change',
+  'is_verified',
+  'is_core',
+  'is_wallet',
+  'time_at',
+  'total_supply',
+  'credit_score',
+  'amount',
+  'raw_amount',
+  'raw_amount_hex_str',
 ] as const;
 
 export type WalletBalanceColumn = (typeof WALLET_BALANCE_COLUMNS)[number];
@@ -138,37 +138,36 @@ export function buildInsertValues(
   return buildInsertValuesFor(records, columns);
 }
 
-export const PORTFOLIO_ITEM_COLUMNS: ReadonlyArray<
-  keyof PortfolioItemSnapshotInsert
-> = [
-  "wallet",
-  "chain",
-  "name",
-  "name_item",
-  "id_raw",
-  "asset_usd_value",
-  "detail",
-  "snapshot_at",
-  "has_supported_portfolio",
-  "site_url",
-  "asset_dict",
-  "asset_token_list",
-  "detail_types",
-  "pool",
-  "proxy_detail",
-  "debt_usd_value",
-  "net_usd_value",
-  "update_at",
-] as const;
+export const PORTFOLIO_ITEM_COLUMNS: readonly (keyof PortfolioItemSnapshotInsert)[] =
+  [
+    'wallet',
+    'chain',
+    'name',
+    'name_item',
+    'id_raw',
+    'asset_usd_value',
+    'detail',
+    'snapshot_at',
+    'has_supported_portfolio',
+    'site_url',
+    'asset_dict',
+    'asset_token_list',
+    'detail_types',
+    'pool',
+    'proxy_detail',
+    'debt_usd_value',
+    'net_usd_value',
+    'update_at',
+  ] as const;
 
 export type PortfolioItemColumn = (typeof PORTFOLIO_ITEM_COLUMNS)[number];
 
-const PORTFOLIO_JSON_COLUMNS: Set<PortfolioItemColumn> = new Set([
-  "detail",
-  "asset_dict",
-  "asset_token_list",
-  "pool",
-  "proxy_detail",
+const PORTFOLIO_JSON_COLUMNS = new Set<PortfolioItemColumn>([
+  'detail',
+  'asset_dict',
+  'asset_token_list',
+  'pool',
+  'proxy_detail',
 ]);
 
 export function buildPortfolioInsertValues(
@@ -186,12 +185,12 @@ export function buildPortfolioInsertValues(
   );
 }
 
-export const SENTIMENT_COLUMNS: ReadonlyArray<keyof SentimentSnapshotInsert> = [
-  "sentiment_value",
-  "classification",
-  "source",
-  "snapshot_time",
-  "raw_data",
+export const SENTIMENT_COLUMNS: readonly (keyof SentimentSnapshotInsert)[] = [
+  'sentiment_value',
+  'classification',
+  'source',
+  'snapshot_time',
+  'raw_data',
 ] as const;
 
 export function buildSentimentInsertValues(
@@ -200,26 +199,25 @@ export function buildSentimentInsertValues(
   return buildInsertValuesFor(records, SENTIMENT_COLUMNS);
 }
 
-export const HYPERLIQUID_VAULT_APR_COLUMNS: ReadonlyArray<
-  keyof HyperliquidVaultAprSnapshotInsert
-> = [
-  "source",
-  "vault_address",
-  "vault_name",
-  "leader_address",
-  "apr",
-  "apr_base",
-  "apr_reward",
-  "tvl_usd",
-  "total_followers",
-  "leader_commission",
-  "leader_fraction",
-  "is_closed",
-  "allow_deposits",
-  "pool_meta",
-  "raw_data",
-  "snapshot_time",
-] as const;
+export const HYPERLIQUID_VAULT_APR_COLUMNS: readonly (keyof HyperliquidVaultAprSnapshotInsert)[] =
+  [
+    'source',
+    'vault_address',
+    'vault_name',
+    'leader_address',
+    'apr',
+    'apr_base',
+    'apr_reward',
+    'tvl_usd',
+    'total_followers',
+    'leader_commission',
+    'leader_fraction',
+    'is_closed',
+    'allow_deposits',
+    'pool_meta',
+    'raw_data',
+    'snapshot_time',
+  ] as const;
 
 export function buildHyperliquidInsertValues(
   records: HyperliquidVaultAprSnapshotInsert[],
@@ -227,20 +225,19 @@ export function buildHyperliquidInsertValues(
   return buildInsertValuesFor(records, HYPERLIQUID_VAULT_APR_COLUMNS);
 }
 
-export const TOKEN_PRICE_DMA_COLUMNS: ReadonlyArray<
-  keyof TokenPriceDmaSnapshotInsert
-> = [
-  "token_symbol",
-  "token_id",
-  "snapshot_date",
-  "price_usd",
-  "dma_200",
-  "price_vs_dma_ratio",
-  "is_above_dma",
-  "days_available",
-  "source",
-  "snapshot_time",
-] as const;
+export const TOKEN_PRICE_DMA_COLUMNS: readonly (keyof TokenPriceDmaSnapshotInsert)[] =
+  [
+    'token_symbol',
+    'token_id',
+    'snapshot_date',
+    'price_usd',
+    'dma_200',
+    'price_vs_dma_ratio',
+    'is_above_dma',
+    'days_available',
+    'source',
+    'snapshot_time',
+  ] as const;
 
 export function buildTokenPriceDmaInsertValues(
   records: TokenPriceDmaSnapshotInsert[],
@@ -248,22 +245,21 @@ export function buildTokenPriceDmaInsertValues(
   return buildNullableInsertValuesFor(records, TOKEN_PRICE_DMA_COLUMNS);
 }
 
-export const TOKEN_PAIR_RATIO_DMA_COLUMNS: ReadonlyArray<
-  keyof TokenPairRatioDmaSnapshotInsert
-> = [
-  "base_token_symbol",
-  "base_token_id",
-  "quote_token_symbol",
-  "quote_token_id",
-  "snapshot_date",
-  "ratio_value",
-  "dma_200",
-  "ratio_vs_dma_ratio",
-  "is_above_dma",
-  "days_available",
-  "source",
-  "snapshot_time",
-] as const;
+export const TOKEN_PAIR_RATIO_DMA_COLUMNS: readonly (keyof TokenPairRatioDmaSnapshotInsert)[] =
+  [
+    'base_token_symbol',
+    'base_token_id',
+    'quote_token_symbol',
+    'quote_token_id',
+    'snapshot_date',
+    'ratio_value',
+    'dma_200',
+    'ratio_vs_dma_ratio',
+    'is_above_dma',
+    'days_available',
+    'source',
+    'snapshot_time',
+  ] as const;
 
 export function buildTokenPairRatioDmaInsertValues(
   records: TokenPairRatioDmaSnapshotInsert[],
@@ -272,15 +268,15 @@ export function buildTokenPairRatioDmaInsertValues(
 }
 
 export const TOKEN_PRICE_COLUMNS = [
-  "price_usd",
-  "market_cap_usd",
-  "volume_24h_usd",
-  "source",
-  "token_symbol",
-  "token_id",
-  "snapshot_date",
-  "snapshot_time",
-  "raw_data",
+  'price_usd',
+  'market_cap_usd',
+  'volume_24h_usd',
+  'source',
+  'token_symbol',
+  'token_id',
+  'snapshot_date',
+  'snapshot_time',
+  'raw_data',
 ] as const;
 
 export type TokenPriceColumn = (typeof TOKEN_PRICE_COLUMNS)[number];

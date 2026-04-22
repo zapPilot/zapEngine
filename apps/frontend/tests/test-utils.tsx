@@ -1,14 +1,14 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   render,
   renderHook as originalRenderHook,
   RenderHookOptions,
   RenderOptions,
-} from "@testing-library/react";
-import { ReactElement, ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+} from '@testing-library/react';
+import { ReactElement, ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 
-import { ToastProvider } from "../src/providers/ToastProvider";
+import { ToastProvider } from '../src/providers/ToastProvider';
 
 /**
  * Create a new QueryClient for each test to ensure test isolation
@@ -72,7 +72,7 @@ function AllTheProviders({ children }: AllTheProvidersProps) {
  */
 function customRender(
   ui: ReactElement,
-  options?: Omit<RenderOptions, "wrapper">
+  options?: Omit<RenderOptions, 'wrapper'>,
 ) {
   return render(ui, { wrapper: AllTheProviders, ...options });
 }
@@ -82,7 +82,7 @@ function customRender(
  */
 function customRenderHook<Result, Props>(
   hook: (initialProps: Props) => Result,
-  options?: Omit<RenderHookOptions<Props>, "wrapper">
+  options?: Omit<RenderHookOptions<Props>, 'wrapper'>,
 ) {
   return originalRenderHook(hook, { wrapper: AllTheProviders, ...options });
 }
@@ -108,7 +108,7 @@ export function QueryClientWrapper({ children }: { children: ReactNode }) {
 }
 
 // Re-export everything from @testing-library/react
-export * from "@testing-library/react";
+export * from '@testing-library/react';
 
 // Override the default render and renderHook methods
 export { customRender as render, customRenderHook as renderHook };
@@ -128,4 +128,4 @@ export { customRender as render, customRenderHook as renderHook };
  * vi.mock('@/utils/formatters', () => mockFormatters);
  * ```
  */
-export { mockFormatters, resetFormatterMocks } from "./mocks/formatters";
+export { mockFormatters, resetFormatterMocks } from './mocks/formatters';

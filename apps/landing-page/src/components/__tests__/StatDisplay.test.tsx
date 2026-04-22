@@ -28,7 +28,9 @@ describe('StatDisplay', () => {
     });
 
     it('should apply hero variant classes by default', () => {
-      const { container } = render(<StatDisplay stat={mockTextStat} index={0} />);
+      const { container } = render(
+        <StatDisplay stat={mockTextStat} index={0} />,
+      );
 
       // Hero variant has specific gradient text classes
       const valueElement = container.querySelector('.bg-gradient-to-r');
@@ -55,14 +57,18 @@ describe('StatDisplay', () => {
 
   describe('variant prop', () => {
     it('should apply hero variant styling', () => {
-      const { container } = render(<StatDisplay stat={mockTextStat} index={0} variant="hero" />);
+      const { container } = render(
+        <StatDisplay stat={mockTextStat} index={0} variant="hero" />,
+      );
 
       // Hero has rounded-2xl container
       expect(container.querySelector('.rounded-2xl')).toBeInTheDocument();
     });
 
     it('should apply cta variant styling', () => {
-      const { container } = render(<StatDisplay stat={mockTextStat} index={0} variant="cta" />);
+      const { container } = render(
+        <StatDisplay stat={mockTextStat} index={0} variant="cta" />,
+      );
 
       // CTA has text-center container
       expect(container.querySelector('.text-center')).toBeInTheDocument();
@@ -70,7 +76,12 @@ describe('StatDisplay', () => {
 
     it('should render without animation when animate is false in cta variant', () => {
       const { container } = render(
-        <StatDisplay stat={mockTextStat} index={0} variant="cta" animate={false} />
+        <StatDisplay
+          stat={mockTextStat}
+          index={0}
+          variant="cta"
+          animate={false}
+        />,
       );
 
       // Should render as plain div without motion wrapper
@@ -106,7 +117,7 @@ describe('StatDisplay', () => {
 
       const images = screen.getAllByRole('img');
       // Hero variant uses 48x48 icons
-      images.forEach(img => {
+      images.forEach((img) => {
         expect(img).toHaveAttribute('width', '48');
         expect(img).toHaveAttribute('height', '48');
       });
@@ -117,7 +128,7 @@ describe('StatDisplay', () => {
 
       const images = screen.getAllByRole('img');
       // CTA variant uses 40x40 icons
-      images.forEach(img => {
+      images.forEach((img) => {
         expect(img).toHaveAttribute('width', '40');
         expect(img).toHaveAttribute('height', '40');
       });

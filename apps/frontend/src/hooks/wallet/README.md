@@ -45,14 +45,16 @@ const { wallets, setWallets, isRefreshing, loadWallets } = useWalletList({
 Handles wallet add/delete operations with validation and optimistic updates.
 
 ```typescript
-const { handleDeleteWallet, handleAddWallet, addingState } = useWalletMutations({
-  userId,
-  operations,
-  setOperations,
-  setWallets,
-  setWalletOperationState,
-  loadWallets,
-});
+const { handleDeleteWallet, handleAddWallet, addingState } = useWalletMutations(
+  {
+    userId,
+    operations,
+    setOperations,
+    setWallets,
+    setWalletOperationState,
+    loadWallets,
+  },
+);
 ```
 
 ### useWalletLabels

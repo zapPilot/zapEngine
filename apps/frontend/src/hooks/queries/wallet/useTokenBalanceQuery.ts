@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { transactionServiceMock } from "@/services";
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { transactionServiceMock } from '@/services';
 
 interface UseTokenBalanceQueryOptions {
   enabled?: boolean;
@@ -10,20 +10,20 @@ interface UseTokenBalanceQueryOptions {
 export function useTokenBalanceQuery(
   chainId: number | undefined,
   tokenAddress: string | undefined,
-  options?: UseTokenBalanceQueryOptions
+  options?: UseTokenBalanceQueryOptions,
 ) {
   const { account } = useWalletProvider();
 
   return useQuery<{ balance: string; usdValue: number }>({
     queryKey: [
-      "token-balance",
+      'token-balance',
       chainId,
       tokenAddress,
-      account?.address ?? "no-account",
+      account?.address ?? 'no-account',
     ],
     queryFn: async () => {
       if (!chainId || !tokenAddress) {
-        throw new Error("Missing chain or token for balance lookup");
+        throw new Error('Missing chain or token for balance lookup');
       }
 
       return transactionServiceMock.getTokenBalance(chainId, tokenAddress);

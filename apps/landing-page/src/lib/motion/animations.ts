@@ -53,7 +53,7 @@ export function revealOnView({
 export function staggeredSlideIn(
   index: number,
   from: 'left' | 'right' = 'left',
-  staggerDelay = 0.1
+  staggerDelay = 0.1,
 ) {
   return {
     initial: { opacity: 0, x: from === 'left' ? -20 : 20 },

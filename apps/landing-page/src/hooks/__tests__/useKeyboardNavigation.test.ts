@@ -25,7 +25,7 @@ describe('useKeyboardNavigation', () => {
     containerRef = { current: container };
 
     focusedIndex = 0;
-    setFocusedIndex = vi.fn(updater => {
+    setFocusedIndex = vi.fn((updater) => {
       if (typeof updater === 'function') {
         focusedIndex = updater(focusedIndex);
       } else {
@@ -63,7 +63,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('ArrowRight');
@@ -79,7 +79,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('ArrowDown');
@@ -96,7 +96,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('ArrowLeft');
@@ -113,7 +113,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('ArrowUp');
@@ -129,7 +129,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('Enter');
@@ -145,7 +145,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent(' ');
@@ -161,7 +161,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     dispatchKeyEvent('Escape');
@@ -177,7 +177,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     // Don't focus the container - focus a different element
@@ -201,7 +201,7 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     containerRef.current?.focus();
@@ -222,12 +222,15 @@ describe('useKeyboardNavigation', () => {
         setFocusedIndex,
         onSelect,
         onEscape,
-      })
+      }),
     );
 
     unmount();
 
-    expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(removeEventListenerSpy).toHaveBeenCalledWith(
+      'keydown',
+      expect.any(Function),
+    );
     removeEventListenerSpy.mockRestore();
   });
 });

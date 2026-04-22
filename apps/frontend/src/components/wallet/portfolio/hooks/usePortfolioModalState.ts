@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState } from 'react';
 
-import type { ModalType } from "@/types/portfolio";
+import type { ModalType } from '@/types/portfolio';
 
 /**
  * Custom hook for managing portfolio modal state.

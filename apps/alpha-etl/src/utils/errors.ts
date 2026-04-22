@@ -4,7 +4,7 @@ export class ETLError extends Error {
     public readonly source?: string,
   ) {
     super(message);
-    this.name = "ETLError";
+    this.name = 'ETLError';
   }
 }
 
@@ -16,7 +16,7 @@ export class APIError extends ETLError {
     source?: string,
   ) {
     super(message, source);
-    this.name = "APIError";
+    this.name = 'APIError';
   }
 }
 
@@ -26,7 +26,7 @@ export class DatabaseError extends ETLError {
     public readonly operation?: string,
   ) {
     super(message);
-    this.name = "DatabaseError";
+    this.name = 'DatabaseError';
   }
 }
 
@@ -37,7 +37,7 @@ export class ValidationError extends ETLError {
     public readonly value?: unknown,
   ) {
     super(message);
-    this.name = "ValidationError";
+    this.name = 'ValidationError';
   }
 }
 
@@ -48,7 +48,7 @@ export class TransformError extends ETLError {
     source?: string,
   ) {
     super(message, source);
-    this.name = "TransformError";
+    this.name = 'TransformError';
   }
 }
 
@@ -57,5 +57,5 @@ export class TransformError extends ETLError {
  * Safely converts any caught error to a string message
  */
 export function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error";
+  return error instanceof Error ? error.message : 'Unknown error';
 }

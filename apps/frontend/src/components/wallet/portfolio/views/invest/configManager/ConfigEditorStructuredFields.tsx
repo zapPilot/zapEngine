@@ -1,11 +1,11 @@
-import type { Dispatch, ReactElement, SetStateAction } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from 'react';
 
-import { STRATEGY_IDS } from "@/config/strategyFamilies";
+import { STRATEGY_IDS } from '@/config/strategyFamilies';
 
 import {
   type ConfigEditorFormState,
   type ConfigEditorMode,
-} from "./configEditorShared";
+} from './configEditorShared';
 
 interface ConfigEditorStructuredFieldsProps {
   configIdValid: boolean;
@@ -18,9 +18,9 @@ interface ConfigEditorStructuredFieldsProps {
 function updateField<Key extends keyof ConfigEditorFormState>(
   setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
   key: Key,
-  value: ConfigEditorFormState[Key]
+  value: ConfigEditorFormState[Key],
 ): void {
-  setFormState(previous => ({
+  setFormState((previous) => ({
     ...previous,
     [key]: value,
   }));
@@ -39,19 +39,19 @@ export function ConfigEditorStructuredFields({
         <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
           Config ID
         </label>
-        {mode === "create" ? (
+        {mode === 'create' ? (
           <div>
             <input
               type="text"
               value={formState.configIdInput}
-              onChange={event =>
-                updateField(setFormState, "configIdInput", event.target.value)
+              onChange={(event) =>
+                updateField(setFormState, 'configIdInput', event.target.value)
               }
               placeholder="my_strategy_config"
               className={`w-full rounded-lg border bg-gray-800/50 px-3 py-2 font-mono text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 ${
                 formState.configIdInput && !configIdValid
-                  ? "border-red-500 focus:ring-red-500"
-                  : "border-gray-700 focus:ring-purple-500"
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-700 focus:ring-purple-500'
               }`}
               disabled={isBenchmark}
             />
@@ -75,8 +75,8 @@ export function ConfigEditorStructuredFields({
         <input
           type="text"
           value={formState.displayName}
-          onChange={event =>
-            updateField(setFormState, "displayName", event.target.value)
+          onChange={(event) =>
+            updateField(setFormState, 'displayName', event.target.value)
           }
           placeholder="My Strategy Config"
           className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
@@ -90,8 +90,8 @@ export function ConfigEditorStructuredFields({
         </label>
         <textarea
           value={formState.description}
-          onChange={event =>
-            updateField(setFormState, "description", event.target.value)
+          onChange={(event) =>
+            updateField(setFormState, 'description', event.target.value)
           }
           placeholder="Optional description..."
           rows={2}
@@ -107,8 +107,8 @@ export function ConfigEditorStructuredFields({
           </label>
           <select
             value={formState.strategyId}
-            onChange={event =>
-              updateField(setFormState, "strategyId", event.target.value)
+            onChange={(event) =>
+              updateField(setFormState, 'strategyId', event.target.value)
             }
             className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
             disabled={isBenchmark}
@@ -128,8 +128,8 @@ export function ConfigEditorStructuredFields({
           <input
             type="text"
             value={formState.primaryAsset}
-            onChange={event =>
-              updateField(setFormState, "primaryAsset", event.target.value)
+            onChange={(event) =>
+              updateField(setFormState, 'primaryAsset', event.target.value)
             }
             placeholder="BTC"
             className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
@@ -154,20 +154,20 @@ export function ConfigEditorStructuredFields({
           onClick={() =>
             updateField(
               setFormState,
-              "supportsDailySuggestion",
-              !formState.supportsDailySuggestion
+              'supportsDailySuggestion',
+              !formState.supportsDailySuggestion,
             )
           }
           disabled={isBenchmark}
           className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${
-            formState.supportsDailySuggestion ? "bg-purple-600" : "bg-gray-700"
+            formState.supportsDailySuggestion ? 'bg-purple-600' : 'bg-gray-700'
           }`}
         >
           <span
             className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
               formState.supportsDailySuggestion
-                ? "translate-x-5"
-                : "translate-x-0"
+                ? 'translate-x-5'
+                : 'translate-x-0'
             }`}
           />
         </button>

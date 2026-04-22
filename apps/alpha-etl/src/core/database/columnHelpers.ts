@@ -11,7 +11,7 @@ function buildRowPlaceholders(
     { length: columnCount },
     (_, columnIndex) => `$${startPosition + columnIndex}`,
   );
-  return `(${columns.join(", ")})`;
+  return `(${columns.join(', ')})`;
 }
 
 function toSqlValue<T, K extends keyof T & string>(
@@ -41,7 +41,7 @@ export function buildPlaceholders(
   return Array.from({ length: recordCount }, (_, rowIdx) => {
     const start = rowIdx * columnCount + 1;
     return buildRowPlaceholders(start, columnCount);
-  }).join(", ");
+  }).join(', ');
 }
 
 /**
@@ -51,10 +51,10 @@ export function buildPlaceholders(
  * @param valueTransformer - Optional function to transform values (e.g., JSON serialization, defaults)
  */
 export function buildGenericInsertValues<T, K extends keyof T & string>(
-  records: ReadonlyArray<T>,
-  columns: ReadonlyArray<K>,
+  records: readonly T[],
+  columns: readonly K[],
   valueTransformer?: (column: K, value: T[K], record: T) => unknown,
-): { columns: ReadonlyArray<K>; placeholders: string; values: unknown[] } {
+): { columns: readonly K[]; placeholders: string; values: unknown[] } {
   const placeholders = buildPlaceholders(records.length, columns.length);
 
   const values: unknown[] = [];

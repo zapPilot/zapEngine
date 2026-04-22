@@ -1,17 +1,17 @@
-import type { ReactElement } from "react";
-import { Area, Line, Scatter } from "recharts";
+import type { ReactElement } from 'react';
+import { Area, Line, Scatter } from 'recharts';
 
-import { DCA_CLASSIC_STRATEGY_ID } from "../constants";
-import { CHART_SIGNALS } from "../utils/chartHelpers";
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
+import { CHART_SIGNALS } from '../utils/chartHelpers';
 import {
   getStrategyColor,
   getStrategyDisplayName,
-} from "../utils/strategyDisplay";
+} from '../utils/strategyDisplay';
 import {
   getStrategyVisualTier,
   getStrokeDasharrayProps,
-} from "./backtestChartHelpers";
-import type { IndicatorKey } from "./backtestChartLegendData";
+} from './backtestChartHelpers';
+import type { IndicatorKey } from './backtestChartLegendData';
 
 interface ChartDefsProps {
   strategyIds: string[];
@@ -26,11 +26,11 @@ interface StrategyAreaProps {
 }
 
 export function renderIndicatorLayers(
-  activeIndicators: Set<IndicatorKey>
+  activeIndicators: Set<IndicatorKey>,
 ): ReactElement[] {
   const layers: ReactElement[] = [];
 
-  if (activeIndicators.has("sentiment")) {
+  if (activeIndicators.has('sentiment')) {
     layers.push(
       <Line
         key="indicator-sentiment"
@@ -44,11 +44,11 @@ export function renderIndicatorLayers(
         connectNulls={true}
         strokeOpacity={0.4}
         legendType="none"
-      />
+      />,
     );
   }
 
-  if (activeIndicators.has("btcPrice")) {
+  if (activeIndicators.has('btcPrice')) {
     layers.push(
       <Line
         key="indicator-btc-price"
@@ -61,11 +61,11 @@ export function renderIndicatorLayers(
         dot={false}
         connectNulls={true}
         legendType="none"
-      />
+      />,
     );
   }
 
-  if (activeIndicators.has("dma200")) {
+  if (activeIndicators.has('dma200')) {
     layers.push(
       <Line
         key="indicator-dma200"
@@ -79,7 +79,7 @@ export function renderIndicatorLayers(
         dot={false}
         connectNulls={true}
         legendType="none"
-      />
+      />,
     );
   }
 
@@ -132,7 +132,7 @@ export function StrategyArea({
       stroke={color}
       strokeOpacity={strokeOpacity}
       fillOpacity={isPrimary ? 1 : 0}
-      fill={isPrimary ? `url(#${prefix}-color-${strategyId})` : "transparent"}
+      fill={isPrimary ? `url(#${prefix}-color-${strategyId})` : 'transparent'}
       strokeWidth={strokeWidth}
       {...strokeDasharrayProps}
     />
@@ -140,7 +140,7 @@ export function StrategyArea({
 }
 
 export function renderSignalScatterLayers(): ReactElement[] {
-  return CHART_SIGNALS.map(signal => (
+  return CHART_SIGNALS.map((signal) => (
     <Scatter
       key={signal.key}
       name={signal.name}

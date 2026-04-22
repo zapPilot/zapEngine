@@ -1,6 +1,6 @@
-import { X } from "lucide-react";
+import { X } from 'lucide-react';
 
-import type { ModalHeaderProps } from "./types";
+import type { ModalHeaderProps } from './types';
 
 export function ModalHeader({
   title,

@@ -1,6 +1,6 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-import { createValidator } from "@/schemas/schemaUtils";
+import { createValidator } from '@/schemas/schemaUtils';
 
 /**
  * Zod schemas for regime history API responses
@@ -25,7 +25,7 @@ import { createValidator } from "@/schemas/schemaUtils";
  * - g: Greed (56-75)
  * - eg: Extreme Greed (76-100)
  */
-const regimeIdSchema = z.enum(["ef", "f", "n", "g", "eg"]);
+const regimeIdSchema = z.enum(['ef', 'f', 'n', 'g', 'eg']);
 
 /**
  * Direction type indicates the strategy transition pattern
@@ -34,7 +34,7 @@ const regimeIdSchema = z.enum(["ef", "f", "n", "g", "eg"]);
  * - fromRight: Transitioning from a more bullish regime (higher fear/greed index)
  * - default: No clear directional context (first load, invalid data, etc.)
  */
-const directionTypeSchema = z.enum(["fromLeft", "fromRight", "default"]);
+const directionTypeSchema = z.enum(['fromLeft', 'fromRight', 'default']);
 
 /**
  * Duration information for time spent in current regime
@@ -115,5 +115,5 @@ export type RegimeHistoryResponse = z.infer<typeof regimeHistoryResponseSchema>;
 // ============================================================================
 
 export const validateRegimeHistoryResponse = createValidator(
-  regimeHistoryResponseSchema
+  regimeHistoryResponseSchema,
 );

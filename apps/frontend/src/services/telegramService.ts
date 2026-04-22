@@ -8,10 +8,10 @@
  * - Disconnect Telegram account
  */
 
-import { AccountServiceError } from "@/lib/errors";
-import { httpUtils } from "@/lib/http";
-import { createServiceCaller } from "@/lib/http/createServiceCaller";
-import { createServiceError } from "@/lib/http/serviceErrorUtils";
+import { AccountServiceError } from '@/lib/errors';
+import { httpUtils } from '@/lib/http';
+import { createServiceCaller } from '@/lib/http/createServiceCaller';
+import { createServiceError } from '@/lib/http/serviceErrorUtils';
 
 // ============================================================================
 // TYPES
@@ -57,17 +57,17 @@ export interface TelegramDisconnectResponse {
 
 function mapTelegramServiceErrorMessage(
   status: number,
-  message: string
+  message: string,
 ): string {
   switch (status) {
     case 404:
-      return "User not found. Please connect your wallet first.";
+      return 'User not found. Please connect your wallet first.';
     case 409:
-      return "Telegram account is already connected.";
+      return 'Telegram account is already connected.';
     case 410:
-      return "Verification token has expired. Please request a new one.";
+      return 'Verification token has expired. Please request a new one.';
     case 429:
-      return "Too many requests. Please wait before trying again.";
+      return 'Too many requests. Please wait before trying again.';
     default:
       return message;
   }
@@ -77,8 +77,8 @@ function createTelegramServiceError(error: unknown): AccountServiceError {
   return createServiceError(
     error,
     AccountServiceError,
-    "Telegram service error",
-    mapTelegramServiceErrorMessage
+    'Telegram service error',
+    mapTelegramServiceErrorMessage,
   );
 }
 
@@ -107,12 +107,12 @@ const callTelegramApi = createServiceCaller(createTelegramServiceError);
  * ```
  */
 export async function requestTelegramToken(
-  userId: string
+  userId: string,
 ): Promise<TelegramTokenResponse> {
   return callTelegramApi(() =>
     accountApiClient.post<TelegramTokenResponse>(
-      `/users/${userId}/telegram/request-token`
-    )
+      `/users/${userId}/telegram/request-token`,
+    ),
   );
 }
 
@@ -128,10 +128,10 @@ export async function requestTelegramToken(
  * ```
  */
 export async function getTelegramStatus(
-  userId: string
+  userId: string,
 ): Promise<TelegramStatus> {
   return callTelegramApi(() =>
-    accountApiClient.get<TelegramStatus>(`/users/${userId}/telegram/status`)
+    accountApiClient.get<TelegramStatus>(`/users/${userId}/telegram/status`),
   );
 }
 
@@ -149,11 +149,11 @@ export async function getTelegramStatus(
  * ```
  */
 export async function disconnectTelegram(
-  userId: string
+  userId: string,
 ): Promise<TelegramDisconnectResponse> {
   return callTelegramApi(() =>
     accountApiClient.delete<TelegramDisconnectResponse>(
-      `/users/${userId}/telegram/disconnect`
-    )
+      `/users/${userId}/telegram/disconnect`,
+    ),
   );
 }

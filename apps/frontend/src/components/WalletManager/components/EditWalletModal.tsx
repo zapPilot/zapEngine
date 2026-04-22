@@ -1,16 +1,16 @@
-import { X } from "lucide-react";
+import { X } from 'lucide-react';
 import {
   type KeyboardEvent,
   type ReactElement,
   useEffect,
   useState,
-} from "react";
+} from 'react';
 
-import { BaseCard, GradientButton, LoadingSpinner } from "@/components/ui";
-import { ModalBackdrop } from "@/components/ui/modal";
-import type { WalletData } from "@/lib/validation/walletUtils";
-import type { EditingWallet, WalletOperations } from "@/types";
-import { formatAddress } from "@/utils/formatters";
+import { BaseCard, GradientButton, LoadingSpinner } from '@/components/ui';
+import { ModalBackdrop } from '@/components/ui/modal';
+import type { WalletData } from '@/lib/validation/walletUtils';
+import type { EditingWallet, WalletOperations } from '@/types';
+import { formatAddress } from '@/utils/formatters';
 
 interface EditWalletModalProps {
   editingWallet: EditingWallet | null;
@@ -27,7 +27,7 @@ export function EditWalletModal({
   onSave,
   onClose,
 }: EditWalletModalProps): ReactElement | null {
-  const [newLabel, setNewLabel] = useState("");
+  const [newLabel, setNewLabel] = useState('');
 
   // Update newLabel when editingWallet changes
   useEffect(() => {
@@ -44,15 +44,15 @@ export function EditWalletModal({
 
   const handleClose = () => {
     onClose();
-    setNewLabel("");
+    setNewLabel('');
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") handleSave();
-    if (event.key === "Escape") handleClose();
+    if (event.key === 'Enter') handleSave();
+    if (event.key === 'Escape') handleClose();
   };
 
-  const wallet = wallets.find(w => w.id === editingWallet.id);
+  const wallet = wallets.find((w) => w.id === editingWallet.id);
   const isLoading = operations.editing[editingWallet.id]?.isLoading;
 
   return (
@@ -69,15 +69,15 @@ export function EditWalletModal({
         </div>
 
         <p className="text-sm text-gray-400 mb-4">
-          Update the display name for{" "}
-          {wallet ? formatAddress(wallet.address) : ""}
+          Update the display name for{' '}
+          {wallet ? formatAddress(wallet.address) : ''}
         </p>
 
         <div className="space-y-4">
           <input
             type="text"
             value={newLabel}
-            onChange={e => setNewLabel(e.target.value)}
+            onChange={(e) => setNewLabel(e.target.value)}
             placeholder="Enter wallet label"
             className="w-full bg-gray-800/50 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 outline-none"
             autoFocus
@@ -97,7 +97,7 @@ export function EditWalletModal({
                   <span>Saving...</span>
                 </div>
               ) : (
-                "Save Changes"
+                'Save Changes'
               )}
             </GradientButton>
             <button

@@ -11,7 +11,7 @@
  * @version 2.0.0
  */
 
-import type { AllocationBreakdown } from "@/types/domain/allocation";
+import type { AllocationBreakdown } from '@/types/domain/allocation';
 
 // =============================================================================
 // SIZE TYPES
@@ -35,7 +35,7 @@ import type { AllocationBreakdown } from "@/types/domain/allocation";
  * <Input size="sm" />
  * ```
  */
-export type ComponentSize = "xs" | "sm" | "md" | "lg" | "xl";
+export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 // =============================================================================
 // VARIANT TYPES
@@ -61,7 +61,7 @@ export type ComponentSize = "xs" | "sm" | "md" | "lg" | "xl";
  * <LoadingState variant="inline" size="sm" />
  * ```
  */
-export type LoadingVariant = "spinner" | "card" | "skeleton" | "inline";
+export type LoadingVariant = 'spinner' | 'card' | 'skeleton' | 'inline';
 
 /**
  * Spinner animation variants for visual loading indicators.
@@ -79,7 +79,7 @@ export type LoadingVariant = "spinner" | "card" | "skeleton" | "inline";
  * <Spinner variant="pulse" size="lg" />
  * ```
  */
-export type SpinnerVariant = "default" | "dots" | "pulse";
+export type SpinnerVariant = 'default' | 'dots' | 'pulse';
 
 /**
  * Skeleton shape variants for placeholder content during loading.
@@ -100,7 +100,7 @@ export type SpinnerVariant = "default" | "dots" | "pulse";
  * <Skeleton variant="rounded" width="120px" height="40px" />
  * ```
  */
-export type SkeletonVariant = "text" | "circular" | "rectangular" | "rounded";
+export type SkeletonVariant = 'text' | 'circular' | 'rectangular' | 'rounded';
 
 // =============================================================================
 // BASE COMPONENT PROPS
@@ -221,7 +221,7 @@ export interface SwapToken {
   logo_url?: string;
   optimized_symbol?: string;
   icon?: string;
-  type?: "native" | "wrapped" | "erc20";
+  type?: 'native' | 'wrapped' | 'erc20';
   wrappedVersion?: string;
   nativeVersion?: string;
   hasDeposit?: boolean;

@@ -1,15 +1,15 @@
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 
-import * as matchers from "@testing-library/jest-dom/matchers";
-import { cleanup, configure } from "@testing-library/react";
+import * as matchers from '@testing-library/jest-dom/matchers';
+import { cleanup, configure } from '@testing-library/react';
 // Import React for the dynamic component mock
-import React, { type JSX } from "react";
-import { afterEach, beforeEach, expect, vi } from "vitest";
+import React, { type JSX } from 'react';
+import { afterEach, beforeEach, expect, vi } from 'vitest';
 
-import { chartMatchers } from "./utils/chartTypeGuards";
+import { chartMatchers } from './utils/chartTypeGuards';
 
-const coverageTmpDir = path.join(process.cwd(), "coverage", ".tmp");
+const coverageTmpDir = path.join(process.cwd(), 'coverage', '.tmp');
 if (!fs.existsSync(coverageTmpDir)) {
   fs.mkdirSync(coverageTmpDir, { recursive: true });
 }
@@ -29,9 +29,9 @@ beforeEach(() => {
   console.error = (...args: any[]) => {
     const message = args[0];
     if (
-      typeof message === "string" &&
-      (message.includes("not configured to support act") ||
-        message.includes("Warning: ReactDOM.render is no longer supported"))
+      typeof message === 'string' &&
+      (message.includes('not configured to support act') ||
+        message.includes('Warning: ReactDOM.render is no longer supported'))
     ) {
       return;
     }
@@ -40,8 +40,8 @@ beforeEach(() => {
 });
 
 // Mock React Query's error boundary logging to avoid console noise during tests
-vi.mock("@tanstack/react-query", async () => {
-  const actual = await vi.importActual("@tanstack/react-query");
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
   return {
     ...actual,
     // Silence QueryErrorResetBoundary console errors during testing
@@ -75,15 +75,15 @@ afterEach(() => {
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
   root: Element | null = null;
-  rootMargin = "";
+  rootMargin = '';
   thresholds: readonly number[] = [];
 
   constructor(
     _callback: IntersectionObserverCallback,
-    options?: IntersectionObserverInit
+    options?: IntersectionObserverInit,
   ) {
     this.root = (options?.root as Element) || null;
-    this.rootMargin = options?.rootMargin || "";
+    this.rootMargin = options?.rootMargin || '';
     this.thresholds = Array.isArray(options?.threshold)
       ? options.threshold
       : [options?.threshold || 0];
@@ -114,9 +114,9 @@ global.ResizeObserver = class ResizeObserver {
 } as any;
 
 // Mock window.matchMedia
-Object.defineProperty(window, "matchMedia", {
+Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -129,15 +129,15 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // Mock window.scrollTo
-Object.defineProperty(window, "scrollTo", {
+Object.defineProperty(window, 'scrollTo', {
   writable: true,
   value: vi.fn(),
 });
 
 // Mock window.location.reload safely without breaking other properties
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   try {
-    if (typeof window.location.reload !== "function") {
+    if (typeof window.location.reload !== 'function') {
       (window.location as any).reload = vi.fn();
     }
   } catch (_err) {
@@ -170,7 +170,7 @@ if (typeof window !== "undefined") {
     this.tiltX = eventInitDict.tiltX || 0;
     this.tiltY = eventInitDict.tiltY || 0;
     this.twist = eventInitDict.twist || 0;
-    this.pointerType = eventInitDict.pointerType || "";
+    this.pointerType = eventInitDict.pointerType || '';
     this.isPrimary = eventInitDict.isPrimary || false;
   }
 
@@ -209,7 +209,7 @@ const dynamicOverrides: DynamicOverride[] = [];
 
 (globalThis as any).__registerDynamicOverride = (
   matcher: string | RegExp,
-  renderer: DynamicOverride["renderer"]
+  renderer: DynamicOverride['renderer'],
 ) => {
   dynamicOverrides.push({ matcher, renderer });
 };
@@ -220,12 +220,12 @@ const dynamicOverrides: DynamicOverride[] = [];
 
 // Mock app lazy imports to return the actual component in tests
 // This allows individual component mocks to take precedence
-vi.mock("@/lib/lazy/lazyImport", () => {
+vi.mock('@/lib/lazy/lazyImport', () => {
   return {
     lazyImport: (
       importFunc: () => Promise<any>,
       _selectExport?: (module: any) => React.ComponentType<any>,
-      _options?: { fallback?: JSX.Element }
+      _options?: { fallback?: JSX.Element },
     ) => {
       // Return a component that immediately resolves the import
       const DynamicComponent = (props: any) => {
@@ -233,87 +233,87 @@ vi.mock("@/lib/lazy/lazyImport", () => {
           const importString = importFunc.toString();
 
           const override = dynamicOverrides.find(({ matcher }) =>
-            typeof matcher === "string"
+            typeof matcher === 'string'
               ? importString.includes(matcher)
-              : matcher.test(importString)
+              : matcher.test(importString),
           );
           if (override) {
             return override.renderer(props);
           }
 
-          if (importString.includes("wallet/portfolio/analytics")) {
+          if (importString.includes('wallet/portfolio/analytics')) {
             return React.createElement(
-              "div",
-              { "data-testid": "analytics-view" },
-              "Analytics View"
+              'div',
+              { 'data-testid': 'analytics-view' },
+              'Analytics View',
             );
           }
 
           if (
-            importString.includes("wallet/portfolio/views/invest/InvestView")
+            importString.includes('wallet/portfolio/views/invest/InvestView')
           ) {
             return React.createElement(
-              "div",
-              { "data-testid": "invest-view" },
-              `Invest View ${props?.activeSubTab ?? "trading"} ${
-                props?.activeMarketSection ?? "overview"
-              }`
+              'div',
+              { 'data-testid': 'invest-view' },
+              `Invest View ${props?.activeSubTab ?? 'trading'} ${
+                props?.activeMarketSection ?? 'overview'
+              }`,
             );
           }
 
-          if (importString.includes("trading/TradingView")) {
+          if (importString.includes('trading/TradingView')) {
             return React.createElement(
-              "div",
-              { "data-testid": "trading-view" },
-              props?.userId ?? "no-user"
+              'div',
+              { 'data-testid': 'trading-view' },
+              props?.userId ?? 'no-user',
             );
           }
 
-          if (importString.includes("BacktestingView")) {
-            return React.createElement("div", {
-              "data-testid": "backtesting-view",
+          if (importString.includes('BacktestingView')) {
+            return React.createElement('div', {
+              'data-testid': 'backtesting-view',
             });
           }
 
-          if (importString.includes("market/MarketDashboardView")) {
+          if (importString.includes('market/MarketDashboardView')) {
             return React.createElement(
-              "div",
-              { "data-testid": "market-dashboard-view" },
+              'div',
+              { 'data-testid': 'market-dashboard-view' },
               [
                 React.createElement(
-                  "span",
-                  { key: "active-section" },
-                  props?.activeSection ?? "overview"
+                  'span',
+                  { key: 'active-section' },
+                  props?.activeSection ?? 'overview',
                 ),
                 React.createElement(
-                  "button",
+                  'button',
                   {
-                    key: "switch-section",
-                    type: "button",
+                    key: 'switch-section',
+                    type: 'button',
                     onClick: () =>
-                      props?.onSectionChange?.("relative-strength"),
+                      props?.onSectionChange?.('relative-strength'),
                   },
-                  "Select Relative Strength"
+                  'Select Relative Strength',
                 ),
-              ]
+              ],
             );
           }
 
-          if (importString.includes("configManager")) {
-            return React.createElement("div", {
-              "data-testid": "config-manager-view",
+          if (importString.includes('configManager')) {
+            return React.createElement('div', {
+              'data-testid': 'config-manager-view',
             });
           }
 
-          if (importString.includes("wallet/portfolio/modals")) {
+          if (importString.includes('wallet/portfolio/modals')) {
             return React.createElement(
-              "div",
-              { "data-testid": "portfolio-modals" },
-              "Portfolio Modals Container"
+              'div',
+              { 'data-testid': 'portfolio-modals' },
+              'Portfolio Modals Container',
             );
           }
 
-          if (importString.includes("WalletManager")) {
+          if (importString.includes('WalletManager')) {
             if (!props?.isOpen) {
               return null;
             }
@@ -321,58 +321,58 @@ vi.mock("@/lib/lazy/lazyImport", () => {
             const emailSubscribeControls = props?.onEmailSubscribed
               ? [
                   React.createElement(
-                    "button",
+                    'button',
                     {
-                      key: "confirm-email",
-                      type: "button",
-                      "data-testid": "confirm-email-subscribe",
+                      key: 'confirm-email',
+                      type: 'button',
+                      'data-testid': 'confirm-email-subscribe',
                       onClick: () => props.onEmailSubscribed?.(),
                     },
-                    "Confirm Subscribe"
+                    'Confirm Subscribe',
                   ),
                   React.createElement(
-                    "button",
+                    'button',
                     {
-                      key: "subscribe-from-manager",
-                      type: "button",
-                      "data-testid": "subscribe-from-wallet-manager",
+                      key: 'subscribe-from-manager',
+                      type: 'button',
+                      'data-testid': 'subscribe-from-wallet-manager',
                       onClick: () => props.onEmailSubscribed?.(),
                     },
-                    "Subscribe"
+                    'Subscribe',
                   ),
                 ]
               : [];
 
             return React.createElement(
-              "div",
-              { "data-testid": "wallet-manager-modal", role: "dialog" },
+              'div',
+              { 'data-testid': 'wallet-manager-modal', role: 'dialog' },
               [
                 React.createElement(
-                  "div",
+                  'div',
                   {
-                    key: "header",
-                    "data-testid": "wallet-manager-header",
+                    key: 'header',
+                    'data-testid': 'wallet-manager-header',
                   },
                   [
                     React.createElement(
-                      "h2",
-                      { key: "title" },
-                      "Wallet Manager"
+                      'h2',
+                      { key: 'title' },
+                      'Wallet Manager',
                     ),
                     React.createElement(
-                      "button",
+                      'button',
                       {
-                        key: "close",
-                        type: "button",
-                        "data-testid": "close-wallet-manager",
+                        key: 'close',
+                        type: 'button',
+                        'data-testid': 'close-wallet-manager',
                         onClick: () => props?.onClose?.(),
                       },
-                      "Close"
+                      'Close',
                     ),
-                  ]
+                  ],
                 ),
                 ...emailSubscribeControls,
-              ]
+              ],
             );
           }
 
@@ -380,47 +380,47 @@ vi.mock("@/lib/lazy/lazyImport", () => {
           const modulePromise = importFunc();
 
           // If it's a Promise, we can't resolve it synchronously, so return a mock
-          if (modulePromise && typeof modulePromise.then === "function") {
+          if (modulePromise && typeof modulePromise.then === 'function') {
             // In test environment, return a generic placeholder for other components
             return React.createElement(
-              "div",
+              'div',
               {
-                "data-testid": "dynamic-component-mock",
-                "data-dynamic": "true",
+                'data-testid': 'dynamic-component-mock',
+                'data-dynamic': 'true',
               },
-              "Dynamic Component Mock"
+              'Dynamic Component Mock',
             );
           }
         } catch (error) {
           // If import fails, return placeholder
           return React.createElement(
-            "div",
+            'div',
             {
-              "data-testid": "dynamic-component-error",
-              "data-error": error?.message || "Import failed",
+              'data-testid': 'dynamic-component-error',
+              'data-error': error?.message || 'Import failed',
             },
-            "Dynamic Import Error"
+            'Dynamic Import Error',
           );
         }
 
         // Fallback placeholder
         return React.createElement(
-          "div",
+          'div',
           {
-            "data-testid": "dynamic-component-fallback",
+            'data-testid': 'dynamic-component-fallback',
           },
-          "Dynamic Component"
+          'Dynamic Component',
         );
       };
 
-      DynamicComponent.displayName = "DynamicComponent";
+      DynamicComponent.displayName = 'DynamicComponent';
       return DynamicComponent;
     },
   };
 });
 
 // Provide a default mock for UserContext to avoid provider requirements in unit tests
-vi.mock("@/contexts/UserContext", () => {
+vi.mock('@/contexts/UserContext', () => {
   return {
     useUser: () => ({
       userInfo: null,

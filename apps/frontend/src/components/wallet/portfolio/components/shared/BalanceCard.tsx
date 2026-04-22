@@ -1,41 +1,41 @@
-import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
-import type { ReactElement } from "react";
+import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-import type { BorrowingSummary, RiskMetrics } from "@/services";
-import type { ModalType } from "@/types/portfolio";
+import type { BorrowingSummary, RiskMetrics } from '@/services';
+import type { ModalType } from '@/types/portfolio';
 
-import { BalanceCardSkeleton } from "../../views/DashboardSkeleton";
-import { BorrowingHealthPill } from "./BorrowingHealthPill";
-import { DataFreshnessIndicator } from "./DataFreshnessIndicator";
-import { HealthFactorPill } from "./HealthFactorPill";
-import { HealthWarningBanner } from "./HealthWarningBanner";
+import { BalanceCardSkeleton } from '../../views/DashboardSkeleton';
+import { BorrowingHealthPill } from './BorrowingHealthPill';
+import { DataFreshnessIndicator } from './DataFreshnessIndicator';
+import { HealthFactorPill } from './HealthFactorPill';
+import { HealthWarningBanner } from './HealthWarningBanner';
 
 /** BalanceCard styling constants */
 const STYLES = {
-  card: "bg-gray-900/40 backdrop-blur-sm border border-gray-800 rounded-2xl p-6 flex flex-col justify-center",
-  label: "text-xs text-gray-500 font-bold uppercase tracking-widest mb-1",
-  netWorthActive: "text-4xl font-bold tracking-tight mb-2 text-white",
-  netWorthEmpty: "text-4xl font-bold tracking-tight mb-2 text-gray-600",
+  card: 'bg-gray-900/40 backdrop-blur-sm border border-gray-800 rounded-2xl p-6 flex flex-col justify-center',
+  label: 'text-xs text-gray-500 font-bold uppercase tracking-widest mb-1',
+  netWorthActive: 'text-4xl font-bold tracking-tight mb-2 text-white',
+  netWorthEmpty: 'text-4xl font-bold tracking-tight mb-2 text-gray-600',
   buttonBase:
-    "flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors border",
+    'flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors border',
   buttonDisabled:
-    "bg-gray-800/30 text-gray-600 border-gray-800 cursor-not-allowed",
+    'bg-gray-800/30 text-gray-600 border-gray-800 cursor-not-allowed',
   depositEnabled:
-    "bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/20 cursor-pointer",
+    'bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/20 cursor-pointer',
   withdrawEnabled:
-    "bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 cursor-pointer",
+    'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 cursor-pointer',
 } as const;
 
 /** Get button className based on action type and disabled state */
 function getButtonClassName(
-  type: "deposit" | "withdraw",
-  isDisabled: boolean
+  type: 'deposit' | 'withdraw',
+  isDisabled: boolean,
 ): string {
   if (isDisabled) {
     return `${STYLES.buttonBase} ${STYLES.buttonDisabled}`;
   }
 
-  if (type === "deposit") {
+  if (type === 'deposit') {
     return `${STYLES.buttonBase} ${STYLES.depositEnabled}`;
   }
 
@@ -44,17 +44,17 @@ function getButtonClassName(
 
 function getActionTitle(
   isOwnBundle: boolean,
-  action: "deposit" | "withdraw"
+  action: 'deposit' | 'withdraw',
 ): string | undefined {
   if (isOwnBundle) {
     return undefined;
   }
 
-  if (action === "deposit") {
-    return "Switch to your bundle to deposit";
+  if (action === 'deposit') {
+    return 'Switch to your bundle to deposit';
   }
 
-  return "Switch to your bundle to withdraw";
+  return 'Switch to your bundle to withdraw';
 }
 
 interface BalanceCardState {
@@ -67,12 +67,12 @@ function deriveBalanceCardState(
   isEmptyState: boolean,
   isOwnBundle: boolean,
   riskMetrics: RiskMetrics | null | undefined,
-  borrowingSummary: BorrowingSummary | null | undefined
+  borrowingSummary: BorrowingSummary | null | undefined,
 ): BalanceCardState {
   return {
     isActionsDisabled: isEmptyState || !isOwnBundle,
     showLeverageHealth: Boolean(
-      !isEmptyState && riskMetrics?.has_leverage && riskMetrics.health_rate
+      !isEmptyState && riskMetrics?.has_leverage && riskMetrics.health_rate,
     ),
     showBorrowingAlert: Boolean(!isEmptyState && borrowingSummary?.has_debt),
   };
@@ -141,7 +141,7 @@ function BalanceRiskColumn({
 interface BalanceActionsProps {
   isActionsDisabled: boolean;
   isOwnBundle: boolean;
-  onOpenModal: (type: Extract<ModalType, "deposit" | "withdraw">) => void;
+  onOpenModal: (type: Extract<ModalType, 'deposit' | 'withdraw'>) => void;
 }
 
 function BalanceActions({
@@ -153,19 +153,19 @@ function BalanceActions({
     <div className="grid grid-cols-2 gap-2">
       <button
         data-testid="deposit-button"
-        onClick={() => onOpenModal("deposit")}
+        onClick={() => onOpenModal('deposit')}
         disabled={isActionsDisabled}
-        title={getActionTitle(isOwnBundle, "deposit")}
-        className={getButtonClassName("deposit", isActionsDisabled)}
+        title={getActionTitle(isOwnBundle, 'deposit')}
+        className={getButtonClassName('deposit', isActionsDisabled)}
       >
         <ArrowDownCircle className="w-4 h-4" /> Deposit
       </button>
       <button
         data-testid="withdraw-button"
-        onClick={() => onOpenModal("withdraw")}
+        onClick={() => onOpenModal('withdraw')}
         disabled={isActionsDisabled}
-        title={getActionTitle(isOwnBundle, "withdraw")}
-        className={getButtonClassName("withdraw", isActionsDisabled)}
+        title={getActionTitle(isOwnBundle, 'withdraw')}
+        className={getButtonClassName('withdraw', isActionsDisabled)}
       >
         <ArrowUpCircle className="w-4 h-4" /> Withdraw
       </button>
@@ -179,7 +179,7 @@ interface BalanceCardProps {
   /** Whether user is viewing their own bundle (enables wallet actions) */
   isOwnBundle?: boolean;
   isLoading?: boolean;
-  onOpenModal: (type: Extract<ModalType, "deposit" | "withdraw">) => void;
+  onOpenModal: (type: Extract<ModalType, 'deposit' | 'withdraw'>) => void;
   lastUpdated?: string | null;
   /** Risk metrics for leveraged positions (null if no leverage) */
   riskMetrics?: RiskMetrics | null;
@@ -208,7 +208,7 @@ export function BalanceCard({
       isEmptyState,
       isOwnBundle,
       riskMetrics,
-      borrowingSummary
+      borrowingSummary,
     );
 
   if (isLoading) {

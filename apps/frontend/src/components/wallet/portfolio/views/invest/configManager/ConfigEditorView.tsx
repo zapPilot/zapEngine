@@ -1,12 +1,12 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
-import { LoadingState } from "@/components/ui";
+import { LoadingState } from '@/components/ui';
 
-import { ConfigEditorHeader } from "./ConfigEditorHeader";
-import { ConfigEditorJsonSection } from "./ConfigEditorJsonSection";
-import { type ConfigEditorViewProps } from "./configEditorShared";
-import { ConfigEditorStructuredFields } from "./ConfigEditorStructuredFields";
-import { useConfigEditorForm } from "./useConfigEditorForm";
+import { ConfigEditorHeader } from './ConfigEditorHeader';
+import { ConfigEditorJsonSection } from './ConfigEditorJsonSection';
+import { type ConfigEditorViewProps } from './configEditorShared';
+import { ConfigEditorStructuredFields } from './ConfigEditorStructuredFields';
+import { useConfigEditorForm } from './useConfigEditorForm';
 
 /**
  * Create/edit form for strategy configurations.
@@ -42,7 +42,7 @@ export function ConfigEditorView({
     onSaved,
   });
 
-  if (mode === "edit" && isLoading) {
+  if (mode === 'edit' && isLoading) {
     return <LoadingState className="min-h-[20rem]" size="lg" />;
   }
 

@@ -17,8 +17,8 @@ function initScrollAnimations() {
     rootMargin: '0px 0px -50px 0px',
   };
 
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
       if (entry.isIntersecting) {
         entry.target.classList.add('animate-in');
       }
@@ -27,10 +27,10 @@ function initScrollAnimations() {
 
   // Observe all animatable elements
   const animatableElements = document.querySelectorAll(
-    '.feature-card, .use-case-card, .step-item, .section-header'
+    '.feature-card, .use-case-card, .step-item, .section-header',
   );
 
-  animatableElements.forEach(el => {
+  animatableElements.forEach((el) => {
     el.classList.add('animate-on-scroll');
     observer.observe(el);
   });
@@ -51,7 +51,7 @@ function initMobileMenu() {
 
     // Close mobile menu when clicking on a link
     const navLinkElements = document.querySelectorAll('.nav-link');
-    navLinkElements.forEach(link => {
+    navLinkElements.forEach((link) => {
       link.addEventListener('click', () => {
         navLinks.classList.remove('mobile-open');
         mobileToggle.classList.remove('active');
@@ -112,8 +112,8 @@ function initCountingAnimations() {
     }, 20);
   };
 
-  const statsObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
+  const statsObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
       if (entry.isIntersecting) {
         const element = entry.target;
         const text = element.textContent;
@@ -134,7 +134,7 @@ function initCountingAnimations() {
     });
   });
 
-  statNumbers.forEach(stat => {
+  statNumbers.forEach((stat) => {
     statsObserver.observe(stat);
   });
 }
@@ -166,7 +166,7 @@ function initHeroAnimations() {
   let currentDot = 0;
 
   const cycleDots = () => {
-    dots.forEach(dot => dot.classList.remove('active'));
+    dots.forEach((dot) => dot.classList.remove('active'));
     dots[currentDot].classList.add('active');
     currentDot = (currentDot + 1) % dots.length;
   };
@@ -179,7 +179,7 @@ function initHeroAnimations() {
   const heroVisual = document.querySelector('.hero-visual');
 
   if (phoneMockup && heroVisual) {
-    heroVisual.addEventListener('mousemove', e => {
+    heroVisual.addEventListener('mousemove', (e) => {
       const rect = heroVisual.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -194,7 +194,8 @@ function initHeroAnimations() {
     });
 
     heroVisual.addEventListener('mouseleave', () => {
-      phoneMockup.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+      phoneMockup.style.transform =
+        'perspective(1000px) rotateX(0deg) rotateY(0deg)';
     });
   }
 }
@@ -203,8 +204,8 @@ function initHeroAnimations() {
 function initSmoothScrolling() {
   const navLinks = document.querySelectorAll('a[href^="#"]');
 
-  navLinks.forEach(link => {
-    link.addEventListener('click', e => {
+  navLinks.forEach((link) => {
+    link.addEventListener('click', (e) => {
       e.preventDefault();
 
       const targetId = link.getAttribute('href');
@@ -339,7 +340,7 @@ window.addEventListener('load', () => {
   // Trigger hero animations after page load
   setTimeout(() => {
     const heroElements = document.querySelectorAll(
-      '.hero-badge, .hero-title .title-line, .hero-subtitle, .hero-cta, .hero-stats'
+      '.hero-badge, .hero-title .title-line, .hero-subtitle, .hero-cta, .hero-stats',
     );
     heroElements.forEach((el, index) => {
       setTimeout(() => {

@@ -1,6 +1,12 @@
 'use client';
 
-import { Settings, Activity, Shield, Calendar, type LucideIcon } from 'lucide-react';
+import {
+  Settings,
+  Activity,
+  Shield,
+  Calendar,
+  type LucideIcon,
+} from 'lucide-react';
 import { SectionHeader } from './layout';
 import { StepCard } from './ui';
 import { MESSAGES } from '@/config/messages';
@@ -15,7 +21,7 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export function HowItWorks() {
-  const steps = MESSAGES.howItWorks.steps.map(step => ({
+  const steps = MESSAGES.howItWorks.steps.map((step) => ({
     ...step,
     icon: iconMap[step.icon]!,
   }));

@@ -1,38 +1,38 @@
-import { motion } from "framer-motion";
-import { type ReactNode, type RefObject, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { motion } from 'framer-motion';
+import { type ReactNode, type RefObject, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   mapBorrowingStatusToRiskLevel,
   RISK_DISPLAY_CONFIG,
   RiskLevel,
-} from "@/constants/riskThresholds";
-import { useBorrowingPositions } from "@/hooks/queries/analytics/useBorrowingPositions";
-import type { BorrowingPositionsResponse, BorrowingSummary } from "@/services";
+} from '@/constants/riskThresholds';
+import { useBorrowingPositions } from '@/hooks/queries/analytics/useBorrowingPositions';
+import type { BorrowingPositionsResponse, BorrowingSummary } from '@/services';
 
-import { BorrowingPositionsTooltip } from "./BorrowingPositionsTooltip";
-import { useTooltipPosition } from "./useTooltipPosition";
-import { useTooltipState } from "./useTooltipState";
+import { BorrowingPositionsTooltip } from './BorrowingPositionsTooltip';
+import { useTooltipPosition } from './useTooltipPosition';
+import { useTooltipState } from './useTooltipState';
 
 interface BorrowingHealthPillProps {
   summary: BorrowingSummary;
   userId: string;
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
 }
 
 const SIZE_CONFIGS = {
   sm: {
-    container: "px-2 py-1 text-xs gap-1.5",
-    dot: "w-2 h-2",
+    container: 'px-2 py-1 text-xs gap-1.5',
+    dot: 'w-2 h-2',
   },
   md: {
-    container: "px-3 py-1.5 text-sm gap-2",
-    dot: "w-2.5 h-2.5",
+    container: 'px-3 py-1.5 text-sm gap-2',
+    dot: 'w-2.5 h-2.5',
   },
 } as const;
 
 interface BorrowingSummaryWithHealth extends BorrowingSummary {
-  overall_status: "HEALTHY" | "WARNING" | "CRITICAL";
+  overall_status: 'HEALTHY' | 'WARNING' | 'CRITICAL';
   worst_health_rate: number;
 }
 
@@ -40,7 +40,7 @@ function useCloseOnOutsideClick(
   isExpanded: boolean,
   containerRef: RefObject<HTMLDivElement | null>,
   tooltipRef: RefObject<HTMLDivElement | null>,
-  setIsExpanded: (isVisible: boolean) => void
+  setIsExpanded: (isVisible: boolean) => void,
 ): void {
   useEffect(() => {
     if (!isExpanded) {
@@ -59,15 +59,15 @@ function useCloseOnOutsideClick(
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [containerRef, isExpanded, setIsExpanded, tooltipRef]);
 }
 
 function hasBorrowingHealthData(
-  summary: BorrowingSummary
+  summary: BorrowingSummary,
 ): summary is BorrowingSummaryWithHealth {
   return summary.overall_status !== null && summary.worst_health_rate !== null;
 }
@@ -81,7 +81,7 @@ function buildExpandedTooltip(
   summary: BorrowingSummary,
   isLoading: boolean,
   error: Error | null,
-  refetch: () => Promise<unknown>
+  refetch: () => Promise<unknown>,
 ): ReactNode {
   if (!isExpanded || !isMounted) {
     return null;
@@ -119,7 +119,7 @@ function buildExpandedTooltip(
 export function BorrowingHealthPill({
   summary,
   userId,
-  size = "md",
+  size = 'md',
 }: BorrowingHealthPillProps): ReactNode {
   const {
     isVisible: isExpanded,
@@ -140,7 +140,7 @@ export function BorrowingHealthPill({
   const tooltipPosition = useTooltipPosition(
     isExpanded,
     containerRef,
-    tooltipRef
+    tooltipRef,
   );
 
   if (!hasBorrowingHealthData(summary)) {
@@ -164,7 +164,7 @@ export function BorrowingHealthPill({
     summary,
     isLoading,
     error,
-    refetch
+    refetch,
   );
 
   return (
@@ -176,8 +176,8 @@ export function BorrowingHealthPill({
         aria-label={`Borrowing health: ${worst_health_rate.toFixed(2)}. Click to view detailed positions.`}
         aria-expanded={isExpanded}
         onClick={() => setIsExpanded(!isExpanded)}
-        onKeyDown={e => {
-          if (e.key === "Enter" || e.key === " ") {
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             setIsExpanded(!isExpanded);
           }

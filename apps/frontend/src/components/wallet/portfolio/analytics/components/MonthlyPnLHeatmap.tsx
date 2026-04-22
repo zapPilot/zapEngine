@@ -4,22 +4,22 @@
  * Displays monthly profit/loss as a color-coded heatmap
  */
 
-import { Calendar } from "lucide-react";
-import type { ReactElement } from "react";
+import { Calendar } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
-import { MONTH_ABBREVIATIONS as MONTH_LABELS } from "@/constants/dates";
+import { BaseCard } from '@/components/ui/BaseCard';
+import { MONTH_ABBREVIATIONS as MONTH_LABELS } from '@/constants/dates';
 
 function getMonthlyPnLCellClassName(value: number): string {
   if (value > 0) {
-    return "bg-green-500/20 text-green-300 border border-green-500/20";
+    return 'bg-green-500/20 text-green-300 border border-green-500/20';
   }
 
   if (value < 0) {
-    return "bg-red-500/20 text-red-300 border border-red-500/20";
+    return 'bg-red-500/20 text-red-300 border border-red-500/20';
   }
 
-  return "bg-gray-800/50 text-gray-400 border border-gray-700/30";
+  return 'bg-gray-800/50 text-gray-400 border border-gray-700/30';
 }
 
 function getMonthlyPnLOpacity(value: number): number {
@@ -80,7 +80,7 @@ export function MonthlyPnLHeatmap({
           className={`h-12 rounded-md flex items-center justify-center text-xs font-medium transition-transform hover:scale-105 cursor-pointer ${getMonthlyPnLCellClassName(item.value)}`}
           style={{ opacity: getMonthlyPnLOpacity(item.value) }}
         >
-          {item.value > 0 ? "+" : ""}
+          {item.value > 0 ? '+' : ''}
           {item.value.toFixed(1)}%
         </div>
         <span className="text-[10px] text-center text-gray-500 font-mono uppercase">

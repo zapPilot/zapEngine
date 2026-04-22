@@ -1,4 +1,4 @@
-import { type JSX, useMemo, useState } from "react";
+import { type JSX, useMemo, useState } from 'react';
 import {
   CartesianGrid,
   ComposedChart,
@@ -9,12 +9,12 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import { useMarketDashboardQuery } from "@/hooks/queries/market/useMarketDashboardQuery";
-import type { MarketDashboardPoint } from "@/services";
+import { useMarketDashboardQuery } from '@/hooks/queries/market/useMarketDashboardQuery';
+import type { MarketDashboardPoint } from '@/services';
 
-import { SimpleStatCard, TimeframePicker } from ".";
+import { SimpleStatCard, TimeframePicker } from '.';
 import {
   AXIS_COLOR,
   formatRatioLabel,
@@ -22,9 +22,9 @@ import {
   formatXAxisDate,
   type Timeframe,
   TIMEFRAMES,
-} from "./marketDashboardConstants";
+} from './marketDashboardConstants';
 
-const RATIO_AXIS_COLOR = "#6EE7B7";
+const RATIO_AXIS_COLOR = '#6EE7B7';
 
 interface RelativeStrengthPoint {
   snapshot_date: string;
@@ -36,7 +36,7 @@ interface RelativeStrengthPoint {
 interface CrossPoint {
   snapshot_date: string;
   ratio: number;
-  direction: "above" | "below";
+  direction: 'above' | 'below';
 }
 
 function getRelativeStrengthSignal(isAboveDma: boolean | null | undefined): {
@@ -46,24 +46,24 @@ function getRelativeStrengthSignal(isAboveDma: boolean | null | undefined): {
 } {
   if (isAboveDma === true) {
     return {
-      label: "ETH leading",
-      valueClass: "text-emerald-300",
-      detail: "ETH/BTC is trading above its 200-day trend.",
+      label: 'ETH leading',
+      valueClass: 'text-emerald-300',
+      detail: 'ETH/BTC is trading above its 200-day trend.',
     };
   }
 
   if (isAboveDma === false) {
     return {
-      label: "BTC leading",
-      valueClass: "text-amber-300",
-      detail: "ETH/BTC is below its 200-day trend.",
+      label: 'BTC leading',
+      valueClass: 'text-amber-300',
+      detail: 'ETH/BTC is below its 200-day trend.',
     };
   }
 
   return {
-    label: "Insufficient data",
-    valueClass: "text-gray-300",
-    detail: "Need 200 overlapping ETH/BTC daily points for a crossover signal.",
+    label: 'Insufficient data',
+    valueClass: 'text-gray-300',
+    detail: 'Need 200 overlapping ETH/BTC daily points for a crossover signal.',
   };
 }
 
@@ -73,36 +73,37 @@ function getRelativeStrengthSignal(isAboveDma: boolean | null | undefined): {
  * @returns Relative strength section element
  */
 export function RelativeStrengthSection(): JSX.Element {
-  const [ratioTimeframe, setRatioTimeframe] = useState<Timeframe>("MAX");
+  const [ratioTimeframe, setRatioTimeframe] = useState<Timeframe>('MAX');
   const ratioDays =
-    TIMEFRAMES.find(tf => tf.id === ratioTimeframe)?.days ?? 1900;
+    TIMEFRAMES.find((tf) => tf.id === ratioTimeframe)?.days ?? 1900;
   const { data: ratioData, isLoading: isRatioLoading } =
     useMarketDashboardQuery(ratioDays);
 
   const ratioSnapshots = useMemo<MarketDashboardPoint[]>(
     () => ratioData?.snapshots ?? [],
-    [ratioData?.snapshots]
+    [ratioData?.snapshots],
   );
 
   const relativeStrengthData = useMemo<RelativeStrengthPoint[]>(
     () =>
-      ratioSnapshots.map(snapshot => ({
+      ratioSnapshots.map((snapshot) => ({
         snapshot_date: snapshot.snapshot_date,
         ratio: snapshot.eth_btc_relative_strength?.ratio ?? null,
         dma_200: snapshot.eth_btc_relative_strength?.dma_200 ?? null,
         is_above_dma: snapshot.eth_btc_relative_strength?.is_above_dma ?? null,
       })),
-    [ratioSnapshots]
+    [ratioSnapshots],
   );
 
   const latestRelativeStrengthPoint = useMemo(
     () =>
-      [...relativeStrengthData].reverse().find(point => point.ratio != null) ??
-      null,
-    [relativeStrengthData]
+      [...relativeStrengthData]
+        .reverse()
+        .find((point) => point.ratio != null) ?? null,
+    [relativeStrengthData],
   );
   const relativeStrengthSignal = getRelativeStrengthSignal(
-    latestRelativeStrengthPoint?.is_above_dma
+    latestRelativeStrengthPoint?.is_above_dma,
   );
 
   const crossPoints = useMemo<CrossPoint[]>(() => {
@@ -121,7 +122,7 @@ export function RelativeStrengthSection(): JSX.Element {
         points.push({
           snapshot_date: curr.snapshot_date,
           ratio: curr.ratio,
-          direction: curr.is_above_dma ? "above" : "below",
+          direction: curr.is_above_dma ? 'above' : 'below',
         });
       }
     }
@@ -189,18 +190,18 @@ export function RelativeStrengthSection(): JSX.Element {
                 orientation="right"
                 stroke={RATIO_AXIS_COLOR}
                 tick={{ fill: RATIO_AXIS_COLOR, fontSize: 11 }}
-                domain={["auto", "auto"]}
+                domain={['auto', 'auto']}
                 tickFormatter={formatRatioLabel}
               />
               <Tooltip
-                cursor={{ stroke: "#4B5563", strokeWidth: 1 }}
+                cursor={{ stroke: '#4B5563', strokeWidth: 1 }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   const data = payload[0]?.payload as
                     | RelativeStrengthPoint
                     | undefined;
                   const cross = crossPoints.find(
-                    cp => cp.snapshot_date === label
+                    (cp) => cp.snapshot_date === label,
                   );
                   return (
                     <div className="rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 shadow-xl">
@@ -215,9 +216,9 @@ export function RelativeStrengthSection(): JSX.Element {
                       </p>
                       {cross ? (
                         <p
-                          className={`mt-2 text-xs font-semibold ${cross.direction === "above" ? "text-emerald-400" : "text-amber-400"}`}
+                          className={`mt-2 text-xs font-semibold ${cross.direction === 'above' ? 'text-emerald-400' : 'text-amber-400'}`}
                         >
-                          {cross.direction === "above" ? "\u2B06" : "\u2B07"}{" "}
+                          {cross.direction === 'above' ? '\u2B06' : '\u2B07'}{' '}
                           ETH crosses {cross.direction} DMA200
                         </p>
                       ) : null}
@@ -229,7 +230,7 @@ export function RelativeStrengthSection(): JSX.Element {
                 verticalAlign="top"
                 height={32}
                 iconType="circle"
-                wrapperStyle={{ paddingTop: "0", marginBottom: "10px" }}
+                wrapperStyle={{ paddingTop: '0', marginBottom: '10px' }}
               />
               <Line
                 yAxisId="ratio"
@@ -252,14 +253,14 @@ export function RelativeStrengthSection(): JSX.Element {
                 strokeDasharray="5 5"
                 connectNulls
               />
-              {crossPoints.map(cp => (
+              {crossPoints.map((cp) => (
                 <ReferenceDot
                   key={cp.snapshot_date}
                   yAxisId="ratio"
                   x={cp.snapshot_date}
                   y={cp.ratio}
                   r={6}
-                  fill={cp.direction === "above" ? "#34D399" : "#F59E0B"}
+                  fill={cp.direction === 'above' ? '#34D399' : '#F59E0B'}
                   stroke="#fff"
                   strokeWidth={2}
                   ifOverflow="extendDomain"

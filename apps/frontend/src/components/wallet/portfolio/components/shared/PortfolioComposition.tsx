@@ -1,26 +1,26 @@
-import { Zap } from "lucide-react";
-import type { ReactElement } from "react";
+import { Zap } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-import { type WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
-import { GradientButton } from "@/components/ui";
-import { toInvestCompositionTarget } from "@/components/wallet/regime/investAllocation";
+import { type WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import { GradientButton } from '@/components/ui';
+import { toInvestCompositionTarget } from '@/components/wallet/regime/investAllocation';
 import {
   getRegimeAllocation,
   type Regime,
-} from "@/components/wallet/regime/regimeData";
-import { UNIFIED_COLORS } from "@/constants/assets";
-import { GRADIENTS } from "@/constants/design-system";
+} from '@/components/wallet/regime/regimeData';
+import { UNIFIED_COLORS } from '@/constants/assets';
+import { GRADIENTS } from '@/constants/design-system';
 
-import { PortfolioCompositionSkeleton } from "../../views/DashboardSkeleton";
+import { PortfolioCompositionSkeleton } from '../../views/DashboardSkeleton';
 import {
   mapLegacyConstituentsToUnified,
   UnifiedAllocationBar,
   type UnifiedSegment,
-} from "../allocation";
+} from '../allocation';
 import {
   buildRealCryptoAssets,
   buildTargetCryptoAssets,
-} from "../utils/portfolioCompositionHelpers";
+} from '../utils/portfolioCompositionHelpers';
 
 interface CompositionTarget {
   crypto: number;
@@ -41,13 +41,13 @@ interface PortfolioCompositionProps {
 
 const STYLES = {
   container:
-    "bg-gray-900/20 border border-gray-800 rounded-2xl p-8 flex flex-col relative overflow-hidden",
-  header: "flex justify-between items-end mb-8",
-  title: "text-xl font-bold text-white mb-1",
-  subtitle: "text-sm text-gray-400",
-  allocationRow: "flex gap-2 items-center",
+    'bg-gray-900/20 border border-gray-800 rounded-2xl p-8 flex flex-col relative overflow-hidden',
+  header: 'flex justify-between items-end mb-8',
+  title: 'text-xl font-bold text-white mb-1',
+  subtitle: 'text-sm text-gray-400',
+  allocationRow: 'flex gap-2 items-center',
   barTrack:
-    "relative w-full bg-gray-900/50 rounded-xl border border-gray-800 p-3 flex flex-col gap-3 overflow-hidden",
+    'relative w-full bg-gray-900/50 rounded-xl border border-gray-800 p-3 flex flex-col gap-3 overflow-hidden',
 } as const;
 
 /**
@@ -55,14 +55,14 @@ const STYLES = {
  * The entire crypto portion maps to BTC (the sole spot crypto asset).
  */
 function buildTargetUnifiedSegments(
-  target: CompositionTarget
+  target: CompositionTarget,
 ): UnifiedSegment[] {
   const segments: UnifiedSegment[] = [];
 
   if (target.crypto > 0) {
     segments.push({
-      category: "btc",
-      label: "BTC",
+      category: 'btc',
+      label: 'BTC',
       percentage: target.crypto,
       color: UNIFIED_COLORS.BTC,
     });
@@ -70,8 +70,8 @@ function buildTargetUnifiedSegments(
 
   if (target.stable > 0) {
     segments.push({
-      category: "stable",
-      label: "STABLE",
+      category: 'stable',
+      label: 'STABLE',
       percentage: target.stable,
       color: UNIFIED_COLORS.STABLE,
     });
@@ -82,7 +82,7 @@ function buildTargetUnifiedSegments(
 
 function resolveTargetAllocation(
   targetAllocation: CompositionTarget | undefined,
-  currentRegime: Regime | undefined
+  currentRegime: Regime | undefined,
 ): CompositionTarget | undefined {
   if (targetAllocation) {
     return targetAllocation;
@@ -100,7 +100,7 @@ function resolveCurrentSegments(
   data: WalletPortfolioDataWithDirection,
   isEmptyState: boolean,
   currentRegime: Regime | undefined,
-  target: CompositionTarget
+  target: CompositionTarget,
 ): UnifiedSegment[] {
   const cryptoAssets =
     isEmptyState && currentRegime
@@ -115,7 +115,7 @@ function resolveCurrentSegments(
 }
 
 function getDriftClassName(delta: number): string {
-  return delta > 5 ? "text-orange-400" : "text-gray-500";
+  return delta > 5 ? 'text-orange-400' : 'text-gray-500';
 }
 
 export function PortfolioComposition({
@@ -143,7 +143,7 @@ export function PortfolioComposition({
     data,
     isEmptyState,
     currentRegime,
-    target
+    target,
   );
 
   return (

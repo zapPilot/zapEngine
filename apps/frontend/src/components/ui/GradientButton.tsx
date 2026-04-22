@@ -1,9 +1,9 @@
-import { motion } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
-import { memo, type ReactElement, type ReactNode } from "react";
+import { motion } from 'framer-motion';
+import type { LucideIcon } from 'lucide-react';
+import { memo, type ReactElement, type ReactNode } from 'react';
 
-import { cn } from "@/lib/ui/classNames";
-import { InteractiveComponentProps } from "@/types/ui/ui.types";
+import { cn } from '@/lib/ui/classNames';
+import { InteractiveComponentProps } from '@/types/ui/ui.types';
 
 interface GradientButtonProps extends InteractiveComponentProps {
   children: ReactNode;
@@ -20,15 +20,15 @@ function GradientButtonComponent({
   shadowColor,
   icon: Icon,
   disabled = false,
-  className = "",
+  className = '',
   testId,
 }: GradientButtonProps): ReactElement {
   const fullClassName = cn(
-    "p-4 rounded-2xl text-white font-semibold flex items-center justify-center space-x-2 transition-all duration-300",
+    'p-4 rounded-2xl text-white font-semibold flex items-center justify-center space-x-2 transition-all duration-300',
     `bg-gradient-to-r ${gradient}`,
     shadowColor && `hover:shadow-lg hover:shadow-${shadowColor}/25`,
-    disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-    className
+    disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+    className,
   );
 
   return (
@@ -48,4 +48,4 @@ function GradientButtonComponent({
 
 export const GradientButton = memo(GradientButtonComponent);
 
-GradientButton.displayName = "GradientButton";
+GradientButton.displayName = 'GradientButton';

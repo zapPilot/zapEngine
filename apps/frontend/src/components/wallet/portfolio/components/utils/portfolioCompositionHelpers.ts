@@ -1,17 +1,17 @@
-import type { WalletPortfolioDataWithDirection } from "@/adapters/walletPortfolioDataAdapter";
+import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import {
   getRegimeAllocation,
   type Regime,
-} from "@/components/wallet/regime/regimeData";
-import { ASSET_COLORS } from "@/constants/assets";
-import type { AllocationConstituent } from "@/types/portfolio";
+} from '@/components/wallet/regime/regimeData';
+import { ASSET_COLORS } from '@/constants/assets';
+import type { AllocationConstituent } from '@/types/portfolio';
 
 /**
  * Build target crypto assets from regime breakdown for empty state
  * Maps all invest spot exposure to BTC for the empty-state target visual.
  */
 export function buildTargetCryptoAssets(
-  regime: Regime
+  regime: Regime,
 ): AllocationConstituent[] {
   const breakdown = getRegimeAllocation(regime);
   const totalCrypto = breakdown.spot;
@@ -23,9 +23,9 @@ export function buildTargetCryptoAssets(
   const assets: AllocationConstituent[] = [];
 
   assets.push({
-    asset: "BTC",
-    symbol: "BTC",
-    name: "Bitcoin (Spot)",
+    asset: 'BTC',
+    symbol: 'BTC',
+    name: 'Bitcoin (Spot)',
     value: (breakdown.spot / totalCrypto) * 100,
     color: ASSET_COLORS.BTC,
   });
@@ -37,7 +37,7 @@ export function buildTargetCryptoAssets(
  * Get real crypto assets from portfolio data
  */
 export function buildRealCryptoAssets(
-  data: WalletPortfolioDataWithDirection
+  data: WalletPortfolioDataWithDirection,
 ): AllocationConstituent[] {
   return data.currentAllocation.simplifiedCrypto;
 }

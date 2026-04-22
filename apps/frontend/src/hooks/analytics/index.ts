@@ -1,2 +1,2 @@
 // Analytics feature hooks
-export { usePortfolioDashboard } from "./usePortfolioDashboard";
+export { usePortfolioDashboard } from './usePortfolioDashboard';

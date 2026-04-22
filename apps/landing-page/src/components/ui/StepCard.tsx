@@ -67,7 +67,12 @@ function DesktopStepCard({
 /**
  * Mobile variant of the step card
  */
-function MobileStepCard({ step, index, stepMotion, isLastStep }: Omit<StepCardProps, 'variant'>) {
+function MobileStepCard({
+  step,
+  index,
+  stepMotion,
+  isLastStep,
+}: Omit<StepCardProps, 'variant'>) {
   return (
     <motion.div {...stepMotion(index)} className="relative">
       <div className="flex items-start space-x-6">
@@ -110,5 +115,9 @@ function MobileStepCard({ step, index, stepMotion, isLastStep }: Omit<StepCardPr
  * Unified StepCard component that renders desktop or mobile variant
  */
 export function StepCard({ variant, ...props }: StepCardProps) {
-  return variant === 'desktop' ? <DesktopStepCard {...props} /> : <MobileStepCard {...props} />;
+  return variant === 'desktop' ? (
+    <DesktopStepCard {...props} />
+  ) : (
+    <MobileStepCard {...props} />
+  );
 }

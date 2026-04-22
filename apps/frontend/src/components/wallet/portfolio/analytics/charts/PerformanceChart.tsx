@@ -4,11 +4,11 @@
  * Shows portfolio performance over time
  */
 
-import { memo, useMemo } from "react";
+import { memo, useMemo } from 'react';
 
 // Shared chart imports are now loaded from ChartUI to prevent duplication
-import type { PerformanceHoverData } from "@/types/ui/chartHover";
-import { formatChartDate } from "@/utils/formatters";
+import type { PerformanceHoverData } from '@/types/ui/chartHover';
+import { formatChartDate } from '@/utils/formatters';
 
 import {
   buildPath,
@@ -18,7 +18,7 @@ import {
   ChartSurface,
   ChartTooltip,
   useChartHover,
-} from "./ChartUI";
+} from './ChartUI';
 
 /**
  * Performance chart data point
@@ -68,21 +68,21 @@ export const PerformanceChart = memo<PerformanceChartProps>(
         {
           minValue: initialValue,
           maxValue: initialValue,
-        }
+        },
       );
     }, [data]);
 
     // Chart hover with tooltip
     const performanceHover = useChartHover(data, {
-      chartType: "performance",
+      chartType: 'performance',
       chartWidth: width,
       chartHeight: height,
       chartPadding: 0,
       minValue,
       maxValue,
-      getYValue: point => point.portfolioValue,
+      getYValue: (point) => point.portfolioValue,
       buildHoverData: (point, x, y): PerformanceHoverData => ({
-        chartType: "performance",
+        chartType: 'performance',
         x,
         y,
         date: formatChartDate(point.date),
@@ -94,7 +94,7 @@ export const PerformanceChart = memo<PerformanceChartProps>(
     const portfolioPath = buildPath(
       data,
       width,
-      point => (point.portfolio / 100) * height
+      (point) => (point.portfolio / 100) * height,
     );
 
     return (
@@ -160,7 +160,7 @@ export const PerformanceChart = memo<PerformanceChartProps>(
         />
       </div>
     );
-  }
+  },
 );
 
-PerformanceChart.displayName = "PerformanceChart";
+PerformanceChart.displayName = 'PerformanceChart';

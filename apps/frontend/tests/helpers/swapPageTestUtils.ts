@@ -7,18 +7,18 @@
  * @module tests/helpers/swapPageTestUtils
  */
 
-import { QueryClient } from "@tanstack/react-query";
-import { vi } from "vitest";
+import { QueryClient } from '@tanstack/react-query';
+import { vi } from 'vitest';
 
 import type {
   AssetCategory,
   PortfolioSwapAction,
   Protocol,
-} from "@/components/PortfolioAllocation/types";
-import type { UserInfo } from "@/hooks/queries/wallet/useUserQuery";
-import type { InvestmentOpportunity } from "@/types/investment";
-import type { RiskLevel } from "@/types/risk";
-import type { SwapToken } from "@/types/swap";
+} from '@/components/PortfolioAllocation/types';
+import type { UserInfo } from '@/hooks/queries/wallet/useUserQuery';
+import type { InvestmentOpportunity } from '@/types/investment';
+import type { RiskLevel } from '@/types/risk';
+import type { SwapToken } from '@/types/swap';
 
 // =============================================================================
 // MOCK FACTORIES
@@ -38,16 +38,16 @@ import type { SwapToken } from "@/types/swap";
  */
 export function createMockToken(overrides?: Partial<SwapToken>): SwapToken {
   return {
-    symbol: "USDC",
-    name: "USD Coin",
-    address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    symbol: 'USDC',
+    name: 'USD Coin',
+    address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
     chainId: 1,
     decimals: 6,
     balance: 1000,
     price: 1.0,
-    logo_url: "/tokens/usdc.svg",
-    optimized_symbol: "USDC",
-    type: "erc20",
+    logo_url: '/tokens/usdc.svg',
+    optimized_symbol: 'USDC',
+    type: 'erc20',
     ...overrides,
   };
 }
@@ -70,22 +70,22 @@ export function createMockToken(overrides?: Partial<SwapToken>): SwapToken {
 export function createMockProtocol(overrides?: Partial<Protocol>): Protocol {
   return {
     id: `protocol-${Math.random().toString(36).substr(2, 9)}`,
-    name: "Aave V3 USDC",
+    name: 'Aave V3 USDC',
     allocationPercentage: 50,
-    chain: "Ethereum",
-    protocol: "aave-v3",
+    chain: 'Ethereum',
+    protocol: 'aave-v3',
     tvl: 1000000,
     apy: 3.5,
     riskScore: 3,
-    poolSymbols: ["USDC"],
-    aprConfidence: "high",
+    poolSymbols: ['USDC'],
+    aprConfidence: 'high',
     aprBreakdown: {
       base: 2.5,
       reward: 1.0,
       total: 3.5,
       updatedAt: new Date().toISOString(),
     },
-    targetTokens: ["USDC"],
+    targetTokens: ['USDC'],
     ...overrides,
   };
 }
@@ -112,16 +112,16 @@ export function createMockProtocol(overrides?: Partial<Protocol>): Protocol {
  * ```
  */
 export function createMockAssetCategory(
-  overrides?: Partial<AssetCategory>
+  overrides?: Partial<AssetCategory>,
 ): AssetCategory {
   return {
     id: `category-${Math.random().toString(36).substr(2, 9)}`,
-    name: "Stablecoins",
+    name: 'Stablecoins',
     protocols: [],
-    color: "#10b981",
-    description: "Low-risk stable value preservation",
-    targetAssets: ["USDC", "USDT", "DAI"],
-    chains: ["ethereum", "arbitrum", "optimism"],
+    color: '#10b981',
+    description: 'Low-risk stable value preservation',
+    targetAssets: ['USDC', 'USDT', 'DAI'],
+    chains: ['ethereum', 'arbitrum', 'optimism'],
     protocolCount: 5,
     enabledProtocolCount: 3,
     ...overrides,
@@ -148,18 +148,18 @@ export function createMockAssetCategory(
  * ```
  */
 export function createMockStrategy(
-  overrides?: Partial<InvestmentOpportunity>
+  overrides?: Partial<InvestmentOpportunity>,
 ): InvestmentOpportunity {
   return {
     id: `strategy-${Math.random().toString(36).substr(2, 9)}`,
-    name: "Conservative Stablecoin Yield",
+    name: 'Conservative Stablecoin Yield',
     apr: 5.5,
-    risk: "Low" as RiskLevel,
-    category: "Stablecoins",
-    description: "Earn yield on stablecoins with minimal risk",
-    tvl: "$500M",
-    color: "#10b981",
-    navigationContext: "invest",
+    risk: 'Low' as RiskLevel,
+    category: 'Stablecoins',
+    description: 'Earn yield on stablecoins with minimal risk',
+    tvl: '$500M',
+    color: '#10b981',
+    navigationContext: 'invest',
     ...overrides,
   };
 }
@@ -182,12 +182,12 @@ export function createMockStrategy(
  * ```
  */
 export function createMockSwapAction(
-  overrides?: Partial<PortfolioSwapAction>
+  overrides?: Partial<PortfolioSwapAction>,
 ): PortfolioSwapAction {
   const category = createMockAssetCategory();
 
   return {
-    operationMode: "zapIn",
+    operationMode: 'zapIn',
     includedCategories: [
       {
         ...category,
@@ -199,7 +199,7 @@ export function createMockSwapAction(
     ],
     swapSettings: {
       fromToken: createMockToken(),
-      amount: "1000",
+      amount: '1000',
       slippageTolerance: 0.5,
     },
     ...overrides,
@@ -268,8 +268,8 @@ export interface SwapPageMockConfig {
  */
 export function setupSwapPageMocks(config: SwapPageMockConfig = {}) {
   const {
-    userInfo = { userId: "test-user-123", walletAddress: "0x123" },
-    connectedWallet = "0x123",
+    userInfo = { userId: 'test-user-123', walletAddress: '0x123' },
+    connectedWallet = '0x123',
     chainId = 1,
     strategies = [],
     isLoading = false,
@@ -294,20 +294,20 @@ export function setupSwapPageMocks(config: SwapPageMockConfig = {}) {
     chain: chainId
       ? {
           id: chainId,
-          name: chainId === 1 ? "Ethereum" : "Unknown",
-          symbol: chainId === 1 ? "ETH" : "UNKNOWN",
+          name: chainId === 1 ? 'Ethereum' : 'Unknown',
+          symbol: chainId === 1 ? 'ETH' : 'UNKNOWN',
         }
       : null,
     switchChain: vi.fn().mockResolvedValue(),
     isChainSupported: vi.fn().mockReturnValue(true),
     getChainInfo: vi.fn().mockReturnValue({
       id: chainId,
-      name: "Ethereum",
-      symbol: "ETH",
+      name: 'Ethereum',
+      symbol: 'ETH',
     }),
     getSupportedChains: vi.fn().mockReturnValue([
-      { id: 1, name: "Ethereum", symbol: "ETH" },
-      { id: 137, name: "Polygon", symbol: "MATIC" },
+      { id: 1, name: 'Ethereum', symbol: 'ETH' },
+      { id: 137, name: 'Polygon', symbol: 'MATIC' },
     ]),
   });
 
@@ -324,17 +324,17 @@ export function setupSwapPageMocks(config: SwapPageMockConfig = {}) {
     totalStrategies: strategies.length,
     isInitialLoading,
     isReloading: isRefetching || (isLoading && strategies.length > 0),
-    hasPoolData: strategies.some(cat => cat.protocols?.length > 0),
+    hasPoolData: strategies.some((cat) => cat.protocols?.length > 0),
     totalProtocols: strategies.reduce(
       (sum, cat) => sum + (cat.protocols?.length || 0),
-      0
+      0,
     ),
   });
 
   // Mock intentService.executeUnifiedZap
   const mockExecuteUnifiedZap = vi.fn().mockResolvedValue({
-    intentId: "intent-123",
-    status: "pending",
+    intentId: 'intent-123',
+    status: 'pending',
     transactions: [],
   });
 
@@ -382,7 +382,7 @@ export function setupSwapPageMocks(config: SwapPageMockConfig = {}) {
  */
 export function selectOperationMode(
   container: HTMLElement,
-  mode: "zapIn" | "zapOut" | "rebalance"
+  mode: 'zapIn' | 'zapOut' | 'rebalance',
 ): void {
   const modeMap = {
     zapIn: /invest|zap in/i,
@@ -390,8 +390,8 @@ export function selectOperationMode(
     rebalance: /optimize|rebalance/i,
   };
 
-  const button = Array.from(container.querySelectorAll("button")).find(btn =>
-    modeMap[mode].test(btn.textContent || "")
+  const button = Array.from(container.querySelectorAll('button')).find((btn) =>
+    modeMap[mode].test(btn.textContent || ''),
   );
 
   if (!button) {
@@ -425,7 +425,7 @@ export function selectOperationMode(
  */
 export function triggerZapAction(
   onZapAction: (action: PortfolioSwapAction) => void,
-  action?: PortfolioSwapAction
+  action?: PortfolioSwapAction,
 ): void {
   const zapAction = action || createMockSwapAction();
   onZapAction(zapAction);
@@ -483,15 +483,15 @@ export function createTestQueryClient(): QueryClient {
  * @returns True if value is a SwapToken
  */
 export function isSwapToken(value: unknown): value is SwapToken {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== 'object' || value === null) return false;
 
   const token = value as Partial<SwapToken>;
 
   return (
-    typeof token.symbol === "string" &&
-    typeof token.address === "string" &&
-    typeof token.chainId === "number" &&
-    typeof token.decimals === "number"
+    typeof token.symbol === 'string' &&
+    typeof token.address === 'string' &&
+    typeof token.chainId === 'number' &&
+    typeof token.decimals === 'number'
   );
 }
 
@@ -502,15 +502,15 @@ export function isSwapToken(value: unknown): value is SwapToken {
  * @returns True if value is an AssetCategory
  */
 export function isAssetCategory(value: unknown): value is AssetCategory {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== 'object' || value === null) return false;
 
   const category = value as Partial<AssetCategory>;
 
   return (
-    typeof category.id === "string" &&
-    typeof category.name === "string" &&
+    typeof category.id === 'string' &&
+    typeof category.name === 'string' &&
     Array.isArray(category.protocols) &&
-    typeof category.color === "string"
+    typeof category.color === 'string'
   );
 }
 
@@ -526,17 +526,17 @@ export const SwapPageTestScenarios = {
    * Connected user with strategies loaded (default happy path)
    */
   connectedWithStrategies: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [
       createMockAssetCategory({
-        name: "Stablecoins",
+        name: 'Stablecoins',
         protocols: [createMockProtocol()],
       }),
       createMockAssetCategory({
-        name: "Blue Chips",
-        targetAssets: ["WBTC", "WETH"],
+        name: 'Blue Chips',
+        targetAssets: ['WBTC', 'WETH'],
       }),
     ],
     isLoading: false,
@@ -559,8 +559,8 @@ export const SwapPageTestScenarios = {
    * Loading state (initial fetch)
    */
   loading: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [],
     isLoading: true,
@@ -572,20 +572,20 @@ export const SwapPageTestScenarios = {
    * Error state (failed to fetch strategies)
    */
   error: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [],
     isLoading: false,
-    error: new Error("Failed to fetch strategies"),
+    error: new Error('Failed to fetch strategies'),
   }),
 
   /**
    * Empty strategies (no available opportunities)
    */
   emptyStrategies: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [],
     isLoading: false,
@@ -596,8 +596,8 @@ export const SwapPageTestScenarios = {
    * Refetching state (background refresh)
    */
   refetching: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 1,
     strategies: [createMockAssetCategory()],
     isLoading: false,
@@ -609,13 +609,13 @@ export const SwapPageTestScenarios = {
    * Multiple chains scenario
    */
   multiChain: (): SwapPageMockConfig => ({
-    userInfo: { userId: "user-123", walletAddress: "0xabc" },
-    connectedWallet: "0xabc",
+    userInfo: { userId: 'user-123', walletAddress: '0xabc' },
+    connectedWallet: '0xabc',
     chainId: 137, // Polygon
     strategies: [
       createMockAssetCategory({
-        name: "Polygon Stables",
-        chains: ["polygon"],
+        name: 'Polygon Stables',
+        chains: ['polygon'],
       }),
     ],
     isLoading: false,

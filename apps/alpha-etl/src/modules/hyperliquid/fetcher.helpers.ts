@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 function normalizeNumericValue(value: unknown): unknown {
-  if (typeof value !== "string") {
+  if (typeof value !== 'string') {
     return value;
   }
 
@@ -22,7 +22,7 @@ export function createVaultRequestId(): string {
 }
 
 function parseFiniteNumericValue(value: number | string): number | null {
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null;
   }
 
@@ -53,7 +53,7 @@ export const FollowerStateSchema = z.object({
 
 // Vault relationship schema
 export const VaultRelationshipSchema = z.object({
-  type: z.enum(["parent", "follower"]),
+  type: z.enum(['parent', 'follower']),
   data: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -109,17 +109,17 @@ export function resolveTotalFollowers(
 }
 
 export function deriveTvlFromPortfolio(
-  portfolio?: VaultDetailsResponse["portfolio"],
+  portfolio?: VaultDetailsResponse['portfolio'],
 ): number | null {
   if (!portfolio || portfolio.length === 0) {
     return null;
   }
 
   const preferred =
-    portfolio.find(([bucket]) => bucket === "day") ?? portfolio[0];
+    portfolio.find(([bucket]) => bucket === 'day') ?? portfolio[0]!;
 
   const series = preferred[1] as {
-    accountValueHistory?: Array<[number, number | string]>;
+    accountValueHistory?: [number, number | string][];
   };
   const history = series.accountValueHistory;
   if (!Array.isArray(history) || history.length === 0) {

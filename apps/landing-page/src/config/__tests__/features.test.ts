@@ -12,7 +12,9 @@ describe('features config', () => {
       features.forEach((feature, index) => {
         // Text content from MESSAGES
         expect(feature.title).toBe(MESSAGES.features.items[index]!.title);
-        expect(feature.description).toBe(MESSAGES.features.items[index]!.description);
+        expect(feature.description).toBe(
+          MESSAGES.features.items[index]!.description,
+        );
 
         // Visual config from FEATURE_VISUALS
         expect(feature.icon).toBe(FEATURE_VISUALS[index]!.icon);

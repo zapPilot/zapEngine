@@ -1,6 +1,6 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from '@tanstack/react-query';
 
-import { CACHE_WINDOW } from "@/config/cacheWindow";
+import { CACHE_WINDOW } from '@/config/cacheWindow';
 
 // Create a client instance with optimized configuration for DeFi app
 // ETL updates run once daily, but we bound freshness to the hourly HTTP cache
@@ -38,45 +38,45 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   // User-related queries
   user: {
-    all: ["user"] as const,
+    all: ['user'] as const,
     byWallet: (walletAddress: string) =>
-      ["user", "by-wallet", walletAddress] as const,
+      ['user', 'by-wallet', walletAddress] as const,
     /** Query key for user data by userId (for bundle owner data) */
-    byId: (userId: string) => ["user", "by-id", userId] as const,
+    byId: (userId: string) => ['user', 'by-id', userId] as const,
     bundleWallets: (userId: string) =>
-      ["user", "bundle-wallets", userId] as const,
+      ['user', 'bundle-wallets', userId] as const,
     /** Query key for user's wallet list */
-    wallets: (userId: string) => ["user-wallets", userId] as const,
+    wallets: (userId: string) => ['user-wallets', userId] as const,
   },
 
   // Portfolio-related queries
   portfolio: {
-    all: ["portfolio"] as const,
-    summary: (userId: string) => ["portfolio", "summary", userId] as const,
-    analytics: (userId: string) => ["portfolio", "analytics", userId] as const,
-    apr: (userId: string) => ["portfolio", "apr", userId] as const,
+    all: ['portfolio'] as const,
+    summary: (userId: string) => ['portfolio', 'summary', userId] as const,
+    analytics: (userId: string) => ['portfolio', 'analytics', userId] as const,
+    apr: (userId: string) => ['portfolio', 'apr', userId] as const,
     landingPage: (userId: string) =>
-      ["portfolio", "landing-page", userId] as const,
+      ['portfolio', 'landing-page', userId] as const,
     yieldSummary: (userId: string) =>
-      ["portfolio", "yield-summary", userId] as const,
+      ['portfolio', 'yield-summary', userId] as const,
     borrowingPositions: (userId: string) =>
-      ["portfolio", "borrowing-positions", userId] as const,
+      ['portfolio', 'borrowing-positions', userId] as const,
   },
 
   // Strategy-related queries
   strategies: {
-    all: ["strategies"] as const,
-    lists: () => ["strategies", "list"] as const,
+    all: ['strategies'] as const,
+    lists: () => ['strategies', 'list'] as const,
     /** Query key for strategies list with optional config */
-    list: (config?: unknown) => ["strategies", "list", config] as const,
+    list: (config?: unknown) => ['strategies', 'list', config] as const,
     /** Query key for strategies with portfolio data */
     withPortfolio: (userId?: string, config?: unknown) =>
-      ["strategies", "list", "portfolio", userId, config] as const,
+      ['strategies', 'list', 'portfolio', userId, config] as const,
   },
 
   // Token balance queries
   balances: {
-    all: ["tokenBalances"] as const,
+    all: ['tokenBalances'] as const,
     /**
      * Query key for token balances
      * @param chainId - The blockchain chain ID
@@ -88,10 +88,10 @@ export const queryKeys = {
       chainId: number,
       walletAddress: string,
       tokenAddresses: string[],
-      skipCache: boolean
+      skipCache: boolean,
     ) =>
       [
-        "tokenBalances",
+        'tokenBalances',
         chainId,
         walletAddress,
         tokenAddresses,
@@ -101,36 +101,36 @@ export const queryKeys = {
 
   // Token price queries
   prices: {
-    all: ["tokenPrices"] as const,
+    all: ['tokenPrices'] as const,
     /**
      * Query key for token prices
      * @param symbols - Comma-separated symbol string (e.g., "BTC,ETH,USDC")
      */
-    list: (symbols: string) => ["tokenPrices", symbols] as const,
+    list: (symbols: string) => ['tokenPrices', symbols] as const,
   },
 
   // Zap token queries
   zapTokens: {
-    all: ["zapTokens"] as const,
+    all: ['zapTokens'] as const,
     /**
      * Query key for supported zap tokens
      * @param chainId - The blockchain chain ID
      */
-    byChain: (chainId: number) => ["zapTokens", chainId] as const,
+    byChain: (chainId: number) => ['zapTokens', chainId] as const,
   },
 
   // Strategy admin queries
   strategyAdmin: {
-    all: ["strategyAdmin"] as const,
-    configs: () => ["strategyAdmin", "configs"] as const,
+    all: ['strategyAdmin'] as const,
+    configs: () => ['strategyAdmin', 'configs'] as const,
     config: (configId: string) =>
-      ["strategyAdmin", "config", configId] as const,
+      ['strategyAdmin', 'config', configId] as const,
   },
 
   // Market sentiment queries
   sentiment: {
-    all: ["sentiment"] as const,
-    market: () => ["sentiment", "market"] as const,
-    regimeHistory: () => ["sentiment", "regime-history"] as const,
+    all: ['sentiment'] as const,
+    market: () => ['sentiment', 'market'] as const,
+    regimeHistory: () => ['sentiment', 'regime-history'] as const,
   },
 } as const;

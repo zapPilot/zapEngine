@@ -1,11 +1,11 @@
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 
-import { DATA_TEST_ID_PROP } from "../constants";
-import { Skeleton } from "../Skeleton";
+import { DATA_TEST_ID_PROP } from '../constants';
+import { Skeleton } from '../Skeleton';
 
 export function MetricsSkeleton({
-  className = "",
-  [DATA_TEST_ID_PROP]: testId = "metrics-skeleton",
+  className = '',
+  [DATA_TEST_ID_PROP]: testId = 'metrics-skeleton',
 }: {
   className?: string;
   [DATA_TEST_ID_PROP]?: string;

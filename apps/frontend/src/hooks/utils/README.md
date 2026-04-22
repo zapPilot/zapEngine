@@ -9,7 +9,7 @@ Generic, reusable utility functions for React hooks.
 Helper functions for managing operation states (loading, error, success).
 
 ```typescript
-import { useOperationStateHandlers } from "@/hooks/utils";
+import { useOperationStateHandlers } from '@/hooks/utils';
 
 const { setLoading, setSuccess, setError } = useOperationStateHandlers();
 ```
@@ -21,9 +21,9 @@ const { setLoading, setSuccess, setError } = useOperationStateHandlers();
 Utility for invalidating React Query cache and refetching queries.
 
 ```typescript
-import { invalidateAndRefetch } from "@/hooks/utils";
+import { invalidateAndRefetch } from '@/hooks/utils';
 
-await invalidateAndRefetch(queryClient, ["user", userId]);
+await invalidateAndRefetch(queryClient, ['user', userId]);
 ```
 
 **Use cases**: Manual cache invalidation, force refresh after mutations

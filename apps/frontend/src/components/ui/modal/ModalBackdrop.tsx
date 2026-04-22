@@ -1,8 +1,8 @@
-import { motion } from "framer-motion";
-import type { PropsWithChildren } from "react";
+import { motion } from 'framer-motion';
+import type { PropsWithChildren } from 'react';
 
-import { Z_INDEX } from "@/constants/design-system";
-import { fadeInOut } from "@/lib/ui/animationVariants";
+import { Z_INDEX } from '@/constants/design-system';
+import { fadeInOut } from '@/lib/ui/animationVariants';
 
 interface ModalBackdropProps {
   onDismiss: () => void;
@@ -12,7 +12,7 @@ interface ModalBackdropProps {
 export function ModalBackdrop({
   children,
   onDismiss,
-  innerClassName = "",
+  innerClassName = '',
 }: PropsWithChildren<ModalBackdropProps>) {
   return (
     <motion.div
@@ -28,7 +28,7 @@ export function ModalBackdrop({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         className={innerClassName}
-        onClick={event => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         {children}
       </motion.div>

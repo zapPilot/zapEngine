@@ -5,8 +5,8 @@
  * and chart-specific content rendering.
  */
 
-import { motion } from "framer-motion";
-import { type ReactElement, useRef } from "react";
+import { motion } from 'framer-motion';
+import { type ReactElement, useRef } from 'react';
 
 import type {
   AllocationHoverData,
@@ -16,7 +16,7 @@ import type {
   PerformanceHoverData,
   SharpeHoverData,
   VolatilityHoverData,
-} from "@/types";
+} from '@/types';
 
 import {
   AllocationTooltip,
@@ -25,14 +25,14 @@ import {
   PerformanceTooltip,
   SharpeTooltip,
   VolatilityTooltip,
-} from "./tooltipContent";
+} from './tooltipContent';
 
 // Charts that have legends at the top requiring tooltip offset
 const CHARTS_WITH_TOP_LEGEND = new Set([
-  "performance",
-  "asset-allocation",
-  "sharpe",
-  "volatility",
+  'performance',
+  'asset-allocation',
+  'sharpe',
+  'volatility',
 ]);
 
 // Positioning constants
@@ -54,12 +54,12 @@ interface PointerPosition {
 
 interface HorizontalPosition {
   left: number;
-  translateX: "0" | "-50%" | "-100%";
+  translateX: '0' | '-50%' | '-100%';
 }
 
 interface VerticalPosition {
   top: number;
-  translateY: "0" | "-100%";
+  translateY: '0' | '-100%';
 }
 
 interface ChartTooltipProps {
@@ -80,17 +80,17 @@ interface TooltipContentProps {
  */
 function TooltipContent({ data }: TooltipContentProps): ReactElement | null {
   switch (data.chartType) {
-    case "performance":
+    case 'performance':
       return <PerformanceTooltip data={data as PerformanceHoverData} />;
-    case "asset-allocation":
+    case 'asset-allocation':
       return <AllocationTooltip data={data as AllocationHoverData} />;
-    case "drawdown-recovery":
+    case 'drawdown-recovery':
       return <DrawdownTooltip data={data as DrawdownHoverData} />;
-    case "sharpe":
+    case 'sharpe':
       return <SharpeTooltip data={data as SharpeHoverData} />;
-    case "volatility":
+    case 'volatility':
       return <VolatilityTooltip data={data as VolatilityHoverData} />;
-    case "daily-yield":
+    case 'daily-yield':
       return <DailyYieldTooltip data={data as DailyYieldHoverData} />;
     default:
       return null;
@@ -105,7 +105,7 @@ function calculatePosition(
   chartWidth: number,
   chartHeight: number,
   tooltipWidth: number,
-  tooltipHeight: number
+  tooltipHeight: number,
 ) {
   const bounds: ChartBounds = {
     width: hoveredPoint.containerWidth ?? chartWidth,
@@ -124,18 +124,18 @@ function calculatePosition(
   const horizontalPosition = getHorizontalPosition(
     pointer.x,
     bounds.width,
-    tooltipWidth
+    tooltipWidth,
   );
   const verticalPosition = getVerticalPosition(
     pointer.y,
     bounds.height,
-    tooltipHeight
+    tooltipHeight,
   );
   const legendSafePosition = getLegendSafeVerticalPosition(
     hoveredPoint.chartType,
     pointer.y,
     tooltipHeight,
-    verticalPosition
+    verticalPosition,
   );
 
   return {
@@ -149,18 +149,18 @@ function calculatePosition(
 function getHorizontalPosition(
   pointerX: number,
   containerWidth: number,
-  tooltipWidth: number
+  tooltipWidth: number,
 ): HorizontalPosition {
   let left = pointerX;
-  let translateX: HorizontalPosition["translateX"] = "-50%";
+  let translateX: HorizontalPosition['translateX'] = '-50%';
   const halfWidth = tooltipWidth / 2;
 
   if (left - halfWidth < EDGE_PADDING) {
     left = Math.max(left, EDGE_PADDING);
-    translateX = "0";
+    translateX = '0';
   } else if (left + halfWidth > containerWidth - EDGE_PADDING) {
     left = Math.min(left, containerWidth - EDGE_PADDING);
-    translateX = "-100%";
+    translateX = '-100%';
   }
 
   return { left, translateX };
@@ -169,27 +169,27 @@ function getHorizontalPosition(
 function getVerticalPosition(
   pointerY: number,
   containerHeight: number,
-  tooltipHeight: number
+  tooltipHeight: number,
 ): VerticalPosition {
   let top = pointerY - VERTICAL_OFFSET;
-  let translateY: VerticalPosition["translateY"] = "-100%";
+  let translateY: VerticalPosition['translateY'] = '-100%';
 
   if (top - tooltipHeight < EDGE_PADDING) {
     top = Math.min(pointerY + VERTICAL_OFFSET, containerHeight - EDGE_PADDING);
-    translateY = "0";
+    translateY = '0';
   }
 
   return { top, translateY };
 }
 
 function getLegendSafeVerticalPosition(
-  chartType: ChartHoverState["chartType"],
+  chartType: ChartHoverState['chartType'],
   pointerY: number,
   tooltipHeight: number,
-  verticalPosition: VerticalPosition
+  verticalPosition: VerticalPosition,
 ): VerticalPosition {
   const overlapsLegend =
-    verticalPosition.translateY === "-100%" &&
+    verticalPosition.translateY === '-100%' &&
     verticalPosition.top < LEGEND_GUARD_TOP + tooltipHeight;
 
   if (!CHARTS_WITH_TOP_LEGEND.has(chartType) || !overlapsLegend) {
@@ -198,7 +198,7 @@ function getLegendSafeVerticalPosition(
 
   return {
     top: Math.max(pointerY + VERTICAL_OFFSET, LEGEND_GUARD_TOP),
-    translateY: "0",
+    translateY: '0',
   };
 }
 
@@ -222,7 +222,7 @@ export function ChartTooltip({
     chartWidth,
     chartHeight,
     tooltipWidth,
-    tooltipHeight
+    tooltipHeight,
   );
 
   return (

@@ -13,7 +13,9 @@ describe('HomePage', () => {
 
       expect(screen.getAllByText('Zap Pilot').length).toBeGreaterThan(0);
 
-      const heroButtons = screen.getAllByRole('button', { name: /Connect Wallet/i });
+      const heroButtons = screen.getAllByRole('button', {
+        name: /Connect Wallet/i,
+      });
       expect(heroButtons.length).toBeGreaterThan(0);
 
       expect(screen.getByText('Market Sentiment Engine')).toBeInTheDocument();
@@ -27,9 +29,15 @@ describe('HomePage', () => {
     it('should render navigation links', () => {
       render(<HomePage />);
 
-      expect(screen.getAllByRole('link', { name: 'Features' }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('link', { name: 'How It Works' }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('link', { name: 'Docs' }).length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByRole('link', { name: 'Features' }).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getAllByRole('link', { name: 'How It Works' }).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getAllByRole('link', { name: 'Docs' }).length,
+      ).toBeGreaterThan(0);
     });
 
     it('should render AnimatedBackground', () => {
@@ -109,8 +117,12 @@ describe('HomePage', () => {
     it('should render all CTA buttons', () => {
       render(<HomePage />);
 
-      expect(screen.getByRole('button', { name: /Connect Wallet/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Watch Demo/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Connect Wallet/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Watch Demo/i }),
+      ).toBeInTheDocument();
     });
 
     it('should render Launch App buttons', () => {

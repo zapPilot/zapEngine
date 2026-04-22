@@ -30,13 +30,13 @@ export function useKeyboardNavigation<T, E extends HTMLElement = HTMLElement>({
         case 'ArrowRight':
         case 'ArrowDown':
           event.preventDefault();
-          setFocusedIndex(prev => (prev < items.length - 1 ? prev + 1 : 0));
+          setFocusedIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0));
           break;
 
         case 'ArrowLeft':
         case 'ArrowUp':
           event.preventDefault();
-          setFocusedIndex(prev => (prev > 0 ? prev - 1 : items.length - 1));
+          setFocusedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1));
           break;
 
         case 'Enter':

@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export interface AppRouterNavigateOptions {
   scroll?: boolean;
@@ -11,11 +11,11 @@ export interface AppRouterLike {
 }
 
 function maybeScrollToTop(scroll: boolean | undefined): void {
-  if (scroll === false || typeof window === "undefined") {
+  if (scroll === false || typeof window === 'undefined') {
     return;
   }
 
-  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 
 /**
@@ -37,7 +37,7 @@ export function useAppRouter(): AppRouterLike {
       void navigate(href);
       maybeScrollToTop(options?.scroll);
     },
-    [navigate]
+    [navigate],
   );
 
   const replace = useCallback(
@@ -45,7 +45,7 @@ export function useAppRouter(): AppRouterLike {
       void navigate(href, { replace: true });
       maybeScrollToTop(options?.scroll);
     },
-    [navigate]
+    [navigate],
   );
 
   return useMemo(
@@ -53,7 +53,7 @@ export function useAppRouter(): AppRouterLike {
       push,
       replace,
     }),
-    [push, replace]
+    [push, replace],
   );
 }
 

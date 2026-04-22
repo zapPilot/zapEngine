@@ -1,15 +1,15 @@
 /**
  * Asset color mapping for consistent visualization across components
  */
-import { ALLOCATION_CATEGORIES } from "@/lib/domain/allocationCategories";
+import { ALLOCATION_CATEGORIES } from '@/lib/domain/allocationCategories';
 
 export const ASSET_COLORS = {
   BTC: ALLOCATION_CATEGORIES.btc.color,
   ETH: ALLOCATION_CATEGORIES.eth.color,
-  SOL: "#14F195",
+  SOL: '#14F195',
   ALT: ALLOCATION_CATEGORIES.alt.color,
-  USDC: "#2775CA",
-  USDT: "#26A17B",
+  USDC: '#2775CA',
+  USDT: '#26A17B',
 } as const;
 
 /**
@@ -32,9 +32,9 @@ export const UNIFIED_COLORS = {
  * High opacity ensures vibrant colors on dark backgrounds.
  */
 const BAR_OPACITY = {
-  TOP: "E6", // 90% - Top of gradient
-  BOTTOM: "BF", // 75% - Bottom of gradient
-  BORDER: "4D", // 30% - Subtle border
+  TOP: 'E6', // 90% - Top of gradient
+  BOTTOM: 'BF', // 75% - Bottom of gradient
+  BORDER: '4D', // 30% - Subtle border
 } as const;
 
 interface BarStyle {

@@ -6,13 +6,13 @@
 import type {
   AssetAllocationPoint,
   PortfolioDataPoint,
-} from "@/types/portfolio";
+} from '@/types/portfolio';
 
 import {
   DrawdownDataPoint,
   SharpeDataPoint,
   VolatilityDataPoint,
-} from "../utils/chartHoverTestFactories";
+} from '../utils/chartHoverTestFactories';
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -37,7 +37,7 @@ export class PortfolioDataBuilder {
    */
   withDefaults(count: number, startValue = 10000): this {
     for (let i = 0; i < count; i++) {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       this.add({
@@ -57,7 +57,7 @@ export class PortfolioDataBuilder {
    */
   withTrend(count: number, startValue: number, increment: number): this {
     for (let i = 0; i < count; i++) {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       this.add({
@@ -78,12 +78,12 @@ export class PortfolioDataBuilder {
   withVolatility(
     count: number,
     startValue: number,
-    volatilityPercent: number
+    volatilityPercent: number,
   ): this {
     let currentValue = startValue;
 
     for (let i = 0; i < count; i++) {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       const change =
@@ -106,8 +106,8 @@ export class PortfolioDataBuilder {
    * Build the final portfolio data array
    */
   build(): PortfolioDataPoint[] {
-    return this.points.map(point => ({
-      date: point.date || "2025-01-01",
+    return this.points.map((point) => ({
+      date: point.date || '2025-01-01',
       value: point.value || 10000,
       change: point.change || 0,
       benchmark: point.benchmark,
@@ -130,7 +130,7 @@ export class AllocationDataBuilder {
 
   withBalanced(count: number): this {
     for (let i = 0; i < count; i++) {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       this.add({
@@ -148,10 +148,10 @@ export class AllocationDataBuilder {
   withShift(
     count: number,
     from: keyof AssetAllocationPoint,
-    to: keyof AssetAllocationPoint
+    to: keyof AssetAllocationPoint,
   ): this {
     for (let i = 0; i < count; i++) {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       const shift = (i / count) * 20; // Shift up to 20%
@@ -164,7 +164,7 @@ export class AllocationDataBuilder {
         altcoin: 10,
       };
 
-      if (from !== "date" && to !== "date") {
+      if (from !== 'date' && to !== 'date') {
         base[from] = Math.max(0, base[from] - shift);
         base[to] = base[to] + shift;
       }
@@ -250,7 +250,7 @@ export const ChartTestFixtures = {
    * Allocation data with shift from BTC to ETH
    */
   allocationBtcToEth(): AssetAllocationPoint[] {
-    return new AllocationDataBuilder().withShift(30, "btc", "eth").build();
+    return new AllocationDataBuilder().withShift(30, 'btc', 'eth').build();
   },
 
   /**
@@ -258,7 +258,7 @@ export const ChartTestFixtures = {
    */
   allocationToStables(): AssetAllocationPoint[] {
     return new AllocationDataBuilder()
-      .withShift(30, "btc", "stablecoin")
+      .withShift(30, 'btc', 'stablecoin')
       .build();
   },
 
@@ -274,7 +274,7 @@ export const ChartTestFixtures = {
    */
   drawdownData(): DrawdownDataPoint[] {
     return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       const drawdown = Math.min(0, i <= 15 ? -i * 0.6 : -(30 - i) * 0.6);
@@ -287,7 +287,7 @@ export const ChartTestFixtures = {
         is_recovery_point: isRecoveryPoint,
         days_from_peak: isRecoveryPoint ? 0 : Math.max(0, i - 8),
         peak_date:
-          i === 0 ? toIsoDate(date) : toIsoDate(new Date("2025-01-01")),
+          i === 0 ? toIsoDate(date) : toIsoDate(new Date('2025-01-01')),
         recovery_depth_pct: drawdown,
       } satisfies DrawdownDataPoint;
     });
@@ -298,7 +298,7 @@ export const ChartTestFixtures = {
    */
   drawdownWithRecovery(): DrawdownDataPoint[] {
     return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       const decline = i < 12 ? -i * 0.8 : -(12 - Math.max(0, i - 12)) * 0.8;
@@ -313,8 +313,8 @@ export const ChartTestFixtures = {
         days_from_peak: isRecoveryPoint ? 0 : Math.max(0, i - 7),
         peak_date:
           i <= 12
-            ? toIsoDate(new Date("2025-01-01"))
-            : toIsoDate(new Date("2025-01-13")),
+            ? toIsoDate(new Date('2025-01-01'))
+            : toIsoDate(new Date('2025-01-13')),
         recovery_duration_days: isRecoveryPoint
           ? Math.max(0, i - 12)
           : undefined,
@@ -328,7 +328,7 @@ export const ChartTestFixtures = {
    */
   sharpeData(): SharpeDataPoint[] {
     return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       return {
@@ -343,7 +343,7 @@ export const ChartTestFixtures = {
    */
   volatilityData(): VolatilityDataPoint[] {
     return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date("2025-01-01");
+      const date = new Date('2025-01-01');
       date.setDate(date.getDate() + i);
 
       const spike = i % 10 === 0 ? 10 : 0;

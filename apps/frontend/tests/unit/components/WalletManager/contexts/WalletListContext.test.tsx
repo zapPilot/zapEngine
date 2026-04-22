@@ -1,11 +1,11 @@
-import { renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { renderHook } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   useWalletList,
   WalletListProvider,
-} from "../../../../../src/components/WalletManager/contexts/WalletListContext";
+} from '../../../../../src/components/WalletManager/contexts/WalletListContext';
 
 const mockValue = {
   operations: {
@@ -23,8 +23,8 @@ const mockValue = {
   onCloseDropdown: vi.fn(),
 };
 
-describe("WalletListContext", () => {
-  it("provides context values through WalletListProvider", () => {
+describe('WalletListContext', () => {
+  it('provides context values through WalletListProvider', () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <WalletListProvider {...mockValue}>{children}</WalletListProvider>
     );
@@ -34,11 +34,11 @@ describe("WalletListContext", () => {
     expect(result.current.onCopyAddress).toBe(mockValue.onCopyAddress);
   });
 
-  it("throws when useWalletList is used outside provider", () => {
+  it('throws when useWalletList is used outside provider', () => {
     // Suppress console.error for expected error
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => renderHook(() => useWalletList())).toThrow(
-      "useWalletList must be used within WalletListProvider"
+      'useWalletList must be used within WalletListProvider',
     );
     spy.mockRestore();
   });

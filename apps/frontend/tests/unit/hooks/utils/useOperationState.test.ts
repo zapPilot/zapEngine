@@ -4,19 +4,19 @@
  * Tests state management utilities for operations (loading, error states)
  */
 
-import { act, renderHook } from "@testing-library/react";
-import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { useState } from 'react';
+import { describe, expect, it } from 'vitest';
 
-import { useOperationStateHandlers } from "@/hooks/utils/useOperationState";
+import { useOperationStateHandlers } from '@/hooks/utils/useOperationState';
 
 interface OperationState {
   isLoading: boolean;
   error: string | null;
 }
 
-describe("useOperationStateHandlers", () => {
-  it("should initialize with default state", () => {
+describe('useOperationStateHandlers', () => {
+  it('should initialize with default state', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
@@ -30,11 +30,11 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBeNull();
   });
 
-  it("should set loading state correctly", () => {
+  it('should set loading state correctly', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
-        error: "Previous error",
+        error: 'Previous error',
       });
       const handlers = useOperationStateHandlers(setState);
       return { state, handlers };
@@ -48,7 +48,7 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBeNull(); // Error should be cleared
   });
 
-  it("should set success state correctly", () => {
+  it('should set success state correctly', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: true,
@@ -66,7 +66,7 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBeNull();
   });
 
-  it("should set error state correctly", () => {
+  it('should set error state correctly', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: true,
@@ -76,7 +76,7 @@ describe("useOperationStateHandlers", () => {
       return { state, handlers };
     });
 
-    const errorMessage = "Network timeout";
+    const errorMessage = 'Network timeout';
 
     act(() => {
       result.current.handlers.setError(errorMessage);
@@ -86,7 +86,7 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBe(errorMessage);
   });
 
-  it("should handle state transitions in sequence", () => {
+  it('should handle state transitions in sequence', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
@@ -111,7 +111,7 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBeNull();
   });
 
-  it("should handle error after loading", () => {
+  it('should handle error after loading', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
@@ -129,23 +129,23 @@ describe("useOperationStateHandlers", () => {
 
     // Operation fails
     act(() => {
-      result.current.handlers.setError("API request failed");
+      result.current.handlers.setError('API request failed');
     });
     expect(result.current.state.isLoading).toBe(false);
-    expect(result.current.state.error).toBe("API request failed");
+    expect(result.current.state.error).toBe('API request failed');
   });
 
-  it("should handle retry flow", () => {
+  it('should handle retry flow', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
-        error: "Previous failure",
+        error: 'Previous failure',
       });
       const handlers = useOperationStateHandlers(setState);
       return { state, handlers };
     });
 
-    expect(result.current.state.error).toBe("Previous failure");
+    expect(result.current.state.error).toBe('Previous failure');
 
     // Retry - should clear error and set loading
     act(() => {
@@ -162,7 +162,7 @@ describe("useOperationStateHandlers", () => {
     expect(result.current.state.error).toBeNull();
   });
 
-  it("should maintain handler stability across renders", () => {
+  it('should maintain handler stability across renders', () => {
     const { result, rerender } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
@@ -189,7 +189,7 @@ describe("useOperationStateHandlers", () => {
     expect(firstHandlers.setError).toBe(secondHandlers.setError);
   });
 
-  it("should handle multiple error messages", () => {
+  it('should handle multiple error messages', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
@@ -200,9 +200,9 @@ describe("useOperationStateHandlers", () => {
     });
 
     const errors = [
-      "Connection timeout",
-      "Invalid credentials",
-      "Server error",
+      'Connection timeout',
+      'Invalid credentials',
+      'Server error',
     ];
 
     for (const error of errors) {
@@ -214,17 +214,17 @@ describe("useOperationStateHandlers", () => {
     }
   });
 
-  it("should clear error when setting loading state", () => {
+  it('should clear error when setting loading state', () => {
     const { result } = renderHook(() => {
       const [state, setState] = useState<OperationState>({
         isLoading: false,
-        error: "Previous error message",
+        error: 'Previous error message',
       });
       const handlers = useOperationStateHandlers(setState);
       return { state, handlers };
     });
 
-    expect(result.current.state.error).toBe("Previous error message");
+    expect(result.current.state.error).toBe('Previous error message');
 
     act(() => {
       result.current.handlers.setLoading();

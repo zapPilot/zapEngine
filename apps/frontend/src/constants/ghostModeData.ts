@@ -5,33 +5,33 @@
  * Creates an enticing preview of what their dashboard could look like.
  */
 
-import type { AllocationConstituent } from "@/types/portfolio";
+import type { AllocationConstituent } from '@/types/portfolio';
 
 /** Shared crypto asset definitions to avoid duplication */
 const PREVIEW_CRYPTO_ASSETS: AllocationConstituent[] = [
   {
-    asset: "bitcoin",
-    symbol: "BTC",
-    name: "Bitcoin",
+    asset: 'bitcoin',
+    symbol: 'BTC',
+    name: 'Bitcoin',
     value: 35,
-    color: "#F7931A",
+    color: '#F7931A',
   },
   {
-    asset: "ethereum",
-    symbol: "ETH",
-    name: "Ethereum",
+    asset: 'ethereum',
+    symbol: 'ETH',
+    name: 'Ethereum',
     value: 20,
-    color: "#627EEA",
+    color: '#627EEA',
   },
 ];
 
 const PREVIEW_STABLE_ASSETS: AllocationConstituent[] = [
   {
-    asset: "usdt",
-    symbol: "USDT",
-    name: "Tether",
+    asset: 'usdt',
+    symbol: 'USDT',
+    name: 'Tether',
     value: 45,
-    color: "#26A17B",
+    color: '#26A17B',
   },
 ];
 

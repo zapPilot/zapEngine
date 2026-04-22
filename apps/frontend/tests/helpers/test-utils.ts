@@ -1,4 +1,4 @@
-import { expect, Page, test } from "@playwright/test";
+import { expect, Page, test } from '@playwright/test';
 
 /**
  * Test utilities for robust navigation and element interaction
@@ -77,10 +77,10 @@ export class NavigationHelper {
       if (!(await element.isVisible())) return false;
 
       // Check for active styling (gradient background)
-      const hasActiveClass = await element.evaluate(el => {
+      const hasActiveClass = await element.evaluate((el) => {
         return (
-          el.className.includes("bg-gradient-to-r") ||
-          el.className.includes("text-purple-400")
+          el.className.includes('bg-gradient-to-r') ||
+          el.className.includes('text-purple-400')
         );
       });
 
@@ -98,12 +98,12 @@ export class PageHelper {
    * Setup page with optimal viewport and wait for load
    */
   async setupPage(width = 1200, height = 800) {
-    await this.page.goto("/");
+    await this.page.goto('/');
     await this.page.setViewportSize({ width, height });
 
     // Use a more forgiving wait strategy
     try {
-      await this.page.waitForLoadState("domcontentloaded", { timeout: 10000 });
+      await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 });
     } catch {
       // Continue if load state fails
     }
@@ -111,9 +111,9 @@ export class PageHelper {
     // Wait for app to be ready with shorter timeout
     await this.page.waitForFunction(
       () => {
-        return document.querySelector("main") !== null;
+        return document.querySelector('main') !== null;
       },
-      { timeout: 8000 }
+      { timeout: 8000 },
     );
   }
 
@@ -122,16 +122,16 @@ export class PageHelper {
    */
   async waitForAnyElement(selectors: string[], timeout = 5000) {
     return this.page.waitForFunction(
-      sels => {
-        return sels.some(sel => {
+      (sels) => {
+        return sels.some((sel) => {
           const element = document.querySelector(
-            `[data-testid="${sel}"]`
+            `[data-testid="${sel}"]`,
           ) as HTMLElement;
           return element && element.offsetHeight > 0;
         });
       },
       selectors,
-      { timeout }
+      { timeout },
     );
   }
 }

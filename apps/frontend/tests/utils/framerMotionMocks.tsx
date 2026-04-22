@@ -3,7 +3,7 @@
  * Strips animation logic while preserving component structure
  */
 
-import { createElement, type ReactNode } from "react";
+import { createElement, type ReactNode } from 'react';
 
 type MotionElement = keyof JSX.IntrinsicElements;
 type MotionProps<T extends MotionElement> = JSX.IntrinsicElements[T] & {
@@ -11,43 +11,43 @@ type MotionProps<T extends MotionElement> = JSX.IntrinsicElements[T] & {
 };
 
 const MOTION_PROP_KEYS = new Set([
-  "animate",
-  "custom",
-  "drag",
-  "dragConstraints",
-  "dragElastic",
-  "dragMomentum",
-  "dragTransition",
-  "exit",
-  "initial",
-  "layout",
-  "layoutId",
-  "onAnimationComplete",
-  "onAnimationStart",
-  "onDrag",
-  "onDragEnd",
-  "onDragStart",
-  "onPan",
-  "onPanEnd",
-  "onPanStart",
-  "onUpdate",
-  "onViewportEnter",
-  "onViewportLeave",
-  "transformTemplate",
-  "transition",
-  "variants",
-  "viewport",
-  "whileFocus",
-  "whileHover",
-  "whileInView",
-  "whileTap",
+  'animate',
+  'custom',
+  'drag',
+  'dragConstraints',
+  'dragElastic',
+  'dragMomentum',
+  'dragTransition',
+  'exit',
+  'initial',
+  'layout',
+  'layoutId',
+  'onAnimationComplete',
+  'onAnimationStart',
+  'onDrag',
+  'onDragEnd',
+  'onDragStart',
+  'onPan',
+  'onPanEnd',
+  'onPanStart',
+  'onUpdate',
+  'onViewportEnter',
+  'onViewportLeave',
+  'transformTemplate',
+  'transition',
+  'variants',
+  'viewport',
+  'whileFocus',
+  'whileHover',
+  'whileInView',
+  'whileTap',
 ]);
 
 const stripMotionProps = (
-  props: Record<string, unknown>
+  props: Record<string, unknown>,
 ): Record<string, unknown> => {
   return Object.fromEntries(
-    Object.entries(props).filter(([key]) => !MOTION_PROP_KEYS.has(key))
+    Object.entries(props).filter(([key]) => !MOTION_PROP_KEYS.has(key)),
   );
 };
 
@@ -61,7 +61,7 @@ const stripMotionProps = (
  * const motionDiv = createMockMotionComponent("div");
  */
 export const createMockMotionComponent = <T extends MotionElement>(
-  element: T
+  element: T,
 ) => {
   const MockMotionComponent = ({
     children,
@@ -70,7 +70,7 @@ export const createMockMotionComponent = <T extends MotionElement>(
     return createElement(
       element,
       stripMotionProps(props as Record<string, unknown>),
-      children
+      children,
     );
   };
 
@@ -83,11 +83,11 @@ export const createMockMotionComponent = <T extends MotionElement>(
  * Mock Framer Motion components that render as plain DOM elements.
  */
 export const mockFramerMotion = {
-  button: createMockMotionComponent("button"),
-  circle: createMockMotionComponent("circle"),
-  div: createMockMotionComponent("div"),
-  g: createMockMotionComponent("g"),
-  line: createMockMotionComponent("line"),
+  button: createMockMotionComponent('button'),
+  circle: createMockMotionComponent('circle'),
+  div: createMockMotionComponent('div'),
+  g: createMockMotionComponent('g'),
+  line: createMockMotionComponent('line'),
 };
 
 /**

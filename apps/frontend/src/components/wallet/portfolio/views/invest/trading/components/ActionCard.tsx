@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode } from 'react';
 
-import { cn } from "@/lib/ui/classNames";
+import { cn } from '@/lib/ui/classNames';
 
 interface ActionCardProps {
   title?: ReactNode;
@@ -22,8 +22,8 @@ export function ActionCard({
   return (
     <div
       className={cn(
-        "max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-xl shadow-black/20 border border-gray-100 dark:border-gray-800",
-        className
+        'max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-xl shadow-black/20 border border-gray-100 dark:border-gray-800',
+        className,
       )}
     >
       {(title || subtitle || icon) && (

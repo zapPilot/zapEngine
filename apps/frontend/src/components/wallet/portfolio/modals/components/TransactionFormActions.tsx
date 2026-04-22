@@ -1,8 +1,8 @@
-import type { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from 'react-hook-form';
 
-import type { TransactionFormData } from "@/types/domain/transaction";
+import type { TransactionFormData } from '@/types/domain/transaction';
 
-import { TransactionActionButton } from "./TransactionActionButton";
+import { TransactionActionButton } from './TransactionActionButton';
 
 interface AmountInputSectionProps {
   amount: string;
@@ -17,18 +17,18 @@ function AmountInputSection({
   usdPrice,
   className,
 }: AmountInputSectionProps) {
-  const normalizedAmount = parseFloat(amount || "0");
+  const normalizedAmount = parseFloat(amount || '0');
   const amountUsd = (normalizedAmount * (usdPrice ?? 1)).toLocaleString();
 
   return (
-    <div className={className ?? "relative"}>
+    <div className={className ?? 'relative'}>
       <div className="absolute top-0 left-0 text-xs font-bold text-gray-500 uppercase tracking-wider">
         Amount
       </div>
       <input
         type="number"
         value={amount}
-        onChange={event => onChange(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         placeholder="0.00"
         className="w-full bg-transparent text-4xl font-mono font-bold text-white placeholder-gray-800 focus:outline-none py-6 border-b border-gray-800 focus:border-indigo-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
@@ -50,13 +50,13 @@ function QuickPercentPills({
 }: QuickPercentPillsProps) {
   return (
     <div className="flex gap-2">
-      {values.map(pct => (
+      {values.map((pct) => (
         <button
           key={pct}
           onClick={() => onSelect(pct)}
           className="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 text-xs font-bold py-2 rounded-lg border border-gray-800 transition-colors"
         >
-          {pct === 1 ? "MAX" : `${pct * 100}%`}
+          {pct === 1 ? 'MAX' : `${pct * 100}%`}
         </button>
       ))}
     </div>
@@ -89,12 +89,12 @@ export function TransactionFormActionsWithForm({
   amountClassName,
 }: TransactionFormActionsWithFormProps) {
   return (
-    <div className={className ?? "flex flex-col gap-6"}>
+    <div className={className ?? 'flex flex-col gap-6'}>
       <AmountInputSection
         className={amountClassName}
         amount={amount}
-        onChange={value =>
-          form.setValue("amount", value, { shouldValidate: true })
+        onChange={(value) =>
+          form.setValue('amount', value, { shouldValidate: true })
         }
         usdPrice={usdPrice}
       />

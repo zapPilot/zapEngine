@@ -14,10 +14,10 @@
  * - <1.0 = Underwater (at risk of immediate liquidation)
  */
 export const RiskLevel = {
-  SAFE: "SAFE",
-  MODERATE: "MODERATE",
-  RISKY: "RISKY",
-  CRITICAL: "CRITICAL",
+  SAFE: 'SAFE',
+  MODERATE: 'MODERATE',
+  RISKY: 'RISKY',
+  CRITICAL: 'CRITICAL',
 } as const;
 
 export type RiskLevel = (typeof RiskLevel)[keyof typeof RiskLevel];
@@ -34,48 +34,48 @@ export type RiskLevel = (typeof RiskLevel)[keyof typeof RiskLevel];
  */
 export const RISK_DISPLAY_CONFIG = {
   [RiskLevel.SAFE]: {
-    label: "Safe",
-    text: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
-    dot: "bg-emerald-500",
-    emoji: "🟢",
-    icon: "✓",
-    pattern: "solid" as const,
-    ariaLabel: "Safe - Large safety buffer",
+    label: 'Safe',
+    text: 'text-emerald-500',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
+    dot: 'bg-emerald-500',
+    emoji: '🟢',
+    icon: '✓',
+    pattern: 'solid' as const,
+    ariaLabel: 'Safe - Large safety buffer',
   },
   [RiskLevel.MODERATE]: {
-    label: "Moderate",
-    text: "text-amber-500",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/20",
-    dot: "bg-amber-500",
-    emoji: "🟡",
-    icon: "⚠",
-    pattern: "solid" as const,
-    ariaLabel: "Warning - Moderate safety buffer",
+    label: 'Moderate',
+    text: 'text-amber-500',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/20',
+    dot: 'bg-amber-500',
+    emoji: '🟡',
+    icon: '⚠',
+    pattern: 'solid' as const,
+    ariaLabel: 'Warning - Moderate safety buffer',
   },
   [RiskLevel.RISKY]: {
-    label: "Risky",
-    text: "text-orange-500",
-    bg: "bg-orange-500/10",
-    border: "border-orange-500/20",
-    dot: "bg-orange-500",
-    emoji: "🟠",
-    icon: "!",
-    pattern: "pulse" as const,
-    ariaLabel: "Risky - Low safety buffer",
+    label: 'Risky',
+    text: 'text-orange-500',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/20',
+    dot: 'bg-orange-500',
+    emoji: '🟠',
+    icon: '!',
+    pattern: 'pulse' as const,
+    ariaLabel: 'Risky - Low safety buffer',
   },
   [RiskLevel.CRITICAL]: {
-    label: "Critical",
-    text: "text-rose-500",
-    bg: "bg-rose-500/10",
-    border: "border-rose-500/30 shadow-rose-500/20",
-    dot: "bg-rose-500",
-    emoji: "🔴",
-    icon: "!!",
-    pattern: "pulse" as const,
-    ariaLabel: "Critical - Liquidation risk",
+    label: 'Critical',
+    text: 'text-rose-500',
+    bg: 'bg-rose-500/10',
+    border: 'border-rose-500/30 shadow-rose-500/20',
+    dot: 'bg-rose-500',
+    emoji: '🔴',
+    icon: '!!',
+    pattern: 'pulse' as const,
+    ariaLabel: 'Critical - Liquidation risk',
   },
 } as const;
 
@@ -153,14 +153,14 @@ export function getRiskConfig(healthRate: number): RiskConfig {
  * ```
  */
 export function mapBorrowingStatusToRiskLevel(
-  status: "HEALTHY" | "WARNING" | "CRITICAL"
+  status: 'HEALTHY' | 'WARNING' | 'CRITICAL',
 ): RiskLevel {
   switch (status) {
-    case "HEALTHY":
+    case 'HEALTHY':
       return RiskLevel.SAFE;
-    case "WARNING":
+    case 'WARNING':
       return RiskLevel.RISKY;
-    case "CRITICAL":
+    case 'CRITICAL':
       return RiskLevel.CRITICAL;
     default:
       return RiskLevel.MODERATE;

@@ -1,14 +1,14 @@
-import { motion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { motion } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
 
-import { type Regime } from "@/components/wallet/regime/regimeData";
-import { cn } from "@/lib/ui/classNames";
+import { type Regime } from '@/components/wallet/regime/regimeData';
+import { cn } from '@/lib/ui/classNames';
 
-import type { StrategyCardDisplayConfig } from "./strategyCardViewModel";
+import type { StrategyCardDisplayConfig } from './strategyCardViewModel';
 
 const REGIME_BADGE_CLASS_NAME =
-  "w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold border shadow-inner flex-shrink-0";
+  'w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold border shadow-inner flex-shrink-0';
 
 interface StrategyCardHeaderProps {
   displayConfig: StrategyCardDisplayConfig;
@@ -37,7 +37,7 @@ export function StrategyCardHeader({
           className={cn(
             REGIME_BADGE_CLASS_NAME,
             displayConfig?.bg,
-            displayConfig?.border
+            displayConfig?.border,
           )}
         >
           {effectiveRegime && displayConfig ? (
@@ -75,7 +75,7 @@ export function StrategyCardHeader({
       {displayRegime && (
         <div
           className={`p-2 rounded-full bg-gray-800 text-gray-400 transition-transform duration-300 ${
-            isStrategyExpanded ? "rotate-180" : ""
+            isStrategyExpanded ? 'rotate-180' : ''
           }`}
           role="button"
         >

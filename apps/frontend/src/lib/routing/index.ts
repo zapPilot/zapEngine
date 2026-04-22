@@ -4,4 +4,4 @@ export {
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
-} from "./appRouter";
+} from './appRouter';

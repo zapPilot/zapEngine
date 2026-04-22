@@ -1,12 +1,12 @@
-import type { BacktestRequest } from "@/types/backtesting";
-import type { StrategyPreset } from "@/types/strategy";
+import type { BacktestRequest } from '@/types/backtesting';
+import type { StrategyPreset } from '@/types/strategy';
 
-import { getDefaultConfigIdForStrategyId } from "../constants";
+import { getDefaultConfigIdForStrategyId } from '../constants';
 
 function parseJsonObject(json: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(json);
-    if (!parsed || typeof parsed !== "object") {
+    if (!parsed || typeof parsed !== 'object') {
       return null;
     }
     return parsed as Record<string, unknown>;
@@ -19,14 +19,14 @@ function parseJsonObject(json: string): Record<string, unknown> | null {
  * Parse JSON and extract the `configs` array, returning null when either is invalid.
  */
 function parseJsonConfigs(
-  json: string
+  json: string,
 ): { parsed: Record<string, unknown>; configs: unknown[] } | null {
   const parsed = parseJsonObject(json);
   if (!parsed) {
     return null;
   }
 
-  const configs = parsed["configs"];
+  const configs = parsed['configs'];
   if (!Array.isArray(configs) || configs.length === 0) {
     return null;
   }
@@ -36,7 +36,7 @@ function parseJsonConfigs(
 
 function withParsedConfigs(
   json: string,
-  onSuccess: (parsed: Record<string, unknown>, configs: unknown[]) => string
+  onSuccess: (parsed: Record<string, unknown>, configs: unknown[]) => string,
 ): string {
   const result = parseJsonConfigs(json);
   if (!result) {
@@ -64,7 +64,7 @@ function withParsedConfigs(
 export function parseJsonField(
   json: string,
   key: string,
-  fallback: number
+  fallback: number,
 ): number {
   const parsed = parseJsonObject(json);
   if (!parsed) {
@@ -72,7 +72,7 @@ export function parseJsonField(
   }
 
   const value = parsed[key];
-  return typeof value === "number" ? value : fallback;
+  return typeof value === 'number' ? value : fallback;
 }
 
 /**
@@ -93,7 +93,7 @@ export function parseJsonField(
 export function updateJsonField(
   json: string,
   key: string,
-  value: number
+  value: number,
 ): string {
   const parsed = parseJsonObject(json);
   if (!parsed) {
@@ -107,33 +107,33 @@ export function updateJsonField(
 export function parseConfigStrategyIdWithPresets(
   json: string,
   fallback: string,
-  presets: StrategyPreset[]
+  presets: StrategyPreset[],
 ): string {
   const parsed = parseJsonObject(json);
   if (!parsed) {
     return fallback;
   }
 
-  const configs = parsed["configs"];
+  const configs = parsed['configs'];
   if (!Array.isArray(configs) || configs.length === 0) {
     return fallback;
   }
 
   const first = configs[0] as Record<string, unknown> | undefined;
-  const strategyId = first?.["strategy_id"];
-  if (typeof strategyId === "string") {
+  const strategyId = first?.['strategy_id'];
+  if (typeof strategyId === 'string') {
     return strategyId;
   }
 
-  const savedConfigId = first?.["saved_config_id"];
-  if (typeof savedConfigId === "string") {
-    const preset = presets.find(entry => entry.config_id === savedConfigId);
+  const savedConfigId = first?.['saved_config_id'];
+  if (typeof savedConfigId === 'string') {
+    const preset = presets.find((entry) => entry.config_id === savedConfigId);
     return preset?.strategy_id ?? fallback;
   }
 
-  const configId = first?.["config_id"];
-  if (typeof configId === "string") {
-    const preset = presets.find(entry => entry.config_id === configId);
+  const configId = first?.['config_id'];
+  if (typeof configId === 'string') {
+    const preset = presets.find((entry) => entry.config_id === configId);
     return preset?.strategy_id ?? fallback;
   }
 
@@ -158,21 +158,21 @@ export function parseConfigStrategyIdWithPresets(
  */
 export function updateConfigStrategy(
   json: string,
-  configOrStrategyId: BacktestRequest["configs"][number] | string,
-  defaultParams?: BacktestRequest["configs"][number]["params"]
+  configOrStrategyId: BacktestRequest['configs'][number] | string,
+  defaultParams?: BacktestRequest['configs'][number]['params'],
 ): string {
   return withParsedConfigs(json, (parsed, configs) => {
     const existingFirst = configs[0] as Record<string, unknown> | undefined;
-    let config: BacktestRequest["configs"][number];
-    if (typeof configOrStrategyId === "string") {
+    let config: BacktestRequest['configs'][number];
+    if (typeof configOrStrategyId === 'string') {
       config = {
         config_id: getDefaultConfigIdForStrategyId(configOrStrategyId),
         strategy_id: configOrStrategyId,
       };
       const preservedParams =
         defaultParams ??
-        (existingFirst?.["params"] as
-          | BacktestRequest["configs"][number]["params"]
+        (existingFirst?.['params'] as
+          | BacktestRequest['configs'][number]['params']
           | undefined);
       if (preservedParams !== undefined) {
         config = { ...config, params: preservedParams };
@@ -185,46 +185,46 @@ export function updateConfigStrategy(
       config_id: config.config_id,
     };
     if (config.saved_config_id !== undefined) {
-      first["saved_config_id"] = config.saved_config_id;
+      first['saved_config_id'] = config.saved_config_id;
     }
     if (config.strategy_id !== undefined) {
-      first["strategy_id"] = config.strategy_id;
+      first['strategy_id'] = config.strategy_id;
     }
     if (config.params !== undefined) {
-      first["params"] = config.params;
+      first['params'] = config.params;
     }
 
-    parsed["configs"] = [first];
+    parsed['configs'] = [first];
     return JSON.stringify(parsed, null, 2);
   });
 }
 
 export function normalizePresetBackedConfigs(
   json: string,
-  presets: StrategyPreset[]
+  presets: StrategyPreset[],
 ): string {
   return withParsedConfigs(json, (parsed, configs) => {
     let changed = false;
-    parsed["configs"] = configs.map(entry => {
-      if (!entry || typeof entry !== "object") {
+    parsed['configs'] = configs.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
         return entry;
       }
 
       const config = { ...(entry as Record<string, unknown>) };
-      const savedConfigId = config["saved_config_id"];
-      const hasPresetReference = typeof savedConfigId === "string";
-      const hasInlineParams = config["params"] !== undefined;
+      const savedConfigId = config['saved_config_id'];
+      const hasPresetReference = typeof savedConfigId === 'string';
+      const hasInlineParams = config['params'] !== undefined;
       if (!hasPresetReference || !hasInlineParams) {
         return config;
       }
 
-      const preset = presets.find(item => item.config_id === savedConfigId);
+      const preset = presets.find((item) => item.config_id === savedConfigId);
       if (!preset) {
         return config;
       }
 
-      delete config["saved_config_id"];
-      config["strategy_id"] = preset.strategy_id;
+      delete config['saved_config_id'];
+      config['strategy_id'] = preset.strategy_id;
       changed = true;
       return config;
     });

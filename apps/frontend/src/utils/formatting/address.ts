@@ -16,16 +16,16 @@ export function formatAddress(
   {
     prefixLength = 6,
     suffixLength = 4,
-    ellipsis = "...",
-  }: AddressFormatOptions = {}
+    ellipsis = '...',
+  }: AddressFormatOptions = {},
 ): string {
-  if (!address || typeof address !== "string") {
-    return "";
+  if (!address || typeof address !== 'string') {
+    return '';
   }
 
   const normalized = address.trim();
   if (!normalized) {
-    return "";
+    return '';
   }
 
   if (normalized.length <= prefixLength + suffixLength) {

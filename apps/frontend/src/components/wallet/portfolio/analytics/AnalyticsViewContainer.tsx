@@ -5,31 +5,31 @@
  * Follows Container/Presentational pattern
  */
 
-import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from 'react';
 
-import { useAnalyticsData } from "@/hooks/queries/analytics/useAnalyticsData";
-import { useUserById } from "@/hooks/queries/wallet/useUserQuery";
-import { exportAnalyticsToCSV } from "@/services";
+import { useAnalyticsData } from '@/hooks/queries/analytics/useAnalyticsData';
+import { useUserById } from '@/hooks/queries/wallet/useUserQuery';
+import { exportAnalyticsToCSV } from '@/services';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   MetricData,
   WalletFilter,
   WalletOption,
-} from "@/types/analytics";
+} from '@/types/analytics';
 
-import { AnalyticsView } from "./AnalyticsView";
-import { AnalyticsErrorState } from "./components/AnalyticsErrorState";
-import { DEFAULT_ANALYTICS_PERIOD } from "./constants";
+import { AnalyticsView } from './AnalyticsView';
+import { AnalyticsErrorState } from './components/AnalyticsErrorState';
+import { DEFAULT_ANALYTICS_PERIOD } from './constants';
 
 /**
  * Create empty metric data for fallback state
  */
 function createEmptyMetric(label: string): MetricData {
   return {
-    value: "0",
+    value: '0',
     subValue: label,
-    trend: "neutral",
+    trend: 'neutral',
   };
 }
 
@@ -41,20 +41,20 @@ function createEmptyAnalyticsData(): AnalyticsData {
   return {
     performanceChart: {
       points: [],
-      startDate: "",
-      endDate: "",
+      startDate: '',
+      endDate: '',
     },
     drawdownChart: {
       points: [],
       maxDrawdown: 0,
-      maxDrawdownDate: "",
+      maxDrawdownDate: '',
     },
     keyMetrics: {
-      timeWeightedReturn: createEmptyMetric("Time-Weighted Return"),
-      maxDrawdown: createEmptyMetric("Max Drawdown"),
-      sharpe: createEmptyMetric("Sharpe Ratio"),
-      winRate: createEmptyMetric("Win Rate"),
-      volatility: createEmptyMetric("Volatility"),
+      timeWeightedReturn: createEmptyMetric('Time-Weighted Return'),
+      maxDrawdown: createEmptyMetric('Max Drawdown'),
+      sharpe: createEmptyMetric('Sharpe Ratio'),
+      winRate: createEmptyMetric('Win Rate'),
+      volatility: createEmptyMetric('Volatility'),
     },
     monthlyPnL: [],
   };
@@ -80,8 +80,8 @@ export function AnalyticsViewContainer({
   const [selectedPeriod, setSelectedPeriod] =
     useState<AnalyticsTimePeriod>(defaultPeriod);
   const [activeChartTab, setActiveChartTab] = useState<
-    "performance" | "drawdown"
-  >("performance");
+    'performance' | 'drawdown'
+  >('performance');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -94,7 +94,7 @@ export function AnalyticsViewContainer({
       return [];
     }
 
-    return additionalWallets.map(wallet => ({
+    return additionalWallets.map((wallet) => ({
       address: wallet.wallet_address,
       label: wallet.label,
     }));
@@ -108,7 +108,7 @@ export function AnalyticsViewContainer({
   useEffect(() => {
     if (
       selectedWallet &&
-      !availableWallets.find(w => w.address === selectedWallet)
+      !availableWallets.find((w) => w.address === selectedWallet)
     ) {
       setSelectedWallet(null);
     }
@@ -123,7 +123,7 @@ export function AnalyticsViewContainer({
     setSelectedPeriod(period);
   };
 
-  const handleChartTabChange = (tab: "performance" | "drawdown") => {
+  const handleChartTabChange = (tab: 'performance' | 'drawdown') => {
     setActiveChartTab(tab);
   };
 
@@ -133,7 +133,7 @@ export function AnalyticsViewContainer({
 
   const handleExport = async () => {
     if (!data) {
-      setExportError("No data available to export");
+      setExportError('No data available to export');
       return;
     }
 
@@ -146,13 +146,13 @@ export function AnalyticsViewContainer({
         userId,
         data,
         selectedPeriod,
-        selectedWallet
+        selectedWallet,
       );
       if (!result.success) {
-        setExportError(result.error || "Export failed");
+        setExportError(result.error || 'Export failed');
       }
     } catch {
-      setExportError("An unexpected error occurred");
+      setExportError('An unexpected error occurred');
     } finally {
       setIsExporting(false);
     }

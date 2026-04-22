@@ -3,7 +3,7 @@
  * Returns true when the operation succeeds and false otherwise.
  */
 export async function copyTextToClipboard(text: string): Promise<boolean> {
-  if (typeof navigator === "undefined") {
+  if (typeof navigator === 'undefined') {
     return false;
   }
 
@@ -11,20 +11,20 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    if (typeof document === "undefined") {
+    if (typeof document === 'undefined') {
       return false;
     }
 
     try {
-      const textArea = document.createElement("textarea");
+      const textArea = document.createElement('textarea');
       textArea.value = text;
-      textArea.setAttribute("readonly", "");
-      textArea.style.position = "absolute";
-      textArea.style.left = "-9999px";
+      textArea.setAttribute('readonly', '');
+      textArea.style.position = 'absolute';
+      textArea.style.left = '-9999px';
       document.body.appendChild(textArea);
       textArea.select();
       // eslint-disable-next-line sonarjs/deprecation -- Intentional fallback for older browsers
-      const succeeded = document.execCommand("copy");
+      const succeeded = document.execCommand('copy');
       document.body.removeChild(textArea);
       return succeeded;
     } catch {

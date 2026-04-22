@@ -13,18 +13,18 @@ import {
   useEffect,
   useRef,
   useState,
-} from "react";
+} from 'react';
 
-import { isRuntimeMode } from "@/lib/env/runtimeEnv";
-import type { ChartHoverState } from "@/types/ui/chartHover";
-import { logger } from "@/utils";
-import { clamp } from "@/utils/mathUtils";
+import { isRuntimeMode } from '@/lib/env/runtimeEnv';
+import type { ChartHoverState } from '@/types/ui/chartHover';
+import { logger } from '@/utils';
+import { clamp } from '@/utils/mathUtils';
 
 import {
   calculateYPosition,
   type ChartHoverConfig,
   useTestAutoHoverEffect,
-} from "./useTestAutoHoverEffect";
+} from './useTestAutoHoverEffect';
 
 // =============================================================================
 // HELPERS
@@ -33,7 +33,7 @@ import {
 function getSvgX(
   svg: SVGSVGElement,
   clientX: number,
-  chartWidth: number
+  chartWidth: number,
 ): number {
   const rect = svg.getBoundingClientRect();
   const svgWidth = rect.width || chartWidth || 1;
@@ -87,9 +87,9 @@ type PointerInteractionEvent =
   | TouchEvent<SVGSVGElement>;
 
 function getClientXFromInteraction(
-  event: PointerInteractionEvent
+  event: PointerInteractionEvent,
 ): number | null {
-  if ("touches" in event) {
+  if ('touches' in event) {
     const touch = event.touches[0] ?? event.changedTouches[0];
     if (!touch) {
       return null;
@@ -111,7 +111,7 @@ function getClientXFromInteraction(
 
 export function useChartHover<T>(
   data: T[],
-  options: UseChartHoverOptions<T>
+  options: UseChartHoverOptions<T>,
 ): UseChartHoverReturn {
   const {
     chartType,
@@ -127,7 +127,7 @@ export function useChartHover<T>(
   } = options;
 
   const [hoveredPoint, setHoveredPoint] = useState<ChartHoverState | null>(
-    null
+    null,
   );
 
   const rafId = useRef<number | null>(null);
@@ -144,7 +144,7 @@ export function useChartHover<T>(
       const normalizedViewBoxX = clamp(
         chartWidth > 0 ? viewBoxX / chartWidth : 0,
         0,
-        1
+        1,
       );
 
       const rawIndex = normalizedViewBoxX * (data.length - 1);
@@ -168,7 +168,7 @@ export function useChartHover<T>(
           minValue,
           maxValue,
           chartHeight,
-          chartPadding
+          chartPadding,
         );
 
         // Screen coords for tooltip
@@ -189,8 +189,8 @@ export function useChartHover<T>(
           screenY: y * scaleY,
         });
 
-        if (isRuntimeMode("test")) {
-          logger.debug("hover update", { chartType, x, y }, "ChartHover");
+        if (isRuntimeMode('test')) {
+          logger.debug('hover update', { chartType, x, y }, 'ChartHover');
         }
       };
 
@@ -214,7 +214,7 @@ export function useChartHover<T>(
       buildHoverData,
       testAutoPopulate,
       chartType,
-    ]
+    ],
   );
 
   const handlePointerInteraction = useCallback(
@@ -226,7 +226,7 @@ export function useChartHover<T>(
 
       updateHoverFromClientPoint(clientX, event.currentTarget);
     },
-    [updateHoverFromClientPoint]
+    [updateHoverFromClientPoint],
   );
 
   const handleMouseLeave = useCallback(() => {

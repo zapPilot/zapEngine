@@ -1,19 +1,19 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
-import { UnifiedAllocationBar } from "@/components/wallet/portfolio/components/allocation";
+import { UnifiedAllocationBar } from '@/components/wallet/portfolio/components/allocation';
 import type {
   BacktestAssetAllocation,
   BacktestPortfolioAllocation,
-} from "@/types/backtesting";
+} from '@/types/backtesting';
 
-import { buildBacktestAllocationSegments } from "../backtestBuckets";
-import { getStrategyColor } from "../utils/strategyDisplay";
+import { buildBacktestAllocationSegments } from '../backtestBuckets';
+import { getStrategyColor } from '../utils/strategyDisplay';
 
 export interface BacktestAllocationBarProps {
   displayName: string;
   allocation: BacktestPortfolioAllocation;
   assetAllocation?: BacktestAssetAllocation | null | undefined;
-  spotAssetLabel?: "BTC" | "ETH";
+  spotAssetLabel?: 'BTC' | 'ETH';
   strategyId?: string;
   index?: number | undefined;
 }
@@ -35,7 +35,7 @@ export function BacktestAllocationBar({
   const segments = buildBacktestAllocationSegments(
     allocation,
     spotAssetLabel,
-    assetAllocation
+    assetAllocation,
   );
 
   if (segments.length === 0) {
@@ -65,7 +65,7 @@ export function BacktestAllocationBar({
         showLegend={false}
         showLabels
         labelThreshold={15}
-        testIdPrefix={`backtest-${strategyId ?? "default"}`}
+        testIdPrefix={`backtest-${strategyId ?? 'default'}`}
       />
     </div>
   );

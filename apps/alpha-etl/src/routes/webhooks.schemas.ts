@@ -1,16 +1,16 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const dataSourceEnum = z.enum([
-  "defillama",
-  "debank",
-  "hyperliquid",
-  "feargreed",
-  "token-price",
+  'defillama',
+  'debank',
+  'hyperliquid',
+  'feargreed',
+  'token-price',
 ]);
 
 export const webhookPayloadSchema = z
   .object({
-    trigger: z.enum(["scheduled", "manual"]),
+    trigger: z.enum(['scheduled', 'manual']),
     source: dataSourceEnum.optional(),
     sources: z.array(dataSourceEnum).optional(),
     filters: z
@@ -26,7 +26,7 @@ export const webhookPayloadSchema = z
     {
       message:
         "Cannot specify both 'source' and 'sources'. Use only one format.",
-      path: ["sources"],
+      path: ['sources'],
     },
   )
   .transform((data) => ({
@@ -38,6 +38,6 @@ export const webhookPayloadSchema = z
 export const walletFetchSchema = z.object({
   userId: z.string().uuid(),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  trigger: z.enum(["manual", "webhook"]),
+  trigger: z.enum(['manual', 'webhook']),
   secret: z.string().optional(),
 });

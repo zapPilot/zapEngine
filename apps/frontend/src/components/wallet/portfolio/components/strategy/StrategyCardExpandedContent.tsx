@@ -1,14 +1,14 @@
-import { motion } from "framer-motion";
-import type { ReactElement } from "react";
+import { motion } from 'framer-motion';
+import type { ReactElement } from 'react';
 
-import { type Regime, regimes } from "@/components/wallet/regime/regimeData";
-import type { StrategyDirection } from "@/components/wallet/regime/strategyLabels";
-import { ANIMATIONS } from "@/constants/design-system";
+import { type Regime, regimes } from '@/components/wallet/regime/regimeData';
+import type { StrategyDirection } from '@/components/wallet/regime/strategyLabels';
+import { ANIMATIONS } from '@/constants/design-system';
 
-import { RegimeSelector } from "./RegimeSelector";
-import { StrategyAllocationDisplay } from "./StrategyAllocationDisplay";
-import type { StrategyCardViewModel } from "./strategyCardViewModel";
-import { StrategyDirectionTabs } from "./StrategyDirectionTabs";
+import { RegimeSelector } from './RegimeSelector';
+import { StrategyAllocationDisplay } from './StrategyAllocationDisplay';
+import type { StrategyCardViewModel } from './strategyCardViewModel';
+import { StrategyDirectionTabs } from './StrategyDirectionTabs';
 
 interface StrategyCardExpandedContentProps {
   activeDirection: StrategyDirection;
@@ -19,7 +19,7 @@ interface StrategyCardExpandedContentProps {
   onSelectRegime: (regimeId: string) => void;
   strategyAuthor: string | undefined;
   strategyPhilosophy: string | undefined;
-  targetAllocation: StrategyCardViewModel["targetAllocation"];
+  targetAllocation: StrategyCardViewModel['targetAllocation'];
   zapAction: string | undefined;
 }
 
@@ -76,7 +76,7 @@ export function StrategyCardExpandedContent({
               </div>
               <p className="leading-relaxed">
                 {zapAction ||
-                  "Zap Pilot automatically rebalances your portfolio to optimize for the current market regime."}
+                  'Zap Pilot automatically rebalances your portfolio to optimize for the current market regime.'}
               </p>
             </div>
 

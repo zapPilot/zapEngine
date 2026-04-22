@@ -12,11 +12,11 @@
  * - default: No clear direction → maintain current allocation
  */
 
-import { REGIME_LABELS } from "@/lib/domain/regimeMapper";
+import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
 import type {
   DirectionType,
   RegimeId,
-} from "@/schemas/api/regimeHistorySchemas";
+} from '@/schemas/api/regimeHistorySchemas';
 
 /**
  * Regime order mapping for directional calculation
@@ -73,11 +73,11 @@ interface StrategyMeta {
  */
 export function computeStrategyDirection(
   currentRegime: RegimeId,
-  previousRegime: RegimeId | null
+  previousRegime: RegimeId | null,
 ): DirectionType {
   // No previous regime - default direction
   if (!previousRegime) {
-    return "default";
+    return 'default';
   }
 
   const currentOrder = REGIME_ORDER[currentRegime];
@@ -85,16 +85,16 @@ export function computeStrategyDirection(
 
   // Moving toward more bullish regime (higher order)
   if (currentOrder > previousOrder) {
-    return "fromLeft";
+    return 'fromLeft';
   }
 
   // Moving toward more bearish regime (lower order)
   if (currentOrder < previousOrder) {
-    return "fromRight";
+    return 'fromRight';
   }
 
   // Same regime - no direction change
-  return "default";
+  return 'default';
 }
 
 /**
@@ -128,10 +128,10 @@ export function computeStrategyDirection(
 export function getActiveStrategy(
   serverDirection: DirectionType | undefined,
   currentRegime: RegimeId,
-  previousRegime: RegimeId | null
+  previousRegime: RegimeId | null,
 ): DirectionType {
   // Trust server if it provides a clear direction
-  if (serverDirection && serverDirection !== "default") {
+  if (serverDirection && serverDirection !== 'default') {
     return serverDirection;
   }
 
@@ -145,19 +145,19 @@ export function getActiveStrategy(
  */
 const STRATEGY_META: Record<DirectionType, StrategyMeta> = {
   fromLeft: {
-    animationClass: "slide-from-left",
-    ariaLabel: "Transitioning from bearish to bullish regime",
-    description: "Increasing crypto allocation",
+    animationClass: 'slide-from-left',
+    ariaLabel: 'Transitioning from bearish to bullish regime',
+    description: 'Increasing crypto allocation',
   },
   fromRight: {
-    animationClass: "slide-from-right",
-    ariaLabel: "Transitioning from bullish to bearish regime",
-    description: "Decreasing crypto allocation",
+    animationClass: 'slide-from-right',
+    ariaLabel: 'Transitioning from bullish to bearish regime',
+    description: 'Decreasing crypto allocation',
   },
   default: {
-    animationClass: "fade-in",
-    ariaLabel: "Current market regime",
-    description: "Maintaining current allocation",
+    animationClass: 'fade-in',
+    ariaLabel: 'Current market regime',
+    description: 'Maintaining current allocation',
   },
 };
 

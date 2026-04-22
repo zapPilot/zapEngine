@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
 import {
   buildModalFormState,
@@ -7,33 +7,33 @@ import {
   TokenOptionButton,
   TransactionModalContent,
   useTransactionModalState,
-} from "../../../../../../src/components/wallet/portfolio/modals/transactionModalDependencies";
+} from '../../../../../../src/components/wallet/portfolio/modals/transactionModalDependencies';
 
-describe("transactionModalDependencies barrel exports", () => {
-  it("exports EmptyAssetsMessage component", () => {
+describe('transactionModalDependencies barrel exports', () => {
+  it('exports EmptyAssetsMessage component', () => {
     expect(EmptyAssetsMessage).toBeDefined();
   });
 
-  it("exports TokenOptionButton component", () => {
+  it('exports TokenOptionButton component', () => {
     expect(TokenOptionButton).toBeDefined();
   });
 
-  it("exports TransactionModalContent component", () => {
+  it('exports TransactionModalContent component', () => {
     expect(TransactionModalContent).toBeDefined();
   });
 
-  it("exports useTransactionModalState hook", () => {
+  it('exports useTransactionModalState hook', () => {
     expect(useTransactionModalState).toBeDefined();
-    expect(typeof useTransactionModalState).toBe("function");
+    expect(typeof useTransactionModalState).toBe('function');
   });
 
-  it("exports resolveActionLabel utility", () => {
+  it('exports resolveActionLabel utility', () => {
     expect(resolveActionLabel).toBeDefined();
-    expect(typeof resolveActionLabel).toBe("function");
+    expect(typeof resolveActionLabel).toBe('function');
   });
 
-  it("exports buildModalFormState utility", () => {
+  it('exports buildModalFormState utility', () => {
     expect(buildModalFormState).toBeDefined();
-    expect(typeof buildModalFormState).toBe("function");
+    expect(typeof buildModalFormState).toBe('function');
   });
 });

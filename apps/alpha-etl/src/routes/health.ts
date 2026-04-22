@@ -1,15 +1,16 @@
-import { Router, type Request, type Response } from "express";
-import { logger } from "../utils/logger.js";
-import {
-  DATA_SOURCES,
-  type HealthCheckResponse,
-  type DataSource,
-  type SourceHealth,
-} from "../types/index.js";
+import { type Request, type Response, Router } from 'express';
+
 import {
   getHealthState,
   type HealthDetailStatus,
-} from "../modules/core/healthStatus.js";
+} from '../modules/core/healthStatus.js';
+import {
+  DATA_SOURCES,
+  type DataSource,
+  type HealthCheckResponse,
+  type SourceHealth,
+} from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Convert health details to sources record, filtering to only valid DataSource keys
@@ -26,8 +27,12 @@ function extractSourcesHealth(
       if (sourceHealth) {
         sources[source] = {
           status: sourceHealth.status,
-          details: sourceHealth.details,
-          lastCheck: sourceHealth.lastCheck,
+          ...(sourceHealth.details !== undefined && {
+            details: sourceHealth.details,
+          }),
+          ...(sourceHealth.lastCheck !== undefined && {
+            lastCheck: sourceHealth.lastCheck,
+          }),
         };
       }
     }
@@ -40,10 +45,10 @@ function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
   response: HealthCheckResponse;
   isHealthy: boolean;
 } {
-  const isHealthy = cachedState.status === "healthy";
+  const isHealthy = cachedState.status === 'healthy';
   const details = cachedState.details;
-  const dbHealthy = details?.database?.status === "healthy";
-  const status = isHealthy ? "healthy" : "unhealthy";
+  const dbHealthy = details?.database?.status === 'healthy';
+  const status = isHealthy ? 'healthy' : 'unhealthy';
   const now = new Date().toISOString();
 
   return {
@@ -53,12 +58,14 @@ function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
       data: {
         status,
         timestamp: now,
-        version: "1.0.0",
+        version: '1.0.0',
         database: dbHealthy,
         uptime: process.uptime(),
-        cached: cachedState.status !== "initializing",
+        cached: cachedState.status !== 'initializing',
         lastCheckedAt: cachedState.lastCheckedAt,
-        message: cachedState.message,
+        ...(cachedState.message !== undefined && {
+          message: cachedState.message,
+        }),
         sources: extractSourcesHealth(details),
       },
       timestamp: now,
@@ -68,26 +75,26 @@ function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
 
 const router: Router = Router();
 
-router.get("/", (req: Request, res: Response) => {
+router.get('/', (req: Request, res: Response) => {
   const startTime = Date.now();
   const cachedState = getHealthState();
   const responseTime = Date.now() - startTime;
   const { response, isHealthy } = buildHealthResponse(cachedState);
 
   if (isHealthy) {
-    logger.info("Health check served healthy state from cache", {
+    logger.info('Health check served healthy state from cache', {
       responseTime,
       lastCheckedAt: cachedState.lastCheckedAt,
     });
     return res.json(response);
   }
 
-  if (cachedState.status === "initializing") {
-    logger.info("Health check requested during initialization window", {
+  if (cachedState.status === 'initializing') {
+    logger.info('Health check requested during initialization window', {
       responseTime,
     });
   } else {
-    logger.warn("Health check served unhealthy state from cache", {
+    logger.warn('Health check served unhealthy state from cache', {
       responseTime,
       lastCheckedAt: cachedState.lastCheckedAt,
       message: cachedState.message,

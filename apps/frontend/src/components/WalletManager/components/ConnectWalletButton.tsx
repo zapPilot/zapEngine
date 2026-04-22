@@ -1,6 +1,6 @@
-import { useConnect, useConnection, useConnectors } from "wagmi";
+import { useConnect, useConnection, useConnectors } from 'wagmi';
 
-import { WALLET_LABELS } from "@/constants/wallet";
+import { WALLET_LABELS } from '@/constants/wallet';
 
 interface ConnectWalletButtonProps {
   className?: string;
@@ -11,7 +11,7 @@ function shortenAddress(address: string): string {
 }
 
 export function ConnectWalletButton({
-  className = "",
+  className = '',
 }: ConnectWalletButtonProps) {
   const { address, isConnected } = useConnection();
   const connectors = useConnectors();
@@ -40,11 +40,11 @@ export function ConnectWalletButton({
           className="w-full px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer transition-all duration-200 hover:opacity-90"
           style={{
             background:
-              "linear-gradient(135deg, rgb(168 85 247) 0%, rgb(124 58 237) 100%)",
-            border: "1px solid rgba(168, 85, 247, 0.3)",
+              'linear-gradient(135deg, rgb(168 85 247) 0%, rgb(124 58 237) 100%)',
+            border: '1px solid rgba(168, 85, 247, 0.3)',
           }}
         >
-          {isPending ? "Connecting..." : WALLET_LABELS.CONNECT}
+          {isPending ? 'Connecting...' : WALLET_LABELS.CONNECT}
         </button>
       )}
     </div>

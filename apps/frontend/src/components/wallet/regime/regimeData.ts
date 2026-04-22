@@ -1,6 +1,6 @@
-import { type LucideIcon, Pause, TrendingDown, TrendingUp } from "lucide-react";
+import { type LucideIcon, Pause, TrendingDown, TrendingUp } from 'lucide-react';
 
-import type { RegimeAllocationBreakdown } from "@/types/domain/allocation";
+import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
 
 /**
  * Shared allocation states used across regime transitions.
@@ -19,27 +19,27 @@ const ALLOCATION_STATES = {
 const PHILOSOPHIES = {
   BUFFETT_FEARFUL: {
     philosophy: '"Be greedy when others are fearful"',
-    author: "Warren Buffett",
+    author: 'Warren Buffett',
   },
   ROTHSCHILD_BLOOD: {
     philosophy: '"Buy when there\'s blood in the streets"',
-    author: "Nathan Rothschild",
+    author: 'Nathan Rothschild',
   },
   LIVERMORE_SITTING: {
     philosophy: '"It was always my sitting that made the big money"',
-    author: "Jesse Livermore",
+    author: 'Jesse Livermore',
   },
   BARUCH_PROFIT: {
     philosophy: '"Nobody ever went broke taking a profit"',
-    author: "Bernard Baruch",
+    author: 'Bernard Baruch',
   },
   BUFFETT_GREEDY: {
     philosophy: '"Be fearful when others are greedy"',
-    author: "Warren Buffett",
+    author: 'Warren Buffett',
   },
 } as const;
 
-export type RegimeId = "ef" | "f" | "n" | "g" | "eg";
+export type RegimeId = 'ef' | 'f' | 'n' | 'g' | 'eg';
 
 export interface RegimeStrategy {
   philosophy: string;
@@ -83,23 +83,23 @@ export interface Regime {
 
 export const regimes: Regime[] = [
   {
-    id: "ef",
-    label: "Extreme Fear",
-    fillColor: "#22c55e",
+    id: 'ef',
+    label: 'Extreme Fear',
+    fillColor: '#22c55e',
     visual: {
-      badge: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      gradient: "from-emerald-400 to-green-500",
+      badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      gradient: 'from-emerald-400 to-green-500',
       icon: TrendingDown,
     },
     strategies: {
       default: {
         ...PHILOSOPHIES.BUFFETT_FEARFUL,
         useCase: {
-          scenario: "Bitcoin drops 33% from recent highs. FGI drops to 15.",
+          scenario: 'Bitcoin drops 33% from recent highs. FGI drops to 15.',
           userIntent:
-            "I want to build spot exposure without trying to call the exact bottom.",
+            'I want to build spot exposure without trying to call the exact bottom.',
           zapAction:
-            "Aggressively shifts capital from stable reserves into spot over 10 days while fear is extreme.",
+            'Aggressively shifts capital from stable reserves into spot over 10 days while fear is extreme.',
           allocationBefore: ALLOCATION_STATES.DEFENSIVE,
           allocationAfter: ALLOCATION_STATES.ACCUMULATE,
         },
@@ -107,13 +107,13 @@ export const regimes: Regime[] = [
     },
   },
   {
-    id: "f",
-    label: "Fear",
+    id: 'f',
+    label: 'Fear',
 
-    fillColor: "#84cc16",
+    fillColor: '#84cc16',
     visual: {
-      badge: "bg-green-500/20 text-green-400 border-green-500/30",
-      gradient: "from-green-400 to-teal-500",
+      badge: 'bg-green-500/20 text-green-400 border-green-500/30',
+      gradient: 'from-green-400 to-teal-500',
       icon: TrendingDown,
     },
     strategies: {
@@ -121,10 +121,10 @@ export const regimes: Regime[] = [
         ...PHILOSOPHIES.LIVERMORE_SITTING,
         useCase: {
           scenario:
-            "Bitcoin stabilizes after bouncing 12% from recent lows. FGI rises to 35.",
-          userIntent: "I want to hold my spot exposure during early recovery.",
+            'Bitcoin stabilizes after bouncing 12% from recent lows. FGI rises to 35.',
+          userIntent: 'I want to hold my spot exposure during early recovery.',
           zapAction:
-            "Maintains elevated spot exposure while recovery is still fragile. Zero rebalancing unless risk spikes.",
+            'Maintains elevated spot exposure while recovery is still fragile. Zero rebalancing unless risk spikes.',
           allocationBefore: ALLOCATION_STATES.ACCUMULATE,
           allocationAfter: ALLOCATION_STATES.ACCUMULATE,
           hideAllocationTarget: true,
@@ -133,11 +133,11 @@ export const regimes: Regime[] = [
       fromRight: {
         ...PHILOSOPHIES.ROTHSCHILD_BLOOD,
         useCase: {
-          scenario: "Bitcoin drops 8% from recent peak. FGI falls to 35.",
+          scenario: 'Bitcoin drops 8% from recent peak. FGI falls to 35.',
           userIntent:
-            "I want to add spot exposure as fear grows, but not in one oversized trade.",
+            'I want to add spot exposure as fear grows, but not in one oversized trade.',
           zapAction:
-            "Starts rotating stable reserves back into spot in measured steps as the market gets cheaper.",
+            'Starts rotating stable reserves back into spot in measured steps as the market gets cheaper.',
           allocationBefore: ALLOCATION_STATES.TAKE_PROFIT,
           allocationAfter: ALLOCATION_STATES.BALANCED,
         },
@@ -145,24 +145,24 @@ export const regimes: Regime[] = [
     },
   },
   {
-    id: "n",
-    label: "Neutral",
+    id: 'n',
+    label: 'Neutral',
 
-    fillColor: "#eab308",
+    fillColor: '#eab308',
     visual: {
-      badge: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-      gradient: "from-yellow-400 to-amber-500",
+      badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      gradient: 'from-yellow-400 to-amber-500',
       icon: Pause,
     },
     strategies: {
       default: {
         ...PHILOSOPHIES.LIVERMORE_SITTING,
         useCase: {
-          scenario: "FGI hovers between 46-54 for weeks.",
+          scenario: 'FGI hovers between 46-54 for weeks.',
           userIntent:
             "I don't want to overtrade while the market is indecisive.",
           zapAction:
-            "Keeps the portfolio near an even split between spot and stable reserves. Zero rebalancing unless drift becomes meaningful.",
+            'Keeps the portfolio near an even split between spot and stable reserves. Zero rebalancing unless drift becomes meaningful.',
           allocationBefore: ALLOCATION_STATES.BALANCED,
           allocationAfter: ALLOCATION_STATES.BALANCED,
           hideAllocationTarget: true,
@@ -171,24 +171,24 @@ export const regimes: Regime[] = [
     },
   },
   {
-    id: "g",
-    label: "Greed",
+    id: 'g',
+    label: 'Greed',
 
-    fillColor: "#f97316",
+    fillColor: '#f97316',
     visual: {
-      badge: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-      gradient: "from-orange-400 to-red-500",
+      badge: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+      gradient: 'from-orange-400 to-red-500',
       icon: TrendingUp,
     },
     strategies: {
       fromLeft: {
         ...PHILOSOPHIES.BARUCH_PROFIT,
         useCase: {
-          scenario: "FGI rises to 65 during a bull run.",
+          scenario: 'FGI rises to 65 during a bull run.',
           userIntent:
-            "I want to lock in gains without fully exiting the market.",
+            'I want to lock in gains without fully exiting the market.',
           zapAction:
-            "Gradually trims spot exposure into stable reserves while momentum remains positive.",
+            'Gradually trims spot exposure into stable reserves while momentum remains positive.',
           allocationBefore: ALLOCATION_STATES.ACCUMULATE,
           allocationAfter: ALLOCATION_STATES.TAKE_PROFIT,
         },
@@ -196,10 +196,10 @@ export const regimes: Regime[] = [
       fromRight: {
         ...PHILOSOPHIES.LIVERMORE_SITTING,
         useCase: {
-          scenario: "Bitcoin corrects 25% from peak. FGI drops to 65.",
-          userIntent: "I want to avoid catching falling knives.",
+          scenario: 'Bitcoin corrects 25% from peak. FGI drops to 65.',
+          userIntent: 'I want to avoid catching falling knives.',
           zapAction:
-            "Sits tight. The portfolio is already partially de-risked, so no extra selling is needed.",
+            'Sits tight. The portfolio is already partially de-risked, so no extra selling is needed.',
           allocationBefore: ALLOCATION_STATES.TAKE_PROFIT,
           allocationAfter: ALLOCATION_STATES.TAKE_PROFIT,
           hideAllocationTarget: true,
@@ -208,23 +208,23 @@ export const regimes: Regime[] = [
     },
   },
   {
-    id: "eg",
-    label: "Extreme Greed",
+    id: 'eg',
+    label: 'Extreme Greed',
 
-    fillColor: "#ef4444",
+    fillColor: '#ef4444',
     visual: {
-      badge: "bg-red-500/20 text-red-400 border-red-500/30",
-      gradient: "from-red-400 to-orange-500",
+      badge: 'bg-red-500/20 text-red-400 border-red-500/30',
+      gradient: 'from-red-400 to-orange-500',
       icon: TrendingUp,
     },
     strategies: {
       default: {
         ...PHILOSOPHIES.BUFFETT_GREEDY,
         useCase: {
-          scenario: "Bitcoin rallies 67% from recent lows. FGI hits 92.",
-          userIntent: "I want to take profits but keep some exposure.",
+          scenario: 'Bitcoin rallies 67% from recent lows. FGI hits 92.',
+          userIntent: 'I want to take profits but keep some exposure.',
           zapAction:
-            "Takes larger profits by shifting more spot into stable reserves before euphoria unwinds.",
+            'Takes larger profits by shifting more spot into stable reserves before euphoria unwinds.',
           allocationBefore: ALLOCATION_STATES.TAKE_PROFIT,
           allocationAfter: ALLOCATION_STATES.DEFENSIVE,
         },
@@ -241,13 +241,13 @@ export const regimes: Regime[] = [
  * @returns Regime configuration object
  */
 export function getRegimeById(regimeId: RegimeId): Regime {
-  const regime = regimes.find(r => r.id === regimeId);
+  const regime = regimes.find((r) => r.id === regimeId);
 
   if (!regime) {
     // Fallback to neutral regime if not found
-    const neutralRegime = regimes.find(r => r.id === "n");
+    const neutralRegime = regimes.find((r) => r.id === 'n');
     if (!neutralRegime) {
-      throw new Error("Critical: Neutral regime not found in regimes array");
+      throw new Error('Critical: Neutral regime not found in regimes array');
     }
     return neutralRegime;
   }
@@ -274,6 +274,6 @@ export function getRegimeAllocation(regime: Regime) {
   }
 
   throw new Error(
-    `Critical: No valid strategy found for regime ${regime.id} to determine allocation`
+    `Critical: No valid strategy found for regime ${regime.id} to determine allocation`,
   );
 }

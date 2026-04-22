@@ -1,13 +1,13 @@
-import { Plus, Wallet } from "lucide-react";
+import { Plus, Wallet } from 'lucide-react';
 
-import { GradientButton } from "@/components/ui";
-import { GRADIENTS } from "@/constants/design-system";
-import type { WalletData } from "@/lib/validation/walletUtils";
-import type { NewWallet } from "@/types";
+import { GradientButton } from '@/components/ui';
+import { GRADIENTS } from '@/constants/design-system';
+import type { WalletData } from '@/lib/validation/walletUtils';
+import type { NewWallet } from '@/types';
 
-import { useWalletList } from "../contexts/WalletListContext";
-import { AddWalletForm } from "./AddWalletForm";
-import { WalletCard } from "./WalletCard";
+import { useWalletList } from '../contexts/WalletListContext';
+import { AddWalletForm } from './AddWalletForm';
+import { WalletCard } from './WalletCard';
 
 interface WalletListHeaderProps {
   count: number;
@@ -38,7 +38,7 @@ function WalletListEmptyState({
       <div className="text-center py-8 border-2 border-dashed border-gray-600 rounded-xl">
         <Wallet className="w-8 h-8 text-gray-400 mx-auto mb-3" />
         <p className="text-gray-300 mb-4">
-          {isOwner ? "Add wallets to your bundle" : "No wallets in this bundle"}
+          {isOwner ? 'Add wallets to your bundle' : 'No wallets in this bundle'}
         </p>
         {isOwner && (
           <GradientButton
@@ -103,7 +103,7 @@ export function WalletList({
         <WalletListHeader count={wallets.length} />
 
         <div className="space-y-3">
-          {wallets.map(wallet => (
+          {wallets.map((wallet) => (
             <WalletCard
               key={wallet.id}
               wallet={wallet}

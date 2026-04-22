@@ -1,6 +1,6 @@
-import { Home } from "lucide-react";
+import { Home } from 'lucide-react';
 
-import { GRADIENTS, Z_INDEX } from "@/constants/design-system";
+import { GRADIENTS, Z_INDEX } from '@/constants/design-system';
 
 interface QuickSwitchFABProps {
   onSwitchToMyBundle: () => void;
@@ -9,7 +9,7 @@ interface QuickSwitchFABProps {
 
 export function QuickSwitchFAB({
   onSwitchToMyBundle,
-  className = "",
+  className = '',
 }: QuickSwitchFABProps) {
   return (
     <button

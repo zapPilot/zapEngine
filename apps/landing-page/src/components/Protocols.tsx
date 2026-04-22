@@ -9,7 +9,10 @@ export function Protocols() {
   return (
     <section className="py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeader title={MESSAGES.protocols.title} subtitle={MESSAGES.protocols.subtitle} />
+        <SectionHeader
+          title={MESSAGES.protocols.title}
+          subtitle={MESSAGES.protocols.subtitle}
+        />
 
         <CardGrid columns={2}>
           {MESSAGES.protocols.items.map((protocol, index) => (
@@ -48,7 +51,9 @@ export function Protocols() {
                   </h3>
 
                   {/* Description */}
-                  <p className="text-gray-400 leading-relaxed">{protocol.description}</p>
+                  <p className="text-gray-400 leading-relaxed">
+                    {protocol.description}
+                  </p>
                 </div>
               </CardItem>
             </a>

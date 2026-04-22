@@ -1,14 +1,14 @@
+import { getTableName } from '../../config/database.js';
 import {
   BaseWriter,
   type WriteResult,
-} from "../../core/database/baseWriter.js";
-import { logger } from "../../utils/logger.js";
-import { getTableName } from "../../config/database.js";
-import type { PortfolioItemSnapshotInsert } from "../../types/database.js";
-import { buildPortfolioInsertValues } from "../../core/database/columnDefinitions.js";
+} from '../../core/database/baseWriter.js';
+import { buildPortfolioInsertValues } from '../../core/database/columnDefinitions.js';
+import type { PortfolioItemSnapshotInsert } from '../../types/database.js';
+import { logger } from '../../utils/logger.js';
 
 export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert> {
-  protected batchSize = 100;
+  protected override batchSize = 100;
 
   async writeSnapshots(
     records: PortfolioItemSnapshotInsert[],
@@ -16,7 +16,7 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
     return this.processBatches(
       records,
       this.writeBatch.bind(this),
-      "DeBank portfolio snapshots",
+      'DeBank portfolio snapshots',
     );
   }
 
@@ -38,13 +38,13 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
 
     const batchResult = await this.executeBatchWrite({
       batchNumber,
-      logContext: "DeBank portfolio",
+      logContext: 'DeBank portfolio',
       recordCount: validRecords.length,
       buildQuery: () => {
         const { columns, placeholders, values } =
           buildPortfolioInsertValues(validRecords);
         const query = `
-          INSERT INTO ${getTableName("PORTFOLIO_ITEM_SNAPSHOTS")} (${columns.join(", ")})
+          INSERT INTO ${getTableName('PORTFOLIO_ITEM_SNAPSHOTS')} (${columns.join(', ')})
           VALUES ${placeholders}
           RETURNING 1;
         `;
@@ -65,7 +65,7 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
     for (const record of batch) {
       const hasRequired = Boolean(record.wallet && record.id_raw);
       if (!hasRequired) {
-        const message = `Invalid portfolio snapshot encountered for wallet ${record.wallet ?? "unknown"} (${record.id_raw ?? "missing id"})`;
+        const message = `Invalid portfolio snapshot encountered for wallet ${record.wallet ?? 'unknown'} (${record.id_raw ?? 'missing id'})`;
         logger.warn(message);
         result.errors.push(message);
         continue;

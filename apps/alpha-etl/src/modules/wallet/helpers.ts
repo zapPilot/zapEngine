@@ -1,18 +1,18 @@
 import type {
-  WalletBalanceSnapshotInsert,
   PortfolioItemSnapshotInsert,
-} from "../../types/database.js";
-import type { WalletBalanceTransformer } from "./balanceTransformer.js";
-import type { WalletBalanceWriter } from "./balanceWriter.js";
-import type { PortfolioItemWriter } from "./portfolioWriter.js";
-import { logger } from "../../utils/logger.js";
+  WalletBalanceSnapshotInsert,
+} from '../../types/database.js';
+import { logger } from '../../utils/logger.js';
+import type { WalletBalanceTransformer } from './balanceTransformer.js';
+import type { WalletBalanceWriter } from './balanceWriter.js';
+import type { PortfolioItemWriter } from './portfolioWriter.js';
 
 /**
  * Merged record type for wallet and portfolio data in ETL pipeline
  */
 export type WalletETLRecord =
-  | { kind: "wallet"; data: WalletBalanceSnapshotInsert }
-  | { kind: "portfolio"; data: PortfolioItemSnapshotInsert };
+  | { kind: 'wallet'; data: WalletBalanceSnapshotInsert }
+  | { kind: 'portfolio'; data: PortfolioItemSnapshotInsert };
 
 interface SplitWalletETLRecordsResult {
   walletRecords: WalletBalanceSnapshotInsert[];
@@ -63,7 +63,7 @@ function splitWalletETLRecords(
   const portfolioRecords: PortfolioItemSnapshotInsert[] = [];
 
   for (const record of records) {
-    if (record.kind === "wallet") {
+    if (record.kind === 'wallet') {
       walletRecords.push(record.data);
       continue;
     }
@@ -78,8 +78,8 @@ function mergeWalletETLRecords(
   portfolioRecords: PortfolioItemSnapshotInsert[],
 ): WalletETLRecord[] {
   return [
-    ...walletRecords.map((data) => ({ kind: "wallet" as const, data })),
-    ...portfolioRecords.map((data) => ({ kind: "portfolio" as const, data })),
+    ...walletRecords.map((data) => ({ kind: 'wallet' as const, data })),
+    ...portfolioRecords.map((data) => ({ kind: 'portfolio' as const, data })),
   ];
 }
 
@@ -103,7 +103,7 @@ export function createWalletTransformCallback(
     const transformedBalances = transformer.transformBatch(walletRecords);
 
     if (transformedBalances.length === 0) {
-      logger.warn("No valid data after wallet balance transformation", {
+      logger.warn('No valid data after wallet balance transformation', {
         jobId,
       });
     } else {

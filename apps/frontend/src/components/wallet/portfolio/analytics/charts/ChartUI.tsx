@@ -4,7 +4,7 @@
  * Grid lines, labels, and other chart decorations
  */
 
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode } from 'react';
 
 interface ChartGridLinesProps {
   positions: number[];
@@ -15,7 +15,7 @@ export function ChartGridLines({
 }: ChartGridLinesProps): ReactElement {
   return (
     <div className="absolute inset-0">
-      {positions.map(y => (
+      {positions.map((y) => (
         <div
           key={y}
           className="absolute w-full h-px bg-gray-800/40"
@@ -28,16 +28,16 @@ export function ChartGridLines({
 
 interface YAxisLabelsProps {
   labels: string[];
-  alignment?: "left" | "right";
+  alignment?: 'left' | 'right';
 }
 
 export function YAxisLabels({
   labels,
-  alignment = "right",
+  alignment = 'right',
 }: YAxisLabelsProps): ReactElement {
   return (
     <div
-      className={`absolute ${alignment === "right" ? "right-2" : "left-2"} top-0 h-full flex flex-col justify-between py-1 text-[10px] text-gray-600 font-mono text-${alignment}`}
+      className={`absolute ${alignment === 'right' ? 'right-2' : 'left-2'} top-0 h-full flex flex-col justify-between py-1 text-[10px] text-gray-600 font-mono text-${alignment}`}
     >
       {labels.map((label, idx) => (
         <span key={idx}>{label}</span>
@@ -82,13 +82,13 @@ export function ChartSurface({
       onPointerDown={handlers.handlePointerDown}
       onTouchMove={handlers.handleTouchMove}
       onTouchEnd={handlers.handleTouchEnd}
-      style={{ touchAction: "none" }}
+      style={{ touchAction: 'none' }}
     >
       {children}
     </svg>
   );
 }
 // Re-export shared chart dependencies to avoid import duplication
-export { ChartIndicator, ChartTooltip } from "@/components/charts";
-export { useChartHover } from "@/hooks/ui/useChartHover";
-export { buildPath, CHART_GRID_POSITIONS } from "@/lib/ui/chartPrimitives";
+export { ChartIndicator, ChartTooltip } from '@/components/charts';
+export { useChartHover } from '@/hooks/ui/useChartHover';
+export { buildPath, CHART_GRID_POSITIONS } from '@/lib/ui/chartPrimitives';

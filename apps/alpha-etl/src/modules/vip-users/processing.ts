@@ -1,7 +1,7 @@
-import { logger } from "../../utils/logger.js";
-import { filterVipUsersByActivity } from "./activityFiltering.js";
-import type { VipUserWithActivity } from "../../types/index.js";
-import type { SupabaseFetcher } from "../../modules/vip-users/supabaseFetcher.js";
+import type { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import type { VipUserWithActivity } from '../../types/index.js';
+import { logger } from '../../utils/logger.js';
+import { filterVipUsersByActivity } from './activityFiltering.js';
 
 export interface VipUsersProcessingResult {
   usersToUpdate: VipUserWithActivity[];
@@ -24,7 +24,7 @@ export async function fetchAndFilterVipUsersForProcessing(
   const { usersToUpdate, costSavingsPercent, stats } =
     filterVipUsersByActivity(vipUsers);
 
-  logger.info("Users filtered by activity", {
+  logger.info('Users filtered by activity', {
     jobId,
     totalVipUsers: vipUsers.length,
     usersToUpdate: usersToUpdate.length,
@@ -55,12 +55,12 @@ export async function updatePortfolioTimestampsNonFatal(
 
   try {
     await supabaseFetcher.batchUpdatePortfolioTimestamps(wallets);
-    logger.info("Portfolio timestamps updated", {
+    logger.info('Portfolio timestamps updated', {
       jobId,
       walletsUpdated: wallets.length,
     });
   } catch (error) {
-    logger.error("Failed to batch update portfolio timestamps", {
+    logger.error('Failed to batch update portfolio timestamps', {
       jobId,
       walletsCount: wallets.length,
       error,

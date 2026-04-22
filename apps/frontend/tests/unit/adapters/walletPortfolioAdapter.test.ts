@@ -8,15 +8,15 @@
  * - Regime allocation edge cases
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-import { transformToWalletPortfolioData } from "@/adapters/walletPortfolioDataAdapter";
-import type { LandingPageResponse } from "@/schemas/api/analyticsSchemas";
-import type { MarketSentimentData } from "@/services/sentimentService";
+import { transformToWalletPortfolioData } from '@/adapters/walletPortfolioDataAdapter';
+import type { LandingPageResponse } from '@/schemas/api/analyticsSchemas';
+import type { MarketSentimentData } from '@/services/sentimentService';
 
-describe("walletPortfolioAdapter", () => {
-  describe("transformToWalletPortfolioData", () => {
-    it("should transform complete landing page data correctly", () => {
+describe('walletPortfolioAdapter', () => {
+  describe('transformToWalletPortfolioData', () => {
+    it('should transform complete landing page data correctly', () => {
       const landingData: LandingPageResponse = {
         total_assets_usd: 50000,
         total_debt_usd: 0,
@@ -26,13 +26,13 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 350,
         portfolio_roi: {
           recommended_roi: 12.4,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 12.4,
           estimated_yearly_pnl_usd: 6200,
           windows: {
-            "7d": { value: 2.1, data_points: 7 },
-            "30d": { value: 8.3, data_points: 30 },
-            "365d": { value: 12.4, data_points: 365 },
+            '7d': { value: 2.1, data_points: 7 },
+            '30d': { value: 8.3, data_points: 30 },
+            '365d': { value: 12.4, data_points: 365 },
           },
         },
         portfolio_allocation: {
@@ -74,33 +74,33 @@ describe("walletPortfolioAdapter", () => {
         },
         pool_details: [
           {
-            wallet: "0x123",
-            protocol_id: "aave-v3",
-            protocol: "aave-v3",
-            protocol_name: "Aave V3",
-            chain: "ethereum",
+            wallet: '0x123',
+            protocol_id: 'aave-v3',
+            protocol: 'aave-v3',
+            protocol_name: 'Aave V3',
+            chain: 'ethereum',
             asset_usd_value: 10000,
-            pool_symbols: ["USDC"],
+            pool_symbols: ['USDC'],
             contribution_to_portfolio: 20,
-            snapshot_id: "snap1",
+            snapshot_id: 'snap1',
           },
           {
-            wallet: "0x123",
-            protocol_id: "curve",
-            protocol: "curve",
-            protocol_name: "Curve",
-            chain: "polygon",
+            wallet: '0x123',
+            protocol_id: 'curve',
+            protocol: 'curve',
+            protocol_name: 'Curve',
+            chain: 'polygon',
             asset_usd_value: 5000,
-            pool_symbols: ["DAI", "USDC"],
+            pool_symbols: ['DAI', 'USDC'],
             contribution_to_portfolio: 10,
-            snapshot_id: "snap2",
+            snapshot_id: 'snap2',
           },
         ],
         positions: 2,
         protocols: 2,
         chains: 2,
         wallet_count: 1,
-        last_updated: "2025-01-01T00:00:00Z",
+        last_updated: '2025-01-01T00:00:00Z',
         apr_coverage: {
           matched_pools: 2,
           total_pools: 2,
@@ -111,12 +111,12 @@ describe("walletPortfolioAdapter", () => {
 
       const sentimentData: MarketSentimentData = {
         value: 65,
-        status: "Greed",
-        timestamp: "2025-01-01T00:00:00Z",
+        status: 'Greed',
+        timestamp: '2025-01-01T00:00:00Z',
         quote: {
-          quote: "Markets are showing optimism",
-          author: "Market Analysis",
-          sentiment: "Greed",
+          quote: 'Markets are showing optimism',
+          author: 'Market Analysis',
+          sentiment: 'Greed',
         },
       };
 
@@ -130,8 +130,8 @@ describe("walletPortfolioAdapter", () => {
 
       // Regime & sentiment
       expect(result.sentimentValue).toBe(65);
-      expect(result.sentimentStatus).toBe("Greed");
-      expect(result.currentRegime).toBe("g"); // Greed regime
+      expect(result.sentimentStatus).toBe('Greed');
+      expect(result.currentRegime).toBe('g'); // Greed regime
 
       // Allocations
       expect(result.currentAllocation.crypto).toBe(80); // (20k + 15k + 5k) / 50k * 100
@@ -150,7 +150,7 @@ describe("walletPortfolioAdapter", () => {
       expect(result.hasError).toBe(false);
     });
 
-    it("should handle missing sentiment data with defaults", () => {
+    it('should handle missing sentiment data with defaults', () => {
       const landingData: LandingPageResponse = {
         total_assets_usd: 10000,
         total_debt_usd: 0,
@@ -160,7 +160,7 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 42,
         portfolio_roi: {
           recommended_roi: 5,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 5,
           estimated_yearly_pnl_usd: 500,
         },
@@ -219,13 +219,13 @@ describe("walletPortfolioAdapter", () => {
 
       // Should default to neutral regime
       expect(result.sentimentValue).toBe(50);
-      expect(result.sentimentStatus).toBe("Neutral");
-      expect(result.currentRegime).toBe("n");
+      expect(result.sentimentStatus).toBe('Neutral');
+      expect(result.currentRegime).toBe('n');
       expect(result.targetAllocation.crypto).toBe(50); // Neutral regime (Balanced: 50/50)
       expect(result.targetAllocation.stable).toBe(50);
     });
 
-    it("should handle empty portfolio correctly", () => {
+    it('should handle empty portfolio correctly', () => {
       const landingData: LandingPageResponse = {
         total_assets_usd: 0,
         total_debt_usd: 0,
@@ -235,7 +235,7 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 0,
         portfolio_roi: {
           recommended_roi: 0,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 0,
           estimated_yearly_pnl_usd: 0,
         },
@@ -301,7 +301,7 @@ describe("walletPortfolioAdapter", () => {
       expect(result.currentAllocation.simplifiedCrypto).toEqual([]);
     });
 
-    it("should calculate allocation percentages correctly", () => {
+    it('should calculate allocation percentages correctly', () => {
       const landingData: LandingPageResponse = {
         total_assets_usd: 100000,
         total_debt_usd: 0,
@@ -311,7 +311,7 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 833,
         portfolio_roi: {
           recommended_roi: 10,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 10,
           estimated_yearly_pnl_usd: 10000,
         },
@@ -375,17 +375,17 @@ describe("walletPortfolioAdapter", () => {
 
       // Check constituent percentages (relative to category)
       const btcConstituent = result.currentAllocation.constituents.crypto.find(
-        c => c.symbol === "BTC"
+        (c) => c.symbol === 'BTC',
       );
       expect(btcConstituent?.value).toBe(50); // 30k / 60k * 100
 
       const ethConstituent = result.currentAllocation.constituents.crypto.find(
-        c => c.symbol === "ETH"
+        (c) => c.symbol === 'ETH',
       );
       expect(ethConstituent?.value).toBeCloseTo(33.33, 1); // 20k / 60k * 100
     });
 
-    it("should handle different regime ranges correctly", () => {
+    it('should handle different regime ranges correctly', () => {
       const baseLandingData: LandingPageResponse = {
         total_assets_usd: 10000,
         total_debt_usd: 0,
@@ -395,7 +395,7 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 42,
         portfolio_roi: {
           recommended_roi: 5,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 5,
           estimated_yearly_pnl_usd: 500,
         },
@@ -455,16 +455,16 @@ describe("walletPortfolioAdapter", () => {
         baseLandingData,
         {
           value: 20,
-          status: "Extreme Fear",
-          timestamp: "2025-01-01T00:00:00Z",
+          status: 'Extreme Fear',
+          timestamp: '2025-01-01T00:00:00Z',
           quote: {
-            quote: "Panic selling",
-            author: "Market",
-            sentiment: "Extreme Fear",
+            quote: 'Panic selling',
+            author: 'Market',
+            sentiment: 'Extreme Fear',
           },
-        }
+        },
       );
-      expect(extremeFearResult.currentRegime).toBe("ef");
+      expect(extremeFearResult.currentRegime).toBe('ef');
       expect(extremeFearResult.targetAllocation.crypto).toBe(70);
       expect(extremeFearResult.targetAllocation.stable).toBe(30);
 
@@ -473,21 +473,21 @@ describe("walletPortfolioAdapter", () => {
         baseLandingData,
         {
           value: 85,
-          status: "Extreme Greed",
-          timestamp: "2025-01-01T00:00:00Z",
+          status: 'Extreme Greed',
+          timestamp: '2025-01-01T00:00:00Z',
           quote: {
-            quote: "FOMO buying",
-            author: "Market",
-            sentiment: "Extreme Greed",
+            quote: 'FOMO buying',
+            author: 'Market',
+            sentiment: 'Extreme Greed',
           },
-        }
+        },
       );
-      expect(extremeGreedResult.currentRegime).toBe("eg");
+      expect(extremeGreedResult.currentRegime).toBe('eg');
       expect(extremeGreedResult.targetAllocation.crypto).toBe(30);
       expect(extremeGreedResult.targetAllocation.stable).toBe(70);
     });
 
-    it("should decouple regime from value if status contradicts it", () => {
+    it('should decouple regime from value if status contradicts it', () => {
       const baseLandingData: LandingPageResponse = {
         total_assets_usd: 10000,
         total_debt_usd: 0,
@@ -497,7 +497,7 @@ describe("walletPortfolioAdapter", () => {
         estimated_monthly_income: 42,
         portfolio_roi: {
           recommended_roi: 5,
-          recommended_period: "365d",
+          recommended_period: '365d',
           recommended_yearly_roi: 5,
           estimated_yearly_pnl_usd: 500,
         },
@@ -551,23 +551,23 @@ describe("walletPortfolioAdapter", () => {
       // Status: "Extreme Fear" (explicit override from backend)
       const conflictingData: MarketSentimentData = {
         value: 90,
-        status: "Extreme Fear",
-        timestamp: "2025-01-01T00:00:00Z",
+        status: 'Extreme Fear',
+        timestamp: '2025-01-01T00:00:00Z',
         quote: {
-          quote: "Trust the status, not the value",
-          author: "Backend",
-          sentiment: "Extreme Fear",
+          quote: 'Trust the status, not the value',
+          author: 'Backend',
+          sentiment: 'Extreme Fear',
         },
       };
 
       const result = transformToWalletPortfolioData(
         baseLandingData,
-        conflictingData
+        conflictingData,
       );
 
       // Should obey STATUS ("Extreme Fear" -> "ef"), ignoring VALUE (90 -> "eg")
-      expect(result.currentRegime).toBe("ef");
-      expect(result.sentimentStatus).toBe("Extreme Fear");
+      expect(result.currentRegime).toBe('ef');
+      expect(result.sentimentStatus).toBe('Extreme Fear');
       // Verify targets match Extreme Fear (70/30) not Extreme Greed (30/70)
       expect(result.targetAllocation.crypto).toBe(70);
       expect(result.targetAllocation.stable).toBe(30);

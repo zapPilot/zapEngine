@@ -4,10 +4,10 @@ import {
   MessageSquare,
   Send,
   X,
-} from "lucide-react";
-import type { ComponentType, ReactElement, SVGProps } from "react";
+} from 'lucide-react';
+import type { ComponentType, ReactElement, SVGProps } from 'react';
 
-import { GithubIcon } from "@/components/icons/GithubIcon";
+import { GithubIcon } from '@/components/icons/GithubIcon';
 
 interface SocialLink {
   icon: LucideIcon | ComponentType<SVGProps<SVGSVGElement>>;
@@ -16,22 +16,22 @@ interface SocialLink {
 }
 
 const SOCIAL_LINKS: SocialLink[] = [
-  { icon: X, label: "X (Twitter)", url: "https://x.com/zapPilot" },
-  { icon: GithubIcon, label: "GitHub", url: "https://github.com/zapPilot" },
+  { icon: X, label: 'X (Twitter)', url: 'https://x.com/zapPilot' },
+  { icon: GithubIcon, label: 'GitHub', url: 'https://github.com/zapPilot' },
   {
     icon: MessageCircle,
-    label: "Discord",
-    url: "https://discord.gg/d3vXUtcFCJ",
+    label: 'Discord',
+    url: 'https://discord.gg/d3vXUtcFCJ',
   },
   {
     icon: MessageSquare,
-    label: "Farcaster",
-    url: "https://farcaster.xyz/david-chang",
+    label: 'Farcaster',
+    url: 'https://farcaster.xyz/david-chang',
   },
   {
     icon: Send,
-    label: "Telegram",
-    url: "https://t.me/zappilot",
+    label: 'Telegram',
+    url: 'https://t.me/zappilot',
   },
 ];
 
@@ -41,7 +41,7 @@ const SOCIAL_LINKS: SocialLink[] = [
 function SocialLinksSection(): ReactElement {
   return (
     <div className="flex items-center gap-6">
-      {SOCIAL_LINKS.map(link => (
+      {SOCIAL_LINKS.map((link) => (
         <a
           key={link.label}
           href={link.url}
@@ -79,15 +79,15 @@ interface FooterProps {
 
 /** Footer styling constants */
 const STYLES = {
-  base: "border-t border-gray-800 bg-gray-900",
-  container: "mx-auto px-4 py-6 lg:px-8",
-  mobileLayout: "flex flex-col items-center gap-4 md:hidden",
-  desktopLayout: "hidden md:flex items-center justify-between",
+  base: 'border-t border-gray-800 bg-gray-900',
+  container: 'mx-auto px-4 py-6 lg:px-8',
+  mobileLayout: 'flex flex-col items-center gap-4 md:hidden',
+  desktopLayout: 'hidden md:flex items-center justify-between',
 } as const;
 
 export function Footer({
-  className = "",
-  containerClassName = "max-w-7xl",
+  className = '',
+  containerClassName = 'max-w-7xl',
 }: FooterProps): ReactElement {
   const currentYear = new Date().getFullYear();
 

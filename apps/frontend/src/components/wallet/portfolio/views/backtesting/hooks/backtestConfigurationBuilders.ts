@@ -2,15 +2,15 @@ import type {
   BacktestCompareConfigV3,
   BacktestRequest,
   BacktestStrategyCatalogEntryV3,
-} from "@/types/backtesting";
-import type { BacktestDefaults, StrategyPreset } from "@/types/strategy";
+} from '@/types/backtesting';
+import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
 
 import {
   DEFAULT_DAYS,
   DEFAULT_TOTAL_CAPITAL,
   ETH_BTC_ROTATION_STRATEGY_ID,
   getDefaultConfigIdForStrategyId,
-} from "../constants";
+} from '../constants';
 
 /** Fallback defaults when API response is unavailable. */
 export const FALLBACK_DEFAULTS: BacktestDefaults = {
@@ -20,17 +20,17 @@ export const FALLBACK_DEFAULTS: BacktestDefaults = {
 
 function getPreferredPresetForStrategyId(
   presets: StrategyPreset[],
-  strategyId: string
+  strategyId: string,
 ): StrategyPreset | undefined {
   return (
     presets.find(
-      preset => preset.strategy_id === strategyId && preset.is_default
-    ) ?? presets.find(preset => preset.strategy_id === strategyId)
+      (preset) => preset.strategy_id === strategyId && preset.is_default,
+    ) ?? presets.find((preset) => preset.strategy_id === strategyId)
   );
 }
 
 function buildPresetBackedCompareConfig(
-  preset: StrategyPreset
+  preset: StrategyPreset,
 ): BacktestCompareConfigV3 {
   return {
     config_id: preset.config_id,
@@ -40,7 +40,7 @@ function buildPresetBackedCompareConfig(
 
 function buildAdhocCompareConfig(
   strategyId: string,
-  defaultParams?: BacktestCompareConfigV3["params"]
+  defaultParams?: BacktestCompareConfigV3['params'],
 ): BacktestCompareConfigV3 {
   return {
     config_id: getDefaultConfigIdForStrategyId(strategyId),
@@ -52,13 +52,13 @@ function buildAdhocCompareConfig(
 export function buildCompareConfigForStrategyId(
   strategyId: string,
   presets: StrategyPreset[],
-  strategies: BacktestStrategyCatalogEntryV3[]
+  strategies: BacktestStrategyCatalogEntryV3[],
 ): BacktestCompareConfigV3 {
   const preset = getPreferredPresetForStrategyId(presets, strategyId);
   if (preset) {
     return buildPresetBackedCompareConfig(preset);
   }
-  const strategy = strategies.find(entry => entry.strategy_id === strategyId);
+  const strategy = strategies.find((entry) => entry.strategy_id === strategyId);
   return buildAdhocCompareConfig(strategyId, strategy?.default_params);
 }
 
@@ -69,15 +69,15 @@ export function buildCompareConfigForStrategyId(
  */
 export function buildDefaultPayloadFromPresets(
   presets: StrategyPreset[],
-  defaults: BacktestDefaults
+  defaults: BacktestDefaults,
 ): BacktestRequest {
   const seenConfigIds = new Set<string>();
   const orderedPresets = [...presets].sort(
-    (left, right) => Number(right.is_default) - Number(left.is_default)
+    (left, right) => Number(right.is_default) - Number(left.is_default),
   );
 
   // Find the first non-duplicate preset (the default one)
-  const defaultPreset = orderedPresets.find(preset => {
+  const defaultPreset = orderedPresets.find((preset) => {
     if (seenConfigIds.has(preset.config_id)) {
       return false;
     }
@@ -102,10 +102,10 @@ export function buildDefaultPayloadFromPresets(
  */
 export function buildDefaultPayloadFromStrategies(
   strategies: BacktestStrategyCatalogEntryV3[] | null,
-  defaults: BacktestDefaults = FALLBACK_DEFAULTS
+  defaults: BacktestDefaults = FALLBACK_DEFAULTS,
 ): BacktestRequest {
   const ethBtcRotation = strategies?.find(
-    strategy => strategy.strategy_id === ETH_BTC_ROTATION_STRATEGY_ID
+    (strategy) => strategy.strategy_id === ETH_BTC_ROTATION_STRATEGY_ID,
   );
   const defaultParams = ethBtcRotation?.default_params ?? {};
 

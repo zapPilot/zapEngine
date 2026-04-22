@@ -1,10 +1,10 @@
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-import { useTransactionDropdownState } from "@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState";
+import { useTransactionDropdownState } from '@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState';
 
-describe("useTransactionDropdownState", () => {
-  it("initializes with both dropdowns closed", () => {
+describe('useTransactionDropdownState', () => {
+  it('initializes with both dropdowns closed', () => {
     const { result } = renderHook(() => useTransactionDropdownState());
 
     expect(result.current.isAssetDropdownOpen).toBe(false);
@@ -12,16 +12,16 @@ describe("useTransactionDropdownState", () => {
     expect(result.current.dropdownRef.current).toBeNull();
   });
 
-  it("provides all required functions", () => {
+  it('provides all required functions', () => {
     const { result } = renderHook(() => useTransactionDropdownState());
 
-    expect(typeof result.current.toggleAssetDropdown).toBe("function");
-    expect(typeof result.current.toggleChainDropdown).toBe("function");
-    expect(typeof result.current.closeDropdowns).toBe("function");
+    expect(typeof result.current.toggleAssetDropdown).toBe('function');
+    expect(typeof result.current.toggleChainDropdown).toBe('function');
+    expect(typeof result.current.closeDropdowns).toBe('function');
   });
 
-  describe("toggleAssetDropdown", () => {
-    it("opens asset dropdown when closed", () => {
+  describe('toggleAssetDropdown', () => {
+    it('opens asset dropdown when closed', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -32,7 +32,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("closes asset dropdown when already open", () => {
+    it('closes asset dropdown when already open', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -46,7 +46,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isAssetDropdownOpen).toBe(false);
     });
 
-    it("closes chain dropdown when opening asset dropdown", () => {
+    it('closes chain dropdown when opening asset dropdown', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -62,8 +62,8 @@ describe("useTransactionDropdownState", () => {
     });
   });
 
-  describe("toggleChainDropdown", () => {
-    it("opens chain dropdown when closed", () => {
+  describe('toggleChainDropdown', () => {
+    it('opens chain dropdown when closed', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -74,7 +74,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isAssetDropdownOpen).toBe(false);
     });
 
-    it("closes chain dropdown when already open", () => {
+    it('closes chain dropdown when already open', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -88,7 +88,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("closes asset dropdown when opening chain dropdown", () => {
+    it('closes asset dropdown when opening chain dropdown', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -104,8 +104,8 @@ describe("useTransactionDropdownState", () => {
     });
   });
 
-  describe("mutual exclusion", () => {
-    it("ensures only one dropdown can be open at a time", () => {
+  describe('mutual exclusion', () => {
+    it('ensures only one dropdown can be open at a time', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -128,8 +128,8 @@ describe("useTransactionDropdownState", () => {
     });
   });
 
-  describe("closeDropdowns", () => {
-    it("closes both dropdowns when called", () => {
+  describe('closeDropdowns', () => {
+    it('closes both dropdowns when called', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -144,7 +144,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("closes both dropdowns regardless of which was open", () => {
+    it('closes both dropdowns regardless of which was open', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       act(() => {
@@ -159,7 +159,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("is safe to call when dropdowns are already closed", () => {
+    it('is safe to call when dropdowns are already closed', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
       expect(result.current.isAssetDropdownOpen).toBe(false);
@@ -174,12 +174,12 @@ describe("useTransactionDropdownState", () => {
     });
   });
 
-  describe("click outside behavior", () => {
-    it("closes dropdowns when clicking outside the ref element", () => {
+  describe('click outside behavior', () => {
+    it('closes dropdowns when clicking outside the ref element', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
-      const mockElement = document.createElement("div");
-      Object.defineProperty(result.current.dropdownRef, "current", {
+      const mockElement = document.createElement('div');
+      Object.defineProperty(result.current.dropdownRef, 'current', {
         writable: true,
         value: mockElement,
       });
@@ -190,7 +190,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isAssetDropdownOpen).toBe(true);
 
       act(() => {
-        const mouseEvent = new MouseEvent("mousedown", {
+        const mouseEvent = new MouseEvent('mousedown', {
           bubbles: true,
         });
         document.dispatchEvent(mouseEvent);
@@ -200,11 +200,11 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("closes chain dropdown when clicking outside", () => {
+    it('closes chain dropdown when clicking outside', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
-      const mockElement = document.createElement("div");
-      Object.defineProperty(result.current.dropdownRef, "current", {
+      const mockElement = document.createElement('div');
+      Object.defineProperty(result.current.dropdownRef, 'current', {
         writable: true,
         value: mockElement,
       });
@@ -215,7 +215,7 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(true);
 
       act(() => {
-        const mouseEvent = new MouseEvent("mousedown", {
+        const mouseEvent = new MouseEvent('mousedown', {
           bubbles: true,
         });
         document.dispatchEvent(mouseEvent);
@@ -225,11 +225,11 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isChainDropdownOpen).toBe(false);
     });
 
-    it("does not close dropdowns when clicking inside the ref element", () => {
+    it('does not close dropdowns when clicking inside the ref element', () => {
       const { result } = renderHook(() => useTransactionDropdownState());
 
-      const mockElement = document.createElement("div");
-      Object.defineProperty(result.current.dropdownRef, "current", {
+      const mockElement = document.createElement('div');
+      Object.defineProperty(result.current.dropdownRef, 'current', {
         writable: true,
         value: mockElement,
       });
@@ -240,10 +240,10 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isAssetDropdownOpen).toBe(true);
 
       act(() => {
-        const mouseEvent = new MouseEvent("mousedown", {
+        const mouseEvent = new MouseEvent('mousedown', {
           bubbles: true,
         });
-        Object.defineProperty(mouseEvent, "target", {
+        Object.defineProperty(mouseEvent, 'target', {
           writable: false,
           value: mockElement,
         });
@@ -253,10 +253,10 @@ describe("useTransactionDropdownState", () => {
       expect(result.current.isAssetDropdownOpen).toBe(true);
     });
 
-    it("cleans up event listener on unmount", () => {
-      const removeEventListenerSpy = vi.spyOn(document, "removeEventListener");
+    it('cleans up event listener on unmount', () => {
+      const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
       const { result, unmount } = renderHook(() =>
-        useTransactionDropdownState()
+        useTransactionDropdownState(),
       );
 
       // Open a dropdown so useClickOutside registers its listeners
@@ -267,18 +267,18 @@ describe("useTransactionDropdownState", () => {
       unmount();
 
       expect(removeEventListenerSpy).toHaveBeenCalledWith(
-        "mousedown",
-        expect.any(Function)
+        'mousedown',
+        expect.any(Function),
       );
 
       removeEventListenerSpy.mockRestore();
     });
   });
 
-  describe("ref stability", () => {
-    it("maintains the same ref object across re-renders", () => {
+  describe('ref stability', () => {
+    it('maintains the same ref object across re-renders', () => {
       const { result, rerender } = renderHook(() =>
-        useTransactionDropdownState()
+        useTransactionDropdownState(),
       );
 
       const initialRef = result.current.dropdownRef;
@@ -289,10 +289,10 @@ describe("useTransactionDropdownState", () => {
     });
   });
 
-  describe("function stability", () => {
-    it("maintains stable function references across re-renders", () => {
+  describe('function stability', () => {
+    it('maintains stable function references across re-renders', () => {
       const { result, rerender } = renderHook(() =>
-        useTransactionDropdownState()
+        useTransactionDropdownState(),
       );
 
       const initialToggleAsset = result.current.toggleAssetDropdown;

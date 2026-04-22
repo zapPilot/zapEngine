@@ -6,7 +6,7 @@
  * No side effects, only data structure validation
  */
 
-import type { AnalyticsData } from "@/types/analytics";
+import type { AnalyticsData } from '@/types/analytics';
 
 /**
  * Validate analytics data for export
@@ -47,11 +47,11 @@ export function validateExportData(data: AnalyticsData | null): boolean {
   }
 
   const requiredMetrics = [
-    "timeWeightedReturn",
-    "maxDrawdown",
-    "sharpe",
-    "winRate",
-    "volatility",
+    'timeWeightedReturn',
+    'maxDrawdown',
+    'sharpe',
+    'winRate',
+    'volatility',
   ];
 
   for (const metric of requiredMetrics) {

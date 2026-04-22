@@ -4,11 +4,11 @@ import {
   useCallback,
   useEffect,
   useState,
-} from "react";
+} from 'react';
 
-import { TIMINGS } from "@/constants/timings";
-import type { WalletData } from "@/lib/validation/walletUtils";
-import { loadWallets as fetchWallets } from "@/services";
+import { TIMINGS } from '@/constants/timings';
+import type { WalletData } from '@/lib/validation/walletUtils';
+import { loadWallets as fetchWallets } from '@/services';
 
 interface ConnectedWallet {
   address: string;
@@ -31,20 +31,20 @@ interface UseWalletListReturn {
 
 function isWalletActive(
   connectedWallets: ConnectedWallet[],
-  walletAddress: string
+  walletAddress: string,
 ): boolean {
   return connectedWallets.some(
-    connectedWallet =>
+    (connectedWallet) =>
       connectedWallet.address.toLowerCase() === walletAddress.toLowerCase() &&
-      connectedWallet.isActive
+      connectedWallet.isActive,
   );
 }
 
 function mapWalletsWithActiveState(
   loadedWallets: WalletData[],
-  connectedWallets: ConnectedWallet[]
+  connectedWallets: ConnectedWallet[],
 ): WalletData[] {
-  return loadedWallets.map(wallet => ({
+  return loadedWallets.map((wallet) => ({
     ...wallet,
     isActive: isWalletActive(connectedWallets, wallet.address),
   }));
@@ -88,7 +88,7 @@ export function useWalletList({
         }
       }
     },
-    [userId, connectedWallets]
+    [userId, connectedWallets],
   );
 
   useEffect(() => {

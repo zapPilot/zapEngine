@@ -5,7 +5,7 @@
  * with type-safe parameter handling.
  */
 
-import type { DashboardWindowParams } from "@/services";
+import type { DashboardWindowParams } from '@/services';
 
 /**
  * Numeric parameter keys for dashboard window params
@@ -13,13 +13,13 @@ import type { DashboardWindowParams } from "@/services";
  */
 const NUMERIC_PARAM_KEYS: readonly (keyof Omit<
   DashboardWindowParams,
-  "metrics"
+  'metrics'
 >)[] = [
-  "trend_days",
-  "risk_days",
-  "drawdown_days",
-  "allocation_days",
-  "rolling_days",
+  'trend_days',
+  'risk_days',
+  'drawdown_days',
+  'allocation_days',
+  'rolling_days',
 ] as const;
 
 /**
@@ -47,7 +47,7 @@ const NUMERIC_PARAM_KEYS: readonly (keyof Omit<
  * // Returns: ""
  */
 export function buildAnalyticsQueryString(
-  params: DashboardWindowParams
+  params: DashboardWindowParams,
 ): string {
   const query = new URLSearchParams();
 
@@ -61,14 +61,14 @@ export function buildAnalyticsQueryString(
 
   // Add metrics array if present
   if (params.metrics?.length) {
-    query.set("metrics", params.metrics.join(","));
+    query.set('metrics', params.metrics.join(','));
   }
 
   // Add wallet address filter if present
   if (params.wallet_address) {
-    query.set("wallet_address", params.wallet_address);
+    query.set('wallet_address', params.wallet_address);
   }
 
   const queryString = query.toString();
-  return queryString ? `?${queryString}` : "";
+  return queryString ? `?${queryString}` : '';
 }

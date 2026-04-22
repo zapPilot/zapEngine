@@ -1,6 +1,6 @@
-import { type RefObject, useCallback, useRef, useState } from "react";
+import { type RefObject, useCallback, useRef, useState } from 'react';
 
-import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useClickOutside } from '@/hooks/ui/useClickOutside';
 
 export interface TransactionDropdownState {
   dropdownRef: RefObject<HTMLDivElement | null>;
@@ -22,12 +22,12 @@ export function useTransactionDropdownState(): TransactionDropdownState {
   }, []);
 
   const toggleAssetDropdown = useCallback(() => {
-    setIsAssetDropdownOpen(prev => !prev);
+    setIsAssetDropdownOpen((prev) => !prev);
     setIsChainDropdownOpen(false);
   }, []);
 
   const toggleChainDropdown = useCallback(() => {
-    setIsChainDropdownOpen(prev => !prev);
+    setIsChainDropdownOpen((prev) => !prev);
     setIsAssetDropdownOpen(false);
   }, []);
 

@@ -15,7 +15,12 @@ export function CTA() {
       <AnimatedGradientBg gradient={GRADIENTS.ctaBg} />
 
       {/* Floating orbs */}
-      <FloatingOrb size={128} position="top-20 left-20" duration={6} yRange={20} />
+      <FloatingOrb
+        size={128}
+        position="top-20 left-20"
+        duration={6}
+        yRange={20}
+      />
       <FloatingOrb
         size={160}
         position="bottom-20 right-20"

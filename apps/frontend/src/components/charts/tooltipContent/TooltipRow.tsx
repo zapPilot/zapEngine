@@ -2,42 +2,42 @@
  * TooltipRow - Reusable row component for tooltip content
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
-import { formatters } from "@/utils/formatters";
+import { formatters } from '@/utils/formatters';
 
 interface TooltipRowProps {
   label: string;
   labelColor?: string;
   value: string | number | undefined;
   valueColor?: string;
-  format?: "currency" | "percent" | "text" | "currencyPrecise";
+  format?: 'currency' | 'percent' | 'text' | 'currencyPrecise';
   precision?: number;
   prefix?: string;
 }
 
 function formatTooltipValue(
   value: string | number | undefined,
-  format: "currency" | "percent" | "text" | "currencyPrecise",
-  precision: number
+  format: 'currency' | 'percent' | 'text' | 'currencyPrecise',
+  precision: number,
 ): string {
   if (value === undefined) {
-    return "N/A";
+    return 'N/A';
   }
 
-  if (typeof value !== "number") {
+  if (typeof value !== 'number') {
     return value;
   }
 
-  if (format === "currency") {
+  if (format === 'currency') {
     return formatters.currency(value);
   }
 
-  if (format === "currencyPrecise") {
+  if (format === 'currencyPrecise') {
     return formatters.currencyPrecise(value);
   }
 
-  if (format === "percent") {
+  if (format === 'percent') {
     return formatters.percent(value, precision);
   }
 
@@ -46,12 +46,12 @@ function formatTooltipValue(
 
 export function TooltipRow({
   label,
-  labelColor = "text-gray-400",
+  labelColor = 'text-gray-400',
   value,
-  valueColor = "text-white",
-  format = "text",
+  valueColor = 'text-white',
+  format = 'text',
   precision = 1,
-  prefix = "",
+  prefix = '',
 }: TooltipRowProps): ReactElement {
   const formattedValue = formatTooltipValue(value, format, precision);
 

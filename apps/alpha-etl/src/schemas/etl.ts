@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Local Zod 3 schemas for ETL job validation
@@ -6,17 +6,17 @@ import { z } from "zod";
  */
 
 export const JobStatusEnum = z.enum([
-  "pending",
-  "processing",
-  "completed",
-  "failed",
+  'pending',
+  'processing',
+  'completed',
+  'failed',
 ]);
 
 export const EtlErrorCodeEnum = z.enum([
-  "API_ERROR",
-  "VALIDATION_ERROR",
-  "INTERNAL_ERROR",
-  "RATE_LIMIT_EXCEEDED",
+  'API_ERROR',
+  'VALIDATION_ERROR',
+  'INTERNAL_ERROR',
+  'RATE_LIMIT_EXCEEDED',
 ]);
 
 export const EtlErrorSchema = z.object({
@@ -27,7 +27,7 @@ export const EtlErrorSchema = z.object({
 export const EtlJobStatusSchema = z.object({
   jobId: z.string(),
   status: JobStatusEnum,
-  trigger: z.enum(["webhook", "manual", "scheduled"]),
+  trigger: z.enum(['webhook', 'manual', 'scheduled']),
   createdAt: z.string().datetime(),
   recordsProcessed: z.number().int().nonnegative().optional(),
   recordsInserted: z.number().int().nonnegative().optional(),

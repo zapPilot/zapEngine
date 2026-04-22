@@ -6,14 +6,14 @@
  * Target: sentiment_snapshots table
  */
 
-import { logger } from "../../utils/logger.js";
+import { getTableName } from '../../config/database.js';
 import {
   BaseWriter,
   type WriteResult,
-} from "../../core/database/baseWriter.js";
-import { getTableName } from "../../config/database.js";
-import { buildSentimentInsertValues } from "../../core/database/columnDefinitions.js";
-import type { SentimentSnapshotInsert } from "../../types/database.js";
+} from '../../core/database/baseWriter.js';
+import { buildSentimentInsertValues } from '../../core/database/columnDefinitions.js';
+import type { SentimentSnapshotInsert } from '../../types/database.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Sentiment Writer
@@ -25,7 +25,7 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
     snapshots: SentimentSnapshotInsert[],
     source: string,
   ): Promise<WriteResult> {
-    logger.debug("Starting sentiment snapshots write", {
+    logger.debug('Starting sentiment snapshots write', {
       source,
       snapshotCount: snapshots.length,
     });
@@ -33,7 +33,7 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
     return this.processBatches(
       snapshots,
       this.writeBatch.bind(this),
-      "sentiment snapshots",
+      'sentiment snapshots',
     );
   }
 
@@ -50,19 +50,19 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
     const validRecords = this.filterValidRecords(batch, result);
 
     if (validRecords.length === 0) {
-      logger.warn("No valid records in batch", { batchNumber });
+      logger.warn('No valid records in batch', { batchNumber });
       return result;
     }
 
     const batchResult = await this.executeBatchWrite({
       batchNumber,
-      logContext: "sentiment snapshots",
+      logContext: 'sentiment snapshots',
       recordCount: validRecords.length,
       buildQuery: () => {
         const { columns, placeholders, values } =
           buildSentimentInsertValues(validRecords);
         const query = `
-          INSERT INTO ${getTableName("SENTIMENT_SNAPSHOTS")} (${columns.join(", ")})
+          INSERT INTO ${getTableName('SENTIMENT_SNAPSHOTS')} (${columns.join(', ')})
           VALUES ${placeholders}
           ON CONFLICT (source, snapshot_time)
           DO UPDATE SET

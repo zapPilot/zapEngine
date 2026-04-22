@@ -2,20 +2,20 @@
  * DrawdownTooltip - Drawdown with severity and recovery info
  */
 
-import type { DrawdownHoverData } from "@/types/ui/chartHover";
+import type { DrawdownHoverData } from '@/types/ui/chartHover';
 import {
   getDrawdownSeverity,
   getDrawdownSeverityColor,
-} from "@/utils/chartHoverUtils";
-import { formatters } from "@/utils/formatters";
+} from '@/utils/chartHoverUtils';
+import { formatters } from '@/utils/formatters';
 
-import { TooltipRow } from "./TooltipRow";
-import { TooltipWrapper } from "./TooltipWrapper";
+import { TooltipRow } from './TooltipRow';
+import { TooltipWrapper } from './TooltipWrapper';
 
 function SeverityBadge({
   severity,
 }: {
-  severity: "Minor" | "Moderate" | "Significant" | "Severe";
+  severity: 'Minor' | 'Moderate' | 'Significant' | 'Severe';
 }) {
   const colors = getDrawdownSeverityColor(severity);
   return (

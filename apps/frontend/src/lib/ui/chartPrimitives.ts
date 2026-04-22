@@ -14,15 +14,15 @@
 export function buildPath<T extends { x: number }>(
   points: T[],
   width: number,
-  getY: (point: T) => number
+  getY: (point: T) => number,
 ): string {
   return points
-    .map(point => {
+    .map((point) => {
       const x = (point.x / 100) * width;
       const y = getY(point);
       return `${x},${y}`;
     })
-    .join(" L ");
+    .join(' L ');
 }
 
 /**

@@ -1,7 +1,7 @@
-import type { ReactElement } from "react";
+import type { ReactElement } from 'react';
 
-import { GradientButton, LoadingSpinner } from "@/components/ui";
-import type { OperationState } from "@/types";
+import { GradientButton, LoadingSpinner } from '@/components/ui';
+import type { OperationState } from '@/types';
 
 interface EmailSubscriptionProps {
   email: string;
@@ -26,7 +26,7 @@ export function EmailSubscription({
   onStartEditing,
   onCancelEditing,
 }: EmailSubscriptionProps): ReactElement {
-  const subscribeButtonText = subscribedEmail ? "Save" : "Subscribe";
+  const subscribeButtonText = subscribedEmail ? 'Save' : 'Subscribe';
 
   return (
     <div className="p-6 bg-gray-900/20">
@@ -63,7 +63,7 @@ export function EmailSubscription({
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={e => onEmailChange(e.target.value)}
+              onChange={(e) => onEmailChange(e.target.value)}
               className="w-full bg-gray-800/50 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 outline-none"
             />
             <GradientButton

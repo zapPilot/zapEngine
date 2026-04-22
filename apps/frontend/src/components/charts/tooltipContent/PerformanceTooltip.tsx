@@ -2,10 +2,10 @@
  * PerformanceTooltip - Portfolio
  */
 
-import type { PerformanceHoverData } from "@/types/ui/chartHover";
+import type { PerformanceHoverData } from '@/types/ui/chartHover';
 
-import { TooltipRow } from "./TooltipRow";
-import { TooltipWrapper } from "./TooltipWrapper";
+import { TooltipRow } from './TooltipRow';
+import { TooltipWrapper } from './TooltipWrapper';
 
 export function PerformanceTooltip({ data }: { data: PerformanceHoverData }) {
   return (

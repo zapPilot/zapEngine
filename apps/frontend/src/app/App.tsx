@@ -1,8 +1,8 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from 'react-router-dom';
 
-import { BundlePage } from "./bundle/page";
-import RootLayout from "./layout";
-import { LandingPage } from "./page";
+import { BundlePage } from './bundle/page';
+import RootLayout from './layout';
+import { LandingPage } from './page';
 
 /**
  * Render the top-level SPA route tree.

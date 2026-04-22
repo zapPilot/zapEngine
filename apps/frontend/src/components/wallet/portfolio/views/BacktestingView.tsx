@@ -1,13 +1,13 @@
-import { Activity } from "lucide-react";
-import { type ReactElement } from "react";
+import { Activity } from 'lucide-react';
+import { type ReactElement } from 'react';
 
-import { BaseCard } from "@/components/ui/BaseCard";
+import { BaseCard } from '@/components/ui/BaseCard';
 
-import { BacktestEmptyState } from "./backtesting/components/BacktestEmptyState";
-import { BacktestLoadingState } from "./backtesting/components/BacktestLoadingState";
-import { BacktestTerminalDisplay } from "./backtesting/components/BacktestTerminalDisplay";
-import { useBacktestConfiguration } from "./backtesting/hooks/useBacktestConfiguration";
-import { useBacktestResult } from "./backtesting/hooks/useBacktestResult";
+import { BacktestEmptyState } from './backtesting/components/BacktestEmptyState';
+import { BacktestLoadingState } from './backtesting/components/BacktestLoadingState';
+import { BacktestTerminalDisplay } from './backtesting/components/BacktestTerminalDisplay';
+import { useBacktestConfiguration } from './backtesting/hooks/useBacktestConfiguration';
+import { useBacktestResult } from './backtesting/hooks/useBacktestResult';
 
 export function BacktestingView(): ReactElement {
   const {
@@ -82,7 +82,7 @@ export function BacktestingView(): ReactElement {
             {editorError ??
               (error instanceof Error
                 ? error.message
-                : "Failed to run backtest")}
+                : 'Failed to run backtest')}
           </div>
         </BaseCard>
       )}

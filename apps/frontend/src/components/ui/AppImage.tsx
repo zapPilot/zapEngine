@@ -1,8 +1,8 @@
-import type { ImgHTMLAttributes, ReactElement } from "react";
+import type { ImgHTMLAttributes, ReactElement } from 'react';
 
 export interface AppImageProps extends Omit<
   ImgHTMLAttributes<HTMLImageElement>,
-  "alt" | "src"
+  'alt' | 'src'
 > {
   alt: string;
   src: string;
@@ -21,8 +21,8 @@ export interface AppImageProps extends Omit<
  */
 export function AppImage({
   alt,
-  decoding = "async",
-  loading = "lazy",
+  decoding = 'async',
+  loading = 'lazy',
   src,
   ...props
 }: AppImageProps): ReactElement {

@@ -1,15 +1,15 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 
-import { TIMINGS } from "@/constants/timings";
-import { WALLET_MESSAGES } from "@/constants/wallet";
-import { useUser } from "@/contexts/UserContext";
-import { invalidateAndRefetch } from "@/hooks/utils/useQueryInvalidation";
-import { queryKeys } from "@/lib/state/queryClient";
-import { handleWalletError } from "@/lib/validation/walletUtils";
-import { useToast } from "@/providers/ToastProvider";
-import { useWalletProvider } from "@/providers/WalletProvider";
-import { deleteUser as deleteUserAccount } from "@/services";
+import { TIMINGS } from '@/constants/timings';
+import { WALLET_MESSAGES } from '@/constants/wallet';
+import { useUser } from '@/contexts/UserContext';
+import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
+import { queryKeys } from '@/lib/state/queryClient';
+import { handleWalletError } from '@/lib/validation/walletUtils';
+import { useToast } from '@/providers/ToastProvider';
+import { useWalletProvider } from '@/providers/WalletProvider';
+import { deleteUser as deleteUserAccount } from '@/services';
 
 interface UseAccountDeletionParams {
   userId: string;
@@ -58,7 +58,7 @@ export function useAccountDeletion({
             "Account deleted, but we couldn't disconnect your wallet automatically.";
 
           showToast({
-            type: "warning",
+            type: 'warning',
             title: WALLET_MESSAGES.DISCONNECT_WALLET,
             message: `${disconnectMessage} Please disconnect manually to prevent automatic reconnection.`,
           });
@@ -68,10 +68,10 @@ export function useAccountDeletion({
       }
 
       showToast({
-        type: "success",
-        title: "Account Deleted",
+        type: 'success',
+        title: 'Account Deleted',
         message:
-          "Account successfully deleted. Wallet connection has been cleared to prevent automatic reconnection.",
+          'Account successfully deleted. Wallet connection has been cleared to prevent automatic reconnection.',
       });
 
       // Invalidate queries and trigger reconnection flow
@@ -79,7 +79,7 @@ export function useAccountDeletion({
         queryClient,
         queryKey: queryKeys.user.wallets(userId),
         refetch,
-        operationName: "account deletion",
+        operationName: 'account deletion',
       });
 
       if (shouldReload) {
@@ -92,7 +92,7 @@ export function useAccountDeletion({
     } catch (error) {
       const errorMessage = handleWalletError(error);
       showToast({
-        type: "error",
+        type: 'error',
         title: WALLET_MESSAGES.DELETION_FAILED,
         message: errorMessage,
       });
