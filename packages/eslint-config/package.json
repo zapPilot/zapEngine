@@ -5,14 +5,12 @@
   "type": "module",
   "files": [
     "node-ts.mjs",
-    "backend-jest.mjs",
     "backend-vitest.mjs",
     "react-vite.mjs",
     "next.mjs"
   ],
   "exports": {
     "./node-ts": "./node-ts.mjs",
-    "./backend-jest": "./backend-jest.mjs",
     "./backend-vitest": "./backend-vitest.mjs",
     "./react-vite": "./react-vite.mjs",
     "./next": "./next.mjs"
