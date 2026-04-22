@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { z } from "zod";
 
-config();
+config({ quiet: true });
 
 function parseBoolean(value: string): boolean {
   return value.toLowerCase() === "true";
