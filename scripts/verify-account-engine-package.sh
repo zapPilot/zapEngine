@@ -25,8 +25,7 @@ trap cleanup EXIT
 
 cd "$repo_root"
 
-pnpm --filter @zapengine/types build
-pnpm --filter @zapengine/account-engine build
+pnpm turbo run build --filter=@zapengine/account-engine
 HUSKY=0 pnpm --filter @zapengine/account-engine deploy --legacy --prod "$output_dir"
 
 required_file="$output_dir/dist/main.js"

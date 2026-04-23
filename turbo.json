@@ -17,31 +17,14 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "out/**", "build/**"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "package.json",
-        "tsconfig.json",
-        "next.config.*",
-        "source.config.*",
-        "content/**",
-        "postcss.config.*",
-        "tailwind.config.*",
-        "!**/*.md"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "*.config.*",
-        ".eslintrc*",
-        "eslint.config.*"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": []
     },
     "lint:fix": {
@@ -50,74 +33,23 @@
     },
     "type-check": {
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "package.json",
-        "tsconfig.json",
-        "next.config.*",
-        "source.config.*",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "outputs": []
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "src/**",
-        "tests/**",
-        "test/**",
-        "__tests__/**",
-        "__mocks__/**",
-        "scripts/**",
-        "jest.config.*",
-        "vitest.config.*",
-        "pytest.ini",
-        "pyproject.toml",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "outputs": []
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "src/**",
-        "tests/**",
-        "test/**",
-        "__tests__/**",
-        "__mocks__/**",
-        "scripts/**",
-        "jest.config.*",
-        "vitest.config.*",
-        "pytest.ini",
-        "pyproject.toml",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "outputs": ["coverage/**", "htmlcov/**"]
     },
     "test:ci": {
       "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "src/**",
-        "tests/**",
-        "test/**",
-        "__tests__/**",
-        "__mocks__/**",
-        "scripts/**",
-        "jest.config.*",
-        "vitest.config.*",
-        "playwright.config.*",
-        "pytest.ini",
-        "pyproject.toml",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "outputs": []
     },
     "format": {
@@ -125,107 +57,42 @@
       "cache": false
     },
     "format:check": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "tests/**",
-        "test/**",
-        "content/**",
-        "static/**",
-        "public/**",
-        "*.config.*",
-        ".prettierrc*",
-        ".prettierignore",
-        "pyproject.toml"
-      ],
       "outputs": []
     },
     "deadcode": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "tests/**",
-        "test/**",
-        "content/**",
-        "knip.json",
-        "knip.production.json",
-        "vulture_whitelist.py",
-        "tsconfig.tsprune.json",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "dup:check": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "content/**",
-        "public/**",
-        ".jscpd.json",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "sql:audit": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "scripts/quality/audit_sql_params.py",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "service-reachability": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "scripts/quality/check_service_reachability.py",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "pylint:duplicate-check": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "pyproject.toml",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "security:audit": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "pyproject.toml",
-        "uv.lock",
-        "package.json"
-      ],
       "outputs": [],
       "cache": false
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "tests/**",
-        "playwright.config.*",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "test:e2e:safe": {
       "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**",
-        "tests/**",
-        "playwright.config.*",
-        "scripts/run-e2e-safe.js",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "clean": {
