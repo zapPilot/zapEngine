@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scripts/check-dead-env.sh
 #
-# Detects environment variables declared in .env.example that are never
-# referenced in the app's source code.
+# Detects environment variables declared in root .env.example that are never
+# referenced in any app's source code.
 #
 # Supports all apps in this monorepo:
 #   - TypeScript / Node.js  (account-engine, alpha-etl)
@@ -12,12 +12,13 @@
 #
 # Usage:
 #   bash scripts/check-dead-env.sh            # check all apps
-#   bash scripts/check-dead-env.sh frontend   # check one app
+#   bash scripts/check-dead-env.sh frontend   # check specific app only
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APPS_DIR="$REPO_ROOT/apps"
+ENV_FILE="$REPO_ROOT/.env.example"
 
 # ── ANSI colours ────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -28,73 +29,37 @@ RESET='\033[0m'
 
 found_dead=0
 
-# ── Helper ───────────────────────────────────────────────────────────────────
-# check_app <app-name> <src-dir> <ext> [<ext> ...]
-#
-# <app-name>  basename of the directory under apps/
-# <src-dir>   absolute path to the source root to scan
-# <ext>       one or more file extensions to include (e.g. ts tsx py)
-check_app() {
-  local app_name="$1"
-  local src_dir="$2"
-  shift 2
-  local extensions=("$@")
+# ── Helper: check if var exists in any app's source ─────────────────────────
+# var_in_apps <var-name> returns list of apps that reference the var
+check_var_in_apps() {
+  local var="$1"
+  local found_in=()
 
-  local env_file="$APPS_DIR/$app_name/.env.example"
+  # Check each app's source
+  for entry in "${APP_REGISTRY[@]}"; do
+    IFS='|' read -r app_name src_subdir exts <<< "$entry"
+    local src_dir="$APPS_DIR/$app_name/$src_subdir"
 
-  # ── guard: .env.example must exist ────────────────────────────────────────
-  if [ ! -f "$env_file" ]; then
-    printf "${YELLOW}[%s]${RESET} no .env.example — skipping\n" "$app_name"
-    return
-  fi
+    # Skip if src dir doesn't exist
+    [ -d "$src_dir" ] || continue
 
-  # ── guard: source directory must exist ───────────────────────────────────
-  if [ ! -d "$src_dir" ]; then
-    printf "${YELLOW}[%s]${RESET} src dir not found: %s — skipping\n" \
-      "$app_name" "$src_dir"
-    return
-  fi
+    # Build include args for this app's extensions
+    local include_args=()
+    for ext in $exts; do
+      include_args+=("--include=*.$ext")
+    done
 
-  # ── parse declared env var names ──────────────────────────────────────────
-  # Keep only non-comment lines that start with KEY= (all-caps + underscore).
-  local declared_vars
-  declared_vars=$(
-    grep -E '^[A-Z_][A-Z0-9_]*=' "$env_file" \
-      | sed 's/=.*//' \
-      | sort -u
-  )
-
-  if [ -z "$declared_vars" ]; then
-    printf "${GREEN}[%s]${RESET} no env vars declared in .env.example\n" "$app_name"
-    return
-  fi
-
-  # ── build --include flags for grep ───────────────────────────────────────
-  local include_args=()
-  for ext in "${extensions[@]}"; do
-    include_args+=("--include=*.$ext")
+    # Check if var exists in this app's source
+    if grep -rqw "$var" "${include_args[@]}" "$src_dir" 2>/dev/null; then
+      found_in+=("$app_name")
+    fi
   done
 
-  # ── check each var ────────────────────────────────────────────────────────
-  local dead_vars=()
-  while IFS= read -r var; do
-    # -w  = whole-word match  (avoids e.g. PORT matching SUPPORT)
-    # -rq = recursive, quiet  (exit 0 if found, 1 if not)
-    if ! grep -rqw "$var" "${include_args[@]}" "$src_dir" 2>/dev/null; then
-      dead_vars+=("$var")
-    fi
-  done <<< "$declared_vars"
-
-  # ── report ────────────────────────────────────────────────────────────────
-  if [ "${#dead_vars[@]}" -gt 0 ]; then
-    printf "${RED}[%s]${RESET} ${BOLD}dead env vars found:${RESET}\n" "$app_name"
-    for v in "${dead_vars[@]}"; do
-      printf "    ${RED}✗${RESET}  %s\n" "$v"
-    done
-    found_dead=1
-  else
-    printf "${GREEN}[%s]${RESET} all vars referenced ✓\n" "$app_name"
+  if [ ${#found_in[@]} -gt 0 ]; then
+    printf "%s" "${found_in[*]}"
+    return 0
   fi
+  return 1
 }
 
 # ── App registry ─────────────────────────────────────────────────────────────
@@ -110,26 +75,85 @@ declare -a APP_REGISTRY=(
 # ── Filter to requested app (if any) ─────────────────────────────────────────
 FILTER="${1:-}"
 
-printf "\n${BOLD}Checking for dead env vars across apps...${RESET}\n\n"
+# ── Main check ───────────────────────────────────────────────────────────────
+printf "\n${BOLD}Checking root .env.example for dead env vars...${RESET}\n\n"
 
-for entry in "${APP_REGISTRY[@]}"; do
-  IFS='|' read -r app_name src_subdir exts <<< "$entry"
+# ── guard: root .env.example must exist ─────────────────────────────────────
+if [ ! -f "$ENV_FILE" ]; then
+  printf "${RED}✗${RESET} Root .env.example not found at: %s\n" "$ENV_FILE"
+  exit 1
+fi
 
-  # If a specific app was requested, skip all others
-  if [ -n "$FILTER" ] && [ "$app_name" != "$FILTER" ]; then
-    continue
+# ── parse declared env var names ────────────────────────────────────────────
+# Keep only non-comment lines that start with KEY= (all-caps + underscore).
+declared_vars=$(
+  grep -E '^[A-Z_][A-Z0-9_]*=' "$ENV_FILE" \
+    | sed 's/=.*//' \
+    | sort -u
+)
+
+if [ -z "$declared_vars" ]; then
+  printf "${YELLOW}No env vars declared in .env.example${RESET}\n"
+  exit 0
+fi
+
+# ── check each var ───────────────────────────────────────────────────────────
+dead_vars=()
+live_vars=()
+
+while IFS= read -r var; do
+  # If filtering to a specific app, only check vars that look like they belong
+  # (prefix matching or context clues)
+  if [ -n "$FILTER" ]; then
+    # Check if this var is likely app-specific and doesn't match filter
+    case "$var" in
+      VITE_*)
+        [[ "$FILTER" == "frontend" ]] || continue
+        ;;
+      ACCOUNT_ENGINE_*)
+        [[ "$FILTER" == "account-engine" ]] || continue
+        ;;
+      ALPHA_ETL_*)
+        [[ "$FILTER" == "alpha-etl" ]] || continue
+        ;;
+      ANALYTICS_ENGINE_*)
+        [[ "$FILTER" == "analytics-engine" ]] || continue
+        ;;
+    esac
   fi
 
-  # shellcheck disable=SC2086
-  check_app "$app_name" "$APPS_DIR/$app_name/$src_subdir" $exts
-done
+  if apps=$(check_var_in_apps "$var"); then
+    live_vars+=("$var|$apps")
+  else
+    dead_vars+=("$var")
+    found_dead=1
+  fi
+done <<< "$declared_vars"
+
+# ── report ──────────────────────────────────────────────────────────────────
+if [ ${#dead_vars[@]} -gt 0 ]; then
+  printf "${RED}${BOLD}Dead env vars found (not referenced in any app):${RESET}\n"
+  for v in "${dead_vars[@]}"; do
+    printf "    ${RED}✗${RESET}  %s\n" "$v"
+  done
+  printf "\n"
+fi
+
+# Report live vars in verbose mode or if filter is set
+if [ -n "$FILTER" ] && [ ${#live_vars[@]} -gt 0 ]; then
+  printf "${GREEN}${BOLD}Active env vars (referenced in source):${RESET}\n"
+  for entry in "${live_vars[@]}"; do
+    IFS='|' read -r var apps <<< "$entry"
+    printf "    ${GREEN}✓${RESET}  %s ${BOLD}(%s)${RESET}\n" "$var" "$apps"
+  done
+  printf "\n"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
-printf "\n"
 if [ "$found_dead" -eq 0 ]; then
   printf "${GREEN}${BOLD}✓  No dead env vars found.${RESET}\n\n"
   exit 0
 else
-  printf "${RED}${BOLD}✗  Dead env vars detected — update .env.example or remove the unused vars from source.${RESET}\n\n"
+  printf "${RED}${BOLD}✗  Dead env vars detected — remove from root .env.example or add to source code.${RESET}\n\n"
   exit 1
 fi
