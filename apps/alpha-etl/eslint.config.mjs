@@ -8,6 +8,7 @@ export default createBackendVitestConfig({
     'node_modules/**',
     'coverage/**',
     '**/*.js',
+    '**/*.cjs',
     'tests/**',
     'vitest.config.ts',
   ],

@@ -1,6 +1,9 @@
 {
   "name": "@zapengine/alpha-etl",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
   "description": "DeFi APR data ETL pipeline",
   "main": "dist/app.js",
   "files": [
@@ -30,7 +33,6 @@
     "postgres"
   ],
   "author": "",
-  "license": "ISC",
   "dependencies": {
     "@zapengine/types": "workspace:*",
     "cors": "^2.8.5",
