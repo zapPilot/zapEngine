@@ -14,7 +14,7 @@ export interface Stat {
 }
 
 // Shared core stats (used by both STATISTICS and LP_STATISTICS)
-export const CORE_STATS: Stat[] = [
+const CORE_STATS: Stat[] = [
   {
     label: 'Total Value Locked',
     value: '$261k+',
