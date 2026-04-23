@@ -1,8 +1,4 @@
-export type {
-  DailySuggestionAllocationMap,
-  DailySuggestionData,
-  DailySuggestionTransfer,
-} from './daily-suggestion.interface';
+export type { DailySuggestionData } from './daily-suggestion.interface';
 export type { DriftAlertData } from './drift-alert.interface';
 export type {
   PortfolioResponse,

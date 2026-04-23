@@ -622,8 +622,10 @@ export class TelegramService {
       return mappedLabel;
     }
 
-    const normalized =
-      reasonCode?.replaceAll(/[_-]+/g, ' ')?.trim()?.toLowerCase() || '';
+    const normalized = reasonCode
+      .replaceAll(/[_-]+/g, ' ')
+      .trim()
+      .toLowerCase();
     if (!normalized) {
       return 'No additional context.';
     }

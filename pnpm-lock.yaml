@@ -26,6 +26,9 @@ importers:
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
+      tsx:
+        specifier: ^4.20.6
+        version: 4.21.0
       turbo:
         specifier: ^2.5.0
         version: 2.9.6
@@ -201,6 +204,9 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: ^5.85.3
         version: 5.99.0(@tanstack/react-query@5.99.0(react@19.2.5))(react@19.2.5)
+      '@zapengine/intent-engine':
+        specifier: workspace:*
+        version: link:../../packages/intent-engine
       '@zapengine/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -488,6 +494,9 @@ importers:
       '@lifi/sdk':
         specifier: ^3.4.0
         version: 3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.5))(utf-8-validate@6.0.6)(viem@2.47.18(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(zod@4.3.6)
+      '@zapengine/types':
+        specifier: workspace:*
+        version: link:../types
       viem:
         specifier: ^2.21.0
         version: 2.47.18(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)

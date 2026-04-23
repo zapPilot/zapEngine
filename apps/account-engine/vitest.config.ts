@@ -43,6 +43,13 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^@zapengine\/types\/strategy$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../packages/types/src/strategy/index.ts',
+        ),
+      },
+      {
         find: /^@zapengine\/types\/(.*)$/,
         replacement: path.resolve(__dirname, '__mocks__/@zapengine/types/$1'),
       },

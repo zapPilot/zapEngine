@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alt": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "btc": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "eth": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "stable": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "btc",
+    "eth",
+    "stable",
+    "alt"
+  ],
+  "type": "object"
+}

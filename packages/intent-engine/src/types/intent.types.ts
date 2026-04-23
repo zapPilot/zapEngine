@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ProtocolIdSchema } from '../protocols/registry.js';
+
 // Supported chains in POC
 export const SUPPORTED_CHAIN_IDS = [1, 8453] as const;
 export type SupportedChainId = (typeof SUPPORTED_CHAIN_IDS)[number];
@@ -10,6 +12,7 @@ export const IntentTypeSchema = z.enum([
   'SUPPLY',
   'WITHDRAW',
   'ROTATE',
+  'REBALANCE',
 ]);
 export type IntentType = z.infer<typeof IntentTypeSchema>;
 
@@ -82,12 +85,32 @@ export const RotateIntentSchema = BaseIntentSchema.extend({
   protocol: z.literal('morpho'),
 });
 
+export const RebalanceLegSchema = z.object({
+  protocol: ProtocolIdSchema,
+  action: z.enum(['supply', 'withdraw', 'swap']),
+  token: z.string().regex(addressRegex, 'Invalid token address'),
+  amountWei: z
+    .string()
+    .regex(/^\d+$/, 'Amount must be a wei string')
+    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
+  vaultAddress: z
+    .string()
+    .regex(addressRegex, 'Invalid vault address')
+    .optional(),
+});
+
+export const RebalanceIntentSchema = BaseIntentSchema.extend({
+  type: z.literal('REBALANCE'),
+  legs: z.array(RebalanceLegSchema).min(1),
+});
+
 // Union type for all intents - uses discriminatedUnion for better error messages
 export const IntentSchema = z.discriminatedUnion('type', [
   SwapIntentSchema,
   SupplyIntentSchema,
   WithdrawIntentSchema,
   RotateIntentSchema,
+  RebalanceIntentSchema,
 ]);
 
 // Inferred TypeScript types.
@@ -98,10 +121,14 @@ export type SwapIntent = z.infer<typeof SwapIntentSchema>;
 export type SupplyIntent = z.infer<typeof SupplyIntentSchema>;
 export type WithdrawIntent = z.infer<typeof WithdrawIntentSchema>;
 export type RotateIntent = z.infer<typeof RotateIntentSchema>;
+export type RebalanceLeg = z.infer<typeof RebalanceLegSchema>;
+export type RebalanceIntent = z.infer<typeof RebalanceIntentSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
 
 export type SwapIntentInput = z.input<typeof SwapIntentSchema>;
 export type SupplyIntentInput = z.input<typeof SupplyIntentSchema>;
 export type WithdrawIntentInput = z.input<typeof WithdrawIntentSchema>;
 export type RotateIntentInput = z.input<typeof RotateIntentSchema>;
+export type RebalanceLegInput = z.input<typeof RebalanceLegSchema>;
+export type RebalanceIntentInput = z.input<typeof RebalanceIntentSchema>;
 export type IntentInput = z.input<typeof IntentSchema>;

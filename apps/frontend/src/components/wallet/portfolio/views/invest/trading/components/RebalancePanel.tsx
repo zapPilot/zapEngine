@@ -23,7 +23,6 @@ const ACTION_LABELS: Record<string, string> = {
 
 const SPOT_BUCKET_LABEL = 'SPOT';
 const STABLE_BUCKET_LABEL = 'STABLE';
-const ALT_BUCKET_LABEL = 'ALT';
 
 type SpotAssetSymbol = 'BTC' | 'ETH';
 const REASON_LABELS: Record<string, string> = {
@@ -92,10 +91,6 @@ function getBucketLabel(
 
   if (bucket === 'btc') {
     return 'BTC';
-  }
-
-  if (bucket === 'alt') {
-    return ALT_BUCKET_LABEL;
   }
 
   return targetSpotAsset ?? SPOT_BUCKET_LABEL;

@@ -20,6 +20,11 @@
       "types": "./dist/api/index.d.ts",
       "import": "./dist/api/index.js",
       "require": "./dist/api/index.js"
+    },
+    "./strategy": {
+      "types": "./dist/strategy/index.d.ts",
+      "import": "./dist/strategy/index.js",
+      "require": "./dist/strategy/index.js"
     }
   },
   "scripts": {

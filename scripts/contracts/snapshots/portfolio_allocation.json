@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "spot": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "stable": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "spot",
+    "stable"
+  ],
+  "type": "object"
+}

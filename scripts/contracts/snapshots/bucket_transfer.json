@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "amount_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "from_bucket": {
+      "enum": [
+        "spot",
+        "stable",
+        "btc",
+        "eth"
+      ],
+      "type": "string"
+    },
+    "to_bucket": {
+      "enum": [
+        "spot",
+        "stable",
+        "btc",
+        "eth"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "from_bucket",
+    "to_bucket",
+    "amount_usd"
+  ],
+  "type": "object"
+}

@@ -50,13 +50,28 @@ export {
 
 // Protocol constants
 export {
+  DEFAULT_VAULT_REGISTRY,
   MORPHO_VAULTS,
+  MORPHO_VAULT_CATALOG,
   MORPHO_VAULT_ABI,
   MORPHO_GAS_ESTIMATES,
+  ProtocolCapabilitySchema,
+  ProtocolIdSchema,
+  VaultMetaSchema,
   encodeDeposit,
   encodeMint,
   encodeWithdraw,
   encodeRedeem,
+  findVaultByAddress,
+  lookupVault,
+  morphoVaultCatalogSource,
+  type AprSource,
+  type ProtocolCapability,
+  type ProtocolId,
+  type TvlSource,
+  type VaultCatalogSource,
+  type VaultMeta,
+  type VaultRegistry,
 } from './protocols/index.js';
 
 // =============================================================================

@@ -348,7 +348,7 @@ describe('RebalancePanel', () => {
     expect(useDailySuggestion).toHaveBeenCalledWith('0xabc', undefined);
   });
 
-  it('renders ALT bucket label when transfer targets alt bucket', () => {
+  it('renders BTC bucket label when transfer targets btc bucket', () => {
     vi.mocked(useDailySuggestion).mockReturnValue({
       data: {
         ...mockSuggestionData,
@@ -357,7 +357,7 @@ describe('RebalancePanel', () => {
           transfers: [
             {
               from_bucket: 'stable' as const,
-              to_bucket: 'alt' as const,
+              to_bucket: 'btc' as const,
               amount_usd: 150,
             },
           ],
@@ -367,7 +367,7 @@ describe('RebalancePanel', () => {
 
     render(<RebalancePanel userId="0xabc" />);
 
-    expect(screen.getByText('ALT')).toBeDefined();
-    expect(screen.getByText('STABLE -> ALT')).toBeDefined();
+    expect(screen.getByText('BTC')).toBeDefined();
+    expect(screen.getByText('STABLE -> BTC')).toBeDefined();
   });
 });
