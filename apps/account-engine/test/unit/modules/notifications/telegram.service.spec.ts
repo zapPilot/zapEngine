@@ -206,14 +206,35 @@ describe('TelegramService', () => {
           transfers: [],
         },
         context: {
-          market: { sentiment: 50 },
-          signal: { regime: 'neutral', details: null },
-          portfolio: { total_value: 10000, asset_allocation: { btc: 0.5 } },
-          target: { allocation: { btc: 0.5 }, asset_allocation: { btc: 0.5 } },
+          market: {
+            date: '2025-01-01',
+            token_price: { btc: 100000 },
+            sentiment: 50,
+            sentiment_label: 'neutral',
+          },
+          signal: {
+            id: 'signal',
+            regime: 'neutral',
+            raw_value: 50,
+            confidence: 1,
+            details: {},
+          },
+          portfolio: {
+            spot_usd: 5000,
+            stable_usd: 5000,
+            total_value: 10000,
+            allocation: { spot: 0.5, stable: 0.5 },
+            asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+          },
+          target: {
+            allocation: { spot: 0.5, stable: 0.5 },
+            asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+          },
           strategy: {
             stance: 'hold',
             reason_code: 'already_aligned',
-            details: null,
+            rule_group: 'none',
+            details: {},
           },
         },
       });
@@ -254,23 +275,38 @@ describe('TelegramService', () => {
           ],
         },
         context: {
-          market: { sentiment: 72 },
-          signal: { regime: 'greed', details: null },
+          market: {
+            date: '2025-01-01',
+            token_price: { btc: 100000, eth: 4000 },
+            sentiment: 72,
+            sentiment_label: 'greed',
+          },
+          signal: {
+            id: 'signal',
+            regime: 'greed',
+            raw_value: 72,
+            confidence: 1,
+            details: {},
+          },
           portfolio: {
+            spot_usd: 7000,
+            stable_usd: 3000,
             total_value: 10000,
+            allocation: { spot: 0.7, stable: 0.3 },
             total_assets_usd: 10000,
             total_debt_usd: 2000,
             total_net_usd: 8000,
-            asset_allocation: { btc: 0.6, eth: 0.1, stable: 0.3 },
+            asset_allocation: { btc: 0.6, eth: 0.1, stable: 0.3, alt: 0 },
           },
           target: {
-            allocation: { btc: 0.0, eth: 1.0, stable: 0.0 },
-            asset_allocation: { btc: 0.0, eth: 1.0, stable: 0.0 },
+            allocation: { spot: 1, stable: 0 },
+            asset_allocation: { btc: 0, eth: 1, stable: 0, alt: 0 },
           },
           strategy: {
             stance: 'hold',
             reason_code: 'eth_btc_ratio_rebalance',
-            details: null,
+            rule_group: 'rotation',
+            details: {},
           },
         },
       });
@@ -721,17 +757,38 @@ describe('TelegramService', () => {
       config_display_name: 'Test Config',
       strategy_id: 'strat-1',
       context: {
-        market: { sentiment: null },
-        signal: { regime: 'bull_market', details: null },
-        portfolio: { total_value: 50000, asset_allocation: { btc: 0.6 } },
-        target: { allocation: { btc: 0.6 }, asset_allocation: { btc: 0.6 } },
+        market: {
+          date: '2025-01-01',
+          token_price: { btc: 100000, eth: 4000 },
+          sentiment: null,
+          sentiment_label: null,
+        },
+        signal: {
+          id: 'signal',
+          regime: 'bull_market',
+          raw_value: null,
+          confidence: 1,
+          details: {},
+        },
+        portfolio: {
+          spot_usd: 30000,
+          stable_usd: 20000,
+          total_value: 50000,
+          allocation: { spot: 0.6, stable: 0.4 },
+          asset_allocation: { btc: 0.6, eth: 0, stable: 0.4, alt: 0 },
+        },
+        target: {
+          allocation: { spot: 0.6, stable: 0.4 },
+          asset_allocation: { btc: 0.6, eth: 0, stable: 0.4, alt: 0 },
+        },
         strategy: {
           stance: 'hold',
           reason_code: 'above_greed_sell',
-          details: null,
+          rule_group: 'none',
+          details: {},
         },
       },
-    };
+    } as const;
 
     it('sends a "blocked" status message', async () => {
       const { service, dbMock } = createMocks();
@@ -766,9 +823,9 @@ describe('TelegramService', () => {
           reason_code: 'eth_btc_ratio_rebalance',
           transfers: [
             { from_bucket: 'btc', to_bucket: 'eth', amount_usd: 1000 },
-            { from_bucket: 'eth', to_bucket: 'usdc', amount_usd: 500 },
-            { from_bucket: 'btc', to_bucket: 'sol', amount_usd: 250 },
-            { from_bucket: 'sol', to_bucket: 'eth', amount_usd: 100 }, // 4th — triggers "+N more"
+            { from_bucket: 'eth', to_bucket: 'stable', amount_usd: 500 },
+            { from_bucket: 'stable', to_bucket: 'btc', amount_usd: 250 },
+            { from_bucket: 'btc', to_bucket: 'stable', amount_usd: 100 }, // 4th triggers "+N more"
           ],
         },
       });

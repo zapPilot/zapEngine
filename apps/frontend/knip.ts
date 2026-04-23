@@ -8,7 +8,14 @@ export default defineKnipConfig({
   ],
   project: ['src/**/*.{ts,tsx}', 'scripts/**/*.{js,ts}'],
   ignore: ['**/index.ts', 'src/shims/emptyModule.ts'],
-  ignoreDependencies: ['@zapengine/types', 'tailwindcss', 'postcss'],
+  // Pre-flight dependency for rebalance execution; wiring waits on viem client
+  // exposure from wallet plumbing and supported-chain alignment.
+  ignoreDependencies: [
+    '@zapengine/intent-engine',
+    '@zapengine/types',
+    'tailwindcss',
+    'postcss',
+  ],
   ignoreIssues: {
     'src/lib/errors/ServiceError.ts': ['exports'],
   },

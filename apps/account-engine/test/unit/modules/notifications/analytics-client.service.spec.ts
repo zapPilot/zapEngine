@@ -7,6 +7,54 @@ import type { Mock } from 'vitest';
 describe('AnalyticsClientService', () => {
   let service: AnalyticsClientService;
 
+  function createValidDailySuggestionResponse() {
+    return {
+      as_of: '2025-01-01',
+      config_id: 'cfg',
+      config_display_name: 'Test',
+      strategy_id: 'strat',
+      action: {
+        status: 'no_action',
+        required: false,
+        kind: null,
+        reason_code: 'already_aligned',
+        transfers: [],
+      },
+      context: {
+        market: {
+          date: '2025-01-01',
+          token_price: { btc: 100000 },
+          sentiment: 50,
+          sentiment_label: 'neutral',
+        },
+        signal: {
+          id: 'signal',
+          regime: 'neutral',
+          raw_value: 50,
+          confidence: 1,
+          details: {},
+        },
+        portfolio: {
+          spot_usd: 500,
+          stable_usd: 500,
+          total_value: 1000,
+          allocation: { spot: 0.5, stable: 0.5 },
+          asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+        },
+        target: {
+          allocation: { spot: 0.5, stable: 0.5 },
+          asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+        },
+        strategy: {
+          stance: 'hold',
+          reason_code: 'already_aligned',
+          rule_group: 'none',
+          details: {},
+        },
+      },
+    };
+  }
+
   beforeEach(() => {
     service = new AnalyticsClientService(createMockConfigService());
   });
@@ -77,30 +125,7 @@ describe('AnalyticsClientService', () => {
 
   describe('getDailySuggestion', () => {
     it('returns normalized daily suggestion data', async () => {
-      const rawResponse = {
-        as_of: '2025-01-01',
-        config_id: 'cfg',
-        config_display_name: 'Test',
-        strategy_id: 'strat',
-        action: {
-          status: 'no_action',
-          required: false,
-          kind: null,
-          reason_code: 'already_aligned',
-          transfers: [],
-        },
-        context: {
-          market: { sentiment: 50 },
-          signal: { regime: 'neutral', details: null },
-          portfolio: { total_value: 1000, asset_allocation: { btc: 0.5 } },
-          target: { allocation: { btc: 0.5 }, asset_allocation: { btc: 0.5 } },
-          strategy: {
-            stance: 'hold',
-            reason_code: 'already_aligned',
-            details: null,
-          },
-        },
-      };
+      const rawResponse = createValidDailySuggestionResponse();
 
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -114,32 +139,22 @@ describe('AnalyticsClientService', () => {
 
     it('normalizes optional debt-aware portfolio totals when present', async () => {
       const rawResponse = {
-        as_of: '2025-01-01',
-        config_id: 'cfg',
-        config_display_name: 'Test',
-        strategy_id: 'strat',
+        ...createValidDailySuggestionResponse(),
         action: {
+          ...createValidDailySuggestionResponse().action,
           status: 'action_required',
           required: true,
           kind: 'rebalance',
           reason_code: 'eth_btc_ratio_rebalance',
-          transfers: [],
         },
         context: {
-          market: { sentiment: 50 },
-          signal: { regime: 'neutral', details: null },
+          ...createValidDailySuggestionResponse().context,
           portfolio: {
+            ...createValidDailySuggestionResponse().context.portfolio,
             total_value: 1000,
             total_assets_usd: 1000,
             total_debt_usd: 250,
             total_net_usd: 750,
-            asset_allocation: { btc: 0.5 },
-          },
-          target: { allocation: { btc: 0.5 }, asset_allocation: { btc: 0.5 } },
-          strategy: {
-            stance: 'hold',
-            reason_code: 'already_aligned',
-            details: null,
           },
         },
       };
@@ -279,30 +294,7 @@ describe('AnalyticsClientService', () => {
   });
 
   describe('getDailySuggestion retry on timeout', () => {
-    const validResponse = {
-      as_of: '2025-01-01',
-      config_id: 'cfg',
-      config_display_name: 'Test',
-      strategy_id: 'strat',
-      action: {
-        status: 'no_action',
-        required: false,
-        kind: null,
-        reason_code: 'already_aligned',
-        transfers: [],
-      },
-      context: {
-        market: { sentiment: 50 },
-        signal: { regime: 'neutral', details: null },
-        portfolio: { total_value: 1000, asset_allocation: { btc: 0.5 } },
-        target: { allocation: { btc: 0.5 }, asset_allocation: { btc: 0.5 } },
-        strategy: {
-          stance: 'hold',
-          reason_code: 'already_aligned',
-          details: null,
-        },
-      },
-    };
+    const validResponse = createValidDailySuggestionResponse();
 
     it('retries once on ECONNABORTED and succeeds on second attempt', async () => {
       const timeoutError = Object.assign(new Error('timeout'), {
@@ -374,30 +366,7 @@ describe('AnalyticsClientService', () => {
   });
 
   describe('normalizeDailySuggestionResponse validation branches', () => {
-    const base = {
-      as_of: '2025-01-01',
-      config_id: 'cfg',
-      config_display_name: 'Test',
-      strategy_id: 'strat',
-      action: {
-        status: 'no_action',
-        required: false,
-        kind: null,
-        reason_code: 'already_aligned',
-        transfers: [],
-      },
-      context: {
-        market: { sentiment: 50 },
-        signal: { regime: 'neutral', details: null },
-        portfolio: { total_value: 1000, asset_allocation: { btc: 0.5 } },
-        target: { allocation: { btc: 0.5 }, asset_allocation: { btc: 0.5 } },
-        strategy: {
-          stance: 'hold',
-          reason_code: 'already_aligned',
-          details: null,
-        },
-      },
-    };
+    const base = createValidDailySuggestionResponse();
 
     function mockFetch(payload: unknown) {
       global.fetch = vi
@@ -479,11 +448,73 @@ describe('AnalyticsClientService', () => {
         ...base,
         context: {
           ...base.context,
-          market: { sentiment: null },
+          market: { ...base.context.market, sentiment: null },
         },
       });
       const result = await service.getDailySuggestion('user-1');
       expect(result.context.market.sentiment).toBeNull();
+    });
+
+    it('normalizes omitted optional fields to contract-safe defaults', async () => {
+      const actionWithoutKind: Partial<typeof base.action> = { ...base.action };
+      delete actionWithoutKind.kind;
+
+      const marketWithoutTokenPrice: Record<string, unknown> = {
+        ...base.context.market,
+        sentiment_label: null,
+      };
+      delete marketWithoutTokenPrice['token_price'];
+
+      const signalWithoutOptionalFields: Partial<typeof base.context.signal> = {
+        ...base.context.signal,
+      };
+      delete signalWithoutOptionalFields.raw_value;
+      delete signalWithoutOptionalFields.details;
+
+      const strategyWithoutDetails: Partial<typeof base.context.strategy> = {
+        ...base.context.strategy,
+      };
+      delete strategyWithoutDetails.details;
+
+      mockFetch({
+        ...base,
+        action: actionWithoutKind,
+        context: {
+          ...base.context,
+          market: marketWithoutTokenPrice,
+          signal: signalWithoutOptionalFields,
+          portfolio: {
+            ...base.context.portfolio,
+            spot_asset: null,
+          },
+          strategy: strategyWithoutDetails,
+        },
+      });
+
+      const result = await service.getDailySuggestion('user-1');
+      expect(result.action.kind).toBeNull();
+      expect(result.context.market.token_price).toEqual({});
+      expect(result.context.market.sentiment_label).toBeNull();
+      expect('raw_value' in result.context.signal).toBe(false);
+      expect(result.context.signal.details).toEqual({});
+      expect(result.context.portfolio.spot_asset).toBeNull();
+      expect(result.context.strategy.details).toEqual({});
+    });
+
+    it('throws ServiceLayerException when shared Zod contract rejects normalized transfer buckets', async () => {
+      mockFetch({
+        ...base,
+        action: {
+          ...base.action,
+          transfers: [
+            { from_bucket: 'alt', to_bucket: 'stable', amount_usd: 500 },
+          ],
+        },
+      });
+
+      await expect(service.getDailySuggestion('user-1')).rejects.toThrow(
+        ServiceLayerException,
+      );
     });
 
     it('throws ServiceLayerException when context.strategy.stance is invalid', async () => {
@@ -529,7 +560,7 @@ describe('AnalyticsClientService', () => {
         },
       });
       const result = await service.getDailySuggestion('user-1');
-      expect(result.action.transfers?.[0]?.from_bucket).toBe('btc');
+      expect(result.action.transfers[0]?.from_bucket).toBe('btc');
     });
 
     it('returns non-null details object via getNullableRecord', async () => {
@@ -537,7 +568,7 @@ describe('AnalyticsClientService', () => {
         ...base,
         context: {
           ...base.context,
-          signal: { regime: 'neutral', details: { key: 'value' } },
+          signal: { ...base.context.signal, details: { key: 'value' } },
         },
       });
       const result = await service.getDailySuggestion('user-1');

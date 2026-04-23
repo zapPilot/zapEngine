@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "configs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "config_id": {
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "properties": {
+              "buy_gate": {
+                "additionalProperties": false,
+                "properties": {
+                  "leg_caps": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  },
+                  "sideways_max_range": {
+                    "type": "number"
+                  },
+                  "window_days": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "pacing": {
+                "additionalProperties": false,
+                "properties": {
+                  "k": {
+                    "type": "number"
+                  },
+                  "r_max": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "rotation": {
+                "additionalProperties": false,
+                "properties": {
+                  "cooldown_days": {
+                    "type": "number"
+                  },
+                  "drift_threshold": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "signal": {
+                "additionalProperties": false,
+                "properties": {
+                  "cross_cooldown_days": {
+                    "type": "number"
+                  },
+                  "cross_on_touch": {
+                    "type": "boolean"
+                  },
+                  "rotation_max_deviation": {
+                    "type": "number"
+                  },
+                  "rotation_neutral_band": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "trade_quota": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_trades_30d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max_trades_7d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "min_trade_interval_days": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "saved_config_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strategy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "config_id"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "days": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "end_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "start_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "token_symbol": {
+      "type": "string"
+    },
+    "total_capital": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "total_capital",
+    "configs"
+  ],
+  "type": "object"
+}

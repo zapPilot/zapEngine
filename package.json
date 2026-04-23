@@ -16,8 +16,10 @@
     "format:check": "turbo run format:check",
     "deadcode": "turbo run deadcode",
     "dup:check": "turbo run dup:check",
+    "contracts:export": "tsx scripts/contracts/export_zod_schemas.ts",
+    "contracts:check": "pnpm contracts:export && cd apps/analytics-engine && uv run python ../../scripts/contracts/check_pydantic_parity.py",
     "check:local": "pnpm format:check && turbo run lint type-check test --affected && bash scripts/check-dead-env.sh",
-    "check:ci": "pnpm format:check && turbo run lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci",
+    "check:ci": "pnpm format:check && pnpm contracts:check && turbo run lint type-check deadcode dup:check sql:audit service-reachability pylint:duplicate-check test:ci",
     "security:audit": "pnpm audit --audit-level=moderate && turbo run security:audit",
     "verify:account-engine-package": "bash scripts/verify-account-engine-package.sh",
     "clean": "turbo run clean && rm -rf node_modules",
@@ -27,6 +29,7 @@
     "husky": "^9.0.0",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
+    "tsx": "^4.20.6",
     "turbo": "^2.5.0"
   },
   "engines": {

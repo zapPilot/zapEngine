@@ -1,0 +1,358 @@
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "backtest_defaults": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "total_capital": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "days",
+        "total_capital"
+      ],
+      "type": "object"
+    },
+    "presets": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "config_id": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "is_benchmark": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "properties": {
+              "buy_gate": {
+                "additionalProperties": false,
+                "properties": {
+                  "leg_caps": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  },
+                  "sideways_max_range": {
+                    "type": "number"
+                  },
+                  "window_days": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "pacing": {
+                "additionalProperties": false,
+                "properties": {
+                  "k": {
+                    "type": "number"
+                  },
+                  "r_max": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "rotation": {
+                "additionalProperties": false,
+                "properties": {
+                  "cooldown_days": {
+                    "type": "number"
+                  },
+                  "drift_threshold": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "signal": {
+                "additionalProperties": false,
+                "properties": {
+                  "cross_cooldown_days": {
+                    "type": "number"
+                  },
+                  "cross_on_touch": {
+                    "type": "boolean"
+                  },
+                  "rotation_max_deviation": {
+                    "type": "number"
+                  },
+                  "rotation_neutral_band": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "trade_quota": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_trades_30d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max_trades_7d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "min_trade_interval_days": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "strategy_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "config_id",
+          "display_name",
+          "description",
+          "strategy_id",
+          "params",
+          "is_default",
+          "is_benchmark"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "strategies": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "default_params": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "properties": {
+              "buy_gate": {
+                "additionalProperties": false,
+                "properties": {
+                  "leg_caps": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  },
+                  "sideways_max_range": {
+                    "type": "number"
+                  },
+                  "window_days": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "pacing": {
+                "additionalProperties": false,
+                "properties": {
+                  "k": {
+                    "type": "number"
+                  },
+                  "r_max": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "rotation": {
+                "additionalProperties": false,
+                "properties": {
+                  "cooldown_days": {
+                    "type": "number"
+                  },
+                  "drift_threshold": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "signal": {
+                "additionalProperties": false,
+                "properties": {
+                  "cross_cooldown_days": {
+                    "type": "number"
+                  },
+                  "cross_on_touch": {
+                    "type": "boolean"
+                  },
+                  "rotation_max_deviation": {
+                    "type": "number"
+                  },
+                  "rotation_neutral_band": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              },
+              "trade_quota": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_trades_30d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max_trades_7d": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "min_trade_interval_days": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "param_schema": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "strategy_id": {
+            "type": "string"
+          },
+          "supports_daily_suggestion": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "strategy_id",
+          "display_name",
+          "param_schema",
+          "default_params",
+          "supports_daily_suggestion"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "strategies",
+    "presets",
+    "backtest_defaults"
+  ],
+  "type": "object"
+}

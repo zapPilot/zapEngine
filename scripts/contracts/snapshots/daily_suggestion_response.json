@@ -1,0 +1,594 @@
+{
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "const": "rebalance",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "action_required",
+            "blocked",
+            "no_action"
+          ],
+          "type": "string"
+        },
+        "transfers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "amount_usd": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "from_bucket": {
+                "enum": [
+                  "spot",
+                  "stable",
+                  "btc",
+                  "eth"
+                ],
+                "type": "string"
+              },
+              "to_bucket": {
+                "enum": [
+                  "spot",
+                  "stable",
+                  "btc",
+                  "eth"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "from_bucket",
+              "to_bucket",
+              "amount_usd"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "required",
+        "kind",
+        "reason_code",
+        "transfers"
+      ],
+      "type": "object"
+    },
+    "as_of": {
+      "type": "string"
+    },
+    "config_display_name": {
+      "type": "string"
+    },
+    "config_id": {
+      "type": "string"
+    },
+    "context": {
+      "additionalProperties": false,
+      "properties": {
+        "market": {
+          "additionalProperties": false,
+          "properties": {
+            "date": {
+              "type": "string"
+            },
+            "sentiment": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sentiment_label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token_price": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "date",
+            "token_price",
+            "sentiment",
+            "sentiment_label"
+          ],
+          "type": "object"
+        },
+        "portfolio": {
+          "additionalProperties": false,
+          "properties": {
+            "allocation": {
+              "additionalProperties": false,
+              "properties": {
+                "spot": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "stable": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "spot",
+                "stable"
+              ],
+              "type": "object"
+            },
+            "asset_allocation": {
+              "additionalProperties": false,
+              "properties": {
+                "alt": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "btc": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "eth": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "stable": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "btc",
+                "eth",
+                "stable",
+                "alt"
+              ],
+              "type": "object"
+            },
+            "spot_asset": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "BTC",
+                    "ETH"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spot_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "stable_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "total_assets_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "total_debt_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "total_net_usd": {
+              "type": "number"
+            },
+            "total_value": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "spot_usd",
+            "stable_usd",
+            "total_value",
+            "allocation",
+            "asset_allocation"
+          ],
+          "type": "object"
+        },
+        "signal": {
+          "additionalProperties": false,
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "details": {
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "properties": {
+                "ath_event": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "token_ath",
+                        "portfolio_ath",
+                        "both_ath"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "dma": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "properties": {
+                        "cooldown_active": {
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cooldown_blocked_zone": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "above",
+                                "below"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cooldown_remaining_days": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cross_event": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "cross_up",
+                                "cross_down"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "distance": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dma_200": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fgi_slope": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "zone": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "above",
+                                "below",
+                                "at"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "raw_value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "regime": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "regime",
+            "confidence"
+          ],
+          "type": "object"
+        },
+        "strategy": {
+          "additionalProperties": false,
+          "properties": {
+            "details": {
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "properties": {
+                "allocation_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "decision_score": {
+                  "type": "number"
+                },
+                "risk_notes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "target_spot_asset": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "BTC",
+                        "ETH"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "reason_code": {
+              "type": "string"
+            },
+            "rule_group": {
+              "enum": [
+                "cross",
+                "cooldown",
+                "dma_fgi",
+                "ath",
+                "rotation",
+                "none"
+              ],
+              "type": "string"
+            },
+            "stance": {
+              "enum": [
+                "buy",
+                "sell",
+                "hold"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "stance",
+            "reason_code",
+            "rule_group"
+          ],
+          "type": "object"
+        },
+        "target": {
+          "additionalProperties": false,
+          "properties": {
+            "allocation": {
+              "additionalProperties": false,
+              "properties": {
+                "spot": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "stable": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "spot",
+                "stable"
+              ],
+              "type": "object"
+            },
+            "asset_allocation": {
+              "additionalProperties": false,
+              "properties": {
+                "alt": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "btc": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "eth": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "stable": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "btc",
+                "eth",
+                "stable",
+                "alt"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "allocation",
+            "asset_allocation"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "market",
+        "signal",
+        "portfolio",
+        "target",
+        "strategy"
+      ],
+      "type": "object"
+    },
+    "strategy_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "as_of",
+    "config_id",
+    "config_display_name",
+    "strategy_id",
+    "action",
+    "context"
+  ],
+  "type": "object"
+}

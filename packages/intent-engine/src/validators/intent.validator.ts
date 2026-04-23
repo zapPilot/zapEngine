@@ -12,7 +12,7 @@ import {
   type RotateIntent,
 } from '../types/intent.types.js';
 import { TOKENS } from '../types/chain.types.js';
-import { MORPHO_VAULTS } from '../protocols/morpho/morpho.constants.js';
+import { findVaultByAddress } from '../protocols/registry.js';
 import {
   ValidationError,
   UnsupportedChainError,
@@ -77,12 +77,16 @@ function assertTokenForChain(token: string, chainId: number): void {
 }
 
 function assertVaultForChain(vault: string, chainId: number): void {
-  assertKnownOnThisChainOrUnknown(
-    vault,
-    chainId,
-    MORPHO_VAULTS as unknown as Record<number, Record<string, string>>,
-    'vault',
-  );
+  if (findVaultByAddress({ vaultAddress: vault, chainId })) {
+    return;
+  }
+
+  const knownVault = findVaultByAddress({ vaultAddress: vault });
+  if (knownVault) {
+    throw new ValidationError(
+      `Vault ${vault} is known on chain ${knownVault.chainId}, not chain ${chainId}`,
+    );
+  }
 }
 
 /**

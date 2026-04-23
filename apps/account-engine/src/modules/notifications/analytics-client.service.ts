@@ -4,6 +4,7 @@ import { HttpStatus } from '@common/http';
 import { Logger } from '@common/logger';
 import { getErrorMessage, UrlValidator } from '@common/utils';
 import { ConfigService } from '@config/config.service';
+import { DailySuggestionResponseSchema } from '@zapengine/types/strategy';
 
 import { PortfolioNotFoundError } from './errors/portfolio-not-found.error';
 import { DailySuggestionData } from './interfaces/daily-suggestion.interface';
@@ -277,7 +278,7 @@ export class AnalyticsClientService {
     const target = this.getRecord(context['target'], 'context["target"]');
     const strategy = this.getRecord(context['strategy'], 'context["strategy"]');
 
-    return {
+    const normalized = {
       as_of: this.getString(root['as_of'], 'as_of'),
       config_id: this.getString(root['config_id'], 'config_id'),
       config_display_name: this.getString(
@@ -303,25 +304,23 @@ export class AnalyticsClientService {
       },
       context: {
         market: {
-          ...(typeof market['date'] === 'string'
-            ? { date: market['date'] }
-            : {}),
+          date: this.getString(market['date'], 'context["market"]["date"]'),
+          token_price:
+            market['token_price'] === undefined
+              ? {}
+              : this.getNumericRecord(
+                  market['token_price'],
+                  'context["market"]["token_price"]',
+                ),
           sentiment: this.getNullableNumber(
             market['sentiment'],
             'context["market"]["sentiment"]',
           ),
-          ...(typeof market['sentiment_label'] === 'string' ||
-          market['sentiment_label'] === null
-            ? { sentiment_label: market['sentiment_label'] ?? null }
-            : {}),
-          ...(market['token_price'] !== undefined
-            ? {
-                token_price: this.getNullableNumericRecord(
-                  market['token_price'],
-                  'context["market"]["token_price"]',
-                ),
-              }
-            : {}),
+          sentiment_label:
+            typeof market['sentiment_label'] === 'string' ||
+            market['sentiment_label'] === null
+              ? (market['sentiment_label'] ?? null)
+              : null,
         },
         signal: {
           ...(typeof signal['id'] === 'string' ? { id: signal['id'] } : {}),
@@ -345,12 +344,30 @@ export class AnalyticsClientService {
                   'context["signal"]["confidence"]',
                 ),
               }),
-          details: this.getNullableRecord(signal['details']),
+          details:
+            signal['details'] === undefined
+              ? {}
+              : this.getRecord(
+                  signal['details'],
+                  'context["signal"]["details"]',
+                ),
         },
         portfolio: {
+          spot_usd: this.getNumber(
+            portfolio['spot_usd'],
+            'context["portfolio"]["spot_usd"]',
+          ),
+          stable_usd: this.getNumber(
+            portfolio['stable_usd'],
+            'context["portfolio"]["stable_usd"]',
+          ),
           total_value: this.getNumber(
             portfolio['total_value'],
             'context["portfolio"]["total_value"]',
+          ),
+          allocation: this.getNumericRecord(
+            portfolio['allocation'],
+            'context["portfolio"]["allocation"]',
           ),
           ...(portfolio['total_assets_usd'] === undefined
             ? {}
@@ -380,6 +397,10 @@ export class AnalyticsClientService {
             portfolio['asset_allocation'],
             'context["portfolio"]["asset_allocation"]',
           ),
+          ...(typeof portfolio['spot_asset'] === 'string' ||
+          portfolio['spot_asset'] === null
+            ? { spot_asset: portfolio['spot_asset'] ?? null }
+            : {}),
         },
         target: {
           allocation: this.getNumericRecord(
@@ -404,10 +425,29 @@ export class AnalyticsClientService {
           strategy['rule_group'] === null
             ? { rule_group: strategy['rule_group'] ?? null }
             : {}),
-          details: this.getNullableRecord(strategy['details']),
+          details:
+            strategy['details'] === undefined
+              ? {}
+              : this.getRecord(
+                  strategy['details'],
+                  'context["strategy"]["details"]',
+                ),
         },
       },
     };
+
+    const parsed = DailySuggestionResponseSchema.safeParse(normalized);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const path = issue?.path.length ? issue.path.join('.') : 'root';
+      const message = issue?.message ?? 'invalid contract payload';
+      throw new ServiceLayerException(
+        `Unexpected daily suggestion response shape: ${path} ${message}`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    return parsed.data;
   }
 
   private resolvePortfolioTrendsBaseUrl(baseUrl: string): string {
@@ -571,10 +611,7 @@ export class AnalyticsClientService {
     );
   }
 
-  private getTransfers(
-    value: unknown,
-    fieldPath: string,
-  ): DailySuggestionData['action']['transfers'] {
+  private getTransfers(value: unknown, fieldPath: string) {
     if (value === undefined || value === null) {
       return [];
     }
@@ -604,14 +641,6 @@ export class AnalyticsClientService {
         ),
       };
     });
-  }
-
-  private getNullableRecord(value: unknown): Record<string, unknown> | null {
-    if (value === undefined || value === null) {
-      return null;
-    }
-
-    return this.getRecord(value, 'nested payload');
   }
 
   private async fetchJson<T>(

@@ -13,8 +13,8 @@ export interface Stat {
   }>;
 }
 
-// Shared core stats used by the public statistics collection
-const CORE_STATS: Stat[] = [
+// Shared core stats (used by both STATISTICS and LP_STATISTICS)
+export const CORE_STATS: Stat[] = [
   {
     label: 'Total Value Locked',
     value: '$261k+',

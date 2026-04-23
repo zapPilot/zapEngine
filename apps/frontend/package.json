@@ -28,6 +28,7 @@
     "clean": "rm -rf dist coverage .vitest-reports"
   },
   "dependencies": {
+    "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.85.3",
