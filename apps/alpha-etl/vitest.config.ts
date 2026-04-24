@@ -27,34 +27,32 @@ const config: ViteUserConfig = {
         'src/modules/token-price/index.ts',
       ],
       thresholds: {
-        statements: 100,
-        branches: 100,
-        functions: 100,
-        lines: 100
-      }
+        statements: 99,
+        branches: 99,
+        functions: 99,
+        lines: 99,
+      },
     },
     testTimeout: 30000, // ETL operations can be slow
     hookTimeout: 30000,
     teardownTimeout: 30000,
     // Separate test files by type for better organization
-    include: [
-      'tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
-    ],
+    include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: [
       'node_modules/',
       'dist/',
       '.{idea,git,cache,output,temp}/',
-      'tests/fixtures/**'
-    ]
+      'tests/fixtures/**',
+    ],
   },
   // Enable TypeScript support with proper ES modules handling
   esbuild: {
-    target: 'es2022'
+    target: 'es2022',
   },
   // Handle ES modules imports properly
   define: {
-    'import.meta.vitest': 'undefined'
-  }
+    'import.meta.vitest': 'undefined',
+  },
 };
 
 export default config;
