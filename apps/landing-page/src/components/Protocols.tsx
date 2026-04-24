@@ -7,14 +7,14 @@ import { SectionHeader, CardGrid, CardItem } from './layout';
 
 export function Protocols() {
   return (
-    <section className="py-24 relative">
+    <section id="protocols" className="py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           title={MESSAGES.protocols.title}
           subtitle={MESSAGES.protocols.subtitle}
         />
 
-        <CardGrid columns={2}>
+        <CardGrid columns={3}>
           {MESSAGES.protocols.items.map((protocol, index) => (
             <a
               key={protocol.name}

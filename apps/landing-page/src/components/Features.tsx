@@ -22,7 +22,7 @@ export function Features() {
           subtitle={FEATURES_CONFIG.subtitle}
         />
 
-        <CardGrid columns={2}>
+        <CardGrid columns={3}>
           {features.map((feature, index) => (
             <CardItem
               key={feature.title}

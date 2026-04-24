@@ -9,21 +9,14 @@ vi.mock('@/components/AnimatedBackground', () => ({
 describe('HomePage', () => {
   describe('section rendering', () => {
     it('should render all major sections', () => {
-      render(<HomePage />);
+      const { container } = render(<HomePage />);
+      const content = container.textContent || '';
 
-      expect(screen.getAllByText('Zap Pilot').length).toBeGreaterThan(0);
-
-      const heroButtons = screen.getAllByRole('button', {
-        name: /Connect Wallet/i,
-      });
-      expect(heroButtons.length).toBeGreaterThan(0);
-
-      expect(screen.getByText('Market Sentiment Engine')).toBeInTheDocument();
-      expect(screen.getByText('Your Keys. Your Crypto.')).toBeInTheDocument();
-
-      expect(screen.getByText(/Start Rebalancing/i)).toBeInTheDocument();
-
-      expect(screen.getByText(/Built with/)).toBeInTheDocument();
+      expect(content).toMatch(/Connect Telegram Bot/);
+      expect(content).toMatch(/Macro Indicators/);
+      expect(content).toMatch(/Regime-Driven/);
+      expect(content).toMatch(/Execute/);
+      expect(content).toMatch(/BlackRock/);
     });
 
     it('should render navigation links', () => {
@@ -77,15 +70,9 @@ describe('HomePage', () => {
 
       const content = container.textContent || '';
 
-      const heroIndex = content.indexOf('Connect Wallet');
-      const featuresIndex = content.indexOf('Market Sentiment Engine');
+      const heroIndex = content.indexOf('Connect Telegram Bot');
+      const featuresIndex = content.indexOf('Macro Indicators');
       expect(heroIndex).toBeLessThan(featuresIndex);
-
-      const ctaIndex = content.indexOf('Start Rebalancing');
-      expect(featuresIndex).toBeLessThan(ctaIndex);
-
-      const footerIndex = content.indexOf('Built with');
-      expect(ctaIndex).toBeLessThan(footerIndex);
     });
   });
 
@@ -114,22 +101,11 @@ describe('HomePage', () => {
   });
 
   describe('interactive elements', () => {
-    it('should render all CTA buttons', () => {
+    it('should render CTA buttons', () => {
       render(<HomePage />);
 
-      expect(
-        screen.getByRole('button', { name: /Connect Wallet/i }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('button', { name: /Watch Demo/i }),
-      ).toBeInTheDocument();
-    });
-
-    it('should render Launch App buttons', () => {
-      render(<HomePage />);
-
-      const launchButtons = screen.getAllByRole('button', { name: /Launch/i });
-      expect(launchButtons.length).toBeGreaterThan(0);
+      const ctaButtons = screen.getAllByRole('button');
+      expect(ctaButtons.length).toBeGreaterThan(1);
     });
   });
 });

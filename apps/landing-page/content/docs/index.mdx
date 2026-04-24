@@ -24,16 +24,17 @@ We don't gamble on volatility; we navigate it. Zap Pilot monitors the macro puls
   - **Greed/Bull:** Capitalize on trends with **GMX BTC/ETH**.
   - **Fear/Bear:** Rotate to safety and liquidation yield via **Hyperliquid (HLP)**.
   - **Sideways:** Earn trading fees and accumulate BTC through **Morpho**.
+- **ETH/BTC Rotation Overlay:** On top of the risk-on/off gate, we watch ETH/BTC relative strength versus its own 200-DMA. When ETH outperforms, the risk bucket tilts toward ETH; when BTC leads, we rotate back. A 30-day cooldown after each cross prevents whipsaw.
 
 ---
 
 ## ⚡ Execution: Intent-Based & One-Click
 
-Powered by **EIP-7702**, Zap Pilot brings smart-account capabilities to your standard wallet without compromising security.
+Each rebalance ships as one bundled intent, executed in your own wallet — **EIP-7702** batch on supported wallets, **multicall3** as a fallback. No custody hand-off, no approvals spread across days.
 
-1.  **Monitor:** Our engine tracks market regimes 24/7.
-2.  **Signal:** Receive a tailored "Intent" suggestion via Telegram when the regime shifts.
-3.  **Execute:** Sign a single **Batch Transaction**. One click to rebalance across multiple protocols and chains.
+1.  **Monitor:** The engine tracks 200MA, FGI, and ETH/BTC relative strength 24/7.
+2.  **Signal:** When a regime shifts, you get a Telegram message with the new target allocation (BTC / ETH / stable) and a pre-built transfer bundle ready to sign.
+3.  **Execute:** Sign one **Batch Transaction**. One click to rebalance across multiple protocols and chains.
 
 ---
 

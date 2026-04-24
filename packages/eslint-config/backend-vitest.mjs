@@ -136,6 +136,24 @@ export function createBackendVitestConfig(options) {
         'no-eval': 'error',
         'no-implied-eval': 'error',
         'no-new-func': 'error',
+
+        // ESM hygiene: this preset targets "type": "module" packages where
+        // `require` is not defined at runtime. `tsx` / vitest transparently
+        // polyfill it in dev+test, so these patterns only crash in prod.
+        // See alpha-etl `require.main === module` bug (fixed 2026-04).
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: 'CallExpression[callee.name="require"]',
+            message:
+              'Use ES module `import` — this package is `"type": "module"` and `require()` is not defined at runtime. If you truly need CJS interop, use `createRequire(import.meta.url)`.',
+          },
+          {
+            selector: 'MemberExpression[object.name="require"]',
+            message:
+              'Do not use `require.main` / `require.resolve` / `require.cache` in ESM. For entry-point detection, use `import.meta.url === `file://${process.argv[1]}``.',
+          },
+        ],
       },
     },
     {

@@ -65,7 +65,7 @@ export function Hero() {
               className={`group relative px-12 py-6 text-lg sm:text-xl bg-gradient-to-r ${GRADIENTS.primary} text-white font-semibold rounded-2xl shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 ring-2 ring-purple-400/20 hover:ring-purple-400/50`}
               {...scaleOnHover}
               whileTap={{ scale: 0.98 }}
-              onClick={() => openExternalLink(LINKS.app)}
+              onClick={() => openExternalLink(LINKS.telegramBot)}
             >
               <span className="relative z-10 flex items-center justify-center">
                 {MESSAGES.hero.ctaPrimary}
@@ -78,7 +78,11 @@ export function Hero() {
               className="px-12 py-6 text-lg sm:text-xl border-2 border-gray-600 text-white font-semibold rounded-2xl hover:border-purple-500 hover:bg-purple-500/10 transition-all duration-300 flex items-center justify-center"
               {...scaleOnHover}
               whileTap={{ scale: 0.98 }}
-              onClick={() => openExternalLink(LINKS.social.youtube)}
+              onClick={() =>
+                document
+                  .getElementById('protocols')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }
             >
               <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" />
               {MESSAGES.hero.ctaSecondary}

@@ -1,6 +1,9 @@
 'use client';
 
 import {
+  LineChart,
+  Bell,
+  Zap,
   Settings,
   Activity,
   Shield,
@@ -14,6 +17,9 @@ import { revealOnView } from '@/lib/motion/animations';
 
 // Icon mapping
 const iconMap: Record<string, LucideIcon> = {
+  LineChart,
+  Bell,
+  Zap,
   Settings,
   Activity,
   Shield,

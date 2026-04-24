@@ -37,9 +37,7 @@ describe('Hero', () => {
       render(<Hero />);
 
       expect(
-        screen.getByRole('button', {
-          name: new RegExp(MESSAGES.hero.ctaPrimary),
-        }),
+        screen.getByText(MESSAGES.hero.ctaPrimary).closest('button'),
       ).toBeInTheDocument();
     });
 
@@ -47,9 +45,7 @@ describe('Hero', () => {
       render(<Hero />);
 
       expect(
-        screen.getByRole('button', {
-          name: new RegExp(MESSAGES.hero.ctaSecondary),
-        }),
+        screen.getByText(MESSAGES.hero.ctaSecondary).closest('button'),
       ).toBeInTheDocument();
     });
   });
@@ -75,34 +71,44 @@ describe('Hero', () => {
   });
 
   describe('CTA interactions', () => {
-    it('should open app link when primary CTA is clicked', () => {
+    it('should open telegram bot link when primary CTA is clicked', () => {
       render(<Hero />);
 
-      const primaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.hero.ctaPrimary),
-      });
-      fireEvent.click(primaryButton);
+      const primaryButton = screen
+        .getByText(MESSAGES.hero.ctaPrimary)
+        .closest('button');
+      expect(primaryButton).toBeInTheDocument();
+
+      if (primaryButton) {
+        fireEvent.click(primaryButton);
+      }
 
       expect(mockWindowOpen).toHaveBeenCalledWith(
-        LINKS.app,
+        LINKS.telegramBot,
         '_blank',
         'noopener,noreferrer',
       );
     });
 
-    it('should open YouTube link when secondary CTA is clicked', () => {
+    it('should scroll to protocols section when secondary CTA is clicked', () => {
+      const mockScrollIntoView = vi.fn();
+      const mockElement = { scrollIntoView: mockScrollIntoView };
+      vi.spyOn(document, 'getElementById').mockReturnValue(
+        mockElement as unknown as HTMLElement,
+      );
+
       render(<Hero />);
 
-      const secondaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.hero.ctaSecondary),
-      });
-      fireEvent.click(secondaryButton);
+      const secondaryButton = screen
+        .getByText(MESSAGES.hero.ctaSecondary)
+        .closest('button');
+      expect(secondaryButton).toBeInTheDocument();
 
-      expect(mockWindowOpen).toHaveBeenCalledWith(
-        LINKS.social.youtube,
-        '_blank',
-        'noopener,noreferrer',
-      );
+      if (secondaryButton) {
+        fireEvent.click(secondaryButton);
+      }
+
+      expect(mockScrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
     });
   });
 
@@ -141,20 +147,22 @@ describe('Hero', () => {
       render(<Hero />);
 
       // The ArrowRight icon is inside the primary button
-      const primaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.hero.ctaPrimary),
-      });
-      const svg = primaryButton.querySelector('svg');
+      const primaryButton = screen
+        .getByText(MESSAGES.hero.ctaPrimary)
+        .closest('button');
+      expect(primaryButton).toBeInTheDocument();
+      const svg = primaryButton?.querySelector('svg');
       expect(svg).toBeInTheDocument();
     });
 
     it('should render Play icon in secondary button', () => {
       render(<Hero />);
 
-      const secondaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.hero.ctaSecondary),
-      });
-      const svg = secondaryButton.querySelector('svg');
+      const secondaryButton = screen
+        .getByText(MESSAGES.hero.ctaSecondary)
+        .closest('button');
+      expect(secondaryButton).toBeInTheDocument();
+      const svg = secondaryButton?.querySelector('svg');
       expect(svg).toBeInTheDocument();
     });
   });

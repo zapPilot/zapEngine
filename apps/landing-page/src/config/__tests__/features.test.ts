@@ -48,9 +48,9 @@ describe('features config', () => {
       expect(MESSAGES.features.items.length).toBe(FEATURE_VISUALS.length);
     });
 
-    it('should have exactly 4 features', () => {
-      expect(MESSAGES.features.items.length).toBe(4);
-      expect(FEATURE_VISUALS.length).toBe(4);
+    it('should have exactly 5 features', () => {
+      expect(MESSAGES.features.items.length).toBe(5);
+      expect(FEATURE_VISUALS.length).toBe(5);
     });
   });
 

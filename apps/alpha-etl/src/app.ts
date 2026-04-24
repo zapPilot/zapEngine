@@ -131,7 +131,7 @@ export async function startServer(): Promise<void> {
 
 /* istanbul ignore next */
 /* c8 ignore start */
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   startServer();
 }
 /* c8 ignore end */

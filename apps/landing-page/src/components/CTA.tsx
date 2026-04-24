@@ -62,7 +62,7 @@ export function CTA() {
             <motion.button
               className="group bg-white text-purple-600 px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300"
               {...scaleOnHover}
-              onClick={() => openExternalLink(LINKS.app)}
+              onClick={() => openExternalLink(LINKS.telegramBot)}
             >
               <span className="flex items-center justify-center">
                 {MESSAGES.cta.ctaPrimary}
@@ -73,7 +73,7 @@ export function CTA() {
             <motion.button
               className="group bg-white/10 backdrop-blur-lg text-white px-8 py-4 rounded-xl font-semibold text-lg border border-white/20 hover:bg-white/20 transition-all duration-300"
               {...scaleOnHover}
-              onClick={() => openExternalLink(LINKS.documentation)}
+              onClick={() => openExternalLink(LINKS.strategyBacktests)}
             >
               <span className="flex items-center justify-center">
                 <BookOpen className="mr-2 w-5 h-5" />

@@ -2,6 +2,12 @@
 export const LINKS = {
   // Main application
   app: process.env['NEXT_PUBLIC_APP_URL'] || 'https://app.zap-pilot.org',
+  // Telegram bot is not live yet. CTA labels say "(Coming Soon)" so users know.
+  // Once the bot ships, replace this handle and drop the "(Coming Soon)" suffix in messages.ts.
+  telegramBot: 'https://t.me/zap_pilot_bot',
+  // Dedicated backtests page does not exist yet; route to the top-level docs
+  // site until `content/docs/strategy/backtests.mdx` is published.
+  strategyBacktests: 'https://docs.zap-pilot.org/',
 
   // Documentation and resources
   documentation: 'https://docs.zap-pilot.org/',
@@ -82,10 +88,16 @@ export const NAVIGATION = {
       { href: '#features', label: 'Features' },
       { href: '#how-it-works', label: 'How It Works' },
       { href: '/docs', label: 'Docs' },
+      { href: LINKS.telegramBot, label: 'Telegram Bot', external: true },
       { href: LINKS.app, label: 'Launch App', external: true },
     ],
     resources: [
       { href: LINKS.documentation, label: 'Documentation', external: true },
+      {
+        href: LINKS.strategyBacktests,
+        label: 'Strategy Backtests',
+        external: true,
+      },
       { href: LINKS.apiReference, label: 'API Reference', external: true },
       { href: LINKS.tutorials, label: 'Tutorials', external: true },
     ],

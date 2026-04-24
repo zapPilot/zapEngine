@@ -20,42 +20,55 @@ describe('Features', () => {
   });
 
   describe('feature cards', () => {
-    it('should render Sentiment-Driven Intelligence feature', () => {
+    it('should render Macro Indicators feature', () => {
       render(<Features />);
 
-      expect(screen.getByText('Market Sentiment Engine')).toBeInTheDocument();
-      expect(screen.getByText(/We watch the market 24\/7/)).toBeInTheDocument();
+      expect(screen.getByText('Macro Indicators')).toBeInTheDocument();
+      expect(screen.getByText(/200-Day Moving Average/)).toBeInTheDocument();
     });
 
-    it('should render Self-Custodial feature', () => {
+    it('should render Regime-Driven Strategy feature', () => {
       render(<Features />);
 
-      expect(screen.getByText('Your Keys. Your Crypto.')).toBeInTheDocument();
-      expect(screen.getByText(/No deposits. You decide./)).toBeInTheDocument();
+      expect(screen.getByText('Regime-Driven Strategy')).toBeInTheDocument();
+      expect(screen.getByText(/Rule-based allocation/)).toBeInTheDocument();
     });
 
-    it('should render Gradual Execution feature', () => {
+    it('should render ETH/BTC Rotation Overlay feature', () => {
       render(<Features />);
 
-      expect(screen.getByText('Smart Rebalancing')).toBeInTheDocument();
-      expect(screen.getByText(/No panic selling./)).toBeInTheDocument();
+      expect(screen.getByText('ETH/BTC Rotation Overlay')).toBeInTheDocument();
+      expect(
+        screen.getByText(/relative strength vs its own 200-DMA/),
+      ).toBeInTheDocument();
     });
 
-    it('should render Transparent feature', () => {
+    it('should render Intent-Based Smart Accounts feature', () => {
       render(<Features />);
 
-      expect(screen.getByText('Transparent Strategy')).toBeInTheDocument();
-      expect(screen.getByText(/See exactly how it works./)).toBeInTheDocument();
+      expect(
+        screen.getByText('Intent-Based Smart Accounts'),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/EIP-7702/)).toBeInTheDocument();
+      expect(screen.getByText(/multicall3/)).toBeInTheDocument();
     });
 
-    it('should render exactly 4 feature cards', () => {
+    it('should render One-Click Rebalancing feature', () => {
+      render(<Features />);
+
+      expect(screen.getByText('One-Click Rebalancing')).toBeInTheDocument();
+      expect(screen.getByText(/batch transaction/)).toBeInTheDocument();
+    });
+
+    it('should render exactly 5 feature cards', () => {
       render(<Features />);
 
       const featureTitles = [
-        'Market Sentiment Engine',
-        'Your Keys. Your Crypto.',
-        'Smart Rebalancing',
-        'Transparent Strategy',
+        'Macro Indicators',
+        'Regime-Driven Strategy',
+        'ETH/BTC Rotation Overlay',
+        'Intent-Based Smart Accounts',
+        'One-Click Rebalancing',
       ];
 
       featureTitles.forEach((title) => {
@@ -69,7 +82,7 @@ describe('Features', () => {
       render(<Features />);
 
       const learnMoreLinks = screen.getAllByText('Learn more');
-      expect(learnMoreLinks.length).toBe(4);
+      expect(learnMoreLinks.length).toBe(5);
     });
 
     it('should have correct href for learn more links', () => {
@@ -138,7 +151,7 @@ describe('Features', () => {
       const iconWrappers = container.querySelectorAll(
         '.rounded-2xl.bg-gradient-to-br',
       );
-      expect(iconWrappers.length).toBe(4);
+      expect(iconWrappers.length).toBe(5);
     });
   });
 
@@ -152,7 +165,7 @@ describe('Features', () => {
 
       // Feature card headings
       const featureHeadings = screen.getAllByRole('heading', { level: 3 });
-      expect(featureHeadings.length).toBe(4);
+      expect(featureHeadings.length).toBe(5);
     });
 
     it('should have descriptive text for each feature', () => {
@@ -160,10 +173,11 @@ describe('Features', () => {
 
       // Each feature should have a paragraph description
       const descriptions = [
-        /We watch the market 24\/7/,
-        /No deposits. You decide./,
-        /No panic selling./,
-        /See exactly how it works./,
+        /200-Day Moving Average/,
+        /Rule-based allocation/,
+        /relative strength vs its own 200-DMA/,
+        /EIP-7702/,
+        /batch transaction/,
       ];
 
       descriptions.forEach((desc) => {

@@ -3,6 +3,7 @@ import {
   Shield,
   Calendar,
   LineChart,
+  Repeat,
   type LucideIcon,
 } from 'lucide-react';
 import { MESSAGES } from './messages';
@@ -37,14 +38,19 @@ export const FEATURE_VISUALS: FeatureConfig[] = [
     delay: 0.2,
   },
   {
-    icon: Calendar,
-    gradient: 'from-green-500 to-emerald-600',
+    icon: Repeat,
+    gradient: 'from-amber-500 to-orange-600',
     delay: 0.3,
   },
   {
-    icon: LineChart,
-    gradient: 'from-orange-500 to-red-600',
+    icon: Calendar,
+    gradient: 'from-green-500 to-emerald-600',
     delay: 0.4,
+  },
+  {
+    icon: LineChart,
+    gradient: 'from-pink-500 to-rose-600',
+    delay: 0.5,
   },
 ];
 

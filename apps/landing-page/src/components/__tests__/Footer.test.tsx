@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { Footer } from '../Footer';
 import { LINKS, NAVIGATION } from '@/config/links';
+import { MESSAGES } from '@/config/messages';
 
 describe('Footer', () => {
   describe('branding section', () => {
@@ -23,7 +24,7 @@ describe('Footer', () => {
       render(<Footer />);
 
       expect(
-        screen.getByText(/Regime-Driven Rebalancing for BTC\/ETH investors/),
+        screen.getByText(MESSAGES.footer.brand.description),
       ).toBeInTheDocument();
     });
   });

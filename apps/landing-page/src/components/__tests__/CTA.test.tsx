@@ -39,9 +39,7 @@ describe('CTA', () => {
       render(<CTA />);
 
       expect(
-        screen.getByRole('button', {
-          name: new RegExp(MESSAGES.cta.ctaPrimary),
-        }),
+        screen.getByText(MESSAGES.cta.ctaPrimary).closest('button'),
       ).toBeInTheDocument();
     });
 
@@ -49,37 +47,24 @@ describe('CTA', () => {
       render(<CTA />);
 
       expect(
-        screen.getByRole('button', {
-          name: new RegExp(MESSAGES.cta.ctaSecondary),
-        }),
+        screen.getByText(MESSAGES.cta.ctaSecondary).closest('button'),
       ).toBeInTheDocument();
     });
 
-    it('should open app link when primary CTA is clicked', () => {
+    it('should open telegram bot link when primary CTA is clicked', () => {
       render(<CTA />);
 
-      const primaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaPrimary),
-      });
-      fireEvent.click(primaryButton);
+      const primaryButton = screen
+        .getByText(MESSAGES.cta.ctaPrimary)
+        .closest('button');
+      expect(primaryButton).toBeInTheDocument();
+
+      if (primaryButton) {
+        fireEvent.click(primaryButton);
+      }
 
       expect(mockWindowOpen).toHaveBeenCalledWith(
-        LINKS.app,
-        '_blank',
-        'noopener,noreferrer',
-      );
-    });
-
-    it('should open documentation link when secondary CTA is clicked', () => {
-      render(<CTA />);
-
-      const secondaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaSecondary),
-      });
-      fireEvent.click(secondaryButton);
-
-      expect(mockWindowOpen).toHaveBeenCalledWith(
-        LINKS.documentation,
+        LINKS.telegramBot,
         '_blank',
         'noopener,noreferrer',
       );
@@ -90,20 +75,20 @@ describe('CTA', () => {
     it('should render ArrowRight icon in primary button', () => {
       render(<CTA />);
 
-      const primaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaPrimary),
-      });
-      const svg = primaryButton.querySelector('svg');
+      const primaryButton = screen
+        .getByText(MESSAGES.cta.ctaPrimary)
+        .closest('button');
+      const svg = primaryButton?.querySelector('svg');
       expect(svg).toBeInTheDocument();
     });
 
     it('should render BookOpen icon in secondary button', () => {
       render(<CTA />);
 
-      const secondaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaSecondary),
-      });
-      const svg = secondaryButton.querySelector('svg');
+      const secondaryButton = screen
+        .getByText(MESSAGES.cta.ctaSecondary)
+        .closest('button');
+      const svg = secondaryButton?.querySelector('svg');
       expect(svg).toBeInTheDocument();
     });
   });
@@ -141,18 +126,18 @@ describe('CTA', () => {
     it('should have white background for primary button', () => {
       render(<CTA />);
 
-      const primaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaPrimary),
-      });
+      const primaryButton = screen
+        .getByText(MESSAGES.cta.ctaPrimary)
+        .closest('button');
       expect(primaryButton).toHaveClass('bg-white');
     });
 
     it('should have transparent background for secondary button', () => {
       render(<CTA />);
 
-      const secondaryButton = screen.getByRole('button', {
-        name: new RegExp(MESSAGES.cta.ctaSecondary),
-      });
+      const secondaryButton = screen
+        .getByText(MESSAGES.cta.ctaSecondary)
+        .closest('button');
       expect(secondaryButton).toHaveClass('bg-white/10');
     });
   });

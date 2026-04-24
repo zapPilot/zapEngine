@@ -21,8 +21,8 @@ const CORE_STATS: Stat[] = [
     type: 'text',
   },
   {
-    label: 'Market Regimes Monitored',
-    value: '5',
+    label: 'Strategy Signals',
+    value: '200MA · FGI · ETH/BTC',
     type: 'text',
   },
   {
@@ -49,7 +49,6 @@ export const STATISTICS: Stat[] = [
         alt: 'Hyperliquid',
         name: 'Hyperliquid',
       },
-      { src: '/protocols/aster.webp', alt: 'Aster', name: 'Aster' },
     ],
   },
 ];

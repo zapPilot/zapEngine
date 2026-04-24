@@ -11,8 +11,8 @@ describe('statistics', () => {
             type: 'text',
           }),
           expect.objectContaining({
-            label: 'Market Regimes Monitored',
-            value: '5',
+            label: 'Strategy Signals',
+            value: '200MA · FGI · ETH/BTC',
             type: 'text',
           }),
         ]),
@@ -49,7 +49,6 @@ describe('statistics', () => {
         'Morpho',
         'GMX',
         'Hyperliquid',
-        'Aster',
       ]);
     });
   });
