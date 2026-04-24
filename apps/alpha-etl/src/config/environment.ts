@@ -1,7 +1,12 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { config } from 'dotenv';
 import { z } from 'zod';
 
-config({ quiet: true });
+const configDir = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT_ENV = path.resolve(configDir, '../../../../.env');
+config({ path: REPO_ROOT_ENV, quiet: true });
 
 function parseBoolean(value: string): boolean {
   return value.toLowerCase() === 'true';

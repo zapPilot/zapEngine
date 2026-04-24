@@ -6,11 +6,14 @@ Simplified architecture with consolidated validation logic and eliminated compon
 
 from enum import Enum
 from functools import cached_property
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import Field, PositiveInt, field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+REPO_ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 DEV_ALLOWED_ORIGINS = (
     "http://localhost:3000",
@@ -489,11 +492,11 @@ class Settings(BaseSettings):
     }
 
 
-# Load environment variables from .env file if it exists
+# Load environment variables from the monorepo root .env file if it exists
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(REPO_ROOT_ENV_FILE)
 except ImportError:
     pass  # dotenv is optional
 

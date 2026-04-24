@@ -17,7 +17,7 @@ Each pipeline follows `BaseETLProcessor`: `fetcher.ts` → `transformer.ts` → 
 
 ## Environment
 
-Copy `.env.example` to `.env`. Required: `DATABASE_URL`, `WEBHOOK_SECRET`.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `DATABASE_URL`, `WEBHOOK_SECRET`.
 
 ## Migrations
 

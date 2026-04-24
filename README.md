@@ -38,14 +38,10 @@ zapEngine/
 pnpm install
 ```
 
-Each app requires a `.env` file. Copy the example from each app:
+All apps read from a single `.env` at the repo root — copy the example and fill in values:
 
 ```bash
-cp apps/account-engine/.env.example apps/account-engine/.env
-cp apps/alpha-etl/.env.example apps/alpha-etl/.env
-cp apps/analytics-engine/.env.example apps/analytics-engine/.env
-cp apps/frontend/.env.example apps/frontend/.env
-cp apps/landing-page/.env.example apps/landing-page/.env
+cp .env.example .env
 ```
 
 For analytics-engine's Python venv (first-time only):

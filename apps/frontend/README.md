@@ -13,7 +13,7 @@ Playwright.
 ```bash
 nvm use            # Node 22+
 pnpm install
-cp .env.example .env.local
+# env lives at the monorepo root — `cp .env.example .env` at repo root if you haven't
 pnpm dev           # http://localhost:3000
 ```
 
@@ -34,7 +34,7 @@ All client-exposed variables must be prefixed `VITE_`. Key ones:
 - `VITE_ACCOUNT_API_URL` — account-engine base URL
 - `VITE_ANALYTICS_ENGINE_URL` — analytics-engine base URL
 
-See `.env.example` for the full list.
+See the monorepo root `.env.example` for the full list.
 
 ## Deploy
 

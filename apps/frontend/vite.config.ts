@@ -16,7 +16,10 @@ const coverageThresholds = {
   },
 } as const;
 
+const REPO_ROOT = path.resolve(__dirname, "../..");
+
 export default defineConfig({
+  envDir: REPO_ROOT,
   plugins: [
     react(),
     VitePWA({
