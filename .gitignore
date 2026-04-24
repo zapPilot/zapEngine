@@ -54,3 +54,7 @@ coverage/
 
 # git
 .worktrees
+
+# Turbo cache
+.turbo/*
+!.turbo/config.json
