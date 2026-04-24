@@ -86,6 +86,22 @@ fi
 
 # ── parse declared env var names ────────────────────────────────────────────
 # Keep only non-comment lines that start with KEY= (all-caps + underscore).
+duplicate_vars=$(
+  grep -E '^[A-Z_][A-Z0-9_]*=' "$ENV_FILE" \
+    | sed 's/=.*//' \
+    | sort \
+    | uniq -d
+)
+
+if [ -n "$duplicate_vars" ]; then
+  printf "${RED}${BOLD}Duplicate env vars found in .env.example:${RESET}\n"
+  while IFS= read -r var; do
+    printf "    ${RED}✗${RESET}  %s\n" "$var"
+  done <<< "$duplicate_vars"
+  printf "\n${RED}${BOLD}✗  Duplicate env vars are ambiguous under dotenv parsing.${RESET}\n\n"
+  exit 1
+fi
+
 declared_vars=$(
   grep -E '^[A-Z_][A-Z0-9_]*=' "$ENV_FILE" \
     | sed 's/=.*//' \

@@ -15,7 +15,7 @@ Routes grouped under `/users`, `/jobs`, `/etl`, `/telegram`. See `src/routes/`.
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PORT=3004`.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ACCOUNT_ENGINE_PORT=3004`.
 
 ## Deployment
 

@@ -21,13 +21,24 @@ describe('loadEnv', () => {
     expect(result.SUPABASE_SERVICE_ROLE_KEY).toBe('service-role-key');
   });
 
-  it('defaults PORT to 3000 when not provided', () => {
+  it('defaults PORT to 3004 when no port env is provided', () => {
     const result = loadEnv(validEnv);
-    expect(result.server.port).toBe(3000);
-    expect(result.PORT).toBe(3000);
+    expect(result.server.port).toBe(3004);
+    expect(result.PORT).toBe(3004);
   });
 
-  it('uses the provided PORT value', () => {
+  it('uses ACCOUNT_ENGINE_PORT before the generic PORT fallback', () => {
+    const result = loadEnv({
+      ...validEnv,
+      ACCOUNT_ENGINE_PORT: '3004',
+      PORT: '8001',
+    });
+
+    expect(result.server.port).toBe(3004);
+    expect(result.PORT).toBe(3004);
+  });
+
+  it('uses the generic PORT fallback when ACCOUNT_ENGINE_PORT is absent', () => {
     const result = loadEnv({ ...validEnv, PORT: '8080' });
     expect(result.server.port).toBe(8080);
   });
@@ -67,6 +78,12 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...validEnv, PORT: 'abc' })).toThrow(
       BadRequestException,
     );
+  });
+
+  it('throws BadRequestException for an invalid ACCOUNT_ENGINE_PORT', () => {
+    expect(() =>
+      loadEnv({ ...validEnv, ACCOUNT_ENGINE_PORT: '70000' }),
+    ).toThrow(BadRequestException);
   });
 
   it('includes optional fields when provided', () => {

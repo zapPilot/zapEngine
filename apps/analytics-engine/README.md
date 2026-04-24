@@ -39,4 +39,4 @@ Every entry in `vulture_whitelist.py` must carry an inline reason. Removing a mo
 
 ## Environment
 
-PostgreSQL (Supabase) via async SQLAlchemy. `DATABASE_READ_ONLY=true` is enforced — writes are blocked at the pool level.
+PostgreSQL (Supabase) via async SQLAlchemy. `DATABASE_READ_ONLY=true` is enforced — writes are blocked at the pool level. Local port override: `ANALYTICS_ENGINE_PORT=8001`.

@@ -23,7 +23,7 @@ describe('Footer', () => {
       render(<Footer />);
 
       expect(
-        screen.getByText(/Sentiment-driven rebalancing for BTC\/ETH investors/),
+        screen.getByText(/Regime-Driven Rebalancing for BTC\/ETH investors/),
       ).toBeInTheDocument();
     });
   });

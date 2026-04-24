@@ -20,6 +20,10 @@ function parsePort(defaultValue: string) {
     .pipe(z.number().int().min(1).max(65535));
 }
 
+function parseOptionalPort() {
+  return z.coerce.number().int().min(1).max(65535).optional();
+}
+
 function parsePositiveInteger(defaultValue: string) {
   return z
     .string()
@@ -51,7 +55,8 @@ const envSchema = z.object({
   DB_SCHEMA: z.string().min(1).default('alpha_raw'),
 
   // Server
-  PORT: parsePort('3000'),
+  ALPHA_ETL_PORT: parseOptionalPort(),
+  PORT: parsePort('3003'),
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
@@ -98,7 +103,10 @@ function parseEnvironment(): Environment {
     process.exit(1);
   }
 
-  return result.data;
+  return {
+    ...result.data,
+    PORT: result.data.ALPHA_ETL_PORT ?? result.data.PORT,
+  };
 }
 
 export const env = parseEnvironment();

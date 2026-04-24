@@ -13,6 +13,7 @@ def test_settings_defaults_parse_correctly(monkeypatch):
     """Settings should parse defaults when no env vars are set."""
     # Ensure relevant env vars are unset for this test
     for key in [
+        "ANALYTICS_ENGINE_PORT",
         "PORT",
         "HOST",
         "DEBUG",
@@ -47,6 +48,7 @@ def test_settings_defaults_parse_correctly(monkeypatch):
 
 def test_settings_env_overrides(monkeypatch):
     """Environment variables should override defaults."""
+    monkeypatch.delenv("ANALYTICS_ENGINE_PORT", raising=False)
     monkeypatch.setenv("PORT", "9000")
     monkeypatch.setenv("HOST", "127.0.0.1")
     monkeypatch.setenv("DEBUG", "true")
@@ -73,6 +75,16 @@ def test_settings_env_overrides(monkeypatch):
     if isinstance(origins, str):
         origins = [o.strip() for o in origins.split(",") if o.strip()]
     assert origins == ["http://a.com", "http://b.com"]
+
+
+def test_app_specific_port_overrides_generic_port(monkeypatch):
+    """ANALYTICS_ENGINE_PORT should win when root .env also has generic PORT."""
+    monkeypatch.setenv("ANALYTICS_ENGINE_PORT", "8001")
+    monkeypatch.setenv("PORT", "3004")
+
+    s = Settings()
+
+    assert s.port == 8001
 
 
 def test_production_requires_explicit_cors_origins(monkeypatch):

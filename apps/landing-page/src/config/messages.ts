@@ -29,7 +29,7 @@ export const MESSAGES = {
 
   // Hero section
   hero: {
-    badge: '📊 Sentiment-Driven Rebalancing',
+    badge: '📊 Regime-Driven Rebalancing',
     title: {
       primary: 'Be Greedy. When Others Are Fearful.',
       line1: 'Be Greedy.',
@@ -45,7 +45,7 @@ export const MESSAGES = {
   regimeVisualizer: {
     title: 'Buy Fear, Sell Greed. Systematically',
     subtitle:
-      'A sentiment-driven rebalancing engine that systematically adjusts exposure between BTC/ETH and stablecoins — fully self-custodial.',
+      'A Regime-Driven Rebalancing engine that systematically adjusts exposure between BTC/ETH and stablecoins — fully self-custodial.',
     interactionHint: '👆 Explore each regime to see how we respond',
     errorMessage: 'Unable to load regime visualizer',
     errorRetry: 'Please refresh the page or try again later.',
@@ -136,7 +136,7 @@ export const MESSAGES = {
   footer: {
     brand: {
       description:
-        'Sentiment-driven rebalancing for BTC/ETH investors. Disciplined, gradual, and always self-custodial.',
+        'Regime-Driven Rebalancing for BTC/ETH investors. Disciplined, gradual, and always self-custodial.',
     },
     sections: {
       product: 'Product',

@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import Field, PositiveInt, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings
 
 REPO_ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
@@ -198,7 +204,7 @@ class Settings(BaseSettings):
     )
     port: PositiveInt = Field(
         default=8001,
-        alias="PORT",
+        validation_alias=AliasChoices("ANALYTICS_ENGINE_PORT", "PORT", "port"),
         ge=1,
         le=65535,
         description="Server port number (1-65535)",

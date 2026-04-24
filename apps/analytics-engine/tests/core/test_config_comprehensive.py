@@ -47,12 +47,23 @@ class TestDatabaseSettings:
 class TestEnvironmentVariableHandling:
     """Test environment variable handling and edge cases"""
 
-    @patch.dict(os.environ, {"PORT": "9000"}, clear=False)
+    @patch.dict(os.environ, {"ANALYTICS_ENGINE_PORT": "9000"}, clear=False)
     def test_settings_from_environment_variables(self):
         """Test settings loading from environment variables"""
         settings = Settings()
 
         assert settings.port == 9000
+
+    @patch.dict(
+        os.environ,
+        {"ANALYTICS_ENGINE_PORT": "8001", "PORT": "3004"},
+        clear=False,
+    )
+    def test_app_specific_port_takes_precedence(self):
+        """Test app-specific port avoids root .env PORT collisions."""
+        settings = Settings()
+
+        assert settings.port == 8001
 
     @patch.dict(os.environ, {"DATABASE_READ_ONLY": "false"}, clear=False)
     def test_boolean_environment_variable_parsing(self):
