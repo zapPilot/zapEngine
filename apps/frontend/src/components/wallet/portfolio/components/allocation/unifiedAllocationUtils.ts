@@ -16,7 +16,7 @@ import type {
   StrategyBucketsSource,
   UnifiedCategory,
   UnifiedSegment,
-} from './unifiedAllocationTypes';
+} from './UnifiedAllocationTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Category Labels

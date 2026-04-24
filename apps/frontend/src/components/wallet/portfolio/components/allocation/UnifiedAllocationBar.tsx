@@ -7,7 +7,7 @@ import { AllocationLegend } from './AllocationLegend';
 import type {
   UnifiedAllocationBarProps,
   UnifiedSegment,
-} from './unifiedAllocationTypes';
+} from './UnifiedAllocationTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
