@@ -90,7 +90,7 @@ export interface SnapshotTimeContext {
  * Defaults to current time if no timestamp is provided.
  */
 export function resolveSnapshotTime(timestamp?: string): SnapshotTimeContext {
-  const snapshotAt = timestamp || new Date().toISOString();
+  const snapshotAt = timestamp ?? new Date().toISOString();
   const epochSeconds = Math.floor(new Date(snapshotAt).getTime() / 1000);
   return { snapshotAt, epochSeconds };
 }

@@ -109,8 +109,10 @@ export class SupabaseFetcher extends BaseDatabaseClient {
    *
    * @param wallets - Array of wallet addresses to update
    */
-  async batchUpdatePortfolioTimestamps(wallets: string[]): Promise<void> {
-    if (!wallets || wallets.length === 0) {
+  async batchUpdatePortfolioTimestamps(
+    wallets: string[] | null | undefined,
+  ): Promise<void> {
+    if (!wallets?.length) {
       logger.debug('No wallets to update timestamps for');
       return;
     }
@@ -146,8 +148,10 @@ export class SupabaseFetcher extends BaseDatabaseClient {
   /**
    * Fetch specific users by their IDs (for testing or partial updates)
    */
-  async fetchUsersByIds(userIds: string[]): Promise<VipUser[]> {
-    if (!userIds || userIds.length === 0) {
+  async fetchUsersByIds(
+    userIds: string[] | null | undefined,
+  ): Promise<VipUser[]> {
+    if (!userIds?.length) {
       return [];
     }
 
@@ -216,7 +220,7 @@ export class SupabaseFetcher extends BaseDatabaseClient {
     return (
       typeof candidate?.user_id === 'string' &&
       candidate.user_id.length > 0 &&
-      typeof candidate?.wallet === 'string' &&
+      typeof candidate.wallet === 'string' &&
       candidate.wallet.length > 0
     );
   }

@@ -74,11 +74,11 @@ export function checkSymbolListsEqual(
 
 export function mapChainName(debankChain: string): string {
   const normalized = debankChain.toLowerCase();
-  return chainNameMapping[normalized] || normalized;
+  return chainNameMapping[normalized] ?? normalized;
 }
 
 export function parseSymbolsArray(
-  symbol: string,
+  symbol: string | null | undefined,
   underlyingTokens?: string[] | null,
 ): string[] | null {
   if (!symbol?.trim()) {

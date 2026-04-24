@@ -33,6 +33,14 @@ interface ProcessedJobOutcomeLike {
   mvRefreshStats?: MVRefreshStats | undefined;
 }
 
+function normalizeJobErrors(errors: unknown): string[] {
+  if (!Array.isArray(errors)) {
+    return [];
+  }
+
+  return errors.filter((error): error is string => typeof error === 'string');
+}
+
 export function createPendingJob(
   jobId: string,
   params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>,
@@ -115,6 +123,7 @@ export function createSuccessResult(
   finalStatus: 'completed' | 'failed',
 ): ETLJobResult {
   const { pipelineResult, totalDurationMs, mvRefreshStats } = outcome;
+  const errors = normalizeJobErrors(pipelineResult.errors);
 
   return {
     success: true,
@@ -126,7 +135,7 @@ export function createSuccessResult(
       sourceResults: pipelineResult.sourceResults,
       duration: totalDurationMs,
       completedAt: new Date(),
-      errors: pipelineResult.errors || [],
+      errors,
       ...(mvRefreshStats && {
         mvRefreshDurationMs: mvRefreshStats.totalDurationMs,
         mvRefreshSuccess: mvRefreshStats.allSucceeded,
@@ -142,6 +151,8 @@ export function logJobCompletion(
   job: ETLJob,
   outcome: ProcessedJobOutcomeLike,
 ): void {
+  const errors = normalizeJobErrors(outcome.pipelineResult.errors);
+
   logger.info('ETL job completed (including MV refresh)', {
     jobId: job.jobId,
     success: outcome.pipelineResult.success,
@@ -150,7 +161,7 @@ export function logJobCompletion(
     etlDurationMs: outcome.etlDurationMs,
     totalDurationMs: outcome.totalDurationMs,
     mvRefreshIncluded: !!outcome.mvRefreshStats,
-    errors: outcome.pipelineResult.errors.length,
+    errors: errors.length,
   });
 }
 

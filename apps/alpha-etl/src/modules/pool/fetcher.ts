@@ -17,22 +17,22 @@ import {
 } from '../../utils/symbolUtils.js';
 
 export interface DeFiLlamaPool {
-  pool: string;
-  chain: string;
-  project: string;
-  symbol: string;
+  pool?: string;
+  chain?: string;
+  project?: string;
+  symbol?: string;
   underlyingTokens?: string[];
-  tvlUsd: number;
-  apy: number;
-  apyBase?: number;
-  apyReward?: number;
+  tvlUsd?: number;
+  apy?: number | null;
+  apyBase?: number | null;
+  apyReward?: number | null;
   apyPct1D?: number;
   apyPct7D?: number;
   apyPct30D?: number;
-  stablecoin: boolean;
-  ilRisk: string;
-  exposure: string;
-  poolMeta?: string;
+  stablecoin?: boolean;
+  ilRisk?: string;
+  exposure?: string;
+  poolMeta?: string | null;
   mu?: number;
   sigma?: number;
   count?: number;
@@ -59,6 +59,15 @@ function resolveRateLimitMs(): number {
     : RATE_LIMITS.DEFILLAMA_DELAY_MS;
 }
 /* v8 ignore stop */
+
+function normalizeTvlUsd(value: number | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  return value;
+}
+
 export class DeFiLlamaFetcher extends BaseApiFetcher {
   constructor() {
     const rawBaseUrl = env.DEFILLAMA_API_URL || 'https://api.llama.fi';
@@ -158,9 +167,11 @@ export class DeFiLlamaFetcher extends BaseApiFetcher {
   }
   private transformPool(pool: DeFiLlamaPool): PoolData | null {
     try {
-      const normalizedChain = pool.chain.toLowerCase();
-      const normalizedProtocol = pool.project.toLowerCase();
-      const normalizedSymbol = (pool.symbol || 'unknown').toLowerCase();
+      const normalizedChain = pool.chain?.toLowerCase() ?? '';
+      const normalizedProtocol = pool.project?.toLowerCase() ?? 'unknown';
+      const normalizedSymbol = (
+        pool.symbol?.trim() ? pool.symbol : 'unknown'
+      ).toLowerCase();
       // Filter out pools with empty chain values
       if (!normalizedChain) {
         logger.warn('Skipping pool with empty chain', { poolId: pool.pool });
@@ -172,12 +183,12 @@ export class DeFiLlamaFetcher extends BaseApiFetcher {
         chain: normalizedChain,
         protocol: normalizedProtocol,
         symbol: normalizedSymbol,
-        underlying_tokens: pool.underlyingTokens || null,
-        tvl_usd: pool.tvlUsd || null,
-        apy: pool.apy || 0,
-        apy_base: pool.apyBase || null,
-        apy_reward: pool.apyReward || null,
-        volume_usd_1d: pool.volumeUsd1d || null,
+        underlying_tokens: pool.underlyingTokens ?? null,
+        tvl_usd: normalizeTvlUsd(pool.tvlUsd),
+        apy: pool.apy ?? 0,
+        apy_base: pool.apyBase ?? null,
+        apy_reward: pool.apyReward ?? null,
+        volume_usd_1d: pool.volumeUsd1d ?? null,
         exposure: this.mapExposure(pool.exposure),
         reward_tokens: cleanRewardTokens(pool.rewardTokens),
         pool_meta: this.buildPoolMeta(pool),
@@ -236,10 +247,12 @@ export class DeFiLlamaFetcher extends BaseApiFetcher {
       checkSymbolListsEqual(poolSymbols, targetSymbols, false)
     );
   }
-  private mapExposure(exposure: string): string {
+  private mapExposure(exposure?: string): string {
     const validExposures = ['single', 'multi', 'stable'];
     const normalized = exposure?.toLowerCase();
-    return validExposures.includes(normalized) ? normalized : 'multi';
+    return normalized && validExposures.includes(normalized)
+      ? normalized
+      : 'multi';
   }
   private parseDeFiLlamaResponse(
     rawData: unknown,
@@ -280,7 +293,7 @@ export class DeFiLlamaFetcher extends BaseApiFetcher {
     pools: DeFiLlamaPool[],
     tvlThreshold: number,
   ): DeFiLlamaPool[] {
-    return pools.filter((pool) => pool.tvlUsd > tvlThreshold);
+    return pools.filter((pool) => (pool.tvlUsd ?? 0) > tvlThreshold);
   }
   async healthCheck(): Promise<{
     status: 'healthy' | 'unhealthy';

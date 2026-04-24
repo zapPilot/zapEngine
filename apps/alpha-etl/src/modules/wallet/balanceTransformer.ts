@@ -12,7 +12,7 @@ export class WalletBalanceTransformer {
   }
 
   transform(
-    rawData: WalletBalanceSnapshotInsert,
+    rawData: WalletBalanceSnapshotInsert | null | undefined,
   ): WalletBalanceSnapshotInsert | null {
     try {
       // Validate input is an object (not string or other primitives)
@@ -37,13 +37,24 @@ export class WalletBalanceTransformer {
 
       return transformed;
     } catch (error) {
+      const rawRecord: Record<string, unknown> =
+        rawData && typeof rawData === 'object' && !Array.isArray(rawData)
+          ? (rawData as Record<string, unknown>)
+          : {};
+      const walletAddress =
+        typeof rawRecord['user_wallet_address'] === 'string'
+          ? rawRecord['user_wallet_address']
+          : null;
+      const tokenSymbol =
+        typeof rawRecord['symbol'] === 'string' ? rawRecord['symbol'] : null;
+
       logger.error('Failed to transform wallet balance data:', {
         error: toErrorMessage(error),
-        userId: rawData?.['user_id'] || 'unknown',
-        walletAddress: rawData?.user_wallet_address
-          ? maskWalletAddress(rawData.user_wallet_address)
+        userId: rawRecord['user_id'] ?? 'unknown',
+        walletAddress: walletAddress
+          ? maskWalletAddress(walletAddress)
           : 'unknown',
-        tokenSymbol: rawData?.symbol || 'unknown',
+        tokenSymbol: tokenSymbol ?? 'unknown',
       });
       return null;
     }

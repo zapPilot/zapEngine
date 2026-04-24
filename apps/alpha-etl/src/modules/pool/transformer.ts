@@ -42,7 +42,9 @@ type ValidatedPoolData = z.infer<typeof poolDataSchema>;
  * Converts raw pool API payloads into normalized APR snapshot inserts.
  */
 export class PoolDataTransformer {
-  transform(rawData: PoolData): PoolAprSnapshotInsert | null {
+  transform(
+    rawData: PoolData | null | undefined,
+  ): PoolAprSnapshotInsert | null {
     try {
       const validated = poolDataSchema.parse(rawData);
 
@@ -73,10 +75,15 @@ export class PoolDataTransformer {
 
       return transformed;
     } catch (error) {
+      const rawRecord: Record<string, unknown> =
+        rawData && typeof rawData === 'object' && !Array.isArray(rawData)
+          ? (rawData as unknown as Record<string, unknown>)
+          : {};
+
       logger.error('Failed to transform pool data:', {
         error: toErrorMessage(error),
-        pool_address: rawData?.pool_address || null,
-        protocol_address: rawData?.protocol_address || null,
+        pool_address: rawRecord['pool_address'] ?? null,
+        protocol_address: rawRecord['protocol_address'] ?? null,
       });
       return null;
     }
@@ -182,7 +189,7 @@ export class PoolDataTransformer {
   }
 
   private toNullableField<T>(value: T | null | undefined): T | null {
-    return value || null;
+    return value ?? null;
   }
 
   /* v8 ignore start -- defense-in-depth: all branches guarded by upstream Zod validation */
@@ -195,7 +202,6 @@ export class PoolDataTransformer {
     }
     if (
       record.tvl_usd !== null &&
-      record.tvl_usd !== undefined &&
       (record.tvl_usd < 0 || !Number.isFinite(record.tvl_usd))
     ) {
       return false;

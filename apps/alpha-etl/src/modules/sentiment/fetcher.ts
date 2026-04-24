@@ -38,9 +38,7 @@ export class FearGreedFetcher extends BaseApiFetcher {
   private static readonly SOURCE_NAME = 'coinmarketcap';
   /* v8 ignore next 3 -- production rate limit path not reachable in test env */
   private static readonly RATE_LIMIT_MS =
-    process.env['NODE_ENV'] === 'test'
-      ? 0
-      : RATE_LIMITS.COINMARKETCAP_DELAY_MS || 6000;
+    process.env['NODE_ENV'] === 'test' ? 0 : RATE_LIMITS.COINMARKETCAP_DELAY_MS;
 
   private readonly apiKey: string;
 

@@ -40,9 +40,7 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
       CoinGeckoFetcher.DEFAULT_BASE_URL;
     /* v8 ignore start -- production rate limit path not reachable in test env */
     const defaultRateLimit =
-      process.env['NODE_ENV'] === 'test'
-        ? 0
-        : RATE_LIMITS.COINGECKO_DELAY_MS || 2000;
+      process.env['NODE_ENV'] === 'test' ? 0 : RATE_LIMITS.COINGECKO_DELAY_MS;
     /* v8 ignore stop */
     const rateLimitMs = config?.rateLimitMs ?? defaultRateLimit;
     super(baseUrl, rateLimitMs);

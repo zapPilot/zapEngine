@@ -85,7 +85,7 @@ export function buildHealthCheckDetails(
     tokenId,
     tokenSymbol,
     apiStatus,
-    latestSnapshot: latestSnapshot || null,
+    latestSnapshot: latestSnapshot ?? null,
     totalSnapshots,
     dataFreshness: freshness,
     dma: dmaInfo,

@@ -63,9 +63,10 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
     const validRecords: PortfolioItemSnapshotInsert[] = [];
 
     for (const record of batch) {
-      const hasRequired = Boolean(record.wallet && record.id_raw);
+      const candidate = record as Partial<PortfolioItemSnapshotInsert>;
+      const hasRequired = Boolean(candidate.wallet && candidate.id_raw);
       if (!hasRequired) {
-        const message = `Invalid portfolio snapshot encountered for wallet ${record.wallet ?? 'unknown'} (${record.id_raw ?? 'missing id'})`;
+        const message = `Invalid portfolio snapshot encountered for wallet ${candidate.wallet ?? 'unknown'} (${candidate.id_raw ?? 'missing id'})`;
         logger.warn(message);
         result.errors.push(message);
         continue;

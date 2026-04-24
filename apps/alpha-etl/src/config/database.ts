@@ -172,9 +172,7 @@ function createMockPool(): Pool {
 
 export function createDbPool(): Pool {
   if (shouldUseMockPool) {
-    if (!mockPool) {
-      mockPool = createMockPool();
-    }
+    mockPool ??= createMockPool();
     return mockPool;
   }
   if (pool) {

@@ -39,6 +39,10 @@ function toNullishSqlValue(value: unknown): unknown {
   return value ?? null;
 }
 
+function serializeJson(value: unknown): string {
+  return JSON.stringify(value ?? null);
+}
+
 function buildInsertValuesFor<T, K extends keyof T & string>(
   records: readonly T[],
   columns: readonly K[],
@@ -98,7 +102,7 @@ export function buildPoolInsertValues(
   records: PoolAprSnapshotInsert[],
 ): InsertValuesResult<keyof PoolAprSnapshotInsert & string> {
   return buildInsertValuesFor(records, POOL_APR_COLUMNS, (column, value) => {
-    if (column === 'snapshot_time' && (value === null || value === undefined)) {
+    if (column === 'snapshot_time' && value == null) {
       return new Date().toISOString();
     }
     return toNullishSqlValue(value);
@@ -178,7 +182,7 @@ export function buildPortfolioInsertValues(
     PORTFOLIO_ITEM_COLUMNS,
     (column, value) => {
       if (PORTFOLIO_JSON_COLUMNS.has(column)) {
-        return JSON.stringify(value ?? null);
+        return serializeJson(value);
       }
       return toNullishSqlValue(value);
     },

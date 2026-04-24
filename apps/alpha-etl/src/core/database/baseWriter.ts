@@ -34,7 +34,7 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
 
     if (batchResult.duplicatesSkipped) {
       target.duplicatesSkipped =
-        (target.duplicatesSkipped || 0) + batchResult.duplicatesSkipped;
+        (target.duplicatesSkipped ?? 0) + batchResult.duplicatesSkipped;
     }
 
     target.errors.push(...batchResult.errors);
@@ -80,7 +80,7 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
       logger.info(`${logContext} write completed`, {
         totalRecords: records.length,
         recordsInserted: result.recordsInserted,
-        duplicatesSkipped: result.duplicatesSkipped || 0,
+        duplicatesSkipped: result.duplicatesSkipped ?? 0,
         errors: result.errors.length,
         success: result.success,
       });
@@ -102,7 +102,7 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
   ): void {
     result.recordsInserted += affectedRows;
     result.duplicatesSkipped =
-      (result.duplicatesSkipped || 0) + Math.max(0, batchSize - affectedRows);
+      (result.duplicatesSkipped ?? 0) + Math.max(0, batchSize - affectedRows);
   }
 
   /**

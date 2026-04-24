@@ -81,12 +81,12 @@ export class PoolWriter extends BaseWriter<PoolAprSnapshotInsert> {
     const validRecords: PoolAprSnapshotInsert[] = [];
 
     for (const record of batch) {
-      if (
-        !record.source ||
-        !record.symbol ||
-        record.apr === undefined ||
-        record.apr === null
-      ) {
+      const candidate = record as Partial<
+        Omit<PoolAprSnapshotInsert, 'apr'>
+      > & {
+        apr?: number | null;
+      };
+      if (!candidate.source || !candidate.symbol || candidate.apr == null) {
         result.errors.push(
           `Invalid record: missing required fields (source: ${record.source}, symbol: ${record.symbol}, apr: ${record.apr})`,
         );

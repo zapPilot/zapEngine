@@ -68,17 +68,19 @@ export const SentimentDataSchema = z.object({
  */
 export interface CoinMarketCapFearGreedResponse {
   status: {
-    timestamp: string;
+    timestamp?: string;
     error_code: string;
     error_message: string | null;
-    elapsed: number;
-    credit_count: number;
+    elapsed?: number;
+    credit_count?: number;
   };
-  data: {
-    value: number;
-    update_time: string;
-    value_classification: string;
-  };
+  data?: CoinMarketCapFearGreedData | null;
+}
+
+export interface CoinMarketCapFearGreedData {
+  value?: number | null;
+  update_time?: string | null;
+  value_classification?: string | null;
 }
 
 /**

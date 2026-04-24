@@ -76,14 +76,14 @@ function createFixturePoolData(pool: FixturePool): FixturePoolData {
   return {
     pool_address: null,
     protocol_address: null,
-    chain: pool.chain?.toLowerCase() || 'unknown',
-    protocol: pool.project?.toLowerCase() || 'unknown',
-    symbol: pool.symbol || 'unknown',
-    tvl_usd: pool.tvlUsd || null,
-    apy: pool.apy || 0,
-    apy_base: pool.apyBase || null,
-    apy_reward: pool.apyReward || null,
-    volume_usd_1d: pool.volumeUsd1d || null,
+    chain: pool.chain?.toLowerCase() ?? 'unknown',
+    protocol: pool.project?.toLowerCase() ?? 'unknown',
+    symbol: pool.symbol ?? 'unknown',
+    tvl_usd: pool.tvlUsd ?? null,
+    apy: pool.apy ?? 0,
+    apy_base: pool.apyBase ?? null,
+    apy_reward: pool.apyReward ?? null,
+    volume_usd_1d: pool.volumeUsd1d ?? null,
     exposure: mapExposure(pool.exposure),
     reward_tokens: cleanRewardTokens(pool.rewardTokens),
     pool_meta: pool.poolMeta
@@ -263,10 +263,7 @@ function cleanRewardTokens(tokens?: string[]): string[] | null {
   // Filter out null, undefined, and empty strings
   const cleanTokens = tokens.filter(
     (token): token is string =>
-      token !== null &&
-      token !== undefined &&
-      typeof token === 'string' &&
-      token.trim().length > 0,
+      typeof token === 'string' && token.trim().length > 0,
   );
 
   if (cleanTokens.length === 0) {

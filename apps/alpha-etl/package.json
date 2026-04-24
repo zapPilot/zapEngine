@@ -19,7 +19,7 @@
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src scripts",
+    "lint": "eslint src scripts --max-warnings 0",
     "lint:fix": "eslint src scripts --fix",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "deadcode": "knip --exports --dependencies",

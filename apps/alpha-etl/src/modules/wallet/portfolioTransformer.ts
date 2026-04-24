@@ -19,6 +19,12 @@ export interface TransformPortfolioParams {
 }
 
 export class DeBankPortfolioTransformer {
+  private getPortfolioItems(protocol: DeBankProtocol): DeBankProtocolItem[] {
+    const candidate = (protocol as { portfolio_item_list?: unknown })
+      .portfolio_item_list;
+    return Array.isArray(candidate) ? (candidate as DeBankProtocolItem[]) : [];
+  }
+
   private isFiniteStats(item: DeBankProtocolItem): boolean {
     return (
       Number.isFinite(item.stats.asset_usd_value) &&
@@ -50,13 +56,13 @@ export class DeBankPortfolioTransformer {
       snapshot_at: snapshot.snapshotAt,
       update_at: item.update_at || snapshot.epochSeconds,
       has_supported_portfolio: protocol.has_supported_portfolio,
-      site_url: protocol.logo_url || '',
+      site_url: protocol.logo_url ?? '',
       detail: item.detail,
       asset_dict: item.asset_dict,
       asset_token_list: item.asset_token_list,
       detail_types: item.detail_types,
       pool: item.pool,
-      proxy_detail: item.proxy_detail || {},
+      proxy_detail: item.proxy_detail ?? {},
     };
   }
 
@@ -100,7 +106,7 @@ export class DeBankPortfolioTransformer {
     walletAddress: string,
   ): PortfolioItemSnapshotInsert[] {
     const totalItemsBeforeFilter = protocols.reduce(
-      (sum, protocol) => sum + (protocol.portfolio_item_list ?? []).length,
+      (sum, protocol) => sum + this.getPortfolioItems(protocol).length,
       0,
     );
 
@@ -117,7 +123,7 @@ export class DeBankPortfolioTransformer {
     const batchTimestamp = new Date().toISOString();
 
     for (const protocol of protocols) {
-      const items = protocol.portfolio_item_list ?? [];
+      const items = this.getPortfolioItems(protocol);
 
       for (const item of items) {
         const transformed = this.transformItem({

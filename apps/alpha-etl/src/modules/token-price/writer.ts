@@ -101,7 +101,12 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
       const queryResult = await this.withDatabaseClient((client) =>
         client.query(query, values),
       );
-      const inserted = queryResult.rowCount ?? queryResult.rows?.length ?? 0;
+      const runtimeResult = queryResult as {
+        rowCount?: number | null;
+        rows?: unknown[];
+      };
+      const inserted =
+        runtimeResult.rowCount ?? runtimeResult.rows?.length ?? 0;
       const successRate = `${((inserted / snapshots.length) * 100).toFixed(1)}%`;
       logger.info('Batch insert completed', {
         total: snapshots.length,
@@ -137,12 +142,19 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     `;
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, [tokenSymbol]),
+        client.query<{
+          snapshot_date: string;
+          price_usd: string;
+          token_symbol: string;
+        }>(query, [tokenSymbol]),
       );
       if (result.rows.length === 0) {
         return null;
       }
       const row = result.rows[0];
+      if (!row) {
+        return null;
+      }
       return {
         date: formatDateToYYYYMMDD(
           normalizeSnapshotDateValue(row.snapshot_date),
@@ -173,7 +185,7 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     `;
     try {
       const result = await this.withDatabaseClient((client) =>
-        client.query(query, [tokenSymbol]),
+        client.query<{ count: string }>(query, [tokenSymbol]),
       );
       return Number.parseInt(result.rows[0]?.count ?? '0', 10);
     } catch (error) {

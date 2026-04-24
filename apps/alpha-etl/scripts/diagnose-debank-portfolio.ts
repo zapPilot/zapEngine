@@ -32,7 +32,7 @@ function printSection(title: string): void {
 
 function calculateTotalItems(protocols: ProtocolList): number {
   return protocols.reduce(
-    (sum, protocol) => sum + (protocol.portfolio_item_list?.length || 0),
+    (sum, protocol) => sum + protocol.portfolio_item_list.length,
     0,
   );
 }
@@ -56,7 +56,7 @@ function printSamplePortfolioItems(protocols: ProtocolList): void {
   let shown = 0;
 
   for (const protocol of protocols) {
-    const portfolioItems = protocol.portfolio_item_list ?? [];
+    const portfolioItems = protocol.portfolio_item_list;
     if (portfolioItems.length === 0) {
       continue;
     }
@@ -86,7 +86,7 @@ function printTransformationSummary(
 
 function printInvalidTransformedItems(protocols: ProtocolList): void {
   for (const protocol of protocols) {
-    const portfolioItems = protocol.portfolio_item_list ?? [];
+    const portfolioItems = protocol.portfolio_item_list;
     for (const item of portfolioItems) {
       const assetValid = Number.isFinite(item.stats.asset_usd_value);
       const debtValid = Number.isFinite(item.stats.debt_usd_value);

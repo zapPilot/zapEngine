@@ -292,7 +292,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
     return {
       totalProcessed: this.stats.totalProcessed,
       totalErrors: this.stats.totalErrors,
-      lastProcessedAt: this.stats.lastProcessedAt?.toISOString() || null,
+      lastProcessedAt: this.stats.lastProcessedAt?.toISOString() ?? null,
       successRate: calculateSuccessRate(this.stats),
     };
   }

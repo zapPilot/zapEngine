@@ -228,11 +228,12 @@ export class TokenPriceDmaService {
       ORDER BY snapshot_date ASC
     `;
 
-    const result = await this.pool.query(query, [
-      DMA_SOURCE,
-      tokenSymbol,
-      tokenId,
-    ]);
+    const result = await this.pool.query<{
+      token_symbol: string;
+      token_id: string;
+      snapshot_date: string;
+      price_usd: string | number;
+    }>(query, [DMA_SOURCE, tokenSymbol, tokenId]);
 
     const rows = result.rows.map((row) => this.mapPriceRow(row));
 

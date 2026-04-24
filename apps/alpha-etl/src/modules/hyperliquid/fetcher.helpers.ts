@@ -126,12 +126,16 @@ export function deriveTvlFromPortfolio(
     return null;
   }
 
-  const lastPoint = history[history.length - 1];
+  const lastPoint = history[history.length - 1] as unknown;
   if (!Array.isArray(lastPoint) || lastPoint.length < 2) {
     return null;
   }
 
-  const value = lastPoint[1];
+  const value = lastPoint[1] as string | number | undefined;
+  if (value === undefined) {
+    return null;
+  }
+
   return parseFiniteNumericValue(value);
 }
 

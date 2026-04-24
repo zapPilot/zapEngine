@@ -86,11 +86,15 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
     const validRecords: SentimentSnapshotInsert[] = [];
 
     for (const record of batch) {
+      const candidate = record as Partial<
+        Omit<SentimentSnapshotInsert, 'sentiment_value'>
+      > & {
+        sentiment_value?: number | null;
+      };
       if (
-        !record.source ||
-        !record.classification ||
-        record.sentiment_value === undefined ||
-        record.sentiment_value === null
+        !candidate.source ||
+        !candidate.classification ||
+        candidate.sentiment_value == null
       ) {
         result.errors.push(
           `Invalid record: missing required fields (source: ${record.source}, ` +

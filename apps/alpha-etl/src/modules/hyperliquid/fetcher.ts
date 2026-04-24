@@ -83,11 +83,11 @@ function extractPositionData(
   return {
     userWallet,
     vaultAddress: vaultDetails.vaultAddress,
-    vaultName: vaultDetails.name || 'Hyperliquid Vault',
+    vaultName: vaultDetails.name ?? 'Hyperliquid Vault',
     hlpBalance: vaultValue,
     vaultUsdValue: vaultValue,
     maxWithdrawable,
-    relationshipType: vaultDetails.relationship?.type || null,
+    relationshipType: vaultDetails.relationship?.type ?? null,
     leaderAddress: vaultDetails.leader,
     vaultDescription: vaultDetails.description ?? null,
   };
@@ -100,7 +100,7 @@ function extractAprData(vaultDetails: VaultDetailsResponse): VaultAprData {
 
   return {
     vaultAddress: vaultDetails.vaultAddress,
-    vaultName: vaultDetails.name || 'Hyperliquid Vault',
+    vaultName: vaultDetails.name ?? 'Hyperliquid Vault',
     leaderAddress: vaultDetails.leader,
     apr: vaultDetails.apr,
     tvlUsd,
@@ -127,12 +127,8 @@ export class HyperliquidFetcher extends BaseApiFetcher {
   private readonly infoEndpoint: string;
 
   constructor(config?: HyperliquidConfig) {
-    const baseUrl =
-      config?.baseUrl ??
-      env.HYPERLIQUID_API_URL ??
-      'https://api-ui.hyperliquid.xyz';
-    const rateLimitRpm =
-      config?.rateLimitRpm ?? env.HYPERLIQUID_RATE_LIMIT_RPM ?? 60;
+    const baseUrl = config?.baseUrl ?? env.HYPERLIQUID_API_URL;
+    const rateLimitRpm = config?.rateLimitRpm ?? env.HYPERLIQUID_RATE_LIMIT_RPM;
     const rateLimitDelayMs = Math.ceil(
       RATE_LIMITS.MS_PER_MINUTE / rateLimitRpm,
     );
@@ -142,9 +138,9 @@ export class HyperliquidFetcher extends BaseApiFetcher {
     this.config = {
       baseUrl,
       rateLimitRpm,
-      timeout: config?.timeout || TIMEOUTS.API_REQUEST_MS,
+      timeout: config?.timeout ?? TIMEOUTS.API_REQUEST_MS,
       maxRetries: config?.maxRetries ?? 3,
-      retryDelayMs: config?.retryDelayMs || 1000,
+      retryDelayMs: config?.retryDelayMs ?? 1000,
     };
     this.infoEndpoint = `${this.config.baseUrl}/info`;
 

@@ -78,23 +78,24 @@ router.post('/wallet-fetch', async (req, res) => {
 
     // Validate webhook secret if configured
     const webhookSecret = process.env['WEBHOOK_SECRET'];
-    if (webhookSecret) {
-      if (!payload.secret || payload.secret !== webhookSecret) {
-        logger.warn('Invalid webhook secret', {
-          requestId,
-          userId: payload.userId,
-          wallet: maskWalletAddress(payload.walletAddress),
-        });
-        return res
-          .status(401)
-          .json(
-            buildWebhookErrorApiResponse(
-              'UNAUTHORIZED',
-              'Invalid webhook secret',
-              requestId,
-            ),
-          );
-      }
+    if (
+      webhookSecret &&
+      (!payload.secret || payload.secret !== webhookSecret)
+    ) {
+      logger.warn('Invalid webhook secret', {
+        requestId,
+        userId: payload.userId,
+        wallet: maskWalletAddress(payload.walletAddress),
+      });
+      return res
+        .status(401)
+        .json(
+          buildWebhookErrorApiResponse(
+            'UNAUTHORIZED',
+            'Invalid webhook secret',
+            requestId,
+          ),
+        );
     }
 
     logger.info('Wallet fetch webhook received', {

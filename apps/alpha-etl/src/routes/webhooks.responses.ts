@@ -90,13 +90,13 @@ export function determineJobStatusCode(
     return 500;
   }
 
-  if (job.status === 'completed' && result?.success) {
-    if (
-      hasPartialSourceFailures(result) ||
-      result.data.recordsProcessed > result.data.recordsInserted
-    ) {
-      return 206;
-    }
+  if (
+    job.status === 'completed' &&
+    result?.success &&
+    (hasPartialSourceFailures(result) ||
+      result.data.recordsProcessed > result.data.recordsInserted)
+  ) {
+    return 206;
   }
 
   return 200;

@@ -140,7 +140,7 @@ export class SentimentDataTransformer {
 
   private resolveClassificationRange(classification: string): [number, number] {
     return (
-      SENTIMENT_CLASSIFICATION_BOUNDARIES[classification] || [
+      SENTIMENT_CLASSIFICATION_BOUNDARIES[classification] ?? [
         DATA_LIMITS.SENTIMENT_MIN,
         DATA_LIMITS.SENTIMENT_MAX,
       ]

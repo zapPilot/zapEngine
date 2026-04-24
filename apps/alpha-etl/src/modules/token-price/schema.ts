@@ -62,8 +62,8 @@ export type CoinGeckoSimplePriceResponse = Record<
   string,
   {
     usd: number;
-    usd_market_cap: number;
-    usd_24h_vol: number;
+    usd_market_cap?: number | null;
+    usd_24h_vol?: number | null;
   }
 >;
 
@@ -77,8 +77,8 @@ export interface CoinGeckoHistoricalResponse {
   name: string;
   market_data: {
     current_price: { usd: number };
-    market_cap: { usd: number };
-    total_volume: { usd: number };
+    market_cap?: { usd?: number | null };
+    total_volume?: { usd?: number | null };
   };
 }
 
