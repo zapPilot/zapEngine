@@ -32,14 +32,33 @@ export function StatDisplay({
     ? 'text-sm sm:text-base md:text-lg text-gray-300 group-hover:text-gray-300 transition-colors'
     : 'text-white/80 text-sm';
 
+  const chipClasses = isHero
+    ? 'inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 text-sm font-semibold text-purple-300'
+    : 'inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white';
+
   const content = (
     <div className="flex flex-col items-center justify-center h-full">
-      {stat.type === 'text' ? (
+      {stat.type === 'text' && (
         <>
           <div className={valueClasses}>{stat.value}</div>
           <div className={labelClasses}>{stat.label}</div>
         </>
-      ) : (
+      )}
+      {stat.type === 'chips' && (
+        <>
+          <div
+            className={`flex flex-wrap items-center justify-center ${isHero ? 'gap-2 mb-3 min-h-[3rem]' : 'gap-1.5 mb-3'}`}
+          >
+            {stat.chips?.map((chip) => (
+              <span key={chip} className={chipClasses}>
+                {chip}
+              </span>
+            ))}
+          </div>
+          <div className={`${labelClasses} text-center`}>{stat.label}</div>
+        </>
+      )}
+      {stat.type === 'icons' && (
         <>
           {/* Icon row */}
           <div

@@ -1,6 +1,6 @@
 // Shared statistics constants for Hero and CTA components
 
-export type StatType = 'text' | 'icons';
+export type StatType = 'text' | 'icons' | 'chips';
 
 export interface Stat {
   label: string;
@@ -11,6 +11,7 @@ export interface Stat {
     alt: string;
     name: string;
   }>;
+  chips?: string[];
 }
 
 // Shared core stats (used by both STATISTICS and LP_STATISTICS)
@@ -22,8 +23,8 @@ const CORE_STATS: Stat[] = [
   },
   {
     label: 'Strategy Signals',
-    value: '200MA · FGI · ETH/BTC',
-    type: 'text',
+    type: 'chips',
+    chips: ['200MA', 'FGI', 'ETH/BTC'],
   },
   {
     label: 'Core Assets',

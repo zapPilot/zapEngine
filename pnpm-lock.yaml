@@ -458,9 +458,6 @@ importers:
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
-      lint-staged:
-        specifier: ^16.1.2
-        version: 16.4.0
       prettier:
         specifier: 'catalog:'
         version: 3.8.3

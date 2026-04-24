@@ -29,6 +29,7 @@
     "lint:fix": "eslint src test examples --ext .ts --fix",
     "type-check": "tsc --noEmit",
     "deadcode": "knip",
+    "deadcode:fix": "knip --fix",
     "dup:check": "jscpd src --config .jscpd.json",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",

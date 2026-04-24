@@ -23,6 +23,7 @@
     "test:e2e": "cross-env PLAYWRIGHT_PORT=3099 playwright test",
     "test:e2e:safe": "cross-env PLAYWRIGHT_PORT=3099 node scripts/run-e2e-safe.js",
     "deadcode": "node scripts/run-deadcode.js default",
+    "deadcode:fix": "node scripts/run-deadcode.js default --fix",
     "dup:check": "node scripts/run-dup-check.js",
     "test:safeall": "cross-env NODE_OPTIONS=--max-old-space-size=1024 pnpm run test:coverage && pnpm run test:e2e:safe",
     "clean": "rm -rf dist coverage .vitest-reports"

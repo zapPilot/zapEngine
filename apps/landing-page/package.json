@@ -21,9 +21,7 @@
     "deadcode": "knip --exports --dependencies",
     "deadcode:fix": "knip --exports --dependencies --fix",
     "dup:check": "jscpd src --gitignore --min-lines 5 --threshold 12",
-    "dup:all": "pnpm run dup:check",
-    "clean": "rm -rf .next out coverage",
-    "lint-staged": "lint-staged"
+    "clean": "rm -rf .next out coverage"
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",
@@ -56,20 +54,10 @@
     "jscpd": "catalog:",
     "jsdom": "catalog:",
     "knip": "catalog:",
-    "lint-staged": "^16.1.2",
     "prettier": "catalog:",
     "tailwindcss": "^4",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,css,scss}": [
-      "prettier --write"
-    ]
   },
   "engines": {
     "node": "24.x"

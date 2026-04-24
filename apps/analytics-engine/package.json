@@ -16,6 +16,7 @@
     "format": "uv run ruff format src tests",
     "format:check": "uv run ruff format --check src tests",
     "deadcode": "uv run vulture src vulture_whitelist.py --min-confidence 80",
+    "deadcode:fix": "uv run vulture src vulture_whitelist.py --min-confidence 80",
     "dup:check": "uv run python check_duplicates.py",
     "sql:audit": "uv run python scripts/quality/audit_sql_params.py",
     "service-reachability": "uv run python scripts/quality/check_service_reachability.py",

@@ -10,13 +10,18 @@ describe('statistics', () => {
             value: '$261k+',
             type: 'text',
           }),
-          expect.objectContaining({
-            label: 'Strategy Signals',
-            value: '200MA · FGI · ETH/BTC',
-            type: 'text',
-          }),
         ]),
       );
+    });
+
+    it('should include the strategy signal chips', () => {
+      const signalsStat = STATISTICS.find(
+        (stat) => stat.label === 'Strategy Signals',
+      );
+
+      expect(signalsStat).toBeDefined();
+      expect(signalsStat?.type).toBe('chips');
+      expect(signalsStat?.chips).toEqual(['200MA', 'FGI', 'ETH/BTC']);
     });
 
     it('should include the core asset icons', () => {
