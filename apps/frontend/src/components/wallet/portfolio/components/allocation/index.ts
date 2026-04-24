@@ -11,7 +11,7 @@ export type {
   UnifiedAllocationBarProps,
   UnifiedCategory,
   UnifiedSegment,
-} from './UnifiedAllocationTypes';
+} from './unifiedAllocationTypes';
 
 // Utility exports
 export {
@@ -22,4 +22,4 @@ export {
   mapLegacyConstituentsToUnified,
   mapPortfolioToUnified,
   mapStrategyToUnified,
-} from './UnifiedAllocationUtils';
+} from './unifiedAllocationUtils';

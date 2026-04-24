@@ -50,11 +50,11 @@
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
-    "eslint": "^9.18.0",
-    "jscpd": "^4.0.5",
-    "knip": "^5.66.4",
-    "prettier": "^3.4.2",
-    "typescript": "^5.7.3"
+    "eslint": "catalog:",
+    "jscpd": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": "24.x"

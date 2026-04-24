@@ -41,18 +41,18 @@
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
-    "@types/node": "^22.10.7",
+    "@types/node": "catalog:",
     "@types/nodemailer": "^7.0.1",
-    "@vitest/coverage-v8": "^4.1.4",
-    "eslint": "^9.18.0",
-    "jscpd": "^4.0.5",
-    "knip": "^5.66.4",
-    "prettier": "^3.4.2",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "jscpd": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
-    "tsx": "^4.20.6",
-    "typescript": "^5.7.3",
-    "vitest": "^4.1.4"
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": "24.x"

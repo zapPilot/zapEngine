@@ -17,7 +17,17 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "out/**", "build/**"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"]
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": [
+        "VITE_ACCOUNT_API_URL",
+        "VITE_ANALYTICS_ENGINE_URL",
+        "VITE_ENABLE_RQ_DEVTOOLS",
+        "VITE_ENABLE_LOG_VIEWER",
+        "VITE_ENABLE_DEBUG_LOGGING",
+        "VITE_ENABLE_DEV_LOGGING",
+        "VITE_CACHE_MAX_AGE_SECONDS",
+        "VITE_CACHE_STALE_WHILE_REVALIDATE_SECONDS"
+      ]
     },
     "dev": {
       "cache": false,
