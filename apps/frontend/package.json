@@ -41,7 +41,7 @@
     "react-hook-form": "^7.68.0",
     "react-router-dom": "^7.14.0",
     "recharts": "^3.6.0",
-    "viem": "^2.47.12",
+    "viem": "catalog:",
     "vite-plugin-pwa": "^1.2.0",
     "wagmi": "^3.6.1",
     "workbox-build": "^7.4.0",

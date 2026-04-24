@@ -8,7 +8,7 @@ import {
   mapLegacyConstituentsToUnified,
   mapPortfolioToUnified,
   mapStrategyToUnified,
-} from '@/components/wallet/portfolio/components/allocation/UnifiedAllocationUtils';
+} from '@/components/wallet/portfolio/components/allocation/unifiedAllocationUtils';
 import { UNIFIED_COLORS } from '@/constants/assets';
 
 describe('unifiedAllocationUtils', () => {

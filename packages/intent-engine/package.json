@@ -37,7 +37,7 @@
   "dependencies": {
     "@lifi/sdk": "^3.4.0",
     "@zapengine/types": "workspace:*",
-    "viem": "^2.21.0",
+    "viem": "catalog:",
     "zod": "^4.1.13"
   },
   "devDependencies": {
