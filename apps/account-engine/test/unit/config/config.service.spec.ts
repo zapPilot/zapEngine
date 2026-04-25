@@ -1,5 +1,5 @@
-import { ConfigService } from '@config/config.service';
-import type { AppEnv } from '@config/env';
+import { ConfigService } from '@/config/config.service';
+import type { AppEnv } from '@/config/env';
 
 function buildEnv(overrides: Record<string, unknown> = {}): AppEnv {
   return {

@@ -1,4 +1,4 @@
-import { escapeHtml, truncateString } from '@common/utils/string-format.util';
+import { escapeHtml, truncateString } from '@/common/utils/string-format.util';
 
 describe('escapeHtml', () => {
   it('escapes & to &amp;', () => {

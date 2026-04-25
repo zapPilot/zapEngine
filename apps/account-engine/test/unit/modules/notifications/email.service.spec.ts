@@ -1,8 +1,9 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { EmailService } from '@modules/notifications/email.service';
-import { createMockConfigService } from '@test-utils';
 import * as nodemailer from 'nodemailer';
 import type { Mock } from 'vitest';
+
+import { ServiceLayerException } from '@/common/exceptions';
+import { EmailService } from '@/modules/notifications/email.service';
+import { createMockConfigService } from '@/test-utils';
 
 vi.mock('nodemailer');
 

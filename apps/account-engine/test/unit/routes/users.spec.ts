@@ -1,14 +1,15 @@
+import { Hono } from 'hono';
+import type { Mock } from 'vitest';
+
 import {
   getErrorStatus,
   HttpException,
   HttpStatus,
   NotFoundException,
   toErrorResponse,
-} from '@common/http';
-import type { AppServices } from '@container';
-import { createUsersRoutes } from '@routes/users';
-import { Hono } from 'hono';
-import type { Mock } from 'vitest';
+} from '@/common/http';
+import type { AppServices } from '@/container';
+import { createUsersRoutes } from '@/routes/users';
 
 const VALID_UUID = '123e4567-e89b-12d3-a456-426614174000';
 const VALID_WALLET = '0x1234567890abcdef1234567890abcdef12345678';

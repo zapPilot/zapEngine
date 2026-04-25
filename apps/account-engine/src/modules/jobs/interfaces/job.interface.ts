@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@common/utils';
+import { getErrorMessage } from '@/common/utils';
 
 /**
  * Job status enumeration representing the lifecycle of a job

@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@common/utils';
+import { getErrorMessage } from '@/common/utils';
 
 export enum HttpStatus {
   OK = 200,

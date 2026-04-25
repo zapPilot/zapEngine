@@ -1,11 +1,12 @@
-import { NotFoundException } from '@common/http';
-import type { AppServices } from '@container';
+import type { Mock } from 'vitest';
+
+import { NotFoundException } from '@/common/http';
+import type { AppServices } from '@/container';
 import {
   type Job,
   JobStatus,
   JobType,
-} from '@modules/jobs/interfaces/job.interface';
-import type { Mock } from 'vitest';
+} from '@/modules/jobs/interfaces/job.interface';
 
 import { createApp } from '../../src/app';
 

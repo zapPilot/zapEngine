@@ -1,5 +1,6 @@
-import { Logger } from '@common/logger';
 import type { MockInstance } from 'vitest';
+
+import { Logger } from '@/common/logger';
 
 describe('Logger', () => {
   let infoSpy: MockInstance;

@@ -1,11 +1,12 @@
-import { EMAIL_CONFIG } from '@common/constants';
-import { ServiceLayerException } from '@common/exceptions';
-import { HttpStatus } from '@common/http';
-import { Logger } from '@common/logger';
-import { getErrorMessage } from '@common/utils';
-import { ConfigService } from '@config/config.service';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+
+import { EMAIL_CONFIG } from '@/common/constants';
+import { ServiceLayerException } from '@/common/exceptions';
+import { HttpStatus } from '@/common/http';
+import { Logger } from '@/common/logger';
+import { getErrorMessage } from '@/common/utils';
+import { ConfigService } from '@/config/config.service';
 
 export interface EmailAttachment {
   filename: string;

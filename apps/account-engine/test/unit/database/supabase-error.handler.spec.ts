@@ -2,11 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-} from '@common/http';
+} from '@/common/http';
 import {
   SupabaseErrorCode,
   SupabaseErrorHandler,
-} from '@database/supabase-error.handler';
+} from '@/database/supabase-error.handler';
 
 describe('SupabaseErrorHandler', () => {
   describe('handleDatabaseError', () => {

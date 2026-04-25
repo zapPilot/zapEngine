@@ -1,4 +1,4 @@
-import { UrlValidator } from '@common/utils/url-validator.util';
+import { UrlValidator } from '@/common/utils/url-validator.util';
 
 describe('UrlValidator.isValidHttpUrl', () => {
   it('returns true for an http:// URL', () => {

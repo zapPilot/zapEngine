@@ -2,8 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-} from '@common/http';
-import { Logger } from '@common/logger';
+} from '@/common/http';
+import { Logger } from '@/common/logger';
 
 /**
  * Standard error codes from Supabase/PostgREST

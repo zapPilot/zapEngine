@@ -1,6 +1,6 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { AlphaEtlHttpService } from '@common/services/alpha-etl-http.service';
-import { createMockConfigService } from '@test-utils';
+import { ServiceLayerException } from '@/common/exceptions';
+import { AlphaEtlHttpService } from '@/common/services/alpha-etl-http.service';
+import { createMockConfigService } from '@/test-utils';
 
 describe('AlphaEtlHttpService', () => {
   let service: AlphaEtlHttpService;

@@ -9,7 +9,7 @@ import {
   walletAddressParamSchema,
   walletBodySchema,
   walletIdParamSchema,
-} from '@routes/validators';
+} from '@/routes/validators';
 
 const validUuid = '12345678-1234-1234-8234-123456789abc';
 const validWallet = '0x1234567890abcdef1234567890abcdef12345678';

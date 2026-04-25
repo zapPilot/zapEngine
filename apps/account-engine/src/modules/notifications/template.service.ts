@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { Logger } from '@common/logger';
-import { formatShortWalletAddress } from '@common/utils';
-import { isWalletAddress } from '@common/validation/wallet-address.util';
+import { Logger } from '@/common/logger';
+import { formatShortWalletAddress } from '@/common/utils';
+import { isWalletAddress } from '@/common/validation/wallet-address.util';
 
 export interface EmailMetrics {
   currentBalance: number;

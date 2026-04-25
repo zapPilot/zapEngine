@@ -1,4 +1,4 @@
-import { ServiceLayerException } from '@common/exceptions';
+import { ServiceLayerException } from '@/common/exceptions';
 import {
   type Job,
   type JobProcessingResult,
@@ -6,10 +6,10 @@ import {
   JobStatus,
   JobType,
   LogLevel,
-} from '@modules/jobs/interfaces/job.interface';
-import { JobProcessorService } from '@modules/jobs/job-processor.service';
-import { JobQueueService } from '@modules/jobs/job-queue.service';
-import { AdminNotificationService } from '@modules/notifications/admin-notification.service';
+} from '@/modules/jobs/interfaces/job.interface';
+import { JobProcessorService } from '@/modules/jobs/job-processor.service';
+import { JobQueueService } from '@/modules/jobs/job-queue.service';
+import { AdminNotificationService } from '@/modules/notifications/admin-notification.service';
 
 function createPendingJob(overrides: Partial<Job> = {}): Job {
   return {

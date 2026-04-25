@@ -1,8 +1,8 @@
-import { ADMIN_NOTIFICATION_CONFIG } from '@common/constants';
-import { Logger } from '@common/logger';
-import { escapeHtml, getErrorMessage, truncateString } from '@common/utils';
-import { ConfigService } from '@config/config.service';
-import { Job } from '@modules/jobs/interfaces/job.interface';
+import { ADMIN_NOTIFICATION_CONFIG } from '@/common/constants';
+import { Logger } from '@/common/logger';
+import { escapeHtml, getErrorMessage, truncateString } from '@/common/utils';
+import { ConfigService } from '@/config/config.service';
+import { Job } from '@/modules/jobs/interfaces/job.interface';
 
 import { EmailService } from './email.service';
 

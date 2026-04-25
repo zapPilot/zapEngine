@@ -54,6 +54,18 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '__mocks__/@zapengine/types/$1'),
       },
       {
+        find: '@/test-utils',
+        replacement: path.resolve(__dirname, 'test/test-utils/index.ts'),
+      },
+      {
+        find: '@container',
+        replacement: path.resolve(__dirname, 'src/container.ts'),
+      },
+      {
+        find: /^@\/(.*)$/,
+        replacement: path.resolve(__dirname, 'src/$1'),
+      },
+      {
         find: /^@common\/(.*)$/,
         replacement: path.resolve(__dirname, 'src/common/$1'),
       },
@@ -80,14 +92,6 @@ export default defineConfig({
       {
         find: /^@routes\/(.*)$/,
         replacement: path.resolve(__dirname, 'src/routes/$1'),
-      },
-      {
-        find: '@container',
-        replacement: path.resolve(__dirname, 'src/container.ts'),
-      },
-      {
-        find: '@test-utils',
-        replacement: path.resolve(__dirname, 'test/test-utils/index.ts'),
       },
     ],
   },

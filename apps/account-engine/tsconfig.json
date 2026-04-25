@@ -11,16 +11,12 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": "./",
     "paths": {
-      "@common/*": ["src/common/*"],
-      "@database/*": ["src/database/*"],
-      "@modules/*": ["src/modules/*"],
-      "@users/*": ["src/users/*"],
-      "@config/*": ["src/config/*"],
-      "@db-types/*": ["src/types/*"],
-      "@container": ["src/container.ts"],
-      "@routes/*": ["src/routes/*"],
-      "@test-utils": ["test/test-utils/index.ts"]
+      "@/*": ["./src/*"],
+      "@/container": ["./src/container.ts"],
+      "@/test-utils": ["./test/test-utils/index.ts"]
     },
     "incremental": true
-  }
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

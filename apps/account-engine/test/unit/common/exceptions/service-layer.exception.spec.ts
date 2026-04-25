@@ -1,5 +1,5 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { HttpStatus } from '@common/http';
+import { ServiceLayerException } from '@/common/exceptions';
+import { HttpStatus } from '@/common/http';
 
 describe('ServiceLayerException', () => {
   it('creates exception with default status code 500', () => {

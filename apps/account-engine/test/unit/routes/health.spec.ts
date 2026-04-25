@@ -1,5 +1,6 @@
-import { createHealthRoutes, getReleaseMetadata } from '@routes/health';
 import { Hono } from 'hono';
+
+import { createHealthRoutes, getReleaseMetadata } from '@/routes/health';
 
 function createApp(
   rawEnv: { APP_BUILD_TIME?: string; APP_COMMIT_SHA?: string } = {},

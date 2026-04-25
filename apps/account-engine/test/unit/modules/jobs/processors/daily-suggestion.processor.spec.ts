@@ -2,12 +2,12 @@ import {
   type Job,
   JobStatus,
   JobType,
-} from '@modules/jobs/interfaces/job.interface';
-import { JobQueueService } from '@modules/jobs/job-queue.service';
-import { DailySuggestionProcessor } from '@modules/jobs/processors/daily-suggestion.processor';
-import { AnalyticsClientService } from '@modules/notifications/analytics-client.service';
-import { PortfolioNotFoundError } from '@modules/notifications/errors/portfolio-not-found.error';
-import { TelegramService } from '@modules/notifications/telegram.service';
+} from '@/modules/jobs/interfaces/job.interface';
+import { JobQueueService } from '@/modules/jobs/job-queue.service';
+import { DailySuggestionProcessor } from '@/modules/jobs/processors/daily-suggestion.processor';
+import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
+import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
+import { TelegramService } from '@/modules/notifications/telegram.service';
 
 function createPendingJob(overrides: Partial<Job> = {}): Job {
   return {

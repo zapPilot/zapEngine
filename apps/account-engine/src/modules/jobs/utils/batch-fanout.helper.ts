@@ -1,6 +1,6 @@
-import { JOB_CONFIG } from '@common/constants';
-import { Logger } from '@common/logger';
-import { getErrorMessage } from '@common/utils';
+import { JOB_CONFIG } from '@/common/constants';
+import { Logger } from '@/common/logger';
+import { getErrorMessage } from '@/common/utils';
 import {
   createBatchResult,
   Job,
@@ -8,9 +8,9 @@ import {
   JobStatus,
   JobType,
   LogLevel,
-} from '@modules/jobs/interfaces/job.interface';
-import type { JobQueueService } from '@modules/jobs/job-queue.service';
-import { PortfolioNotFoundError } from '@modules/notifications/errors/portfolio-not-found.error';
+} from '@/modules/jobs/interfaces/job.interface';
+import type { JobQueueService } from '@/modules/jobs/job-queue.service';
+import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
 
 /**
  * Helper for batch-to-single job fan-out pattern

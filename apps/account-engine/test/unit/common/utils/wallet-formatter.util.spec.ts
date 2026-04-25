@@ -2,7 +2,7 @@ import {
   formatShortWalletAddress,
   generateDefaultWalletLabel,
   truncateForLog,
-} from '@common/utils/wallet-formatter.util';
+} from '@/common/utils/wallet-formatter.util';
 
 describe('wallet-formatter utilities', () => {
   const validAddress = '0x1234567890abcdef1234567890abcdef12345678';

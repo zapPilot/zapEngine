@@ -1,9 +1,9 @@
 import * as crypto from 'node:crypto';
 
-import { ServiceLayerException } from '@common/exceptions';
-import { BadRequestException } from '@common/http';
-import { Logger } from '@common/logger';
-import { DatabaseService } from '@database/database.service';
+import { ServiceLayerException } from '@/common/exceptions';
+import { BadRequestException } from '@/common/http';
+import { Logger } from '@/common/logger';
+import { DatabaseService } from '@/database/database.service';
 
 /**
  * Token generation response

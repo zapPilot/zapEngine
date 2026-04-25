@@ -1,4 +1,4 @@
-import { BackoffCalculator } from '@common/utils/backoff.util';
+import { BackoffCalculator } from '@/common/utils/backoff.util';
 
 const MAX_RETRY_DELAY_MS = 3_600_000;
 const JITTER_PERCENTAGE = 0.1;

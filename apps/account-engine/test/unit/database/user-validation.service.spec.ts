@@ -1,8 +1,8 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { NotFoundException } from '@common/http';
-import { DatabaseService } from '@database/database.service';
-import { UserValidationService } from '@database/user-validation.service';
-import { createMockDatabaseService } from '@test-utils';
+import { ServiceLayerException } from '@/common/exceptions';
+import { NotFoundException } from '@/common/http';
+import { DatabaseService } from '@/database/database.service';
+import { UserValidationService } from '@/database/user-validation.service';
+import { createMockDatabaseService } from '@/test-utils';
 
 describe('UserValidationService', () => {
   let service: UserValidationService;

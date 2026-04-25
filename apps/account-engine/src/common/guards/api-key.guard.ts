@@ -1,5 +1,6 @@
-import { UnauthorizedException } from '@common/http';
 import type { MiddlewareHandler } from 'hono';
+
+import { UnauthorizedException } from '@/common/http';
 
 interface ApiKeyEnv {
   ADMIN_API_KEY?: string;

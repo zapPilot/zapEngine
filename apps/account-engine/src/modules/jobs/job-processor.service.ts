@@ -1,8 +1,8 @@
-import { JOB_CONFIG } from '@common/constants';
-import { ServiceLayerException } from '@common/exceptions';
-import { HttpStatus } from '@common/http';
-import { Logger } from '@common/logger';
-import { getErrorMessage } from '@common/utils';
+import { JOB_CONFIG } from '@/common/constants';
+import { ServiceLayerException } from '@/common/exceptions';
+import { HttpStatus } from '@/common/http';
+import { Logger } from '@/common/logger';
+import { getErrorMessage } from '@/common/utils';
 
 import { AdminNotificationService } from '../notifications/admin-notification.service';
 import {

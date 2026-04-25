@@ -10,7 +10,7 @@
     "templates"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -49,7 +49,6 @@
     "jscpd": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",
-    "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
     "tsx": "catalog:",
     "typescript": "catalog:",

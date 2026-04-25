@@ -1,8 +1,9 @@
-import { CHANNEL_TYPE_TELEGRAM, REGIME_EMOJI } from '@common/constants';
-import { Logger } from '@common/logger';
-import { ConfigService } from '@config/config.service';
-import { DatabaseService } from '@database/database.service';
 import { Context, Telegraf } from 'telegraf';
+
+import { CHANNEL_TYPE_TELEGRAM, REGIME_EMOJI } from '@/common/constants';
+import { Logger } from '@/common/logger';
+import { ConfigService } from '@/config/config.service';
+import { DatabaseService } from '@/database/database.service';
 
 import { DailySuggestionData, DriftAlertData } from './interfaces';
 import { TelegramTokenService } from './telegram-token.service';

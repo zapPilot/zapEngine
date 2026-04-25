@@ -2,10 +2,10 @@ import {
   type Job,
   JobStatus,
   JobType,
-} from '@modules/jobs/interfaces/job.interface';
-import { AdminNotificationService } from '@modules/notifications/admin-notification.service';
-import { EmailService } from '@modules/notifications/email.service';
-import { createMockConfigService } from '@test-utils';
+} from '@/modules/jobs/interfaces/job.interface';
+import { AdminNotificationService } from '@/modules/notifications/admin-notification.service';
+import { EmailService } from '@/modules/notifications/email.service';
+import { createMockConfigService } from '@/test-utils';
 
 function createFailedJob(overrides: Partial<Job> = {}): Job {
   return {

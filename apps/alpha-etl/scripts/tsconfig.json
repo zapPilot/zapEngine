@@ -1,4 +1,8 @@
 {
+  /* Isolated tsconfig for one-off scripts in scripts/ folder.
+   * These scripts import from ../src but should not be part of the app build.
+   * Uses noEmit to allow type-checking without generating dist output.
+   */
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",

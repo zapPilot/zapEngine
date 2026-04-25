@@ -1,6 +1,6 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { Logger } from '@common/logger';
-import { Database } from '@db-types/database.types';
+import { ServiceLayerException } from '@/common/exceptions';
+import { Logger } from '@/common/logger';
+import { Database } from '@/types/database.types';
 
 import { BaseService } from './base.service';
 import { DatabaseService } from './database.service';

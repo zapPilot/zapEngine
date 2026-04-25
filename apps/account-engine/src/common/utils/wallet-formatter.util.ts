@@ -1,4 +1,4 @@
-import { isWalletAddress } from '@common/validation/wallet-address.util';
+import { isWalletAddress } from '@/common/validation/wallet-address.util';
 
 /**
  * Formats a wallet address to a shortened display format (0x1234...abcd)

@@ -1,13 +1,14 @@
-import { getErrorStatus, toErrorResponse } from '@common/http';
-import type { AppServices } from '@container';
+import { Hono } from 'hono';
+import type { Mock } from 'vitest';
+
+import { getErrorStatus, toErrorResponse } from '@/common/http';
+import type { AppServices } from '@/container';
 import {
   Job,
   JobStatus,
   JobType,
-} from '@modules/jobs/interfaces/job.interface';
-import { createJobsRoutes } from '@routes/jobs';
-import { Hono } from 'hono';
-import type { Mock } from 'vitest';
+} from '@/modules/jobs/interfaces/job.interface';
+import { createJobsRoutes } from '@/routes/jobs';
 
 const ADMIN_KEY = 'admin-secret';
 const USER_ID = '123e4567-e89b-12d3-a456-426614174000';

@@ -1,8 +1,8 @@
-import { ServiceLayerException } from '@common/exceptions';
-import { BadRequestException } from '@common/http';
-import { DatabaseService } from '@database/database.service';
-import { TelegramTokenService } from '@modules/notifications/telegram-token.service';
-import { configureMockResults, createMockDatabaseService } from '@test-utils';
+import { ServiceLayerException } from '@/common/exceptions';
+import { BadRequestException } from '@/common/http';
+import { DatabaseService } from '@/database/database.service';
+import { TelegramTokenService } from '@/modules/notifications/telegram-token.service';
+import { configureMockResults, createMockDatabaseService } from '@/test-utils';
 
 describe('TelegramTokenService', () => {
   let service: TelegramTokenService;

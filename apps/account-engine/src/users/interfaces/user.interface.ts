@@ -1,4 +1,4 @@
-import { Database } from '@db-types/database.types';
+import { Database } from '@/types/database.types';
 
 // Type aliases using database types as single source of truth
 export type User = Database['public']['Tables']['users']['Row'];
