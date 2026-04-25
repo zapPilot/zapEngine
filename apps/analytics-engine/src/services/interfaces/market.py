@@ -1,6 +1,6 @@
 import typing
 from datetime import date, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 if typing.TYPE_CHECKING:
     from src.services.market.token_price_service import PairRatioDmaPoint
@@ -240,6 +240,37 @@ class RegimeTrackingServiceProtocol(Protocol):
 
         Returns:
             RegimeHistoryResponse with current, previous, direction, and transitions
+        """
+        ...  # pragma: no cover
+
+
+class StockPriceDmaPoint(TypedDict):
+    """SPY DMA value and metadata for a single date."""
+
+    price_usd: float
+    dma_200: float | None
+    is_above_dma: bool | None
+
+
+class StockPriceServiceProtocol(Protocol):
+    """Interface for stock price (SPY) data services."""
+
+    def get_dma_history(
+        self,
+        start_date: date,
+        end_date: date,
+        symbol: str = "SPY",
+    ) -> dict[date, StockPriceDmaPoint]:
+        """
+        Get SPY DMA history keyed by snapshot date.
+
+        Args:
+            start_date: Start date (inclusive)
+            end_date: End date (inclusive)
+            symbol: Stock symbol to filter by (default: "SPY")
+
+        Returns:
+            Mapping from snapshot date to DMA point dict with price_usd, dma_200, is_above_dma
         """
         ...  # pragma: no cover
 

@@ -12,7 +12,6 @@ import {
 
 import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
 import type { MarketDashboardPoint } from '@/services';
-import { formatCurrencyAxis } from '@/utils';
 
 import {
   AXIS_COLOR,
@@ -37,8 +36,16 @@ interface ChartDataPoint {
   btc_dma_200: number | null;
   eth_btc_ratio: number | null;
   eth_btc_dma_200: number | null;
+  sp500_price_usd: number | null;
+  sp500_dma_200: number | null;
   sentiment_value: number | null;
   regime: string | null;
+  // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
+  btc_price_normalized: number | null;
+  btc_dma_normalized: number | null;
+  // Normalized - SPY Price + SPY DMA share same scale
+  sp500_price_normalized: number | null;
+  sp500_dma_normalized: number | null;
 }
 
 interface MarketOverviewChartProps {
@@ -53,6 +60,9 @@ interface TooltipPayload {
     btc_dma_200?: number | null;
     eth_btc_ratio?: number | null;
     eth_btc_dma_200?: number | null;
+    price_usd?: number | null;
+    sp500_price_usd?: number | null;
+    sp500_dma_200?: number | null;
   };
 }
 
@@ -67,19 +77,45 @@ function formatTooltipValue(
   props: TooltipPayload,
 ): [string | number, string | number] {
   const labelName = String(name ?? '');
-  if (labelName === 'BTC Price' || labelName === 'BTC 200 DMA') {
-    return [`$${Number(value ?? 0).toLocaleString()}`, labelName];
+  const payload = props.payload;
+  if (labelName === 'BTC Price') {
+    const rawValue = payload?.price_usd;
+    return [
+      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
+      labelName,
+    ];
+  }
+  if (labelName === 'BTC 200 DMA') {
+    const rawValue = payload?.btc_dma_200;
+    return [
+      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
+      labelName,
+    ];
+  }
+  if (labelName === 'SPY Price') {
+    const rawValue = payload?.sp500_price_usd;
+    return [
+      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
+      labelName,
+    ];
+  }
+  if (labelName === 'SPY 200 DMA') {
+    const rawValue = payload?.sp500_dma_200;
+    return [
+      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
+      labelName,
+    ];
   }
   if (labelName === 'ETH/BTC Ratio' || labelName === 'ETH/BTC 200 DMA') {
     return [Number(value ?? 0).toFixed(4), labelName];
   }
   if (labelName === 'Fear & Greed Index') {
-    const rawFgi = props.payload?.sentiment_value;
-    const regime = props.payload?.regime as
+    const rawFgi = payload?.sentiment_value;
+    const regime = payload?.regime as
       | keyof typeof REGIME_LABELS
       | undefined;
-    const label = regime ? REGIME_LABELS[regime] : '';
-    return [`${String(rawFgi)} (${label})`, labelName];
+    const regimeLabel = regime ? REGIME_LABELS[regime] : '';
+    return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
   return [value as string | number, labelName];
 }
@@ -100,19 +136,65 @@ export function MarketOverviewChart({
   data,
   activeLines = DEFAULT_ACTIVE_LINES,
 }: MarketOverviewChartProps): JSX.Element {
-  const chartData = useMemo<ChartDataPoint[]>(
-    () =>
-      data.map((d) => ({
-        snapshot_date: d.snapshot_date,
-        price_usd: d.price_usd,
-        btc_dma_200: d.dma_200,
-        eth_btc_ratio: d.eth_btc_relative_strength?.ratio ?? null,
-        eth_btc_dma_200: d.eth_btc_relative_strength?.dma_200 ?? null,
-        sentiment_value: d.sentiment_value,
-        regime: d.regime,
-      })),
-    [data],
-  );
+  const chartData = useMemo<ChartDataPoint[]>(() => {
+    const btcValues: number[] = [];
+    const sp500Values: number[] = [];
+
+    for (const d of data) {
+      if (d.price_usd != null) btcValues.push(d.price_usd);
+      if (d.dma_200 != null) btcValues.push(d.dma_200);
+      if (d.sp500?.price_usd != null) sp500Values.push(d.sp500.price_usd);
+      if (d.sp500?.dma_200 != null) sp500Values.push(d.sp500.dma_200);
+    }
+
+    const getMinMax = (arr: number[]) => {
+      if (arr.length === 0) return { min: 0, max: 1 };
+      const min = Math.min(...arr);
+      const max = Math.max(...arr);
+      if (max === min) return { min, max: max + 1 };
+      return { min, max };
+    };
+
+    const btcMinMax = getMinMax(btcValues);
+    const sp500MinMax = getMinMax(sp500Values);
+
+    const normalize = (v: number | null, min: number, max: number): number | null => {
+      if (v == null) return null;
+      return ((v - min) / (max - min)) * 100;
+    };
+
+    return data.map((d) => ({
+      snapshot_date: d.snapshot_date,
+      price_usd: d.price_usd,
+      btc_dma_200: d.dma_200,
+      eth_btc_ratio: d.eth_btc_relative_strength?.ratio ?? null,
+      eth_btc_dma_200: d.eth_btc_relative_strength?.dma_200 ?? null,
+      sp500_price_usd: d.sp500?.price_usd ?? null,
+      sp500_dma_200: d.sp500?.dma_200 ?? null,
+      sentiment_value: d.sentiment_value,
+      regime: d.regime,
+      btc_price_normalized: normalize(
+        d.price_usd,
+        btcMinMax.min,
+        btcMinMax.max,
+      ),
+      btc_dma_normalized: normalize(
+        d.dma_200,
+        btcMinMax.min,
+        btcMinMax.max,
+      ),
+      sp500_price_normalized: normalize(
+        d.sp500?.price_usd ?? null,
+        sp500MinMax.min,
+        sp500MinMax.max,
+      ),
+      sp500_dma_normalized: normalize(
+        d.sp500?.dma_200 ?? null,
+        sp500MinMax.min,
+        sp500MinMax.max,
+      ),
+    }));
+  }, [data]);
 
   const regimeBlocks = useMemo(() => {
     if (!chartData.length) return [];
@@ -152,10 +234,12 @@ export function MarketOverviewChart({
   const showBtcDma200 = activeLines.has('btcDma200');
   const showEthBtcRatio = activeLines.has('ethBtcRatio');
   const showEthBtcDma200 = activeLines.has('ethBtcDma200');
+  const showSpyPrice = activeLines.has('spyPrice');
+  const showSpyDma200 = activeLines.has('spyDma200');
   const showFgi = activeLines.has('fgi');
   // The price axis hosts both BTC lines; render it whenever either is on so
   // the lines have a scale to render against. Same logic for the ratio axis.
-  const showPriceAxis = showBtcPrice || showBtcDma200;
+  const showPriceAxis = showBtcPrice || showBtcDma200 || showSpyPrice || showSpyDma200;
   const showRatioAxis = showEthBtcRatio || showEthBtcDma200;
 
   return (
@@ -165,6 +249,14 @@ export function MarketOverviewChart({
           Market Sentiment Regime
         </span>
       </div>
+
+      {(showSpyPrice || showSpyDma200) && (
+        <div className="absolute bottom-[52px] left-[72px] z-10">
+          <span className="text-[9px] text-gray-500">
+            S&P 500 data shown only for market trading days
+          </span>
+        </div>
+      )}
 
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
@@ -210,8 +302,15 @@ export function MarketOverviewChart({
               yAxisId="price"
               stroke={AXIS_COLOR}
               tick={{ fill: AXIS_COLOR, fontSize: 11 }}
-              domain={['auto', 'auto']}
-              tickFormatter={formatCurrencyAxis}
+              domain={[0, 100]}
+              tickFormatter={(v) => v.toFixed(0)}
+              label={{
+                value: 'BTC / SPY',
+                angle: -90,
+                position: 'insideLeft',
+                fill: AXIS_COLOR,
+                fontSize: 10,
+              }}
             />
           )}
 
@@ -290,7 +389,7 @@ export function MarketOverviewChart({
               yAxisId="price"
               type="monotone"
               name="BTC Price"
-              dataKey="price_usd"
+              dataKey="btc_price_normalized"
               stroke={AXIS_COLOR}
               strokeWidth={2}
               dot={false}
@@ -308,7 +407,7 @@ export function MarketOverviewChart({
               yAxisId="price"
               type="monotone"
               name="BTC 200 DMA"
-              dataKey="btc_dma_200"
+              dataKey="btc_dma_normalized"
               stroke="#A855F7"
               strokeWidth={2}
               dot={false}
@@ -337,6 +436,33 @@ export function MarketOverviewChart({
               name="ETH/BTC 200 DMA"
               dataKey="eth_btc_dma_200"
               stroke="#F59E0B"
+              strokeWidth={2}
+              dot={false}
+              strokeDasharray="5 5"
+              connectNulls
+            />
+          )}
+
+          {showSpyPrice && (
+            <Line
+              yAxisId="price"
+              type="monotone"
+              name="SPY Price"
+              dataKey="sp500_price_normalized"
+              stroke="#3B82F6"
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+            />
+          )}
+
+          {showSpyDma200 && (
+            <Line
+              yAxisId="price"
+              type="monotone"
+              name="SPY 200 DMA"
+              dataKey="sp500_dma_normalized"
+              stroke="#EC4899"
               strokeWidth={2}
               dot={false}
               strokeDasharray="5 5"

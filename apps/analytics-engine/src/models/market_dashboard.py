@@ -35,6 +35,27 @@ class EthBtcRelativeStrengthPoint(BaseModel):
     )
 
 
+class Sp500Point(BaseModel):
+    """S&P500 (SPY ETF) metrics for a single date."""
+
+    price_usd: float = Field(..., description="SPY price in USD", gt=0)
+    dma_200: float | None = Field(None, description="200-day DMA of SPY price", gt=0)
+    is_above_dma: bool | None = Field(
+        None,
+        description="Whether SPY price is above its 200-day DMA",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "price_usd": 485.0,
+                "dma_200": 475.0,
+                "is_above_dma": True,
+            }
+        }
+    )
+
+
 class MarketDashboardPoint(BaseModel):
     """
     Single daily data point for the market dashboard.
@@ -54,6 +75,10 @@ class MarketDashboardPoint(BaseModel):
     eth_btc_relative_strength: EthBtcRelativeStrengthPoint | None = Field(
         None,
         description="Optional ETH/BTC relative-strength metrics aligned to the same date",
+    )
+    sp500: Sp500Point | None = Field(
+        None,
+        description="Optional S&P500 (SPY) metrics aligned to the same date",
     )
 
     model_config = ConfigDict(

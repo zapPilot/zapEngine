@@ -10,6 +10,12 @@ const ethBtcRelativeStrengthPointSchema = z.object({
   is_above_dma: z.boolean().nullable(),
 });
 
+const sp500PointSchema = z.object({
+  price_usd: z.number(),
+  dma_200: z.number().nullable(),
+  is_above_dma: z.boolean().nullable(),
+});
+
 export const marketDashboardPointSchema = z.object({
   snapshot_date: z.string(),
   price_usd: z.number(),
@@ -19,6 +25,7 @@ export const marketDashboardPointSchema = z.object({
   eth_btc_relative_strength: ethBtcRelativeStrengthPointSchema
     .nullable()
     .optional(),
+  sp500: sp500PointSchema.nullable().optional(),
 });
 
 export const marketDashboardResponseSchema = z.object({

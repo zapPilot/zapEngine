@@ -13,6 +13,7 @@ from src.models.market_dashboard import (
     EthBtcRelativeStrengthPoint,
     MarketDashboardPoint,
     MarketDashboardResponse,
+    Sp500Point,
 )
 from src.models.regime_tracking import RegimeId
 
@@ -28,12 +29,19 @@ class MarketDashboardService:
         self,
         token_price_service: Any,
         sentiment_service: Any,
+        stock_price_service: Any | None = None,
     ) -> None:
         """
         Initialize with required data services.
+
+        Args:
+            token_price_service: Service for cryptocurrency price data (BTC, etc.)
+            sentiment_service: Service for Fear & Greed Index sentiment
+            stock_price_service: Service for S&P500 (SPY) price data (optional)
         """
         self.token_price_service = token_price_service
         self.sentiment_service = sentiment_service
+        self.stock_price_service = stock_price_service
 
     @staticmethod
     def _map_sentiment_to_regime(value: int) -> RegimeId:
@@ -80,6 +88,36 @@ class MarketDashboardService:
             start_date=start_date, end_date=end_date
         )
 
+        # 1b. Fetch SPY data if stock_price_service is available
+        sp500_map: dict[date, Sp500Point] = {}
+        if self.stock_price_service is not None:
+            sp500_rows = self.stock_price_service.get_dma_history(
+                start_date=start_date, end_date=end_date
+            )
+            for s_date, sp500_point in sp500_rows.items():
+                sp500_map[s_date] = Sp500Point(
+                    price_usd=sp500_point["price_usd"],
+                    dma_200=sp500_point["dma_200"],
+                    is_above_dma=sp500_point["is_above_dma"],
+                )
+
+            # 1c. Forward-fill SPY data for dates without market data (weekends/holidays)
+            price_dates = set()
+            for p in prices:
+                p_date = (
+                    date.fromisoformat(p.date) if isinstance(p.date, str) else p.date
+                )
+                price_dates.add(p_date)
+
+            if sp500_map:
+                sorted_dates = sorted(price_dates)
+                last_sp500: Sp500Point | None = None
+                for pd in sorted_dates:
+                    if pd in sp500_map:
+                        last_sp500 = sp500_map[pd]
+                    elif last_sp500 is not None:
+                        sp500_map[pd] = last_sp500
+
         # 2. Convert sentiment to a map for easy lookup
         # sentiment_rows has 'snapshot_date' and 'avg_sentiment'
         sentiment_map = {}
@@ -97,6 +135,7 @@ class MarketDashboardService:
             dma_val = dma_map.get(p_date)
             ratio_point = ratio_map.get(p_date)
             sentiment_val = sentiment_map.get(p_date)
+            sp500_point = sp500_map.get(p_date)
 
             regime = None
             if sentiment_val is not None:
@@ -120,6 +159,7 @@ class MarketDashboardService:
                     else None,
                     regime=regime,
                     eth_btc_relative_strength=relative_strength,
+                    sp500=sp500_point,
                 )
             )
 

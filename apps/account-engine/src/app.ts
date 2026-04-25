@@ -88,6 +88,13 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
     await stopServices(services);
   };
 
+  process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled Rejection:', reason);
+  });
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+  });
+
   process.on('SIGINT', () => {
     void shutdown('SIGINT');
   });

@@ -39,6 +39,8 @@ export const MARKET_LINE_KEYS = [
   'btcDma200',
   'ethBtcRatio',
   'ethBtcDma200',
+  'spyPrice',
+  'spyDma200',
   'fgi',
 ] as const;
 
@@ -59,6 +61,8 @@ export interface MarketLineDescriptor {
     | 'btc_dma_200'
     | 'eth_btc_ratio'
     | 'eth_btc_dma_200'
+    | 'sp500_price_usd'
+    | 'sp500_dma_200'
     | 'sentiment_value';
   /** Whether this line is visible by default on first render. */
   defaultActive: boolean;
@@ -101,6 +105,22 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     color: '#F59E0B',
     axis: 'ratio',
     dataKey: 'eth_btc_dma_200',
+    defaultActive: false,
+  },
+  {
+    key: 'spyPrice',
+    label: 'SPY Price',
+    color: '#3B82F6',
+    axis: 'price',
+    dataKey: 'sp500_price_usd',
+    defaultActive: false,
+  },
+  {
+    key: 'spyDma200',
+    label: 'SPY 200 DMA',
+    color: '#EC4899',
+    axis: 'price',
+    dataKey: 'sp500_dma_200',
     defaultActive: false,
   },
   {

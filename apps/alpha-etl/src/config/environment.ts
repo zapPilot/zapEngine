@@ -51,7 +51,7 @@ function parseBooleanFlag(defaultValue: 'true' | 'false') {
 
 const envSchema = z.object({
   // Database
-  DATABASE_URL: z.string().min(1),
+  ALPHA_ETL_DATABASE_URL: z.string().min(1),
   DB_SCHEMA: z.string().min(1).default('alpha_raw'),
 
   // Server
@@ -78,6 +78,9 @@ const envSchema = z.object({
     .string()
     .url()
     .default('https://pro-api.coinmarketcap.com'),
+
+  // Alpha Vantage API (for stock price data)
+  ALPHA_VANTAGE_API_KEY: z.string().min(1).optional(),
 
   // Rate Limiting
   RATE_LIMIT_REQUESTS_PER_MINUTE: parsePositiveInteger('60'),

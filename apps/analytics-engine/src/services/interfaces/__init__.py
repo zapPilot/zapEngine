@@ -21,6 +21,7 @@ from .market import (
     MarketSentimentServiceProtocol,
     RegimeTrackingServiceProtocol,
     SentimentDatabaseServiceProtocol,
+    StockPriceServiceProtocol,
     TokenPriceServiceProtocol,
 )
 from .portfolio import (
@@ -79,4 +80,5 @@ __all__ = [
     "StrategyConfigManagementServiceProtocol",
     "StrategyTradeHistoryStoreProtocol",
     "MarketDashboardServiceProtocol",
+    "StockPriceServiceProtocol",
 ]

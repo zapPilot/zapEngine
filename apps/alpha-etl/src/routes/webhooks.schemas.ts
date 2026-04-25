@@ -6,6 +6,7 @@ export const dataSourceEnum = z.enum([
   'hyperliquid',
   'feargreed',
   'token-price',
+  'stock-price',
 ]);
 
 export const webhookPayloadSchema = z
