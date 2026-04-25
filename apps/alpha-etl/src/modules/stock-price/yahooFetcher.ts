@@ -13,8 +13,8 @@ const yahooFinance = new YahooFinance();
 
 import {
   type StockPriceData,
-  type YahooFinanceHistoricalData,
-  YahooFinanceHistoricalSchema,
+  type YahooFinanceChartQuote,
+  YahooFinanceChartQuoteSchema,
 } from '../../modules/stock-price/schema.js';
 import { logger } from '../../utils/logger.js';
 
@@ -32,12 +32,11 @@ export class YahooFinanceFetcher {
   private rateLimitMs: number;
 
   constructor(config?: YahooFinanceFetcherConfig) {
-    this.rateLimitMs = config?.rateLimitMs ?? YahooFinanceFetcher.DEFAULT_RATE_LIMIT_MS;
+    this.rateLimitMs =
+      config?.rateLimitMs ?? YahooFinanceFetcher.DEFAULT_RATE_LIMIT_MS;
   }
 
-  async fetchLatestPrice(
-    symbol = YahooFinanceFetcher.DEFAULT_SYMBOL,
-  ): Promise<{
+  async fetchLatestPrice(symbol = YahooFinanceFetcher.DEFAULT_SYMBOL): Promise<{
     date: string;
     priceUsd: number;
     symbol: string;
@@ -47,12 +46,14 @@ export class YahooFinanceFetcher {
     try {
       logger.info('Fetching latest stock price from Yahoo Finance', { symbol });
 
-      const quote = await this.rateLimitCall(() => yahooFinance.quote(symbol)) as {
+      const quote = (await this.rateLimitCall(() =>
+        yahooFinance.quote(symbol),
+      )) as {
         regularMarketPrice?: number;
         regularMarketTime?: number;
       };
 
-      if (!quote || typeof quote.regularMarketPrice !== 'number') {
+      if (typeof quote.regularMarketPrice !== 'number') {
         throw new Error(`No quote data for ${symbol}`);
       }
 
@@ -94,13 +95,16 @@ export class YahooFinanceFetcher {
       });
 
       const result = await this.rateLimitCall(() =>
-        yahooFinance.historical(symbol, {
+        yahooFinance.chart(symbol, {
           period1: startDate,
           period2: new Date(),
+          interval: '1d',
         }),
       );
 
-      const parsed = YahooFinanceHistoricalSchema.array().safeParse(result);
+      const parsed = YahooFinanceChartQuoteSchema.array().safeParse(
+        result.quotes,
+      );
 
       if (!parsed.success) {
         logger.error('Failed to parse Yahoo Finance response', {
@@ -110,12 +114,22 @@ export class YahooFinanceFetcher {
         throw new Error('Invalid Yahoo Finance response schema');
       }
 
-      const prices: StockPriceData[] = parsed.data.map((day: YahooFinanceHistoricalData) => ({
-        priceUsd: day.adjClose,
-        timestamp: day.date,
-        source: YahooFinanceFetcher.SOURCE_NAME,
-        symbol,
-      }));
+      const prices: StockPriceData[] = parsed.data.flatMap(
+        (day: YahooFinanceChartQuote) => {
+          const price = day.adjclose ?? day.close;
+          if (price === null) {
+            return [];
+          }
+          return [
+            {
+              priceUsd: price,
+              timestamp: day.date,
+              source: YahooFinanceFetcher.SOURCE_NAME,
+              symbol,
+            },
+          ];
+        },
+      );
 
       logger.info('Successfully fetched full stock history', {
         symbol,
@@ -137,7 +151,7 @@ export class YahooFinanceFetcher {
     details?: string;
   }> {
     try {
-      await this.rateLimitCall(() => YahooFinance.quote(symbol));
+      await this.rateLimitCall(() => yahooFinance.quote(symbol));
       return { status: 'healthy', details: 'Yahoo Finance API accessible' };
     } catch (error) {
       return {

@@ -278,17 +278,14 @@ class StockPriceServiceProtocol(Protocol):
 class MarketDashboardServiceProtocol(Protocol):
     """Interface for market dashboard aggregation service."""
 
-    def get_market_dashboard(
-        self, days: int = 365, token_symbol: str = "BTC"
-    ) -> MarketDashboardResponse:
+    def get_market_dashboard(self, days: int = 365) -> MarketDashboardResponse:
         """
         Get combined market data for dashboard visualization.
 
         Args:
             days: Days of history (default: 365)
-            token_symbol: Token symbol (default: "BTC")
 
         Returns:
-            MarketDashboardResponse with merged Price, DMA, and Sentiment
+            MarketDashboardResponse with series registry, snapshots, and meta.
         """
         ...  # pragma: no cover

@@ -218,34 +218,10 @@ export class StockPriceDmaService {
       'created_at',
     ];
 
-    const placeholders: string[] = [];
-    const values: unknown[] = [];
-
     logger.info('Building DMA insert query', {
       snapshotCount: snapshots.length,
       columns: columns.length,
       firstSnapshot: snapshots[0] ? JSON.stringify(snapshots[0]) : 'undefined',
-    });
-
-    logger.info('Starting forEach loop');
-
-    snapshots.forEach((snapshot, index) => {
-      const offset = index * 10;
-      placeholders.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
-      );
-      values.push(
-        snapshot.symbol,
-        snapshot.snapshot_date,
-        snapshot.price_usd,
-        snapshot.dma_200,
-        snapshot.price_vs_dma_ratio,
-        snapshot.is_above_dma,
-        snapshot.days_available,
-        snapshot.source,
-        snapshot.snapshot_time,
-        snapshot.created_at,
-      );
     });
 
     try {
@@ -253,31 +229,31 @@ export class StockPriceDmaService {
       const BATCH_SIZE = 1000;
       let totalInserted = 0;
 
-    for (let i = 0; i < snapshots.length; i += BATCH_SIZE) {
-      const batch = snapshots.slice(i, i + BATCH_SIZE);
-      const batchPlaceholders: string[] = [];
-      const batchValues: unknown[] = [];
+      for (let i = 0; i < snapshots.length; i += BATCH_SIZE) {
+        const batch = snapshots.slice(i, i + BATCH_SIZE);
+        const batchPlaceholders: string[] = [];
+        const batchValues: unknown[] = [];
 
-      batch.forEach((snapshot, idx) => {
-        const offset = idx * 10;
-        batchPlaceholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
-        );
-        batchValues.push(
-          snapshot.symbol,
-          snapshot.snapshot_date,
-          snapshot.price_usd,
-          snapshot.dma_200,
-          snapshot.price_vs_dma_ratio,
-          snapshot.is_above_dma,
-          snapshot.days_available,
-          snapshot.source,
-          snapshot.snapshot_time,
-          snapshot.created_at,
-        );
-      });
+        batch.forEach((snapshot, idx) => {
+          const offset = idx * 10;
+          batchPlaceholders.push(
+            `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
+          );
+          batchValues.push(
+            snapshot.symbol,
+            snapshot.snapshot_date,
+            snapshot.price_usd,
+            snapshot.dma_200,
+            snapshot.price_vs_dma_ratio,
+            snapshot.is_above_dma,
+            snapshot.days_available,
+            snapshot.source,
+            snapshot.snapshot_time,
+            snapshot.created_at,
+          );
+        });
 
-      const batchQuery = `
+        const batchQuery = `
         INSERT INTO ${tableName} (${columns.join(', ')})
         VALUES ${batchPlaceholders.join(', ')}
         ON CONFLICT (source, symbol, snapshot_date)
@@ -291,21 +267,21 @@ export class StockPriceDmaService {
         RETURNING id;
       `;
 
-      const result = await this.pool.query({
-        text: batchQuery,
-        values: batchValues,
-      });
-      totalInserted += result.rowCount ?? 0;
+        const result = await this.pool.query({
+          text: batchQuery,
+          values: batchValues,
+        });
+        totalInserted += result.rowCount ?? 0;
 
-      logger.info('Batch inserted', {
-        batchIndex: i / BATCH_SIZE,
-        batchSize: batch.length,
-        inserted: result.rowCount,
-      });
-    }
+        logger.info('Batch inserted', {
+          batchIndex: i / BATCH_SIZE,
+          batchSize: batch.length,
+          inserted: result.rowCount,
+        });
+      }
 
-    return { recordsInserted: totalInserted };
-  } catch (error) {
+      return { recordsInserted: totalInserted };
+    } catch (error) {
       logger.error('Failed to write DMA snapshots', {
         jobId,
         symbol,

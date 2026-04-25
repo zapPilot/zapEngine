@@ -3,14 +3,14 @@
  * Tests Express route handlers, validation, job status logic, and advanced TypeScript patterns
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import request from "supertest";
-import express from "express";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import request from 'supertest';
+import express from 'express';
 import type {
   ETLJob,
   ETLJobResult,
   WebhookPayload,
-} from "../../../src/types/index.js";
+} from '../../../src/types/index.js';
 
 // Mock the logger
 const mockLogger = {
@@ -20,7 +20,7 @@ const mockLogger = {
   debug: vi.fn(),
 };
 
-vi.mock("../../../src/utils/logger.js", () => ({
+vi.mock('../../../src/utils/logger.js', () => ({
   logger: mockLogger,
 }));
 
@@ -31,7 +31,7 @@ const mockJobQueue = {
   getResult: vi.fn(),
 };
 
-vi.mock("../../../src/modules/core/jobQueue.js", () => ({
+vi.mock('../../../src/modules/core/jobQueue.js', () => ({
   ETLJobQueue: vi.fn(function ETLJobQueue() {
     return mockJobQueue;
   }),
@@ -44,31 +44,31 @@ const createTestApp = async () => {
 
   // Add request ID middleware like the main app (only if not already set)
   app.use((req, res, next) => {
-    if (!req.headers["x-request-id"]) {
-      req.headers["x-request-id"] = "test-request-id";
+    if (!req.headers['x-request-id']) {
+      req.headers['x-request-id'] = 'test-request-id';
     }
     next();
   });
 
-  const { webhooksRouter } = await import("../../../src/routes/webhooks.js");
-  app.use("/webhooks", webhooksRouter);
+  const { webhooksRouter } = await import('../../../src/routes/webhooks.js');
+  app.use('/webhooks', webhooksRouter);
 
   return app;
 };
 
-describe("Webhooks Router", () => {
+describe('Webhooks Router', () => {
   let app: express.Application;
-  type SuccessResultData = Extract<ETLJobResult, { success: true }>["data"];
-  type FailedResultError = Extract<ETLJobResult, { success: false }>["error"];
+  type SuccessResultData = Extract<ETLJobResult, { success: true }>['data'];
+  type FailedResultError = Extract<ETLJobResult, { success: false }>['error'];
 
   // Global helper functions available to all test suites
   const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-    jobId: "job-123",
-    trigger: "scheduled",
-    sources: ["defillama"],
-    filters: { chains: ["ethereum"] },
+    jobId: 'job-123',
+    trigger: 'scheduled',
+    sources: ['defillama'],
+    filters: { chains: ['ethereum'] },
     createdAt: new Date(),
-    status: "pending",
+    status: 'pending',
     ...overrides,
   });
 
@@ -78,8 +78,8 @@ describe("Webhooks Router", () => {
     return {
       success: true,
       data: {
-        jobId: "job-123",
-        status: "completed",
+        jobId: 'job-123',
+        status: 'completed',
         recordsProcessed: 100,
         recordsInserted: 95,
         sourceResults: {},
@@ -96,9 +96,9 @@ describe("Webhooks Router", () => {
     return {
       success: false,
       error: {
-        code: "API_ERROR",
-        message: "Unknown Error",
-        source: "system",
+        code: 'API_ERROR',
+        message: 'Unknown Error',
+        source: 'system',
         ...overrides,
       },
     };
@@ -113,283 +113,283 @@ describe("Webhooks Router", () => {
     vi.resetAllMocks();
   });
 
-  describe("POST /webhooks/pipedream", () => {
-    it("should accept valid webhook payload and enqueue job", async () => {
+  describe('POST /webhooks/pipedream', () => {
+    it('should accept valid webhook payload and enqueue job', async () => {
       const payload: WebhookPayload = {
-        trigger: "scheduled",
-        sources: ["defillama"],
+        trigger: 'scheduled',
+        sources: ['defillama'],
         filters: {
-          chains: ["ethereum", "polygon"],
-          protocols: ["uniswap"],
+          chains: ['ethereum', 'polygon'],
+          protocols: ['uniswap'],
           minTvl: 1000000,
         },
       };
 
       const mockJob = createMockJob({
-        sources: ["defillama"],
+        sources: ['defillama'],
         filters: payload.filters,
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(200);
 
       expect(response.body).toEqual({
         success: true,
-        data: { jobId: "job-123" },
+        data: { jobId: 'job-123' },
         timestamp: expect.any(String),
       });
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
-        trigger: "scheduled",
-        sources: ["defillama"],
+        trigger: 'scheduled',
+        sources: ['defillama'],
         filters: payload.filters,
       });
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Webhook received from Pipedream",
+        'Webhook received from Pipedream',
         {
-          requestId: "test-request-id",
-          trigger: "scheduled",
-          sources: ["defillama"],
+          requestId: 'test-request-id',
+          trigger: 'scheduled',
+          sources: ['defillama'],
         },
       );
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "ETL job queued successfully",
+        'ETL job queued successfully',
         {
-          requestId: "test-request-id",
-          jobId: "job-123",
+          requestId: 'test-request-id',
+          jobId: 'job-123',
         },
       );
     });
 
-    it("should use default sources when not provided", async () => {
+    it('should use default sources when not provided', async () => {
       const payload = {
-        trigger: "manual",
+        trigger: 'manual',
       };
 
       const mockJob = createMockJob({
-        trigger: "manual",
-        sources: ["defillama", "debank", "hyperliquid"],
+        trigger: 'manual',
+        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(200);
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
-        trigger: "manual",
-        sources: ["defillama", "debank", "hyperliquid"],
+        trigger: 'manual',
+        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
         filters: undefined,
       });
 
       expect(response.body.success).toBe(true);
     });
 
-    it("should handle minimal valid payload", async () => {
+    it('should handle minimal valid payload', async () => {
       const payload = {
-        trigger: "scheduled",
+        trigger: 'scheduled',
       };
 
       const mockJob = createMockJob({
-        trigger: "scheduled",
-        sources: ["defillama", "debank", "hyperliquid"],
+        trigger: 'scheduled',
+        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
-      await request(app).post("/webhooks/pipedream").send(payload).expect(200);
+      await request(app).post('/webhooks/pipedream').send(payload).expect(200);
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
-        trigger: "scheduled",
-        sources: ["defillama", "debank", "hyperliquid"],
+        trigger: 'scheduled',
+        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
         filters: undefined,
       });
     });
 
-    it("should validate required trigger field", async () => {
+    it('should validate required trigger field', async () => {
       const payload = {
-        sources: ["defillama"],
+        sources: ['defillama'],
         // Missing trigger
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("trigger");
+      expect(response.body.error.message).toContain('trigger');
       expect(response.body.timestamp).toBeDefined();
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("trigger");
+      expect(response.body.error.message).toContain('trigger');
       expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
     });
 
-    it("should validate trigger enum values", async () => {
+    it('should validate trigger enum values', async () => {
       const payload = {
-        trigger: "invalid-trigger",
-        sources: ["defillama"],
+        trigger: 'invalid-trigger',
+        sources: ['defillama'],
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("trigger");
+      expect(response.body.error.message).toContain('trigger');
     });
 
-    it("should validate sources array values", async () => {
+    it('should validate sources array values', async () => {
       const payload = {
-        trigger: "scheduled",
-        sources: ["invalid-source"],
+        trigger: 'scheduled',
+        sources: ['invalid-source'],
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("sources");
+      expect(response.body.error.message).toContain('sources');
     });
 
-    it("should accept token-price source key", async () => {
+    it('should accept token-price source key', async () => {
       const payload: WebhookPayload = {
-        trigger: "manual",
-        source: "token-price",
+        trigger: 'manual',
+        source: 'token-price',
       };
 
       const mockJob = createMockJob({
-        trigger: "manual",
-        sources: ["token-price"],
+        trigger: 'manual',
+        sources: ['token-price'],
       });
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
-        trigger: "manual",
-        sources: ["token-price"],
+        trigger: 'manual',
+        sources: ['token-price'],
         filters: undefined,
       });
     });
 
-    it("should reject deprecated btc-price source key", async () => {
+    it('should reject deprecated btc-price source key', async () => {
       const payload = {
-        trigger: "manual",
-        source: "btc-price",
+        trigger: 'manual',
+        source: 'btc-price',
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("source");
+      expect(response.body.error.message).toContain('source');
     });
 
-    it("should validate filters structure", async () => {
+    it('should validate filters structure', async () => {
       const payload = {
-        trigger: "scheduled",
+        trigger: 'scheduled',
         filters: {
-          chains: "invalid-chains", // Should be array
+          chains: 'invalid-chains', // Should be array
           minTvl: -100, // Should be positive
         },
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
       // Zod error message join
-      expect(response.body.error.message).toContain("expected array");
+      expect(response.body.error.message).toContain('expected array');
     });
 
-    it("should handle job queue errors", async () => {
+    it('should handle job queue errors', async () => {
       const payload: WebhookPayload = {
-        trigger: "scheduled",
-        sources: ["defillama"],
+        trigger: 'scheduled',
+        sources: ['defillama'],
       };
 
-      const queueError = new Error("Queue is full");
+      const queueError = new Error('Queue is full');
       mockJobQueue.enqueue.mockRejectedValueOnce(queueError);
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Queue is full");
+      expect(response.body.error.message).toBe('Queue is full');
     });
 
-    it("should handle non-Error exceptions", async () => {
+    it('should handle non-Error exceptions', async () => {
       const payload = {
-        trigger: "scheduled",
+        trigger: 'scheduled',
       };
 
-      mockJobQueue.enqueue.mockRejectedValueOnce("String error");
+      mockJobQueue.enqueue.mockRejectedValueOnce('String error');
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Unknown error");
+      expect(response.body.error.message).toBe('Unknown error');
     });
 
-    it("should handle malformed JSON", async () => {
+    it('should handle malformed JSON', async () => {
       await request(app)
-        .post("/webhooks/pipedream")
-        .set("Content-Type", "application/json")
+        .post('/webhooks/pipedream')
+        .set('Content-Type', 'application/json')
         .send('{"invalid": json}')
         .expect(400);
     });
 
-    it("should validate minTvl as positive number", async () => {
+    it('should validate minTvl as positive number', async () => {
       const payload = {
-        trigger: "scheduled",
+        trigger: 'scheduled',
         filters: {
           minTvl: 0, // Should be positive
         },
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
-      expect(response.body.error.message).toContain("Too small");
+      expect(response.body.error.message).toContain('Too small');
     });
   });
 
-  describe("GET /webhooks/jobs/:jobId", () => {
-    it("should return job status for pending job", async () => {
-      const job = createMockJob({ status: "pending" });
+  describe('GET /webhooks/jobs/:jobId', () => {
+    it('should return job status for pending job', async () => {
+      const job = createMockJob({ status: 'pending' });
       mockJobQueue.getJob.mockReturnValueOnce(job);
       mockJobQueue.getResult.mockReturnValueOnce(null);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(202); // Accepted - still processing
 
       expect(response.body).toEqual({
@@ -404,32 +404,32 @@ describe("Webhooks Router", () => {
       });
     });
 
-    it("should return job status for processing job", async () => {
-      const job = createMockJob({ status: "processing" });
+    it('should return job status for processing job', async () => {
+      const job = createMockJob({ status: 'processing' });
       mockJobQueue.getJob.mockReturnValueOnce(job);
       mockJobQueue.getResult.mockReturnValueOnce(null);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(202); // Accepted - still processing
 
-      expect(response.body.data.status).toBe("processing");
+      expect(response.body.data.status).toBe('processing');
     });
 
-    it("should return job status for failed job", async () => {
-      const job = createMockJob({ status: "failed" });
+    it('should return job status for failed job', async () => {
+      const job = createMockJob({ status: 'failed' });
       mockJobQueue.getJob.mockReturnValueOnce(job);
       mockJobQueue.getResult.mockReturnValueOnce(null);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(500); // Internal Server Error - job failed
 
-      expect(response.body.data.status).toBe("failed");
+      expect(response.body.data.status).toBe('failed');
     });
 
-    it("should return successful job with result", async () => {
-      const job = createMockJob({ status: "completed" });
+    it('should return successful job with result', async () => {
+      const job = createMockJob({ status: 'completed' });
       const result = createMockSuccessResult({
         recordsProcessed: 100,
         recordsInserted: 100, // All inserted, no errors
@@ -437,14 +437,14 @@ describe("Webhooks Router", () => {
         sourceResults: {},
       });
       if (!result.success) {
-        throw new Error("Expected successful job result");
+        throw new Error('Expected successful job result');
       }
 
       mockJobQueue.getJob.mockReturnValueOnce(job);
       mockJobQueue.getResult.mockReturnValueOnce(result);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(200); // OK - fully successful
 
       expect(response.body).toEqual({
@@ -463,41 +463,41 @@ describe("Webhooks Router", () => {
       });
     });
 
-    it("should return completed job without result as 200", async () => {
-      const job = createMockJob({ status: "completed" });
+    it('should return completed job without result as 200', async () => {
+      const job = createMockJob({ status: 'completed' });
       mockJobQueue.getJob.mockReturnValueOnce(job);
       mockJobQueue.getResult.mockReturnValueOnce(undefined);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(200);
 
-      expect(response.body.data.status).toBe("completed");
+      expect(response.body.data.status).toBe('completed');
       expect(response.body.data.recordsProcessed).toBeUndefined();
       expect(response.body.data.recordsInserted).toBeUndefined();
     });
 
-    it("should return completed job with failures as 500", async () => {
-      const job = createMockJob({ status: "completed" });
-      const result = createMockFailureResult({ message: "API timeout" });
+    it('should return completed job with failures as 500', async () => {
+      const job = createMockJob({ status: 'completed' });
+      const result = createMockFailureResult({ message: 'API timeout' });
 
       mockJobQueue.getJob.mockImplementation(() => job);
       mockJobQueue.getResult.mockImplementation(() => result);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(500); // Job completed but with failures
 
-      expect(response.body.data.status).toBe("failed");
-      expect(response.body.error.message).toBe("API timeout");
+      expect(response.body.data.status).toBe('failed');
+      expect(response.body.error.message).toBe('API timeout');
     });
 
-    it("should return partial success as 206", async () => {
-      const job = createMockJob({ status: "completed" });
+    it('should return partial success as 206', async () => {
+      const job = createMockJob({ status: 'completed' });
       const result = createMockSuccessResult({
         recordsProcessed: 100,
         recordsInserted: 80, // Some records failed to insert
-        errors: ["20 records failed validation"],
+        errors: ['20 records failed validation'],
         // Errors in sourceResults implied
       });
 
@@ -505,21 +505,21 @@ describe("Webhooks Router", () => {
       mockJobQueue.getResult.mockReturnValueOnce(result);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(206); // Partial Content - some records failed to insert
 
       expect(response.body.data.recordsProcessed).toBe(100);
       expect(response.body.data.recordsInserted).toBe(80);
     });
 
-    it("should return partial success with errors as 206", async () => {
-      const job = createMockJob({ status: "completed" });
+    it('should return partial success with errors as 206', async () => {
+      const job = createMockJob({ status: 'completed' });
       const result = createMockSuccessResult({
         recordsProcessed: 100,
         recordsInserted: 100, // All inserted
         sourceResults: {
           defillama: {
-            errors: ["Warning: deprecated API used"],
+            errors: ['Warning: deprecated API used'],
             success: true,
           },
         },
@@ -529,7 +529,7 @@ describe("Webhooks Router", () => {
       mockJobQueue.getResult.mockReturnValueOnce(result);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(206); // Partial Content - has errors
 
       // Access sourceResults to check errors
@@ -538,77 +538,77 @@ describe("Webhooks Router", () => {
       expect(response.body.data.recordsProcessed).toBe(100);
     });
 
-    it("should return 404 for non-existent job", async () => {
+    it('should return 404 for non-existent job', async () => {
       mockJobQueue.getJob.mockReturnValueOnce(null);
 
       const response = await request(app)
-        .get("/webhooks/jobs/non-existent")
+        .get('/webhooks/jobs/non-existent')
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Job not found");
+      expect(response.body.error.message).toBe('Job not found');
       expect(response.body.timestamp).toBeDefined();
     });
 
-    it("should handle job retrieval errors", async () => {
-      const retrievalError = new Error("Database connection failed");
+    it('should handle job retrieval errors', async () => {
+      const retrievalError = new Error('Database connection failed');
       mockJobQueue.getJob.mockImplementation(() => {
         throw retrievalError;
       });
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Failed to retrieve job status");
+      expect(response.body.error.message).toBe('Failed to retrieve job status');
       expect(response.body.timestamp).toBeDefined();
     });
 
-    it("should handle non-Error exceptions during job retrieval", async () => {
+    it('should handle non-Error exceptions during job retrieval', async () => {
       mockJobQueue.getJob.mockImplementation(() => {
         // eslint-disable-next-line no-throw-literal
-        throw "String error in job retrieval";
+        throw 'String error in job retrieval';
       });
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Failed to retrieve job status");
+      expect(response.body.error.message).toBe('Failed to retrieve job status');
     });
 
-    it("should log warning when job status schema validation fails", async () => {
+    it('should log warning when job status schema validation fails', async () => {
       const jobWithBadDate = {
-        jobId: "job-invalid-date",
-        trigger: "scheduled",
-        sources: ["defillama"],
+        jobId: 'job-invalid-date',
+        trigger: 'scheduled',
+        sources: ['defillama'],
         createdAt: {
-          toISOString: () => "not-an-iso-date",
+          toISOString: () => 'not-an-iso-date',
         },
-        status: "pending",
+        status: 'pending',
       };
 
       mockJobQueue.getJob.mockReturnValueOnce(jobWithBadDate);
       mockJobQueue.getResult.mockReturnValueOnce(null);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-invalid-date")
+        .get('/webhooks/jobs/job-invalid-date')
         .expect(202);
 
-      expect(response.body.data.jobId).toBe("job-invalid-date");
+      expect(response.body.data.jobId).toBe('job-invalid-date');
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Job status schema validation failed",
+        'Job status schema validation failed',
         expect.objectContaining({
-          jobId: "job-invalid-date",
+          jobId: 'job-invalid-date',
           error: expect.anything(),
         }),
       );
     });
 
-    it("should handle edge case with result but no successful completion", async () => {
-      const job = createMockJob({ status: "completed" });
+    it('should handle edge case with result but no successful completion', async () => {
+      const job = createMockJob({ status: 'completed' });
       const result = createMockSuccessResult({
         recordsProcessed: 100,
         recordsInserted: 100,
@@ -620,80 +620,80 @@ describe("Webhooks Router", () => {
       mockJobQueue.getResult.mockReturnValueOnce(result);
 
       const response = await request(app)
-        .get("/webhooks/jobs/job-123")
+        .get('/webhooks/jobs/job-123')
         .expect(200); // Full success
 
-      expect(response.body.data.status).toBe("completed");
+      expect(response.body.data.status).toBe('completed');
       expect(response.body.data.recordsProcessed).toBe(100);
     });
     // ...
   }); // End GET /jobs
 
-  describe("Fear & Greed Sentiment Source", () => {
+  describe('Fear & Greed Sentiment Source', () => {
     // ...
-    it("rejects invalid source names", async () => {
+    it('rejects invalid source names', async () => {
       const payload = {
-        trigger: "scheduled",
-        source: "invalid-source",
+        trigger: 'scheduled',
+        source: 'invalid-source',
       };
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain("Invalid");
+      expect(response.body.error.message).toContain('Invalid');
       expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
     });
 
-    it("returns job ID and enqueues sentiment ETL job", async () => {
+    it('returns job ID and enqueues sentiment ETL job', async () => {
       const payload: WebhookPayload = {
-        trigger: "manual",
-        sources: ["feargreed"],
+        trigger: 'manual',
+        sources: ['feargreed'],
       };
 
       const mockJob = createMockJob({
-        jobId: "sentiment-job-456",
-        trigger: "manual",
-        sources: ["feargreed"],
+        jobId: 'sentiment-job-456',
+        trigger: 'manual',
+        sources: ['feargreed'],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/pipedream")
+        .post('/webhooks/pipedream')
         .send(payload)
         .expect(200);
 
       expect(response.body).toEqual({
         success: true,
-        data: { jobId: "sentiment-job-456" },
+        data: { jobId: 'sentiment-job-456' },
         timestamp: expect.any(String),
       });
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledTimes(1);
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          trigger: "manual",
-          sources: ["feargreed"],
+          trigger: 'manual',
+          sources: ['feargreed'],
         }),
       );
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "ETL job queued successfully",
+        'ETL job queued successfully',
         expect.objectContaining({
-          jobId: "sentiment-job-456",
+          jobId: 'sentiment-job-456',
         }),
       );
     });
   });
 
-  describe("POST /webhooks/wallet-fetch", () => {
+  describe('POST /webhooks/wallet-fetch', () => {
     const validWalletPayload = {
-      userId: "550e8400-e29b-41d4-a716-446655440000",
-      walletAddress: "0x1234567890123456789012345678901234567890",
-      trigger: "manual" as const,
+      userId: '550e8400-e29b-41d4-a716-446655440000',
+      walletAddress: '0x1234567890123456789012345678901234567890',
+      trigger: 'manual' as const,
     };
 
     beforeEach(() => {
@@ -706,141 +706,141 @@ describe("Webhooks Router", () => {
       delete process.env.WEBHOOK_SECRET;
     });
 
-    it("should accept valid wallet-fetch payload and enqueue job", async () => {
+    it('should accept valid wallet-fetch payload and enqueue job', async () => {
       const mockJob = createMockJob({
-        jobId: "wallet-job-123",
-        trigger: "manual",
-        sources: ["debank"],
+        jobId: 'wallet-job-123',
+        trigger: 'manual',
+        sources: ['debank'],
         metadata: {
           userId: validWalletPayload.userId,
           walletAddress: validWalletPayload.walletAddress,
-          jobType: "wallet_fetch",
+          jobType: 'wallet_fetch',
         },
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(validWalletPayload)
         .expect(202);
 
       expect(response.body).toEqual({
         success: true,
-        data: { jobId: "wallet-job-123" },
+        data: { jobId: 'wallet-job-123' },
         timestamp: expect.any(String),
       });
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
-        trigger: "manual",
-        sources: ["debank"],
+        trigger: 'manual',
+        sources: ['debank'],
         metadata: {
           userId: validWalletPayload.userId,
           walletAddress: validWalletPayload.walletAddress,
-          jobType: "wallet_fetch",
+          jobType: 'wallet_fetch',
         },
       });
     });
 
-    it("should accept webhook trigger and enqueue job", async () => {
+    it('should accept webhook trigger and enqueue job', async () => {
       const mockJob = createMockJob({
-        jobId: "wallet-job-webhook",
-        trigger: "webhook",
-        sources: ["debank"],
+        jobId: 'wallet-job-webhook',
+        trigger: 'webhook',
+        sources: ['debank'],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
-        .send({ ...validWalletPayload, trigger: "webhook" })
+        .post('/webhooks/wallet-fetch')
+        .send({ ...validWalletPayload, trigger: 'webhook' })
         .expect(202);
 
       expect(response.body).toEqual({
         success: true,
-        data: { jobId: "wallet-job-webhook" },
+        data: { jobId: 'wallet-job-webhook' },
         timestamp: expect.any(String),
       });
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          trigger: "webhook",
-          sources: ["debank"],
+          trigger: 'webhook',
+          sources: ['debank'],
           metadata: expect.objectContaining({
-            jobType: "wallet_fetch",
+            jobType: 'wallet_fetch',
           }),
         }),
       );
     });
 
-    it("should validate userId as UUID", async () => {
+    it('should validate userId as UUID', async () => {
       const invalidPayload = {
         ...validWalletPayload,
-        userId: "not-a-uuid",
+        userId: 'not-a-uuid',
       };
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(invalidPayload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe("VALIDATION_ERROR");
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
 
-    it("should validate walletAddress format", async () => {
+    it('should validate walletAddress format', async () => {
       const invalidPayload = {
         ...validWalletPayload,
-        walletAddress: "invalid-address",
+        walletAddress: 'invalid-address',
       };
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(invalidPayload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe("VALIDATION_ERROR");
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
 
-    it("should validate trigger enum", async () => {
+    it('should validate trigger enum', async () => {
       const invalidPayload = {
         ...validWalletPayload,
-        trigger: "invalid",
+        trigger: 'invalid',
       };
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(invalidPayload)
         .expect(400);
 
       expect(response.body.success).toBe(false);
     });
 
-    it("should reject invalid webhook secret when configured", async () => {
+    it('should reject invalid webhook secret when configured', async () => {
       // Temporarily set WEBHOOK_SECRET
       const originalSecret = process.env.WEBHOOK_SECRET;
-      process.env.WEBHOOK_SECRET = "test-secret";
+      process.env.WEBHOOK_SECRET = 'test-secret';
 
       try {
         const payloadWithWrongSecret = {
           ...validWalletPayload,
-          secret: "wrong-secret",
+          secret: 'wrong-secret',
         };
 
         const response = await request(app)
-          .post("/webhooks/wallet-fetch")
+          .post('/webhooks/wallet-fetch')
           .send(payloadWithWrongSecret)
           .expect(401);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.error.code).toBe("UNAUTHORIZED");
-        expect(response.body.error.message).toBe("Invalid webhook secret");
+        expect(response.body.error.code).toBe('UNAUTHORIZED');
+        expect(response.body.error.message).toBe('Invalid webhook secret');
         expect(mockLogger.warn).toHaveBeenCalledWith(
-          "Invalid webhook secret",
+          'Invalid webhook secret',
           expect.objectContaining({
             userId: validWalletPayload.userId,
-            wallet: "0x1234...7890",
+            wallet: '0x1234...7890',
           }),
         );
         expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
@@ -849,133 +849,133 @@ describe("Webhooks Router", () => {
       }
     });
 
-    it("should accept valid webhook secret when configured", async () => {
+    it('should accept valid webhook secret when configured', async () => {
       const originalSecret = process.env.WEBHOOK_SECRET;
-      process.env.WEBHOOK_SECRET = "test-secret";
+      process.env.WEBHOOK_SECRET = 'test-secret';
 
       try {
         const payloadWithCorrectSecret = {
           ...validWalletPayload,
-          secret: "test-secret",
+          secret: 'test-secret',
         };
 
         const mockJob = createMockJob({
-          jobId: "wallet-job-456",
-          sources: ["debank"],
+          jobId: 'wallet-job-456',
+          sources: ['debank'],
         });
         mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
         const response = await request(app)
-          .post("/webhooks/wallet-fetch")
+          .post('/webhooks/wallet-fetch')
           .send(payloadWithCorrectSecret)
           .expect(202);
 
         expect(response.body.success).toBe(true);
-        expect(response.body.data.jobId).toBe("wallet-job-456");
+        expect(response.body.data.jobId).toBe('wallet-job-456');
       } finally {
         process.env.WEBHOOK_SECRET = originalSecret;
       }
     });
 
-    it("should reject missing secret when WEBHOOK_SECRET is configured", async () => {
+    it('should reject missing secret when WEBHOOK_SECRET is configured', async () => {
       const originalSecret = process.env.WEBHOOK_SECRET;
-      process.env.WEBHOOK_SECRET = "test-secret";
+      process.env.WEBHOOK_SECRET = 'test-secret';
 
       try {
         // No secret in payload
         const response = await request(app)
-          .post("/webhooks/wallet-fetch")
+          .post('/webhooks/wallet-fetch')
           .send(validWalletPayload)
           .expect(401);
 
-        expect(response.body.error.code).toBe("UNAUTHORIZED");
+        expect(response.body.error.code).toBe('UNAUTHORIZED');
       } finally {
         process.env.WEBHOOK_SECRET = originalSecret;
       }
     });
 
-    it("should include requestId and validation details on payload errors", async () => {
+    it('should include requestId and validation details on payload errors', async () => {
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
-        .send({ trigger: "manual" })
+        .post('/webhooks/wallet-fetch')
+        .send({ trigger: 'manual' })
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe("VALIDATION_ERROR");
-      expect(response.body.error.context.requestId).toBe("test-request-id");
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.context.requestId).toBe('test-request-id');
       expect(Array.isArray(response.body.error.context.errors)).toBe(true);
       expect(response.body.error.context.errors.length).toBeGreaterThan(0);
     });
 
-    it("should handle job queue errors", async () => {
-      mockJobQueue.enqueue.mockRejectedValueOnce(new Error("Database error"));
+    it('should handle job queue errors', async () => {
+      mockJobQueue.enqueue.mockRejectedValueOnce(new Error('Database error'));
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(validWalletPayload)
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe("API_ERROR");
-      expect(response.body.error.message).toBe("Database error");
-      expect(response.body.error.context.requestId).toBe("test-request-id");
+      expect(response.body.error.code).toBe('API_ERROR');
+      expect(response.body.error.message).toBe('Database error');
+      expect(response.body.error.context.requestId).toBe('test-request-id');
     });
 
-    it("should handle non-Error exceptions", async () => {
-      mockJobQueue.enqueue.mockRejectedValueOnce("String error");
+    it('should handle non-Error exceptions', async () => {
+      mockJobQueue.enqueue.mockRejectedValueOnce('String error');
 
       const response = await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(validWalletPayload)
         .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Unknown error");
+      expect(response.body.error.message).toBe('Unknown error');
     });
 
-    it("should log wallet fetch request with masked address", async () => {
-      const mockJob = createMockJob({ jobId: "wallet-job-789" });
+    it('should log wallet fetch request with masked address', async () => {
+      const mockJob = createMockJob({ jobId: 'wallet-job-789' });
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
       await request(app)
-        .post("/webhooks/wallet-fetch")
+        .post('/webhooks/wallet-fetch')
         .send(validWalletPayload)
         .expect(202);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Wallet fetch webhook received",
+        'Wallet fetch webhook received',
         expect.objectContaining({
           userId: validWalletPayload.userId,
-          walletAddress: "0x1234...7890",
-          trigger: "manual",
+          walletAddress: '0x1234...7890',
+          trigger: 'manual',
         }),
       );
     });
   });
 
-  describe("TypeScript Type Safety", () => {
-    it("should handle valid DataSource union types", async () => {
+  describe('TypeScript Type Safety', () => {
+    it('should handle valid DataSource union types', async () => {
       const payload: WebhookPayload = {
-        trigger: "scheduled",
-        sources: ["defillama", "debank", "hyperliquid"], // All valid DataSource values
+        trigger: 'scheduled',
+        sources: ['defillama', 'debank', 'hyperliquid'], // All valid DataSource values
       };
 
       const mockJob = createMockJob({
-        sources: ["defillama", "debank", "hyperliquid"],
+        sources: ['defillama', 'debank', 'hyperliquid'],
       });
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
-      await request(app).post("/webhooks/pipedream").send(payload).expect(200);
+      await request(app).post('/webhooks/pipedream').send(payload).expect(200);
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({
-          sources: ["defillama", "debank", "hyperliquid"],
+          sources: ['defillama', 'debank', 'hyperliquid'],
         }),
       );
     });
 
-    it("should enforce trigger enum constraints", async () => {
-      const validTriggers: ETLJob["trigger"][] = ["scheduled", "manual"];
+    it('should enforce trigger enum constraints', async () => {
+      const validTriggers: ETLJob['trigger'][] = ['scheduled', 'manual'];
 
       for (const trigger of validTriggers) {
         vi.clearAllMocks();
@@ -983,7 +983,7 @@ describe("Webhooks Router", () => {
         mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
 
         await request(app)
-          .post("/webhooks/pipedream")
+          .post('/webhooks/pipedream')
           .send({ trigger })
           .expect(200);
       }

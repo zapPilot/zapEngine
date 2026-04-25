@@ -16,6 +16,7 @@ import type { MarketDashboardPoint } from '@/services';
 import {
   AXIS_COLOR,
   DEFAULT_ACTIVE_LINES,
+  formatPriceLabel,
   formatXAxisDate,
   getRegimeColor,
   type MarketLineKey,
@@ -66,6 +67,17 @@ interface TooltipPayload {
   };
 }
 
+function toNumeric(
+  v: string | number | readonly (string | number)[] | undefined,
+): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /**
  * Recharts' `Tooltip.formatter` types `name` as `string | number | undefined`.
  * The chart only emits string names, but we keep the wider parameter type so
@@ -79,28 +91,28 @@ function formatTooltipValue(
   const labelName = String(name ?? '');
   const payload = props.payload;
   if (labelName === 'BTC Price') {
-    const rawValue = payload?.price_usd;
+    const rawValue = payload?.price_usd ?? toNumeric(value);
     return [
       rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
       labelName,
     ];
   }
   if (labelName === 'BTC 200 DMA') {
-    const rawValue = payload?.btc_dma_200;
+    const rawValue = payload?.btc_dma_200 ?? toNumeric(value);
     return [
       rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
       labelName,
     ];
   }
   if (labelName === 'SPY Price') {
-    const rawValue = payload?.sp500_price_usd;
+    const rawValue = payload?.sp500_price_usd ?? toNumeric(value);
     return [
       rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
       labelName,
     ];
   }
   if (labelName === 'SPY 200 DMA') {
-    const rawValue = payload?.sp500_dma_200;
+    const rawValue = payload?.sp500_dma_200 ?? toNumeric(value);
     return [
       rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
       labelName,
@@ -111,9 +123,7 @@ function formatTooltipValue(
   }
   if (labelName === 'Fear & Greed Index') {
     const rawFgi = payload?.sentiment_value;
-    const regime = payload?.regime as
-      | keyof typeof REGIME_LABELS
-      | undefined;
+    const regime = payload?.regime as keyof typeof REGIME_LABELS | undefined;
     const regimeLabel = regime ? REGIME_LABELS[regime] : '';
     return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
@@ -158,7 +168,11 @@ export function MarketOverviewChart({
     const btcMinMax = getMinMax(btcValues);
     const sp500MinMax = getMinMax(sp500Values);
 
-    const normalize = (v: number | null, min: number, max: number): number | null => {
+    const normalize = (
+      v: number | null,
+      min: number,
+      max: number,
+    ): number | null => {
       if (v == null) return null;
       return ((v - min) / (max - min)) * 100;
     };
@@ -178,11 +192,7 @@ export function MarketOverviewChart({
         btcMinMax.min,
         btcMinMax.max,
       ),
-      btc_dma_normalized: normalize(
-        d.dma_200,
-        btcMinMax.min,
-        btcMinMax.max,
-      ),
+      btc_dma_normalized: normalize(d.dma_200, btcMinMax.min, btcMinMax.max),
       sp500_price_normalized: normalize(
         d.sp500?.price_usd ?? null,
         sp500MinMax.min,
@@ -239,7 +249,8 @@ export function MarketOverviewChart({
   const showFgi = activeLines.has('fgi');
   // The price axis hosts both BTC lines; render it whenever either is on so
   // the lines have a scale to render against. Same logic for the ratio axis.
-  const showPriceAxis = showBtcPrice || showBtcDma200 || showSpyPrice || showSpyDma200;
+  const showPriceAxis =
+    showBtcPrice || showBtcDma200 || showSpyPrice || showSpyDma200;
   const showRatioAxis = showEthBtcRatio || showEthBtcDma200;
 
   return (
@@ -303,7 +314,7 @@ export function MarketOverviewChart({
               stroke={AXIS_COLOR}
               tick={{ fill: AXIS_COLOR, fontSize: 11 }}
               domain={[0, 100]}
-              tickFormatter={(v) => v.toFixed(0)}
+              tickFormatter={formatPriceLabel}
               label={{
                 value: 'BTC / SPY',
                 angle: -90,

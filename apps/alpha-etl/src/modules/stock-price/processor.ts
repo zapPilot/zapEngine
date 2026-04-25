@@ -10,8 +10,6 @@
 
 import type { Pool } from 'pg';
 
-import { writeFileSync } from 'node:fs';
-
 import { getDbPool } from '../../config/database.js';
 import {
   type BaseETLProcessor,
@@ -122,8 +120,6 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
 
     try {
       const allData = await this.fetcher.fetchFullHistory(symbol);
-
-      writeFileSync('/tmp/spy-backfill-debug.json', JSON.stringify(allData, null, 2));
 
       const inserted = await this.writer.insertBatch(allData);
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const baseEnv = {
-  DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
+  ALPHA_ETL_DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
   ALPHA_ETL_PORT: '4000',
   PORT: '8001',
   NODE_ENV: 'test',
@@ -47,7 +47,7 @@ describe('environment configuration', () => {
 
     const { env } = await import('../../../src/config/environment.js');
 
-    expect(env.DATABASE_URL).toBe(baseEnv.DATABASE_URL);
+    expect(env.ALPHA_ETL_DATABASE_URL).toBe(baseEnv.ALPHA_ETL_DATABASE_URL);
     expect(env.DB_SCHEMA).toBe('alpha_raw');
     expect(env.PORT).toBe(4000);
     expect(env.ALPHA_ETL_PORT).toBe(4000);
@@ -62,7 +62,7 @@ describe('environment configuration', () => {
     const exitSpy = createExitSpy();
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const brokenEnv = { ...baseEnv, DATABASE_URL: '' };
+    const brokenEnv = { ...baseEnv, ALPHA_ETL_DATABASE_URL: '' };
     setEnv(brokenEnv);
 
     await expect(import('../../../src/config/environment.js')).rejects.toThrow(

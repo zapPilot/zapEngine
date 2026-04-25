@@ -159,3 +159,7 @@ export function formatXAxisDate(val: string): string {
 export function formatRatioValue(val: number | null | undefined): string {
   return val == null ? '---' : Number(val).toFixed(4);
 }
+
+export function formatPriceLabel(val: number): string {
+  return `$${Math.round(val / 1000)}k`;
+}

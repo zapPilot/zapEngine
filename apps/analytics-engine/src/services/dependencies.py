@@ -291,14 +291,14 @@ def get_market_dashboard_service(
     sentiment_service: SentimentDatabaseServiceProtocol = Depends(
         get_sentiment_database_service
     ),
-    stock_price_service: StockPriceServiceProtocol | None = Depends(
-        get_stock_price_service
-    ),
+    stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
 ) -> MarketDashboardServiceProtocol:
     """Create MarketDashboardService instance for aggregated market data."""
     from src.services.market.market_dashboard_service import MarketDashboardService
 
-    return MarketDashboardService(token_price_service, sentiment_service, stock_price_service)
+    return MarketDashboardService(
+        token_price_service, sentiment_service, stock_price_service
+    )
 
 
 def get_backtesting_service(
