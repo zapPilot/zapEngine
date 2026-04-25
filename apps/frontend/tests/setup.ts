@@ -255,9 +255,7 @@ vi.mock('@/lib/lazy/lazyImport', () => {
             return React.createElement(
               'div',
               { 'data-testid': 'invest-view' },
-              `Invest View ${props?.activeSubTab ?? 'trading'} ${
-                props?.activeMarketSection ?? 'overview'
-              }`,
+              `Invest View ${props?.activeSubTab ?? 'trading'}`,
             );
           }
 
@@ -276,27 +274,9 @@ vi.mock('@/lib/lazy/lazyImport', () => {
           }
 
           if (importString.includes('market/MarketDashboardView')) {
-            return React.createElement(
-              'div',
-              { 'data-testid': 'market-dashboard-view' },
-              [
-                React.createElement(
-                  'span',
-                  { key: 'active-section' },
-                  props?.activeSection ?? 'overview',
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    key: 'switch-section',
-                    type: 'button',
-                    onClick: () =>
-                      props?.onSectionChange?.('relative-strength'),
-                  },
-                  'Select Relative Strength',
-                ),
-              ],
-            );
+            return React.createElement('div', {
+              'data-testid': 'market-dashboard-view',
+            });
           }
 
           if (importString.includes('configManager')) {

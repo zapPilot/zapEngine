@@ -21,12 +21,7 @@ import {
 } from '@/lib/routing';
 import { useToast } from '@/providers/ToastProvider';
 import { connectWallet } from '@/services';
-import type {
-  DashboardSections,
-  InvestSubTab,
-  MarketSection,
-  TabType,
-} from '@/types';
+import type { DashboardSections, InvestSubTab, TabType } from '@/types';
 
 /** Layout class constants for consistent styling */
 const LAYOUT = {
@@ -175,7 +170,6 @@ export function WalletPortfolioPresenter({
   function syncRouteState(patch: {
     tab?: TabType;
     invest?: InvestSubTab;
-    market?: MarketSection;
   }): void {
     const nextSearchParams = buildPortfolioRouteSearchParams(
       searchParams,
@@ -193,10 +187,6 @@ export function WalletPortfolioPresenter({
 
   function handleInvestSubTabChange(invest: InvestSubTab): void {
     syncRouteState({ tab: 'invest', invest });
-  }
-
-  function handleMarketSectionChange(market: MarketSection): void {
-    syncRouteState({ tab: 'invest', invest: 'market', market });
   }
 
   async function handleSearch(address: string): Promise<void> {
@@ -277,9 +267,7 @@ export function WalletPortfolioPresenter({
         <LazyInvestView
           userId={userId}
           activeSubTab={routeState.invest}
-          activeMarketSection={routeState.market}
           onSubTabChange={handleInvestSubTabChange}
-          onMarketSectionChange={handleMarketSectionChange}
         />
       </div>
     ),

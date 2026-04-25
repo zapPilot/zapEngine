@@ -2,7 +2,7 @@ import { type ReactElement, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { InvestView } from '@/components/wallet/portfolio/views/invest/InvestView';
-import type { InvestSubTab, MarketSection } from '@/types';
+import type { InvestSubTab } from '@/types';
 
 import { fireEvent, render, screen } from '../../../../../../test-utils';
 
@@ -23,20 +23,7 @@ vi.mock('@/components/wallet/portfolio/views/BacktestingView', () => ({
 vi.mock(
   '@/components/wallet/portfolio/views/invest/market/MarketDashboardView',
   () => ({
-    MarketDashboardView: ({
-      activeSection,
-      onSectionChange,
-    }: {
-      activeSection?: MarketSection;
-      onSectionChange?: (section: MarketSection) => void;
-    }) => (
-      <div data-testid="market-dashboard-view">
-        <span>{activeSection}</span>
-        <button onClick={() => onSectionChange?.('relative-strength')}>
-          Select Relative Strength
-        </button>
-      </div>
-    ),
+    MarketDashboardView: () => <div data-testid="market-dashboard-view" />,
   }),
 );
 
@@ -47,25 +34,19 @@ vi.mock('@/components/wallet/portfolio/views/invest/configManager', () => ({
 interface ControlledInvestViewProps {
   userId?: string;
   initialSubTab?: InvestSubTab;
-  initialMarketSection?: MarketSection;
 }
 
 function ControlledInvestView({
   userId,
   initialSubTab = 'trading',
-  initialMarketSection = 'overview',
 }: ControlledInvestViewProps): ReactElement {
   const [activeSubTab, setActiveSubTab] = useState<InvestSubTab>(initialSubTab);
-  const [activeMarketSection, setActiveMarketSection] =
-    useState<MarketSection>(initialMarketSection);
 
   return (
     <InvestView
       userId={userId}
       activeSubTab={activeSubTab}
-      activeMarketSection={activeMarketSection}
       onSubTabChange={setActiveSubTab}
-      onMarketSectionChange={setActiveMarketSection}
     />
   );
 }
@@ -128,21 +109,6 @@ describe('InvestView', () => {
 
     expect(screen.getByTestId('config-manager-view')).toBeDefined();
     expect(screen.queryByTestId('trading-view')).toBeNull();
-  });
-
-  it('passes market section updates through to the market view', () => {
-    render(
-      <ControlledInvestView
-        userId="0xabc"
-        initialSubTab="market"
-        initialMarketSection="overview"
-      />,
-    );
-
-    expect(screen.getByText('overview')).toBeDefined();
-    fireEvent.click(screen.getByText('Select Relative Strength'));
-
-    expect(screen.getByText('relative-strength')).toBeDefined();
   });
 
   it('applies active style to the selected tab', () => {

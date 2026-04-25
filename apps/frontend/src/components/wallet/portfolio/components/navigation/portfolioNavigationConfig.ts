@@ -5,7 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import type { InvestSubTab, MarketSection, TabType } from '@/types';
+import type { InvestSubTab, TabType } from '@/types';
 
 interface PortfolioTabConfig {
   id: TabType;
@@ -15,11 +15,6 @@ interface PortfolioTabConfig {
 
 interface InvestSubTabConfig {
   id: InvestSubTab;
-  label: string;
-}
-
-interface MarketSectionConfig {
-  id: MarketSection;
   label: string;
 }
 
@@ -34,9 +29,4 @@ export const INVEST_SUB_TABS: InvestSubTabConfig[] = [
   { id: 'backtesting', label: 'backtesting' },
   { id: 'market', label: 'market data' },
   { id: 'config-manager', label: 'config manager' },
-];
-
-export const MARKET_SECTION_TABS: MarketSectionConfig[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'relative-strength', label: 'Relative Strength' },
 ];

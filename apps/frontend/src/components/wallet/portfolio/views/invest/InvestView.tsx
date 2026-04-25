@@ -3,14 +3,12 @@ import { type JSX } from 'react';
 
 import { INVEST_SUB_TABS } from '@/components/wallet/portfolio/components/navigation';
 import { lazyImport } from '@/lib/lazy/lazyImport';
-import type { InvestSubTab, MarketSection } from '@/types';
+import type { InvestSubTab } from '@/types';
 
 interface InvestViewProps {
   userId: string | undefined;
   activeSubTab?: InvestSubTab;
-  activeMarketSection?: MarketSection;
   onSubTabChange?: (subTab: InvestSubTab) => void;
-  onMarketSectionChange?: (section: MarketSection) => void;
 }
 
 const noop = (): void => {
@@ -63,8 +61,6 @@ function getSubTabClassName(isActive: boolean): string {
 function renderActiveSubTab(
   activeSubTab: InvestSubTab,
   userId: string | undefined,
-  activeMarketSection: MarketSection,
-  onMarketSectionChange: (section: MarketSection) => void,
 ): JSX.Element {
   switch (activeSubTab) {
     case 'trading':
@@ -72,12 +68,7 @@ function renderActiveSubTab(
     case 'backtesting':
       return <LazyBacktestingView />;
     case 'market':
-      return (
-        <LazyMarketDashboardView
-          activeSection={activeMarketSection}
-          onSectionChange={onMarketSectionChange}
-        />
-      );
+      return <LazyMarketDashboardView />;
     case 'config-manager':
       return <LazyConfigManagerView />;
   }
@@ -86,9 +77,7 @@ function renderActiveSubTab(
 export function InvestView({
   userId,
   activeSubTab = 'trading',
-  activeMarketSection = 'overview',
   onSubTabChange = noop,
-  onMarketSectionChange = noop,
 }: InvestViewProps): JSX.Element {
   return (
     <div className="space-y-8">
@@ -110,12 +99,7 @@ export function InvestView({
       </div>
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        {renderActiveSubTab(
-          activeSubTab,
-          userId,
-          activeMarketSection,
-          onMarketSectionChange,
-        )}
+        {renderActiveSubTab(activeSubTab, userId)}
       </div>
     </div>
   );

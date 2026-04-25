@@ -1,83 +1,123 @@
-import { type JSX, useEffect, useMemo, useRef, useState } from 'react';
+import { type JSX, useCallback, useMemo, useState } from 'react';
 
 import { LoadingState } from '@/components/ui';
-import { MARKET_SECTION_TABS } from '@/components/wallet/portfolio/components/navigation';
 import { useMarketDashboardQuery } from '@/hooks/queries/market/useMarketDashboardQuery';
 import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
 import type { MarketDashboardPoint } from '@/services';
-import type { MarketSection } from '@/types';
 
 import { MarketOverviewChart } from './MarketOverviewChart';
-import { TimeframePicker } from './sections';
+import { ChartLegendToggle, TimeframePicker } from './sections';
 import {
+  DEFAULT_ACTIVE_LINES,
+  formatRatioValue,
   getRegimeColor,
   getRegimeLabel,
+  MARKET_VIEW_MAX_DAYS,
+  MARKET_VIEW_TIMEFRAMES,
+  type MarketLineKey,
   REGIME_COLORS,
   type Timeframe,
-  TIMEFRAMES,
 } from './sections/marketDashboardConstants';
-import { RelativeStrengthSection } from './sections/RelativeStrengthSection';
 import { SimpleStatCard } from './sections/SimpleStatCard';
 
-interface MarketDashboardViewProps {
-  activeSection?: MarketSection;
-  onSectionChange?: (section: MarketSection) => void;
+function getRelativeStrengthSignal(isAboveDma: boolean | null | undefined): {
+  label: string;
+  valueClass: string;
+  detail: string;
+} {
+  if (isAboveDma === true) {
+    return {
+      label: 'ETH leading',
+      valueClass: 'text-emerald-300',
+      detail: 'ETH/BTC is trading above its 200-day trend.',
+    };
+  }
+
+  if (isAboveDma === false) {
+    return {
+      label: 'BTC leading',
+      valueClass: 'text-amber-300',
+      detail: 'ETH/BTC is below its 200-day trend.',
+    };
+  }
+
+  return {
+    label: 'Insufficient data',
+    valueClass: 'text-gray-300',
+    detail: 'Need 200 overlapping ETH/BTC daily points for a crossover signal.',
+  };
 }
 
-const noop = (): void => {
-  /* no-op */
-};
-
-function getSectionButtonClassName(isActive: boolean): string {
-  return [
-    'rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition-colors',
-    isActive
-      ? 'border-purple-400/30 bg-purple-500/15 text-white'
-      : 'border-gray-700 bg-gray-800/60 text-gray-400 hover:border-gray-500 hover:text-gray-200',
-  ].join(' ');
+/**
+ * Slice the snapshots array to the trailing N days based on the selected
+ * timeframe. We fetch MAX once and slice locally to avoid duplicate network
+ * calls when the user toggles between 1Y and MAX.
+ */
+function sliceSnapshots(
+  snapshots: readonly MarketDashboardPoint[],
+  timeframe: Timeframe,
+): MarketDashboardPoint[] {
+  if (snapshots.length === 0) {
+    return [];
+  }
+  const tf = MARKET_VIEW_TIMEFRAMES.find((entry) => entry.id === timeframe);
+  if (!tf || tf.days >= MARKET_VIEW_MAX_DAYS) {
+    return snapshots.slice();
+  }
+  // Snapshots arrive sorted ascending by date; take the trailing window
+  // straight off the array end. Avoids re-parsing every `snapshot_date`.
+  return snapshots.slice(Math.max(0, snapshots.length - tf.days));
 }
 
-export function MarketDashboardView({
-  activeSection = 'overview',
-  onSectionChange = noop,
-}: MarketDashboardViewProps): JSX.Element {
-  const [timeframe, setTimeframe] = useState<Timeframe>('1Y');
-  const overviewSectionRef = useRef<HTMLDivElement>(null);
-  const relativeStrengthSectionRef = useRef<HTMLDivElement>(null);
-  const hasMountedRef = useRef(false);
-  const activeDays = TIMEFRAMES.find((tf) => tf.id === timeframe)?.days ?? 365;
+export function MarketDashboardView(): JSX.Element {
+  const [timeframe, setTimeframe] = useState<Timeframe>('MAX');
+  const [activeLines, setActiveLines] = useState<ReadonlySet<MarketLineKey>>(
+    () => new Set(DEFAULT_ACTIVE_LINES),
+  );
+
   const { data: dashboardData, isLoading } =
-    useMarketDashboardQuery(activeDays);
-  const filteredData = useMemo<MarketDashboardPoint[]>(
+    useMarketDashboardQuery(MARKET_VIEW_MAX_DAYS);
+
+  const allSnapshots = useMemo<MarketDashboardPoint[]>(
     () => dashboardData?.snapshots ?? [],
     [dashboardData?.snapshots],
   );
 
-  const latestPoint = filteredData[filteredData.length - 1];
+  const filteredSnapshots = useMemo<MarketDashboardPoint[]>(
+    () => sliceSnapshots(allSnapshots, timeframe),
+    [allSnapshots, timeframe],
+  );
 
-  useEffect(() => {
-    if (isLoading) {
-      return;
+  const latestPoint = filteredSnapshots[filteredSnapshots.length - 1];
+
+  // Walk backwards to the most recent point that has a non-null ETH/BTC ratio
+  // — protects the stat cards from gaps in the joined series (e.g. days where
+  // the ratio's 200-DMA hasn't materialized yet).
+  const latestEthBtcPoint = useMemo(() => {
+    for (let i = filteredSnapshots.length - 1; i >= 0; i--) {
+      const point = filteredSnapshots[i];
+      if (point?.eth_btc_relative_strength?.ratio != null) {
+        return point.eth_btc_relative_strength;
+      }
     }
+    return null;
+  }, [filteredSnapshots]);
 
-    const shouldScrollToOverview =
-      hasMountedRef.current && activeSection === 'overview';
-    const shouldScrollToRelativeStrength =
-      activeSection === 'relative-strength';
+  const relativeStrengthSignal = getRelativeStrengthSignal(
+    latestEthBtcPoint?.is_above_dma,
+  );
 
-    if (!shouldScrollToOverview && !shouldScrollToRelativeStrength) {
-      hasMountedRef.current = true;
-      return;
-    }
-
-    const targetElement =
-      activeSection === 'relative-strength'
-        ? relativeStrengthSectionRef.current
-        : overviewSectionRef.current;
-
-    targetElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    hasMountedRef.current = true;
-  }, [activeSection, isLoading]);
+  const handleToggleLine = useCallback((key: MarketLineKey) => {
+    setActiveLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   if (isLoading) {
     return (
@@ -89,36 +129,16 @@ export function MarketDashboardView({
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full h-full p-6 bg-gray-900/50 rounded-xl border border-gray-800">
+    <div className="flex flex-col gap-6 w-full h-full px-4 py-6 bg-gray-900/50 rounded-xl border border-gray-800">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {MARKET_SECTION_TABS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              data-testid={`market-section-${section.id}`}
-              onClick={() => onSectionChange(section.id)}
-              className={getSectionButtonClassName(
-                activeSection === section.id,
-              )}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-
-        <div
-          ref={overviewSectionRef}
-          data-testid="market-section-content-overview"
-          className="flex flex-col gap-6"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-white">Market Overview</h2>
-              <p className="text-sm text-gray-400">
-                BTC Price, 200 DMA, and Fear & Greed Index
-              </p>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Market Overview</h2>
+            <p className="text-sm text-gray-400">
+              BTC Price, ETH/BTC Ratio, and Fear &amp; Greed Index
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
             <TimeframePicker
               value={timeframe}
               onChange={setTimeframe}
@@ -126,67 +146,90 @@ export function MarketDashboardView({
               borderColor="border-gray-700"
               activeColor="bg-purple-600"
               buttonSize="px-4 py-1.5 text-sm"
+              timeframes={MARKET_VIEW_TIMEFRAMES}
+            />
+            <ChartLegendToggle
+              activeLines={activeLines}
+              onToggle={handleToggleLine}
             />
           </div>
+        </div>
 
-          <MarketOverviewChart data={filteredData} />
+        <MarketOverviewChart
+          data={filteredSnapshots}
+          activeLines={activeLines}
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-            <SimpleStatCard
-              label="Current BTC Price"
-              value={`$${latestPoint?.price_usd.toLocaleString() ?? '---'}`}
-              valueClass="text-white"
-            />
-            <SimpleStatCard
-              label="Current 200 DMA"
-              value={`$${latestPoint?.dma_200?.toLocaleString() ?? '---'}`}
-              valueClass="text-[#A855F7]"
-            />
-            <div className="p-5 bg-gray-800/40 rounded-xl border border-gray-700/50 hover:bg-gray-800/60 transition-colors">
-              <p className="text-sm font-medium text-gray-400 mb-1">
-                Fear & Greed Index
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+          <SimpleStatCard
+            label="Current BTC Price"
+            value={`$${latestPoint?.price_usd.toLocaleString() ?? '---'}`}
+            valueClass="text-white"
+          />
+          <SimpleStatCard
+            label="Current 200 DMA"
+            value={`$${latestPoint?.dma_200?.toLocaleString() ?? '---'}`}
+            valueClass="text-[#A855F7]"
+          />
+          <div className="p-5 bg-gray-800/40 rounded-xl border border-gray-700/50 hover:bg-gray-800/60 transition-colors">
+            <p className="text-sm font-medium text-gray-400 mb-1">
+              Fear &amp; Greed Index
+            </p>
+            <div className="flex flex-col">
+              <p
+                className="text-2xl font-bold"
+                style={{
+                  color: getRegimeColor(latestPoint?.regime, '#10B981'),
+                }}
+              >
+                {latestPoint?.sentiment_value ?? '---'} / 100
+                {latestPoint?.regime && (
+                  <span className="text-sm ml-2 font-medium opacity-80">
+                    ({getRegimeLabel(latestPoint.regime)})
+                  </span>
+                )}
               </p>
-              <div className="flex flex-col">
-                <p
-                  className="text-2xl font-bold"
-                  style={{
-                    color: getRegimeColor(latestPoint?.regime, '#10B981'),
-                  }}
-                >
-                  {latestPoint?.sentiment_value ?? '---'} / 100
-                  {latestPoint?.regime && (
-                    <span className="text-sm ml-2 font-medium opacity-80">
-                      ({getRegimeLabel(latestPoint.regime)})
-                    </span>
-                  )}
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  {Object.entries(REGIME_COLORS).map(([key, color]) => (
+              <div className="flex items-center gap-2 mt-2">
+                {Object.entries(REGIME_COLORS).map(([key, color]) => (
+                  <div
+                    key={key}
+                    className="flex items-center gap-1"
+                    title={REGIME_LABELS[key as keyof typeof REGIME_LABELS]}
+                  >
                     <div
-                      key={key}
-                      className="flex items-center gap-1"
-                      title={REGIME_LABELS[key as keyof typeof REGIME_LABELS]}
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="text-[10px] text-gray-500 font-medium uppercase">
-                        {key}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-[10px] text-gray-500 font-medium uppercase">
+                      {key}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
-      </div>
-      <div
-        ref={relativeStrengthSectionRef}
-        data-testid="market-section-content-relative-strength"
-      >
-        <RelativeStrengthSection />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <SimpleStatCard
+            label="Current ETH/BTC Ratio"
+            value={formatRatioValue(latestEthBtcPoint?.ratio)}
+            valueClass="text-emerald-300"
+            detail="ETH price divided by BTC price on the latest overlapping day."
+          />
+          <SimpleStatCard
+            label="Ratio 200 DMA"
+            value={formatRatioValue(latestEthBtcPoint?.dma_200)}
+            valueClass="text-amber-300"
+            detail="200-day moving average of the ETH/BTC ratio."
+          />
+          <SimpleStatCard
+            label="Leader Signal"
+            value={relativeStrengthSignal.label}
+            valueClass={relativeStrengthSignal.valueClass}
+            detail={relativeStrengthSignal.detail}
+          />
+        </div>
       </div>
     </div>
   );

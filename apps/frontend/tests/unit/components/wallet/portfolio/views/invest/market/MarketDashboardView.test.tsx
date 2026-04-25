@@ -6,17 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MarketDashboardView } from '@/components/wallet/portfolio/views/invest/market/MarketDashboardView';
 import { getMarketDashboardData } from '@/services/analyticsService';
 
-// Captured formatter callbacks from recharts props — populated during render
+// Captured callback handles populated by the mocked recharts components below.
+// Tests can invoke these directly to exercise formatter/activeDot logic that
+// recharts would normally only run during SVG layout (not available in jsdom).
 let capturedTooltipFormatter:
   | ((
-      value: string | number | (string | number)[],
-      name: string | number,
+      value: string | number | (string | number)[] | undefined,
+      name: string | number | undefined,
       props: {
         payload?: {
           sentiment_value?: number | null;
           regime?: string | null;
-          ratio?: number | null;
-          dma_200?: number | null;
+          btc_dma_200?: number | null;
+          eth_btc_ratio?: number | null;
+          eth_btc_dma_200?: number | null;
         };
       },
     ) => [string | number, string | number])
@@ -31,9 +34,6 @@ let capturedFgiActiveDot:
     }) => ReactNode)
   | null = null;
 
-// Mock recharts — jsdom has no SVG layout engine.
-// The mocks capture formatter/activeDot callbacks so tests can invoke them
-// directly to cover those otherwise-unreachable code paths.
 vi.mock('recharts', async () => {
   const { createRechartsChartContainer, createRechartsMockComponent } =
     await import('../../../../../../../utils/rechartsMocks');
@@ -51,8 +51,11 @@ vi.mock('recharts', async () => {
   const YAxis = createRechartsMockComponent<{
     tickFormatter?: (val: number) => string;
     orientation?: string;
-  }>(({ tickFormatter, orientation }) => {
-    if (tickFormatter && !orientation) {
+    yAxisId?: string;
+  }>(({ tickFormatter, yAxisId }) => {
+    // Capture the price-axis formatter (yAxisId="price"). Ratio and FGI axes
+    // use different formatters and aren't asserted on directly.
+    if (tickFormatter && yAxisId === 'price') {
       capturedPriceTickFormatter = tickFormatter;
     }
 
@@ -60,14 +63,15 @@ vi.mock('recharts', async () => {
   });
   const Tooltip = createRechartsMockComponent<{
     formatter?: (
-      value: string | number | (string | number)[],
-      name: string | number,
+      value: string | number | (string | number)[] | undefined,
+      name: string | number | undefined,
       props: {
         payload?: {
           sentiment_value?: number | null;
           regime?: string | null;
-          ratio?: number | null;
-          dma_200?: number | null;
+          btc_dma_200?: number | null;
+          eth_btc_ratio?: number | null;
+          eth_btc_dma_200?: number | null;
         };
       },
     ) => [string | number, string | number];
@@ -85,7 +89,8 @@ vi.mock('recharts', async () => {
           cy?: number;
           payload?: { regime?: string | null };
         }) => ReactNode)
-      | object;
+      | object
+      | null;
   }>(({ activeDot }) => {
     if (typeof activeDot === 'function') {
       capturedFgiActiveDot = activeDot;
@@ -107,13 +112,11 @@ vi.mock('recharts', async () => {
   };
 });
 
-// Mock the analytics service
 vi.mock('@/services/analyticsService', () => ({
   getMarketDashboardData: vi.fn(),
 }));
 
 const mockGetMarketDashboardData = vi.mocked(getMarketDashboardData);
-const scrollIntoViewMock = vi.fn();
 
 const mockData = {
   snapshots: [
@@ -144,7 +147,7 @@ const mockData = {
   ],
   count: 2,
   token_symbol: 'btc',
-  days_requested: 365,
+  days_requested: 1900,
   timestamp: '2025-01-02T12:00:00Z',
 };
 
@@ -168,11 +171,6 @@ describe('MarketDashboardView', () => {
     capturedXAxisTickFormatter = null;
     capturedPriceTickFormatter = null;
     capturedFgiActiveDot = null;
-    scrollIntoViewMock.mockReset();
-    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      value: scrollIntoViewMock,
-    });
   });
 
   it('shows loading spinner while fetching', () => {
@@ -190,114 +188,112 @@ describe('MarketDashboardView', () => {
     );
   });
 
-  it('renders all timeframe buttons for BTC and ratio charts', async () => {
+  it('renders only 1Y and MAX timeframe buttons (1M/3M dropped)', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, { wrapper: createWrapper() });
+    await waitFor(() => screen.getByTestId('btc-tf-MAX'));
+    expect(screen.getByTestId('btc-tf-1Y')).toBeDefined();
+    expect(screen.getByTestId('btc-tf-MAX')).toBeDefined();
+    expect(screen.queryByTestId('btc-tf-1M')).toBeNull();
+    expect(screen.queryByTestId('btc-tf-3M')).toBeNull();
+  });
+
+  it('calls getMarketDashboardData with 1900 days exactly once on mount', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, { wrapper: createWrapper() });
+    await waitFor(() => {
+      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(1900, 'btc');
+    });
+    expect(mockGetMarketDashboardData).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refetch when switching between timeframes (slices client-side)', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => screen.getByTestId('btc-tf-1Y'));
-    // BTC chart timeframe buttons
-    expect(screen.getByTestId('btc-tf-1M')).toBeDefined();
-    expect(screen.getByTestId('btc-tf-3M')).toBeDefined();
-    expect(screen.getByTestId('btc-tf-1Y')).toBeDefined();
-    expect(screen.getByTestId('btc-tf-MAX')).toBeDefined();
-    // Ratio chart timeframe buttons
-    expect(screen.getByTestId('ratio-tf-1M')).toBeDefined();
-    expect(screen.getByTestId('ratio-tf-3M')).toBeDefined();
-    expect(screen.getByTestId('ratio-tf-1Y')).toBeDefined();
-    expect(screen.getByTestId('ratio-tf-MAX')).toBeDefined();
+    fireEvent.click(screen.getByTestId('btc-tf-1Y'));
+    fireEvent.click(screen.getByTestId('btc-tf-MAX'));
+    fireEvent.click(screen.getByTestId('btc-tf-1Y'));
+    // After three timeframe switches the API should still have fired only the
+    // initial 1900-day fetch — duplicate-request bug regression guard.
+    expect(mockGetMarketDashboardData).toHaveBeenCalledTimes(1);
   });
 
-  it('renders BTC price summary cards', async () => {
+  it('renders BTC summary cards', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => screen.getByText('Current BTC Price'));
     expect(screen.getByText('Current 200 DMA')).toBeDefined();
-    expect(screen.getByText('Fear & Greed Index')).toBeDefined();
+    // "Fear & Greed Index" appears twice — as the stat-card label AND as the
+    // toggle pill — so assert presence via getAllByText.
+    expect(screen.getAllByText('Fear & Greed Index').length).toBeGreaterThan(0);
   });
 
-  it('renders ETH/BTC relative strength section', async () => {
+  it('renders ETH/BTC relative-strength stat cards', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() => screen.getByText('ETH/BTC Ratio vs 200 DMA'));
-    expect(screen.getByText('Current ETH/BTC Ratio')).toBeDefined();
+    await waitFor(() => screen.getByText('Current ETH/BTC Ratio'));
     expect(screen.getByText('Ratio 200 DMA')).toBeDefined();
     expect(screen.getByText('Leader Signal')).toBeDefined();
   });
 
-  it('renders section pills for deep-link targets', async () => {
+  it('renders all five line-toggle pills', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
+    await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
+    expect(screen.getByTestId('line-toggle-btcPrice')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-btcDma200')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-ethBtcRatio')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-ethBtcDma200')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-fgi')).toBeDefined();
+  });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('market-section-overview')).toBeDefined(),
-    );
+  it('reflects default-on / default-off state via aria-pressed', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, { wrapper: createWrapper() });
+    await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
+    // Default-on: BTC price + BTC DMA + FGI
     expect(
-      screen.getByTestId('market-section-relative-strength'),
-    ).toBeDefined();
+      screen.getByTestId('line-toggle-btcPrice').getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('line-toggle-btcDma200').getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('line-toggle-fgi').getAttribute('aria-pressed'),
+    ).toBe('true');
+    // Default-off: ETH/BTC pair
+    expect(
+      screen
+        .getByTestId('line-toggle-ethBtcRatio')
+        .getAttribute('aria-pressed'),
+    ).toBe('false');
+    expect(
+      screen
+        .getByTestId('line-toggle-ethBtcDma200')
+        .getAttribute('aria-pressed'),
+    ).toBe('false');
   });
 
-  it('notifies parent when switching market sections', async () => {
-    const onSectionChange = vi.fn();
-
-    mockGetMarketDashboardData.mockResolvedValue(mockData);
-    render(<MarketDashboardView onSectionChange={onSectionChange} />, {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => screen.getByTestId('market-section-relative-strength'));
-    fireEvent.click(screen.getByTestId('market-section-relative-strength'));
-
-    expect(onSectionChange).toHaveBeenCalledWith('relative-strength');
-  });
-
-  it('scrolls to the relative strength section for deep links', async () => {
-    mockGetMarketDashboardData.mockResolvedValue(mockData);
-    render(<MarketDashboardView activeSection="relative-strength" />, {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalled());
-  });
-
-  it('switches BTC timeframe on button click', async () => {
+  it('flips aria-pressed when a toggle is clicked', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() => screen.getByTestId('btc-tf-3M'));
-    fireEvent.click(screen.getByTestId('btc-tf-3M'));
-    // After clicking 3M, the API is called with 90 days
-    await waitFor(() =>
-      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(90, 'btc'),
-    );
-  });
+    await waitFor(() => screen.getByTestId('line-toggle-ethBtcRatio'));
+    const ratioToggle = screen.getByTestId('line-toggle-ethBtcRatio');
+    expect(ratioToggle.getAttribute('aria-pressed')).toBe('false');
 
-  it('handles fetch errors gracefully (calls service and does not crash)', async () => {
-    mockGetMarketDashboardData.mockRejectedValue(new Error('API failure'));
-    render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() => expect(mockGetMarketDashboardData).toHaveBeenCalled());
-    // Component renders without throwing — React Query handles the error internally
-    expect(document.querySelector('.animate-spin')).not.toBeNull();
-  });
+    fireEvent.click(ratioToggle);
+    expect(
+      screen
+        .getByTestId('line-toggle-ethBtcRatio')
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
 
-  it('calls getMarketDashboardData with 365 days for BTC and 1900 days for ratio on mount', async () => {
-    mockGetMarketDashboardData.mockResolvedValue(mockData);
-    render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() => {
-      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(365, 'btc');
-      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(1900, 'btc');
-    });
-  });
-
-  it('switches ratio timeframe independently from BTC timeframe', async () => {
-    mockGetMarketDashboardData.mockResolvedValue(mockData);
-    render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() => screen.getByTestId('ratio-tf-1M'));
-    const ratioBtn1M = screen.getByTestId('ratio-tf-1M');
-    fireEvent.click(ratioBtn1M);
-    // Ratio requests 30 days, BTC still at 365
-    await waitFor(() =>
-      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(30, 'btc'),
-    );
-    // BTC chart call should still have its original 365-day call
-    expect(mockGetMarketDashboardData).toHaveBeenCalledWith(365, 'btc');
+    // Clicking a default-on toggle should turn it off
+    fireEvent.click(screen.getByTestId('line-toggle-btcPrice'));
+    expect(
+      screen.getByTestId('line-toggle-btcPrice').getAttribute('aria-pressed'),
+    ).toBe('false');
   });
 
   it('handles null regime in snapshots gracefully', async () => {
@@ -371,58 +367,6 @@ describe('MarketDashboardView', () => {
     );
   });
 
-  it('handles regime changes between consecutive data points', async () => {
-    mockGetMarketDashboardData.mockResolvedValue({
-      ...mockData,
-      snapshots: [
-        {
-          snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 25,
-          regime: 'ef',
-          eth_btc_relative_strength: null,
-        },
-        {
-          snapshot_date: '2025-01-02',
-          price_usd: 43000,
-          dma_200: 38500,
-          sentiment_value: 45,
-          regime: 'f',
-          eth_btc_relative_strength: null,
-        },
-        {
-          snapshot_date: '2025-01-03',
-          price_usd: 44000,
-          dma_200: 39000,
-          sentiment_value: 55,
-          regime: 'n',
-          eth_btc_relative_strength: null,
-        },
-        {
-          snapshot_date: '2025-01-04',
-          price_usd: 45000,
-          dma_200: 39500,
-          sentiment_value: 75,
-          regime: 'g',
-          eth_btc_relative_strength: null,
-        },
-        {
-          snapshot_date: '2025-01-05',
-          price_usd: 46000,
-          dma_200: 40000,
-          sentiment_value: 90,
-          regime: 'eg',
-          eth_btc_relative_strength: null,
-        },
-      ],
-    });
-    render(<MarketDashboardView />, { wrapper: createWrapper() });
-    await waitFor(() =>
-      expect(screen.getByText('Market Overview')).toBeDefined(),
-    );
-  });
-
   it('handles undefined regime in snapshots', async () => {
     mockGetMarketDashboardData.mockResolvedValue({
       ...mockData,
@@ -443,14 +387,22 @@ describe('MarketDashboardView', () => {
     );
   });
 
-  // ── Formatter function coverage ──────────────────────────────────────────
+  it('handles fetch errors gracefully', async () => {
+    mockGetMarketDashboardData.mockRejectedValue(new Error('API failure'));
+    render(<MarketDashboardView />, { wrapper: createWrapper() });
+    await waitFor(() => expect(mockGetMarketDashboardData).toHaveBeenCalled());
+    // The page does not (yet) render an error message — verify nothing crashed
+    // by confirming the loading spinner is still on screen.
+    expect(document.querySelector('.animate-spin')).not.toBeNull();
+  });
+
+  // ── Formatter coverage ──────────────────────────────────────────────────
 
   describe('formatXAxisDate', () => {
     it('formats ISO date string to M/D', async () => {
       mockGetMarketDashboardData.mockResolvedValue(mockData);
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() => expect(capturedXAxisTickFormatter).not.toBeNull());
-      // 2025-03-05 → month 3, day 5
       expect(capturedXAxisTickFormatter!('2025-03-05')).toBe('3/5');
     });
 
@@ -463,7 +415,7 @@ describe('MarketDashboardView', () => {
   });
 
   describe('formatPriceLabel', () => {
-    it('formats a price value to $Xk notation', async () => {
+    it('formats whole-thousands to $Xk', async () => {
       mockGetMarketDashboardData.mockResolvedValue(mockData);
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() => expect(capturedPriceTickFormatter).not.toBeNull());
@@ -493,29 +445,11 @@ describe('MarketDashboardView', () => {
       expect(label).toBe('BTC Price');
     });
 
-    it('formats 200 DMA with dollar sign and locale number', async () => {
+    it('formats BTC 200 DMA with dollar sign and locale number', async () => {
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(38500, '200 DMA', {});
+      const [formattedValue, label] = fmt(38500, 'BTC 200 DMA', {});
       expect(String(formattedValue)).toContain('38,500');
-      expect(label).toBe('200 DMA');
-    });
-
-    it('formats Fear and Greed Index with raw sentiment and regime label', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(65, 'Fear & Greed Index', {
-        payload: { sentiment_value: 65, regime: 'g' },
-      });
-      expect(String(formattedValue)).toBe('65 (Greed)');
-      expect(label).toBe('Fear & Greed Index');
-    });
-
-    it('formats Fear and Greed Index with empty label when regime is undefined', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(50, 'Fear & Greed Index', {
-        payload: { sentiment_value: 50, regime: undefined },
-      });
-      expect(String(formattedValue)).toBe('50 ()');
-      expect(label).toBe('Fear & Greed Index');
+      expect(label).toBe('BTC 200 DMA');
     });
 
     it('formats ETH/BTC Ratio with fixed decimals', async () => {
@@ -525,11 +459,37 @@ describe('MarketDashboardView', () => {
       expect(label).toBe('ETH/BTC Ratio');
     });
 
-    it('formats Ratio 200 DMA with fixed decimals', async () => {
+    it('formats ETH/BTC 200 DMA with fixed decimals', async () => {
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(0.04981, 'Ratio 200 DMA', {});
+      const [formattedValue, label] = fmt(0.04981, 'ETH/BTC 200 DMA', {});
       expect(String(formattedValue)).toBe('0.0498');
-      expect(label).toBe('Ratio 200 DMA');
+      expect(label).toBe('ETH/BTC 200 DMA');
+    });
+
+    it('formats Fear & Greed Index with raw sentiment + regime label', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue, label] = fmt(65, 'Fear & Greed Index', {
+        payload: { sentiment_value: 65, regime: 'g' },
+      });
+      expect(String(formattedValue)).toBe('65 (Greed)');
+      expect(label).toBe('Fear & Greed Index');
+    });
+
+    it('formats Fear & Greed Index with empty label when regime is undefined', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue, label] = fmt(50, 'Fear & Greed Index', {
+        payload: { sentiment_value: 50, regime: undefined },
+      });
+      expect(String(formattedValue)).toBe('50 ()');
+      expect(label).toBe('Fear & Greed Index');
+    });
+
+    it('formats Fear & Greed Index with empty label when regime is null', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue] = fmt(40, 'Fear & Greed Index', {
+        payload: { sentiment_value: 40, regime: null },
+      });
+      expect(String(formattedValue)).toBe('40 ()');
     });
 
     it('returns value unchanged for unknown series name (default branch)', async () => {
@@ -540,32 +500,17 @@ describe('MarketDashboardView', () => {
     });
 
     it('formats BTC Price with undefined value falling back to 0', async () => {
-      // Exercises the `value ?? 0` branch on line 75 when value is undefined
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(
-        undefined as unknown as number,
-        'BTC Price',
-        {},
-      );
+      const [formattedValue, label] = fmt(undefined, 'BTC Price', {});
       expect(String(formattedValue)).toContain('$0');
       expect(label).toBe('BTC Price');
     });
 
     it('formats series with undefined name falling back to empty string', async () => {
-      // Exercises the `name ?? ""` branch on line 73 when name is undefined
       const fmt = await renderAndGetFormatter();
-      const [, label] = fmt(42, undefined as unknown as string, {});
-      // labelName becomes "" — neither BTC Price nor 200 DMA nor Fear & Greed Index
+      const [, label] = fmt(42, undefined, {});
+      // labelName becomes "" — falls into default branch
       expect(String(label)).toBe('');
-    });
-
-    it('formats Fear and Greed Index with null regime producing empty label', async () => {
-      // Exercises the `regime ? REGIME_LABELS[regime] : ""` false branch (regime is null)
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue] = fmt(40, 'Fear & Greed Index', {
-        payload: { sentiment_value: 40, regime: null },
-      });
-      expect(String(formattedValue)).toBe('40 ()');
     });
   });
 
@@ -579,10 +524,8 @@ describe('MarketDashboardView', () => {
 
     it('renders a circle with regime color', async () => {
       const renderDot = await renderAndGetActiveDot();
-      // "g" regime maps to lime (#84cc16)
       const result = renderDot({ cx: 10, cy: 20, payload: { regime: 'g' } });
       expect(result).toBeDefined();
-      // The rendered element is a <circle> — verify it is not null
       expect(result).not.toBeNull();
     });
 
@@ -605,11 +548,8 @@ describe('MarketDashboardView', () => {
     });
   });
 
-  describe('regimeBlocks single-element filteredData', () => {
-    it('produces one block when filtered data contains exactly one point', async () => {
-      // When a single snapshot falls within the selected timeframe the block
-      // is both the first element (currentBlock creation) and the last element
-      // (i === filteredData.length - 1 push), exercising the combined branch.
+  describe('regimeBlocks', () => {
+    it('produces one block when there is exactly one snapshot', async () => {
       mockGetMarketDashboardData.mockResolvedValue({
         ...mockData,
         snapshots: [
@@ -627,15 +567,10 @@ describe('MarketDashboardView', () => {
       await waitFor(() =>
         expect(screen.getByText('Market Overview')).toBeDefined(),
       );
-      // Verify the FGI stat card shows the value without crashing
       expect(screen.getByText(/65 \/ 100/)).toBeDefined();
     });
-  });
 
-  describe('regimeBlocks consecutive same-regime points', () => {
-    it('extends block end date when consecutive points share the same regime', async () => {
-      // Two consecutive points with the same regime exercise the
-      // `currentBlock.end = d.snapshot_date` branch (line 150 in source).
+    it('extends a single block when consecutive points share a regime', async () => {
       mockGetMarketDashboardData.mockResolvedValue({
         ...mockData,
         snapshots: [
@@ -670,14 +605,67 @@ describe('MarketDashboardView', () => {
         expect(screen.getByText('Market Overview')).toBeDefined(),
       );
     });
+
+    it('handles regime changes between consecutive data points', async () => {
+      mockGetMarketDashboardData.mockResolvedValue({
+        ...mockData,
+        snapshots: [
+          {
+            snapshot_date: '2025-01-01',
+            price_usd: 42000,
+            dma_200: 38000,
+            sentiment_value: 25,
+            regime: 'ef',
+            eth_btc_relative_strength: null,
+          },
+          {
+            snapshot_date: '2025-01-02',
+            price_usd: 43000,
+            dma_200: 38500,
+            sentiment_value: 45,
+            regime: 'f',
+            eth_btc_relative_strength: null,
+          },
+          {
+            snapshot_date: '2025-01-03',
+            price_usd: 44000,
+            dma_200: 39000,
+            sentiment_value: 55,
+            regime: 'n',
+            eth_btc_relative_strength: null,
+          },
+          {
+            snapshot_date: '2025-01-04',
+            price_usd: 45000,
+            dma_200: 39500,
+            sentiment_value: 75,
+            regime: 'g',
+            eth_btc_relative_strength: null,
+          },
+          {
+            snapshot_date: '2025-01-05',
+            price_usd: 46000,
+            dma_200: 40000,
+            sentiment_value: 90,
+            regime: 'eg',
+            eth_btc_relative_strength: null,
+          },
+        ],
+      });
+      render(<MarketDashboardView />, { wrapper: createWrapper() });
+      await waitFor(() =>
+        expect(screen.getByText('Market Overview')).toBeDefined(),
+      );
+    });
   });
 
   describe('relative strength signal', () => {
     it('shows ETH leading when ratio is above DMA', async () => {
       mockGetMarketDashboardData.mockResolvedValue(mockData);
       render(<MarketDashboardView />, { wrapper: createWrapper() });
-      await waitFor(() => screen.getAllByText('ETH leading'));
-      expect(screen.getAllByText('ETH leading').length).toBeGreaterThan(0);
+      await waitFor(() =>
+        expect(screen.getByText('ETH leading')).toBeDefined(),
+      );
     });
 
     it('shows BTC leading when ratio is below DMA', async () => {
@@ -699,8 +687,9 @@ describe('MarketDashboardView', () => {
         ],
       });
       render(<MarketDashboardView />, { wrapper: createWrapper() });
-      await waitFor(() => screen.getAllByText('BTC leading'));
-      expect(screen.getAllByText('BTC leading').length).toBeGreaterThan(0);
+      await waitFor(() =>
+        expect(screen.getByText('BTC leading')).toBeDefined(),
+      );
     });
 
     it('shows insufficient data when ratio DMA is unavailable', async () => {
@@ -722,9 +711,8 @@ describe('MarketDashboardView', () => {
         ],
       });
       render(<MarketDashboardView />, { wrapper: createWrapper() });
-      await waitFor(() => screen.getAllByText('Insufficient data'));
-      expect(screen.getAllByText('Insufficient data').length).toBeGreaterThan(
-        0,
+      await waitFor(() =>
+        expect(screen.getByText('Insufficient data')).toBeDefined(),
       );
     });
   });

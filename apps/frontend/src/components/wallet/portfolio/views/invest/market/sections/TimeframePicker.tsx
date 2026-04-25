@@ -10,6 +10,8 @@ interface TimeframePickerProps {
   borderColor?: string;
   activeColor?: string;
   buttonSize?: string;
+  /** Optional subset of timeframes to display */
+  timeframes?: readonly { id: Timeframe; days: number }[];
 }
 
 /**
@@ -31,12 +33,13 @@ export function TimeframePicker({
   borderColor = 'border-gray-700',
   activeColor = 'bg-purple-600',
   buttonSize = 'px-4 py-1.5 text-sm',
+  timeframes = TIMEFRAMES,
 }: TimeframePickerProps): JSX.Element {
   return (
     <div
       className={`flex items-center gap-1 bg-gray-800 rounded-lg p-1 border ${borderColor}`}
     >
-      {TIMEFRAMES.map((tf) => (
+      {timeframes.map((tf) => (
         <button
           key={`${keyPrefix}${tf.id}`}
           onClick={() => onChange(tf.id)}

@@ -24,16 +24,6 @@ export const INVEST_SUB_TAB_IDS = [
 export type InvestSubTab = (typeof INVEST_SUB_TAB_IDS)[number];
 
 /**
- * Shareable section targets within the market sub-tab.
- */
-export const MARKET_SECTION_IDS = ['overview', 'relative-strength'] as const;
-
-/**
- * Shareable section targets within the market sub-tab.
- */
-export type MarketSection = (typeof MARKET_SECTION_IDS)[number];
-
-/**
  * Modal types for portfolio actions
  */
 export type ModalType = 'deposit' | 'withdraw' | 'rebalance';

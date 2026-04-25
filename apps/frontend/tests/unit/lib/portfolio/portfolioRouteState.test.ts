@@ -11,33 +11,26 @@ describe('portfolioRouteState', () => {
       expect(readPortfolioRouteState(new URLSearchParams())).toEqual({
         tab: 'dashboard',
         invest: 'trading',
-        market: 'overview',
       });
     });
 
     it('reads valid deep-link values', () => {
       expect(
         readPortfolioRouteState(
-          new URLSearchParams(
-            'tab=invest&invest=market&market=relative-strength',
-          ),
+          new URLSearchParams('tab=invest&invest=market'),
         ),
       ).toEqual({
         tab: 'invest',
         invest: 'market',
-        market: 'relative-strength',
       });
     });
 
     it('sanitizes invalid values back to defaults', () => {
       expect(
-        readPortfolioRouteState(
-          new URLSearchParams('tab=unknown&invest=nope&market=wat'),
-        ),
+        readPortfolioRouteState(new URLSearchParams('tab=unknown&invest=nope')),
       ).toEqual({
         tab: 'dashboard',
         invest: 'trading',
-        market: 'overview',
       });
     });
   });
@@ -65,18 +58,18 @@ describe('portfolioRouteState', () => {
       );
     });
 
-    it('adds a canonical market section when selecting the market sub-tab', () => {
+    it('writes the invest sub-tab when selecting the market sub-tab', () => {
       const nextSearchParams = buildPortfolioRouteSearchParams(
         new URLSearchParams('userId=user-1&tab=invest'),
         { tab: 'invest', invest: 'market' },
       );
 
       expect(nextSearchParams.toString()).toBe(
-        'userId=user-1&tab=invest&invest=market&market=overview',
+        'userId=user-1&tab=invest&invest=market',
       );
     });
 
-    it('prunes child params when leaving the invest tab', () => {
+    it('strips legacy market section param when leaving the invest tab', () => {
       const nextSearchParams = buildPortfolioRouteSearchParams(
         new URLSearchParams(
           'userId=user-1&tab=invest&invest=market&market=relative-strength',
@@ -87,7 +80,7 @@ describe('portfolioRouteState', () => {
       expect(nextSearchParams.toString()).toBe('userId=user-1&tab=dashboard');
     });
 
-    it('prunes market section params when leaving the market sub-tab', () => {
+    it('strips legacy market section param when staying inside the invest tab', () => {
       const nextSearchParams = buildPortfolioRouteSearchParams(
         new URLSearchParams(
           'userId=user-1&tab=invest&invest=market&market=relative-strength',

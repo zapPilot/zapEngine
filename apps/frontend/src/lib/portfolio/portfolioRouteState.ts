@@ -1,8 +1,6 @@
 import {
   INVEST_SUB_TAB_IDS,
   type InvestSubTab,
-  MARKET_SECTION_IDS,
-  type MarketSection,
   PORTFOLIO_TAB_IDS,
   type TabType,
 } from '@/types';
@@ -10,13 +8,11 @@ import {
 export interface PortfolioRouteState {
   tab: TabType;
   invest: InvestSubTab;
-  market: MarketSection;
 }
 
 export interface PortfolioRouteStatePatch {
   tab?: TabType;
   invest?: InvestSubTab;
-  market?: MarketSection;
 }
 
 type SearchParamsLike = Pick<URLSearchParams, 'get' | 'toString'>;
@@ -24,7 +20,6 @@ type SearchParamsLike = Pick<URLSearchParams, 'get' | 'toString'>;
 const DEFAULT_ROUTE_STATE: PortfolioRouteState = {
   tab: 'dashboard',
   invest: 'trading',
-  market: 'overview',
 };
 
 function isMember<TValue extends string>(
@@ -44,12 +39,6 @@ function parseInvestSubTab(value: string | null): InvestSubTab {
     : DEFAULT_ROUTE_STATE.invest;
 }
 
-function parseMarketSection(value: string | null): MarketSection {
-  return isMember(MARKET_SECTION_IDS, value)
-    ? value
-    : DEFAULT_ROUTE_STATE.market;
-}
-
 /**
  * Parse the shareable portfolio route state from the current search params.
  *
@@ -62,7 +51,7 @@ function parseMarketSection(value: string | null): MarketSection {
  * @example
  * ```typescript
  * const state = readPortfolioRouteState(new URLSearchParams("tab=invest&invest=market"));
- * // => { tab: "invest", invest: "market", market: "overview" }
+ * // => { tab: "invest", invest: "market" }
  * ```
  */
 export function readPortfolioRouteState(
@@ -71,7 +60,6 @@ export function readPortfolioRouteState(
   return {
     tab: parseTab(searchParams.get('tab')),
     invest: parseInvestSubTab(searchParams.get('invest')),
-    market: parseMarketSection(searchParams.get('market')),
   };
 }
 
@@ -90,9 +78,9 @@ export function readPortfolioRouteState(
  * ```typescript
  * const next = buildPortfolioRouteSearchParams(
  *   new URLSearchParams("userId=abc"),
- *   { tab: "invest", invest: "market", market: "relative-strength" }
+ *   { tab: "invest", invest: "market" }
  * );
- * // => userId=abc&tab=invest&invest=market&market=relative-strength
+ * // => userId=abc&tab=invest&invest=market
  * ```
  */
 export function buildPortfolioRouteSearchParams(
@@ -104,23 +92,19 @@ export function buildPortfolioRouteSearchParams(
 
   const nextTab = patch.tab ?? currentRouteState.tab;
   const nextInvest = patch.invest ?? currentRouteState.invest;
-  const nextMarket = patch.market ?? currentRouteState.market;
 
   nextSearchParams.set('tab', nextTab);
 
   if (nextTab !== 'invest') {
     nextSearchParams.delete('invest');
+    // `market` was a deprecated child param; strip leftover values so links
+    // copied during the old section-aware UI don't pollute the URL.
     nextSearchParams.delete('market');
     return nextSearchParams;
   }
 
   nextSearchParams.set('invest', nextInvest);
-
-  if (nextInvest === 'market') {
-    nextSearchParams.set('market', nextMarket);
-  } else {
-    nextSearchParams.delete('market');
-  }
+  nextSearchParams.delete('market');
 
   return nextSearchParams;
 }

@@ -130,30 +130,19 @@ vi.mock('@/components/wallet/portfolio/analytics', () => ({
 vi.mock('@/components/wallet/portfolio/views/invest/InvestView', () => ({
   InvestView: ({
     activeSubTab,
-    activeMarketSection,
     onSubTabChange,
-    onMarketSectionChange,
   }: {
     activeSubTab?: string;
-    activeMarketSection?: string;
     onSubTabChange?: (tab: string) => void;
-    onMarketSectionChange?: (section: string) => void;
   }) => (
     <div data-testid="invest-view">
-      Invest View {activeSubTab ?? 'trading'}{' '}
-      {activeMarketSection ?? 'overview'}
-      {/* Trigger buttons expose internal callbacks for sub-navigation tests */}
+      Invest View {activeSubTab ?? 'trading'}
+      {/* Trigger button exposes internal callback for sub-navigation tests */}
       <button
         data-testid="invest-switch-market"
         onClick={() => onSubTabChange?.('market')}
       >
         Switch to Market
-      </button>
-      <button
-        data-testid="invest-switch-rs"
-        onClick={() => onMarketSectionChange?.('relative-strength')}
-      >
-        Switch to RS
       </button>
     </div>
   ),
@@ -839,9 +828,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
     });
 
     it('renders the deep-linked invest sub-tab on first load', () => {
-      currentSearchParams = new URLSearchParams(
-        'tab=invest&invest=market&market=relative-strength',
-      );
+      currentSearchParams = new URLSearchParams('tab=invest&invest=market');
 
       render(
         <WalletPortfolioPresenter
@@ -853,7 +840,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
       );
 
       expect(screen.getByTestId('invest-view')).toHaveTextContent(
-        'Invest View market relative-strength',
+        'Invest View market',
       );
     });
 
@@ -1096,7 +1083,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
           React.createElement(
             'div',
             { 'data-testid': 'invest-view' },
-            `Invest View ${props?.activeSubTab ?? 'trading'} ${props?.activeMarketSection ?? 'overview'}`,
+            `Invest View ${props?.activeSubTab ?? 'trading'}`,
             React.createElement(
               'button',
               {
@@ -1104,15 +1091,6 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
                 onClick: () => props?.onSubTabChange?.('market'),
               },
               'Switch to Market',
-            ),
-            React.createElement(
-              'button',
-              {
-                'data-testid': 'invest-switch-rs',
-                onClick: () =>
-                  props?.onMarketSectionChange?.('relative-strength'),
-              },
-              'Switch to RS',
             ),
           ),
       );
@@ -1137,27 +1115,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
       await user.click(screen.getByTestId('invest-switch-market'));
 
       expect(replaceMock).toHaveBeenCalledWith(
-        '/bundle?tab=invest&invest=market&market=overview',
-        { scroll: false },
-      );
-    });
-
-    it('handleMarketSectionChange updates URL with new market section', async () => {
-      const user = userEvent.setup();
-      currentSearchParams = new URLSearchParams('tab=invest');
-
-      render(
-        <WalletPortfolioPresenter
-          data={MOCK_DATA}
-          sections={createMockSections(MOCK_DATA)}
-          etlState={DEFAULT_ETL_STATE}
-        />,
-      );
-
-      await user.click(screen.getByTestId('invest-switch-rs'));
-
-      expect(replaceMock).toHaveBeenCalledWith(
-        '/bundle?tab=invest&invest=market&market=relative-strength',
+        '/bundle?tab=invest&invest=market',
         { scroll: false },
       );
     });
