@@ -154,7 +154,9 @@ _RECIPES: dict[str, StrategyRecipe] = {
         signal_id=None,
         primary_asset="BTC",
         warmup_lookback_days=0,
-        market_data_requirements=MarketDataRequirements(),
+        # DCA decisions are price-only and immediate — tolerate at most 1 day of
+        # staleness so we don't deploy capital based on yesterday's price quote.
+        market_data_requirements=MarketDataRequirements(max_lag_days=1),
         portfolio_bucket_mapper=map_portfolio_to_two_buckets,
         runtime_portfolio_mode="aggregate",
         normalize_public_params=_normalize_dca_params,
@@ -171,6 +173,9 @@ _RECIPES: dict[str, StrategyRecipe] = {
         market_data_requirements=MarketDataRequirements(
             requires_sentiment=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
+            # FGI sentiment can shift quickly — cap forward-fill at 2 days so a
+            # stale "Greed" reading doesn't override a fresh "Fear" turn.
+            max_lag_days=2,
         ),
         portfolio_bucket_mapper=map_portfolio_to_two_buckets,
         runtime_portfolio_mode="aggregate",
@@ -189,6 +194,9 @@ _RECIPES: dict[str, StrategyRecipe] = {
             requires_sentiment=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+            # DMA-200 is a long-term smoothing indicator — week-level lag barely
+            # moves the signal, so we tolerate a full week of forward-fill.
+            max_lag_days=7,
         ),
         portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",

@@ -7,6 +7,7 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
+from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_service import (
     BacktestingService,
     _select_longest_dma_segment,
@@ -196,7 +197,12 @@ async def test_run_compare_v3_raises_when_no_usable_overlap_remains(
         return_value=sentiment_map(days=3)
     )
 
-    with pytest.raises(ValueError, match="No usable backtest data available"):
+    # Data-availability gaps now raise MarketDataUnavailableError (HTTP 503)
+    # rather than ValueError (HTTP 400) — the request itself is valid; the
+    # data pipeline is what's missing.
+    with pytest.raises(
+        MarketDataUnavailableError, match="No usable backtest data available"
+    ):
         await service.run_compare_v3(compare_request(end_date=date(2025, 1, 3)))
 
 
@@ -218,7 +224,7 @@ async def test_run_compare_v3_raises_when_no_prices(
     service.data_provider.fetch_token_prices = AsyncMock(return_value=[])
     service.data_provider.fetch_sentiments = AsyncMock(return_value={})
 
-    with pytest.raises(ValueError, match="No price data available"):
+    with pytest.raises(MarketDataUnavailableError, match="No price data available"):
         await service.run_compare_v3(compare_request())
 
 
@@ -234,7 +240,8 @@ async def test_run_compare_v3_raises_when_sentiment_starts_after_end(
     )
 
     with pytest.raises(
-        ValueError, match="Sentiment data starts after the requested end date"
+        MarketDataUnavailableError,
+        match="Sentiment data starts after the requested end date",
     ):
         await service.run_compare_v3(
             compare_request(

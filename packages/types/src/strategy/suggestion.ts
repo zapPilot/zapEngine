@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 import {
   AssetAllocationSchema,
   PortfolioAllocationSchema,
@@ -72,6 +73,7 @@ export const DailySuggestionResponseSchema = z.object({
   strategy_id: z.string(),
   action: DailySuggestionActionSchema,
   context: DailySuggestionContextSchema,
+  data_freshness: MarketDataFreshnessSchema.nullable().optional(),
 });
 
 export type DailySuggestionPortfolio = z.infer<

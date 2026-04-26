@@ -1,6 +1,7 @@
 import { Activity } from 'lucide-react';
 import { type ReactElement } from 'react';
 
+import { StaleDataBanner } from '@/components/shared/StaleDataBanner';
 import { BaseCard } from '@/components/ui/BaseCard';
 
 import { BacktestEmptyState } from './backtesting/components/BacktestEmptyState';
@@ -85,6 +86,10 @@ export function BacktestingView(): ReactElement {
                 : 'Failed to run backtest')}
           </div>
         </BaseCard>
+      )}
+
+      {backtestData?.data_freshness && (
+        <StaleDataBanner freshness={backtestData.data_freshness} />
       )}
 
       {content}

@@ -1,6 +1,7 @@
 import { CircleDollarSign } from 'lucide-react';
 import { useState } from 'react';
 
+import { StaleDataBanner } from '@/components/shared/StaleDataBanner';
 import { cn } from '@/lib/ui/classNames';
 import type { BacktestBucket } from '@/types/backtesting';
 import type { DailySuggestionResponse } from '@/types/strategy';
@@ -239,7 +240,22 @@ export function RebalancePanel({ userId }: { userId: string }) {
 
   const defaultPresetId = useDefaultPresetId(true);
 
-  const { data } = useDailySuggestion(userId, defaultPresetId);
+  const { data, error } = useDailySuggestion(userId, defaultPresetId);
+
+  if (!data && error) {
+    return (
+      <div className="max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-xl shadow-black/20 border border-gray-100 dark:border-gray-800">
+        <div className="text-center space-y-4">
+          <div className="text-red-400 font-medium">
+            Failed to load suggestion
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) return <RebalancePanelSkeleton />;
 
@@ -248,96 +264,101 @@ export function RebalancePanel({ userId }: { userId: string }) {
   const panelContent = getStatusPanelContent(data, tradeActions);
 
   return (
-    <BaseTradingPanel
-      title="Portfolio Health"
-      subtitle={
-        <>
-          Aligned with{' '}
-          <span className="text-gray-900 dark:text-white font-medium capitalize">
-            {regimeLabel}
-          </span>{' '}
-          Regime
-        </>
-      }
-      actionCardTitle={panelContent.actionCardTitle}
-      actionCardSubtitle={panelContent.actionCardSubtitle}
-      actionCardIcon={
-        <CircleDollarSign className="w-6 h-6 text-gray-900 dark:text-white" />
-      }
-      impactVisual={
-        <ImpactVisual
-          currentAllocation={data.context.portfolio.asset_allocation}
-          targetAllocation={data.context.target.asset_allocation}
-        />
-      }
-      footer={
-        <button
-          type="button"
-          disabled={panelContent.ctaDisabled}
-          onClick={() => {
-            if (!panelContent.ctaDisabled) {
-              setIsReviewOpen(true);
-            }
-          }}
-          className={cn(
-            'w-full py-4 rounded-xl font-medium transition-opacity',
-            panelContent.ctaDisabled
-              ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-              : 'bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90 shadow-lg shadow-gray-200 dark:shadow-none',
-          )}
-        >
-          {panelContent.ctaLabel}
-        </button>
-      }
-      isReviewOpen={isReviewOpen}
-      onCloseReview={() => setIsReviewOpen(false)}
-      onConfirmReview={() => setIsReviewOpen(false)}
-    >
-      {data.action.status === 'action_required' ? (
-        <div className="space-y-4 pt-2">
-          {tradeActions.map((trade, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between group cursor-default p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors -mx-3"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <div
-                  className={cn(
-                    'w-2 h-2 rounded-full transition-all group-hover:scale-125 shadow-sm',
-                    ACTION_STYLES[trade.action],
-                  )}
-                />
-                <div className="min-w-0">
-                  <div className="text-lg font-light text-gray-600 dark:text-gray-300">
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {ACTION_LABELS[trade.action]}
-                    </span>{' '}
-                    <span className="text-gray-400 mx-1">·</span>{' '}
-                    {trade.bucketLabel}
-                  </div>
-                  <div className="text-xs text-gray-500 truncate">
-                    {trade.description}
+    <>
+      {data.data_freshness && (
+        <StaleDataBanner freshness={data.data_freshness} />
+      )}
+      <BaseTradingPanel
+        title="Portfolio Health"
+        subtitle={
+          <>
+            Aligned with{' '}
+            <span className="text-gray-900 dark:text-white font-medium capitalize">
+              {regimeLabel}
+            </span>{' '}
+            Regime
+          </>
+        }
+        actionCardTitle={panelContent.actionCardTitle}
+        actionCardSubtitle={panelContent.actionCardSubtitle}
+        actionCardIcon={
+          <CircleDollarSign className="w-6 h-6 text-gray-900 dark:text-white" />
+        }
+        impactVisual={
+          <ImpactVisual
+            currentAllocation={data.context.portfolio.asset_allocation}
+            targetAllocation={data.context.target.asset_allocation}
+          />
+        }
+        footer={
+          <button
+            type="button"
+            disabled={panelContent.ctaDisabled}
+            onClick={() => {
+              if (!panelContent.ctaDisabled) {
+                setIsReviewOpen(true);
+              }
+            }}
+            className={cn(
+              'w-full py-4 rounded-xl font-medium transition-opacity',
+              panelContent.ctaDisabled
+                ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : 'bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90 shadow-lg shadow-gray-200 dark:shadow-none',
+            )}
+          >
+            {panelContent.ctaLabel}
+          </button>
+        }
+        isReviewOpen={isReviewOpen}
+        onCloseReview={() => setIsReviewOpen(false)}
+        onConfirmReview={() => setIsReviewOpen(false)}
+      >
+        {data.action.status === 'action_required' ? (
+          <div className="space-y-4 pt-2">
+            {tradeActions.map((trade, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between group cursor-default p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors -mx-3"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div
+                    className={cn(
+                      'w-2 h-2 rounded-full transition-all group-hover:scale-125 shadow-sm',
+                      ACTION_STYLES[trade.action],
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-lg font-light text-gray-600 dark:text-gray-300">
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {ACTION_LABELS[trade.action]}
+                      </span>{' '}
+                      <span className="text-gray-400 mx-1">·</span>{' '}
+                      {trade.bucketLabel}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {trade.description}
+                    </div>
                   </div>
                 </div>
+                <span className="font-mono text-gray-900 dark:text-white font-medium bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg text-sm">
+                  {formatCurrency(trade.amount_usd)}
+                </span>
               </div>
-              <span className="font-mono text-gray-900 dark:text-white font-medium bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg text-sm">
-                {formatCurrency(trade.amount_usd)}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="pt-2">
-          <div className="p-5 rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 space-y-2">
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
-              {panelContent.bodyTitle}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {panelContent.bodyDescription}
-            </p>
+            ))}
           </div>
-        </div>
-      )}
-    </BaseTradingPanel>
+        ) : (
+          <div className="pt-2">
+            <div className="p-5 rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 space-y-2">
+              <p className="text-lg font-medium text-gray-900 dark:text-white">
+                {panelContent.bodyTitle}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {panelContent.bodyDescription}
+              </p>
+            </div>
+          </div>
+        )}
+      </BaseTradingPanel>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import {
 } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import { JsonObjectSchema, JsonValueSchema, type JsonValue } from './json.js';
+import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 
 export const BacktestSignalParamsV3Schema = z
   .object({
@@ -212,6 +213,7 @@ export const BacktestResponseSchema = z.object({
   strategies: BacktestStrategySetSchema(BacktestStrategySummarySchema),
   timeline: z.array(BacktestTimelinePointSchema),
   window: BacktestWindowInfoSchema.nullable().optional(),
+  data_freshness: MarketDataFreshnessSchema.nullable().optional(),
 });
 
 export const BacktestStrategyCatalogEntryV3Schema = z.object({

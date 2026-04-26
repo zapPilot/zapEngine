@@ -65,6 +65,7 @@ class MarketDataRequirements:
     requires_sentiment: bool = False
     required_price_features: frozenset[str] = frozenset()
     required_aux_series: frozenset[str] = frozenset()
+    max_lag_days: int = 7
 
     def merge(self, other: MarketDataRequirements) -> MarketDataRequirements:
         return MarketDataRequirements(
@@ -78,6 +79,7 @@ class MarketDataRequirements:
                 self.required_price_features | other.required_price_features
             ),
             required_aux_series=self.required_aux_series | other.required_aux_series,
+            max_lag_days=max(self.max_lag_days, other.max_lag_days),
         )
 
     def requires_price_feature(self, feature_name: str) -> bool:

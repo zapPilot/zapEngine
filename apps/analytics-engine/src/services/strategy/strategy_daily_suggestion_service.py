@@ -14,6 +14,7 @@ from src.models.backtesting import (
     MarketSnapshot,
     StrategyId,
 )
+from src.models.market_data_freshness import MarketDataFreshness, StaleFeatureInfo
 from src.models.strategy import (
     DailySuggestionActionState,
     DailySuggestionContextState,
@@ -40,6 +41,7 @@ from src.services.backtesting.composition_catalog import (
     get_default_composition_catalog,
 )
 from src.services.backtesting.data.feature_loader import resolve_price_feature_history
+from src.services.backtesting.data.forward_fill import forward_fill_for_date
 from src.services.backtesting.execution.block_reasons import (
     resolve_effective_block_reason,
 )
@@ -59,6 +61,7 @@ from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
 )
 from src.services.backtesting.utils import normalize_regime_label
+from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_config_store import (
     SeedStrategyConfigStore,
     StrategyConfigStore,
@@ -101,6 +104,7 @@ class _DailySuggestionMarketData:
     warmup_price_map_by_date: dict[date, dict[str, float]]
     extra_data: dict[str, Any]
     warmup_extra_data_by_date: dict[date, dict[str, Any]]
+    data_freshness: MarketDataFreshness | None = None
 
 
 class StrategyDailySuggestionService:
@@ -194,6 +198,7 @@ class StrategyDailySuggestionService:
             portfolio_data=portfolio_data,
             market_data=market_data,
             action=action,
+            data_freshness=market_data.data_freshness,
         )
 
     def _load_portfolio_data(
@@ -271,7 +276,10 @@ class StrategyDailySuggestionService:
             date.fromisoformat(row.date[:10]): float(row.price_usd)
             for row in price_history_rows
         }
-        warmup_extra_data_by_date = self._load_required_market_features_by_date(
+        (
+            warmup_extra_data_by_date,
+            data_freshness,
+        ) = self._load_required_market_features_by_date(
             resolved_config=resolved_config,
             market_data_requirements=market_data_requirements,
             current_date=current_date,
@@ -302,6 +310,7 @@ class StrategyDailySuggestionService:
             warmup_price_map_by_date=warmup_price_map_by_date,
             extra_data=dict(warmup_extra_data_by_date.get(current_date, {})),
             warmup_extra_data_by_date=warmup_extra_data_by_date,
+            data_freshness=data_freshness,
         )
 
     def _load_required_market_features_by_date(
@@ -311,7 +320,7 @@ class StrategyDailySuggestionService:
         market_data_requirements: MarketDataRequirements,
         current_date: date,
         history_start: date,
-    ) -> dict[date, dict[str, Any]]:
+    ) -> tuple[dict[date, dict[str, Any]], MarketDataFreshness | None]:
         feature_history = resolve_price_feature_history(
             token_price_service=self.token_price_service,
             token_symbol=resolved_config.primary_asset,
@@ -320,24 +329,60 @@ class StrategyDailySuggestionService:
             market_data_requirements=market_data_requirements,
         )
         if not feature_history:
-            return {}
-        strictly_required_features = set(
-            market_data_requirements.required_price_features
+            return {}, None
+        fill_result = forward_fill_for_date(
+            feature_history=feature_history,
+            target_date=current_date,
+            asset=resolved_config.primary_asset,
+            max_lag_days=market_data_requirements.max_lag_days,
         )
+        if fill_result is None:
+            all_assets = [resolved_config.primary_asset]
+            dates_for_asset = [
+                d for values_by_date in feature_history.values() for d in values_by_date
+            ]
+            oldest = min(dates_for_asset) if dates_for_asset else None
+            tolerance_days = market_data_requirements.max_lag_days
+            strategy_id = resolved_config.strategy_id
+            msg = (
+                f"Market data lag exceeds {tolerance_days}-day tolerance "
+                f"for {strategy_id}"
+            )
+            raise MarketDataUnavailableError(
+                msg,
+                missing_assets=all_assets,
+                oldest_data_date=oldest,
+            )
         feature_rows: dict[date, dict[str, Any]] = {}
         for feature_name, values_by_date in feature_history.items():
-            if (
-                current_date not in values_by_date
-                and feature_name in strictly_required_features
-            ):
-                display_name = "DMA-200" if feature_name == "dma_200" else feature_name
-                raise ValueError(
-                    "Missing current-day "
-                    f"{display_name} data for {resolved_config.strategy_id} daily suggestion"
-                )
             for snapshot_date, feature_value in values_by_date.items():
                 feature_rows.setdefault(snapshot_date, {})[feature_name] = feature_value
-        return feature_rows
+        feature_rows[current_date] = dict(fill_result.values)
+        stale_infos: list[StaleFeatureInfo] = [
+            StaleFeatureInfo(
+                feature_name=sf.feature_name,
+                asset=sf.asset,
+                requested_date=sf.requested_date,
+                effective_date=sf.effective_date,
+                lag_days=sf.lag_days,
+            )
+            for sf in fill_result.stale_features
+        ]
+        max_lag = max((sf.lag_days for sf in stale_infos), default=0)
+        effective_date = current_date - timedelta(days=max_lag)
+        # missing_dates: dates strictly after effective_date through requested_date
+        # (the dates we couldn't satisfy, forward-filled through to effective_date).
+        missing_dates = [
+            effective_date + timedelta(days=i) for i in range(1, max_lag + 1)
+        ]
+        data_freshness = MarketDataFreshness(
+            requested_date=current_date,
+            effective_date=effective_date,
+            missing_dates=missing_dates,
+            stale_features=stale_infos,
+            max_lag_days=max_lag,
+        )
+        return feature_rows, data_freshness
 
     def _build_daily_recommendation_input(
         self,
@@ -379,6 +424,7 @@ class StrategyDailySuggestionService:
         portfolio_data: _DailySuggestionPortfolioData,
         market_data: _DailySuggestionMarketData,
         action: StrategyAction,
+        data_freshness: MarketDataFreshness | None = None,
     ) -> DailySuggestionResponse:
         buckets = portfolio_data.buckets
         allocation = buckets.allocation()
@@ -475,6 +521,7 @@ class StrategyDailySuggestionService:
                     details=dict(serialized.decision.details),
                 ),
             ),
+            data_freshness=data_freshness,
         )
         response._signal_state = serialized.signal
         response._decision_state = serialized.decision

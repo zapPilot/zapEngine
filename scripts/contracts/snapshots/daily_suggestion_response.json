@@ -578,6 +578,80 @@
       ],
       "type": "object"
     },
+    "data_freshness": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "effective_date": {
+              "type": "string"
+            },
+            "is_stale": {
+              "type": "boolean"
+            },
+            "max_lag_days": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "missing_dates": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "requested_date": {
+              "type": "string"
+            },
+            "stale_features": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "asset": {
+                    "type": "string"
+                  },
+                  "effective_date": {
+                    "type": "string"
+                  },
+                  "feature_name": {
+                    "type": "string"
+                  },
+                  "lag_days": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requested_date": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "feature_name",
+                  "asset",
+                  "requested_date",
+                  "effective_date",
+                  "lag_days"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "requested_date",
+            "effective_date",
+            "missing_dates",
+            "stale_features",
+            "max_lag_days",
+            "is_stale"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "strategy_id": {
       "type": "string"
     }
