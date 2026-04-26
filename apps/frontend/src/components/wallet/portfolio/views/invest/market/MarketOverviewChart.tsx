@@ -19,6 +19,7 @@ import {
   formatPriceLabel,
   formatXAxisDate,
   getRegimeColor,
+  MARKET_LINES,
   type MarketLineKey,
   REGIME_COLORS,
 } from './sections/marketDashboardConstants';
@@ -78,6 +79,13 @@ function toNumeric(
   return null;
 }
 
+const DOLLAR_FORMAT_LABELS: Record<string, string> = {
+  'BTC Price': 'price_usd',
+  'BTC 200 DMA': 'btc_dma_200',
+  'SPY Price': 'sp500_price_usd',
+  'SPY 200 DMA': 'sp500_dma_200',
+};
+
 /**
  * Recharts' `Tooltip.formatter` types `name` as `string | number | undefined`.
  * The chart only emits string names, but we keep the wider parameter type so
@@ -90,34 +98,17 @@ function formatTooltipValue(
 ): [string | number, string | number] {
   const labelName = String(name ?? '');
   const payload = props.payload;
-  if (labelName === 'BTC Price') {
-    const rawValue = payload?.price_usd ?? toNumeric(value);
+
+  const dollarField = DOLLAR_FORMAT_LABELS[labelName];
+  if (dollarField != null) {
+    const rawValue =
+      (payload as Record<string, unknown>)?.[dollarField] ?? toNumeric(value);
     return [
       rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
       labelName,
     ];
   }
-  if (labelName === 'BTC 200 DMA') {
-    const rawValue = payload?.btc_dma_200 ?? toNumeric(value);
-    return [
-      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
-      labelName,
-    ];
-  }
-  if (labelName === 'SPY Price') {
-    const rawValue = payload?.sp500_price_usd ?? toNumeric(value);
-    return [
-      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
-      labelName,
-    ];
-  }
-  if (labelName === 'SPY 200 DMA') {
-    const rawValue = payload?.sp500_dma_200 ?? toNumeric(value);
-    return [
-      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
-      labelName,
-    ];
-  }
+
   if (labelName === 'ETH/BTC Ratio' || labelName === 'ETH/BTC 200 DMA') {
     return [Number(value ?? 0).toFixed(4), labelName];
   }
@@ -251,18 +242,19 @@ export function MarketOverviewChart({
     return blocks;
   }, [chartData]);
 
-  const showBtcPrice = activeLines.has('btcPrice');
-  const showBtcDma200 = activeLines.has('btcDma200');
-  const showEthBtcRatio = activeLines.has('ethBtcRatio');
-  const showEthBtcDma200 = activeLines.has('ethBtcDma200');
-  const showSpyPrice = activeLines.has('spyPrice');
-  const showSpyDma200 = activeLines.has('spyDma200');
-  const showFgi = activeLines.has('fgi');
-  // The price axis hosts both BTC lines; render it whenever either is on so
-  // the lines have a scale to render against. Same logic for the ratio axis.
   const showPriceAxis =
-    showBtcPrice || showBtcDma200 || showSpyPrice || showSpyDma200;
-  const showRatioAxis = showEthBtcRatio || showEthBtcDma200;
+    activeLines.has('btcPrice') ||
+    activeLines.has('btcDma200') ||
+    activeLines.has('spyPrice') ||
+    activeLines.has('spyDma200');
+  const showRatioAxis =
+    activeLines.has('ethBtcRatio') || activeLines.has('ethBtcDma200');
+  const showFgi = activeLines.has('fgi');
+
+  const activeLineDescriptors = useMemo(
+    () => MARKET_LINES.filter((line) => activeLines.has(line.key)),
+    [activeLines],
+  );
 
   return (
     <div className="w-full h-[540px] mt-4 relative">
@@ -272,7 +264,7 @@ export function MarketOverviewChart({
         </span>
       </div>
 
-      {(showSpyPrice || showSpyDma200) && (
+      {(activeLines.has('spyPrice') || activeLines.has('spyDma200')) && (
         <div className="absolute bottom-[52px] left-[72px] z-10">
           <span className="text-[9px] text-gray-500">
             S&P 500 data shown only for market trading days
@@ -406,106 +398,38 @@ export function MarketOverviewChart({
             formatter={formatTooltipValue}
           />
 
-          {showBtcPrice && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="BTC Price"
-              dataKey="btc_price_normalized"
-              stroke={AXIS_COLOR}
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-              activeDot={{
-                r: 5,
-                fill: AXIS_COLOR,
-                strokeWidth: 2,
-                stroke: '#fff',
-              }}
-            />
-          )}
-
-          {showBtcDma200 && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="BTC 200 DMA"
-              dataKey="btc_dma_normalized"
-              stroke="#A855F7"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              connectNulls
-            />
-          )}
-
-          {showEthBtcRatio && (
-            <Line
-              yAxisId="ratio"
-              type="monotone"
-              name="ETH/BTC Ratio"
-              dataKey="eth_btc_ratio"
-              stroke="#34D399"
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-            />
-          )}
-
-          {showEthBtcDma200 && (
-            <Line
-              yAxisId="ratio"
-              type="monotone"
-              name="ETH/BTC 200 DMA"
-              dataKey="eth_btc_dma_200"
-              stroke="#F59E0B"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              connectNulls
-            />
-          )}
-
-          {showSpyPrice && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="SPY Price"
-              dataKey="sp500_price_normalized"
-              stroke="#3B82F6"
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-            />
-          )}
-
-          {showSpyDma200 && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="SPY 200 DMA"
-              dataKey="sp500_dma_normalized"
-              stroke="#EC4899"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              connectNulls
-            />
-          )}
-
-          {showFgi && (
-            <Line
-              yAxisId="fgi"
-              type="monotone"
-              name="Fear & Greed Index"
-              dataKey="sentiment_value"
-              stroke="url(#fgiLineGradient)"
-              strokeWidth={2.5}
-              dot={false}
-              connectNulls
-              activeDot={renderFgiActiveDot}
-            />
-          )}
+          {activeLineDescriptors.map((line) => {
+            const isFgi = line.key === 'fgi';
+            const isBtcPrice = line.key === 'btcPrice';
+            return (
+              <Line
+                key={line.key}
+                yAxisId={line.axis}
+                type="monotone"
+                name={line.label}
+                dataKey={line.dataKey}
+                stroke={isFgi ? 'url(#fgiLineGradient)' : line.color}
+                strokeWidth={isFgi ? 2.5 : 2}
+                dot={false}
+                {...(line.strokeDasharray
+                  ? { strokeDasharray: line.strokeDasharray }
+                  : {})}
+                connectNulls
+                {...(isFgi
+                  ? { activeDot: renderFgiActiveDot }
+                  : isBtcPrice
+                    ? {
+                        activeDot: {
+                          r: 5,
+                          fill: line.color,
+                          strokeWidth: 2,
+                          stroke: '#fff',
+                        },
+                      }
+                    : {})}
+              />
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

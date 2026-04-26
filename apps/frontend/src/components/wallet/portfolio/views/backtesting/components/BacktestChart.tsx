@@ -1,4 +1,4 @@
-import { memo, type ReactElement, useCallback, useState } from 'react';
+import { memo, type ReactElement } from 'react';
 import {
   CartesianGrid,
   ComposedChart,
@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 
 import { BaseCard } from '@/components/ui/BaseCard';
+import { useToggleSet } from '@/hooks/ui';
 import {
   formatChartAxisDate,
   formatCurrencyAxis,
@@ -48,22 +49,8 @@ export const BacktestChart = memo(function BacktestChart({
   yAxisDomain,
 }: BacktestChartProps): ReactElement {
   const primarySeriesId = getPrimaryStrategyId(sortedStrategyIds);
-  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(
-    () => new Set(),
-  );
-
-  const handleToggleIndicator = useCallback((key: IndicatorKey) => {
-    setActiveIndicators((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-
-      return next;
-    });
-  }, []);
+  const { activeSet: activeIndicators, toggle: handleToggleIndicator } =
+    useToggleSet<IndicatorKey>({ initialValue: [] });
 
   const showPriceAxis =
     activeIndicators.has('btcPrice') || activeIndicators.has('dma200');
@@ -159,14 +146,14 @@ export const BacktestChart = memo(function BacktestChart({
                     payload,
                     label,
                     sortedStrategyIds,
-                    activeIndicators,
+                    activeIndicators: activeIndicators as Set<IndicatorKey>,
                   });
 
                 return <BacktestTooltip {...tooltipProps} />;
               }}
             />
 
-            {renderIndicatorLayers(activeIndicators)}
+            {renderIndicatorLayers(activeIndicators as Set<IndicatorKey>)}
 
             {sortedStrategyIds.map((strategyId, index) => (
               <StrategyArea

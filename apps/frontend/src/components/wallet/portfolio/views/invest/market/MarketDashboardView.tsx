@@ -1,7 +1,8 @@
-import { type JSX, useCallback, useMemo, useState } from 'react';
+import { type JSX, useMemo, useState } from 'react';
 
 import { LoadingState } from '@/components/ui';
 import { useMarketDashboardQuery } from '@/hooks/queries/market/useMarketDashboardQuery';
+import { useToggleSet } from '@/hooks/ui';
 import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
 import type { MarketDashboardPoint } from '@/services';
 
@@ -71,9 +72,8 @@ function sliceSnapshots(
 
 export function MarketDashboardView(): JSX.Element {
   const [timeframe, setTimeframe] = useState<Timeframe>('MAX');
-  const [activeLines, setActiveLines] = useState<ReadonlySet<MarketLineKey>>(
-    () => new Set(DEFAULT_ACTIVE_LINES),
-  );
+  const { activeSet: activeLines, toggle: handleToggleLine } =
+    useToggleSet<MarketLineKey>({ initialValue: DEFAULT_ACTIVE_LINES });
 
   const { data: dashboardData, isLoading } =
     useMarketDashboardQuery(MARKET_VIEW_MAX_DAYS);
@@ -122,18 +122,6 @@ export function MarketDashboardView(): JSX.Element {
   const latestBtcDma = latestBtc?.indicators?.['dma_200']?.value ?? null;
   const latestSentiment = latestFgi?.value ?? null;
   const latestRegime = latestFgi?.tags?.['regime'] ?? null;
-
-  const handleToggleLine = useCallback((key: MarketLineKey) => {
-    setActiveLines((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }, []);
 
   if (isLoading) {
     return (
