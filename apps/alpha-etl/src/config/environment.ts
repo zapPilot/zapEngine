@@ -99,11 +99,9 @@ function parseEnvironment(): Environment {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    // eslint-disable-next-line no-console
-    console.error('Environment validation failed:');
-    // eslint-disable-next-line no-console
-    console.error(result.error.format());
-    process.exit(1);
+    throw new Error(
+      `Environment validation failed:\n${JSON.stringify(result.error.format(), null, 2)}`,
+    );
   }
 
   return {
