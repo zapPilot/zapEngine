@@ -6,49 +6,81 @@ import {
 } from '@/schemas/api/analytics/dashboardSchemas';
 
 describe('marketDashboardResponseSchema', () => {
-  it('accepts nested ETH/BTC relative strength data', () => {
+  it('accepts a snapshot with btc / spy / eth_btc / fgi series', () => {
     const payload = {
+      series: {
+        btc: {
+          kind: 'asset',
+          unit: 'usd',
+          label: 'BTC',
+          frequency: 'daily',
+          color_hint: '#FFFFFF',
+          scale: null,
+        },
+        fgi: {
+          kind: 'gauge',
+          unit: 'score',
+          label: 'Fear & Greed',
+          frequency: 'daily',
+          color_hint: '#10B981',
+          scale: [0, 100],
+        },
+      },
       snapshots: [
         {
           snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
-          regime: 'g',
-          eth_btc_relative_strength: {
-            ratio: 0.0532,
-            dma_200: 0.0498,
-            is_above_dma: true,
+          values: {
+            btc: {
+              value: 42000,
+              indicators: { dma_200: { value: 38000, is_above: true } },
+              tags: {},
+            },
+            eth_btc: {
+              value: 0.0532,
+              indicators: { dma_200: { value: 0.0498, is_above: true } },
+              tags: {},
+            },
+            fgi: {
+              value: 65,
+              indicators: {},
+              tags: { regime: 'g' },
+            },
           },
         },
       ],
-      count: 1,
-      token_symbol: 'BTC',
-      days_requested: 365,
-      timestamp: '2025-01-02T12:00:00Z',
+      meta: {
+        primary_series: 'btc',
+        days_requested: 365,
+        count: 1,
+        timestamp: '2025-01-02T12:00:00Z',
+      },
     };
 
     expect(() => validateMarketDashboardResponse(payload)).not.toThrow();
     expect(marketDashboardResponseSchema.parse(payload)).toEqual(payload);
   });
 
-  it('accepts missing relative strength data for backward compatibility', () => {
+  it('defaults missing indicators / tags maps to empty objects', () => {
     const payload = {
+      series: {},
       snapshots: [
         {
           snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
-          regime: 'g',
+          values: {
+            btc: { value: 42000 },
+          },
         },
       ],
-      count: 1,
-      token_symbol: 'BTC',
-      days_requested: 365,
-      timestamp: '2025-01-02T12:00:00Z',
+      meta: {
+        primary_series: 'btc',
+        days_requested: 365,
+        count: 1,
+        timestamp: '2025-01-02T12:00:00Z',
+      },
     };
 
-    expect(() => validateMarketDashboardResponse(payload)).not.toThrow();
+    const parsed = marketDashboardResponseSchema.parse(payload);
+    expect(parsed.snapshots[0]?.values['btc']?.indicators).toEqual({});
+    expect(parsed.snapshots[0]?.values['btc']?.tags).toEqual({});
   });
 });

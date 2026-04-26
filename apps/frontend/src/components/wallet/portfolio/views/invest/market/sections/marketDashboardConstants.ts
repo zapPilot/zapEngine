@@ -55,15 +55,6 @@ export interface MarketLineDescriptor {
   color: string;
   /** Which Y-axis this series renders against. */
   axis: MarketLineAxis;
-  /** Field name on the flat row consumed by recharts. */
-  dataKey:
-    | 'price_usd'
-    | 'btc_dma_200'
-    | 'eth_btc_ratio'
-    | 'eth_btc_dma_200'
-    | 'sp500_price_usd'
-    | 'sp500_dma_200'
-    | 'sentiment_value';
   /** Whether this line is visible by default on first render. */
   defaultActive: boolean;
 }
@@ -80,7 +71,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'BTC Price',
     color: AXIS_COLOR,
     axis: 'price',
-    dataKey: 'price_usd',
     defaultActive: true,
   },
   {
@@ -88,7 +78,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'BTC 200 DMA',
     color: '#A855F7',
     axis: 'price',
-    dataKey: 'btc_dma_200',
     defaultActive: true,
   },
   {
@@ -96,7 +85,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'ETH/BTC Ratio',
     color: '#34D399',
     axis: 'ratio',
-    dataKey: 'eth_btc_ratio',
     defaultActive: false,
   },
   {
@@ -104,7 +92,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'ETH/BTC 200 DMA',
     color: '#F59E0B',
     axis: 'ratio',
-    dataKey: 'eth_btc_dma_200',
     defaultActive: false,
   },
   {
@@ -112,7 +99,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'SPY Price',
     color: '#3B82F6',
     axis: 'price',
-    dataKey: 'sp500_price_usd',
     defaultActive: false,
   },
   {
@@ -120,7 +106,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'SPY 200 DMA',
     color: '#EC4899',
     axis: 'price',
-    dataKey: 'sp500_dma_200',
     defaultActive: false,
   },
   {
@@ -128,7 +113,6 @@ export const MARKET_LINES: readonly MarketLineDescriptor[] = [
     label: 'Fear & Greed Index',
     color: '#10B981',
     axis: 'fgi',
-    dataKey: 'sentiment_value',
     defaultActive: true,
   },
 ] as const;

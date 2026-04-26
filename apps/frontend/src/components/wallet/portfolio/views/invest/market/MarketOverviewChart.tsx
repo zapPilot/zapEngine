@@ -26,14 +26,14 @@ import {
 type RegimeKey = keyof typeof REGIME_COLORS;
 
 /**
- * Flat row shape consumed by recharts. Source `MarketDashboardPoint` has BTC
- * DMA as `dma_200` and ETH/BTC DMA nested under `eth_btc_relative_strength`,
- * so we flatten and disambiguate (`btc_dma_200` vs `eth_btc_dma_200`) before
- * handing the array to recharts — `<Line dataKey>` references these names.
+ * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
+ * self-describing snapshot whose `values` map keys series ids (`btc`, `spy`,
+ * `eth_btc`, `fgi`) to `{ value, indicators, tags }`. We flatten + normalize
+ * here so `<Line dataKey>` can reference plain field names.
  */
 interface ChartDataPoint {
   snapshot_date: string;
-  price_usd: number;
+  price_usd: number | null;
   btc_dma_200: number | null;
   eth_btc_ratio: number | null;
   eth_btc_dma_200: number | null;
@@ -151,10 +151,14 @@ export function MarketOverviewChart({
     const sp500Values: number[] = [];
 
     for (const d of data) {
-      if (d.price_usd != null) btcValues.push(d.price_usd);
-      if (d.dma_200 != null) btcValues.push(d.dma_200);
-      if (d.sp500?.price_usd != null) sp500Values.push(d.sp500.price_usd);
-      if (d.sp500?.dma_200 != null) sp500Values.push(d.sp500.dma_200);
+      const btc = d.values['btc'];
+      const spy = d.values['spy'];
+      if (btc?.value != null) btcValues.push(btc.value);
+      const btcDma = btc?.indicators?.['dma_200']?.value;
+      if (btcDma != null) btcValues.push(btcDma);
+      if (spy?.value != null) sp500Values.push(spy.value);
+      const spyDma = spy?.indicators?.['dma_200']?.value;
+      if (spyDma != null) sp500Values.push(spyDma);
     }
 
     const getMinMax = (arr: number[]) => {
@@ -177,33 +181,40 @@ export function MarketOverviewChart({
       return ((v - min) / (max - min)) * 100;
     };
 
-    return data.map((d) => ({
-      snapshot_date: d.snapshot_date,
-      price_usd: d.price_usd,
-      btc_dma_200: d.dma_200,
-      eth_btc_ratio: d.eth_btc_relative_strength?.ratio ?? null,
-      eth_btc_dma_200: d.eth_btc_relative_strength?.dma_200 ?? null,
-      sp500_price_usd: d.sp500?.price_usd ?? null,
-      sp500_dma_200: d.sp500?.dma_200 ?? null,
-      sentiment_value: d.sentiment_value,
-      regime: d.regime,
-      btc_price_normalized: normalize(
-        d.price_usd,
-        btcMinMax.min,
-        btcMinMax.max,
-      ),
-      btc_dma_normalized: normalize(d.dma_200, btcMinMax.min, btcMinMax.max),
-      sp500_price_normalized: normalize(
-        d.sp500?.price_usd ?? null,
-        sp500MinMax.min,
-        sp500MinMax.max,
-      ),
-      sp500_dma_normalized: normalize(
-        d.sp500?.dma_200 ?? null,
-        sp500MinMax.min,
-        sp500MinMax.max,
-      ),
-    }));
+    return data.map((d) => {
+      const btc = d.values['btc'];
+      const spy = d.values['spy'];
+      const ethBtc = d.values['eth_btc'];
+      const fgi = d.values['fgi'];
+      const btcPrice = btc?.value ?? null;
+      const btcDma = btc?.indicators?.['dma_200']?.value ?? null;
+      const spyPrice = spy?.value ?? null;
+      const spyDma = spy?.indicators?.['dma_200']?.value ?? null;
+
+      return {
+        snapshot_date: d.snapshot_date,
+        price_usd: btcPrice,
+        btc_dma_200: btcDma,
+        eth_btc_ratio: ethBtc?.value ?? null,
+        eth_btc_dma_200: ethBtc?.indicators?.['dma_200']?.value ?? null,
+        sp500_price_usd: spyPrice,
+        sp500_dma_200: spyDma,
+        sentiment_value: fgi?.value ?? null,
+        regime: fgi?.tags?.['regime'] ?? null,
+        btc_price_normalized: normalize(btcPrice, btcMinMax.min, btcMinMax.max),
+        btc_dma_normalized: normalize(btcDma, btcMinMax.min, btcMinMax.max),
+        sp500_price_normalized: normalize(
+          spyPrice,
+          sp500MinMax.min,
+          sp500MinMax.max,
+        ),
+        sp500_dma_normalized: normalize(
+          spyDma,
+          sp500MinMax.min,
+          sp500MinMax.max,
+        ),
+      };
+    });
   }, [data]);
 
   const regimeBlocks = useMemo(() => {
@@ -404,6 +415,7 @@ export function MarketOverviewChart({
               stroke={AXIS_COLOR}
               strokeWidth={2}
               dot={false}
+              connectNulls
               activeDot={{
                 r: 5,
                 fill: AXIS_COLOR,

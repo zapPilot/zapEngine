@@ -93,19 +93,35 @@ export function MarketDashboardView(): JSX.Element {
   // Walk backwards to the most recent point that has a non-null ETH/BTC ratio
   // — protects the stat cards from gaps in the joined series (e.g. days where
   // the ratio's 200-DMA hasn't materialized yet).
-  const latestEthBtcPoint = useMemo(() => {
+  const latestEthBtcPoint = useMemo<{
+    ratio: number;
+    dma_200: number | null;
+    is_above: boolean | null;
+  } | null>(() => {
     for (let i = filteredSnapshots.length - 1; i >= 0; i--) {
-      const point = filteredSnapshots[i];
-      if (point?.eth_btc_relative_strength?.ratio != null) {
-        return point.eth_btc_relative_strength;
+      const ethBtc = filteredSnapshots[i]?.values['eth_btc'];
+      if (ethBtc?.value != null) {
+        const dma = ethBtc.indicators?.['dma_200'];
+        return {
+          ratio: ethBtc.value,
+          dma_200: dma?.value ?? null,
+          is_above: dma?.is_above ?? null,
+        };
       }
     }
     return null;
   }, [filteredSnapshots]);
 
   const relativeStrengthSignal = getRelativeStrengthSignal(
-    latestEthBtcPoint?.is_above_dma,
+    latestEthBtcPoint?.is_above,
   );
+
+  const latestBtc = latestPoint?.values['btc'];
+  const latestFgi = latestPoint?.values['fgi'];
+  const latestBtcPrice = latestBtc?.value ?? null;
+  const latestBtcDma = latestBtc?.indicators?.['dma_200']?.value ?? null;
+  const latestSentiment = latestFgi?.value ?? null;
+  const latestRegime = latestFgi?.tags?.['regime'] ?? null;
 
   const handleToggleLine = useCallback((key: MarketLineKey) => {
     setActiveLines((prev) => {
@@ -163,12 +179,12 @@ export function MarketDashboardView(): JSX.Element {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
           <SimpleStatCard
             label="Current BTC Price"
-            value={`$${latestPoint?.price_usd.toLocaleString() ?? '---'}`}
+            value={`$${latestBtcPrice?.toLocaleString() ?? '---'}`}
             valueClass="text-white"
           />
           <SimpleStatCard
             label="Current 200 DMA"
-            value={`$${latestPoint?.dma_200?.toLocaleString() ?? '---'}`}
+            value={`$${latestBtcDma?.toLocaleString() ?? '---'}`}
             valueClass="text-[#A855F7]"
           />
           <div className="p-5 bg-gray-800/40 rounded-xl border border-gray-700/50 hover:bg-gray-800/60 transition-colors">
@@ -179,13 +195,13 @@ export function MarketDashboardView(): JSX.Element {
               <p
                 className="text-2xl font-bold"
                 style={{
-                  color: getRegimeColor(latestPoint?.regime, '#10B981'),
+                  color: getRegimeColor(latestRegime, '#10B981'),
                 }}
               >
-                {latestPoint?.sentiment_value ?? '---'} / 100
-                {latestPoint?.regime && (
+                {latestSentiment ?? '---'} / 100
+                {latestRegime && (
                   <span className="text-sm ml-2 font-medium opacity-80">
-                    ({getRegimeLabel(latestPoint.regime)})
+                    ({getRegimeLabel(latestRegime)})
                   </span>
                 )}
               </p>
