@@ -34,7 +34,7 @@ export const MULTICALL3_ADDRESS =
   '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;
 
 // Chain metadata
-export const CHAIN_METADATA = {
+const _CHAIN_METADATA = {
   [CHAIN_IDS.ETHEREUM]: {
     name: 'Ethereum',
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },

@@ -4,7 +4,7 @@ import {
   MAX_CHART_POINTS,
   MIN_CHART_POINTS,
   sampleTimelineData,
-} from '@/services/backtestingTimeline';
+} from '@/services/backtestingTimelineService';
 import type { BacktestTimelinePoint } from '@/types/backtesting';
 
 // ---------------------------------------------------------------------------
