@@ -118,38 +118,109 @@ vi.mock('@/services/analyticsService', () => ({
 
 const mockGetMarketDashboardData = vi.mocked(getMarketDashboardData);
 
-const mockData = {
-  snapshots: [
+interface SnapshotOpts {
+  date: string;
+  btcPrice?: number;
+  btcDma?: number | null;
+  sentiment?: number | null;
+  regime?: string | null;
+  ethBtcRatio?: number | null;
+  ethBtcDma?: number | null;
+  ethBtcIsAbove?: boolean | null;
+}
+
+function makeSnapshot(opts: SnapshotOpts) {
+  const values: Record<
+    string,
     {
-      snapshot_date: '2025-01-01',
-      price_usd: 42000,
-      dma_200: 38000,
-      sentiment_value: 65,
-      regime: 'g',
-      eth_btc_relative_strength: {
-        ratio: 0.0532,
-        dma_200: 0.0498,
-        is_above_dma: true,
-      },
+      value: number;
+      indicators: Record<string, { value: number; is_above: boolean | null }>;
+      tags: Record<string, string>;
+    }
+  > = {};
+
+  if (opts.btcPrice != null) {
+    const btcIndicators: Record<
+      string,
+      { value: number; is_above: boolean | null }
+    > = {};
+    if (opts.btcDma != null) {
+      btcIndicators['dma_200'] = {
+        value: opts.btcDma,
+        is_above: opts.btcPrice > opts.btcDma,
+      };
+    }
+    values['btc'] = {
+      value: opts.btcPrice,
+      indicators: btcIndicators,
+      tags: {},
+    };
+  }
+
+  if (opts.sentiment != null) {
+    values['fgi'] = {
+      value: opts.sentiment,
+      indicators: {},
+      tags: opts.regime ? { regime: opts.regime } : {},
+    };
+  }
+
+  if (opts.ethBtcRatio != null) {
+    const ethBtcIndicators: Record<
+      string,
+      { value: number; is_above: boolean | null }
+    > = {};
+    if (opts.ethBtcDma != null) {
+      ethBtcIndicators['dma_200'] = {
+        value: opts.ethBtcDma,
+        is_above: opts.ethBtcIsAbove ?? null,
+      };
+    }
+    values['eth_btc'] = {
+      value: opts.ethBtcRatio,
+      indicators: ethBtcIndicators,
+      tags: {},
+    };
+  }
+
+  return { snapshot_date: opts.date, values };
+}
+
+function makeResponse(snapshots: ReturnType<typeof makeSnapshot>[]) {
+  return {
+    series: {},
+    snapshots,
+    meta: {
+      primary_series: 'btc',
+      days_requested: 1900,
+      count: snapshots.length,
+      timestamp: '2025-01-02T12:00:00Z',
     },
-    {
-      snapshot_date: '2025-01-02',
-      price_usd: 43000,
-      dma_200: 38500,
-      sentiment_value: 70,
-      regime: 'eg',
-      eth_btc_relative_strength: {
-        ratio: 0.0541,
-        dma_200: 0.05,
-        is_above_dma: true,
-      },
-    },
-  ],
-  count: 2,
-  token_symbol: 'btc',
-  days_requested: 1900,
-  timestamp: '2025-01-02T12:00:00Z',
-};
+  };
+}
+
+const mockData = makeResponse([
+  makeSnapshot({
+    date: '2025-01-01',
+    btcPrice: 42000,
+    btcDma: 38000,
+    sentiment: 65,
+    regime: 'g',
+    ethBtcRatio: 0.0532,
+    ethBtcDma: 0.0498,
+    ethBtcIsAbove: true,
+  }),
+  makeSnapshot({
+    date: '2025-01-02',
+    btcPrice: 43000,
+    btcDma: 38500,
+    sentiment: 70,
+    regime: 'eg',
+    ethBtcRatio: 0.0541,
+    ethBtcDma: 0.05,
+    ethBtcIsAbove: true,
+  }),
+]);
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -297,19 +368,17 @@ describe('MarketDashboardView', () => {
   });
 
   it('handles null regime in snapshots gracefully', async () => {
-    mockGetMarketDashboardData.mockResolvedValue({
-      ...mockData,
-      snapshots: [
-        {
-          snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
+    mockGetMarketDashboardData.mockResolvedValue(
+      makeResponse([
+        makeSnapshot({
+          date: '2025-01-01',
+          btcPrice: 42000,
+          btcDma: 38000,
+          sentiment: 65,
           regime: null,
-          eth_btc_relative_strength: null,
-        },
-      ],
-    });
+        }),
+      ]),
+    );
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -328,19 +397,17 @@ describe('MarketDashboardView', () => {
   });
 
   it('handles missing dma_200 with fallback', async () => {
-    mockGetMarketDashboardData.mockResolvedValue({
-      ...mockData,
-      snapshots: [
-        {
-          snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: null,
-          sentiment_value: 65,
+    mockGetMarketDashboardData.mockResolvedValue(
+      makeResponse([
+        makeSnapshot({
+          date: '2025-01-01',
+          btcPrice: 42000,
+          btcDma: null,
+          sentiment: 65,
           regime: 'g',
-          eth_btc_relative_strength: null,
-        },
-      ],
-    });
+        }),
+      ]),
+    );
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByText('Current BTC Price')).toBeDefined(),
@@ -348,19 +415,17 @@ describe('MarketDashboardView', () => {
   });
 
   it('handles unknown regime value', async () => {
-    mockGetMarketDashboardData.mockResolvedValue({
-      ...mockData,
-      snapshots: [
-        {
-          snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
+    mockGetMarketDashboardData.mockResolvedValue(
+      makeResponse([
+        makeSnapshot({
+          date: '2025-01-01',
+          btcPrice: 42000,
+          btcDma: 38000,
+          sentiment: 65,
           regime: 'unknown_regime',
-          eth_btc_relative_strength: null,
-        },
-      ],
-    });
+        }),
+      ]),
+    );
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -368,19 +433,16 @@ describe('MarketDashboardView', () => {
   });
 
   it('handles undefined regime in snapshots', async () => {
-    mockGetMarketDashboardData.mockResolvedValue({
-      ...mockData,
-      snapshots: [
-        {
-          snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
-          regime: undefined,
-          eth_btc_relative_strength: null,
-        },
-      ],
-    });
+    mockGetMarketDashboardData.mockResolvedValue(
+      makeResponse([
+        makeSnapshot({
+          date: '2025-01-01',
+          btcPrice: 42000,
+          btcDma: 38000,
+          sentiment: 65,
+        }),
+      ]),
+    );
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -550,19 +612,17 @@ describe('MarketDashboardView', () => {
 
   describe('regimeBlocks', () => {
     it('produces one block when there is exactly one snapshot', async () => {
-      mockGetMarketDashboardData.mockResolvedValue({
-        ...mockData,
-        snapshots: [
-          {
-            snapshot_date: '2025-01-01',
-            price_usd: 42000,
-            dma_200: 38000,
-            sentiment_value: 65,
+      mockGetMarketDashboardData.mockResolvedValue(
+        makeResponse([
+          makeSnapshot({
+            date: '2025-01-01',
+            btcPrice: 42000,
+            btcDma: 38000,
+            sentiment: 65,
             regime: 'g',
-            eth_btc_relative_strength: null,
-          },
-        ],
-      });
+          }),
+        ]),
+      );
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() =>
         expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -571,35 +631,31 @@ describe('MarketDashboardView', () => {
     });
 
     it('extends a single block when consecutive points share a regime', async () => {
-      mockGetMarketDashboardData.mockResolvedValue({
-        ...mockData,
-        snapshots: [
-          {
-            snapshot_date: '2025-01-01',
-            price_usd: 42000,
-            dma_200: 38000,
-            sentiment_value: 65,
+      mockGetMarketDashboardData.mockResolvedValue(
+        makeResponse([
+          makeSnapshot({
+            date: '2025-01-01',
+            btcPrice: 42000,
+            btcDma: 38000,
+            sentiment: 65,
             regime: 'g',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-02',
-            price_usd: 43000,
-            dma_200: 38500,
-            sentiment_value: 68,
+          }),
+          makeSnapshot({
+            date: '2025-01-02',
+            btcPrice: 43000,
+            btcDma: 38500,
+            sentiment: 68,
             regime: 'g',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-03',
-            price_usd: 44000,
-            dma_200: 39000,
-            sentiment_value: 30,
+          }),
+          makeSnapshot({
+            date: '2025-01-03',
+            btcPrice: 44000,
+            btcDma: 39000,
+            sentiment: 30,
             regime: 'ef',
-            eth_btc_relative_strength: null,
-          },
-        ],
-      });
+          }),
+        ]),
+      );
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() =>
         expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -607,51 +663,45 @@ describe('MarketDashboardView', () => {
     });
 
     it('handles regime changes between consecutive data points', async () => {
-      mockGetMarketDashboardData.mockResolvedValue({
-        ...mockData,
-        snapshots: [
-          {
-            snapshot_date: '2025-01-01',
-            price_usd: 42000,
-            dma_200: 38000,
-            sentiment_value: 25,
+      mockGetMarketDashboardData.mockResolvedValue(
+        makeResponse([
+          makeSnapshot({
+            date: '2025-01-01',
+            btcPrice: 42000,
+            btcDma: 38000,
+            sentiment: 25,
             regime: 'ef',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-02',
-            price_usd: 43000,
-            dma_200: 38500,
-            sentiment_value: 45,
+          }),
+          makeSnapshot({
+            date: '2025-01-02',
+            btcPrice: 43000,
+            btcDma: 38500,
+            sentiment: 45,
             regime: 'f',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-03',
-            price_usd: 44000,
-            dma_200: 39000,
-            sentiment_value: 55,
+          }),
+          makeSnapshot({
+            date: '2025-01-03',
+            btcPrice: 44000,
+            btcDma: 39000,
+            sentiment: 55,
             regime: 'n',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-04',
-            price_usd: 45000,
-            dma_200: 39500,
-            sentiment_value: 75,
+          }),
+          makeSnapshot({
+            date: '2025-01-04',
+            btcPrice: 45000,
+            btcDma: 39500,
+            sentiment: 75,
             regime: 'g',
-            eth_btc_relative_strength: null,
-          },
-          {
-            snapshot_date: '2025-01-05',
-            price_usd: 46000,
-            dma_200: 40000,
-            sentiment_value: 90,
+          }),
+          makeSnapshot({
+            date: '2025-01-05',
+            btcPrice: 46000,
+            btcDma: 40000,
+            sentiment: 90,
             regime: 'eg',
-            eth_btc_relative_strength: null,
-          },
-        ],
-      });
+          }),
+        ]),
+      );
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() =>
         expect(screen.getByText('Market Overview')).toBeDefined(),
@@ -669,23 +719,20 @@ describe('MarketDashboardView', () => {
     });
 
     it('shows BTC leading when ratio is below DMA', async () => {
-      mockGetMarketDashboardData.mockResolvedValue({
-        ...mockData,
-        snapshots: [
-          {
-            snapshot_date: '2025-01-01',
-            price_usd: 42000,
-            dma_200: 38000,
-            sentiment_value: 65,
+      mockGetMarketDashboardData.mockResolvedValue(
+        makeResponse([
+          makeSnapshot({
+            date: '2025-01-01',
+            btcPrice: 42000,
+            btcDma: 38000,
+            sentiment: 65,
             regime: 'g',
-            eth_btc_relative_strength: {
-              ratio: 0.045,
-              dma_200: 0.05,
-              is_above_dma: false,
-            },
-          },
-        ],
-      });
+            ethBtcRatio: 0.045,
+            ethBtcDma: 0.05,
+            ethBtcIsAbove: false,
+          }),
+        ]),
+      );
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() =>
         expect(screen.getByText('BTC leading')).toBeDefined(),
@@ -693,23 +740,18 @@ describe('MarketDashboardView', () => {
     });
 
     it('shows insufficient data when ratio DMA is unavailable', async () => {
-      mockGetMarketDashboardData.mockResolvedValue({
-        ...mockData,
-        snapshots: [
-          {
-            snapshot_date: '2025-01-01',
-            price_usd: 42000,
-            dma_200: 38000,
-            sentiment_value: 65,
+      mockGetMarketDashboardData.mockResolvedValue(
+        makeResponse([
+          makeSnapshot({
+            date: '2025-01-01',
+            btcPrice: 42000,
+            btcDma: 38000,
+            sentiment: 65,
             regime: 'g',
-            eth_btc_relative_strength: {
-              ratio: 0.045,
-              dma_200: null,
-              is_above_dma: null,
-            },
-          },
-        ],
-      });
+            ethBtcRatio: 0.045,
+          }),
+        ]),
+      );
       render(<MarketDashboardView />, { wrapper: createWrapper() });
       await waitFor(() =>
         expect(screen.getByText('Insufficient data')).toBeDefined(),

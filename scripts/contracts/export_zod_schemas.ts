@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import { MarketDashboardResponseSchema } from '../../packages/types/src/api/marketDashboard.js';
 import {
   AssetAllocationSchema,
   BacktestRequestSchema,
@@ -23,6 +24,7 @@ const SNAPSHOT_SCHEMAS = {
   backtest_strategy_catalog_response: BacktestStrategyCatalogResponseV3Schema,
   bucket_transfer: BucketTransferSchema,
   daily_suggestion_response: DailySuggestionResponseSchema,
+  market_dashboard_response: MarketDashboardResponseSchema,
   portfolio_allocation: PortfolioAllocationSchema,
   strategy_configs_response: StrategyConfigsResponseSchema,
   strategy_preset: StrategyPresetSchema,

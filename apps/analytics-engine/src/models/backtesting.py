@@ -14,6 +14,7 @@ from pydantic import (
     model_validator,
 )
 
+from src.models.market_data_freshness import MarketDataFreshness
 from src.models.validation_utils import validate_config_id
 from src.services.backtesting.decision import RuleGroup
 from src.services.backtesting.public_params import (
@@ -178,6 +179,7 @@ class BacktestResponse(BaseModel):
     strategies: dict[str, StrategySummary]
     timeline: list[TimelinePoint]
     window: BacktestWindowInfo | None = None
+    data_freshness: MarketDataFreshness | None = None
 
 
 class BacktestCompareConfigV3(BaseModel):

@@ -36,6 +36,7 @@ from src.services.interfaces import (
     ROICalculatorProtocol,
     RollingAnalyticsServiceProtocol,
     SentimentDatabaseServiceProtocol,
+    StockPriceServiceProtocol,
     StrategyConfigManagementServiceProtocol,
     StrategyDailySuggestionServiceProtocol,
     TokenPriceServiceProtocol,
@@ -275,16 +276,29 @@ def get_regime_tracking_service(
     return RegimeTrackingService(db, query_service)
 
 
+def get_stock_price_service(
+    db: Session = Depends(get_db),
+    query_service: QueryServiceProtocol = Depends(get_query_service),
+) -> StockPriceServiceProtocol:
+    """Create StockPriceService instance for SPY price data."""
+    from src.services.market.stock_price_service import StockPriceService
+
+    return StockPriceService(db, query_service)
+
+
 def get_market_dashboard_service(
     token_price_service: TokenPriceServiceProtocol = Depends(get_token_price_service),
     sentiment_service: SentimentDatabaseServiceProtocol = Depends(
         get_sentiment_database_service
     ),
+    stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
 ) -> MarketDashboardServiceProtocol:
     """Create MarketDashboardService instance for aggregated market data."""
     from src.services.market.market_dashboard_service import MarketDashboardService
 
-    return MarketDashboardService(token_price_service, sentiment_service)
+    return MarketDashboardService(
+        token_price_service, sentiment_service, stock_price_service
+    )
 
 
 def get_backtesting_service(

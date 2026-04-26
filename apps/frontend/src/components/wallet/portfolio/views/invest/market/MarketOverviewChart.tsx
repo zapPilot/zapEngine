@@ -12,13 +12,14 @@ import {
 
 import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
 import type { MarketDashboardPoint } from '@/services';
-import { formatCurrencyAxis } from '@/utils';
 
 import {
   AXIS_COLOR,
   DEFAULT_ACTIVE_LINES,
+  formatPriceLabel,
   formatXAxisDate,
   getRegimeColor,
+  MARKET_LINES,
   type MarketLineKey,
   REGIME_COLORS,
 } from './sections/marketDashboardConstants';
@@ -26,19 +27,27 @@ import {
 type RegimeKey = keyof typeof REGIME_COLORS;
 
 /**
- * Flat row shape consumed by recharts. Source `MarketDashboardPoint` has BTC
- * DMA as `dma_200` and ETH/BTC DMA nested under `eth_btc_relative_strength`,
- * so we flatten and disambiguate (`btc_dma_200` vs `eth_btc_dma_200`) before
- * handing the array to recharts — `<Line dataKey>` references these names.
+ * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
+ * self-describing snapshot whose `values` map keys series ids (`btc`, `spy`,
+ * `eth_btc`, `fgi`) to `{ value, indicators, tags }`. We flatten + normalize
+ * here so `<Line dataKey>` can reference plain field names.
  */
 interface ChartDataPoint {
   snapshot_date: string;
-  price_usd: number;
+  price_usd: number | null;
   btc_dma_200: number | null;
   eth_btc_ratio: number | null;
   eth_btc_dma_200: number | null;
+  sp500_price_usd: number | null;
+  sp500_dma_200: number | null;
   sentiment_value: number | null;
   regime: string | null;
+  // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
+  btc_price_normalized: number | null;
+  btc_dma_normalized: number | null;
+  // Normalized - SPY Price + SPY DMA share same scale
+  sp500_price_normalized: number | null;
+  sp500_dma_normalized: number | null;
 }
 
 interface MarketOverviewChartProps {
@@ -53,8 +62,29 @@ interface TooltipPayload {
     btc_dma_200?: number | null;
     eth_btc_ratio?: number | null;
     eth_btc_dma_200?: number | null;
+    price_usd?: number | null;
+    sp500_price_usd?: number | null;
+    sp500_dma_200?: number | null;
   };
 }
+
+function toNumeric(
+  v: string | number | readonly (string | number)[] | undefined,
+): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+const DOLLAR_FORMAT_LABELS: Record<string, string> = {
+  'BTC Price': 'price_usd',
+  'BTC 200 DMA': 'btc_dma_200',
+  'SPY Price': 'sp500_price_usd',
+  'SPY 200 DMA': 'sp500_dma_200',
+};
 
 /**
  * Recharts' `Tooltip.formatter` types `name` as `string | number | undefined`.
@@ -67,19 +97,26 @@ function formatTooltipValue(
   props: TooltipPayload,
 ): [string | number, string | number] {
   const labelName = String(name ?? '');
-  if (labelName === 'BTC Price' || labelName === 'BTC 200 DMA') {
-    return [`$${Number(value ?? 0).toLocaleString()}`, labelName];
+  const payload = props.payload;
+
+  const dollarField = DOLLAR_FORMAT_LABELS[labelName];
+  if (dollarField != null) {
+    const rawValue =
+      (payload as Record<string, unknown>)?.[dollarField] ?? toNumeric(value);
+    return [
+      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
+      labelName,
+    ];
   }
+
   if (labelName === 'ETH/BTC Ratio' || labelName === 'ETH/BTC 200 DMA') {
     return [Number(value ?? 0).toFixed(4), labelName];
   }
   if (labelName === 'Fear & Greed Index') {
-    const rawFgi = props.payload?.sentiment_value;
-    const regime = props.payload?.regime as
-      | keyof typeof REGIME_LABELS
-      | undefined;
-    const label = regime ? REGIME_LABELS[regime] : '';
-    return [`${String(rawFgi)} (${label})`, labelName];
+    const rawFgi = payload?.sentiment_value;
+    const regime = payload?.regime as keyof typeof REGIME_LABELS | undefined;
+    const regimeLabel = regime ? REGIME_LABELS[regime] : '';
+    return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
   return [value as string | number, labelName];
 }
@@ -100,19 +137,76 @@ export function MarketOverviewChart({
   data,
   activeLines = DEFAULT_ACTIVE_LINES,
 }: MarketOverviewChartProps): JSX.Element {
-  const chartData = useMemo<ChartDataPoint[]>(
-    () =>
-      data.map((d) => ({
+  const chartData = useMemo<ChartDataPoint[]>(() => {
+    const btcValues: number[] = [];
+    const sp500Values: number[] = [];
+
+    for (const d of data) {
+      const btc = d.values['btc'];
+      const spy = d.values['spy'];
+      if (btc?.value != null) btcValues.push(btc.value);
+      const btcDma = btc?.indicators?.['dma_200']?.value;
+      if (btcDma != null) btcValues.push(btcDma);
+      if (spy?.value != null) sp500Values.push(spy.value);
+      const spyDma = spy?.indicators?.['dma_200']?.value;
+      if (spyDma != null) sp500Values.push(spyDma);
+    }
+
+    const getMinMax = (arr: number[]) => {
+      if (arr.length === 0) return { min: 0, max: 1 };
+      const min = Math.min(...arr);
+      const max = Math.max(...arr);
+      if (max === min) return { min, max: max + 1 };
+      return { min, max };
+    };
+
+    const btcMinMax = getMinMax(btcValues);
+    const sp500MinMax = getMinMax(sp500Values);
+
+    const normalize = (
+      v: number | null,
+      min: number,
+      max: number,
+    ): number | null => {
+      if (v == null) return null;
+      return ((v - min) / (max - min)) * 100;
+    };
+
+    return data.map((d) => {
+      const btc = d.values['btc'];
+      const spy = d.values['spy'];
+      const ethBtc = d.values['eth_btc'];
+      const fgi = d.values['fgi'];
+      const btcPrice = btc?.value ?? null;
+      const btcDma = btc?.indicators?.['dma_200']?.value ?? null;
+      const spyPrice = spy?.value ?? null;
+      const spyDma = spy?.indicators?.['dma_200']?.value ?? null;
+
+      return {
         snapshot_date: d.snapshot_date,
-        price_usd: d.price_usd,
-        btc_dma_200: d.dma_200,
-        eth_btc_ratio: d.eth_btc_relative_strength?.ratio ?? null,
-        eth_btc_dma_200: d.eth_btc_relative_strength?.dma_200 ?? null,
-        sentiment_value: d.sentiment_value,
-        regime: d.regime,
-      })),
-    [data],
-  );
+        price_usd: btcPrice,
+        btc_dma_200: btcDma,
+        eth_btc_ratio: ethBtc?.value ?? null,
+        eth_btc_dma_200: ethBtc?.indicators?.['dma_200']?.value ?? null,
+        sp500_price_usd: spyPrice,
+        sp500_dma_200: spyDma,
+        sentiment_value: fgi?.value ?? null,
+        regime: fgi?.tags?.['regime'] ?? null,
+        btc_price_normalized: normalize(btcPrice, btcMinMax.min, btcMinMax.max),
+        btc_dma_normalized: normalize(btcDma, btcMinMax.min, btcMinMax.max),
+        sp500_price_normalized: normalize(
+          spyPrice,
+          sp500MinMax.min,
+          sp500MinMax.max,
+        ),
+        sp500_dma_normalized: normalize(
+          spyDma,
+          sp500MinMax.min,
+          sp500MinMax.max,
+        ),
+      };
+    });
+  }, [data]);
 
   const regimeBlocks = useMemo(() => {
     if (!chartData.length) return [];
@@ -148,15 +242,19 @@ export function MarketOverviewChart({
     return blocks;
   }, [chartData]);
 
-  const showBtcPrice = activeLines.has('btcPrice');
-  const showBtcDma200 = activeLines.has('btcDma200');
-  const showEthBtcRatio = activeLines.has('ethBtcRatio');
-  const showEthBtcDma200 = activeLines.has('ethBtcDma200');
+  const showPriceAxis =
+    activeLines.has('btcPrice') ||
+    activeLines.has('btcDma200') ||
+    activeLines.has('spyPrice') ||
+    activeLines.has('spyDma200');
+  const showRatioAxis =
+    activeLines.has('ethBtcRatio') || activeLines.has('ethBtcDma200');
   const showFgi = activeLines.has('fgi');
-  // The price axis hosts both BTC lines; render it whenever either is on so
-  // the lines have a scale to render against. Same logic for the ratio axis.
-  const showPriceAxis = showBtcPrice || showBtcDma200;
-  const showRatioAxis = showEthBtcRatio || showEthBtcDma200;
+
+  const activeLineDescriptors = useMemo(
+    () => MARKET_LINES.filter((line) => activeLines.has(line.key)),
+    [activeLines],
+  );
 
   return (
     <div className="w-full h-[540px] mt-4 relative">
@@ -165,6 +263,14 @@ export function MarketOverviewChart({
           Market Sentiment Regime
         </span>
       </div>
+
+      {(activeLines.has('spyPrice') || activeLines.has('spyDma200')) && (
+        <div className="absolute bottom-[52px] left-[72px] z-10">
+          <span className="text-[9px] text-gray-500">
+            S&P 500 data shown only for market trading days
+          </span>
+        </div>
+      )}
 
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
@@ -210,8 +316,15 @@ export function MarketOverviewChart({
               yAxisId="price"
               stroke={AXIS_COLOR}
               tick={{ fill: AXIS_COLOR, fontSize: 11 }}
-              domain={['auto', 'auto']}
-              tickFormatter={formatCurrencyAxis}
+              domain={[0, 100]}
+              tickFormatter={formatPriceLabel}
+              label={{
+                value: 'BTC / SPY',
+                angle: -90,
+                position: 'insideLeft',
+                fill: AXIS_COLOR,
+                fontSize: 10,
+              }}
             />
           )}
 
@@ -285,78 +398,38 @@ export function MarketOverviewChart({
             formatter={formatTooltipValue}
           />
 
-          {showBtcPrice && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="BTC Price"
-              dataKey="price_usd"
-              stroke={AXIS_COLOR}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{
-                r: 5,
-                fill: AXIS_COLOR,
-                strokeWidth: 2,
-                stroke: '#fff',
-              }}
-            />
-          )}
-
-          {showBtcDma200 && (
-            <Line
-              yAxisId="price"
-              type="monotone"
-              name="BTC 200 DMA"
-              dataKey="btc_dma_200"
-              stroke="#A855F7"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              connectNulls
-            />
-          )}
-
-          {showEthBtcRatio && (
-            <Line
-              yAxisId="ratio"
-              type="monotone"
-              name="ETH/BTC Ratio"
-              dataKey="eth_btc_ratio"
-              stroke="#34D399"
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-            />
-          )}
-
-          {showEthBtcDma200 && (
-            <Line
-              yAxisId="ratio"
-              type="monotone"
-              name="ETH/BTC 200 DMA"
-              dataKey="eth_btc_dma_200"
-              stroke="#F59E0B"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              connectNulls
-            />
-          )}
-
-          {showFgi && (
-            <Line
-              yAxisId="fgi"
-              type="monotone"
-              name="Fear & Greed Index"
-              dataKey="sentiment_value"
-              stroke="url(#fgiLineGradient)"
-              strokeWidth={2.5}
-              dot={false}
-              connectNulls
-              activeDot={renderFgiActiveDot}
-            />
-          )}
+          {activeLineDescriptors.map((line) => {
+            const isFgi = line.key === 'fgi';
+            const isBtcPrice = line.key === 'btcPrice';
+            return (
+              <Line
+                key={line.key}
+                yAxisId={line.axis}
+                type="monotone"
+                name={line.label}
+                dataKey={line.dataKey}
+                stroke={isFgi ? 'url(#fgiLineGradient)' : line.color}
+                strokeWidth={isFgi ? 2.5 : 2}
+                dot={false}
+                {...(line.strokeDasharray
+                  ? { strokeDasharray: line.strokeDasharray }
+                  : {})}
+                connectNulls
+                {...(isFgi
+                  ? { activeDot: renderFgiActiveDot }
+                  : isBtcPrice
+                    ? {
+                        activeDot: {
+                          r: 5,
+                          fill: line.color,
+                          strokeWidth: 2,
+                          stroke: '#fff',
+                        },
+                      }
+                    : {})}
+              />
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

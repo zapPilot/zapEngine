@@ -39,6 +39,8 @@ export const MARKET_LINE_KEYS = [
   'btcDma200',
   'ethBtcRatio',
   'ethBtcDma200',
+  'spyPrice',
+  'spyDma200',
   'fgi',
 ] as const;
 
@@ -53,15 +55,14 @@ export interface MarketLineDescriptor {
   color: string;
   /** Which Y-axis this series renders against. */
   axis: MarketLineAxis;
-  /** Field name on the flat row consumed by recharts. */
-  dataKey:
-    | 'price_usd'
-    | 'btc_dma_200'
-    | 'eth_btc_ratio'
-    | 'eth_btc_dma_200'
-    | 'sentiment_value';
   /** Whether this line is visible by default on first render. */
   defaultActive: boolean;
+  /** Data key for the normalized line in chartData. */
+  dataKey: string;
+  /** Optional dash array for dashed lines. */
+  strokeDasharray?: string;
+  /** Optional custom activeDot (e.g., for FGI regime-colored dot). */
+  activeDot?: unknown;
 }
 
 /**
@@ -70,48 +71,67 @@ export interface MarketLineDescriptor {
  * Keep the order stable — it determines pill order in the legend AND
  * z-order in the chart (later items render on top).
  */
-export const MARKET_LINES: readonly MarketLineDescriptor[] = [
+export const MARKET_LINES: MarketLineDescriptor[] = [
   {
     key: 'btcPrice',
     label: 'BTC Price',
     color: AXIS_COLOR,
     axis: 'price',
-    dataKey: 'price_usd',
     defaultActive: true,
+    dataKey: 'btc_price_normalized',
   },
   {
     key: 'btcDma200',
     label: 'BTC 200 DMA',
     color: '#A855F7',
     axis: 'price',
-    dataKey: 'btc_dma_200',
     defaultActive: true,
+    dataKey: 'btc_dma_normalized',
+    strokeDasharray: '5 5',
   },
   {
     key: 'ethBtcRatio',
     label: 'ETH/BTC Ratio',
     color: '#34D399',
     axis: 'ratio',
-    dataKey: 'eth_btc_ratio',
     defaultActive: false,
+    dataKey: 'eth_btc_ratio',
   },
   {
     key: 'ethBtcDma200',
     label: 'ETH/BTC 200 DMA',
     color: '#F59E0B',
     axis: 'ratio',
-    dataKey: 'eth_btc_dma_200',
     defaultActive: false,
+    dataKey: 'eth_btc_dma_200',
+    strokeDasharray: '5 5',
+  },
+  {
+    key: 'spyPrice',
+    label: 'SPY Price',
+    color: '#3B82F6',
+    axis: 'price',
+    defaultActive: false,
+    dataKey: 'sp500_price_normalized',
+  },
+  {
+    key: 'spyDma200',
+    label: 'SPY 200 DMA',
+    color: '#EC4899',
+    axis: 'price',
+    defaultActive: false,
+    dataKey: 'sp500_dma_normalized',
+    strokeDasharray: '5 5',
   },
   {
     key: 'fgi',
     label: 'Fear & Greed Index',
     color: '#10B981',
     axis: 'fgi',
-    dataKey: 'sentiment_value',
     defaultActive: true,
+    dataKey: 'sentiment_value',
   },
-] as const;
+];
 
 export const DEFAULT_ACTIVE_LINES: ReadonlySet<MarketLineKey> = new Set(
   MARKET_LINES.filter((line) => line.defaultActive).map((line) => line.key),
@@ -138,4 +158,8 @@ export function formatXAxisDate(val: string): string {
 
 export function formatRatioValue(val: number | null | undefined): string {
   return val == null ? '---' : Number(val).toFixed(4);
+}
+
+export function formatPriceLabel(val: number): string {
+  return `$${Math.round(val / 1000)}k`;
 }

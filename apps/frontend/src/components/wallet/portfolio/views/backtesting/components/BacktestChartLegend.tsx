@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
 
+import { LegendTitle } from '../../shared/LegendTitle';
+import { PillToggleGroup } from '../../shared/PillToggleGroup';
 import {
   getStrategyColor,
   getStrategyDisplayName,
@@ -13,7 +15,7 @@ import {
 
 interface BacktestChartLegendProps {
   sortedStrategyIds: string[];
-  activeIndicators: Set<IndicatorKey>;
+  activeIndicators: ReadonlySet<IndicatorKey>;
   onToggleIndicator: (key: IndicatorKey) => void;
 }
 
@@ -32,61 +34,22 @@ export function BacktestChartLegend({
     color: getStrategyColor(strategyId, index),
   }));
 
+  const indicatorItems = INDICATOR_LEGEND.map((item) => ({
+    key: item.key,
+    label: item.label,
+    color: item.color,
+  }));
+
   return (
     <div className="flex flex-wrap items-start gap-4">
       <LegendGroup title="Strategy" items={strategyLegend} />
-      <IndicatorToggleGroup
-        activeIndicators={activeIndicators}
+      <PillToggleGroup
+        title="Market Context"
+        items={indicatorItems}
+        activeKeys={activeIndicators}
         onToggle={onToggleIndicator}
       />
       <LegendGroup title="Events" items={EVENT_LEGEND} />
-    </div>
-  );
-}
-
-interface IndicatorToggleGroupProps {
-  activeIndicators: Set<IndicatorKey>;
-  onToggle: (key: IndicatorKey) => void;
-}
-
-function IndicatorToggleGroup({
-  activeIndicators,
-  onToggle,
-}: IndicatorToggleGroupProps): ReactElement {
-  return (
-    <div className="min-w-[120px]">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-        Market Context
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {INDICATOR_LEGEND.map(({ key, label, color }) => {
-          const isActive = activeIndicators.has(key);
-
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onToggle(key)}
-              className={`rounded-full text-[10px] px-2 py-0.5 cursor-pointer transition-colors border ${
-                isActive
-                  ? 'text-gray-200'
-                  : 'border-zinc-700 text-gray-500 bg-transparent'
-              }`}
-              style={
-                isActive
-                  ? {
-                      borderColor: color,
-                      backgroundColor: `${color}26`,
-                    }
-                  : undefined
-              }
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -98,9 +61,7 @@ function LegendGroup({ title, items }: LegendGroupProps): ReactElement | null {
 
   return (
     <div className="min-w-[120px]">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-        {title}
-      </div>
+      <LegendTitle title={title} />
       <div className="flex flex-wrap gap-2">
         {items.map(({ label, color }) => (
           <div

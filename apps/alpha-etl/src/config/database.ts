@@ -29,6 +29,8 @@ export const TABLES = {
   TOKEN_PRICE_SNAPSHOTS: `${env.DB_SCHEMA}.token_price_snapshots`,
   TOKEN_PRICE_DMA_SNAPSHOTS: `${env.DB_SCHEMA}.token_price_dma_snapshots`,
   TOKEN_PAIR_RATIO_DMA_SNAPSHOTS: `${env.DB_SCHEMA}.token_pair_ratio_dma_snapshots`,
+  STOCK_PRICE_SNAPSHOTS: `${env.DB_SCHEMA}.stock_price_snapshots`,
+  STOCK_PRICE_DMA_SNAPSHOTS: `${env.DB_SCHEMA}.stock_price_dma_snapshots`,
 } as const;
 
 /**
@@ -181,7 +183,7 @@ export function createDbPool(): Pool {
 
   try {
     pool = new Pool({
-      connectionString: env.DATABASE_URL,
+      connectionString: env.ALPHA_ETL_DATABASE_URL,
       max: 40, // Maximum number of clients in the pool (increased for concurrent API + poller)
       idleTimeoutMillis: 60000, // Close idle clients after 60 seconds (matches polling + processing time)
       connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established (reasonable for cloud DBs)

@@ -6,7 +6,8 @@ import { WalletPortfolioErrorState } from '@/components/wallet/portfolio/views/L
 import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
 import { usePortfolioDataProgressive } from '@/hooks/queries/analytics/usePortfolioDataProgressive';
 import { useEtlJobPolling, useEtlJobSync } from '@/hooks/wallet';
-import { useAppRouter } from '@/lib/routing';
+import { readPortfolioRouteState } from '@/lib/portfolio/portfolioRouteState';
+import { useAppRouter, useAppSearchParams } from '@/lib/routing';
 import { logger } from '@/utils';
 
 interface DashboardShellProps {
@@ -111,7 +112,13 @@ export function DashboardShell({
   initialEtlJobId,
 }: DashboardShellProps): ReactElement {
   const router = useAppRouter();
+  const searchParams = useAppSearchParams();
   const queryClient = useQueryClient();
+
+  // Gate the landing query on the active tab — only the dashboard view consumes
+  // landing data, so polling it on Analytics/Invest tabs is wasted traffic.
+  const { tab: activeTab } = readPortfolioRouteState(searchParams);
+  const isDashboardActive = activeTab === 'dashboard';
 
   const {
     state: etlState,
@@ -127,7 +134,11 @@ export function DashboardShell({
     isLoading,
     error,
     refetch,
-  } = usePortfolioDataProgressive(urlUserId, etlState.isInProgress);
+  } = usePortfolioDataProgressive(
+    urlUserId,
+    etlState.isInProgress,
+    isDashboardActive,
+  );
 
   useEtlJobSync({
     initialEtlJobId,

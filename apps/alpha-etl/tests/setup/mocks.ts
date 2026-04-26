@@ -24,7 +24,7 @@ export function mockEnv(overrides?: Record<string, unknown>) {
     env: {
       DB_SCHEMA: 'public',
       NODE_ENV: 'test',
-      DATABASE_URL: 'mock',
+      ALPHA_ETL_DATABASE_URL: 'mock',
       ...overrides,
     },
   };

@@ -190,7 +190,12 @@ describe('usePortfolioDataProgressive', () => {
 
   it('passes isEtlInProgress to useLandingPageData', () => {
     renderHook(() => usePortfolioDataProgressive('user1', true));
-    expect(mockUseLandingPageData).toHaveBeenCalledWith('user1', true);
+    expect(mockUseLandingPageData).toHaveBeenCalledWith('user1', true, true);
+  });
+
+  it('forwards isLandingActive=false to useLandingPageData when consumer view is inactive', () => {
+    renderHook(() => usePortfolioDataProgressive('user1', false, false));
+    expect(mockUseLandingPageData).toHaveBeenCalledWith('user1', false, false);
   });
 
   it('logs query states including error messages', () => {

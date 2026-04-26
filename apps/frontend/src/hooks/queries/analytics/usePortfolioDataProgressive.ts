@@ -106,14 +106,22 @@ function getProgressiveError(
  *
  * @param userId - User wallet address or user ID
  * @param isEtlInProgress - Whether ETL data fetch is currently in progress (disables landing query during ETL)
+ * @param isLandingActive - Whether the dashboard view (the only real consumer of
+ *   landing data) is currently active. Gates the landing query so non-dashboard
+ *   tabs (Analytics, Invest sub-views) don't generate `/landing` traffic.
  * @returns Section states with loading/error information
  */
 export function usePortfolioDataProgressive(
   userId: string,
   isEtlInProgress = false,
+  isLandingActive = true,
 ): DashboardProgressiveState {
   // Fetch data from independent sources
-  const landingQuery = useLandingPageData(userId, isEtlInProgress);
+  const landingQuery = useLandingPageData(
+    userId,
+    isEtlInProgress,
+    isLandingActive,
+  );
   const sentimentQuery = useSentimentData();
   const regimeQuery = useRegimeHistory();
 

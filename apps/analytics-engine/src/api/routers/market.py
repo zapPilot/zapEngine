@@ -470,31 +470,7 @@ async def get_token_price_history(
     response_model=MarketDashboardResponse,
     responses={
         200: {
-            "description": "Aggregated market dashboard data (Price, DMA, Sentiment, ETH/BTC relative strength)",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "snapshots": [
-                            {
-                                "date": "2024-12-15",
-                                "price_usd": 42500.0,
-                                "dma_200": 41000.0,
-                                "sentiment_value": 45,
-                                "regime": "f",
-                                "eth_btc_relative_strength": {
-                                    "ratio": 0.0532,
-                                    "dma_200": 0.0498,
-                                    "is_above_dma": True,
-                                },
-                            }
-                        ],
-                        "count": 1,
-                        "token_symbol": "BTC",
-                        "days_requested": 365,
-                        "timestamp": "2025-01-20T12:00:00Z",
-                    }
-                }
-            },
+            "description": "Self-describing market dashboard payload (series registry + dated snapshots)",
         },
     },
 )
@@ -507,21 +483,15 @@ async def get_market_dashboard(
         le=2000,
         description="Days of history (1-2000, default: 365)",
     ),
-    token: str = Query(
-        default="btc",
-        description="Token symbol (btc, eth, sol, etc.) - case insensitive",
-    ),
 ) -> MarketDashboardResponse:
     """
     Get aggregated market data for dashboard visualization.
 
-    Combines token price, 200 DMA, Fear & Greed Index, and ETH/BTC relative
-    strength into a single date-aligned series.
+    Returns a `series` registry declaring each series (BTC, SPY, ETH/BTC, FGI)
+    plus a chronological list of `snapshots`, where each snapshot's `values`
+    map carries a uniform SeriesPoint per series id.
     """
-    token_symbol = _normalize_token_symbol(token)
-    payload = dashboard_service.get_market_dashboard(
-        days=days, token_symbol=token_symbol
-    )
+    payload = dashboard_service.get_market_dashboard(days=days)
 
     _apply_market_cache_headers(response, max_age=3600, stale_revalidate=21600)
     return payload

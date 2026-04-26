@@ -1,115 +1,191 @@
 """
 Market Dashboard Models
 
-Defines data models for the combined market dashboard view, joining
-BTC price, 200 DMA, and Fear & Greed Index sentiment.
+Self-describing schema for the market dashboard endpoint.
+
+The response carries a `series` registry up front (declaring kind/unit/label/
+frequency/color_hint/scale per series), then dated `snapshots` whose `values`
+map fills in a uniform `SeriesPoint` keyed by the same series id.
+
+Adding a new data source (gold, NDX, 10Y yield, etc.) is a server-side
+addition only — register a descriptor, populate values per snapshot. Adding
+a new derived metric (RSI, dma_50, etc.) is just another `indicators` entry.
+
+Series id conventions:
+- lowercase snake_case
+- ratios use `<base>_<quote>` (e.g. `eth_btc`)
+- raw assets use ticker (e.g. `btc`, `spy`)
+- indices use a short label (e.g. `fgi`)
 """
 
 import datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.regime_tracking import RegimeId
+
+class SeriesKind(str, Enum):
+    """Coarse type of the series — drives axis grouping on the client."""
+
+    asset = "asset"
+    ratio = "ratio"
+    gauge = "gauge"  # named "gauge" (not "index") to avoid shadowing str.index
 
 
-class EthBtcRelativeStrengthPoint(BaseModel):
-    """ETH/BTC relative-strength metrics for a single date."""
+class SeriesFrequency(str, Enum):
+    """Native sample cadence of the underlying data source."""
 
-    ratio: float = Field(..., description="ETH/BTC ratio for the snapshot date", gt=0)
-    dma_200: float | None = Field(
-        None, description="200-day DMA of the ETH/BTC ratio", gt=0
+    daily = "daily"  # 7 days/week (crypto, FGI)
+    weekdays = "weekdays"  # market days only (SPY)
+    ad_hoc = "ad-hoc"
+
+
+class SeriesDescriptor(BaseModel):
+    """Static metadata for a series. Lives in the response's `series` registry."""
+
+    kind: SeriesKind
+    unit: str = Field(..., description='e.g. "usd", "ratio", "score"')
+    label: str = Field(..., description="Human-readable label for axes/legend")
+    frequency: SeriesFrequency
+    color_hint: str | None = Field(
+        None, description='Suggested color in "#RRGGBB"; UI may override'
     )
-    is_above_dma: bool | None = Field(
+    scale: tuple[float, float] | None = Field(
         None,
-        description="Whether the ETH/BTC ratio is above its 200-day DMA",
-    )
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "ratio": 0.0532,
-                "dma_200": 0.0498,
-                "is_above_dma": True,
-            }
-        }
+        description="Fixed scale [min, max] for indices like FGI; null for free-scale",
     )
 
 
-class MarketDashboardPoint(BaseModel):
-    """
-    Single daily data point for the market dashboard.
-    """
+class Indicator(BaseModel):
+    """A derived numeric metric on a series (DMA, RSI, etc.)."""
 
-    snapshot_date: datetime.date = Field(..., description="Date of the snapshot")
-    price_usd: float = Field(..., description="Token price in USD at midnight UTC")
-    dma_200: float | None = Field(
-        None, description="200-day Daily Moving Average in USD"
-    )
-    sentiment_value: int | None = Field(
-        None, ge=0, le=100, description="Fear & Greed Index value (0-100)"
-    )
-    regime: RegimeId | None = Field(
-        None, description="Market regime classification based on sentiment"
-    )
-    eth_btc_relative_strength: EthBtcRelativeStrengthPoint | None = Field(
+    value: float
+    is_above: bool | None = Field(
         None,
-        description="Optional ETH/BTC relative-strength metrics aligned to the same date",
+        description="Whether the series value is above this indicator (null if undefined)",
     )
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "snapshot_date": "2024-12-15",
-                "price_usd": 42500.0,
-                "dma_200": 41000.0,
-                "sentiment_value": 45,
-                "regime": "f",
-                "eth_btc_relative_strength": {
-                    "ratio": 0.0532,
-                    "dma_200": 0.0498,
-                    "is_above_dma": True,
-                },
-            }
-        }
+
+class SeriesPoint(BaseModel):
+    """A single dated observation of a series."""
+
+    value: float
+    indicators: dict[str, Indicator] = Field(
+        default_factory=dict,
+        description="Numeric derived metrics keyed by indicator id (e.g. dma_200)",
     )
+    tags: dict[str, str] = Field(
+        default_factory=dict,
+        description="Categorical derived labels keyed by tag id (e.g. regime)",
+    )
+
+
+class MarketSnapshot(BaseModel):
+    """All series' observations for a single date. Missing key = no data."""
+
+    snapshot_date: datetime.date
+    values: dict[str, SeriesPoint] = Field(
+        ..., description="Series id → SeriesPoint; absent ids have no data on this date"
+    )
+
+
+class DashboardMeta(BaseModel):
+    """Response-level metadata."""
+
+    primary_series: str = Field(
+        ..., description="Series id the dashboard should focus on by default"
+    )
+    days_requested: int
+    count: int
+    timestamp: datetime.datetime
 
 
 class MarketDashboardResponse(BaseModel):
-    """
-    API response for market dashboard data.
-    """
+    """Self-describing market dashboard payload."""
 
-    snapshots: list[MarketDashboardPoint] = Field(
-        ..., description="Chronological list of market data points"
+    series: dict[str, SeriesDescriptor] = Field(
+        ...,
+        description="Series registry — declares each id's kind/unit/label/frequency",
     )
-    count: int = Field(..., description="Number of snapshots returned")
-    token_symbol: str = Field(..., description="Token symbol (e.g., BTC)")
-    days_requested: int = Field(..., description="Number of days requested")
-    timestamp: datetime.datetime = Field(
-        ..., description="Server timestamp when response was generated"
-    )
+    snapshots: list[MarketSnapshot]
+    meta: DashboardMeta
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
+                "series": {
+                    "btc": {
+                        "kind": "asset",
+                        "unit": "usd",
+                        "label": "BTC",
+                        "frequency": "daily",
+                        "color_hint": "#FFFFFF",
+                        "scale": None,
+                    },
+                    "spy": {
+                        "kind": "asset",
+                        "unit": "usd",
+                        "label": "S&P 500 (SPY)",
+                        "frequency": "weekdays",
+                        "color_hint": "#3B82F6",
+                        "scale": None,
+                    },
+                    "eth_btc": {
+                        "kind": "ratio",
+                        "unit": "ratio",
+                        "label": "ETH/BTC",
+                        "frequency": "daily",
+                        "color_hint": "#34D399",
+                        "scale": None,
+                    },
+                    "fgi": {
+                        "kind": "gauge",
+                        "unit": "score",
+                        "label": "Fear & Greed",
+                        "frequency": "daily",
+                        "color_hint": "#10B981",
+                        "scale": [0, 100],
+                    },
+                },
                 "snapshots": [
                     {
-                        "snapshot_date": "2024-12-15",
-                        "price_usd": 42500.0,
-                        "dma_200": 41000.0,
-                        "sentiment_value": 45,
-                        "regime": "f",
-                        "eth_btc_relative_strength": {
-                            "ratio": 0.0532,
-                            "dma_200": 0.0498,
-                            "is_above_dma": True,
+                        "snapshot_date": "2026-04-24",
+                        "values": {
+                            "btc": {
+                                "value": 78260.6,
+                                "indicators": {
+                                    "dma_200": {"value": 85657.6, "is_above": False}
+                                },
+                                "tags": {},
+                            },
+                            "spy": {
+                                "value": 713.9,
+                                "indicators": {
+                                    "dma_200": {"value": 665.5, "is_above": True}
+                                },
+                                "tags": {},
+                            },
+                            "eth_btc": {
+                                "value": 0.0297,
+                                "indicators": {
+                                    "dma_200": {"value": 0.0324, "is_above": False}
+                                },
+                                "tags": {},
+                            },
+                            "fgi": {
+                                "value": 45,
+                                "indicators": {},
+                                "tags": {"regime": "f"},
+                            },
                         },
                     }
                 ],
-                "count": 1,
-                "token_symbol": "BTC",
-                "days_requested": 365,
-                "timestamp": "2025-01-20T12:00:00Z",
+                "meta": {
+                    "primary_series": "btc",
+                    "days_requested": 365,
+                    "count": 1,
+                    "timestamp": "2026-04-25T12:00:00Z",
+                },
             }
         }
     )

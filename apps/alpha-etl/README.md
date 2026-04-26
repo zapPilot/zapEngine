@@ -17,7 +17,7 @@ Each pipeline follows `BaseETLProcessor`: `fetcher.ts` → `transformer.ts` → 
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `DATABASE_URL`, `WEBHOOK_SECRET`. Local port override: `ALPHA_ETL_PORT=3003`.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `ALPHA_ETL_DATABASE_URL`. Optional: `WEBHOOK_SECRET` (enables webhook auth when set), `ALPHA_ETL_PORT=3003` (local port override).
 
 ## Migrations
 

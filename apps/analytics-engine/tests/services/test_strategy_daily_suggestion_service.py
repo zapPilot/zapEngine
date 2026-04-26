@@ -22,6 +22,7 @@ from src.services.backtesting.domain import (
 )
 from src.services.backtesting.strategies.base import StrategyAction, TransferIntent
 from src.services.backtesting.strategy_registry import get_strategy_recipe
+from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_daily_suggestion_service import (
     StrategyDailySuggestionService,
 )
@@ -179,9 +180,14 @@ def test_get_daily_suggestion_rejects_non_dma_preset(
         service.get_daily_suggestion(UUID(int=1))
 
 
-def test_get_daily_suggestion_requires_current_day_dma_for_dma_signal(
+def test_get_daily_suggestion_raises_market_data_unavailable_when_dma_completely_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """When DMA-200 has no data at all, the service can't forward-fill and must
+    surface a transient `MarketDataUnavailableError` (mapped to HTTP 503), not
+    a `ValueError` (HTTP 400 — caller error). Forward-fill within tolerance is
+    covered by `test_get_daily_suggestion_forward_fills_stale_dma`.
+    """
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
         lambda _config_id: resolve_seed_strategy_config("dma_gated_fgi_default")
@@ -201,7 +207,7 @@ def test_get_daily_suggestion_requires_current_day_dma_for_dma_signal(
     )
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
-    with pytest.raises(ValueError, match="Missing current-day DMA-200 data"):
+    with pytest.raises(MarketDataUnavailableError, match="Market data lag exceeds"):
         service.get_daily_suggestion(UUID(int=2))
 
 

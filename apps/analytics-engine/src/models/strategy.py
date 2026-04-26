@@ -21,6 +21,7 @@ from src.models.backtesting import (
     StrategyId,
     TransferRecord,
 )
+from src.models.market_data_freshness import MarketDataFreshness
 from src.services.backtesting.decision import RuleGroup
 
 
@@ -76,6 +77,7 @@ class DailySuggestionResponse(BaseModel):
     strategy_id: StrategyId
     action: DailySuggestionActionState
     context: DailySuggestionContextState
+    data_freshness: MarketDataFreshness | None = None
 
     @property
     def signal(self) -> SignalState | None:

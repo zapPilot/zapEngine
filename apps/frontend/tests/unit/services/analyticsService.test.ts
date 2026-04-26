@@ -678,26 +678,44 @@ describe('analyticsService', () => {
 
   describe('getMarketDashboardData', () => {
     const mockResponse = {
+      series: {
+        price: {
+          kind: 'asset',
+          unit: 'usd',
+          label: 'Price',
+          frequency: 'daily',
+          color_hint: null,
+          scale: null,
+        },
+      },
       snapshots: [
         {
           snapshot_date: '2025-01-01',
-          price_usd: 42000,
-          dma_200: 38000,
-          sentiment_value: 65,
-          regime: 'g',
+          values: {
+            price: {
+              value: 42000,
+              indicators: { dma_200: { value: 38000, is_above: true } },
+              tags: { regime: 'g', sentiment: 'bullish' },
+            },
+          },
         },
         {
           snapshot_date: '2025-01-02',
-          price_usd: 43000,
-          dma_200: 38500,
-          sentiment_value: 70,
-          regime: 'eg',
+          values: {
+            price: {
+              value: 43000,
+              indicators: { dma_200: { value: 38500, is_above: true } },
+              tags: { regime: 'eg', sentiment: 'bullish' },
+            },
+          },
         },
       ],
-      count: 2,
-      token_symbol: 'btc',
-      days_requested: 365,
-      timestamp: '2025-01-02T12:00:00Z',
+      meta: {
+        primary_series: 'price',
+        days_requested: 365,
+        count: 2,
+        timestamp: '2025-01-02T12:00:00Z',
+      },
     };
 
     it('should fetch market dashboard data with default parameters', async () => {
@@ -709,21 +727,23 @@ describe('analyticsService', () => {
         '/api/v2/market/dashboard?days=365&token=btc',
       );
       expect(result.snapshots).toHaveLength(2);
-      expect(result.token_symbol).toBe('btc');
+      expect(result.meta.primary_series).toBe('price');
     });
 
     it('should fetch market dashboard data with custom parameters', async () => {
-      analyticsEngineGetSpy.mockResolvedValue({
-        ...mockResponse,
-        days_requested: 90,
-      });
+      const customResponse = {
+        series: mockResponse.series,
+        snapshots: mockResponse.snapshots,
+        meta: { ...mockResponse.meta, days_requested: 90 },
+      };
+      analyticsEngineGetSpy.mockResolvedValue(customResponse);
 
       const result = await getMarketDashboardData(90, 'eth');
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
         '/api/v2/market/dashboard?days=90&token=eth',
       );
-      expect(result.days_requested).toBe(90);
+      expect(result.meta.days_requested).toBe(90);
     });
 
     it('should propagate errors from HTTP layer', async () => {

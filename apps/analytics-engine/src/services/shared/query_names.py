@@ -27,6 +27,9 @@ class QueryNames:
     TOKEN_PRICE_BY_DATE: str = "get_token_price_by_date"
     TOKEN_SNAPSHOT_COUNT: str = "get_token_snapshot_count"
 
+    # Stock Price Queries (S&P500)
+    STOCK_PRICE_DMA_HISTORY: str = "get_stock_price_dma_history"
+
     # Sentiment Queries
     SENTIMENT_CURRENT: str = "get_current_sentiment"
     SENTIMENT_HISTORY: str = "get_sentiment_history"

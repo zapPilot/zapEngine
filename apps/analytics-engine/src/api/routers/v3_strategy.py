@@ -20,6 +20,7 @@ from src.services.dependencies import (
     StrategyDailySuggestionServiceDep,
     get_strategy_config_store,
 )
+from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_bootstrap_service import (
     build_strategy_configs_response,
 )
@@ -182,6 +183,19 @@ async def get_daily_suggestion(
 ) -> DailySuggestionResponse:
     try:
         return service.get_daily_suggestion(user_id=user_id, config_id=config_id)
+    except MarketDataUnavailableError as error:
+        logger.warning("Market data unavailable for user %s: %s", user_id, error)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error_code": "MARKET_DATA_UNAVAILABLE",
+                "message": str(error),
+                "missing_assets": error.missing_assets,
+                "oldest_data_date": error.oldest_data_date.isoformat()
+                if error.oldest_data_date
+                else None,
+            },
+        ) from error
     except ValueError as error:
         logger.warning("Validation error for user %s: %s", user_id, error)
         raise HTTPException(status_code=400, detail=str(error)) from error

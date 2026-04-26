@@ -16,6 +16,7 @@ from src.models.backtesting import (
     BacktestResponse,
     BacktestWindowInfo,
 )
+from src.models.market_data_freshness import MarketDataFreshness, StaleFeatureInfo
 from src.models.validation_utils import normalize_asset_symbol
 from src.services.backtesting.composition import (
     ResolvedSavedStrategyConfig,
@@ -35,6 +36,7 @@ from src.services.backtesting.execution.compare import (
 from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategy_registry import get_strategy_recipe
+from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_config_store import (
     SeedStrategyConfigStore,
     StrategyConfigStore,
@@ -73,13 +75,21 @@ def _adjust_for_sentiment_availability(
     sentiments: dict[date, Any],
     start_date: date,
     end_date: date,
+    token_symbol: str,
 ) -> date:
     if not sentiments:
         return start_date
     sentiment_start = min(sentiments.keys())
     if sentiment_start > start_date:
         if sentiment_start > end_date:
-            raise ValueError("Sentiment data starts after the requested end date")
+            # Sentiment series doesn't reach the requested window at all — this
+            # is a data-pipeline lag, not a malformed request, so map to 503.
+            raise MarketDataUnavailableError(
+                "Sentiment data starts after the requested end date "
+                f"({sentiment_start} > {end_date})",
+                missing_assets=[token_symbol],
+                oldest_data_date=sentiment_start,
+            )
         return sentiment_start
     return start_date
 
@@ -245,13 +255,19 @@ def _ensure_usable_window(
     *,
     token_symbol: str,
     requested_window: BacktestPeriodInfo,
+    oldest_data_date: date | None = None,
 ) -> None:
     if condition:
         return
-    raise ValueError(
+    # The window-clamp produced an empty range — this indicates a data-pipeline
+    # gap (no prices / no DMA segment / sentiment-bound clip), not a malformed
+    # request. Map to HTTP 503 so the client can retry rather than seeing 400.
+    raise MarketDataUnavailableError(
         "No usable backtest data available for "
-        f"{token_symbol} between {requested_window.start_date} and {requested_window.end_date} "
-        "after applying data availability constraints"
+        f"{token_symbol} between {requested_window.start_date} and "
+        f"{requested_window.end_date} after applying data availability constraints",
+        missing_assets=[token_symbol],
+        oldest_data_date=oldest_data_date,
     )
 
 
@@ -262,6 +278,7 @@ class PreparedBacktestMarketData:
     requested_window: BacktestPeriodInfo
     effective_window: BacktestPeriodInfo
     user_start_date: date
+    data_freshness: MarketDataFreshness | None = None
 
     @property
     def window(self) -> BacktestWindowInfo:
@@ -271,12 +288,58 @@ class PreparedBacktestMarketData:
         )
 
 
+def _build_backtest_freshness(
+    *,
+    requested_window: BacktestPeriodInfo,
+    effective_window: BacktestPeriodInfo,
+    token_symbol: str,
+) -> MarketDataFreshness:
+    """Translate the requested-vs-effective window clamp into freshness metadata.
+
+    For a backtest, "stale" means the user asked for data through `requested_end`
+    but the data pipeline only had data through `effective_end`. We report the
+    end-date lag (the part the user typically cares about — "did my backtest
+    cover the most recent week?") and surface a single generic stale-feature
+    entry per asset, since the prepare step doesn't know which underlying
+    feature (price/dma/sentiment) ran out first.
+    """
+    requested_end = requested_window.end_date
+    effective_end = effective_window.end_date
+    lag_days = max((requested_end - effective_end).days, 0)
+    if lag_days <= 0:
+        return MarketDataFreshness(
+            requested_date=requested_end,
+            effective_date=requested_end,
+            missing_dates=[],
+            stale_features=[],
+            max_lag_days=0,
+        )
+    missing_dates = [effective_end + timedelta(days=i) for i in range(1, lag_days + 1)]
+    stale_features = [
+        StaleFeatureInfo(
+            feature_name="price_history",
+            asset=token_symbol,
+            requested_date=requested_end,
+            effective_date=effective_end,
+            lag_days=lag_days,
+        )
+    ]
+    return MarketDataFreshness(
+        requested_date=requested_end,
+        effective_date=effective_end,
+        missing_dates=missing_dates,
+        stale_features=stale_features,
+        max_lag_days=lag_days,
+    )
+
+
 def _resolve_effective_window_bounds(
     *,
     user_prices: list[dict[str, Any]],
     sentiments: dict[date, Any],
     requested_window: BacktestPeriodInfo,
     requires_sentiment: bool,
+    token_symbol: str,
 ) -> tuple[date, date]:
     sentiment_adjusted_start = requested_window.start_date
     if requires_sentiment:
@@ -284,6 +347,7 @@ def _resolve_effective_window_bounds(
             sentiments,
             requested_window.start_date,
             requested_window.end_date,
+            token_symbol=token_symbol,
         )
     return (
         max(user_prices[0]["date"], sentiment_adjusted_start),
@@ -310,6 +374,7 @@ def _clamp_dma_window(
         bool(dma_prices),
         token_symbol=token_symbol,
         requested_window=requested_window,
+        oldest_data_date=user_prices[0]["date"] if user_prices else None,
     )
     return (
         max(effective_start, dma_prices[0]["date"]),
@@ -364,7 +429,7 @@ class BacktestingService:
                     "effective_end_date": window.effective.end_date.isoformat(),
                 },
             )
-        return runner(
+        response = runner(
             prices=prepared.prices,
             sentiments=prepared.sentiments,
             request=request,
@@ -373,6 +438,15 @@ class BacktestingService:
             window=window,
             config=config,
         )
+        # The runner doesn't know about freshness — patch it in here so the
+        # downstream consumer (frontend) sees a single end-to-end response.
+        # `model_copy` is preferred over mutation because BacktestResponse may
+        # be frozen by Pydantic depending on config.
+        if prepared.data_freshness is not None:
+            response = response.model_copy(
+                update={"data_freshness": prepared.data_freshness}
+            )
+        return response
 
     async def _prepare_market_data(
         self,
@@ -399,8 +473,15 @@ class BacktestingService:
             market_data_requirements=market_data_requirements,
         )
         if not prices:
-            raise ValueError(
-                f"No price data available for {token_symbol} between {fetch_start_date} and {requested_window.end_date}"
+            # Fetch returned zero rows for the entire warmup+request span — the
+            # data pipeline simply has nothing for this asset. Map to 503 so
+            # clients can retry rather than seeing 400 (which would suggest the
+            # request itself was malformed).
+            raise MarketDataUnavailableError(
+                f"No price data available for {token_symbol} between "
+                f"{fetch_start_date} and {requested_window.end_date}",
+                missing_assets=[token_symbol],
+                oldest_data_date=None,
             )
         sentiments = (
             await self.data_provider.fetch_sentiments(
@@ -419,12 +500,14 @@ class BacktestingService:
             bool(user_prices),
             token_symbol=token_symbol,
             requested_window=requested_window,
+            oldest_data_date=prices[0]["date"] if prices else None,
         )
         effective_start, effective_end = _resolve_effective_window_bounds(
             user_prices=user_prices,
             sentiments=sentiments,
             requested_window=requested_window,
             requires_sentiment=market_data_requirements.requires_sentiment,
+            token_symbol=token_symbol,
         )
 
         if market_data_requirements.require_dma_200:
@@ -439,6 +522,7 @@ class BacktestingService:
             effective_start <= effective_end,
             token_symbol=token_symbol,
             requested_window=requested_window,
+            oldest_data_date=user_prices[0]["date"] if user_prices else None,
         )
         clamped_prices = _select_prices_in_window(
             prices,
@@ -449,18 +533,27 @@ class BacktestingService:
             any(price["date"] >= effective_start for price in clamped_prices),
             token_symbol=token_symbol,
             requested_window=requested_window,
+            oldest_data_date=user_prices[0]["date"] if user_prices else None,
+        )
+
+        effective_window = BacktestPeriodInfo(
+            start_date=effective_start,
+            end_date=effective_end,
+            days=max((effective_end - effective_start).days, 0),
+        )
+        data_freshness = _build_backtest_freshness(
+            requested_window=requested_window,
+            effective_window=effective_window,
+            token_symbol=token_symbol,
         )
 
         return PreparedBacktestMarketData(
             prices=clamped_prices,
             sentiments=sentiments,
             requested_window=requested_window,
-            effective_window=BacktestPeriodInfo(
-                start_date=effective_start,
-                end_date=effective_end,
-                days=max((effective_end - effective_start).days, 0),
-            ),
+            effective_window=effective_window,
             user_start_date=effective_start,
+            data_freshness=data_freshness,
         )
 
     async def run_compare_v3(

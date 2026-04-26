@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "days_requested": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "primary_series": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "primary_series",
+        "days_requested",
+        "count",
+        "timestamp"
+      ],
+      "type": "object"
+    },
+    "series": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "color_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "enum": [
+              "daily",
+              "weekdays",
+              "ad-hoc"
+            ],
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "asset",
+              "ratio",
+              "gauge"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "unit",
+          "label",
+          "frequency",
+          "color_hint",
+          "scale"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "snapshots": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "snapshot_date": {
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "indicators": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "is_above": {
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "value": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "is_above"
+                    ],
+                    "type": "object"
+                  },
+                  "default": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "tags": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "default": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value",
+                "indicators",
+                "tags"
+              ],
+              "type": "object"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "snapshot_date",
+          "values"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "series",
+    "snapshots",
+    "meta"
+  ],
+  "type": "object"
+}

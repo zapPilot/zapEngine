@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 
+import { PillToggleGroup } from '../../../shared/PillToggleGroup';
 import { MARKET_LINES, type MarketLineKey } from './marketDashboardConstants';
 
 interface ChartLegendToggleProps {
@@ -15,50 +16,26 @@ interface ChartLegendToggleProps {
 /**
  * Pill-style legend that lets the user toggle individual chart series on/off.
  *
- * Pattern adapted from
- * `views/backtesting/components/BacktestChartLegend.tsx`. Kept feature-local
- * because it imports `MARKET_LINES` directly; if a second consumer appears,
- * generalize by accepting a `lines` prop instead.
+ * Uses shared `PillToggleGroup` component (pattern adapted from
+ * `views/backtesting/components/BacktestChartLegend.tsx`).
  */
 export function ChartLegendToggle({
   activeLines,
   onToggle,
 }: ChartLegendToggleProps): ReactElement {
-  return (
-    <div className="min-w-[120px]">
-      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-        Lines
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {MARKET_LINES.map(({ key, label, color }) => {
-          const isActive = activeLines.has(key);
+  const items = MARKET_LINES.map((line) => ({
+    key: line.key,
+    label: line.label,
+    color: line.color,
+  }));
 
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={isActive}
-              data-testid={`line-toggle-${key}`}
-              onClick={() => onToggle(key)}
-              className={`rounded-full text-[10px] px-2 py-0.5 cursor-pointer transition-colors border ${
-                isActive
-                  ? 'text-gray-200'
-                  : 'border-zinc-700 text-gray-500 bg-transparent'
-              }`}
-              style={
-                isActive
-                  ? {
-                      borderColor: color,
-                      backgroundColor: `${color}26`,
-                    }
-                  : undefined
-              }
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+  return (
+    <PillToggleGroup
+      title="Lines"
+      items={items}
+      activeKeys={activeLines}
+      onToggle={onToggle}
+      testIdPrefix="line-toggle-"
+    />
   );
 }

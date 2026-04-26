@@ -24,6 +24,7 @@ from src.models.backtesting import (  # noqa: E402
     BacktestStrategyCatalogResponseV3,
     TransferRecord,
 )
+from src.models.market_dashboard import MarketDashboardResponse  # noqa: E402
 from src.models.strategy import DailySuggestionResponse  # noqa: E402
 from src.models.strategy_config import (  # noqa: E402
     StrategyConfigsResponse,
@@ -37,6 +38,7 @@ PYDANTIC_MODELS = {
     "backtest_strategy_catalog_response": BacktestStrategyCatalogResponseV3,
     "bucket_transfer": TransferRecord,
     "daily_suggestion_response": DailySuggestionResponse,
+    "market_dashboard_response": MarketDashboardResponse,
     "portfolio_allocation": Allocation,
     "strategy_configs_response": StrategyConfigsResponse,
     "strategy_preset": StrategyPreset,
@@ -45,8 +47,10 @@ PYDANTIC_MODELS = {
 IGNORED_KEYS = {
     "$schema",
     "default",
+    "example",
     "examples",
     "format",
+    "maxItems",
     "minItems",
     "propertyNames",
     "readOnly",

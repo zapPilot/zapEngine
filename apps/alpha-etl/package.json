@@ -25,7 +25,8 @@
     "deadcode": "knip --exports --dependencies",
     "deadcode:fix": "knip --exports --dependencies --fix",
     "dup:check": "jscpd src --config .jscpd.json",
-    "clean": "rm -rf dist coverage"
+    "clean": "rm -rf dist coverage",
+    "backfill:sp500": "tsx scripts/backfill-sp500.ts"
   },
   "keywords": [
     "defi",
@@ -42,6 +43,7 @@
     "helmet": "^7.1.0",
     "pg": "^8.11.3",
     "winston": "^3.11.0",
+    "yahoo-finance2": "^3.14.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

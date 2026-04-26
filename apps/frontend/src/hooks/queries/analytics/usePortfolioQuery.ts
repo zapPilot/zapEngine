@@ -19,10 +19,14 @@ const PORTFOLIO_REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
  *
  * @param userId - User wallet address or user ID
  * @param isEtlInProgress - Whether ETL data fetch is currently in progress (disables query during ETL)
+ * @param isActive - Whether the consumer view is currently active. When false, the
+ *   query is disabled and the periodic refetch loop is paused so non-dashboard tabs
+ *   (e.g. Analytics, Invest > Market, Backtesting) don't trigger `/landing` traffic.
  */
 export function useLandingPageData(
   userId: string | null | undefined,
   isEtlInProgress = false,
+  isActive = true,
 ) {
   return useQuery({
     ...createQueryConfig({
@@ -37,7 +41,7 @@ export function useLandingPageData(
       }
       return getLandingPagePortfolioData(userId);
     },
-    enabled: Boolean(userId) && !isEtlInProgress,
-    refetchInterval: PORTFOLIO_REFETCH_INTERVAL,
+    enabled: Boolean(userId) && !isEtlInProgress && isActive,
+    refetchInterval: isActive ? PORTFOLIO_REFETCH_INTERVAL : false,
   });
 }

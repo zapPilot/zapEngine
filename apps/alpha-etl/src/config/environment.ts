@@ -51,7 +51,7 @@ function parseBooleanFlag(defaultValue: 'true' | 'false') {
 
 const envSchema = z.object({
   // Database
-  DATABASE_URL: z.string().min(1),
+  ALPHA_ETL_DATABASE_URL: z.string().min(1),
   DB_SCHEMA: z.string().min(1).default('alpha_raw'),
 
   // Server
@@ -79,6 +79,9 @@ const envSchema = z.object({
     .url()
     .default('https://pro-api.coinmarketcap.com'),
 
+  // Alpha Vantage API (for stock price data)
+  ALPHA_VANTAGE_API_KEY: z.string().min(1).optional(),
+
   // Rate Limiting
   RATE_LIMIT_REQUESTS_PER_MINUTE: parsePositiveInteger('60'),
   RATE_LIMIT_BURST: parsePositiveInteger('10'),
@@ -96,11 +99,9 @@ function parseEnvironment(): Environment {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    // eslint-disable-next-line no-console
-    console.error('Environment validation failed:');
-    // eslint-disable-next-line no-console
-    console.error(result.error.format());
-    process.exit(1);
+    throw new Error(
+      `Environment validation failed:\n${JSON.stringify(result.error.format(), null, 2)}`,
+    );
   }
 
   return {

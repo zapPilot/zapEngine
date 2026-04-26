@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const baseEnv = {
-  DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
+const baseEnv: Record<string, string | undefined> = {
+  ALPHA_ETL_DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
   ALPHA_ETL_PORT: '4000',
   PORT: '8001',
   NODE_ENV: 'test',
@@ -23,14 +23,6 @@ const setEnv = (values: Record<string, string | undefined>): void => {
   Object.assign(process.env, values);
 };
 
-function createExitSpy() {
-  return vi
-    .spyOn(process, 'exit')
-    .mockImplementation((code?: string | number | null): never => {
-      throw new Error(`exit:${code}`);
-    });
-}
-
 describe('environment configuration', () => {
   beforeEach(() => {
     setEnv(baseEnv);
@@ -47,7 +39,7 @@ describe('environment configuration', () => {
 
     const { env } = await import('../../../src/config/environment.js');
 
-    expect(env.DATABASE_URL).toBe(baseEnv.DATABASE_URL);
+    expect(env.ALPHA_ETL_DATABASE_URL).toBe(baseEnv.ALPHA_ETL_DATABASE_URL);
     expect(env.DB_SCHEMA).toBe('alpha_raw');
     expect(env.PORT).toBe(4000);
     expect(env.ALPHA_ETL_PORT).toBe(4000);
@@ -58,19 +50,13 @@ describe('environment configuration', () => {
     expect(env.LOG_LEVEL).toBe('debug');
   });
 
-  it('exits the process when validation fails', async () => {
-    const exitSpy = createExitSpy();
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const brokenEnv = { ...baseEnv, DATABASE_URL: '' };
+  it('throws a descriptive error when validation fails', async () => {
+    const brokenEnv = { ...baseEnv, ALPHA_ETL_DATABASE_URL: '' };
     setEnv(brokenEnv);
 
     await expect(import('../../../src/config/environment.js')).rejects.toThrow(
-      'exit:1',
+      /Environment validation failed/,
     );
-
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(consoleSpy).toHaveBeenCalled();
   });
 
   it('falls back to generic PORT when ALPHA_ETL_PORT is absent', async () => {

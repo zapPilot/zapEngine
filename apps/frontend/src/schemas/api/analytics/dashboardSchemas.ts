@@ -1,33 +1,19 @@
+import {
+  MarketDashboardResponseSchema,
+  MarketSnapshotSchema,
+} from '@zapengine/types';
 import { z } from 'zod';
 
 import { createValidator } from '@/schemas/schemaUtils';
 
 export const unifiedDashboardResponseSchema = z.any();
 
-const ethBtcRelativeStrengthPointSchema = z.object({
-  ratio: z.number(),
-  dma_200: z.number().nullable(),
-  is_above_dma: z.boolean().nullable(),
-});
-
-export const marketDashboardPointSchema = z.object({
-  snapshot_date: z.string(),
-  price_usd: z.number(),
-  dma_200: z.number().nullable(),
-  sentiment_value: z.number().nullable(),
-  regime: z.enum(['ef', 'f', 'n', 'g', 'eg']).nullable(),
-  eth_btc_relative_strength: ethBtcRelativeStrengthPointSchema
-    .nullable()
-    .optional(),
-});
-
-export const marketDashboardResponseSchema = z.object({
-  snapshots: z.array(marketDashboardPointSchema),
-  count: z.number(),
-  token_symbol: z.string(),
-  days_requested: z.number(),
-  timestamp: z.string(),
-});
+// Wire-format contract is owned by `@zapengine/types/api/marketDashboard` and
+// kept in parity with the analytics-engine Pydantic model via
+// `scripts/contracts/check_pydantic_parity.py`. Re-exported here under the
+// historical names so existing frontend imports keep working.
+export const marketSnapshotSchema = MarketSnapshotSchema;
+export const marketDashboardResponseSchema = MarketDashboardResponseSchema;
 
 export interface UnifiedDashboardResponse {
   user_id?: string;
@@ -96,7 +82,7 @@ export interface UnifiedDashboardResponse {
   _metadata?: Record<string, unknown>;
 }
 
-export type MarketDashboardPoint = z.infer<typeof marketDashboardPointSchema>;
+export type MarketDashboardPoint = z.infer<typeof marketSnapshotSchema>;
 export type MarketDashboardResponse = z.infer<
   typeof marketDashboardResponseSchema
 >;

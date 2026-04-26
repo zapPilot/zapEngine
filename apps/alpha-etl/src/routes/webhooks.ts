@@ -21,7 +21,12 @@ import { walletFetchSchema, webhookPayloadSchema } from './webhooks.schemas.js';
 
 const router: Router = Router();
 const jobQueue = new ETLJobQueue();
-const DEFAULT_SOURCES = ['defillama', 'debank', 'hyperliquid'] as const;
+const DEFAULT_SOURCES = [
+  'defillama',
+  'debank',
+  'hyperliquid',
+  'stock-price',
+] as const;
 
 router.post('/pipedream', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
