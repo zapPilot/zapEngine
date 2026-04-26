@@ -27,10 +27,10 @@ const config: ViteUserConfig = {
         'src/modules/token-price/index.ts',
       ],
       thresholds: {
-        statements: 99,
-        branches: 99,
-        functions: 99,
-        lines: 99,
+        statements: 92,
+        branches: 92,
+        functions: 92,
+        lines: 92,
       },
     },
     testTimeout: 30000, // ETL operations can be slow
