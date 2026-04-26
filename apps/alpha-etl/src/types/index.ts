@@ -1,71 +1,37 @@
+import {
+  ApiError,
+  ApiResponse,
+  ApiResult,
+  DATA_SOURCES,
+  DataSource,
+  ErrorCode,
+  ErrorContext,
+  Nullable,
+} from '@zapengine/types/api';
 import { z } from 'zod';
 
-export type DataSource =
-  | 'defillama'
-  | 'debank'
-  | 'hyperliquid'
-  | 'feargreed'
-  | 'token-price'
-  | 'stock-price';
+export type {
+  ApiError,
+  ApiResponse,
+  ApiResult,
+  DataSource,
+  ErrorCode,
+  ErrorContext,
+  Nullable,
+};
+export { DATA_SOURCES };
 
-export const DATA_SOURCES: readonly DataSource[] = [
-  'defillama',
-  'debank',
-  'hyperliquid',
-  'feargreed',
-  'token-price',
-  'stock-price',
-] as const;
-
-export type ApiResult<T, E = ApiError> =
-  | { success: true; data: T }
-  | { success: false; error: E };
-
-export interface ApiError {
-  code: ErrorCode;
-  message: string;
-  source: DataSource | 'system' | 'database';
-  context?: ErrorContext;
-  timestamp?: string;
-}
-
-export type ErrorCode =
-  | 'RATE_LIMIT_EXCEEDED'
-  | 'TIMEOUT'
-  | 'NETWORK'
-  | 'VALIDATION_ERROR'
-  | 'API_ERROR'
-  | 'DATABASE_ERROR'
-  | 'INTERNAL_ERROR'
-  | 'NOT_FOUND'
-  | 'UNAUTHORIZED'
-  | 'UNKNOWN';
-
-export interface ErrorContext {
-  jobId?: string;
-  userId?: string;
-  wallet?: string;
-  source?: DataSource;
-  endpoint?: string;
-  [key: string]: unknown;
-}
-
-export type Nullable<T> = T | null;
-
-// Base metadata for all jobs
 export const BaseJobMetadataSchema = z.object({
   userId: z.string().optional(),
   errorMessage: z.string().optional(),
 });
 
-// Wallet fetch metadata requires jobType + walletAddress + userId
 export const WalletFetchJobMetadataSchema = BaseJobMetadataSchema.extend({
   jobType: z.literal('wallet_fetch'),
   walletAddress: z.string().min(1),
   userId: z.string().min(1),
 });
 
-// Standard job metadata (no required wallet fields)
 export const StandardJobMetadataSchema = BaseJobMetadataSchema.extend({
   jobType: z.undefined().optional(),
   walletAddress: z.string().optional(),
@@ -89,12 +55,8 @@ export interface ProcessUserResult<B, P> {
   successfulWallet?: string;
 }
 
-export type ETLTrigger = 'scheduled' | 'manual' | 'webhook';
-export type ETLJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
-
 export interface ETLJob {
-  jobId: string;
-  trigger: ETLTrigger;
+  trigger: 'scheduled' | 'manual' | 'webhook';
   sources: DataSource[];
   filters?:
     | {
@@ -105,13 +67,14 @@ export interface ETLJob {
     | undefined;
   metadata?: JobMetadata | undefined;
   createdAt: Date;
-  status: ETLJobStatus;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  jobId: string;
 }
 
 export interface TokenBackfillConfig {
-  tokenId: string; // CoinGecko ID: 'bitcoin', 'ethereum'
-  tokenSymbol: string; // Display symbol: 'BTC', 'ETH'
-  daysBack?: number | undefined; // Optional override (default: 90)
+  tokenId: string;
+  tokenSymbol: string;
+  daysBack?: number | undefined;
 }
 
 export interface BackfillPayload {
@@ -131,7 +94,7 @@ export interface BackfillTokenResultData extends BackfillDmaMetadata {
   tokenSymbol: string;
   tokenId: string;
   requested: number;
-  existing: number; // Days already in database (gap detection)
+  existing: number;
   fetched: number;
   inserted: number;
   duration: number;
@@ -144,13 +107,9 @@ export interface VipUser {
   wallet: string;
 }
 
-/**
- * VIP user with activity tracking timestamps
- * Used for activity-based update frequency filtering
- */
 export interface VipUserWithActivity extends VipUser {
-  last_activity_at: Nullable<string>; // When user last interacted (from account-engine)
-  last_portfolio_update_at: Nullable<string>; // When portfolio data was last fetched (from alpha-etl)
+  last_activity_at: Nullable<string>;
+  last_portfolio_update_at: Nullable<string>;
 }
 
 export interface BaseBatchResult {
@@ -177,7 +136,7 @@ export interface ETLJobResultData {
 
 export type ETLJobResult = ApiResult<ETLJobResultData>;
 
-export type WebhookTrigger = Extract<ETLTrigger, 'scheduled' | 'manual'>;
+export type WebhookTrigger = 'scheduled' | 'manual';
 
 export interface SingleSourceWebhookPayload {
   trigger: WebhookTrigger;
@@ -200,8 +159,6 @@ export interface ETLFilters {
   protocols?: string[];
   minTvl?: number;
 }
-
-export type ApiResponse<T = unknown> = ApiResult<T> & { timestamp: string };
 
 export interface SourceHealth {
   status: 'healthy' | 'unhealthy';
@@ -229,7 +186,7 @@ export interface PoolData {
   symbol: string;
   underlying_tokens: Nullable<string[]>;
   tvl_usd: Nullable<number>;
-  apy: number; // Required field
+  apy: number;
   apy_base: Nullable<number>;
   apy_reward: Nullable<number>;
   volume_usd_1d: Nullable<number>;

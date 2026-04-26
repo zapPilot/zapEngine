@@ -3,6 +3,8 @@
  * Validation, transformation, and error handling for wallet operations
  */
 
+import { isWalletAddress } from '@zapengine/types';
+
 import { APIError, handleHTTPError } from '@/lib/http';
 import type { UserCryptoWallet } from '@/schemas/api/accountSchemas';
 
@@ -19,8 +21,7 @@ export interface WalletData {
  * Validate wallet address format
  */
 export function validateWalletAddress(address: string): boolean {
-  const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-  return ethRegex.test(address);
+  return isWalletAddress(address);
 }
 
 function toWalletData(wallet: UserCryptoWallet): WalletData {

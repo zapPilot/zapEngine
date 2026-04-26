@@ -1,3 +1,4 @@
+import { isWalletAddress } from '@zapengine/types';
 import { z } from 'zod';
 
 export const dataSourceEnum = z.enum([
@@ -38,7 +39,9 @@ export const webhookPayloadSchema = z
 
 export const walletFetchSchema = z.object({
   userId: z.string().uuid(),
-  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  walletAddress: z.string().refine(isWalletAddress, {
+    message: 'Invalid Ethereum wallet address',
+  }),
   trigger: z.enum(['manual', 'webhook']),
   secret: z.string().optional(),
 });
