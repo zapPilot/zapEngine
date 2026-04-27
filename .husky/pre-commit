@@ -7,6 +7,9 @@ set -eu
 # Run pnpm install --check to ensure all dependencies are installed and up-to-date
 pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
 
+#Run some config and script drifts checkings
+pnpm lint:repo
+
 # 🎯 Auto-fix and re-stage files that are about to be committed
 pnpm lint-staged
 

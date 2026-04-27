@@ -2,7 +2,7 @@
   "extends": "@zapengine/tsconfig/node.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": ".",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,
@@ -12,11 +12,10 @@
     "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"],
-      "@/container": ["./src/container.ts"],
-      "@/test-utils": ["./test/test-utils/index.ts"]
+      "@/container": ["./src/container.ts"]
     },
     "incremental": true
   },
-  "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
 }

@@ -33,6 +33,7 @@
     "dup:check": "jscpd src --config .jscpd.json",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
