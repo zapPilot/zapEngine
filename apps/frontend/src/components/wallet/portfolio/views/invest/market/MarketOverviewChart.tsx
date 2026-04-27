@@ -79,6 +79,19 @@ function toNumeric(
   return null;
 }
 
+function getMinMax(arr: number[]): { min: number; max: number } {
+  if (arr.length === 0) return { min: 0, max: 1 };
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  if (max === min) return { min, max: max + 1 };
+  return { min, max };
+}
+
+function normalize(v: number | null, min: number, max: number): number | null {
+  if (v == null) return null;
+  return ((v - min) / (max - min)) * 100;
+}
+
 const DOLLAR_FORMAT_LABELS: Record<string, string> = {
   'BTC Price': 'price_usd',
   'BTC 200 DMA': 'btc_dma_200',
@@ -152,25 +165,8 @@ export function MarketOverviewChart({
       if (spyDma != null) sp500Values.push(spyDma);
     }
 
-    const getMinMax = (arr: number[]) => {
-      if (arr.length === 0) return { min: 0, max: 1 };
-      const min = Math.min(...arr);
-      const max = Math.max(...arr);
-      if (max === min) return { min, max: max + 1 };
-      return { min, max };
-    };
-
     const btcMinMax = getMinMax(btcValues);
     const sp500MinMax = getMinMax(sp500Values);
-
-    const normalize = (
-      v: number | null,
-      min: number,
-      max: number,
-    ): number | null => {
-      if (v == null) return null;
-      return ((v - min) / (max - min)) * 100;
-    };
 
     return data.map((d) => {
       const btc = d.values['btc'];
@@ -401,6 +397,23 @@ export function MarketOverviewChart({
           {activeLineDescriptors.map((line) => {
             const isFgi = line.key === 'fgi';
             const isBtcPrice = line.key === 'btcPrice';
+
+            const strokeDasharrayProps = line.strokeDasharray
+              ? { strokeDasharray: line.strokeDasharray }
+              : {};
+            const activeDotProps = isFgi
+              ? { activeDot: renderFgiActiveDot }
+              : isBtcPrice
+                ? {
+                    activeDot: {
+                      r: 5,
+                      fill: line.color,
+                      strokeWidth: 2,
+                      stroke: '#fff',
+                    },
+                  }
+                : {};
+
             return (
               <Line
                 key={line.key}
@@ -411,22 +424,9 @@ export function MarketOverviewChart({
                 stroke={isFgi ? 'url(#fgiLineGradient)' : line.color}
                 strokeWidth={isFgi ? 2.5 : 2}
                 dot={false}
-                {...(line.strokeDasharray
-                  ? { strokeDasharray: line.strokeDasharray }
-                  : {})}
+                {...strokeDasharrayProps}
                 connectNulls
-                {...(isFgi
-                  ? { activeDot: renderFgiActiveDot }
-                  : isBtcPrice
-                    ? {
-                        activeDot: {
-                          r: 5,
-                          fill: line.color,
-                          strokeWidth: 2,
-                          stroke: '#fff',
-                        },
-                      }
-                    : {})}
+                {...activeDotProps}
               />
             );
           })}

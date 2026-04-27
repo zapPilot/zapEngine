@@ -42,11 +42,7 @@ function sampleEvenlyFromIndices(
     return indices;
   }
 
-  if (targetSize === 0) {
-    return [];
-  }
-
-  if (targetSize === 1) {
+  if (targetSize <= 1) {
     const middleIndex = indices[Math.floor(indices.length / 2)];
     return middleIndex !== undefined ? [middleIndex] : [];
   }
