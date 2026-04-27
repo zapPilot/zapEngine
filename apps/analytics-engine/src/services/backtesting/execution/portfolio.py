@@ -10,12 +10,12 @@ from src.services.backtesting.execution.cost_model import (
 )
 
 _BALANCE_EPSILON = 1e-12
-_ASSET_BUCKETS = frozenset({"btc", "eth"})
-_SUPPORTED_BUCKETS = frozenset({"spot", "stable", "btc", "eth"})
+_ASSET_BUCKETS = frozenset({"btc", "eth", "spy"})
+_SUPPORTED_BUCKETS = frozenset({"spot", "stable", "btc", "eth", "spy"})
 
 
 class Portfolio:
-    """Tracks BTC, ETH, and stable balances with legacy spot compatibility."""
+    """Tracks BTC, ETH, SPY, and stable balances with legacy spot compatibility."""
 
     def __init__(
         self,
@@ -26,6 +26,7 @@ class Portfolio:
         *,
         btc_balance: float | None = None,
         eth_balance: float | None = None,
+        spy_balance: float | None = None,
     ) -> None:
         normalized_asset = self._normalize_asset_symbol(spot_asset)
         self.default_spot_asset = normalized_asset
@@ -36,6 +37,7 @@ class Portfolio:
         else:
             self.btc_balance = float(0.0 if btc_balance is None else btc_balance)
             self.eth_balance = float(0.0 if eth_balance is None else eth_balance)
+        self.spy_balance = float(0.0 if spy_balance is None else spy_balance)
         self.stable_balance = float(stable_balance)
         self._clamp_small_balance_residue()
 
@@ -70,19 +72,22 @@ class Portfolio:
     ) -> Portfolio:
         btc = max(0.0, float(allocation.get("btc", 0.0)))
         eth = max(0.0, float(allocation.get("eth", 0.0)))
+        spy = max(0.0, float(allocation.get("spy", 0.0)))
         stable = max(0.0, float(allocation.get("stable", 0.0)))
-        total = btc + eth + stable
+        total = btc + eth + spy + stable
         if total <= 0.0:
             stable = 1.0
             total = 1.0
         normalized = {
             "btc": btc / total,
             "eth": eth / total,
+            "spy": spy / total,
             "stable": stable / total,
         }
         return cls.from_asset_values(
             btc_value=total_capital * normalized["btc"],
             eth_value=total_capital * normalized["eth"],
+            spy_value=total_capital * normalized["spy"],
             stable_value=total_capital * normalized["stable"],
             price=price,
             spot_asset=spot_asset,
@@ -99,6 +104,7 @@ class Portfolio:
         price: float | Mapping[str, float],
         spot_asset: str = "BTC",
         cost_model: CostModel | None = None,
+        spy_value: float = 0.0,
     ) -> Portfolio:
         btc_price = (
             1.0 if btc_value <= 0.0 else cls._resolve_price_for_asset(price, "BTC")
@@ -106,12 +112,16 @@ class Portfolio:
         eth_price = (
             1.0 if eth_value <= 0.0 else cls._resolve_price_for_asset(price, "ETH")
         )
+        spy_price = (
+            1.0 if spy_value <= 0.0 else cls._resolve_price_for_asset(price, "SPY")
+        )
         return cls(
             stable_balance=stable_value,
             spot_asset=spot_asset,
             cost_model=cost_model,
             btc_balance=(btc_value / btc_price) if btc_price > 0 else 0.0,
             eth_balance=(eth_value / eth_price) if eth_price > 0 else 0.0,
+            spy_balance=(spy_value / spy_price) if spy_price > 0 else 0.0,
         )
 
     @property
@@ -140,18 +150,24 @@ class Portfolio:
 
     def total_value(self, price: float | Mapping[str, float]) -> float:
         asset_values = self.asset_values(price)
-        return asset_values["btc"] + asset_values["eth"] + asset_values["stable"]
+        return (
+            asset_values["btc"]
+            + asset_values["eth"]
+            + asset_values["spy"]
+            + asset_values["stable"]
+        )
 
     def bucket_values(self, price: float | Mapping[str, float]) -> dict[str, float]:
         asset_values = self.asset_values(price)
         return {
-            "spot": asset_values["btc"] + asset_values["eth"],
+            "spot": asset_values["btc"] + asset_values["eth"] + asset_values["spy"],
             "stable": asset_values["stable"],
         }
 
     def asset_values(self, price: float | Mapping[str, float]) -> dict[str, float]:
         btc_balance = self._sanitize_balance(self.btc_balance)
         eth_balance = self._sanitize_balance(self.eth_balance)
+        spy_balance = self._sanitize_balance(self.spy_balance)
         return {
             "btc": 0.0
             if btc_balance <= 0.0
@@ -159,6 +175,9 @@ class Portfolio:
             "eth": 0.0
             if eth_balance <= 0.0
             else eth_balance * self._resolve_asset_value_price(price, "ETH"),
+            "spy": 0.0
+            if spy_balance <= 0.0
+            else spy_balance * self._resolve_asset_value_price(price, "SPY"),
             "stable": self._sanitize_balance(self.stable_balance),
         }
 
@@ -192,12 +211,18 @@ class Portfolio:
         self, price: float | Mapping[str, float]
     ) -> dict[str, float]:
         asset_values = self.asset_values(price)
-        total = asset_values["btc"] + asset_values["eth"] + asset_values["stable"]
+        total = (
+            asset_values["btc"]
+            + asset_values["eth"]
+            + asset_values["spy"]
+            + asset_values["stable"]
+        )
         if total <= 0:
-            return {"btc": 0.0, "eth": 0.0, "stable": 1.0, "alt": 0.0}
+            return {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
         return {
             "btc": asset_values["btc"] / total,
             "eth": asset_values["eth"] / total,
+            "spy": asset_values["spy"] / total,
             "stable": asset_values["stable"] / total,
             "alt": 0.0,
         }
@@ -298,13 +323,14 @@ class Portfolio:
         return {
             "btc_balance": float(self._sanitize_balance(self.btc_balance)),
             "eth_balance": float(self._sanitize_balance(self.eth_balance)),
+            "spy_balance": float(self._sanitize_balance(self.spy_balance)),
             "stable_balance": float(self._sanitize_balance(self.stable_balance)),
             "spot_balance": float(self.spot_balance),
         }
 
     def total_risk_value(self, price: float | Mapping[str, float]) -> float:
         asset_values = self.asset_values(price)
-        return asset_values["btc"] + asset_values["eth"]
+        return asset_values["btc"] + asset_values["eth"] + asset_values["spy"]
 
     def resolve_spot_price(self, price: float | Mapping[str, float]) -> float:
         return self._resolve_price_for_asset(price, self.spot_asset)
@@ -317,7 +343,7 @@ class Portfolio:
         normalized = str(asset_symbol).strip().upper()
         if not normalized:
             raise ValueError("spot asset symbol must not be empty")
-        if normalized not in {"BTC", "ETH"}:
+        if normalized not in {"BTC", "ETH", "SPY"}:
             raise ValueError(f"Unsupported spot asset '{asset_symbol}'")
         return normalized
 
@@ -348,6 +374,7 @@ class Portfolio:
             if self.default_spot_asset != asset_symbol and (
                 (asset_symbol == "BTC" and self.btc_balance > _BALANCE_EPSILON)
                 or (asset_symbol == "ETH" and self.eth_balance > _BALANCE_EPSILON)
+                or (asset_symbol == "SPY" and self.spy_balance > _BALANCE_EPSILON)
             ):
                 raise ValueError(
                     "price map required for mixed-asset portfolio valuation"
@@ -427,6 +454,8 @@ class Portfolio:
             return self.btc_balance
         if bucket == "eth":
             return self.eth_balance
+        if bucket == "spy":
+            return self.spy_balance
         raise ValueError(f"Unsupported asset bucket '{bucket}'")
 
     def _add_asset_balance(self, bucket: str, delta: float) -> None:
@@ -435,6 +464,9 @@ class Portfolio:
             return
         if bucket == "eth":
             self.eth_balance += delta
+            return
+        if bucket == "spy":
+            self.spy_balance += delta
             return
         raise ValueError(f"Unsupported asset bucket '{bucket}'")
 
@@ -450,4 +482,5 @@ class Portfolio:
     def _clamp_small_balance_residue(self) -> None:
         self.btc_balance = self._sanitize_balance(self.btc_balance)
         self.eth_balance = self._sanitize_balance(self.eth_balance)
+        self.spy_balance = self._sanitize_balance(self.spy_balance)
         self.stable_balance = self._sanitize_balance(self.stable_balance)

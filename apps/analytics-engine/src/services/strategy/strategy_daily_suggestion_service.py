@@ -79,6 +79,7 @@ if TYPE_CHECKING:
         StrategyTradeHistoryStoreProtocol,
         TokenPriceServiceProtocol,
     )
+    from src.services.interfaces.market import StockPriceServiceProtocol
 
 logger = logging.getLogger(__name__)
 DEFAULT_REGIME_HISTORY_DAYS = 30
@@ -112,6 +113,7 @@ class StrategyDailySuggestionService:
     regime_tracking_service: RegimeTrackingServiceProtocol
     sentiment_service: SentimentDatabaseServiceProtocol
     token_price_service: TokenPriceServiceProtocol
+    stock_price_service: StockPriceServiceProtocol | None
     canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None
     strategy_config_store: StrategyConfigStore | SeedStrategyConfigStore
     trade_history_store: StrategyTradeHistoryStoreProtocol
@@ -127,11 +129,13 @@ class StrategyDailySuggestionService:
         strategy_config_store: StrategyConfigStore | None = None,
         trade_history_store: StrategyTradeHistoryStoreProtocol | None = None,
         composition_catalog: CompositionCatalog | None = None,
+        stock_price_service: StockPriceServiceProtocol | None = None,
     ) -> None:
         self.landing_page_service = landing_page_service
         self.regime_tracking_service = regime_tracking_service
         self.sentiment_service = sentiment_service
         self.token_price_service = token_price_service
+        self.stock_price_service = stock_price_service
         self.canonical_snapshot_service = canonical_snapshot_service
         self.strategy_config_store = strategy_config_store or SeedStrategyConfigStore()
         self.trade_history_store = (
@@ -323,6 +327,7 @@ class StrategyDailySuggestionService:
     ) -> tuple[dict[date, dict[str, Any]], MarketDataFreshness | None]:
         feature_history = resolve_price_feature_history(
             token_price_service=self.token_price_service,
+            stock_price_service=self.stock_price_service,
             token_symbol=resolved_config.primary_asset,
             start_date=history_start,
             end_date=current_date,

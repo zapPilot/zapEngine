@@ -11,16 +11,19 @@ from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
     map_portfolio_to_eth_btc_stable_buckets,
+    map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
+    STRATEGY_SPY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+    SPY_AUX_SERIES,
     MarketDataRequirements,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
@@ -33,6 +36,10 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     EthBtcRotationStrategy,
     build_initial_eth_btc_asset_allocation,
+)
+from src.services.backtesting.strategies.spy_eth_btc_rotation import (
+    SpyEthBtcRotationParams,
+    SpyEthBtcRotationStrategy,
 )
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
@@ -67,6 +74,12 @@ def _normalize_dma_public_params(params: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_eth_btc_rotation_public_params(params: dict[str, Any]) -> dict[str, Any]:
     return EthBtcRotationParams.from_public_params(params).to_public_params()
+
+
+def _normalize_spy_eth_btc_rotation_public_params(
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    return SpyEthBtcRotationParams.from_public_params(params).to_public_params()
 
 
 @dataclass(frozen=True)
@@ -146,6 +159,30 @@ def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrat
     )
 
 
+def _build_spy_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrategy:
+    params = SpyEthBtcRotationParams.from_public_params(request.params)
+    strategy_id = request.resolved_config_id or STRATEGY_SPY_ETH_BTC_ROTATION
+    initial_asset_allocation = None
+    if request.mode == "compare" and request.initial_allocation is not None:
+        first_price_row = request.user_prices[0] if request.user_prices else {}
+        crypto_initial = build_initial_eth_btc_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            extra_data=cast(
+                Mapping[str, Any] | None,
+                first_price_row.get("extra_data"),
+            ),
+            params=params,
+        )
+        initial_asset_allocation = {**crypto_initial, "spy": 0.0}
+    return SpyEthBtcRotationStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
 _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_DCA_CLASSIC: StrategyRecipe(
         strategy_id=STRATEGY_DCA_CLASSIC,
@@ -202,6 +239,27 @@ _RECIPES: dict[str, StrategyRecipe] = {
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
         build_strategy=_build_eth_btc_rotation_strategy,
+        supports_daily_suggestion=True,
+    ),
+    STRATEGY_SPY_ETH_BTC_ROTATION: StrategyRecipe(
+        strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
+        display_name="SPY/ETH/BTC Multi-Asset Rotation",
+        description="Add SPY (S&P 500) as a fourth bucket alongside BTC/ETH/stable; SPY uses DMA-only gating with a neutral FGI placeholder until S&P-500 sentiment is available.",
+        signal_id="spy_eth_btc_rs_signal",
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset(
+                {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}
+            ),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_spy_eth_btc_rotation_public_params,
+        build_strategy=_build_spy_eth_btc_rotation_strategy,
         supports_daily_suggestion=True,
     ),
 }

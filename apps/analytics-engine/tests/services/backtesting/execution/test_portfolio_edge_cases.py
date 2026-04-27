@@ -25,7 +25,7 @@ class TestAssetAllocationPercentagesZeroTotal:
         result = portfolio.asset_allocation_percentages(
             {"btc": 50_000.0, "eth": 3_000.0}
         )
-        assert result == {"btc": 0.0, "eth": 0.0, "stable": 1.0, "alt": 0.0}
+        assert result == {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
 
 class TestExecuteTransferResolvedSameBucket:

@@ -13,6 +13,9 @@ ETH_BTC_RATIO_DMA_200_FEATURE = "eth_btc_ratio_dma_200"
 ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE = "eth_btc_ratio_is_above_dma"
 ETH_USD_PRICE_FEATURE = "eth_price_usd"
 ETH_DMA_200_FEATURE = "eth_dma_200"
+SPY_AUX_SERIES = "spy_market"
+SPY_PRICE_FEATURE = "spy_price"
+SPY_DMA_200_FEATURE = "spy_dma_200"
 
 
 @dataclass(frozen=True, slots=True)

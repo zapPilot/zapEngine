@@ -17,11 +17,13 @@ ALLOCATION_STATES = {
 STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_GATED_FGI = "dma_gated_fgi"
 STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
+STRATEGY_SPY_ETH_BTC_ROTATION = "spy_eth_btc_rotation"
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
     STRATEGY_DMA_GATED_FGI: "DMA Gated FGI",
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
+    STRATEGY_SPY_ETH_BTC_ROTATION: "SPY/ETH/BTC Multi-Asset Rotation",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

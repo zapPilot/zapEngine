@@ -307,6 +307,7 @@ def get_backtesting_service(
     sentiment_service: SentimentDatabaseServiceProtocol = Depends(
         get_sentiment_database_service
     ),
+    stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
 ) -> BacktestingServiceProtocol:
     """Create BacktestingService instance for DCA strategy comparison."""
     from src.services.strategy.backtesting_service import (
@@ -319,6 +320,7 @@ def get_backtesting_service(
         token_price_service,
         sentiment_service,
         strategy_config_store=StrategyConfigStore(db),
+        stock_price_service=stock_price_service,
     )  # pragma: no cover
 
 
@@ -446,6 +448,7 @@ def get_strategy_daily_suggestion_service(
     canonical_snapshot_service: CanonicalSnapshotServiceProtocol = Depends(
         get_canonical_snapshot_service
     ),
+    stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
 ) -> StrategyDailySuggestionServiceProtocol:
     """Create StrategyDailySuggestionService with dependency injection."""
     from src.services.strategy.strategy_config_store import StrategyConfigStore
@@ -464,6 +467,7 @@ def get_strategy_daily_suggestion_service(
         canonical_snapshot_service=canonical_snapshot_service,
         strategy_config_store=StrategyConfigStore(db),
         trade_history_store=StrategyTradeHistoryStore(db),
+        stock_price_service=stock_price_service,
     )
 
 

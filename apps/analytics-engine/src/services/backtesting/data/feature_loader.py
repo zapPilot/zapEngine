@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from datetime import date
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -14,13 +14,23 @@ from src.services.backtesting.features import (
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     ETH_USD_PRICE_FEATURE,
+    SPY_AUX_SERIES,
+    SPY_DMA_200_FEATURE,
+    SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
 from src.services.backtesting.utils import coerce_to_date
-from src.services.interfaces.market import TokenPriceServiceProtocol
+
+if TYPE_CHECKING:  # pragma: no cover
+    from src.services.interfaces.market import (
+        StockPriceServiceProtocol,
+        TokenPriceServiceProtocol,
+    )
 
 SUPPORTED_PRICE_FEATURES = frozenset({DMA_200_FEATURE})
-SUPPORTED_AUX_SERIES = frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES})
+SUPPORTED_AUX_SERIES = frozenset(
+    {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}
+)
 
 
 def resolve_price_feature_history(
@@ -31,6 +41,7 @@ def resolve_price_feature_history(
     end_date: date,
     market_data_requirements: MarketDataRequirements | None = None,
     required_price_features: Collection[str] | None = None,
+    stock_price_service: StockPriceServiceProtocol | None = None,
 ) -> dict[str, dict[date, Any]]:
     declared_requirements = market_data_requirements or MarketDataRequirements()
     requested_features = frozenset(
@@ -96,6 +107,26 @@ def resolve_price_feature_history(
             end_date=end_date,
             token_symbol="ETH",
         )
+    if SPY_AUX_SERIES in declared_requirements.required_aux_series:
+        if stock_price_service is None:
+            raise ValueError(
+                "stock_price_service is required when SPY_AUX_SERIES is requested"
+            )
+        spy_history = stock_price_service.get_dma_history(
+            start_date=start_date,
+            end_date=end_date,
+            symbol="SPY",
+        )
+        feature_history[SPY_PRICE_FEATURE] = {
+            snapshot_date: float(point["price_usd"])
+            for snapshot_date, point in spy_history.items()
+        }
+        spy_dma_200: dict[date, float] = {}
+        for snapshot_date, point in spy_history.items():
+            dma_value = point.get("dma_200")
+            if dma_value is not None:
+                spy_dma_200[snapshot_date] = float(dma_value)
+        feature_history[SPY_DMA_200_FEATURE] = spy_dma_200
     return feature_history
 
 

@@ -47,6 +47,7 @@ if TYPE_CHECKING:  # pragma: no cover
         SentimentDatabaseServiceProtocol,
         TokenPriceServiceProtocol,
     )
+    from src.services.interfaces.market import StockPriceServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -390,10 +391,12 @@ class BacktestingService:
         sentiment_service: SentimentDatabaseServiceProtocol,
         strategy_config_store: StrategyConfigStore | None = None,
         composition_catalog: CompositionCatalog | None = None,
+        stock_price_service: StockPriceServiceProtocol | None = None,
     ):
         self.data_provider = BacktestDataProvider(
             token_price_service=token_price_service,
             sentiment_service=sentiment_service,
+            stock_price_service=stock_price_service,
         )
         self.strategy_config_store = strategy_config_store or (
             StrategyConfigStore(db) if db is not None else SeedStrategyConfigStore()

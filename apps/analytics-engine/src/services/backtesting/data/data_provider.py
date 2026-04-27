@@ -16,6 +16,7 @@ from src.services.backtesting.data.feature_loader import resolve_price_feature_h
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_USD_PRICE_FEATURE,
+    SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
 from src.services.backtesting.utils import coerce_to_date
@@ -25,6 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
         SentimentDatabaseServiceProtocol,
         TokenPriceServiceProtocol,
     )
+    from src.services.interfaces.market import StockPriceServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +46,19 @@ class BacktestDataProvider:
         self,
         token_price_service: TokenPriceServiceProtocol,
         sentiment_service: SentimentDatabaseServiceProtocol,
+        stock_price_service: StockPriceServiceProtocol | None = None,
     ):
         """Initialize data provider with required services.
 
         Args:
             token_price_service: Service for token price history.
             sentiment_service: Service for sentiment history.
+            stock_price_service: Optional service for stock (SPY) price history.
+                Required when a strategy declares ``SPY_AUX_SERIES``.
         """
         self.token_price_service = token_price_service
         self.sentiment_service = sentiment_service
+        self.stock_price_service = stock_price_service
 
     @staticmethod
     def _extract_snapshot_date(snapshot: Any) -> date | None:
@@ -124,19 +130,24 @@ class BacktestDataProvider:
         primary_price: float,
         extra_data: dict[str, Any],
     ) -> dict[str, float]:
+        prices: dict[str, float] = {}
         eth_price_value = extra_data.get(ETH_USD_PRICE_FEATURE)
         if isinstance(eth_price_value, int | float) and float(eth_price_value) > 0:
-            return {
+            prices = {
                 "btc": primary_price,
                 "eth": float(eth_price_value),
             }
-        ratio_value = extra_data.get(ETH_BTC_RATIO_FEATURE)
-        if isinstance(ratio_value, int | float) and float(ratio_value) > 0:
-            return {
-                "btc": primary_price,
-                "eth": primary_price * float(ratio_value),
-            }
-        return {}
+        else:
+            ratio_value = extra_data.get(ETH_BTC_RATIO_FEATURE)
+            if isinstance(ratio_value, int | float) and float(ratio_value) > 0:
+                prices = {
+                    "btc": primary_price,
+                    "eth": primary_price * float(ratio_value),
+                }
+        spy_price_value = extra_data.get(SPY_PRICE_FEATURE)
+        if isinstance(spy_price_value, int | float) and float(spy_price_value) > 0:
+            prices["spy"] = float(spy_price_value)
+        return prices
 
     @staticmethod
     def _build_sentiment_entry(sentiment: Any, sentiment_date: date) -> dict[str, Any]:
@@ -169,6 +180,7 @@ class BacktestDataProvider:
     ) -> dict[str, dict[date, Any]]:
         return resolve_price_feature_history(
             token_price_service=self.token_price_service,
+            stock_price_service=self.stock_price_service,
             market_data_requirements=market_data_requirements,
             required_price_features=required_price_features,
             start_date=start_date,

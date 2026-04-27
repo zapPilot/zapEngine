@@ -213,10 +213,12 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         "dca_classic",
         "dma_gated_fgi",
         "eth_btc_rotation",
+        "spy_eth_btc_rotation",
     ]
     assert {preset["config_id"] for preset in presets} == {
         "dma_gated_fgi_default",
         "eth_btc_rotation_default",
+        "spy_eth_btc_rotation_default",
     }
     assert sum(bool(preset["is_default"]) for preset in presets) == 1
     dma_preset = next(
@@ -365,6 +367,7 @@ async def test_admin_strategy_configs_return_full_saved_config_payload(
     assert {config["config_id"] for config in configs} == {
         "dma_gated_fgi_default",
         "eth_btc_rotation_default",
+        "spy_eth_btc_rotation_default",
         "dca_classic",
     }
     rotation_config = next(
@@ -524,6 +527,7 @@ async def test_admin_create_saved_config_surfaces_in_public_presets(
     presets = cast(list[dict[str, object]], presets_response.json()["presets"])
     assert {preset["config_id"] for preset in presets} == {
         "eth_btc_rotation_default",
+        "spy_eth_btc_rotation_default",
         "dma_custom",
         "dma_gated_fgi_default",
     }

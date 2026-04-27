@@ -36,7 +36,7 @@ class TestAssetAllocation:
             eth_value=0.0,
         )
         result = buckets.asset_allocation()
-        assert result == {"btc": 0.0, "eth": 0.0, "stable": 1.0, "alt": 0.0}
+        assert result == {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
     def test_asset_allocation_none_returns_none(self) -> None:
         buckets = PortfolioBuckets(spot_value=1_000.0, stable_value=500.0)

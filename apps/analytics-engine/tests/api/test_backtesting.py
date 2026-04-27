@@ -487,7 +487,12 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
     payload = cast(dict[str, object], response.json())
     catalog = BacktestStrategyCatalogResponseV3.model_validate(payload)
     strategy_ids = [entry.strategy_id for entry in catalog.strategies]
-    assert strategy_ids == ["dca_classic", "dma_gated_fgi", "eth_btc_rotation"]
+    assert strategy_ids == [
+        "dca_classic",
+        "dma_gated_fgi",
+        "eth_btc_rotation",
+        "spy_eth_btc_rotation",
+    ]
     dma_entry = next(
         entry for entry in catalog.strategies if entry.strategy_id == "dma_gated_fgi"
     )
