@@ -208,9 +208,7 @@ class TestSpyEthBtcSignalComponent:
 
     def test_observe_populates_spy_state_when_spy_data_present(self) -> None:
         component = self._component()
-        portfolio = Portfolio(
-            btc_balance=0.5, eth_balance=10.0, stable_balance=5_000.0
-        )
+        portfolio = Portfolio(btc_balance=0.5, eth_balance=10.0, stable_balance=5_000.0)
         init_context = _build_context(portfolio=portfolio)
         component.initialize(init_context)
         snapshot = component.observe(init_context)
@@ -221,9 +219,7 @@ class TestSpyEthBtcSignalComponent:
     def test_observe_skips_spy_state_when_spy_data_missing(self) -> None:
         component = self._component()
         portfolio = Portfolio(btc_balance=0.5, stable_balance=1_000.0)
-        context = _build_context(
-            portfolio=portfolio, spy_price=None, spy_dma_200=None
-        )
+        context = _build_context(portfolio=portfolio, spy_price=None, spy_dma_200=None)
         component.initialize(context)
         snapshot = component.observe(context)
         assert snapshot.spy_dma_state is None
@@ -240,9 +236,7 @@ class TestSpyEthBtcRotationStrategy:
 
     def test_default_public_params_round_trip(self) -> None:
         defaults = default_spy_eth_btc_rotation_params()
-        strategy = SpyEthBtcRotationStrategy(
-            total_capital=10_000.0, params=defaults
-        )
+        strategy = SpyEthBtcRotationStrategy(total_capital=10_000.0, params=defaults)
         # parameters() should expose the resolved public params unchanged.
         round_tripped = strategy.parameters()
         for key, value in defaults.items():
@@ -250,9 +244,7 @@ class TestSpyEthBtcRotationStrategy:
 
     def test_strategy_id_validation_blocks_wrong_signal_id(self) -> None:
         with pytest.raises(ValueError, match="signal_id must be"):
-            SpyEthBtcRotationStrategy(
-                total_capital=10_000.0, signal_id="wrong_id"
-            )
+            SpyEthBtcRotationStrategy(total_capital=10_000.0, signal_id="wrong_id")
 
 
 # ── Neutral FGI no-op pinning ────────────────────────────────────────────────

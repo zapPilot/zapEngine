@@ -28,9 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 SUPPORTED_PRICE_FEATURES = frozenset({DMA_200_FEATURE})
-SUPPORTED_AUX_SERIES = frozenset(
-    {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}
-)
+SUPPORTED_AUX_SERIES = frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES})
 
 
 def resolve_price_feature_history(

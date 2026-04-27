@@ -1,6 +1,6 @@
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 
-import { STRATEGY_IDS } from '@/config/strategyFamilies';
+import { useStrategyConfigs } from '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs';
 
 import {
   type ConfigEditorFormState,
@@ -33,6 +33,13 @@ export function ConfigEditorStructuredFields({
   mode,
   setFormState,
 }: ConfigEditorStructuredFieldsProps): ReactElement {
+  const {
+    data: strategyConfigs,
+    isLoading: strategiesLoading,
+    isError: strategiesError,
+  } = useStrategyConfigs();
+  const strategies = strategyConfigs?.strategies ?? [];
+
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 space-y-5">
       <div>
@@ -114,9 +121,19 @@ export function ConfigEditorStructuredFields({
             disabled={isBenchmark}
           >
             <option value="">Select strategy...</option>
-            {Object.entries(STRATEGY_IDS).map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
+            {strategiesLoading && (
+              <option value="" disabled>
+                Loading…
+              </option>
+            )}
+            {strategiesError && (
+              <option value="" disabled>
+                Failed to load strategies
+              </option>
+            )}
+            {strategies.map((strategy) => (
+              <option key={strategy.strategy_id} value={strategy.strategy_id}>
+                {strategy.display_name}
               </option>
             ))}
           </select>

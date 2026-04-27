@@ -49,6 +49,7 @@ const ALL_BUCKET_VALUES: readonly string[] = [
   ...BACKTEST_BUCKETS,
   'eth',
   'btc',
+  'spy',
 ];
 
 export function isBacktestBucket(value: unknown): value is BacktestBucket {
@@ -113,7 +114,12 @@ export function buildBacktestAllocationSegments(
 }
 
 function isSpotBucket(bucket: BacktestBucket): boolean {
-  return bucket === 'spot' || bucket === 'eth' || bucket === 'btc';
+  return (
+    bucket === 'spot' ||
+    bucket === 'eth' ||
+    bucket === 'btc' ||
+    bucket === 'spy'
+  );
 }
 
 export function getBacktestTransferDirection(

@@ -15,6 +15,22 @@ export const unifiedDashboardResponseSchema = z.any();
 export const marketSnapshotSchema = MarketSnapshotSchema;
 export const marketDashboardResponseSchema = MarketDashboardResponseSchema;
 
+export interface DrawdownAnalysis {
+  enhanced?: {
+    summary?: {
+      max_drawdown_pct?: number;
+      max_drawdown_date?: string;
+      recovery_days?: number;
+    };
+  };
+  underwater_recovery?: {
+    underwater_data?: {
+      drawdown_pct?: number;
+      date?: string;
+    }[];
+  };
+}
+
 export interface UnifiedDashboardResponse {
   user_id?: string;
   parameters?: Record<string, unknown>;
@@ -78,7 +94,7 @@ export interface UnifiedDashboardResponse {
           | undefined;
       } & Record<string, unknown>)
     | undefined;
-  drawdown_analysis?: Record<string, unknown>;
+  drawdown_analysis?: DrawdownAnalysis;
   _metadata?: Record<string, unknown>;
 }
 

@@ -74,9 +74,7 @@ class PortfolioBuckets:
         runtime_mode: RuntimePortfolioMode = "asset",
     ) -> Portfolio:
         if runtime_mode == "aggregate" or (
-            self.btc_value is None
-            and self.eth_value is None
-            and self.spy_value is None
+            self.btc_value is None and self.eth_value is None and self.spy_value is None
         ):
             return Portfolio(
                 spot_balance=(self.spot_value / current_price)

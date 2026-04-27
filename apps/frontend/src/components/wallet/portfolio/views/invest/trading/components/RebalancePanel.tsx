@@ -94,6 +94,10 @@ function getBucketLabel(
     return 'BTC';
   }
 
+  if (bucket === 'spy') {
+    return 'SPY';
+  }
+
   return targetSpotAsset ?? SPOT_BUCKET_LABEL;
 }
 

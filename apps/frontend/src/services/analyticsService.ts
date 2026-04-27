@@ -63,10 +63,6 @@ export async function getLandingPagePortfolioData(
   return validateLandingPageResponse(response);
 }
 
-// ============================================================================
-// UNIFIED DASHBOARD ENDPOINT (Performance Optimized - 96% faster)
-// ============================================================================
-
 /**
  * Get unified portfolio dashboard analytics (Performance Optimized)
  *
@@ -111,10 +107,6 @@ export async function getPortfolioDashboard(
   return validateUnifiedDashboardResponse(response);
 }
 
-// ============================================================================
-// DAILY YIELD RETURNS ENDPOINT
-// ============================================================================
-
 /**
  * Get daily yield returns for a user
  *
@@ -154,10 +146,6 @@ export async function getDailyYieldReturns(
   return validateDailyYieldReturnsResponse(response);
 }
 
-// ============================================================================
-// BORROWING POSITIONS ENDPOINT
-// ============================================================================
-
 /**
  * Get detailed borrowing positions for a user with per-position risk metrics.
  *
@@ -187,10 +175,6 @@ export async function getBorrowingPositions(
   const response = await httpUtils.analyticsEngine.get(endpoint);
   return validateBorrowingPositionsResponse(response);
 }
-
-// ============================================================================
-// MARKET DASHBOARD ENDPOINT
-// ============================================================================
 
 /**
  * Get aggregated market dashboard data

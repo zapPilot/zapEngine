@@ -1,4 +1,7 @@
-import type { UnifiedDashboardResponse } from '@/services';
+import type {
+  DrawdownAnalysis,
+  UnifiedDashboardResponse,
+} from '@/schemas/api/analytics/dashboardSchemas';
 import type { MetricData } from '@/types/analytics';
 
 /**
@@ -26,22 +29,6 @@ export function getSharpePercentile(sharpe: number): number {
   return 50;
 }
 
-interface DrawdownAnalysis {
-  enhanced?: {
-    summary?: {
-      max_drawdown_pct?: number;
-      max_drawdown_date?: string;
-      recovery_days?: number;
-    };
-  };
-  underwater_recovery?: {
-    underwater_data?: {
-      drawdown_pct?: number;
-      date?: string;
-    }[];
-  };
-}
-
 interface DrawdownSummary {
   max_drawdown_pct?: number;
   max_drawdown_date?: string;
@@ -63,9 +50,7 @@ interface DrawdownSummaryExtraction {
 function getDrawdownAnalysis(
   dashboard: UnifiedDashboardResponse | undefined,
 ): DrawdownAnalysis | undefined {
-  return dashboard?.drawdown_analysis as unknown as
-    | DrawdownAnalysis
-    | undefined;
+  return dashboard?.drawdown_analysis;
 }
 
 function getDrawdownSummary(

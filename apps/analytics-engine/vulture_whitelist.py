@@ -420,6 +420,9 @@ from src.services.backtesting.execution.portfolio import Portfolio
 _ = Portfolio.borrow_apr
 
 # API Router endpoints
+# Reachable via FastAPI @router.get('/configs') decorator; vulture cannot trace
+# decorator-based registration. Removal protected by
+# tests/test_main_lifecycle.py::test_critical_routes_registered.
 get_strategy_configs  # unused function (src/api/routers/v3_strategy.py:29)
 
 # Pydantic model validators - called by framework

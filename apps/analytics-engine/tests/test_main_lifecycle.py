@@ -248,6 +248,31 @@ class TestMainModuleDirectExecution:
         assert api_routes_exist or len(app.routes) > 0
         assert root_routes_exist or len(app.routes) > 0
 
+    def test_critical_routes_registered(self):
+        """Deletion guard for routes the frontend depends on.
+
+        The frontend's admin Config Editor and backtesting view both consume
+        /v3/strategy/configs to populate strategy dropdowns dynamically. If
+        someone deletes the route handler (it has happened before, because
+        vulture flags decorator-registered handlers as 'unused'), this test
+        fails loudly instead of letting the frontend silently break.
+
+        Do not delete this test without removing the corresponding frontend
+        consumers in apps/frontend/src/components/.../ConfigEditorStructuredFields.tsx
+        and apps/frontend/src/.../useStrategyConfigs.ts.
+        """
+        route_paths = {route.path for route in app.routes}
+        required_paths = {
+            "/api/v3/strategy/configs",
+            "/api/v3/strategy/admin/configs",
+            "/api/v3/strategy/daily-suggestion/{user_id}",
+        }
+        missing = required_paths - route_paths
+        assert not missing, (
+            f"Critical strategy routes missing from app: {sorted(missing)}. "
+            "Frontend dropdowns and daily-suggestion features depend on these."
+        )
+
 
 class TestApplicationIntegration:
     """Test application integration scenarios"""

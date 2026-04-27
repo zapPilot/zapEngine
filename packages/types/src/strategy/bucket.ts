@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const BucketSchema = z.enum(['spot', 'stable', 'btc', 'eth']);
+export const BucketSchema = z.enum(['spot', 'stable', 'btc', 'eth', 'spy']);
 
 export const BucketTransferSchema = z.object({
   from_bucket: BucketSchema,

@@ -14,6 +14,30 @@ const mockState = vi.hoisted(() => ({
   updateMutateAsync: vi.fn(),
   createIsPending: false,
   updateIsPending: false,
+  strategyConfigsData: {
+    strategies: [
+      {
+        strategy_id: 'dma_gated_fgi',
+        display_name: 'DMA-Gated FGI',
+        description: null,
+        param_schema: {},
+        default_params: {},
+        supports_daily_suggestion: true,
+      },
+      {
+        strategy_id: 'eth_btc_rotation',
+        display_name: 'ETH/BTC Rotation',
+        description: null,
+        param_schema: {},
+        default_params: {},
+        supports_daily_suggestion: false,
+      },
+    ],
+    presets: [],
+    backtest_defaults: { days: 500, total_capital: 10000 },
+  },
+  strategyConfigsIsLoading: false,
+  strategyConfigsIsError: false,
 }));
 
 const baseConfig: SavedStrategyConfig = {
@@ -43,6 +67,20 @@ vi.mock('@/hooks/queries/strategyAdmin', () => ({
     isLoading: mockState.isLoading,
   }),
 }));
+
+vi.mock(
+  '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs',
+  () => ({
+    useStrategyConfigs: () => ({
+      data:
+        mockState.strategyConfigsIsError || mockState.strategyConfigsIsLoading
+          ? undefined
+          : mockState.strategyConfigsData,
+      isLoading: mockState.strategyConfigsIsLoading,
+      isError: mockState.strategyConfigsIsError,
+    }),
+  }),
+);
 
 vi.mock('@/hooks/mutations/useStrategyAdminMutations', () => ({
   useCreateStrategyConfig: () => ({
@@ -101,7 +139,7 @@ function fillRequiredCreateFields(): void {
     target: { value: 'My Strategy Config' },
   });
   fireEvent.change(screen.getByRole('combobox'), {
-    target: { value: 'simple_dca' },
+    target: { value: 'dma_gated_fgi' },
   });
   fireEvent.change(screen.getByPlaceholderText('BTC'), {
     target: { value: 'ETH' },
@@ -114,6 +152,8 @@ describe('ConfigEditorView', () => {
     mockState.isLoading = false;
     mockState.createIsPending = false;
     mockState.updateIsPending = false;
+    mockState.strategyConfigsIsLoading = false;
+    mockState.strategyConfigsIsError = false;
     mockState.createMutateAsync.mockReset();
     mockState.createMutateAsync.mockResolvedValue(undefined);
     mockState.updateMutateAsync.mockReset();
@@ -499,7 +539,7 @@ describe('ConfigEditorView', () => {
           config_id: 'my_strategy_config',
           display_name: 'My Strategy Config',
           description: 'Optional note',
-          strategy_id: 'simple_dca',
+          strategy_id: 'dma_gated_fgi',
           primary_asset: 'ETH',
           supports_daily_suggestion: true,
           params: {},
@@ -758,12 +798,11 @@ describe('ConfigEditorView', () => {
   // Strategy ID select options
   // ---------------------------------------------------------------------------
 
-  describe('strategy ID select', () => {
-    it('renders all strategy options from STRATEGY_IDS', () => {
+  describe('strategy ID select (dynamic from /v3/strategy/configs)', () => {
+    it('renders strategy options from useStrategyConfigs response', () => {
       renderConfigEditorView();
       const select = screen.getByRole('combobox');
       expect(select).toBeInTheDocument();
-      // Should contain at least the placeholder + known strategies
       expect(
         screen.getByRole('option', { name: 'Select strategy...' }),
       ).toBeInTheDocument();
@@ -771,16 +810,38 @@ describe('ConfigEditorView', () => {
         screen.getByRole('option', { name: 'DMA-Gated FGI' }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('option', { name: 'Simple DCA' }),
+        screen.getByRole('option', { name: 'ETH/BTC Rotation' }),
       ).toBeInTheDocument();
     });
 
     it('updating strategy ID reflects in form state', () => {
       renderConfigEditorView();
       fireEvent.change(screen.getByRole('combobox'), {
-        target: { value: 'dma_gated_fgi' },
+        target: { value: 'eth_btc_rotation' },
       });
-      expect(screen.getByRole('combobox')).toHaveValue('dma_gated_fgi');
+      expect(screen.getByRole('combobox')).toHaveValue('eth_btc_rotation');
+    });
+
+    it('shows loading placeholder while strategies are fetching', () => {
+      mockState.strategyConfigsIsLoading = true;
+      renderConfigEditorView();
+      expect(
+        screen.getByRole('option', { name: 'Loading…' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: 'DMA-Gated FGI' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows error placeholder and no stale fallback when fetch fails', () => {
+      mockState.strategyConfigsIsError = true;
+      renderConfigEditorView();
+      expect(
+        screen.getByRole('option', { name: 'Failed to load strategies' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: 'DMA-Gated FGI' }),
+      ).not.toBeInTheDocument();
     });
   });
 });

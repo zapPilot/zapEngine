@@ -11,7 +11,8 @@
         "spot",
         "stable",
         "btc",
-        "eth"
+        "eth",
+        "spy"
       ],
       "type": "string"
     },
@@ -20,7 +21,8 @@
         "spot",
         "stable",
         "btc",
-        "eth"
+        "eth",
+        "spy"
       ],
       "type": "string"
     }

@@ -25,7 +25,7 @@ from src.services.backtesting.public_params import (
 StrategyId = str
 SignalId = str
 ActionType = Literal["buy", "sell", "hold"]
-BucketType = Literal["spot", "stable", "btc", "eth"]
+BucketType = Literal["spot", "stable", "btc", "eth", "spy"]
 SpotAssetType = Literal["BTC", "ETH"]
 ExecutionStatus = Literal["action_required", "blocked", "no_action"]
 
