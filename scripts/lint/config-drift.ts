@@ -14,11 +14,6 @@ interface TsConfig {
   exclude?: string[];
 }
 
-interface Workspace {
-  name: string;
-  path: string;
-  tsconfig: TsConfig;
-}
 
 const ROOT = process.cwd();
 const APPS_DIR = join(ROOT, 'apps');
@@ -64,7 +59,7 @@ function getPackageName(dir: string): string {
   }
 }
 
-async function main() {
+function main() {
   const issues: Array<{ type: string; file: string; issue: string; severity: string }> = [];
 
   const appDirs = findTsConfigs(APPS_DIR);
@@ -137,7 +132,4 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Error:', err);
-  process.exit(1);
-});
+main();

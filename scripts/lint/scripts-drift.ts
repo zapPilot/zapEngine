@@ -10,7 +10,7 @@ interface PackageJson {
   scripts?: Record<string, string>;
 }
 
-const REQUIRED_SCRIPTS = ['build', 'type-check'];
+const REQUIRED_SCRIPTS = new Set<string>(['build', 'type-check']);
 const TEST_SCRIPTS = [
   'test',
   'test:ci',
@@ -80,7 +80,7 @@ function main() {
       scriptMatrix[name][script] = script in scripts;
     }
 
-    const missingRequired = REQUIRED_SCRIPTS.filter((s) => !(s in scripts));
+    const missingRequired = [...REQUIRED_SCRIPTS].filter((s) => !(s in scripts));
     if (missingRequired.length > 0) {
       issues.push({
         type: 'missing_required_scripts',
@@ -119,7 +119,7 @@ function main() {
     if (hasMajority) {
       for (const [name, matrix] of Object.entries(scriptMatrix)) {
         if (!matrix[script]) {
-          const isRequired = REQUIRED_SCRIPTS.includes(script as any);
+          const isRequired = REQUIRED_SCRIPTS.has(script);
           issues.push({
             type: 'script_drift',
             file: name,

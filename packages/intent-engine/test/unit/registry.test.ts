@@ -10,11 +10,9 @@ import {
 } from '../../src/protocols/registry.js';
 import { CHAIN_IDS } from '../../src/types/chain.types.js';
 
-const _ETH_USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Address;
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
 
 const MOONWELL_USDC = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
-const _SEAMLESS_WETH = '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address;
 const STEAKHOUSE_USDC = '0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB' as Address;
 
 describe('lookupVault', () => {
@@ -61,7 +59,7 @@ describe('lookupVault', () => {
     expect(vault).toBeNull();
   });
 
-  it('returns null when protocol does not match', () => {
+  it('returns vault when protocol matches', () => {
     const vault = lookupVault({
       protocol: 'morpho' as const,
       chainId: CHAIN_IDS.BASE,

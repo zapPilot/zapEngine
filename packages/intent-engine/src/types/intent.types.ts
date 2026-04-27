@@ -14,8 +14,6 @@ export const IntentTypeSchema = z.enum([
   'ROTATE',
   'REBALANCE',
 ]);
-type _IntentType = z.infer<typeof IntentTypeSchema>;
-
 // Base intent schema (common fields)
 const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 
@@ -116,19 +114,13 @@ export const IntentSchema = z.discriminatedUnion('type', [
 // Inferred TypeScript types.
 // *Intent types are the *output* of parsing (defaults resolved; e.g. slippageBps: number).
 // *IntentInput types are what callers pass in (defaults optional; e.g. slippageBps?: number).
-type _BaseIntent = z.infer<typeof BaseIntentSchema>;
 export type SwapIntent = z.infer<typeof SwapIntentSchema>;
 export type SupplyIntent = z.infer<typeof SupplyIntentSchema>;
 export type WithdrawIntent = z.infer<typeof WithdrawIntentSchema>;
 export type RotateIntent = z.infer<typeof RotateIntentSchema>;
-type _RebalanceLeg = z.infer<typeof RebalanceLegSchema>;
-type _RebalanceIntent = z.infer<typeof RebalanceIntentSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
 
 export type SwapIntentInput = z.input<typeof SwapIntentSchema>;
 export type SupplyIntentInput = z.input<typeof SupplyIntentSchema>;
 export type WithdrawIntentInput = z.input<typeof WithdrawIntentSchema>;
 export type RotateIntentInput = z.input<typeof RotateIntentSchema>;
-type _RebalanceLegInput = z.input<typeof RebalanceLegSchema>;
-type _RebalanceIntentInput = z.input<typeof RebalanceIntentSchema>;
-type _IntentInput = z.input<typeof IntentSchema>;
