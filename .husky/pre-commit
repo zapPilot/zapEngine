@@ -4,6 +4,9 @@
 # Task orchestration + parallelism + dependency graph are handled by turbo.
 set -eu
 
+# Run pnpm install --check to ensure all dependencies are installed and up-to-date
+pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
+
 # 🎯 Auto-fix and re-stage files that are about to be committed
 pnpm lint-staged
 
