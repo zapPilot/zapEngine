@@ -14,6 +14,7 @@ def test_serialize_asset_allocation_none_defaults_to_all_stable() -> None:
     result = serialize_asset_allocation(None)
     assert result.btc == 0.0
     assert result.eth == 0.0
+    assert result.spy == 0.0
     assert result.stable == 1.0
     assert result.alt == 0.0
 
@@ -24,32 +25,31 @@ def test_serialize_asset_allocation_with_data() -> None:
     )
     assert result.btc == 0.5
     assert result.eth == 0.3
+    assert result.spy == 0.0
     assert result.stable == 0.2
     assert result.alt == 0.0
 
 
-def test_serialize_asset_allocation_folds_spy_into_alt() -> None:
-    # Regression: Portfolio.asset_allocation_percentages returns a 5-key dict
-    # including `spy`, but AssetAllocation only has 4 fields. SPY-rotation
-    # strategies that hold 100% SPY would otherwise serialize to all-zero and
-    # fail validate_sum. SPY must fold into `alt` to keep the sum at 1.0.
+def test_serialize_asset_allocation_passes_spy_through() -> None:
     result = serialize_asset_allocation(
         {"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0}
     )
     assert result.btc == 0.0
     assert result.eth == 0.0
+    assert result.spy == 1.0
     assert result.stable == 0.0
-    assert result.alt == 1.0
+    assert result.alt == 0.0
 
 
-def test_serialize_asset_allocation_spy_and_alt_combine() -> None:
+def test_serialize_asset_allocation_spy_and_alt_are_independent() -> None:
     result = serialize_asset_allocation(
         {"btc": 0.4, "eth": 0.0, "spy": 0.3, "stable": 0.2, "alt": 0.1}
     )
     assert result.btc == 0.4
     assert result.eth == 0.0
+    assert result.spy == 0.3
     assert result.stable == 0.2
-    assert result.alt == 0.4  # 0.1 (alt) + 0.3 (spy)
+    assert result.alt == 0.1
 
 
 def test_aggregate_to_asset_allocation_maps_btc_target() -> None:
@@ -114,5 +114,7 @@ def test_serialize_target_asset_allocation_maps_aggregate_spot_to_target_asset()
 
 def test_normalize_spot_asset_defaults_unknown_values_to_btc() -> None:
     assert normalize_spot_asset("eth") == "ETH"
+    assert normalize_spot_asset("spy") == "SPY"
+    assert normalize_spot_asset("SPY") == "SPY"
     assert normalize_spot_asset("doge") == "BTC"
     assert normalize_spot_asset(None) == "BTC"

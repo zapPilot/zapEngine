@@ -6,6 +6,7 @@ import { ALLOCATION_CATEGORIES } from '@/lib/domain/allocationCategories';
 export const ASSET_COLORS = {
   BTC: ALLOCATION_CATEGORIES.btc.color,
   ETH: ALLOCATION_CATEGORIES.eth.color,
+  SPY: ALLOCATION_CATEGORIES.spy.color,
   SOL: '#14F195',
   ALT: ALLOCATION_CATEGORIES.alt.color,
   USDC: '#2775CA',
@@ -23,6 +24,7 @@ export const ASSET_COLORS = {
 export const UNIFIED_COLORS = {
   BTC: ALLOCATION_CATEGORIES.btc.color,
   ETH: ALLOCATION_CATEGORIES.eth.color,
+  SPY: ALLOCATION_CATEGORIES.spy.color,
   STABLE: ALLOCATION_CATEGORIES.stable.color,
   ALT: ALLOCATION_CATEGORIES.alt.color,
 } as const;

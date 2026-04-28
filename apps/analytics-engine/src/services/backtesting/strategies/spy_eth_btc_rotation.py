@@ -308,7 +308,24 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             intent=intent,
             signal_confidence=signal_confidence,
         )
-        return replace(hints, signal_id=self.signal_id, target_spot_asset=None)
+        # Pick the dominant risk-on bucket so the executor's rotate_spot_asset
+        # actually buys the right asset. SPY wins ties (>=) to surface SPY
+        # behavior — the only way executor.target_spot_asset can ever land on
+        # "SPY" is for this strategy to emit it explicitly here.
+        target = intent.target_allocation or {}
+        spy_share = float(target.get("spy", 0.0))
+        btc_share = float(target.get("btc", 0.0))
+        eth_share = float(target.get("eth", 0.0))
+        target_spot: str | None
+        if spy_share > 0.0 and spy_share >= max(btc_share, eth_share):
+            target_spot = "SPY"
+        elif eth_share > btc_share:
+            target_spot = "ETH"
+        elif btc_share > 0.0:
+            target_spot = "BTC"
+        else:
+            target_spot = None
+        return replace(hints, signal_id=self.signal_id, target_spot_asset=target_spot)
 
 
 @dataclass(frozen=True)
@@ -337,7 +354,13 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
 
         crypto_risk_on = _crypto_risk_on_share(crypto_alloc)
         eth_share = _eth_share_within_crypto(crypto_alloc)
-        spy_risk_on = _spy_risk_on_share(spy_alloc)
+        # Preserve current SPY share when DMA gate is in hold state, matching
+        # ETH/BTC's behavior at eth_btc_rotation.py:559-575. Without this, SPY
+        # would zero out every day no DMA cross/overextension event fires.
+        if spy_alloc is not None:
+            spy_risk_on = _spy_risk_on_share(spy_alloc)
+        else:
+            spy_risk_on = float(snapshot.current_asset_allocation.get("spy", 0.0))
 
         target_allocation = _compose_4bucket_target(
             spy_risk_on=spy_risk_on,
@@ -365,6 +388,24 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
                 else None
             )
 
+        # Pick the dominant risk-on bucket so the engine's rotate_spot_asset
+        # actually buys the right asset. Engine reads decision.target_spot_asset
+        # (composed_signal.py:152) — NOT hints.target_spot_asset — so this must
+        # be set here, not just in build_execution_hints. SPY wins ties (>=) to
+        # surface SPY behavior; without that, executor never picks SPY.
+        spy_share = float(target_allocation.get("spy", 0.0))
+        btc_share = float(target_allocation.get("btc", 0.0))
+        eth_share = float(target_allocation.get("eth", 0.0))
+        target_spot_asset: str | None
+        if spy_share > 0.0 and spy_share >= max(btc_share, eth_share):
+            target_spot_asset = "SPY"
+        elif eth_share > btc_share:
+            target_spot_asset = "ETH"
+        elif btc_share > 0.0:
+            target_spot_asset = "BTC"
+        else:
+            target_spot_asset = None
+
         return AllocationIntent(
             action=action,
             target_allocation=target_allocation,
@@ -376,6 +417,7 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
                 crypto_intent.decision_score,
                 spy_intent.decision_score if spy_intent is not None else 0.0,
             ),
+            target_spot_asset=target_spot_asset,
         )
 
 

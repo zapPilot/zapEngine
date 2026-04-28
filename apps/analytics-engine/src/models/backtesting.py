@@ -26,7 +26,7 @@ StrategyId = str
 SignalId = str
 ActionType = Literal["buy", "sell", "hold"]
 BucketType = Literal["spot", "stable", "btc", "eth", "spy"]
-SpotAssetType = Literal["BTC", "ETH"]
+SpotAssetType = Literal["BTC", "ETH", "SPY"]
 ExecutionStatus = Literal["action_required", "blocked", "no_action"]
 
 
@@ -60,17 +60,18 @@ class Allocation(BaseModel):
 
 
 class AssetAllocation(BaseModel):
-    """Four-bucket display allocation."""
+    """Five-bucket display allocation."""
 
     btc: float = Field(ge=0.0, le=1.0)
     eth: float = Field(ge=0.0, le=1.0)
+    spy: float = Field(ge=0.0, le=1.0)
     stable: float = Field(ge=0.0, le=1.0)
     alt: float = Field(ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_sum(self) -> Self:
         _assert_sums_to_one(
-            self.btc + self.eth + self.stable + self.alt,
+            self.btc + self.eth + self.spy + self.stable + self.alt,
             "asset allocation",
         )
         return self

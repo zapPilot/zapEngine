@@ -145,6 +145,7 @@ def _daily_response() -> DailySuggestionResponse:
                 asset_allocation=AssetAllocation(
                     btc=0.25,
                     eth=0.0,
+                    spy=0.0,
                     stable=0.75,
                     alt=0.0,
                 ),
@@ -173,6 +174,7 @@ def _daily_response() -> DailySuggestionResponse:
                 asset_allocation=AssetAllocation(
                     btc=0.0,
                     eth=0.0,
+                    spy=0.0,
                     stable=1.0,
                     alt=0.0,
                 ),

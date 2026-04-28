@@ -113,6 +113,30 @@ def test_rotate_spot_asset_relabels_when_spot_is_empty() -> None:
     assert portfolio.spot_asset == "ETH"
 
 
+def test_rotate_spot_asset_btc_to_spy_moves_balance() -> None:
+    """Regression: rotation source loop must include SPY.
+
+    Pre-fix the source list was ('BTC', 'ETH') only, so BTC->SPY worked but
+    ETH->SPY (or any source->SPY when BTC was empty) silently no-op'd. This
+    test pins the specific BTC->SPY case the SpyEthBtcRotation strategy
+    actually exercises.
+    """
+    portfolio = Portfolio(
+        spot_balance=1.0,
+        stable_balance=0.0,
+        spot_asset="BTC",
+    )
+    prices = {"btc": 100_000.0, "eth": 5_000.0, "spy": 600.0}
+
+    rotated = portfolio.rotate_spot_asset("SPY", prices)
+
+    assert rotated is True
+    assert portfolio.spot_asset == "SPY"
+    assert portfolio.btc_balance == pytest.approx(0.0)
+    assert portfolio.spy_balance > 0.0
+    assert portfolio.total_value(prices) == pytest.approx(100_000.0)
+
+
 # ---------------------------------------------------------------------------
 # Targeted coverage tests for uncovered branches
 # ---------------------------------------------------------------------------

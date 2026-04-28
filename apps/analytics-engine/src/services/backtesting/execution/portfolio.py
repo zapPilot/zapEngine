@@ -305,7 +305,7 @@ class Portfolio:
             self.default_spot_asset = target_asset
             return False
         moved = False
-        for source_asset in ("BTC", "ETH"):
+        for source_asset in ("BTC", "ETH", "SPY"):
             if source_asset == target_asset:
                 continue
             source_value = self.asset_values(prices)[source_asset.lower()]

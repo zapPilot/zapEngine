@@ -9,6 +9,7 @@ from src.models.backtesting import AssetAllocation, SpotAssetType
 _DEFAULT_ASSET_ALLOCATION = {
     "btc": 0.0,
     "eth": 0.0,
+    "spy": 0.0,
     "stable": 1.0,
     "alt": 0.0,
 }
@@ -18,21 +19,21 @@ _EXPLICIT_ASSET_KEYS = frozenset({"btc", "eth", "alt"})
 
 def normalize_spot_asset(asset: str | None) -> SpotAssetType:
     normalized = str(asset or "").strip().upper()
-    return "ETH" if normalized == "ETH" else "BTC"
+    if normalized == "SPY":
+        return "SPY"
+    if normalized == "ETH":
+        return "ETH"
+    return "BTC"
 
 
 def serialize_asset_allocation(raw: Mapping[str, float] | None) -> AssetAllocation:
     values = _DEFAULT_ASSET_ALLOCATION if raw is None else raw
-    # Portfolio.asset_allocation_percentages emits a 5-key dict (btc/eth/spy/
-    # stable/alt) but AssetAllocation is a 4-bucket display model. SPY (and any
-    # other non-canonical risk asset) folds into `alt` so the result still sums
-    # to 1.0 — without this, SPY-rotation strategies serialize to all-zero and
-    # fail validate_sum.
     return AssetAllocation(
         btc=float(values.get("btc", 0.0)),
         eth=float(values.get("eth", 0.0)),
+        spy=float(values.get("spy", 0.0)),
         stable=float(values.get("stable", 0.0)),
-        alt=float(values.get("alt", 0.0)) + float(values.get("spy", 0.0)),
+        alt=float(values.get("alt", 0.0)),
     )
 
 
@@ -47,6 +48,7 @@ def aggregate_to_asset_allocation(
     asset_allocation = {
         "btc": 0.0,
         "eth": 0.0,
+        "spy": 0.0,
         "stable": max(0.0, float(stable)),
         "alt": 0.0,
     }

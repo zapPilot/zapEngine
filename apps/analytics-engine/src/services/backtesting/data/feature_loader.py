@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from datetime import date
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.features import (
@@ -115,17 +115,60 @@ def resolve_price_feature_history(
             end_date=end_date,
             symbol="SPY",
         )
-        feature_history[SPY_PRICE_FEATURE] = {
+        spy_price_raw = {
             snapshot_date: float(point["price_usd"])
             for snapshot_date, point in spy_history.items()
         }
-        spy_dma_200: dict[date, float] = {}
+        # Forward-fill SPY price across calendar days. SPY trades on weekdays
+        # only, but BTC/ETH (and the backtest engine's portfolio valuation) run
+        # every calendar day. Without forward-fill, weekend days have no SPY
+        # price → portfolio.rotate_spot_asset / total_value blow up with
+        # "Missing price for spot asset 'SPY'" once any SPY balance exists.
+        # Real-world equivalent: weekend SPY value = previous Friday close.
+        feature_history[SPY_PRICE_FEATURE] = _forward_fill_daily(
+            spy_price_raw,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        spy_dma_200_raw: dict[date, float] = {}
         for snapshot_date, point in spy_history.items():
             dma_value = point.get("dma_200")
             if dma_value is not None:
-                spy_dma_200[snapshot_date] = float(dma_value)
-        feature_history[SPY_DMA_200_FEATURE] = spy_dma_200
+                spy_dma_200_raw[snapshot_date] = float(dma_value)
+        feature_history[SPY_DMA_200_FEATURE] = _forward_fill_daily(
+            spy_dma_200_raw,
+            start_date=start_date,
+            end_date=end_date,
+        )
     return feature_history
+
+
+def _forward_fill_daily(
+    sparse: dict[date, float],
+    *,
+    start_date: date,
+    end_date: date,
+) -> dict[date, float]:
+    """Fill gaps by carrying the previous available value forward.
+
+    Returns a dense dict over [start_date, end_date]. Days before the first
+    available datum stay absent (no value to carry).
+    """
+    if not sparse:
+        return dict(sparse)
+    sorted_keys = sorted(sparse.keys())
+    filled: dict[date, float] = {}
+    last_value: float | None = None
+    cur = start_date
+    series_idx = 0
+    while cur <= end_date:
+        while series_idx < len(sorted_keys) and sorted_keys[series_idx] <= cur:
+            last_value = sparse[sorted_keys[series_idx]]
+            series_idx += 1
+        if last_value is not None:
+            filled[cur] = last_value
+        cur += timedelta(days=1)
+    return filled
 
 
 __all__ = [

@@ -264,15 +264,15 @@ def _calculate_performance_metrics(
 
 
 def _aggregate_allocation(raw: dict[str, float]) -> dict[str, float]:
-    if {"btc", "eth"} & set(raw):
+    if {"btc", "eth", "spy"} & set(raw):
+        stable = float(raw.get("stable", 0.0))
         return sanitize_runtime_allocation(
             {
-                "spot": float(raw.get("btc", 0.0)) + float(raw.get("eth", 0.0)),
-                "stable": float(raw.get("stable", 0.0)),
+                "spot": max(0.0, 1.0 - stable),
+                "stable": stable,
             }
         )
     return sanitize_runtime_allocation(raw)
-
 
 def _resolve_target_spot_asset(
     *,

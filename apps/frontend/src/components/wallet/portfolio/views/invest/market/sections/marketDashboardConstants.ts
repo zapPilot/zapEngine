@@ -1,13 +1,30 @@
-import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
+/**
+ * Market Dashboard Constants
+ *
+ * Note: Regime-related utilities (REGIME_COLORS, getRegimeColor, getRegimeLabel)
+ * have been consolidated into '@/lib/domain/regime'.
+ * This file now re-exports them for backward compatibility.
+ */
+
+import {
+  getRegimeColor as _getRegimeColor,
+  getRegimeLabel as _getRegimeLabel,
+  REGIME_COLORS as _REGIME_COLORS,
+} from '@/lib/domain/regime';
 
 /** Regime hex colors keyed by short RegimeId (ef/f/n/g/eg) */
-export const REGIME_COLORS: Record<string, string> = {
-  ef: '#ef4444',
-  f: '#f97316',
-  n: '#eab308',
-  g: '#84cc16',
-  eg: '#22c55e',
-};
+export const REGIME_COLORS: Record<string, string> = _REGIME_COLORS;
+
+export function getRegimeColor(
+  regime: string | null | undefined,
+  fallback = '#eab308',
+): string {
+  return _getRegimeColor(regime, fallback);
+}
+
+export function getRegimeLabel(regime: string | null | undefined): string {
+  return _getRegimeLabel(regime);
+}
 
 export const TIMEFRAMES = [
   { id: '1M', days: 30 },
@@ -136,20 +153,6 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
 export const DEFAULT_ACTIVE_LINES: ReadonlySet<MarketLineKey> = new Set(
   MARKET_LINES.filter((line) => line.defaultActive).map((line) => line.key),
 );
-
-export function getRegimeColor(
-  regime: string | null | undefined,
-  fallback = '#eab308',
-): string {
-  if (!regime || !(regime in REGIME_COLORS)) return fallback;
-  return REGIME_COLORS[regime] ?? fallback;
-}
-
-export function getRegimeLabel(regime: string | null | undefined): string {
-  return regime && regime in REGIME_LABELS
-    ? REGIME_LABELS[regime as keyof typeof REGIME_LABELS]
-    : '';
-}
 
 export function formatXAxisDate(val: string): string {
   const d = new Date(val);

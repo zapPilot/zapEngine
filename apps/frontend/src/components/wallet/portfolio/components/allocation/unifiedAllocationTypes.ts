@@ -8,15 +8,16 @@
  */
 
 /**
- * The four unified allocation categories.
+ * The five unified allocation categories.
  *
  * This model simplifies previous inconsistent categorizations into a clear hierarchy:
  * - `btc`: Pure BTC spot exposure
  * - `eth`: Pure ETH spot exposure
+ * - `spy`: S&P 500 (SPY ETF) exposure
  * - `stable`: Stablecoins (capital preservation)
- * - `alt`: Everything else (non-BTC, non-ETH, non-stable)
+ * - `alt`: Everything else (non-BTC, non-ETH, non-SPY, non-stable)
  */
-export type UnifiedCategory = 'btc' | 'eth' | 'stable' | 'alt';
+export type UnifiedCategory = 'btc' | 'eth' | 'spy' | 'stable' | 'alt';
 
 /**
  * A single segment in the unified allocation bar.
@@ -90,12 +91,13 @@ export interface BacktestConstituentsSource {
 }
 
 /**
- * Explicit four-bucket asset allocation ratios.
+ * Explicit five-bucket asset allocation ratios.
  * Values are normalized ratios (0-1).
  */
 export interface AssetAllocationSource {
   btc: number;
   eth: number;
+  spy: number;
   stable: number;
   alt: number;
 }

@@ -162,18 +162,19 @@ def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrat
 def _build_spy_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrategy:
     params = SpyEthBtcRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_SPY_ETH_BTC_ROTATION
-    initial_asset_allocation = None
+    initial_asset_allocation: dict[str, float] | None = None
+    first_price_row = request.user_prices[0] if request.user_prices else {}
+    extra_data = cast(Mapping[str, Any] | None, first_price_row.get("extra_data"))
     if request.mode == "compare" and request.initial_allocation is not None:
-        first_price_row = request.user_prices[0] if request.user_prices else {}
         crypto_initial = build_initial_eth_btc_asset_allocation(
             aggregate_allocation=request.initial_allocation,
-            extra_data=cast(
-                Mapping[str, Any] | None,
-                first_price_row.get("extra_data"),
-            ),
+            extra_data=extra_data,
             params=params,
         )
-        initial_asset_allocation = {**crypto_initial, "spy": 0.0}
+        spy_share = max(0.0, float(request.initial_allocation.get("spy", 0.0)))
+        initial_asset_allocation = {**crypto_initial, "spy": spy_share}
+    else:
+        initial_asset_allocation = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0}
     return SpyEthBtcRotationStrategy(
         total_capital=request.total_capital,
         params=params,

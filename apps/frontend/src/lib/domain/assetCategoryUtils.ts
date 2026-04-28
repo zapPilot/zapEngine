@@ -14,6 +14,7 @@ const ALLOCATION_TO_ASSET_CATEGORY: Record<
 > = {
   btc: 'btc',
   eth: 'eth',
+  spy: 'altcoin',
   stable: 'stablecoin',
   alt: 'altcoin',
 };

@@ -25,6 +25,7 @@ import type {
 const CATEGORY_LABELS: Record<UnifiedCategory, string> = {
   btc: 'BTC',
   eth: 'ETH',
+  spy: 'SPY',
   stable: 'STABLE',
   alt: 'ALT',
 };
@@ -32,6 +33,7 @@ const CATEGORY_LABELS: Record<UnifiedCategory, string> = {
 const CATEGORY_COLORS: Record<UnifiedCategory, string> = {
   btc: UNIFIED_COLORS.BTC,
   eth: UNIFIED_COLORS.ETH,
+  spy: UNIFIED_COLORS.SPY,
   stable: UNIFIED_COLORS.STABLE,
   alt: UNIFIED_COLORS.ALT,
 };
@@ -67,6 +69,7 @@ function normalizeSegments(segments: UnifiedSegment[]): UnifiedSegment[] {
 const DEFAULT_ASSET_CATEGORIES: readonly UnifiedCategory[] = [
   'btc',
   'eth',
+  'spy',
   'stable',
   'alt',
 ];

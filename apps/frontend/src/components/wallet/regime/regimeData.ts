@@ -3,6 +3,22 @@ import { type LucideIcon, Pause, TrendingDown, TrendingUp } from 'lucide-react';
 import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
 
 /**
+ * Color Convention Note (2026-04-28):
+ *
+ * This file uses the CONTRARIAN color convention:
+ * - Extreme Fear (ef) = green (#22c55e) — "fear is opportunity"
+ * - Extreme Greed (eg) = red (#ef4444) — "greed is danger"
+ *
+ * Other regime files (lib/domain/regime.ts, constants/regimeDisplay.ts,
+ * marketDashboardConstants.ts) use the DIRECT convention:
+ * - Fear = red, Greed = green
+ *
+ * This is intentional — this file is for STRATEGY visualization
+ * (the Buffett "be greedy when fearful" philosophy), while the
+ * other files are for DATA visualization (direct sentiment mapping).
+ */
+
+/**
  * Shared allocation states used across regime transitions.
  * Each state represents a unique portfolio composition in the flow.
  * Using shared objects ensures allocation consistency between connected regimes.

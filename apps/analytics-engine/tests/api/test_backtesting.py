@@ -189,6 +189,7 @@ def _response() -> BacktestResponse:
                 final_asset_allocation=AssetAllocation(
                     btc=0.5,
                     eth=0.0,
+                    spy=0.0,
                     stable=0.5,
                     alt=0.0,
                 ),
@@ -208,6 +209,7 @@ def _response() -> BacktestResponse:
                 final_asset_allocation=AssetAllocation(
                     btc=0.0,
                     eth=0.0,
+                    spy=0.0,
                     stable=1.0,
                     alt=0.0,
                 ),
@@ -232,6 +234,7 @@ def _response() -> BacktestResponse:
                             asset_allocation=AssetAllocation(
                                 btc=0.5,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=0.5,
                                 alt=0.0,
                             ),
@@ -246,6 +249,7 @@ def _response() -> BacktestResponse:
                             target_asset_allocation=AssetAllocation(
                                 btc=1.0,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=0.0,
                                 alt=0.0,
                             ),
@@ -276,6 +280,7 @@ def _response() -> BacktestResponse:
                             asset_allocation=AssetAllocation(
                                 btc=0.0,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=1.0,
                                 alt=0.0,
                             ),
@@ -308,6 +313,7 @@ def _response() -> BacktestResponse:
                             target_asset_allocation=AssetAllocation(
                                 btc=0.0,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=1.0,
                                 alt=0.0,
                             ),
@@ -355,6 +361,7 @@ def _response() -> BacktestResponse:
                             asset_allocation=AssetAllocation(
                                 btc=0.51,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=0.49,
                                 alt=0.0,
                             ),
@@ -369,6 +376,7 @@ def _response() -> BacktestResponse:
                             target_asset_allocation=AssetAllocation(
                                 btc=1.0,
                                 eth=0.0,
+                                spy=0.0,
                                 stable=0.0,
                                 alt=0.0,
                             ),
@@ -399,6 +407,7 @@ def _response() -> BacktestResponse:
                             asset_allocation=AssetAllocation(
                                 btc=0.0,
                                 eth=0.6,
+                                spy=0.0,
                                 stable=0.4,
                                 alt=0.0,
                             ),
@@ -430,6 +439,7 @@ def _response() -> BacktestResponse:
                             target_asset_allocation=AssetAllocation(
                                 btc=0.0,
                                 eth=1.0,
+                                spy=0.0,
                                 stable=0.0,
                                 alt=0.0,
                             ),

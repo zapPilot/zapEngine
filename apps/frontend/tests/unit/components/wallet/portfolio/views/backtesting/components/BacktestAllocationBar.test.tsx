@@ -174,7 +174,7 @@ describe('BacktestAllocationBar', () => {
       <BacktestAllocationBar
         displayName="Explicit Buckets"
         allocation={{ spot: 0.7, stable: 0.3 }}
-        assetAllocation={{ btc: 0.4, eth: 0.2, stable: 0.3, alt: 0.1 }}
+        assetAllocation={{ btc: 0.4, eth: 0.2, spy: 0, stable: 0.3, alt: 0.1 }}
         spotAssetLabel="BTC"
       />,
     );

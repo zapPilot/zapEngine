@@ -11,9 +11,8 @@ export type {
   StrategyPreset,
 } from '@zapengine/types/strategy';
 
-export type RegimeLabel =
-  | 'extreme_fear'
-  | 'fear'
-  | 'neutral'
-  | 'greed'
-  | 'extreme_greed';
+/**
+ * @deprecated Import from '@/lib/domain/regime' instead.
+ * This type is kept for backward compatibility with API responses.
+ */
+export type { RegimeLabel } from '@/lib/domain/regime';

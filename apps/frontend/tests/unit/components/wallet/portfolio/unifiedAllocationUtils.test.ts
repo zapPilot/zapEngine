@@ -97,6 +97,7 @@ describe('unifiedAllocationUtils', () => {
       const result = mapAssetAllocationToUnified({
         btc: 0.4,
         eth: 0.2,
+        spy: 0,
         stable: 0.3,
         alt: 0.1,
       });
@@ -108,11 +109,28 @@ describe('unifiedAllocationUtils', () => {
       expect(result.find((s) => s.category === 'alt')?.percentage).toBe(10);
     });
 
+    it('emits a distinct SPY segment when spy > 0', () => {
+      const result = mapAssetAllocationToUnified({
+        btc: 0.25,
+        eth: 0.25,
+        spy: 0.3,
+        stable: 0.1,
+        alt: 0.1,
+      });
+
+      expect(result).toHaveLength(5);
+      const spy = result.find((s) => s.category === 'spy');
+      expect(spy?.percentage).toBe(30);
+      expect(spy?.color).toBe(UNIFIED_COLORS.SPY);
+      expect(spy?.label).toBe('SPY');
+    });
+
     it('supports rendering a subset of categories', () => {
       const result = mapAssetAllocationToUnified(
         {
           btc: 0.4,
           eth: 0.2,
+          spy: 0,
           stable: 0.4,
           alt: 0,
         },

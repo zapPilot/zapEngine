@@ -210,6 +210,11 @@
                   "minimum": 0,
                   "type": "number"
                 },
+                "spy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
                 "stable": {
                   "maximum": 1,
                   "minimum": 0,
@@ -219,6 +224,7 @@
               "required": [
                 "btc",
                 "eth",
+                "spy",
                 "stable",
                 "alt"
               ],
@@ -549,6 +555,11 @@
                   "minimum": 0,
                   "type": "number"
                 },
+                "spy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
                 "stable": {
                   "maximum": 1,
                   "minimum": 0,
@@ -558,6 +569,7 @@
               "required": [
                 "btc",
                 "eth",
+                "spy",
                 "stable",
                 "alt"
               ],

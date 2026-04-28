@@ -1,6 +1,6 @@
 import { ASSET_SYMBOL_SETS } from '@/constants/assetSymbols';
 
-export type AllocationCategoryKey = 'btc' | 'eth' | 'stable' | 'alt';
+export type AllocationCategoryKey = 'btc' | 'eth' | 'spy' | 'stable' | 'alt';
 
 interface AllocationCategoryMeta {
   key: AllocationCategoryKey;
@@ -27,6 +27,13 @@ export const ALLOCATION_CATEGORIES: Record<
     shortLabel: 'ETH',
     color: '#627EEA',
     tailwindColor: 'text-indigo-400',
+  },
+  spy: {
+    key: 'spy',
+    label: 'S&P 500',
+    shortLabel: 'SPY',
+    color: '#16A34A',
+    tailwindColor: 'text-green-500',
   },
   stable: {
     key: 'stable',

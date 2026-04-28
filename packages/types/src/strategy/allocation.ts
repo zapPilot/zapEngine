@@ -8,6 +8,7 @@ export const PortfolioAllocationSchema = z.object({
 export const AssetAllocationSchema = z.object({
   btc: z.number().min(0).max(1),
   eth: z.number().min(0).max(1),
+  spy: z.number().min(0).max(1),
   stable: z.number().min(0).max(1),
   alt: z.number().min(0).max(1),
 });
