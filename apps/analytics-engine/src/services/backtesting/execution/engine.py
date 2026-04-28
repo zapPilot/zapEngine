@@ -27,7 +27,7 @@ from src.services.backtesting.strategies.base import (
     StrategyAction,
     StrategyContext,
 )
-from src.services.backtesting.utils.two_bucket import normalize_runtime_allocation
+from src.services.backtesting.target_allocation import normalize_target_allocation
 
 
 @dataclass
@@ -378,10 +378,6 @@ class StrategyEngine:
     ) -> bool:
         moved = False
         price = context.portfolio_price
-        if action.target_spot_asset:
-            moved = (
-                portfolio.rotate_spot_asset(action.target_spot_asset, price) or moved
-            )
         if action.transfers:
             for transfer in action.transfers:
                 if transfer.amount_usd <= 0:
@@ -397,10 +393,10 @@ class StrategyEngine:
         if not action.target_allocations:
             return moved
 
-        target = normalize_runtime_allocation(action.target_allocations)
+        target = normalize_target_allocation(action.target_allocations)
         total_value = portfolio.total_value(price)
         target_values = {bucket: total_value * pct for bucket, pct in target.items()}
-        current_values = portfolio.bucket_values(price)
+        current_values = portfolio.values_for_allocation_keys(price, target)
         deltas = {
             bucket: target_values[bucket] - current_values[bucket]
             for bucket in target_values

@@ -651,17 +651,18 @@ def test_run_compare_v3_on_data_supports_dma_signal_mode() -> None:
     assert dma_point.portfolio.spot_asset == "BTC"
     assert result.timeline[0].strategies[
         "dca_classic"
-    ].decision.target_asset_allocation.btc == pytest.approx(
-        result.timeline[0].strategies["dca_classic"].decision.target_allocation.spot
+    ].decision.target_allocation.btc == pytest.approx(
+        1.0
+        - result.timeline[0].strategies["dca_classic"].decision.target_allocation.stable
     )
     assert result.timeline[0].strategies[
         "dca_classic"
-    ].decision.target_asset_allocation.alt == pytest.approx(0.0)
-    assert dma_point.decision.target_asset_allocation.btc == pytest.approx(
-        dma_point.decision.target_allocation.spot
+    ].decision.target_allocation.alt == pytest.approx(0.0)
+    assert dma_point.decision.target_allocation.btc == pytest.approx(
+        1.0 - dma_point.decision.target_allocation.stable
     )
-    assert dma_point.decision.target_asset_allocation.eth == pytest.approx(0.0)
-    assert dma_point.decision.target_asset_allocation.alt == pytest.approx(0.0)
+    assert dma_point.decision.target_allocation.eth == pytest.approx(0.0)
+    assert dma_point.decision.target_allocation.alt == pytest.approx(0.0)
     assert all(
         point.strategies["dma_runtime"].portfolio.spot_asset is None
         for point in result.timeline
@@ -779,10 +780,10 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
     assert eth_rotation_points[0].portfolio.asset_allocation.stable == pytest.approx(
         0.5, rel=1e-3
     )
-    assert eth_rotation_points[1].decision.target_asset_allocation is not None
+    assert eth_rotation_points[1].decision.target_allocation is not None
     assert (
-        eth_rotation_points[1].decision.target_asset_allocation.eth
-        > eth_rotation_points[1].decision.target_asset_allocation.btc
+        eth_rotation_points[1].decision.target_allocation.eth
+        > eth_rotation_points[1].decision.target_allocation.btc
     )
     assert eth_rotation_points[1].execution.transfers is not None
     assert all(
@@ -791,10 +792,8 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
     )
     assert eth_rotation_points[2].portfolio.asset_allocation is not None
     assert eth_rotation_points[2].portfolio.asset_allocation.eth == pytest.approx(1.0)
-    assert eth_rotation_points[2].decision.target_asset_allocation is not None
-    assert eth_rotation_points[2].decision.target_asset_allocation.eth == pytest.approx(
-        1.0
-    )
+    assert eth_rotation_points[2].decision.target_allocation is not None
+    assert eth_rotation_points[2].decision.target_allocation.eth == pytest.approx(1.0)
 
 
 def test_run_compare_v3_on_data_caps_non_cross_eth_btc_stable_buy() -> None:
@@ -819,7 +818,7 @@ def test_run_compare_v3_on_data_caps_non_cross_eth_btc_stable_buy() -> None:
 
     assert buy_day.decision.reason == "below_extreme_fear_buy"
     assert buy_day.decision.immediate is False
-    assert buy_day.decision.target_asset_allocation.stable == pytest.approx(0.0)
+    assert buy_day.decision.target_allocation.stable == pytest.approx(0.0)
     assert buy_day.portfolio.stable_usd > 0.0
     assert buy_gate is not None
     assert buy_gate["sideways_confirmed"] is True
@@ -934,10 +933,10 @@ def test_run_compare_v3_on_data_blocks_eth_btc_rotation_during_cooldown() -> Non
     assert blocked_rotation_day.execution.transfers == []
     assert blocked_rotation_day.execution.event is None
     assert blocked_rotation_day.execution.blocked_reason is None
-    assert blocked_rotation_day.decision.target_asset_allocation is not None
+    assert blocked_rotation_day.decision.target_allocation is not None
     assert (
-        blocked_rotation_day.decision.target_asset_allocation.eth
-        > blocked_rotation_day.decision.target_asset_allocation.btc
+        blocked_rotation_day.decision.target_allocation.eth
+        > blocked_rotation_day.decision.target_allocation.btc
     )
 
 
@@ -962,7 +961,7 @@ def test_run_compare_v3_on_data_outer_dma_follows_majority_spot_asset() -> None:
     assert cross_up_day.portfolio.spot_asset == "ETH"
     assert cross_up_day.decision.reason == "dma_cross_up"
     assert cross_up_day.decision.immediate is True
-    assert cross_up_day.decision.target_asset_allocation.stable == pytest.approx(0.0)
+    assert cross_up_day.decision.target_allocation.stable == pytest.approx(0.0)
     assert cross_up_day.portfolio.stable_usd == pytest.approx(0.0)
     assert any(
         transfer.from_bucket == "stable" and transfer.to_bucket == "eth"
@@ -1005,10 +1004,9 @@ def test_run_compare_v3_on_data_does_not_sell_eth_btc_rotation_on_ath_only_days(
         assert state.signal.details["dma"]["zone"] == "above"
         assert state.decision.reason != "ath_sell"
         assert state.decision.action == "hold"
-        assert state.decision.target_asset_allocation is not None
+        assert state.decision.target_allocation is not None
         assert (
-            state.decision.target_asset_allocation.eth
-            >= state.decision.target_asset_allocation.btc
+            state.decision.target_allocation.eth >= state.decision.target_allocation.btc
         )
         assert state.execution.event is None
         assert state.execution.transfers == []
@@ -1133,11 +1131,14 @@ def test_run_compare_v3_on_data_sanitizes_dma_allocation_residue() -> None:
             strategy.portfolio.allocation.spot + strategy.portfolio.allocation.stable
             == pytest.approx(1.0)
         )
-        assert strategy.decision.target_allocation.spot >= 0.0
-        assert strategy.decision.target_allocation.stable >= 0.0
+        target = strategy.decision.target_allocation
+        assert target.btc >= 0.0
+        assert target.eth >= 0.0
+        assert target.spy >= 0.0
+        assert target.stable >= 0.0
+        assert target.alt == pytest.approx(0.0)
         assert (
-            strategy.decision.target_allocation.spot
-            + strategy.decision.target_allocation.stable
+            target.btc + target.eth + target.spy + target.stable + target.alt
             == pytest.approx(1.0)
         )
 

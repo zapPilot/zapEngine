@@ -62,7 +62,6 @@ def _strategy_state(
             "reason": reason,
             "rule_group": rule_group,
             "target_allocation": allocation,
-            "target_asset_allocation": asset_allocation,
             "immediate": cross_event is not None,
         },
         "execution": {

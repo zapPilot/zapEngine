@@ -7,6 +7,7 @@ import type {
 const BACKTEST_SPOT_ASSET_COLORS: Record<BacktestSpotAssetSymbol, string> = {
   BTC: UNIFIED_COLORS.BTC,
   ETH: UNIFIED_COLORS.ETH,
+  SPY: UNIFIED_COLORS.SPY,
 } as const;
 
 /**
@@ -43,7 +44,7 @@ function normalizeBacktestSpotAsset(
   }
 
   const normalized = value.trim().toUpperCase();
-  if (normalized === 'BTC' || normalized === 'ETH') {
+  if (normalized === 'BTC' || normalized === 'ETH' || normalized === 'SPY') {
     return normalized;
   }
 

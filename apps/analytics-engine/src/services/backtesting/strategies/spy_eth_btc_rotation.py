@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic import JsonValue
 
+from src.services.backtesting.asset_class_allocator import allocate_stock_crypto_target
 from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
@@ -24,7 +25,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_SPY_ETH_BTC_ROTATION,
 )
-from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.decision import AllocationIntent, DecisionAction
 from src.services.backtesting.domain import SignalObservation
 from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
@@ -51,6 +52,10 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationDecisionPolicy,
     EthBtcRotationParams,
     EthBtcRotationState,
+)
+from src.services.backtesting.target_allocation import (
+    normalize_target_allocation,
+    target_from_current_allocation,
 )
 
 SPY_ETH_BTC_ROTATION_PUBLIC_PARAM_KEYS = ETH_BTC_ROTATION_PUBLIC_PARAM_KEYS
@@ -105,13 +110,12 @@ def _eth_share_within_crypto(allocation: Mapping[str, float] | None) -> float:
 def _spy_risk_on_share(allocation: Mapping[str, float] | None) -> float:
     if allocation is None:
         return 0.0
-    # DmaGatedFgiDecisionPolicy emits a 2-bucket allocation: {spot, stable}.
-    spot = float(allocation.get("spot", 0.0))
+    spy = float(allocation.get("spy", 0.0))
     stable = float(allocation.get("stable", 0.0))
-    total = spot + stable
+    total = spy + stable
     if total <= 0.0:
         return 0.0
-    return max(0.0, min(1.0, spot / total))
+    return max(0.0, min(1.0, spy / total))
 
 
 def _normalize_4bucket_allocation(
@@ -127,13 +131,16 @@ def _normalize_4bucket_allocation(
     stable = max(0.0, float(stable_share))
     total = spy + btc + eth + stable
     if total <= 0.0:
-        return {"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0}
-    return {
-        "spy": spy / total,
-        "btc": btc / total,
-        "eth": eth / total,
-        "stable": stable / total,
-    }
+        return normalize_target_allocation(None)
+    return normalize_target_allocation(
+        {
+            "spy": spy / total,
+            "btc": btc / total,
+            "eth": eth / total,
+            "stable": stable / total,
+            "alt": 0.0,
+        }
+    )
 
 
 def _compose_4bucket_target(
@@ -157,14 +164,7 @@ def _compose_4bucket_target(
 def _normalize_current_4bucket(
     raw: Mapping[str, float] | None,
 ) -> dict[str, float]:
-    if raw is None:
-        return {"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0}
-    return _normalize_4bucket_allocation(
-        spy_share=float(raw.get("spy", 0.0)),
-        btc_share=float(raw.get("btc", 0.0)),
-        eth_share=float(raw.get("eth", 0.0)),
-        stable_share=float(raw.get("stable", 0.0)),
-    )
+    return target_from_current_allocation(raw)
 
 
 class SpyEthBtcRotationParams(EthBtcRotationParams):
@@ -308,116 +308,87 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             intent=intent,
             signal_confidence=signal_confidence,
         )
-        # Pick the dominant risk-on bucket so the executor's rotate_spot_asset
-        # actually buys the right asset. SPY wins ties (>=) to surface SPY
-        # behavior — the only way executor.target_spot_asset can ever land on
-        # "SPY" is for this strategy to emit it explicitly here.
-        target = intent.target_allocation or {}
-        spy_share = float(target.get("spy", 0.0))
-        btc_share = float(target.get("btc", 0.0))
-        eth_share = float(target.get("eth", 0.0))
-        target_spot: str | None
-        if spy_share > 0.0 and spy_share >= max(btc_share, eth_share):
-            target_spot = "SPY"
-        elif eth_share > btc_share:
-            target_spot = "ETH"
-        elif btc_share > 0.0:
-            target_spot = "BTC"
-        else:
-            target_spot = None
-        return replace(hints, signal_id=self.signal_id, target_spot_asset=target_spot)
+        return replace(hints, signal_id=self.signal_id)
 
 
 @dataclass(frozen=True)
 class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
-    """Compose crypto + SPY DMA intents into a 4-bucket target allocation."""
+    """Compose crypto + SPY scores into a canonical asset target allocation."""
 
     decision_policy_id: str = "spy_eth_btc_rotation_policy"
     rotation_drift_threshold: float = 0.03
     _crypto_policy: EthBtcRotationDecisionPolicy = field(
         default_factory=EthBtcRotationDecisionPolicy
     )
-    _spy_policy: DmaGatedFgiDecisionPolicy = field(
-        default_factory=DmaGatedFgiDecisionPolicy
-    )
 
     def decide(self, snapshot: SpyEthBtcRotationState) -> AllocationIntent:
         crypto_intent = self._crypto_policy.decide(snapshot.crypto_state)
-        spy_intent = (
-            self._spy_policy.decide(snapshot.spy_dma_state)
-            if snapshot.spy_dma_state is not None
-            else None
-        )
 
         crypto_alloc = crypto_intent.target_allocation
-        spy_alloc = spy_intent.target_allocation if spy_intent is not None else None
-
-        crypto_risk_on = _crypto_risk_on_share(crypto_alloc)
-        eth_share = _eth_share_within_crypto(crypto_alloc)
-        # Preserve current SPY share when DMA gate is in hold state, matching
-        # ETH/BTC's behavior at eth_btc_rotation.py:559-575. Without this, SPY
-        # would zero out every day no DMA cross/overextension event fires.
-        if spy_alloc is not None:
-            spy_risk_on = _spy_risk_on_share(spy_alloc)
-        else:
-            spy_risk_on = float(snapshot.current_asset_allocation.get("spy", 0.0))
-
-        target_allocation = _compose_4bucket_target(
-            spy_risk_on=spy_risk_on,
-            crypto_risk_on=crypto_risk_on,
+        eth_share = (
+            _eth_share_within_crypto(crypto_alloc)
+            if crypto_alloc is not None
+            else _eth_share_within_crypto(snapshot.current_asset_allocation)
+        )
+        allocation_result = allocate_stock_crypto_target(
+            stock_dma_distance=(
+                None
+                if snapshot.spy_dma_state is None
+                else snapshot.spy_dma_state.dma_distance
+            ),
+            crypto_dma_distance=snapshot.crypto_state.dma_state.dma_distance,
+            crypto_fgi_regime=snapshot.crypto_state.dma_state.fgi_regime,
             eth_share_in_crypto=eth_share,
+            current_allocation=snapshot.current_asset_allocation,
+        )
+        target_allocation = allocation_result.allocation
+        current_allocation = target_from_current_allocation(
+            snapshot.current_asset_allocation
+        )
+        drift = max(
+            abs(
+                float(target_allocation.get(bucket, 0.0))
+                - float(current_allocation.get(bucket, 0.0))
+            )
+            for bucket in ("btc", "eth", "spy", "stable")
         )
 
-        action = crypto_intent.action
-        immediate = crypto_intent.immediate
-        reason = crypto_intent.reason
-        rule_group = crypto_intent.rule_group
-        allocation_name = crypto_intent.allocation_name
-
-        if spy_intent is not None and spy_intent.action != "hold" and action == "hold":
-            # SPY signaled a real action while crypto is idle: adopt the SPY
-            # action so the executor doesn't sit on a stale hold. Reuse the SPY
-            # intent's rule_group verbatim (it's already a valid RuleGroup).
-            action = spy_intent.action
-            immediate = spy_intent.immediate
-            reason = f"spy_{spy_intent.reason}"
-            rule_group = spy_intent.rule_group
-            allocation_name = (
-                f"spy_{spy_intent.allocation_name}"
-                if spy_intent.allocation_name is not None
-                else None
-            )
-
-        # Pick the dominant risk-on bucket so the engine's rotate_spot_asset
-        # actually buys the right asset. Engine reads decision.target_spot_asset
-        # (composed_signal.py:152) — NOT hints.target_spot_asset — so this must
-        # be set here, not just in build_execution_hints. SPY wins ties (>=) to
-        # surface SPY behavior; without that, executor never picks SPY.
-        spy_share = float(target_allocation.get("spy", 0.0))
-        btc_share = float(target_allocation.get("btc", 0.0))
-        eth_share = float(target_allocation.get("eth", 0.0))
-        target_spot_asset: str | None
-        if spy_share > 0.0 and spy_share >= max(btc_share, eth_share):
-            target_spot_asset = "SPY"
-        elif eth_share > btc_share:
-            target_spot_asset = "ETH"
-        elif btc_share > 0.0:
-            target_spot_asset = "BTC"
+        current_risk = _crypto_risk_on_share(current_allocation) + float(
+            current_allocation.get("spy", 0.0)
+        )
+        target_risk = _crypto_risk_on_share(target_allocation) + float(
+            target_allocation.get("spy", 0.0)
+        )
+        if drift <= self.rotation_drift_threshold:
+            action: DecisionAction = "hold"
+            target_allocation = current_allocation
+            reason = "asset_class_score_hold"
+            allocation_name = None
+        elif target_risk > current_risk + self.rotation_drift_threshold:
+            action = "buy"
+            reason = "asset_class_score_buy"
+            allocation_name = "asset_class_score_buy"
+        elif target_risk < current_risk - self.rotation_drift_threshold:
+            action = "sell"
+            reason = "asset_class_score_sell"
+            allocation_name = "asset_class_score_sell"
         else:
-            target_spot_asset = None
+            action = "hold"
+            reason = "asset_class_score_rebalance"
+            allocation_name = "asset_class_score_rebalance"
 
         return AllocationIntent(
             action=action,
             target_allocation=target_allocation,
             allocation_name=allocation_name,
-            immediate=immediate,
+            immediate=False,
             reason=reason,
-            rule_group=rule_group,
+            rule_group="rotation",
             decision_score=max(
+                allocation_result.stock_score or 0.0,
+                allocation_result.crypto_score or 0.0,
                 crypto_intent.decision_score,
-                spy_intent.decision_score if spy_intent is not None else 0.0,
             ),
-            target_spot_asset=target_spot_asset,
         )
 
 
@@ -459,10 +430,6 @@ class SpyEthBtcRotationStrategy(ComposedSignalStrategy):
                     dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                     fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
                 ),
-            ),
-            _spy_policy=DmaGatedFgiDecisionPolicy(
-                dma_overextension_threshold=resolved_params.dma_overextension_threshold,
-                fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
             ),
         )
         self.execution_engine = AllocationIntentExecutor(

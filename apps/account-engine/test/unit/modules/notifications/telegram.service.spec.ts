@@ -225,12 +225,11 @@ describe('TelegramService', () => {
             stable_usd: 5000,
             total_value: 10000,
             allocation: { spot: 0.5, stable: 0.5 },
-            asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+            asset_allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
           },
-          target: {
-            allocation: { spot: 0.5, stable: 0.5 },
-            asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
-          },
+        target: {
+          allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+        },
           strategy: {
             stance: 'hold',
             reason_code: 'already_aligned',
@@ -297,11 +296,10 @@ describe('TelegramService', () => {
             total_assets_usd: 10000,
             total_debt_usd: 2000,
             total_net_usd: 8000,
-            asset_allocation: { btc: 0.6, eth: 0.1, stable: 0.3, alt: 0 },
+            asset_allocation: { btc: 0.6, eth: 0.1, spy: 0, stable: 0.3, alt: 0 },
           },
           target: {
-            allocation: { spot: 1, stable: 0 },
-            asset_allocation: { btc: 0, eth: 1, stable: 0, alt: 0 },
+            allocation: { btc: 0, eth: 1, spy: 0, stable: 0, alt: 0 },
           },
           strategy: {
             stance: 'hold',
@@ -771,16 +769,16 @@ describe('TelegramService', () => {
           confidence: 1,
           details: {},
         },
-        portfolio: {
-          spot_usd: 30000,
-          stable_usd: 20000,
-          total_value: 50000,
-          allocation: { spot: 0.6, stable: 0.4 },
-          asset_allocation: { btc: 0.6, eth: 0, stable: 0.4, alt: 0 },
-        },
-        target: {
-          allocation: { spot: 0.6, stable: 0.4 },
-          asset_allocation: { btc: 0.6, eth: 0, stable: 0.4, alt: 0 },
+          portfolio: {
+            spot_usd: 30000,
+            stable_usd: 20000,
+            total_value: 50000,
+            allocation: { spot: 0.6, stable: 0.4 },
+            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          target: {
+            allocation: { spot: 0.6, stable: 0.4 },
+            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
         },
         strategy: {
           stance: 'hold',
@@ -795,7 +793,41 @@ describe('TelegramService', () => {
       const { service, dbMock } = createMocks();
       mockChatId(dbMock);
       await service.sendDailySuggestion('user-1', {
-        ...baseData,
+        as_of: '2025-01-01',
+        config_id: 'test',
+        config_display_name: 'Test Config',
+        strategy_id: 'strat-1',
+        context: {
+          market: {
+            date: '2025-01-01',
+            token_price: { btc: 100000, eth: 4000 },
+            sentiment: null,
+            sentiment_label: null,
+          },
+          signal: {
+            id: 'signal',
+            regime: 'bull_market',
+            raw_value: null,
+            confidence: 1,
+            details: {},
+          },
+          portfolio: {
+            spot_usd: 30000,
+            stable_usd: 20000,
+            total_value: 50000,
+            allocation: { spot: 0.6, stable: 0.4 },
+            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          target: {
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          strategy: {
+            stance: 'hold',
+            reason_code: 'above_greed_sell',
+            rule_group: 'none',
+            details: {},
+          },
+        },
         action: {
           status: 'blocked',
           required: false,
@@ -816,7 +848,41 @@ describe('TelegramService', () => {
       const { service, dbMock } = createMocks();
       mockChatId(dbMock);
       await service.sendDailySuggestion('user-1', {
-        ...baseData,
+        as_of: '2025-01-01',
+        config_id: 'test',
+        config_display_name: 'Test Config',
+        strategy_id: 'strat-1',
+        context: {
+          market: {
+            date: '2025-01-01',
+            token_price: { btc: 100000, eth: 4000 },
+            sentiment: null,
+            sentiment_label: null,
+          },
+          signal: {
+            id: 'signal',
+            regime: 'bull_market',
+            raw_value: null,
+            confidence: 1,
+            details: {},
+          },
+          portfolio: {
+            spot_usd: 30000,
+            stable_usd: 20000,
+            total_value: 50000,
+            allocation: { spot: 0.6, stable: 0.4 },
+            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          target: {
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          strategy: {
+            stance: 'hold',
+            reason_code: 'some_unknown_code_xyz',
+            rule_group: 'none',
+            details: {},
+          },
+        },
         action: {
           status: 'action_required',
           required: true,
@@ -826,7 +892,7 @@ describe('TelegramService', () => {
             { from_bucket: 'btc', to_bucket: 'eth', amount_usd: 1000 },
             { from_bucket: 'eth', to_bucket: 'stable', amount_usd: 500 },
             { from_bucket: 'stable', to_bucket: 'btc', amount_usd: 250 },
-            { from_bucket: 'btc', to_bucket: 'stable', amount_usd: 100 }, // 4th triggers "+N more"
+            { from_bucket: 'btc', to_bucket: 'stable', amount_usd: 100 },
           ],
         },
       });
@@ -842,7 +908,41 @@ describe('TelegramService', () => {
       const { service, dbMock } = createMocks();
       mockChatId(dbMock);
       await service.sendDailySuggestion('user-1', {
-        ...baseData,
+        as_of: '2025-01-01',
+        config_id: 'test',
+        config_display_name: 'Test Config',
+        strategy_id: 'strat-1',
+        context: {
+          market: {
+            date: '2025-01-01',
+            token_price: { btc: 100000, eth: 4000 },
+            sentiment: null,
+            sentiment_label: null,
+          },
+          signal: {
+            id: 'signal',
+            regime: 'bull_market',
+            raw_value: null,
+            confidence: 1,
+            details: {},
+          },
+          portfolio: {
+            spot_usd: 30000,
+            stable_usd: 20000,
+            total_value: 50000,
+            allocation: { spot: 0.6, stable: 0.4 },
+            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          target: {
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
+          strategy: {
+            stance: 'hold',
+            reason_code: 'some_unknown_code_xyz',
+            rule_group: 'none',
+            details: {},
+          },
+        },
         action: {
           status: 'no_action',
           required: false,

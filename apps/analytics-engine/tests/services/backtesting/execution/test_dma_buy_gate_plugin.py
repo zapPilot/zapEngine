@@ -17,7 +17,13 @@ from src.services.backtesting.strategies.base import StrategyContext, TransferIn
 def _make_buy_intent(immediate: bool = False) -> AllocationIntent:
     return AllocationIntent(
         action="buy",
-        target_allocation={"spot": 0.8, "stable": 0.2},
+        target_allocation={
+            "btc": 0.8,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.2,
+            "alt": 0.0,
+        },
         allocation_name="high",
         immediate=immediate,
         reason="test",

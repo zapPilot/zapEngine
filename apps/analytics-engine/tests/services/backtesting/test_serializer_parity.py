@@ -47,7 +47,13 @@ def test_strategy_state_serializer_preserves_signal_decision_and_execution_field
         ),
         decision=AllocationIntent(
             action="sell",
-            target_allocation={"spot": 0.0, "stable": 1.0},
+            target_allocation={
+                "btc": 0.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 1.0,
+                "alt": 0.0,
+            },
             allocation_name="all_stable",
             immediate=False,
             reason="above_greed_sell",
@@ -97,8 +103,8 @@ def test_strategy_state_serializer_preserves_signal_decision_and_execution_field
     assert serialized.decision.details["allocation_name"] == "all_stable"
     assert serialized.decision.details["decision_score"] == -1.0
     assert serialized.portfolio.asset_allocation.stable == 1.0
-    assert serialized.decision.target_asset_allocation.stable == 1.0
-    assert serialized.decision.target_asset_allocation.alt == 0.0
+    assert serialized.decision.target_allocation.stable == 1.0
+    assert serialized.decision.target_allocation.alt == 0.0
     assert serialized.execution.blocked_reason == "interval_wait"
     assert serialized.execution.status == "blocked"
     assert serialized.execution.action_required is False
@@ -110,7 +116,13 @@ def test_strategy_state_serializer_marks_hold_transfers_as_action_required() -> 
         signal=None,
         decision=AllocationIntent(
             action="hold",
-            target_allocation={"spot": 0.8, "stable": 0.2},
+            target_allocation={
+                "btc": 0.8,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.2,
+                "alt": 0.0,
+            },
             allocation_name="rotation_rebalance",
             immediate=False,
             reason="eth_btc_ratio_rebalance",
@@ -150,7 +162,13 @@ def test_strategy_state_serializer_marks_idle_hold_as_no_action() -> None:
         signal=None,
         decision=AllocationIntent(
             action="hold",
-            target_allocation={"spot": 1.0, "stable": 0.0},
+            target_allocation={
+                "btc": 1.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.0,
+                "alt": 0.0,
+            },
             allocation_name="rotation_hold",
             immediate=False,
             reason="eth_btc_ratio_rebalance",

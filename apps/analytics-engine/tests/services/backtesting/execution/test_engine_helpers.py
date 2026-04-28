@@ -67,7 +67,13 @@ class ExplicitSignalSummaryStrategy(BaseStrategy):
             snapshot=make_strategy_snapshot(
                 action="buy",
                 reason="summary_signal",
-                target_allocation={"spot": 1.0, "stable": 0.0},
+                target_allocation={
+                    "btc": 1.0,
+                    "eth": 0.0,
+                    "spy": 0.0,
+                    "stable": 0.0,
+                    "alt": 0.0,
+                },
             )
         )
 
@@ -337,9 +343,30 @@ def test_resolve_context_price_falls_back_when_asset_missing_from_map() -> None:
         "expected_spot_asset",
     ),
     [
-        (1.0, 0.0, "BTC", {"spot": 1.0, "stable": 0.0}, "enter_btc", "BTC"),
-        (1.0, 0.0, "ETH", {"spot": 1.0, "stable": 0.0}, "enter_eth", "ETH"),
-        (0.0, 1_000.0, "ETH", {"spot": 0.0, "stable": 1.0}, "exit_spot", None),
+        (
+            1.0,
+            0.0,
+            "BTC",
+            {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            "enter_btc",
+            "BTC",
+        ),
+        (
+            1.0,
+            0.0,
+            "ETH",
+            {"btc": 0.0, "eth": 1.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            "enter_eth",
+            "ETH",
+        ),
+        (
+            0.0,
+            1_000.0,
+            "ETH",
+            {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+            "exit_spot",
+            None,
+        ),
     ],
 )
 def test_build_strategy_state_serializes_spot_asset_matrix(
@@ -350,8 +377,11 @@ def test_build_strategy_state_serializes_spot_asset_matrix(
     reason: str,
     expected_spot_asset: str | None,
 ) -> None:
+    risk_on_share = (
+        target_allocation["btc"] + target_allocation["eth"] + target_allocation["spy"]
+    )
     snapshot = make_strategy_snapshot(
-        action="buy" if target_allocation["spot"] > 0 else "sell",
+        action="buy" if risk_on_share > 0 else "sell",
         target_allocation=target_allocation,
         reason=reason,
     )
@@ -396,30 +426,6 @@ def test_serialize_signal_details_returns_empty_dict_when_signal_is_none() -> No
     )
     result = _serialize_signal_details(snapshot)
     assert result == {}
-
-
-def test_serialize_decision_details_includes_target_spot_asset_when_set() -> None:
-    """Cover line 181: target_spot_asset not None → included in details."""
-    from src.services.backtesting.decision import AllocationIntent
-    from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
-    from src.services.backtesting.execution.state import _serialize_decision_details
-
-    snapshot = StrategySnapshot(
-        signal=None,
-        decision=AllocationIntent(
-            action="buy",
-            target_allocation={"spot": 1.0, "stable": 0.0},
-            allocation_name="test_alloc",
-            immediate=False,
-            reason="rotation",
-            rule_group="rotation",
-            decision_score=0.5,
-            target_spot_asset="ETH",
-        ),
-        execution=ExecutionOutcome(event=None),
-    )
-    result = _serialize_decision_details(snapshot)
-    assert result["target_spot_asset"] == "ETH"
 
 
 def test_resolve_summary_price_falls_back_when_portfolio_asset_missing() -> None:

@@ -142,14 +142,12 @@ class ComposedSignalStrategy(BaseStrategy):
                 reason=decision.reason,
                 rule_group=decision.rule_group,
                 decision_score=decision.decision_score,
-                target_spot_asset=decision.target_spot_asset,
             ),
             execution=execution,
         )
         return StrategyAction(
             snapshot=snapshot,
             transfers=list(execution.transfers) or None,
-            target_spot_asset=decision.target_spot_asset,
         )
 
     def record_day(

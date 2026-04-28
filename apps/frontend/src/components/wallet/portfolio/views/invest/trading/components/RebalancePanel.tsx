@@ -25,7 +25,7 @@ const ACTION_LABELS: Record<string, string> = {
 const SPOT_BUCKET_LABEL = 'SPOT';
 const STABLE_BUCKET_LABEL = 'STABLE';
 
-type SpotAssetSymbol = 'BTC' | 'ETH';
+type SpotAssetSymbol = 'BTC' | 'ETH' | 'SPY';
 const REASON_LABELS: Record<string, string> = {
   above_greed_sell: 'Greed remains elevated, so the strategy stays defensive.',
   already_aligned: 'Portfolio is already aligned with the current target.',
@@ -65,7 +65,7 @@ function normalizeSpotAsset(value: unknown): SpotAssetSymbol | null {
   }
 
   const normalized = value.trim().toUpperCase();
-  if (normalized === 'BTC' || normalized === 'ETH') {
+  if (normalized === 'BTC' || normalized === 'ETH' || normalized === 'SPY') {
     return normalized;
   }
 
@@ -291,7 +291,7 @@ export function RebalancePanel({ userId }: { userId: string }) {
         impactVisual={
           <ImpactVisual
             currentAllocation={data.context.portfolio.asset_allocation}
-            targetAllocation={data.context.target.asset_allocation}
+            targetAllocation={data.context.target.allocation}
           />
         }
         footer={

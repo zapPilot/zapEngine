@@ -13,7 +13,7 @@ export interface BacktestAllocationBarProps {
   displayName: string;
   allocation: BacktestPortfolioAllocation;
   assetAllocation?: BacktestAssetAllocation | null | undefined;
-  spotAssetLabel?: 'BTC' | 'ETH';
+  spotAssetLabel?: 'BTC' | 'ETH' | 'SPY';
   strategyId?: string;
   index?: number | undefined;
 }

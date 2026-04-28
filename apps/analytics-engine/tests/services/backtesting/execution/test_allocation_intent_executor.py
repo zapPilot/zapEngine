@@ -125,7 +125,13 @@ def test_executor_immediate_cross_rebalances_fully() -> None:
     intent = _intent(
         action="sell",
         reason="dma_cross_down",
-        target_allocation={"spot": 0.0, "stable": 1.0},
+        target_allocation={
+            "btc": 0.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 1.0,
+            "alt": 0.0,
+        },
         immediate=True,
         rule_group="cross",
         score=-1.0,
@@ -149,7 +155,7 @@ def test_executor_immediate_cross_rebalances_fully() -> None:
     assert execution.event == "rebalance"
     assert execution.immediate_execution is True
     assert execution.transfers is not None
-    assert execution.transfers[0].from_bucket == "spot"
+    assert execution.transfers[0].from_bucket == "btc"
     assert execution.transfers[0].to_bucket == "stable"
 
 
@@ -159,7 +165,13 @@ def test_executor_buy_blocks_until_sideways_confirms() -> None:
     intent = _intent(
         action="buy",
         reason="below_extreme_fear_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=1.0,
     )
     hints = _hints(
@@ -239,7 +251,13 @@ def test_executor_buy_leg_one_is_capped_at_five_percent_nav() -> None:
     intent = _intent(
         action="buy",
         reason="below_extreme_fear_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=1.0,
     )
     hints = _hints(
@@ -285,7 +303,13 @@ def test_executor_trade_quota_allows_trade_when_within_limits() -> None:
     intent = _intent(
         action="buy",
         reason="quota_ok",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
     )
     hints = _hints(action="buy", regime="fear", fgi_value=15.0, score=1.0)
@@ -316,7 +340,13 @@ def test_executor_trade_quota_blocks_min_interval_and_reports_next_date() -> Non
     intent = _intent(
         action="buy",
         reason="quota_interval",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
     )
     hints = _hints(action="buy", regime="fear", fgi_value=15.0, score=1.0)
@@ -347,7 +377,13 @@ def test_executor_trade_quota_blocks_weekly_limit() -> None:
     intent = _intent(
         action="buy",
         reason="quota_week",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
     )
     hints = _hints(action="buy", regime="fear", fgi_value=15.0, score=1.0)
@@ -378,7 +414,13 @@ def test_executor_trade_quota_blocks_monthly_limit() -> None:
     intent = _intent(
         action="buy",
         reason="quota_month",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
     )
     hints = _hints(action="buy", regime="fear", fgi_value=15.0, score=1.0)
@@ -406,7 +448,13 @@ def test_executor_breakout_then_reconfirm_unlocks_second_leg() -> None:
     intent = _intent(
         action="buy",
         reason="below_extreme_fear_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=1.0,
     )
     buy_hints = _hints(
@@ -469,7 +517,13 @@ def test_executor_target_already_reached_returns_noop() -> None:
     intent = _intent(
         action="buy",
         reason="below_extreme_fear_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=1.0,
     )
     hints = _hints(
@@ -497,7 +551,13 @@ def test_executor_cross_reset_restarts_buy_ladder_at_leg_one() -> None:
     buy_intent = _intent(
         action="buy",
         reason="below_extreme_fear_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=1.0,
     )
     buy_hints = _hints(
@@ -523,7 +583,13 @@ def test_executor_cross_reset_restarts_buy_ladder_at_leg_one() -> None:
     sell_intent = _intent(
         action="sell",
         reason="dma_cross_down",
-        target_allocation={"spot": 0.0, "stable": 1.0},
+        target_allocation={
+            "btc": 0.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 1.0,
+            "alt": 0.0,
+        },
         immediate=True,
         rule_group="cross",
         score=-1.0,
@@ -561,7 +627,13 @@ def test_executor_accepts_generic_non_dma_hints() -> None:
     intent = _intent(
         action="buy",
         reason="custom_policy_buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         score=0.8,
     )
     hints = _hints(
@@ -584,7 +656,7 @@ def test_executor_accepts_generic_non_dma_hints() -> None:
     assert execution.event == "rebalance"
     assert execution.transfers is not None
     assert execution.transfers[0].from_bucket == "stable"
-    assert execution.transfers[0].to_bucket == "spot"
+    assert execution.transfers[0].to_bucket == "btc"
 
 
 # ---------------------------------------------------------------------------
@@ -633,7 +705,13 @@ def test_initialize_pacing_plan_falls_back_when_weights_length_wrong() -> None:
     intent = _intent(
         action="buy",
         reason="test",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
     )
     hints = _hints(action="buy", regime="neutral", fgi_value=50.0, score=0.5)
 
@@ -654,7 +732,13 @@ def test_initialize_pacing_plan_falls_back_when_all_weights_negative() -> None:
     intent = _intent(
         action="buy",
         reason="test",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
     )
     hints = _hints(action="buy", regime="neutral", fgi_value=50.0, score=0.5)
 
@@ -688,9 +772,15 @@ def test_build_step_plan_for_current_step_returns_zeros_when_no_steps_remain() -
     executor.steps_remaining = 0
     result = executor._build_step_plan_for_current_step(
         context=_context(day=1, portfolio=portfolio),
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
     )
-    assert result == {"spot": 0.0, "stable": 0.0}
+    assert result == {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
 
 
 def test_fraction_for_step_fallback_when_no_plan_weights() -> None:
@@ -711,7 +801,13 @@ def test_rotation_trade_sets_last_rotation_trade_date() -> None:
     intent_rotation = _intent(
         action="buy",
         reason="rotate",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
         rule_group="rotation",
     )
@@ -734,7 +830,13 @@ def test_rotation_cooldown_blocks_trade() -> None:
     intent_first = _intent(
         action="buy",
         reason="rotate",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         immediate=True,
         rule_group="rotation",
     )
@@ -747,7 +849,13 @@ def test_rotation_cooldown_blocks_trade() -> None:
     intent_second = _intent(
         action="buy",
         reason="rotate",
-        target_allocation={"spot": 0.8, "stable": 0.2},
+        target_allocation={
+            "btc": 0.8,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.2,
+            "alt": 0.0,
+        },
         immediate=False,
         rule_group="rotation",
     )

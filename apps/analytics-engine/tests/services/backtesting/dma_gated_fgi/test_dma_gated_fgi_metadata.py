@@ -33,7 +33,13 @@ def _market_state() -> DmaMarketState:
 def _intent() -> AllocationIntent:
     return AllocationIntent(
         action="buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         allocation_name="dma_below_extreme_fear_buy",
         immediate=False,
         reason="below_extreme_fear_buy",
@@ -51,7 +57,13 @@ def test_signal_metadata_serializer_preserves_dma_fields() -> None:
     assert metadata["reason"] == "below_extreme_fear_buy"
     assert metadata["ath_event"] == "portfolio_ath"
     assert metadata["matched_rule_group"] == "dma_fgi"
-    assert metadata["allocation_intent"]["target"] == {"spot": 1.0, "stable": 0.0}
+    assert metadata["allocation_intent"]["target"] == {
+        "btc": 1.0,
+        "eth": 0.0,
+        "spy": 0.0,
+        "stable": 0.0,
+        "alt": 0.0,
+    }
     assert metadata["rule_priority_order"] == "cross>cooldown>dma_fgi>ath"
 
 

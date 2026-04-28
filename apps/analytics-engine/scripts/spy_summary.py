@@ -2,11 +2,11 @@
 
 Reads a compare-v3 JSON dump and prints:
 1. Distribution of decision.reason values (which rules fire how often)
-2. Days where target_asset_allocation.spy > 0 (entries actually happen)
-3. Days where target_allocation (DMA-gate output) shows spot>0 (SPY signaling buy)
+2. Days where target_allocation.spy > 0 (entries actually happen)
+3. Days where target_allocation (DMA-gate output) shows spy>0 (SPY signaling buy)
 
 Usage:
-  python scripts/spy_summary.py /path/to/compare_response.json [--strategy-id ID]
+python scripts/spy_summary.py /path/to/compare_response.json [--strategy-id ID]
 """
 
 from __future__ import annotations
@@ -46,24 +46,21 @@ def summarize(payload: dict[str, Any], strategy_id: str) -> None:
 
         date_str = (point.get("market") or {}).get("date") or "?"
         decision = state.get("decision") or {}
-        target_assets = decision.get("target_asset_allocation") or {}
-        target_alloc = decision.get("target_allocation") or {}
-        reason = str(decision.get("reason") or "n/a")
-        action = str(decision.get("action") or "n/a")
+    target_alloc = decision.get("target_allocation") or {}
+    reason = str(decision.get("reason") or "n/a")
+    action = str(decision.get("action") or "n/a")
 
-        reasons[reason] += 1
-        actions[action] += 1
+    reasons[reason] += 1
+    actions[action] += 1
 
-        spy_share = _safe_float(target_assets.get("spy"))
-        if spy_share is not None and spy_share > 0.0:
-            spy_nonzero_days.append((date_str, spy_share, reason))
+    spy_share = _safe_float(target_alloc.get("spy"))
+    if spy_share is not None and spy_share > 0.0:
+        spy_nonzero_days.append((date_str, spy_share, reason))
 
-        # target_allocation comes from DmaGate.SELL_TARGET={spot:0,stable:1} or
-        # BUY_TARGET={spot:1,stable:0}. spot>0 means SPY DMA gate said "buy".
-        if isinstance(target_alloc, dict):
-            spot = _safe_float(target_alloc.get("spot"))
-            if spot is not None and spot > 0.0 and reason.startswith("spy_"):
-                spy_signal_buy_days.append((date_str, reason))
+    if isinstance(target_alloc, dict):
+        spy_val = _safe_float(target_alloc.get("spy"))
+        if spy_val is not None and spy_val > 0.0 and reason.startswith("spy_"):
+            spy_signal_buy_days.append((date_str, reason))
 
     print(f"Total timeline points: {total}")
     print(f"\nDecision actions ({len(actions)} kinds):")
@@ -73,7 +70,7 @@ def summarize(payload: dict[str, Any], strategy_id: str) -> None:
     for reason, count in reasons.most_common():
         print(f"  {reason:>30s}: {count:>4d} ({count / total * 100:5.1f}%)")
 
-    print(f"\nDays with spy > 0 in target_asset_allocation: {len(spy_nonzero_days)}")
+    print(f"\nDays with spy > 0 in target_allocation: {len(spy_nonzero_days)}")
     if spy_nonzero_days:
         for date_str, spy_share, reason in spy_nonzero_days[:10]:
             print(f"  {date_str}  spy={spy_share:.3f}  reason={reason}")

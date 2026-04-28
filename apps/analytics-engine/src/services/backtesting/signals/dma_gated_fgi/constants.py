@@ -6,8 +6,20 @@ RULE_PRIORITY_ORDER = "cross>cooldown>dma_fgi>ath"
 
 VALID_ATH_EVENTS = frozenset({"token_ath", "portfolio_ath", "both_ath"})
 
-SELL_TARGET: dict[str, float] = {"spot": 0.0, "stable": 1.0}
-BUY_TARGET: dict[str, float] = {"spot": 1.0, "stable": 0.0}
+SELL_TARGET: dict[str, float] = {
+    "btc": 0.0,
+    "eth": 0.0,
+    "spy": 0.0,
+    "stable": 1.0,
+    "alt": 0.0,
+}
+BUY_TARGET: dict[str, float] = {
+    "btc": 1.0,
+    "eth": 0.0,
+    "spy": 0.0,
+    "stable": 0.0,
+    "alt": 0.0,
+}
 
 SCORE_BY_REASON = {
     "dma_cross_up": 1.0,

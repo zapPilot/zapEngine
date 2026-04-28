@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from src.services.backtesting.execution.engine import EngineConfig, StrategyEngine
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
@@ -20,14 +22,15 @@ class BuySpotStrategy(BaseStrategy):
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context
+        target = {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
         return StrategyAction(
             snapshot=make_strategy_snapshot(
                 action="buy",
                 reason="test_buy",
-                target_allocation={"spot": 1.0, "stable": 0.0},
+                target_allocation=target,
                 event="rebalance",
             ),
-            target_allocations={"spot": 1.0, "stable": 0.0},
+            target_allocations=target,
         )
 
 
@@ -38,13 +41,14 @@ class HoldStableStrategy(BaseStrategy):
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context
+        target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
         return StrategyAction(
             snapshot=make_strategy_snapshot(
                 action="hold",
                 reason="stay_stable",
-                target_allocation={"spot": 0.0, "stable": 1.0},
+                target_allocation=target,
             ),
-            target_allocations={"spot": 0.0, "stable": 1.0},
+            target_allocations=target,
         )
 
 
@@ -55,14 +59,34 @@ class RotateToEthStrategy(BaseStrategy):
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context
+        target = {"btc": 0.0, "eth": 1.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
         return StrategyAction(
             snapshot=make_strategy_snapshot(
                 action="buy",
                 reason="rotate_eth",
-                target_allocation={"spot": 1.0, "stable": 0.0},
+                target_allocation=target,
                 event="rebalance",
             ),
-            target_spot_asset="ETH",
+            target_allocations=target,
+        )
+
+
+class BuySpyStrategy(BaseStrategy):
+    strategy_id = "buy_spy"
+    display_name = "Buy SPY"
+    canonical_strategy_id = "spy_eth_btc_rotation"
+
+    def on_day(self, context: StrategyContext) -> StrategyAction:
+        del context
+        target = {"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0}
+        return StrategyAction(
+            snapshot=make_strategy_snapshot(
+                action="buy",
+                reason="test_buy_spy",
+                target_allocation=target,
+                event="rebalance",
+            ),
+            target_allocations=target,
         )
 
 
@@ -123,6 +147,34 @@ def test_engine_applies_daily_yield_to_stable_bucket() -> None:
     assert state.portfolio.stable_usd > 1_000.0
     assert state.execution.event is None
     assert state.signal is None
+
+
+def test_engine_executes_canonical_spy_target_without_spot_routing() -> None:
+    prices = [
+        {
+            "date": date(2025, 1, 1),
+            "price": 100_000.0,
+            "prices": {"btc": 100_000.0, "eth": 5_000.0, "spy": 600.0},
+        }
+    ]
+    sentiments = {date(2025, 1, 1): {"label": "neutral", "value": 50}}
+    engine = StrategyEngine(
+        EngineConfig(trading_slippage_percent=0.0, apr_by_regime={})
+    )
+
+    result = engine.run(
+        prices=prices,
+        sentiments=sentiments,
+        strategies=[BuySpyStrategy()],
+        initial_allocation={"spot": 0.0, "stable": 1.0},
+        total_capital=1_200.0,
+        token_symbol="BTC",
+    )
+
+    state = result.timeline[0].strategies["buy_spy"]
+    assert state.portfolio.asset_allocation.spy == pytest.approx(1.0)
+    assert state.portfolio.asset_allocation.stable == pytest.approx(0.0)
+    assert state.decision.target_allocation.spy == pytest.approx(1.0)
 
 
 def test_engine_values_strategy_by_active_spot_asset_price_map() -> None:

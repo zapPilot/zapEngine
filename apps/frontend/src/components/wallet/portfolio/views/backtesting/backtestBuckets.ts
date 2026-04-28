@@ -94,7 +94,13 @@ export function buildBacktestAllocationSegments(
   return BACKTEST_BUCKETS.map((bucket) => {
     const config = BACKTEST_BUCKET_CONFIG[bucket];
     const segmentCategory: UnifiedCategory =
-      bucket === 'spot' ? (spotAssetLabel === 'ETH' ? 'eth' : 'btc') : 'stable';
+      bucket === 'spot'
+        ? spotAssetLabel === 'ETH'
+          ? 'eth'
+          : spotAssetLabel === 'SPY'
+            ? 'spy'
+            : 'btc'
+        : 'stable';
     const segmentLabel =
       bucket === 'spot'
         ? (spotAssetLabel ?? config.shortLabel)

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   AssetAllocationSchema,
   PortfolioAllocationSchema,
+  TargetAllocationSchema,
 } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import { JsonObjectSchema, JsonValueSchema, type JsonValue } from './json.js';
@@ -73,7 +74,7 @@ export const BacktestRequestSchema = z.object({
   configs: z.array(BacktestCompareConfigV3Schema).min(1),
 });
 
-export const BacktestSpotAssetSymbolSchema = z.enum(['BTC', 'ETH']);
+export const BacktestSpotAssetSymbolSchema = z.enum(['BTC', 'ETH', 'SPY']);
 
 export const BacktestStrategyPortfolioSchema = z.object({
   spot_usd: z.number().nonnegative(),
@@ -137,8 +138,7 @@ export const BacktestDecisionSchema = z.object({
   action: z.enum(['buy', 'sell', 'hold']),
   reason: z.string(),
   rule_group: BacktestRuleGroupSchema,
-  target_allocation: PortfolioAllocationSchema,
-  target_asset_allocation: AssetAllocationSchema,
+  target_allocation: TargetAllocationSchema,
   immediate: z.boolean(),
   details: BacktestDecisionDetailsSchema.optional(),
 });

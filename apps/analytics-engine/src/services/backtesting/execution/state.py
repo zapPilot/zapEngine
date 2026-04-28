@@ -16,12 +16,11 @@ from src.models.backtesting import (
     StrategyId,
     StrategyState,
     StrategySummary,
+    TargetAllocation,
     TransferRecord,
 )
 from src.services.backtesting.asset_allocation_serialization import (
-    normalize_spot_asset,
     serialize_asset_allocation,
-    serialize_target_asset_allocation,
 )
 from src.services.backtesting.domain import ExecutionPluginDiagnostic, StrategySnapshot
 from src.services.backtesting.execution.block_reasons import (
@@ -32,6 +31,10 @@ from src.services.backtesting.execution.performance_metrics import (
 )
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.strategies.base import BaseStrategy
+from src.services.backtesting.target_allocation import (
+    normalize_target_allocation,
+    target_from_current_allocation,
+)
 from src.services.backtesting.utils.two_bucket import sanitize_runtime_allocation
 
 
@@ -43,9 +46,12 @@ def build_strategy_state(
 ) -> StrategyState:
     total_value = portfolio.total_value(price)
     allocation = sanitize_runtime_allocation(portfolio.allocation_percentages(price))
-    resolved_target_allocation = snapshot.decision.target_allocation or allocation
     asset_allocation = serialize_asset_allocation(
         portfolio.asset_allocation_percentages(price)
+    )
+    target_allocation = _resolve_target_allocation(
+        snapshot_target=snapshot.decision.target_allocation,
+        current_asset_allocation=asset_allocation.model_dump(),
     )
     bucket_values = portfolio.bucket_values(price)
     return StrategyState(
@@ -65,16 +71,7 @@ def build_strategy_state(
             action=snapshot.decision.action,
             reason=snapshot.decision.reason,
             rule_group=snapshot.decision.rule_group,
-            target_allocation=Allocation(
-                **_aggregate_allocation(resolved_target_allocation)
-            ),
-            target_asset_allocation=serialize_target_asset_allocation(
-                resolved_target_allocation,
-                target_spot_asset=_resolve_target_spot_asset(
-                    snapshot=snapshot,
-                    portfolio=portfolio,
-                ),
-            ),
+            target_allocation=TargetAllocation(**target_allocation),
             immediate=snapshot.decision.immediate,
             details=_serialize_decision_details(snapshot),
         ),
@@ -223,8 +220,6 @@ def _serialize_decision_details(snapshot: StrategySnapshot) -> dict[str, Any]:
     details: dict[str, Any] = {}
     if snapshot.decision.allocation_name is not None:
         details["allocation_name"] = snapshot.decision.allocation_name
-    if snapshot.decision.target_spot_asset is not None:
-        details["target_spot_asset"] = snapshot.decision.target_spot_asset
     details["decision_score"] = snapshot.decision.decision_score
     return details
 
@@ -263,25 +258,14 @@ def _calculate_performance_metrics(
     return calculator.calculate_all_metrics(strategy_values, benchmark_prices)
 
 
-def _aggregate_allocation(raw: dict[str, float]) -> dict[str, float]:
-    if {"btc", "eth", "spy"} & set(raw):
-        stable = float(raw.get("stable", 0.0))
-        return sanitize_runtime_allocation(
-            {
-                "spot": max(0.0, 1.0 - stable),
-                "stable": stable,
-            }
-        )
-    return sanitize_runtime_allocation(raw)
-
-def _resolve_target_spot_asset(
+def _resolve_target_allocation(
     *,
-    snapshot: StrategySnapshot,
-    portfolio: Portfolio,
-) -> str:
-    return normalize_spot_asset(
-        snapshot.decision.target_spot_asset or portfolio.spot_asset
-    )
+    snapshot_target: dict[str, float] | None,
+    current_asset_allocation: dict[str, float],
+) -> dict[str, float]:
+    if snapshot_target is None:
+        return target_from_current_allocation(current_asset_allocation)
+    return normalize_target_allocation(snapshot_target)
 
 
 def _resolve_summary_price_input(

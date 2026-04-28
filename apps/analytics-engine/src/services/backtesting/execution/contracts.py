@@ -22,4 +22,3 @@ class ExecutionHints:
     buy_strength: float | None = None
     enable_buy_gate: bool = False
     reset_buy_gate: bool = False
-    target_spot_asset: str | None = None

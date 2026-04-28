@@ -21,6 +21,7 @@ from src.services.backtesting.public_params import (
     public_params_to_runtime_params,
     supports_nested_public_params,
 )
+from src.services.backtesting.target_allocation import normalize_target_allocation
 
 StrategyId = str
 SignalId = str
@@ -77,6 +78,23 @@ class AssetAllocation(BaseModel):
         return self
 
 
+class TargetAllocation(AssetAllocation):
+    """Five-bucket canonical target allocation.
+
+    ``alt`` is display/current-only. Targets must be executable through the
+    tradeable asset buckets and stable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_target(self) -> Self:
+        if self.alt > 0.001:
+            raise ValueError("target allocation cannot allocate to alt")
+        normalize_target_allocation(self.model_dump())
+        return self
+
+
 class PortfolioState(BaseModel):
     spot_usd: float = Field(ge=0.0)
     stable_usd: float = Field(ge=0.0)
@@ -104,8 +122,7 @@ class DecisionState(BaseModel):
     action: ActionType
     reason: str
     rule_group: RuleGroup
-    target_allocation: Allocation
-    target_asset_allocation: AssetAllocation
+    target_allocation: TargetAllocation
     immediate: bool = False
     details: dict[str, JsonValue] = Field(default_factory=dict)
 

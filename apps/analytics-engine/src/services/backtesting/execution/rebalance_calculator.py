@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.services.backtesting.target_allocation import normalize_target_allocation
+
 if TYPE_CHECKING:
     from src.services.backtesting.strategies.base import StrategyContext
 
@@ -15,16 +17,7 @@ class RebalanceCalculator:
     def _normalize_target_allocation(
         target_allocation: dict[str, float],
     ) -> dict[str, float]:
-        cleaned = {
-            str(bucket): max(0.0, float(value))
-            for bucket, value in target_allocation.items()
-        }
-        total = sum(cleaned.values())
-        if total <= 0.0:
-            if "stable" in cleaned:
-                return {**dict.fromkeys(cleaned, 0.0), "stable": 1.0}
-            return {"stable": 1.0}
-        return {bucket: value / total for bucket, value in cleaned.items()}
+        return normalize_target_allocation(target_allocation)
 
     @staticmethod
     def calculate_deltas(

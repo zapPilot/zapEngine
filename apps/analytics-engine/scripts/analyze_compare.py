@@ -563,7 +563,7 @@ def _build_rule_summary(
 ) -> dict[str, Any]:
     decision = _safe_mapping(point.get("decision"))
     execution = _safe_mapping(point.get("execution"))
-    target_assets = _safe_mapping(decision.get("target_asset_allocation"))
+    target_assets = _safe_mapping(decision.get("target_allocation"))
     reason = str(decision.get("reason") or "")
 
     if consistency.get("status") == "mismatch":
@@ -579,7 +579,7 @@ def _build_rule_summary(
             "summary": "Outer BTC DMA cross_down forced an immediate exit from all risk-on exposure back to stable.",
             "evidence": [
                 f"execution={execution.get('event')!r}",
-                f"target_asset_allocation={json.dumps(target_assets, sort_keys=True)}",
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
             ],
         }
 
@@ -599,9 +599,10 @@ def _build_rule_summary(
             "summary": "Outer BTC DMA cross_up forced immediate full re-entry into spot.",
             "evidence": [
                 inner_ratio_note,
-                f"target_asset_allocation={json.dumps(target_assets, sort_keys=True)}",
-            ],
-        }
+            f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+        ],
+    }
+
 
     return {
         "classification": "context",
@@ -782,8 +783,7 @@ def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
                     f"reason={decision.get('reason')}",
                     f"rule_group={decision.get('rule_group')}",
                     f"immediate={decision.get('immediate')}",
-                    f"target_allocation={json.dumps(decision.get('target_allocation'), sort_keys=True)}",
-                    f"target_asset_allocation={json.dumps(decision.get('target_asset_allocation'), sort_keys=True)}",
+            f"target_allocation={json.dumps(decision.get('target_allocation'), sort_keys=True)}",
                 )
             )
         ]
@@ -939,9 +939,8 @@ def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
             f"- Reason: `{decision.get('reason')}`",
             f"- Rule group: `{decision.get('rule_group')}`",
             f"- Immediate: `{decision.get('immediate')}`",
-            f"- Target allocation: `{json.dumps(decision.get('target_allocation'), sort_keys=True)}`",
-            f"- Target asset allocation: `{json.dumps(decision.get('target_asset_allocation'), sort_keys=True)}`",
-        ]
+        f"- Target allocation: `{json.dumps(decision.get('target_allocation'), sort_keys=True)}`",
+    ]
     if section == "execution":
         execution = _safe_mapping(record["execution"])
         return [

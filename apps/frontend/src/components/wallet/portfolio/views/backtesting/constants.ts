@@ -13,10 +13,6 @@ export const ETH_BTC_ROTATION_DEFAULT_CONFIG_ID = 'eth_btc_rotation_default';
 /** Canonical strategy ID for the SPY/ETH/BTC multi-asset rotation strategy. */
 export const SPY_ETH_BTC_ROTATION_STRATEGY_ID = 'spy_eth_btc_rotation';
 
-/** Default curated preset config ID for the SPY/ETH/BTC rotation strategy. */
-export const SPY_ETH_BTC_ROTATION_DEFAULT_CONFIG_ID =
-  'spy_eth_btc_rotation_default';
-
 /** Canonical strategy ID for the DCA classic (benchmark) strategy. */
 export const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';
 
@@ -32,7 +28,7 @@ export const FIXED_PACING_ENGINE_ID = 'fgi_exponential';
 const DEFAULT_CONFIG_ID_BY_STRATEGY_ID: Record<string, string> = {
   [DMA_GATED_FGI_STRATEGY_ID]: DMA_GATED_FGI_DEFAULT_CONFIG_ID,
   [ETH_BTC_ROTATION_STRATEGY_ID]: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-  [SPY_ETH_BTC_ROTATION_STRATEGY_ID]: SPY_ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
+  [SPY_ETH_BTC_ROTATION_STRATEGY_ID]: SPY_ETH_BTC_ROTATION_STRATEGY_ID,
   [DCA_CLASSIC_STRATEGY_ID]: DCA_CLASSIC_STRATEGY_ID,
 };
 

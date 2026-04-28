@@ -235,7 +235,8 @@
                 {
                   "enum": [
                     "BTC",
-                    "ETH"
+                    "ETH",
+                    "SPY"
                   ],
                   "type": "string"
                 },
@@ -472,7 +473,8 @@
                     {
                       "enum": [
                         "BTC",
-                        "ETH"
+                        "ETH",
+                        "SPY"
                       ],
                       "type": "string"
                     },
@@ -520,26 +522,6 @@
             "allocation": {
               "additionalProperties": false,
               "properties": {
-                "spot": {
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "stable": {
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                }
-              },
-              "required": [
-                "spot",
-                "stable"
-              ],
-              "type": "object"
-            },
-            "asset_allocation": {
-              "additionalProperties": false,
-              "properties": {
                 "alt": {
                   "maximum": 1,
                   "minimum": 0,
@@ -577,8 +559,7 @@
             }
           },
           "required": [
-            "allocation",
-            "asset_allocation"
+            "allocation"
           ],
           "type": "object"
         }

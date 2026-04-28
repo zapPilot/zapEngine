@@ -24,9 +24,7 @@ from src.models.strategy import (
     DailySuggestionTargetState,
 )
 from src.services.backtesting.asset_allocation_serialization import (
-    aggregate_to_asset_allocation,
     serialize_asset_allocation,
-    serialize_target_asset_allocation,
 )
 from src.services.backtesting.capabilities import (
     PortfolioBuckets,
@@ -51,6 +49,7 @@ from src.services.backtesting.execution.plugins import (
 from src.services.backtesting.execution.state import build_strategy_state
 from src.services.backtesting.features import (
     ETH_USD_PRICE_FEATURE,
+    SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
 from src.services.backtesting.strategies.base import (
@@ -467,13 +466,6 @@ class StrategyDailySuggestionService:
         )
         if serialized.signal is None:
             raise ValueError("Daily suggestion serialization missing signal state")
-        target_asset_allocation = self._resolve_target_asset_allocation(
-            target_allocation=serialized.decision.target_allocation,
-            existing_target_asset_allocation=serialized.decision.target_asset_allocation,
-            current_asset_allocation=portfolio_asset_allocation,
-            primary_asset=primary_asset,
-            runtime_portfolio_mode=runtime_portfolio_mode,
-        )
         transfers = list(serialized.execution.transfers)
         _execution = serialized.execution
         effective_block_reason = resolve_effective_block_reason(
@@ -517,7 +509,6 @@ class StrategyDailySuggestionService:
                 portfolio=portfolio,
                 target=DailySuggestionTargetState(
                     allocation=serialized.decision.target_allocation,
-                    asset_allocation=target_asset_allocation,
                 ),
                 strategy=DailySuggestionStrategyContextState(
                     stance=serialized.decision.action,
@@ -571,6 +562,9 @@ class StrategyDailySuggestionService:
         eth_price = feature_row.get(ETH_USD_PRICE_FEATURE)
         if eth_price is not None:
             price_map["eth"] = float(eth_price)
+        spy_price = feature_row.get(SPY_PRICE_FEATURE)
+        if spy_price is not None:
+            price_map["spy"] = float(spy_price)
         return price_map
 
     @staticmethod
@@ -582,32 +576,14 @@ class StrategyDailySuggestionService:
         current_asset_allocation = buckets.asset_allocation()
         if current_asset_allocation is not None:
             return serialize_asset_allocation(current_asset_allocation)
-        return aggregate_to_asset_allocation(
-            spot=float(buckets.allocation()["spot"]),
-            stable=float(buckets.allocation()["stable"]),
-            primary_asset=primary_asset,
-        )
-
-    @staticmethod
-    def _resolve_target_asset_allocation(
-        *,
-        target_allocation: Allocation,
-        existing_target_asset_allocation: AssetAllocation | None,
-        current_asset_allocation: AssetAllocation,
-        primary_asset: str,
-        runtime_portfolio_mode: RuntimePortfolioMode,
-    ) -> AssetAllocation:
-        if existing_target_asset_allocation is not None:
-            return serialize_target_asset_allocation(
-                existing_target_asset_allocation.model_dump(),
-                target_spot_asset=primary_asset,
-            )
-        if runtime_portfolio_mode == "asset":
-            return serialize_asset_allocation(current_asset_allocation.model_dump())
-        return aggregate_to_asset_allocation(
-            spot=float(target_allocation.spot),
-            stable=float(target_allocation.stable),
-            primary_asset=primary_asset,
+        runtime = buckets.allocation()
+        primary = primary_asset.strip().lower()
+        return AssetAllocation(
+            btc=float(runtime["spot"]) if primary == "btc" else 0.0,
+            eth=float(runtime["spot"]) if primary == "eth" else 0.0,
+            spy=float(runtime["spot"]) if primary == "spy" else 0.0,
+            stable=float(runtime["stable"]),
+            alt=float(runtime["spot"]) if primary not in ("btc", "eth", "spy") else 0.0,
         )
 
     @staticmethod

@@ -4,6 +4,7 @@ import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 import {
   AssetAllocationSchema,
   PortfolioAllocationSchema,
+  TargetAllocationSchema,
 } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import {
@@ -40,8 +41,7 @@ export const DailySuggestionActionSchema = z.object({
 });
 
 export const DailySuggestionTargetSchema = z.object({
-  allocation: PortfolioAllocationSchema,
-  asset_allocation: AssetAllocationSchema,
+  allocation: TargetAllocationSchema,
 });
 
 export const DailySuggestionStrategyContextSchema = z.object({

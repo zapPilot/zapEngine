@@ -9,8 +9,6 @@ from pydantic import BaseModel, Field, JsonValue, PrivateAttr
 
 from src.models.backtesting import (
     ActionType,
-    Allocation,
-    AssetAllocation,
     DecisionState,
     ExecutionDiagnostics,
     ExecutionState,
@@ -19,6 +17,7 @@ from src.models.backtesting import (
     PortfolioState,
     SignalState,
     StrategyId,
+    TargetAllocation,
     TransferRecord,
 )
 from src.models.market_data_freshness import MarketDataFreshness
@@ -47,8 +46,7 @@ class DailySuggestionActionState(BaseModel):
 
 
 class DailySuggestionTargetState(BaseModel):
-    allocation: Allocation
-    asset_allocation: AssetAllocation
+    allocation: TargetAllocation
 
 
 class DailySuggestionStrategyContextState(BaseModel):
@@ -92,7 +90,6 @@ class DailySuggestionResponse(BaseModel):
             reason=self.context.strategy.reason_code,
             rule_group=self.context.strategy.rule_group,
             target_allocation=self.context.target.allocation,
-            target_asset_allocation=self.context.target.asset_allocation,
             immediate=False,
             details=dict(self.context.strategy.details),
         )

@@ -156,7 +156,13 @@ def test_signal_runtime_observe_returns_dma_market_state() -> None:
 def test_allocation_intent_serializes_legacy_signal_payload() -> None:
     intent = AllocationIntent(
         action="buy",
-        target_allocation={"spot": 1.0, "stable": 0.0},
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         allocation_name="dma_below_extreme_fear_buy",
         immediate=False,
         reason="below_extreme_fear_buy",
@@ -165,7 +171,13 @@ def test_allocation_intent_serializes_legacy_signal_payload() -> None:
     )
 
     assert intent.to_signal_payload() == {
-        "target": {"spot": 1.0, "stable": 0.0},
+        "target": {
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
         "name": "dma_below_extreme_fear_buy",
         "hold": False,
         "immediate": False,

@@ -35,7 +35,6 @@ class StrategyAction:
     snapshot: StrategySnapshot
     target_allocations: dict[str, float] | None = None
     transfers: list[TransferIntent] | None = None
-    target_spot_asset: str | None = None
     apply_yield: bool = True
 
 

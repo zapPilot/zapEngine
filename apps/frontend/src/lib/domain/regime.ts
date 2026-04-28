@@ -41,15 +41,7 @@ export type RegimeLabel =
 // BIDIRECTIONAL MAPPING
 // =============================================================================
 
-export const REGIME_ID_TO_LABEL: Record<RegimeId, RegimeLabel> = {
-  ef: 'extreme_fear',
-  f: 'fear',
-  n: 'neutral',
-  g: 'greed',
-  eg: 'extreme_greed',
-};
-
-export const LABEL_TO_REGIME_ID: Record<RegimeLabel, RegimeId> = {
+const LABEL_TO_REGIME_ID: Record<RegimeLabel, RegimeId> = {
   extreme_fear: 'ef',
   fear: 'f',
   neutral: 'n',
@@ -153,18 +145,6 @@ export const REGIME_DISPLAY_CONFIG: Record<
 export type RegimeDisplayConfig = (typeof REGIME_DISPLAY_CONFIG)[RegimeId];
 
 /**
- * Regime order for directional calculation.
- * Lower numbers = more bearish, higher numbers = more bullish.
- */
-export const REGIME_ORDER: Record<RegimeId, number> = {
-  ef: 0,
-  f: 1,
-  n: 2,
-  g: 3,
-  eg: 4,
-} as const;
-
-/**
  * Default quotes displayed when sentiment data is unavailable.
  */
 const DEFAULT_QUOTES: Record<RegimeId, string> = {
@@ -175,17 +155,7 @@ const DEFAULT_QUOTES: Record<RegimeId, string> = {
   eg: 'Extreme optimism requires caution - protect gains and prepare for reversal.',
 };
 
-/**
- * Sentiment value to index mapping.
- * Used for chart normalization (0-100 scale).
- */
-export const SENTIMENT_INDEX_MAP: Record<RegimeLabel, number> = {
-  extreme_fear: 0,
-  fear: 25,
-  neutral: 50,
-  greed: 75,
-  extreme_greed: 100,
-};
+// SENTIMENT_INDEX_MAP removed: unused in this file. See @/components/wallet/portfolio/views/backtesting/utils/chartHelpers.ts
 
 // =============================================================================
 // PURE FUNCTIONS
@@ -333,12 +303,6 @@ export function getDefaultQuoteForRegime(regimeId: RegimeId): string {
   return DEFAULT_QUOTES[regimeId] ?? DEFAULT_QUOTES.n;
 }
 
-/**
- * Gets the sentiment index value (0-100) for a regime.
- * Used for chart normalization.
- */
-export function getSentimentIndex(regimeLabel: RegimeLabel): number {
-  return SENTIMENT_INDEX_MAP[regimeLabel] ?? 50;
-}
+// getSentimentIndex removed: unused. See @/components/wallet/portfolio/views/backtesting/utils/chartHelpers.ts
 
 /* eslint-enable sonarjs/deprecation */

@@ -233,7 +233,13 @@ def test_decision_policy_reuses_dma_stable_gate_and_builds_asset_target() -> Non
     intent = decision_policy.decide(snapshot)
 
     assert intent.action == "buy"
-    assert intent.target_allocation == {"btc": 1.0, "eth": 0.0, "stable": 0.0}
+    assert intent.target_allocation == {
+        "btc": 1.0,
+        "eth": 0.0,
+        "spy": 0.0,
+        "stable": 0.0,
+        "alt": 0.0,
+    }
 
 
 def test_decision_policy_non_cross_buy_keeps_full_risk_target_not_immediate() -> None:
@@ -276,7 +282,13 @@ def test_decision_policy_non_cross_buy_keeps_full_risk_target_not_immediate() ->
     assert intent.action == "buy"
     assert intent.reason == "below_extreme_fear_buy"
     assert intent.immediate is False
-    assert intent.target_allocation == {"btc": 0.0, "eth": 1.0, "stable": 0.0}
+    assert intent.target_allocation == {
+        "btc": 0.0,
+        "eth": 1.0,
+        "spy": 0.0,
+        "stable": 0.0,
+        "alt": 0.0,
+    }
 
 
 def test_decision_policy_dma_cross_up_remains_immediate_full_risk_on() -> None:
@@ -318,7 +330,13 @@ def test_decision_policy_dma_cross_up_remains_immediate_full_risk_on() -> None:
     assert intent.action == "buy"
     assert intent.reason == "dma_cross_up"
     assert intent.immediate is True
-    assert intent.target_allocation == {"btc": 0.0, "eth": 1.0, "stable": 0.0}
+    assert intent.target_allocation == {
+        "btc": 0.0,
+        "eth": 1.0,
+        "spy": 0.0,
+        "stable": 0.0,
+        "alt": 0.0,
+    }
 
 
 def test_decision_policy_ignores_token_ath_sell_when_above_dma_and_neutral() -> None:
@@ -936,7 +954,9 @@ def test_decision_policy_at_ratio_dma_holds_current_btc_eth_split() -> None:
     assert intent.target_allocation == {
         "btc": pytest.approx(snapshot.current_asset_allocation["btc"]),
         "eth": pytest.approx(snapshot.current_asset_allocation["eth"]),
+        "spy": pytest.approx(0.0),
         "stable": pytest.approx(snapshot.current_asset_allocation["stable"]),
+        "alt": pytest.approx(0.0),
     }
 
 
@@ -1358,10 +1378,10 @@ def test_eth_btc_rotation_strategy_targets_full_stable_when_outer_gate_exits() -
     assert action.snapshot.decision.target_allocation == {
         "btc": 0.0,
         "eth": 0.0,
+        "spy": 0.0,
         "stable": 1.0,
+        "alt": 0.0,
     }
-    assert action.snapshot.decision.target_spot_asset is None
-    assert action.target_spot_asset is None
 
 
 def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
@@ -1411,7 +1431,9 @@ def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
     assert action.snapshot.decision.target_allocation == {
         "btc": 0.0,
         "eth": 1.0,
+        "spy": 0.0,
         "stable": 0.0,
+        "alt": 0.0,
     }
     assert action.transfers is not None
     stable_buy = sum(
@@ -1472,7 +1494,9 @@ def test_eth_btc_rotation_unconfirmed_buy_gate_blocks_stable_not_rotation() -> N
     assert action.snapshot.decision.target_allocation == {
         "btc": 0.0,
         "eth": 1.0,
+        "spy": 0.0,
         "stable": 0.0,
+        "alt": 0.0,
     }
     assert action.transfers is not None
     assert any(
@@ -1514,7 +1538,13 @@ def test_build_initial_eth_btc_asset_allocation_defaults_to_neutral_without_rati
         params=params,
     )
 
-    assert result == {"btc": 0.5, "eth": 0.0, "stable": 0.5}
+    assert result == {
+        "btc": 0.5,
+        "eth": 0.0,
+        "spy": 0.0,
+        "stable": 0.5,
+        "alt": 0.0,
+    }
 
 
 def test_default_eth_btc_rotation_params_returns_dict() -> None:

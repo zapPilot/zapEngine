@@ -69,7 +69,13 @@ def _sell_snapshot(*, signal: SignalObservation | None) -> StrategySnapshot:
         signal=signal,
         decision=AllocationIntent(
             action="sell",
-            target_allocation={"spot": 0.0, "stable": 1.0},
+            target_allocation={
+                "btc": 0.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 1.0,
+                "alt": 0.0,
+            },
             allocation_name="risk_off",
             immediate=False,
             reason="above_greed_sell",
@@ -107,7 +113,6 @@ def _rotation_snapshot(*, signal: SignalObservation | None) -> StrategySnapshot:
             reason="eth_outperforming_btc",
             rule_group="rotation",
             decision_score=1.0,
-            target_spot_asset="ETH",
         ),
         execution=ExecutionOutcome(
             event=None,
@@ -139,7 +144,6 @@ def _hold_rotation_snapshot(
             reason="eth_btc_ratio_rebalance",
             rule_group="rotation",
             decision_score=0.0,
-            target_spot_asset="ETH",
         ),
         execution=ExecutionOutcome(
             event="rebalance" if serialized_transfers else None,
@@ -272,10 +276,10 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     assert response.context.portfolio.total_assets_usd == pytest.approx(10_000.0)
     assert response.context.portfolio.total_debt_usd == pytest.approx(0.0)
     assert response.context.portfolio.total_net_usd == pytest.approx(10_000.0)
-    assert response.context.target.asset_allocation.btc == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.eth == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.stable == pytest.approx(1.0)
-    assert response.context.target.asset_allocation.alt == pytest.approx(0.0)
+    assert response.context.target.allocation.btc == pytest.approx(0.0)
+    assert response.context.target.allocation.eth == pytest.approx(0.0)
+    assert response.context.target.allocation.stable == pytest.approx(1.0)
+    assert response.context.target.allocation.alt == pytest.approx(0.0)
 
 
 def test_get_daily_suggestion_dma_does_not_require_eth_price_for_eth_holdings(
@@ -318,10 +322,10 @@ def test_get_daily_suggestion_dma_does_not_require_eth_price_for_eth_holdings(
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.3)
     assert response.context.portfolio.asset_allocation.stable == pytest.approx(0.5)
     assert response.context.portfolio.asset_allocation.alt == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.btc == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.eth == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.stable == pytest.approx(1.0)
-    assert response.context.target.asset_allocation.alt == pytest.approx(0.0)
+    assert response.context.target.allocation.btc == pytest.approx(0.0)
+    assert response.context.target.allocation.eth == pytest.approx(0.0)
+    assert response.context.target.allocation.stable == pytest.approx(1.0)
+    assert response.context.target.allocation.alt == pytest.approx(0.0)
 
 
 def test_get_daily_suggestion_rotation_preserves_asset_target_allocation(
@@ -377,10 +381,10 @@ def test_get_daily_suggestion_rotation_preserves_asset_target_allocation(
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.1)
     assert response.context.portfolio.asset_allocation.stable == pytest.approx(0.3)
     assert response.context.portfolio.asset_allocation.alt == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.btc == pytest.approx(0.6)
-    assert response.context.target.asset_allocation.eth == pytest.approx(0.4)
-    assert response.context.target.asset_allocation.stable == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.alt == pytest.approx(0.0)
+    assert response.context.target.allocation.btc == pytest.approx(0.6)
+    assert response.context.target.allocation.eth == pytest.approx(0.4)
+    assert response.context.target.allocation.stable == pytest.approx(0.0)
+    assert response.context.target.allocation.alt == pytest.approx(0.0)
     assert response.action.status == "no_action"
     assert response.action.required is False
     assert response.action.kind is None
@@ -728,10 +732,10 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.1)
     assert response.context.portfolio.asset_allocation.stable == pytest.approx(0.9)
     assert response.context.portfolio.asset_allocation.alt == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.btc == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.eth == pytest.approx(0.0)
-    assert response.context.target.asset_allocation.stable == pytest.approx(1.0)
-    assert response.context.target.asset_allocation.alt == pytest.approx(0.0)
+    assert response.context.target.allocation.btc == pytest.approx(0.0)
+    assert response.context.target.allocation.eth == pytest.approx(0.0)
+    assert response.context.target.allocation.stable == pytest.approx(1.0)
+    assert response.context.target.allocation.alt == pytest.approx(0.0)
 
 
 def test_get_daily_suggestion_requires_serialized_signal(

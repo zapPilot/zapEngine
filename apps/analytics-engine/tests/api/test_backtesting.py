@@ -25,6 +25,7 @@ from src.models.backtesting import (
     SignalState,
     StrategyState,
     StrategySummary,
+    TargetAllocation,
     TimelinePoint,
     TransferRecord,
 )
@@ -245,8 +246,7 @@ def _response() -> BacktestResponse:
                             action="buy",
                             reason="daily_buy",
                             rule_group="none",
-                            target_allocation=Allocation(spot=1.0, stable=0.0),
-                            target_asset_allocation=AssetAllocation(
+                            target_allocation=TargetAllocation(
                                 btc=1.0,
                                 eth=0.0,
                                 spy=0.0,
@@ -309,8 +309,7 @@ def _response() -> BacktestResponse:
                             action="sell",
                             reason="dma_cross_down",
                             rule_group="cross",
-                            target_allocation=Allocation(spot=0.0, stable=1.0),
-                            target_asset_allocation=AssetAllocation(
+                            target_allocation=TargetAllocation(
                                 btc=0.0,
                                 eth=0.0,
                                 spy=0.0,
@@ -372,8 +371,7 @@ def _response() -> BacktestResponse:
                             action="buy",
                             reason="daily_buy",
                             rule_group="none",
-                            target_allocation=Allocation(spot=1.0, stable=0.0),
-                            target_asset_allocation=AssetAllocation(
+                            target_allocation=TargetAllocation(
                                 btc=1.0,
                                 eth=0.0,
                                 spy=0.0,
@@ -435,8 +433,7 @@ def _response() -> BacktestResponse:
                             action="buy",
                             reason="below_extreme_fear_buy",
                             rule_group="dma_fgi",
-                            target_allocation=Allocation(spot=1.0, stable=0.0),
-                            target_asset_allocation=AssetAllocation(
+                            target_allocation=TargetAllocation(
                                 btc=0.0,
                                 eth=1.0,
                                 spy=0.0,
@@ -444,7 +441,6 @@ def _response() -> BacktestResponse:
                                 alt=0.0,
                             ),
                             immediate=False,
-                            details={"target_spot_asset": "ETH"},
                         ),
                         execution=ExecutionState(
                             event="rebalance",
@@ -584,7 +580,6 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
         is None
     )
     assert dma_point.decision.reason == "dma_cross_down"
-    assert dma_eth_point.decision.details["target_spot_asset"] == "ETH"
 
 
 @pytest.mark.asyncio

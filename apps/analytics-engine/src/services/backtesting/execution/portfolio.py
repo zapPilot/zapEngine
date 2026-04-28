@@ -73,7 +73,9 @@ class Portfolio:
         btc = max(0.0, float(allocation.get("btc", 0.0)))
         eth = max(0.0, float(allocation.get("eth", 0.0)))
         spy = max(0.0, float(allocation.get("spy", 0.0)))
-        stable = max(0.0, float(allocation.get("stable", 0.0)))
+        stable = max(0.0, float(allocation.get("stable", 0.0))) + max(
+            0.0, float(allocation.get("alt", 0.0))
+        )
         total = btc + eth + spy + stable
         if total <= 0.0:
             stable = 1.0
@@ -133,10 +135,13 @@ class Portfolio:
     def active_spot_asset(self) -> str | None:
         btc_active = self.btc_balance > _BALANCE_EPSILON
         eth_active = self.eth_balance > _BALANCE_EPSILON
-        if btc_active and not eth_active:
+        spy_active = self.spy_balance > _BALANCE_EPSILON
+        if btc_active and not eth_active and not spy_active:
             return "BTC"
-        if eth_active and not btc_active:
+        if eth_active and not btc_active and not spy_active:
             return "ETH"
+        if spy_active and not btc_active and not eth_active:
+            return "SPY"
         return None
 
     @property
@@ -146,6 +151,8 @@ class Portfolio:
             return self._sanitize_balance(self.btc_balance)
         if active_asset == "ETH":
             return self._sanitize_balance(self.eth_balance)
+        if active_asset == "SPY":
+            return self._sanitize_balance(self.spy_balance)
         return 0.0
 
     def total_value(self, price: float | Mapping[str, float]) -> float:
@@ -388,7 +395,7 @@ class Portfolio:
                 "Only spot<->stable transfers are supported in legacy mode; "
                 f"use btc/eth asset buckets when needed, got {bucket}"
             )
-        if normalized in {"stable", "btc", "eth"}:
+        if normalized in {"stable", "btc", "eth", "spy"}:
             return normalized
         if not for_source:
             return self.default_spot_asset.lower()

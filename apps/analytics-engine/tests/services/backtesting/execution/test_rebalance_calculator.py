@@ -1,4 +1,4 @@
-"""Tests for two-bucket rebalance calculations."""
+"""Tests for canonical five-bucket rebalance calculations."""
 
 from __future__ import annotations
 
@@ -14,28 +14,54 @@ class TestCalculateDeltas:
     def test_basic_delta_calculation(self) -> None:
         result = RebalanceCalculator.calculate_deltas(
             total_value=10_000.0,
-            target_allocation={"spot": 0.6, "stable": 0.4},
-            current_values={"spot": 5_000.0, "stable": 5_000.0},
+            target_allocation={
+                "btc": 0.6,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.4,
+                "alt": 0.0,
+            },
+            current_values={
+                "btc": 5_000.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 5_000.0,
+                "alt": 0.0,
+            },
         )
-        assert result == {
-            "spot": pytest.approx(1_000.0),
-            "stable": pytest.approx(-1_000.0),
-        }
+        assert result["btc"] == pytest.approx(1_000.0)
+        assert result["stable"] == pytest.approx(-1_000.0)
+        assert result["eth"] == pytest.approx(0.0)
+        assert result["spy"] == pytest.approx(0.0)
+        assert result["alt"] == pytest.approx(0.0)
 
     def test_missing_current_values_default_to_zero(self) -> None:
         result = RebalanceCalculator.calculate_deltas(
             total_value=10_000.0,
-            target_allocation={"spot": 0.5, "stable": 0.5},
-            current_values={"spot": 5_000.0},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
+            current_values={"btc": 5_000.0},
         )
-        assert result == {"spot": pytest.approx(0.0), "stable": pytest.approx(5_000.0)}
+        assert result["btc"] == pytest.approx(0.0)
+        assert result["stable"] == pytest.approx(5_000.0)
 
 
 class TestCalculateDeltasFromContext:
     def test_extracts_values_from_context(self) -> None:
         mock_portfolio = Mock()
         mock_portfolio.total_value.return_value = 10_000.0
-        mock_portfolio.bucket_values.return_value = {"spot": 5_000.0, "stable": 5_000.0}
+        mock_portfolio.values_for_allocation_keys.return_value = {
+            "btc": 5_000.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 5_000.0,
+            "alt": 0.0,
+        }
 
         context = StrategyContext(
             date=Mock(),
@@ -47,12 +73,16 @@ class TestCalculateDeltasFromContext:
 
         result = RebalanceCalculator.calculate_deltas_from_context(
             context,
-            target_allocation={"spot": 0.6, "stable": 0.4},
+            target_allocation={
+                "btc": 0.6,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.4,
+                "alt": 0.0,
+            },
         )
-        assert result == {
-            "spot": pytest.approx(1_000.0),
-            "stable": pytest.approx(-1_000.0),
-        }
+        assert result["btc"] == pytest.approx(1_000.0)
+        assert result["stable"] == pytest.approx(-1_000.0)
 
 
 class TestCalculateCurrentAllocation:
@@ -94,32 +124,48 @@ class TestCalculateCurrentAllocationFromContext:
 class TestCalculateDrift:
     def test_basic_drift_calculation(self) -> None:
         result = RebalanceCalculator.calculate_drift(
-            current={"spot": 0.6, "stable": 0.4},
-            target={"spot": 0.5, "stable": 0.5},
+            current={
+                "btc": 0.6,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.4,
+                "alt": 0.0,
+            },
+            target={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
         assert result == pytest.approx(0.1)
 
     def test_missing_keys_are_normalized(self) -> None:
         result = RebalanceCalculator.calculate_drift(
-            current={"spot": 0.5},
-            target={"spot": 0.5, "stable": 0.5},
+            current={"btc": 0.5},
+            target={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
         assert result == pytest.approx(0.5)
 
 
 class TestNormalizeTargetAllocation:
-    def test_zero_total_with_stable_key(self) -> None:
+    def test_zero_total_falls_back_to_stable(self) -> None:
         result = RebalanceCalculator._normalize_target_allocation(
-            {"spot": 0.0, "stable": 0.0}
+            {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
         )
         assert result["stable"] == 1.0
-        assert result["spot"] == 0.0
+        assert result["btc"] == 0.0
 
-    def test_zero_total_without_stable_key(self) -> None:
-        result = RebalanceCalculator._normalize_target_allocation(
-            {"spot": 0.0, "lp": 0.0}
-        )
-        assert result == {"stable": 1.0}
+    def test_rejects_unsupported_keys(self) -> None:
+        with pytest.raises(ValueError, match="unsupported buckets"):
+            RebalanceCalculator._normalize_target_allocation({"lp": 0.5, "stable": 0.5})
 
 
 class TestCalculateDeltasFromContextNonDictValues:
@@ -139,12 +185,19 @@ class TestCalculateDeltasFromContextNonDictValues:
 
         result = RebalanceCalculator.calculate_deltas_from_context(
             context,
-            target_allocation={"spot": 0.5, "stable": 0.5},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
-        assert result == {
-            "spot": pytest.approx(0.0),
-            "stable": pytest.approx(0.0),
-        }
+        # Fallback bucket_values has 'spot'/'stable' keys, target is canonical;
+        # union covers both spaces and missing buckets default to 0.
+        assert result["btc"] == pytest.approx(5_000.0)
+        assert result["stable"] == pytest.approx(0.0)
+        assert result["spot"] == pytest.approx(-5_000.0)
 
     def test_no_values_for_keys_falls_back_to_bucket_values(self) -> None:
         mock_portfolio = Mock(spec=[])
@@ -163,12 +216,17 @@ class TestCalculateDeltasFromContextNonDictValues:
 
         result = RebalanceCalculator.calculate_deltas_from_context(
             context,
-            target_allocation={"spot": 0.5, "stable": 0.5},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
-        assert result == {
-            "spot": pytest.approx(0.0),
-            "stable": pytest.approx(0.0),
-        }
+        assert result["btc"] == pytest.approx(5_000.0)
+        assert result["stable"] == pytest.approx(0.0)
+        assert result["spot"] == pytest.approx(-5_000.0)
 
 
 class TestCurrentAllocationFromContextEdgeCases:
@@ -227,7 +285,13 @@ class TestCurrentAllocationFromContextEdgeCases:
 
         result = RebalanceCalculator.calculate_current_allocation_from_context(
             context,
-            target_allocation={"spot": 0.5, "stable": 0.5},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
         assert result["spot"] == pytest.approx(0.5)
         assert result["stable"] == pytest.approx(0.5)
@@ -249,7 +313,13 @@ class TestCurrentAllocationFromContextEdgeCases:
 
         result = RebalanceCalculator.calculate_current_allocation_from_context(
             context,
-            target_allocation={"spot": 0.5, "stable": 0.5},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
         )
         assert result["spot"] == pytest.approx(0.5)
         assert result["stable"] == pytest.approx(0.5)

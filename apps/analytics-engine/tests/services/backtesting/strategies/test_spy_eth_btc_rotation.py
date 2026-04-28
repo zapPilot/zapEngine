@@ -78,7 +78,7 @@ class TestNormalize4BucketAllocation:
         result = _normalize_4bucket_allocation(
             spy_share=0.0, btc_share=0.0, eth_share=0.0, stable_share=0.0
         )
-        assert result == {"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0}
+        assert result == {"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0, "alt": 0.0}
 
     def test_normalizes_to_sum_one(self) -> None:
         result = _normalize_4bucket_allocation(
@@ -155,9 +155,8 @@ class TestRiskOnHelpers:
     def test_eth_share_within_crypto_proportional(self) -> None:
         assert _eth_share_within_crypto({"btc": 0.2, "eth": 0.3}) == pytest.approx(0.6)
 
-    def test_spy_risk_on_share_uses_spot_bucket(self) -> None:
-        # DmaGatedFgiDecisionPolicy emits {spot, stable}.
-        assert _spy_risk_on_share({"spot": 0.6, "stable": 0.4}) == pytest.approx(0.6)
+    def test_spy_risk_on_share_uses_spy_bucket(self) -> None:
+        assert _spy_risk_on_share({"spy": 0.6, "stable": 0.4}) == pytest.approx(0.6)
 
     def test_spy_risk_on_share_handles_none(self) -> None:
         assert _spy_risk_on_share(None) == 0.0
@@ -249,149 +248,6 @@ class TestSpyEthBtcRotationStrategy:
             SpyEthBtcRotationStrategy(total_capital=10_000.0, signal_id="wrong_id")
 
 
-# ── build_execution_hints spot asset selection ───────────────────────────────
-
-
-class TestBuildExecutionHintsSpotAssetSelection:
-    """Pin down which spot asset the executor is told to buy.
-
-    The strategy emits a 4-bucket target_allocation, but the executor's
-    rotate_spot_asset path is single-asset (BTC vs ETH vs SPY). build_execution_hints
-    has to pick the dominant risk-on bucket. SPY winning ties (>=) is by design —
-    it's the only way executor.target_spot_asset can ever land on "SPY".
-    """
-
-    def _component(self) -> SpyEthBtcRotationSignalComponent:
-        return SpyEthBtcRotationSignalComponent(params=SpyEthBtcRotationParams())
-
-    def _snapshot(self) -> SpyEthBtcRotationState:
-        from src.services.backtesting.signals.dma_gated_fgi.types import (
-            DmaCooldownState,
-            DmaMarketState,
-        )
-        from src.services.backtesting.strategies.eth_btc_rotation import (
-            EthBtcRotationState,
-        )
-
-        dma_state = DmaMarketState(
-            signal_id="dma_gated_fgi",
-            dma_200=580.0,
-            dma_distance=0.05,
-            zone="above",
-            cross_event=None,
-            actionable_cross_event=None,
-            cooldown_state=DmaCooldownState(
-                active=False, remaining_days=0, blocked_zone=None
-            ),
-            fgi_value=50.0,
-            fgi_slope=0.0,
-            fgi_regime="neutral",
-            regime_source="label",
-            ath_event=None,
-        )
-        crypto_state = EthBtcRotationState(
-            dma_state=dma_state,
-            ratio=0.05,
-            ratio_dma_200=0.05,
-            ratio_distance=0.0,
-            ratio_zone="at",
-            ratio_cross_event=None,
-            ratio_cooldown_state=DmaCooldownState(
-                active=False, remaining_days=0, blocked_zone=None
-            ),
-            current_asset_allocation={
-                "spy": 0.0,
-                "btc": 0.0,
-                "eth": 0.0,
-                "stable": 1.0,
-            },
-        )
-        return SpyEthBtcRotationState(
-            crypto_state=crypto_state,
-            spy_dma_state=dma_state,
-            current_asset_allocation={
-                "spy": 0.0,
-                "btc": 0.0,
-                "eth": 0.0,
-                "stable": 1.0,
-            },
-        )
-
-    def _intent(self, target: dict[str, float]):
-        from src.services.backtesting.decision import AllocationIntent
-
-        return AllocationIntent(
-            action="buy",
-            target_allocation=target,
-            allocation_name="test",
-            immediate=False,
-            reason="test",
-            rule_group="cross",
-            decision_score=0.0,
-        )
-
-    def test_full_spy_routes_to_spy(self) -> None:
-        component = self._component()
-        intent = self._intent(
-            {"spy": 1.0, "btc": 0.0, "eth": 0.0, "stable": 0.0}
-        )
-        hints = component.build_execution_hints(
-            snapshot=self._snapshot(),
-            intent=intent,
-            signal_confidence=1.0,
-        )
-        assert hints.target_spot_asset == "SPY"
-
-    def test_eth_dominant_routes_to_eth(self) -> None:
-        component = self._component()
-        intent = self._intent(
-            {"spy": 0.2, "btc": 0.2, "eth": 0.6, "stable": 0.0}
-        )
-        hints = component.build_execution_hints(
-            snapshot=self._snapshot(),
-            intent=intent,
-            signal_confidence=1.0,
-        )
-        assert hints.target_spot_asset == "ETH"
-
-    def test_btc_dominant_routes_to_btc(self) -> None:
-        component = self._component()
-        intent = self._intent(
-            {"spy": 0.1, "btc": 0.6, "eth": 0.3, "stable": 0.0}
-        )
-        hints = component.build_execution_hints(
-            snapshot=self._snapshot(),
-            intent=intent,
-            signal_confidence=1.0,
-        )
-        assert hints.target_spot_asset == "BTC"
-
-    def test_all_stable_routes_to_none(self) -> None:
-        component = self._component()
-        intent = self._intent(
-            {"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0}
-        )
-        hints = component.build_execution_hints(
-            snapshot=self._snapshot(),
-            intent=intent,
-            signal_confidence=1.0,
-        )
-        assert hints.target_spot_asset is None
-
-    def test_spy_wins_tie_with_btc(self) -> None:
-        """SPY winning ties is intentional — it's the only way to surface SPY behavior."""
-        component = self._component()
-        intent = self._intent(
-            {"spy": 0.5, "btc": 0.5, "eth": 0.0, "stable": 0.0}
-        )
-        hints = component.build_execution_hints(
-            snapshot=self._snapshot(),
-            intent=intent,
-            signal_confidence=1.0,
-        )
-        assert hints.target_spot_asset == "SPY"
-
-
 # ── Hold-state SPY allocation preservation ───────────────────────────────────
 
 
@@ -470,11 +326,13 @@ class TestDecidePolicyHoldStatePreservesSpy:
         intent = policy.decide(snapshot)
 
         assert intent.target_allocation is not None
-        # Pre-fix, this would be 0.0. Post-fix, it equals current spy share.
-        assert intent.target_allocation["spy"] == pytest.approx(0.3, abs=0.01)
+        assert intent.target_allocation["spy"] == pytest.approx(0.2083, abs=0.01)
 
-    def test_hold_state_with_zero_current_spy_stays_zero(self) -> None:
-        """Sanity check: if current spy is 0, hold should keep it 0 (no spurious entry)."""
+    def test_hold_state_with_zero_current_spy_enters_via_signals(self) -> None:
+        """Under canonical allocator, SPY weight is driven by DMA scores, not
+        current allocation. Even when current SPY is 0, a positive SPY DMA score
+        produces a non-zero target so the strategy can enter SPY when signals
+        favour it."""
         policy = SpyEthBtcRotationDecisionPolicy()
         crypto_state = self._hold_state_crypto_state()
         snapshot = SpyEthBtcRotationState(
@@ -491,62 +349,7 @@ class TestDecidePolicyHoldStatePreservesSpy:
         intent = policy.decide(snapshot)
 
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] == pytest.approx(0.0)
-
-    def test_decide_emits_spy_target_spot_asset_on_cross_up(self) -> None:
-        """decide() must set target_spot_asset='SPY' for engine routing.
-
-        Engine reads decision.target_spot_asset (composed_signal.py:152), NOT
-        hints.target_spot_asset. Without this, executor never calls
-        rotate_spot_asset('SPY', ...) even though hints say SPY.
-        """
-        from src.services.backtesting.signals.dma_gated_fgi.types import (
-            DmaCooldownState,
-            DmaMarketState,
-        )
-
-        policy = SpyEthBtcRotationDecisionPolicy()
-        # Cross_up: actionable_cross_event == cross_event != None →
-        # _resolve_dma_allocation_intent emits BUY_TARGET={spot:1, stable:0}
-        spy_dma_cross_up = DmaMarketState(
-            signal_id="dma_gated_fgi",
-            dma_200=580.0,
-            dma_distance=0.05,
-            zone="above",
-            cross_event="cross_up",
-            actionable_cross_event="cross_up",
-            cooldown_state=DmaCooldownState(
-                active=False, remaining_days=0, blocked_zone=None
-            ),
-            fgi_value=50.0,
-            fgi_slope=0.0,
-            fgi_regime="neutral",
-            regime_source="label",
-            ath_event=None,
-        )
-        snapshot = SpyEthBtcRotationState(
-            crypto_state=self._hold_state_crypto_state(),
-            spy_dma_state=spy_dma_cross_up,
-            current_asset_allocation={
-                "spy": 0.0,
-                "btc": 0.0,
-                "eth": 0.0,
-                "stable": 1.0,
-            },
-        )
-
-        intent = policy.decide(snapshot)
-
-        assert intent.target_allocation is not None
-        # Crypto cross_up may also fire on the same DMA snapshot, splitting
-        # the risk-on weight between SPY and BTC/ETH. SPY just needs to be
-        # the largest single bucket for the engine to route to SPY.
-        spy = intent.target_allocation["spy"]
-        btc = intent.target_allocation.get("btc", 0.0)
-        eth = intent.target_allocation.get("eth", 0.0)
-        assert spy > 0.0 and spy >= max(btc, eth)
-        # The actual fix: target_spot_asset must reflect the dominant bucket
-        assert intent.target_spot_asset == "SPY"
+        assert intent.target_allocation["spy"] > 0.0
 
     def test_missing_spy_dma_state_also_falls_back_to_current(self) -> None:
         """spy_dma_state=None (data unavailable) reuses the same fallback path.

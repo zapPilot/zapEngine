@@ -18,6 +18,7 @@ from src.models.backtesting import (
     AssetAllocation,
     MarketSnapshot,
     SignalState,
+    TargetAllocation,
 )
 from src.models.strategy import (
     DailySuggestionActionState,
@@ -170,8 +171,7 @@ def _daily_response() -> DailySuggestionResponse:
                 },
             ),
             target=DailySuggestionTargetState(
-                allocation=Allocation(spot=0.0, stable=1.0),
-                asset_allocation=AssetAllocation(
+                allocation=TargetAllocation(
                     btc=0.0,
                     eth=0.0,
                     spy=0.0,
@@ -428,7 +428,7 @@ async def test_get_daily_suggestion_returns_shared_snapshot_shape(
     assert parsed.context.signal.id == "dma_gated_fgi"
     assert parsed.context.signal.details["ath_event"] == "token_ath"
     assert parsed.context.strategy.reason_code == "above_greed_sell"
-    assert parsed.context.target.asset_allocation.stable == pytest.approx(1.0)
+    assert parsed.context.target.allocation.stable == pytest.approx(1.0)
     assert parsed.context.portfolio.total_value == pytest.approx(10_000.0)
     assert parsed.context.portfolio.total_assets_usd == pytest.approx(10_000.0)
     assert parsed.context.portfolio.total_debt_usd == pytest.approx(2_000.0)

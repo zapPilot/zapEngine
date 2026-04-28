@@ -110,7 +110,13 @@ class MockDecisionPolicy:
         del snapshot
         return AllocationIntent(
             action="hold",
-            target_allocation={"spot": 0.5, "stable": 0.5},
+            target_allocation={
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
             allocation_name="balanced",
             immediate=False,
             reason="mock family hold",

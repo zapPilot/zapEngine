@@ -233,4 +233,4 @@ def test_strategy_on_day_emits_snapshot_and_execution_from_direct_runtime() -> N
     assert action.snapshot.execution.event == "rebalance"
     assert action.transfers is not None
     assert action.transfers[0].from_bucket == "stable"
-    assert action.transfers[0].to_bucket == "spot"
+    assert action.transfers[0].to_bucket == "btc"

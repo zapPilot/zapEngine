@@ -46,6 +46,7 @@ from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiParams,
     DmaGatedFgiSignalComponent,
 )
+from src.services.backtesting.target_allocation import normalize_target_allocation
 from src.services.backtesting.utils import coerce_float, coerce_int, coerce_params
 
 ETH_BTC_ROTATION_PUBLIC_PARAM_KEYS = frozenset(
@@ -84,14 +85,18 @@ def _coerce_optional_float(value: Any) -> float | None:
 def _normalize_asset_allocation(raw: Mapping[str, float]) -> dict[str, float]:
     btc = max(0.0, float(raw.get("btc", 0.0)))
     eth = max(0.0, float(raw.get("eth", 0.0)))
-    stable = max(0.0, float(raw.get("stable", 0.0)))
+    stable = max(0.0, float(raw.get("stable", 0.0))) + max(
+        0.0, float(raw.get("alt", 0.0))
+    )
     total = btc + eth + stable
     if total <= 0.0:
-        return {"btc": 0.0, "eth": 0.0, "stable": 1.0}
+        return normalize_target_allocation(None)
     normalized = {
         "btc": btc / total,
         "eth": eth / total,
+        "spy": 0.0,
         "stable": stable / total,
+        "alt": 0.0,
     }
     for bucket, value in tuple(normalized.items()):
         if abs(value) < 1e-12:
@@ -101,7 +106,9 @@ def _normalize_asset_allocation(raw: Mapping[str, float]) -> dict[str, float]:
         return {
             "btc": 1.0 if dominant == "btc" else 0.0,
             "eth": 1.0 if dominant == "eth" else 0.0,
+            "spy": 0.0,
             "stable": 1.0 if dominant == "stable" else 0.0,
+            "alt": 0.0,
         }
     total = sum(normalized.values())
     return {bucket: value / total for bucket, value in normalized.items()}
@@ -128,11 +135,13 @@ def _compose_asset_target(
     stable = max(0.0, min(1.0, float(stable_share)))
     risk_on = max(0.0, 1.0 - stable)
     eth_share = max(0.0, min(1.0, float(eth_share_in_risk_on)))
-    return _normalize_asset_allocation(
+    return normalize_target_allocation(
         {
             "btc": risk_on * (1.0 - eth_share),
             "eth": risk_on * eth_share,
+            "spy": 0.0,
             "stable": stable,
+            "alt": 0.0,
         }
     )
 
@@ -473,7 +482,6 @@ class EthBtcRelativeStrengthSignalComponent(StatefulSignalComponent):
         return replace(
             hints,
             signal_id=self.signal_id,
-            target_spot_asset=None,
         )
 
     def _should_start_ratio_cooldown(
