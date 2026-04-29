@@ -224,12 +224,11 @@ describe('TelegramService', () => {
             spot_usd: 5000,
             stable_usd: 5000,
             total_value: 10000,
-            allocation: { spot: 0.5, stable: 0.5 },
-            asset_allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
+            allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
           },
-        target: {
-          allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
-        },
+          target: {
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+          },
           strategy: {
             stance: 'hold',
             reason_code: 'already_aligned',
@@ -292,11 +291,10 @@ describe('TelegramService', () => {
             spot_usd: 7000,
             stable_usd: 3000,
             total_value: 10000,
-            allocation: { spot: 0.7, stable: 0.3 },
+            allocation: { btc: 0.6, eth: 0.1, spy: 0, stable: 0.3, alt: 0 },
             total_assets_usd: 10000,
             total_debt_usd: 2000,
             total_net_usd: 8000,
-            asset_allocation: { btc: 0.6, eth: 0.1, spy: 0, stable: 0.3, alt: 0 },
           },
           target: {
             allocation: { btc: 0, eth: 1, spy: 0, stable: 0, alt: 0 },
@@ -750,45 +748,6 @@ describe('TelegramService', () => {
       });
     }
 
-    const baseData = {
-      as_of: '2025-01-01',
-      config_id: 'test',
-      config_display_name: 'Test Config',
-      strategy_id: 'strat-1',
-      context: {
-        market: {
-          date: '2025-01-01',
-          token_price: { btc: 100000, eth: 4000 },
-          sentiment: null,
-          sentiment_label: null,
-        },
-        signal: {
-          id: 'signal',
-          regime: 'bull_market',
-          raw_value: null,
-          confidence: 1,
-          details: {},
-        },
-          portfolio: {
-            spot_usd: 30000,
-            stable_usd: 20000,
-            total_value: 50000,
-            allocation: { spot: 0.6, stable: 0.4 },
-            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
-          },
-          target: {
-            allocation: { spot: 0.6, stable: 0.4 },
-            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
-        },
-        strategy: {
-          stance: 'hold',
-          reason_code: 'above_greed_sell',
-          rule_group: 'none',
-          details: {},
-        },
-      },
-    } as const;
-
     it('sends a "blocked" status message', async () => {
       const { service, dbMock } = createMocks();
       mockChatId(dbMock);
@@ -815,8 +774,7 @@ describe('TelegramService', () => {
             spot_usd: 30000,
             stable_usd: 20000,
             total_value: 50000,
-            allocation: { spot: 0.6, stable: 0.4 },
-            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
           },
           target: {
             allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
@@ -870,8 +828,7 @@ describe('TelegramService', () => {
             spot_usd: 30000,
             stable_usd: 20000,
             total_value: 50000,
-            allocation: { spot: 0.6, stable: 0.4 },
-            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
           },
           target: {
             allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
@@ -930,8 +887,7 @@ describe('TelegramService', () => {
             spot_usd: 30000,
             stable_usd: 20000,
             total_value: 50000,
-            allocation: { spot: 0.6, stable: 0.4 },
-            asset_allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
+            allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
           },
           target: {
             allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },

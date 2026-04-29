@@ -290,7 +290,7 @@ export function RebalancePanel({ userId }: { userId: string }) {
         }
         impactVisual={
           <ImpactVisual
-            currentAllocation={data.context.portfolio.asset_allocation}
+            currentAllocation={data.context.portfolio.allocation}
             targetAllocation={data.context.target.allocation}
           />
         }

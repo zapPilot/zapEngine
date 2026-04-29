@@ -109,10 +109,6 @@ export function BacktestTooltip(props: BacktestTooltipProps) {
               key={block.id}
               displayName={block.displayName}
               allocation={block.allocation}
-              assetAllocation={block.assetAllocation}
-              {...(block.spotAssetLabel
-                ? { spotAssetLabel: block.spotAssetLabel }
-                : {})}
               strategyId={block.id}
               index={block.index}
             />

@@ -7,12 +7,12 @@ import {
 
 describe('regimeDisplay', () => {
   describe('REGIME_DISPLAY_CONFIG', () => {
-    it('has entries for all five regime labels', () => {
-      expect(REGIME_DISPLAY_CONFIG.extreme_fear.label).toBe('Extreme Fear');
-      expect(REGIME_DISPLAY_CONFIG.fear.label).toBe('Fear');
-      expect(REGIME_DISPLAY_CONFIG.neutral.label).toBe('Neutral');
-      expect(REGIME_DISPLAY_CONFIG.greed.label).toBe('Greed');
-      expect(REGIME_DISPLAY_CONFIG.extreme_greed.label).toBe('Extreme Greed');
+    it('has entries for all five regime ids', () => {
+      expect(REGIME_DISPLAY_CONFIG.ef.label).toBe('Extreme Fear');
+      expect(REGIME_DISPLAY_CONFIG.f.label).toBe('Fear');
+      expect(REGIME_DISPLAY_CONFIG.n.label).toBe('Neutral');
+      expect(REGIME_DISPLAY_CONFIG.g.label).toBe('Greed');
+      expect(REGIME_DISPLAY_CONFIG.eg.label).toBe('Extreme Greed');
     });
   });
 

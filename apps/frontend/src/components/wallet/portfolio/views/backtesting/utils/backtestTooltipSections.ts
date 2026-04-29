@@ -43,15 +43,11 @@ function buildAllocationBlock(
     return null;
   }
 
-  const spotAssetLabel = resolveBacktestSpotAsset(strategy);
-
   return {
     id: strategyId,
     displayName: getStrategyDisplayName(strategyId),
     allocation,
-    assetAllocation: strategy.portfolio.asset_allocation,
     index: sortedStrategyIds?.indexOf(strategyId),
-    ...(spotAssetLabel ? { spotAssetLabel } : {}),
   };
 }
 

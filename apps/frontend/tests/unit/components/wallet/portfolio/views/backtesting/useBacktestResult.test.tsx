@@ -15,8 +15,11 @@ function createResponse() {
         roi_percent: 0,
         trade_count: 0,
         final_allocation: {
-          spot: 0.5,
+          btc: 0.5,
+          eth: 0,
+          spy: 0,
           stable: 0.5,
+          alt: 0,
         },
         parameters: {},
       },
@@ -29,8 +32,11 @@ function createResponse() {
         roi_percent: 5,
         trade_count: 1,
         final_allocation: {
-          spot: 0.8,
+          btc: 0.8,
+          eth: 0,
+          spy: 0,
           stable: 0.2,
+          alt: 0,
         },
         parameters: {},
       },
@@ -51,8 +57,11 @@ function createResponse() {
               total_value: 10000,
               spot_asset: 'BTC',
               allocation: {
-                spot: 0.5,
+                btc: 0.5,
+                eth: 0,
+                spy: 0,
                 stable: 0.5,
+                alt: 0,
               },
             },
             signal: null,
@@ -61,8 +70,11 @@ function createResponse() {
               reason: 'baseline_dca',
               rule_group: 'none' as const,
               target_allocation: {
-                spot: 0.5,
+                btc: 0.5,
+                eth: 0,
+                spy: 0,
                 stable: 0.5,
+                alt: 0,
               },
               immediate: false,
             },
@@ -82,8 +94,11 @@ function createResponse() {
               total_value: 10000,
               spot_asset: 'BTC',
               allocation: {
-                spot: 0.5,
+                btc: 0.5,
+                eth: 0,
+                spy: 0,
                 stable: 0.5,
+                alt: 0,
               },
             },
             signal: {
@@ -109,8 +124,11 @@ function createResponse() {
               reason: 'take_profit',
               rule_group: 'dma_fgi' as const,
               target_allocation: {
-                spot: 0.4,
+                btc: 0.4,
+                eth: 0,
+                spy: 0,
                 stable: 0.6,
+                alt: 0,
               },
               immediate: false,
             },
@@ -146,8 +164,11 @@ function createResponse() {
               total_value: 10200,
               spot_asset: 'BTC',
               allocation: {
-                spot: 0.5,
+                btc: 0.5,
+                eth: 0,
+                spy: 0,
                 stable: 0.5,
+                alt: 0,
               },
             },
             signal: null,
@@ -156,8 +177,11 @@ function createResponse() {
               reason: 'baseline_dca',
               rule_group: 'none' as const,
               target_allocation: {
-                spot: 0.5,
+                btc: 0.5,
+                eth: 0,
+                spy: 0,
                 stable: 0.5,
+                alt: 0,
               },
               immediate: false,
             },
@@ -177,8 +201,11 @@ function createResponse() {
               total_value: 10500,
               spot_asset: 'BTC',
               allocation: {
-                spot: 0.8,
+                btc: 0.8,
+                eth: 0,
+                spy: 0,
                 stable: 0.2,
+                alt: 0,
               },
             },
             signal: {
@@ -204,8 +231,11 @@ function createResponse() {
               reason: 'wait',
               rule_group: 'none' as const,
               target_allocation: {
-                spot: 0.8,
+                btc: 0.8,
+                eth: 0,
+                spy: 0,
                 stable: 0.2,
+                alt: 0,
               },
               immediate: false,
             },
@@ -304,7 +334,7 @@ describe('useBacktestResult', () => {
     expect(min).toBeLessThanOrEqual(max);
   });
 
-  it('adds switch markers and resets them across stable-only gaps', () => {
+  it('does not synthesize switch markers from spot asset metadata changes', () => {
     const response = {
       strategies: {
         eth_btc_rotation_default: {
@@ -316,8 +346,11 @@ describe('useBacktestResult', () => {
           roi_percent: 4,
           trade_count: 2,
           final_allocation: {
-            spot: 0.8,
+            btc: 0.8,
+            eth: 0,
+            spy: 0,
             stable: 0.2,
+            alt: 0,
           },
           parameters: {},
         },
@@ -337,14 +370,20 @@ describe('useBacktestResult', () => {
                 stable_usd: 2000,
                 total_value: 10000,
                 spot_asset: 'BTC',
-                allocation: { spot: 0.8, stable: 0.2 },
+                allocation: { btc: 0.8, eth: 0, spy: 0, stable: 0.2, alt: 0 },
               },
               signal: { id: 'eth_btc_rs_signal' },
               decision: {
                 action: 'hold',
                 reason: 'btc',
                 rule_group: 'none',
-                target_allocation: { spot: 0.8, stable: 0.2 },
+                target_allocation: {
+                  btc: 0.8,
+                  eth: 0,
+                  spy: 0,
+                  stable: 0.2,
+                  alt: 0,
+                },
                 immediate: false,
                 details: { target_spot_asset: 'BTC' },
               },
@@ -373,14 +412,20 @@ describe('useBacktestResult', () => {
                 stable_usd: 2100,
                 total_value: 10200,
                 spot_asset: 'ETH',
-                allocation: { spot: 0.8, stable: 0.2 },
+                allocation: { btc: 0, eth: 0.8, spy: 0, stable: 0.2, alt: 0 },
               },
               signal: { id: 'eth_btc_rs_signal' },
               decision: {
                 action: 'hold',
                 reason: 'eth',
                 rule_group: 'none',
-                target_allocation: { spot: 0.8, stable: 0.2 },
+                target_allocation: {
+                  btc: 0,
+                  eth: 0.8,
+                  spy: 0,
+                  stable: 0.2,
+                  alt: 0,
+                },
                 immediate: false,
                 details: { target_spot_asset: 'ETH' },
               },
@@ -409,14 +454,20 @@ describe('useBacktestResult', () => {
                 stable_usd: 10200,
                 total_value: 10200,
                 spot_asset: null,
-                allocation: { spot: 0, stable: 1 },
+                allocation: { btc: 0, eth: 0, spy: 0, stable: 1, alt: 0 },
               },
               signal: { id: 'eth_btc_rs_signal' },
               decision: {
                 action: 'sell',
                 reason: 'stable',
                 rule_group: 'none',
-                target_allocation: { spot: 0, stable: 1 },
+                target_allocation: {
+                  btc: 0,
+                  eth: 0,
+                  spy: 0,
+                  stable: 1,
+                  alt: 0,
+                },
                 immediate: false,
                 details: { target_spot_asset: 'ETH' },
               },
@@ -445,14 +496,20 @@ describe('useBacktestResult', () => {
                 stable_usd: 2000,
                 total_value: 10200,
                 spot_asset: 'BTC',
-                allocation: { spot: 0.8, stable: 0.2 },
+                allocation: { btc: 0.8, eth: 0, spy: 0, stable: 0.2, alt: 0 },
               },
               signal: { id: 'eth_btc_rs_signal' },
               decision: {
                 action: 'buy',
                 reason: 'back_to_btc',
                 rule_group: 'none',
-                target_allocation: { spot: 0.8, stable: 0.2 },
+                target_allocation: {
+                  btc: 0.8,
+                  eth: 0,
+                  spy: 0,
+                  stable: 0.2,
+                  alt: 0,
+                },
                 immediate: false,
                 details: { target_spot_asset: 'BTC' },
               },
@@ -476,10 +533,8 @@ describe('useBacktestResult', () => {
     const fourth = result.current.chartData[3] as any;
 
     expect(first.switchToEthSignal).toBeNull();
-    expect(second.switchToEthSignal).toBe(10200);
-    expect(second.eventStrategies.switch_to_eth).toContain(
-      'eth btc rotation default',
-    );
+    expect(second.switchToEthSignal).toBeNull();
+    expect(second.eventStrategies.switch_to_eth).toEqual([]);
     expect(fourth.switchToBtcSignal).toBeNull();
   });
 });

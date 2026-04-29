@@ -10,6 +10,16 @@ export default createBackendVitestConfig({
   ],
   extraConfigs: [
     {
+      files: ['**/*.ts'],
+      languageOptions: {
+        parserOptions: {
+          projectService: false,
+          project: './tsconfig.eslint.json',
+          tsconfigRootDir: import.meta.dirname,
+        },
+      },
+    },
+    {
       files: ['tsconfig*.json'],
       rules: {
         '@typescript-eslint/no-unused-vars': 'off',

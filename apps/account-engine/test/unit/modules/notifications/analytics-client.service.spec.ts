@@ -39,12 +39,10 @@ describe('AnalyticsClientService', () => {
           spot_usd: 500,
           stable_usd: 500,
           total_value: 1000,
-          allocation: { spot: 0.5, stable: 0.5 },
-          asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+          allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
         },
         target: {
-          allocation: { spot: 0.5, stable: 0.5 },
-          asset_allocation: { btc: 0.5, eth: 0, stable: 0.5, alt: 0 },
+          allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
         },
         strategy: {
           stance: 'hold',
@@ -436,7 +434,7 @@ describe('AnalyticsClientService', () => {
         ...base,
         context: {
           ...base.context,
-          portfolio: { total_value: 'not-a-number', asset_allocation: {} },
+          portfolio: { total_value: 'not-a-number', allocation: {} },
         },
       });
       await expect(service.getDailySuggestion('user-1')).rejects.toThrow(

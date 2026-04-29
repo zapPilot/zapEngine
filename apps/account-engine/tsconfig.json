@@ -2,7 +2,7 @@
   "extends": "@zapengine/tsconfig/node.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,

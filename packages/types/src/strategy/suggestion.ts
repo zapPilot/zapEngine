@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
 import {
-  AssetAllocationSchema,
   PortfolioAllocationSchema,
   TargetAllocationSchema,
 } from './allocation.js';
@@ -19,7 +18,6 @@ export const DailySuggestionPortfolioSchema = z.object({
   stable_usd: z.number().nonnegative(),
   total_value: z.number().nonnegative(),
   allocation: PortfolioAllocationSchema,
-  asset_allocation: AssetAllocationSchema,
   spot_asset: BacktestSpotAssetSymbolSchema.nullable().optional(),
   total_assets_usd: z.number().nonnegative().optional(),
   total_debt_usd: z.number().nonnegative().optional(),

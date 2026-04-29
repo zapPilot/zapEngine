@@ -1,7 +1,5 @@
 import type {
-  BacktestAssetAllocation,
   BacktestPortfolioAllocation,
-  BacktestSpotAssetSymbol,
   BacktestStrategyPoint,
 } from '@/types/backtesting';
 
@@ -29,9 +27,7 @@ export interface AllocationBlock {
   id: string;
   displayName: string;
   allocation: BacktestPortfolioAllocation;
-  assetAllocation: BacktestAssetAllocation;
   index: number | undefined;
-  spotAssetLabel?: BacktestSpotAssetSymbol;
 }
 
 export interface DetailItem {

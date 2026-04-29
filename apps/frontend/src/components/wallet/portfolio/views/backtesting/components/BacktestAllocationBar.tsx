@@ -1,10 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { UnifiedAllocationBar } from '@/components/wallet/portfolio/components/allocation';
-import type {
-  BacktestAssetAllocation,
-  BacktestPortfolioAllocation,
-} from '@/types/backtesting';
+import type { BacktestPortfolioAllocation } from '@/types/backtesting';
 
 import { buildBacktestAllocationSegments } from '../backtestBuckets';
 import { getStrategyColor } from '../utils/strategyDisplay';
@@ -12,8 +9,6 @@ import { getStrategyColor } from '../utils/strategyDisplay';
 export interface BacktestAllocationBarProps {
   displayName: string;
   allocation: BacktestPortfolioAllocation;
-  assetAllocation?: BacktestAssetAllocation | null | undefined;
-  spotAssetLabel?: 'BTC' | 'ETH' | 'SPY';
   strategyId?: string;
   index?: number | undefined;
 }
@@ -27,16 +22,10 @@ export interface BacktestAllocationBarProps {
 export function BacktestAllocationBar({
   displayName,
   allocation,
-  assetAllocation,
-  spotAssetLabel,
   strategyId,
   index,
 }: BacktestAllocationBarProps): ReactElement | null {
-  const segments = buildBacktestAllocationSegments(
-    allocation,
-    spotAssetLabel,
-    assetAllocation,
-  );
+  const segments = buildBacktestAllocationSegments(allocation);
 
   if (segments.length === 0) {
     return null;

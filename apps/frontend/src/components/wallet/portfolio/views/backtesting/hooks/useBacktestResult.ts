@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 
-import type {
-  BacktestResponse,
-  BacktestSpotAssetSymbol,
-} from '@/types/backtesting';
+import type { BacktestResponse } from '@/types/backtesting';
 
 import {
   buildChartPoint,
@@ -44,9 +41,8 @@ export function useBacktestResult(
       return [];
     }
 
-    const spotAssetTracker: Record<string, BacktestSpotAssetSymbol | null> = {};
     return response.timeline.map((point) =>
-      buildChartPoint(point, sortedStrategyIds, spotAssetTracker),
+      buildChartPoint(point, sortedStrategyIds),
     );
   }, [response, sortedStrategyIds]);
 

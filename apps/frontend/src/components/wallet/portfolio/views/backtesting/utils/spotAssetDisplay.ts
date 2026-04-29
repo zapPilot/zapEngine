@@ -59,9 +59,9 @@ type SpotAssetStrategyLike = Pick<
 /**
  * Resolves the current spot asset for a backtesting strategy point.
  *
- * Uses `portfolio.spot_asset` as the canonical source and falls back to the
- * legacy decision metadata during backend rollout. Stable-only points return
- * `null` because they do not currently hold a spot asset.
+ * Uses `portfolio.spot_asset` as the explicit source and falls back to the
+ * dominant canonical allocation bucket. Stable-only points return `null`
+ * because they do not currently hold a spot asset.
  *
  * @param strategy - Strategy point to inspect.
  * @returns The current spot asset symbol or `null` when no spot exposure exists.
@@ -77,12 +77,28 @@ export function resolveBacktestSpotAsset(
     return null;
   }
 
-  if (strategy.portfolio.allocation.spot <= 0) {
+  const { allocation } = strategy.portfolio;
+  const tradeableShares: [BacktestSpotAssetSymbol, number][] = [
+    ['BTC', allocation.btc],
+    ['ETH', allocation.eth],
+    ['SPY', allocation.spy],
+  ];
+  const tradeableTotal = tradeableShares.reduce(
+    (total, [, value]) => total + value,
+    0,
+  );
+  if (tradeableTotal <= 0) {
     return null;
   }
 
-  return (
-    normalizeBacktestSpotAsset(strategy.portfolio.spot_asset) ??
-    normalizeBacktestSpotAsset(strategy.decision.details?.target_spot_asset)
+  const canonical = normalizeBacktestSpotAsset(strategy.portfolio.spot_asset);
+  if (canonical) {
+    return canonical;
+  }
+
+  const dominantAsset = tradeableShares.reduce(
+    (best, entry) => (entry[1] > best[1] ? entry : best),
+    ['BTC', 0] as [BacktestSpotAssetSymbol, number],
   );
+  return dominantAsset[1] > 0 ? dominantAsset[0] : null;
 }

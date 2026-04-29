@@ -1,15 +1,11 @@
 import type {
   BacktestBucket,
-  BacktestSpotAssetSymbol,
   BacktestTimelinePoint,
 } from '@/types/backtesting';
 
 import { getBacktestTransferDirection } from '../backtestBuckets';
 import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
-import {
-  getBacktestSpotAssetColor,
-  resolveBacktestSpotAsset,
-} from './spotAssetDisplay';
+import { getBacktestSpotAssetColor } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
 
 export type SignalKey =
@@ -85,7 +81,6 @@ interface SignalAccumulator {
 type BacktestStrategy = NonNullable<
   BacktestTimelinePoint['strategies'][string]
 >;
-type SpotAssetTracker = Record<string, BacktestSpotAssetSymbol | null>;
 
 function classifyTransfer(
   from: BacktestBucket,
@@ -174,44 +169,6 @@ function processStrategyTransfers(
 
       updateSignal(acc, signalKey, strategy.portfolio.total_value, displayName);
     }
-  });
-}
-
-function processStrategySpotSwitches(
-  point: BacktestTimelinePoint,
-  strategyIds: string[],
-  acc: SignalAccumulator,
-  spotAssetTracker: SpotAssetTracker | undefined,
-): void {
-  if (!spotAssetTracker) {
-    return;
-  }
-
-  forEachActiveStrategy(point, strategyIds, (strategyId, strategy) => {
-    const spotAllocation = strategy.portfolio.allocation.spot;
-    if (spotAllocation <= 0) {
-      spotAssetTracker[strategyId] = null;
-      return;
-    }
-
-    const currentSpotAsset = resolveBacktestSpotAsset(strategy);
-    if (!currentSpotAsset) {
-      return;
-    }
-
-    const previousSpotAsset = spotAssetTracker[strategyId];
-    if (previousSpotAsset && previousSpotAsset !== currentSpotAsset) {
-      const signalKey =
-        currentSpotAsset === 'ETH' ? 'switch_to_eth' : 'switch_to_btc';
-      updateSignal(
-        acc,
-        signalKey,
-        strategy.portfolio.total_value,
-        getStrategyDisplayName(strategyId),
-      );
-    }
-
-    spotAssetTracker[strategyId] = currentSpotAsset;
   });
 }
 
@@ -365,7 +322,6 @@ export function sortStrategyIds(ids: string[]): string[] {
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-  spotAssetTracker?: SpotAssetTracker,
 ): Record<string, unknown> {
   const data: Record<string, unknown> = {
     date: point.market.date,
@@ -388,7 +344,6 @@ export function buildChartPoint(
 
   const acc = createSignalAccumulator();
   processStrategyTransfers(point, strategyIds, acc);
-  processStrategySpotSwitches(point, strategyIds, acc, spotAssetTracker);
 
   for (const signal of CHART_SIGNALS) {
     data[signal.field] = acc[signal.field];

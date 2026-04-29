@@ -20,7 +20,14 @@ function makeMarket(
 function makeStrategyPoint(overrides: {
   spot?: number;
   stable?: number;
-  spotAsset?: 'BTC' | 'ETH' | null;
+  spotAsset?: 'BTC' | 'ETH' | 'SPY' | null;
+  allocation?: {
+    btc?: number;
+    eth?: number;
+    spy?: number;
+    stable?: number;
+    alt?: number;
+  };
   signal?: object | null;
   decision?: {
     action: string;
@@ -30,17 +37,33 @@ function makeStrategyPoint(overrides: {
   blocked_reason?: string | null;
   buy_gate?: { block_reason: string | null } | null;
 }) {
+  const spotUsd = overrides.spot ?? 5000;
+  const stableUsd = overrides.stable ?? 5000;
+  const totalValue = spotUsd + stableUsd;
+  const spotShare = totalValue > 0 ? spotUsd / totalValue : 0;
+  const stableShare = totalValue > 0 ? stableUsd / totalValue : 0;
+  const defaultAllocation = {
+    btc:
+      overrides.spotAsset === 'BTC' || overrides.spotAsset === undefined
+        ? spotShare
+        : 0,
+    eth: overrides.spotAsset === 'ETH' ? spotShare : 0,
+    spy: overrides.spotAsset === 'SPY' ? spotShare : 0,
+    stable: stableShare,
+    alt: 0,
+  };
+
   return {
     portfolio: {
-      spot_usd: overrides.spot ?? 5000,
-      stable_usd: overrides.stable ?? 5000,
-      total_value: (overrides.spot ?? 5000) + (overrides.stable ?? 5000),
+      spot_usd: spotUsd,
+      stable_usd: stableUsd,
+      total_value: totalValue,
       ...(overrides.spotAsset !== undefined && {
         spot_asset: overrides.spotAsset,
       }),
       allocation: {
-        spot: overrides.spot ?? 5000,
-        stable: overrides.stable ?? 5000,
+        ...defaultAllocation,
+        ...overrides.allocation,
       },
     },
     signal:
@@ -292,95 +315,7 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.allocations[0]?.index).toBeUndefined();
     });
 
-    it('prefers portfolio.spot_asset when it is present', () => {
-      const strategies = {
-        my_strategy: makeStrategyPoint({
-          spot: 1000,
-          stable: 1000,
-          spotAsset: 'ETH',
-          decision: {
-            action: 'hold',
-            reason: 'rotation',
-            details: {
-              target_spot_asset: 'btc',
-            },
-          },
-        }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strategy'],
-      });
-
-      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
-    });
-
-    it('falls back to target_spot_asset when portfolio.spot_asset is absent', () => {
-      const strategies = {
-        my_strategy: makeStrategyPoint({
-          spot: 1000,
-          stable: 1000,
-          decision: {
-            action: 'hold',
-            reason: 'rotation',
-            details: {
-              target_spot_asset: 'eth',
-            },
-          },
-        }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strategy'],
-      });
-
-      expect(result?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
-    });
-
-    it('updates the allocation label when portfolio.spot_asset flips and ignores stale decision metadata', () => {
-      const sortedStrategyIds = ['my_strategy'];
-
-      const btcResult = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket('2026-01-15'), {
-          my_strategy: makeStrategyPoint({
-            spot: 1000,
-            stable: 1000,
-            spotAsset: 'BTC',
-            decision: {
-              action: 'hold',
-              reason: 'rotation',
-              details: {
-                target_spot_asset: 'ETH',
-              },
-            },
-          }),
-        }),
-        sortedStrategyIds,
-      });
-
-      const ethResult = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket('2026-01-16'), {
-          my_strategy: makeStrategyPoint({
-            spot: 1000,
-            stable: 1000,
-            spotAsset: 'ETH',
-            decision: {
-              action: 'hold',
-              reason: 'rotation',
-              details: {
-                target_spot_asset: 'BTC',
-              },
-            },
-          }),
-        }),
-        sortedStrategyIds,
-      });
-
-      expect(btcResult?.sections.allocations[0]?.spotAssetLabel).toBe('BTC');
-      expect(ethResult?.sections.allocations[0]?.spotAssetLabel).toBe('ETH');
-    });
-
-    it('does not expose a spotAssetLabel for stable-only allocations', () => {
+    it('keeps stable-only allocations free of spot asset detail', () => {
       const strategies = {
         stable_only: makeStrategyPoint({
           spot: 0,
@@ -400,7 +335,8 @@ describe('buildBacktestTooltipData', () => {
         sortedStrategyIds: ['stable_only'],
       });
 
-      expect(result?.sections.allocations[0]?.spotAssetLabel).toBeUndefined();
+      const detailNames = (result?.sections.details ?? []).map((d) => d.name);
+      expect(detailNames).not.toContain('stable only spot asset');
     });
   });
 
@@ -680,6 +616,8 @@ describe('buildBacktestTooltipData', () => {
     it('adds only a decision detail when blocked_reason and buy_gate are null', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
+          spot: 0,
+          stable: 10000,
           signal: { id: 'dma_gated_fgi' },
           decision: { action: 'hold', reason: 'waiting' },
           blocked_reason: null,
@@ -747,7 +685,7 @@ describe('buildBacktestTooltipData', () => {
       );
     });
 
-    it('falls back to legacy target_spot_asset for spot asset details', () => {
+    it('uses canonical allocation instead of legacy target_spot_asset for spot asset details', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
@@ -772,8 +710,8 @@ describe('buildBacktestTooltipData', () => {
         expect.arrayContaining([
           {
             name: 'my strat spot asset',
-            value: 'ETH',
-            color: '#627EEA',
+            value: 'BTC',
+            color: '#F7931A',
           },
         ]),
       );

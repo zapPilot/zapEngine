@@ -394,10 +394,6 @@ export class AnalyticsClientService {
                   'context["portfolio"]["total_net_usd"]',
                 ),
               }),
-          asset_allocation: this.getNumericRecord(
-            portfolio['asset_allocation'],
-            'context["portfolio"]["asset_allocation"]',
-          ),
           ...(typeof portfolio['spot_asset'] === 'string' ||
           portfolio['spot_asset'] === null
             ? { spot_asset: portfolio['spot_asset'] ?? null }
@@ -407,10 +403,6 @@ export class AnalyticsClientService {
           allocation: this.getNumericRecord(
             target['allocation'],
             'context["target"]["allocation"]',
-          ),
-          asset_allocation: this.getNumericRecord(
-            target['asset_allocation'],
-            'context["target"]["asset_allocation"]',
           ),
         },
         strategy: {

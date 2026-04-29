@@ -10,15 +10,36 @@ function makeStrategy(overrides: {
   stable?: number;
   spotAsset?: unknown;
   targetSpotAsset?: unknown;
+  allocation?: {
+    btc?: number;
+    eth?: number;
+    spy?: number;
+    stable?: number;
+    alt?: number;
+  };
 }) {
+  const spotUsd = overrides.spot ?? 5000;
+  const stableUsd = overrides.stable ?? 5000;
+  const totalValue = spotUsd + stableUsd;
+  const spotShare = totalValue > 0 ? spotUsd / totalValue : 0;
+  const stableShare = totalValue > 0 ? stableUsd / totalValue : 0;
+  const normalizedSpotAsset =
+    typeof overrides.spotAsset === 'string'
+      ? overrides.spotAsset.trim().toUpperCase()
+      : null;
+
   return {
     portfolio: {
-      spot_usd: overrides.spot ?? 5000,
-      stable_usd: overrides.stable ?? 5000,
-      total_value: (overrides.spot ?? 5000) + (overrides.stable ?? 5000),
+      spot_usd: spotUsd,
+      stable_usd: stableUsd,
+      total_value: totalValue,
       allocation: {
-        spot: overrides.spot ?? 5000,
-        stable: overrides.stable ?? 5000,
+        btc: normalizedSpotAsset === 'BTC' ? spotShare : 0,
+        eth: normalizedSpotAsset === 'ETH' ? spotShare : 0,
+        spy: normalizedSpotAsset === 'SPY' ? spotShare : 0,
+        stable: stableShare,
+        alt: 0,
+        ...overrides.allocation,
       },
       ...(overrides.spotAsset !== undefined
         ? { spot_asset: overrides.spotAsset }
@@ -70,8 +91,12 @@ describe('resolveBacktestSpotAsset', () => {
     expect(resolveBacktestSpotAsset(strategy as any)).toBe('ETH');
   });
 
-  it('falls back to decision.details.target_spot_asset when portfolio.spot_asset is absent', () => {
-    const strategy = makeStrategy({ spot: 5000, targetSpotAsset: 'btc' });
+  it('falls back to the dominant canonical allocation when portfolio.spot_asset is absent', () => {
+    const strategy = makeStrategy({
+      spot: 5000,
+      targetSpotAsset: 'eth',
+      allocation: { btc: 0.5, stable: 0.5 },
+    });
     expect(resolveBacktestSpotAsset(strategy as any)).toBe('BTC');
   });
 

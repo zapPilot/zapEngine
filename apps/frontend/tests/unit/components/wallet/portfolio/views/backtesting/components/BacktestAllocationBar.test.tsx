@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BacktestAllocationBar } from '@/components/wallet/portfolio/views/backtesting/components/BacktestAllocationBar';
-import { getBacktestSpotAssetColor } from '@/components/wallet/portfolio/views/backtesting/utils/spotAssetDisplay';
 import { getStrategyColor } from '@/components/wallet/portfolio/views/backtesting/utils/strategyDisplay';
 
 import { render, screen } from '../../../../../../../test-utils';
@@ -58,11 +57,11 @@ describe('BacktestAllocationBar', () => {
     vi.clearAllMocks();
   });
 
-  it('returns null when both spot and stable allocations are zero', () => {
+  it('returns null when all allocation buckets are zero', () => {
     render(
       <BacktestAllocationBar
         displayName="Test Strategy"
-        allocation={{ spot: 0, stable: 0 }}
+        allocation={{ btc: 0, eth: 0, spy: 0, stable: 0, alt: 0 }}
       />,
     );
 
@@ -74,49 +73,47 @@ describe('BacktestAllocationBar', () => {
     render(
       <BacktestAllocationBar
         displayName="AWP Portfolio"
-        allocation={{ spot: 0.6, stable: 0.4 }}
+        allocation={{ btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 }}
       />,
     );
 
     expect(screen.getByText('AWP Portfolio')).toBeInTheDocument();
     expect(screen.getByTestId('backtest-default')).toHaveTextContent(
-      `SPOT:60:${getBacktestSpotAssetColor('BTC').toLowerCase()}|STABLE:40:#2775ca`,
+      'BTC:60:#f7931a|STABLE:40:#2775ca',
     );
   });
 
-  it('renders BTC spot labels with the shared amber chart color', () => {
+  it('renders BTC labels with the shared amber chart color', () => {
     render(
       <BacktestAllocationBar
         displayName="BTC Rotation"
-        allocation={{ spot: 0.75, stable: 0.25 }}
-        spotAssetLabel="BTC"
+        allocation={{ btc: 0.75, eth: 0, spy: 0, stable: 0.25, alt: 0 }}
       />,
     );
 
     expect(screen.getByTestId('backtest-default')).toHaveTextContent(
-      `BTC:75:${getBacktestSpotAssetColor('BTC').toLowerCase()}|STABLE:25:#2775ca`,
+      'BTC:75:#f7931a|STABLE:25:#2775ca',
     );
     expect(getRenderedSegments('backtest-default')[0]).toMatchObject({
       label: 'BTC',
-      color: getBacktestSpotAssetColor('BTC'),
+      color: '#F7931A',
     });
   });
 
-  it('renders ETH spot labels with the shared indigo chart color', () => {
+  it('renders ETH labels with the shared indigo chart color', () => {
     render(
       <BacktestAllocationBar
         displayName="ETH Rotation"
-        allocation={{ spot: 0.75, stable: 0.25 }}
-        spotAssetLabel="ETH"
+        allocation={{ btc: 0, eth: 0.75, spy: 0, stable: 0.25, alt: 0 }}
       />,
     );
 
     expect(screen.getByTestId('backtest-default')).toHaveTextContent(
-      `ETH:75:${getBacktestSpotAssetColor('ETH').toLowerCase()}|STABLE:25:#2775ca`,
+      'ETH:75:#627eea|STABLE:25:#2775ca',
     );
     expect(getRenderedSegments('backtest-default')[0]).toMatchObject({
       label: 'ETH',
-      color: getBacktestSpotAssetColor('ETH'),
+      color: '#627EEA',
     });
   });
 
@@ -126,7 +123,7 @@ describe('BacktestAllocationBar', () => {
     const { container } = render(
       <BacktestAllocationBar
         displayName="Momentum"
-        allocation={{ spot: 1, stable: 0 }}
+        allocation={{ btc: 1, eth: 0, spy: 0, stable: 0, alt: 0 }}
         strategyId="momentum"
         index={2}
       />,
@@ -143,7 +140,7 @@ describe('BacktestAllocationBar', () => {
     const { container } = render(
       <BacktestAllocationBar
         displayName="Custom"
-        allocation={{ spot: 0.5, stable: 0.5 }}
+        allocation={{ btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 }}
       />,
     );
 
@@ -156,26 +153,24 @@ describe('BacktestAllocationBar', () => {
     render(
       <BacktestAllocationBar
         displayName="Spot Only"
-        allocation={{ spot: 1, stable: 0 }}
+        allocation={{ btc: 1, eth: 0, spy: 0, stable: 0, alt: 0 }}
         strategyId="spot_only"
       />,
     );
 
     expect(screen.getByTestId('backtest-spot_only')).toHaveTextContent(
-      `SPOT:100:${getBacktestSpotAssetColor('BTC').toLowerCase()}`,
+      'BTC:100:#f7931a',
     );
     expect(screen.getByTestId('backtest-spot_only')).not.toHaveTextContent(
       'STABLE',
     );
   });
 
-  it('prefers explicit asset allocation over spot labels when available', () => {
+  it('renders canonical five-bucket allocation directly', () => {
     render(
       <BacktestAllocationBar
         displayName="Explicit Buckets"
-        allocation={{ spot: 0.7, stable: 0.3 }}
-        assetAllocation={{ btc: 0.4, eth: 0.2, spy: 0, stable: 0.3, alt: 0.1 }}
-        spotAssetLabel="BTC"
+        allocation={{ btc: 0.4, eth: 0.2, spy: 0, stable: 0.3, alt: 0.1 }}
       />,
     );
 

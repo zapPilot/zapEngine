@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  BACKTEST_BUCKETS,
   buildBacktestAllocationSegments,
   getBacktestTransferDirection,
   hasBacktestAllocation,
@@ -10,19 +9,16 @@ import {
 } from '@/components/wallet/portfolio/views/backtesting/backtestBuckets';
 
 describe('backtestBuckets', () => {
-  it('defines the canonical two-bucket order', () => {
-    expect(BACKTEST_BUCKETS).toEqual(['spot', 'stable']);
-  });
-
   it('recognizes valid buckets only', () => {
     expect(isBacktestBucket('spot')).toBe(true);
     expect(isBacktestBucket('stable')).toBe(true);
     expect(isBacktestBucket('eth')).toBe(true);
     expect(isBacktestBucket('btc')).toBe(true);
+    expect(isBacktestBucket('spy')).toBe(true);
     expect(isBacktestBucket('lp')).toBe(false);
   });
 
-  it('validates two-bucket transfers only', () => {
+  it('validates supported transfer buckets only', () => {
     expect(
       isBacktestTransfer({
         from_bucket: 'stable',
@@ -61,13 +57,16 @@ describe('backtestBuckets', () => {
   it('maps allocation ratios to UI segments', () => {
     expect(
       buildBacktestAllocationSegments({
-        spot: 0.6,
+        btc: 0.6,
+        eth: 0,
+        spy: 0,
         stable: 0.4,
+        alt: 0,
       }),
     ).toEqual([
       {
         category: 'btc',
-        label: 'SPOT',
+        label: 'BTC',
         percentage: 60,
         color: '#F7931A',
       },
@@ -80,15 +79,15 @@ describe('backtestBuckets', () => {
     ]);
   });
 
-  it('uses the provided spot asset label and shared ETH color', () => {
+  it('maps ETH and stable allocation to UI segments', () => {
     expect(
-      buildBacktestAllocationSegments(
-        {
-          spot: 0.6,
-          stable: 0.4,
-        },
-        'ETH',
-      ),
+      buildBacktestAllocationSegments({
+        btc: 0,
+        eth: 0.6,
+        spy: 0,
+        stable: 0.4,
+        alt: 0,
+      }),
     ).toEqual([
       {
         category: 'eth',
@@ -105,21 +104,21 @@ describe('backtestBuckets', () => {
     ]);
   });
 
-  it('uses shared BTC color for BTC spot asset label', () => {
+  it('maps SPY allocation with shared SPY color', () => {
     expect(
-      buildBacktestAllocationSegments(
-        {
-          spot: 0.7,
-          stable: 0.3,
-        },
-        'BTC',
-      ),
+      buildBacktestAllocationSegments({
+        btc: 0,
+        eth: 0,
+        spy: 0.7,
+        stable: 0.3,
+        alt: 0,
+      }),
     ).toEqual([
       {
-        category: 'btc',
-        label: 'BTC',
+        category: 'spy',
+        label: 'SPY',
         percentage: 70,
-        color: '#F7931A',
+        color: '#16A34A',
       },
       {
         category: 'stable',
@@ -130,26 +129,26 @@ describe('backtestBuckets', () => {
     ]);
   });
 
-  it('keeps default shared BTC color when no spotAssetLabel is provided', () => {
+  it('keeps shared BTC color for BTC allocation', () => {
     const segments = buildBacktestAllocationSegments({
-      spot: 0.5,
+      btc: 0.5,
+      eth: 0,
+      spy: 0,
       stable: 0.5,
+      alt: 0,
     });
-    const spotSegment = segments.find((s) => s.label === 'SPOT');
-    expect(spotSegment?.color).toBe('#F7931A');
+    const btcSegment = segments.find((s) => s.label === 'BTC');
+    expect(btcSegment?.color).toBe('#F7931A');
   });
 
-  it('prefers explicit asset allocation when available', () => {
-    const segments = buildBacktestAllocationSegments(
-      { spot: 0.7, stable: 0.3 },
-      'BTC',
-      {
-        btc: 0.4,
-        eth: 0.2,
-        stable: 0.3,
-        alt: 0.1,
-      },
-    );
+  it('maps canonical five-bucket allocation directly', () => {
+    const segments = buildBacktestAllocationSegments({
+      btc: 0.4,
+      eth: 0.2,
+      spy: 0,
+      stable: 0.3,
+      alt: 0.1,
+    });
 
     expect(segments).toEqual([
       {
@@ -180,7 +179,9 @@ describe('backtestBuckets', () => {
   });
 
   it('treats zero allocation as empty and classifies supported directions', () => {
-    expect(hasBacktestAllocation({ spot: 0, stable: 0 })).toBe(false);
+    expect(
+      hasBacktestAllocation({ btc: 0, eth: 0, spy: 0, stable: 0, alt: 0 }),
+    ).toBe(false);
     expect(getBacktestTransferDirection('stable', 'spot')).toBe(
       'stable_to_spot',
     );
