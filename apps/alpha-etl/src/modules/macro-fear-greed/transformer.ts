@@ -6,7 +6,6 @@ export class MacroFearGreedTransformer {
     return {
       snapshot_date: data.updatedAt.slice(0, 10),
       score: data.score,
-      normalized_score: data.normalizedScore,
       label: data.label,
       source: data.source,
       provider_updated_at: data.updatedAt,

@@ -94,7 +94,7 @@ def _extract_macro_fear_greed_score(extra_data: Mapping[str, Any]) -> int | None
     raw = extra_data.get(MACRO_FEAR_GREED_FEATURE)
     if not isinstance(raw, Mapping):
         return None
-    score = raw.get("normalized_score")
+    score = raw.get("score")
     if score is None:
         score = raw.get("value")
     if not isinstance(score, int | float):

@@ -86,7 +86,7 @@ export class MacroFearGreedFetcher extends BaseApiFetcher {
       }
       return {
         status: 'healthy',
-        details: `CNN macro Fear & Greed: ${data.normalizedScore} (${data.label})`,
+        details: `CNN macro Fear & Greed: ${data.score} (${data.label})`,
       };
     });
   }

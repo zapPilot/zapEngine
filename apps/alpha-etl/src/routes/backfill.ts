@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
+import { MacroFearGreedETLProcessor } from '../modules/macro-fear-greed/index.js';
 import { TokenPriceETLProcessor } from '../modules/token-price/index.js';
 import type { BackfillPayload, BackfillResult } from '../types/index.js';
+import { buildSuccessApiResponse } from '../utils/apiResponse.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { sleep } from '../utils/sleep.js';
@@ -20,6 +22,7 @@ import {
 
 const router: Router = Router();
 const processor = new TokenPriceETLProcessor();
+const macroFearGreedProcessor = new MacroFearGreedETLProcessor();
 const DMA_MAX_RETRIES = 2;
 const DMA_RETRY_DELAY_MS = 150;
 
@@ -33,6 +36,13 @@ const tokenConfigSchema = z.object({
 const backfillPayloadSchema = z.object({
   tokens: z.array(tokenConfigSchema).min(1).max(10), // Max 10 tokens per request
   trigger: z.enum(['manual', 'scheduled']),
+});
+const macroFearGreedBackfillPayloadSchema = z.object({
+  trigger: z.enum(['manual', 'scheduled']).default('manual'),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .default('2021-01-01'),
 });
 type TokenConfig = z.infer<typeof tokenConfigSchema>;
 
@@ -210,6 +220,39 @@ router.post('/', async (req, res) => {
     }
 
     logger.error('Backfill request failed:', { error, requestId });
+    return res.status(500).json(buildApiErrorResponse(toErrorMessage(error)));
+  }
+});
+
+router.post('/macro-fear-greed', async (req, res) => {
+  const requestId = getRequestId(req.headers as Record<string, unknown>);
+
+  try {
+    const payload = macroFearGreedBackfillPayloadSchema.parse(req.body);
+    logger.info('Macro Fear & Greed backfill request received', {
+      requestId,
+      trigger: payload.trigger,
+      startDate: payload.startDate,
+    });
+    const result = await macroFearGreedProcessor.backfillHistory(
+      payload.startDate,
+    );
+    return res.json(
+      buildSuccessApiResponse({
+        source: 'macro-fear-greed',
+        startDate: payload.startDate,
+        ...result,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json(buildValidationErrorResponse(error));
+    }
+
+    logger.error('Macro Fear & Greed backfill request failed:', {
+      error,
+      requestId,
+    });
     return res.status(500).json(buildApiErrorResponse(toErrorMessage(error)));
   }
 });

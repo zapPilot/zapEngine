@@ -208,7 +208,6 @@ export const MACRO_FEAR_GREED_COLUMNS: readonly (keyof MacroFearGreedSnapshotIns
   [
     'snapshot_date',
     'score',
-    'normalized_score',
     'label',
     'source',
     'provider_updated_at',

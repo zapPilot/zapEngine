@@ -64,7 +64,6 @@ def _build_context(
     if macro_fear_greed_score is not None:
         extra[MACRO_FEAR_GREED_FEATURE] = {
             "score": float(macro_fear_greed_score),
-            "normalized_score": macro_fear_greed_score,
             "label": "neutral",
             "source": "cnn_fear_greed_unofficial",
             "updated_at": "2026-04-27T00:00:00+00:00",

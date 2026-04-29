@@ -23,17 +23,16 @@ export class MacroFearGreedWriter extends BaseWriter<MacroFearGreedSnapshotInser
     maxAgeSeconds?: number,
   ): Promise<MacroFearGreedData | null> {
     const query = `
-      SELECT score, normalized_score, label, source, provider_updated_at, raw_rating, raw_data
-      FROM ${getTableName('MACRO_FEAR_GREED_SNAPSHOTS')}
-      WHERE ($1::interval IS NULL OR provider_updated_at >= NOW() - $1::interval)
-      ORDER BY provider_updated_at DESC
-      LIMIT 1
-    `;
+  SELECT score, label, source, provider_updated_at, raw_rating, raw_data
+  FROM ${getTableName('MACRO_FEAR_GREED_SNAPSHOTS')}
+  WHERE ($1::interval IS NULL OR provider_updated_at >= NOW() - $1::interval)
+  ORDER BY provider_updated_at DESC
+  LIMIT 1
+  `;
     const interval = maxAgeSeconds == null ? null : `${maxAgeSeconds} seconds`;
     const result = await this.withDatabaseClient((client) =>
       client.query<{
         score: string;
-        normalized_score: number;
         label: MacroFearGreedLabel;
         source: string;
         provider_updated_at: Date | string;
@@ -51,7 +50,6 @@ export class MacroFearGreedWriter extends BaseWriter<MacroFearGreedSnapshotInser
         : new Date(row.provider_updated_at).toISOString();
     return {
       score: Number(row.score),
-      normalizedScore: row.normalized_score,
       label: row.label,
       source: row.source,
       updatedAt,
@@ -87,19 +85,18 @@ export class MacroFearGreedWriter extends BaseWriter<MacroFearGreedSnapshotInser
         const { columns, placeholders, values } =
           buildMacroFearGreedInsertValues(validRecords);
         const query = `
-          INSERT INTO ${getTableName('MACRO_FEAR_GREED_SNAPSHOTS')} (${columns.join(', ')})
-          VALUES ${placeholders}
-          ON CONFLICT (source, snapshot_date)
-          DO UPDATE SET
-            score = EXCLUDED.score,
-            normalized_score = EXCLUDED.normalized_score,
-            label = EXCLUDED.label,
-            provider_updated_at = EXCLUDED.provider_updated_at,
-            raw_rating = EXCLUDED.raw_rating,
-            raw_data = EXCLUDED.raw_data,
-            updated_at = NOW()
-          RETURNING id;
-        `;
+  INSERT INTO ${getTableName('MACRO_FEAR_GREED_SNAPSHOTS')} (${columns.join(', ')})
+  VALUES ${placeholders}
+  ON CONFLICT (source, snapshot_date)
+  DO UPDATE SET
+  score = EXCLUDED.score,
+  label = EXCLUDED.label,
+  provider_updated_at = EXCLUDED.provider_updated_at,
+  raw_rating = EXCLUDED.raw_rating,
+  raw_data = EXCLUDED.raw_data,
+  updated_at = NOW()
+  RETURNING id;
+  `;
         return { query, values };
       },
     });

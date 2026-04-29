@@ -18,7 +18,6 @@ describe('CNN macro Fear & Greed parser', () => {
 
     expect(result).toMatchObject({
       score: 72.4,
-      normalizedScore: 72,
       label: 'greed',
       source: 'cnn_fear_greed_unofficial',
       rawRating: 'Greed',
@@ -37,7 +36,7 @@ describe('CNN macro Fear & Greed parser', () => {
       },
     });
 
-    expect(result.normalizedScore).toBe(80);
+    expect(result.score).toBe(80);
     expect(result.label).toBe('extreme_greed');
     expect(result.updatedAt).toBe('2026-04-29T00:00:00.000Z');
   });
@@ -53,7 +52,7 @@ describe('CNN macro Fear & Greed parser', () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.normalizedScore).toBe(62);
+    expect(result[0]?.score).toBe(62);
   });
 
   it('uses score labels for unknown ratings and clamps score boundaries', () => {
@@ -66,7 +65,6 @@ describe('CNN macro Fear & Greed parser', () => {
     });
 
     expect(result.score).toBe(100);
-    expect(result.normalizedScore).toBe(100);
     expect(result.label).toBe('extreme_greed');
   });
 

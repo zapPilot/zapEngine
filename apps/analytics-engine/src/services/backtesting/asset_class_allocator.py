@@ -39,11 +39,11 @@ def fgi_risk_multiplier(regime: str | None) -> float:
     }.get(normalized, 1.0)
 
 
-def stock_macro_fgi_overlay(stock_score: float, normalized_score: int | None) -> float:
+def stock_macro_fgi_overlay(stock_score: float, macro_fgi_score: float | None) -> float:
     """Apply CNN US equity FGI as a SPY-only risk overlay."""
-    if normalized_score is None:
+    if macro_fgi_score is None:
         return _clamp_unit(stock_score)
-    score = max(0, min(100, int(normalized_score)))
+    score = max(0, min(100, macro_fgi_score))
     if score <= 24:
         return _clamp_unit(stock_score * 0.5)
     if score <= 44:
@@ -67,7 +67,7 @@ def allocate_stock_crypto_target(
     crypto_fgi_regime: str | None,
     eth_share_in_crypto: float,
     current_allocation: Mapping[str, float] | None,
-    stock_macro_fgi_score: int | None = None,
+    stock_macro_fgi_score: float | None = None,
 ) -> StockCryptoAllocationResult:
     """Allocate across SPY, BTC/ETH, and stable with one canonical target."""
 

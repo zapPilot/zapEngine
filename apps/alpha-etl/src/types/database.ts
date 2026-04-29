@@ -119,7 +119,6 @@ export interface SentimentSnapshotInsert {
 export interface MacroFearGreedSnapshotInsert {
   snapshot_date: string;
   score: number;
-  normalized_score: number;
   label: string;
   source: string;
   provider_updated_at: string;

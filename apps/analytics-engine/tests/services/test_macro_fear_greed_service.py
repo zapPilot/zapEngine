@@ -14,7 +14,6 @@ def test_get_daily_macro_fear_greed_transforms_rows() -> None:
         {
             "snapshot_date": date(2026, 4, 29),
             "score": 72.4,
-            "normalized_score": 72,
             "label": "greed",
             "source": "cnn_fear_greed_unofficial",
             "provider_updated_at": datetime(2026, 4, 29, tzinfo=UTC),
@@ -28,7 +27,7 @@ def test_get_daily_macro_fear_greed_transforms_rows() -> None:
         end_date=date(2026, 4, 30),
     )
 
-    assert result[date(2026, 4, 29)]["normalized_score"] == 72
+    assert result[date(2026, 4, 29)]["score"] == 72.4
     assert result[date(2026, 4, 29)]["label"] == "greed"
     query_service.execute_query.assert_called_once_with(
         service.db,

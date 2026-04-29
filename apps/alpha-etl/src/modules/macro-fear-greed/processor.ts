@@ -44,6 +44,34 @@ export class MacroFearGreedETLProcessor implements BaseETLProcessor {
     );
   }
 
+  async backfillHistory(startDate = '2021-01-01'): Promise<{
+    requested: number;
+    existing: number;
+    fetched: number;
+    inserted: number;
+  }> {
+    logger.info('Starting macro Fear & Greed backfill', { startDate });
+    const historical = await this.fetcher.fetchHistory(startDate);
+    const transformed = this.transformer.transformBatch(historical);
+    const writeResult = await this.writer.writeSnapshots(transformed);
+    if (!writeResult.success) {
+      throw new Error(
+        writeResult.errors[0] ?? 'Macro Fear & Greed backfill write failed',
+      );
+    }
+    const result = {
+      requested: transformed.length,
+      existing: writeResult.duplicatesSkipped ?? 0,
+      fetched: historical.length,
+      inserted: writeResult.recordsInserted,
+    };
+    logger.info('Macro Fear & Greed backfill completed', {
+      startDate,
+      ...result,
+    });
+    return result;
+  }
+
   private async fetchCurrentWithFallback(
     jobId: string,
   ): Promise<MacroFearGreedData> {

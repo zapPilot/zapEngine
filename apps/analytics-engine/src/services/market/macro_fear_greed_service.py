@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 class MacroFearGreedPoint(TypedDict):
     score: float
-    normalized_score: int
     label: str
     source: str
     updated_at: str
@@ -66,8 +65,7 @@ class MacroFearGreedDatabaseService:
     def _transform_row(cls, row: dict[str, object]) -> tuple[date, MacroFearGreedPoint]:
         snapshot_date = cls._coerce_snapshot_date(row.get("snapshot_date"))
         score = float(cast(Any, row.get("score")))
-        normalized_score = int(cast(Any, row.get("normalized_score")))
-        if not (0.0 <= score <= 100.0 and 0 <= normalized_score <= 100):
+        if not (0.0 <= score <= 100.0):
             raise ValueError(f"Invalid macro FGI score row: {row!r}")
         label = str(row.get("label") or "").strip()
         source = str(row.get("source") or "").strip()
@@ -77,7 +75,6 @@ class MacroFearGreedDatabaseService:
         raw_rating = str(raw_rating_value) if raw_rating_value is not None else None
         return snapshot_date, MacroFearGreedPoint(
             score=score,
-            normalized_score=normalized_score,
             label=label,
             source=source,
             updated_at=cls._coerce_updated_at(row.get("provider_updated_at")),

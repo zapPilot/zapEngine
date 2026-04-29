@@ -29,7 +29,6 @@ export interface CnnFearGreedHistoricalPoint {
 
 export interface MacroFearGreedData {
   score: number;
-  normalizedScore: number;
   label: MacroFearGreedLabel;
   source: string;
   updatedAt: string;
@@ -39,7 +38,6 @@ export interface MacroFearGreedData {
 
 const MacroFearGreedDataSchema = z.object({
   score: z.number().min(0).max(100),
-  normalizedScore: z.number().int().min(0).max(100),
   label: z.enum(MACRO_FEAR_GREED_LABELS),
   source: z.string().min(1),
   updatedAt: z.string().datetime({ offset: true }),
@@ -160,10 +158,8 @@ export function parseCurrentCnnFearGreed(
 ): MacroFearGreedData {
   const parsed =
     parseCurrentObject(payload) ?? parseHistoricalFallback(payload);
-  const normalizedScore = Math.round(parsed.score);
   const result = {
     score: parsed.score,
-    normalizedScore,
     label: normalizeMacroFearGreedLabel(parsed.rawRating, parsed.score),
     source: CNN_FEAR_GREED_SOURCE,
     updatedAt: parsed.updatedAt,
@@ -187,7 +183,6 @@ export function parseCnnFearGreedHistory(
     const updatedAt = msToIso(timestamp);
     const data = MacroFearGreedDataSchema.parse({
       score,
-      normalizedScore: Math.round(score),
       label: normalizeMacroFearGreedLabel(row.rating, score),
       source: CNN_FEAR_GREED_SOURCE,
       updatedAt,
