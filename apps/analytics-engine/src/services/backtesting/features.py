@@ -16,6 +16,9 @@ ETH_DMA_200_FEATURE = "eth_dma_200"
 SPY_AUX_SERIES = "spy_market"
 SPY_PRICE_FEATURE = "spy_price"
 SPY_DMA_200_FEATURE = "spy_dma_200"
+SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES = "spy_crypto_relative_strength"
+SPY_CRYPTO_RATIO_FEATURE = "spy_crypto_ratio"
+SPY_CRYPTO_RATIO_DMA_200_FEATURE = "spy_crypto_ratio_dma_200"
 MACRO_FEAR_GREED_FEATURE = "macro_fear_greed"
 
 

@@ -58,6 +58,14 @@ class PairRotationUnit:
     allocation_key: str
     price_key: str
     dma_feature_key: str
+    member_allocation_keys: frozenset[str] = frozenset()
+
+    def aggregate_allocation_keys(self) -> frozenset[str]:
+        return self.member_allocation_keys or frozenset({self.allocation_key})
+
+    @property
+    def is_sleeve(self) -> bool:
+        return bool(self.member_allocation_keys)
 
 
 @dataclass(frozen=True)
@@ -386,9 +394,29 @@ def _dominant_pair_unit(
     *,
     template: PairRotationTemplateSpec,
 ) -> PairRotationUnit:
-    left_share = float(allocation.get(template.left_unit.allocation_key, 0.0))
-    right_share = float(allocation.get(template.right_unit.allocation_key, 0.0))
+    left_share = _unit_allocation_share(allocation, template.left_unit)
+    right_share = _unit_allocation_share(allocation, template.right_unit)
     return template.left_unit if left_share > right_share else template.right_unit
+
+
+def _unit_allocation_share(
+    allocation: Mapping[str, float],
+    unit: PairRotationUnit,
+) -> float:
+    return max(
+        0.0,
+        sum(
+            max(0.0, float(allocation.get(key, 0.0)))
+            for key in unit.aggregate_allocation_keys()
+        ),
+    )
+
+
+def _pair_allocation_keys(template: PairRotationTemplateSpec) -> frozenset[str]:
+    return (
+        template.left_unit.aggregate_allocation_keys()
+        | template.right_unit.aggregate_allocation_keys()
+    )
 
 
 def _normalize_pair_allocation(
@@ -396,15 +424,14 @@ def _normalize_pair_allocation(
     *,
     template: PairRotationTemplateSpec,
 ) -> dict[str, float]:
-    left_key = template.left_unit.allocation_key
-    right_key = template.right_unit.allocation_key
-    left = max(0.0, float(raw.get(left_key, 0.0)))
-    right = max(0.0, float(raw.get(right_key, 0.0)))
+    pair_keys = _pair_allocation_keys(template)
+    left = _unit_allocation_share(raw, template.left_unit)
+    right = _unit_allocation_share(raw, template.right_unit)
     stable = max(0.0, float(raw.get("stable", 0.0))) + max(
         0.0, float(raw.get("alt", 0.0))
     )
     for key, value in raw.items():
-        if key not in {left_key, right_key, "stable", "alt"}:
+        if key not in pair_keys and key not in {"stable", "alt"}:
             stable += max(0.0, float(value))
     total = left + right + stable
     if total <= 0.0:
@@ -415,10 +442,46 @@ def _normalize_pair_allocation(
         "spy": 0.0,
         "stable": stable / total,
         "alt": 0.0,
-        left_key: left / total,
-        right_key: right / total,
     }
+    _assign_unit_normalized_share(
+        normalized=normalized,
+        raw=raw,
+        unit=template.left_unit,
+        unit_share=left,
+        total=total,
+    )
+    _assign_unit_normalized_share(
+        normalized=normalized,
+        raw=raw,
+        unit=template.right_unit,
+        unit_share=right,
+        total=total,
+    )
     return normalize_target_allocation(normalized)
+
+
+def _assign_unit_normalized_share(
+    *,
+    normalized: dict[str, float],
+    raw: Mapping[str, float],
+    unit: PairRotationUnit,
+    unit_share: float,
+    total: float,
+) -> None:
+    if not unit.is_sleeve:
+        normalized[unit.allocation_key] = unit_share / total
+        return
+    members = sorted(unit.member_allocation_keys)
+    if not members:
+        return
+    member_total = sum(max(0.0, float(raw.get(key, 0.0))) for key in members)
+    if member_total <= 0.0 and unit_share > 0.0:
+        per_member = unit_share / float(len(members))
+        for key in members:
+            normalized[key] = per_member / total
+        return
+    for key in members:
+        normalized[key] = max(0.0, float(raw.get(key, 0.0))) / total
 
 
 def _risk_on_share(
@@ -428,8 +491,8 @@ def _risk_on_share(
 ) -> float:
     return max(
         0.0,
-        float(allocation.get(template.left_unit.allocation_key, 0.0))
-        + float(allocation.get(template.right_unit.allocation_key, 0.0)),
+        _unit_allocation_share(allocation, template.left_unit)
+        + _unit_allocation_share(allocation, template.right_unit),
     )
 
 
@@ -444,7 +507,7 @@ def _left_share_in_risk_on(
     return max(
         0.0,
         min(
-            1.0, float(allocation.get(template.left_unit.allocation_key, 0.0)) / risk_on
+            1.0, _unit_allocation_share(allocation, template.left_unit) / risk_on
         ),
     )
 
@@ -477,10 +540,36 @@ def _compose_pair_target(
         "spy": 0.0,
         "stable": stable,
         "alt": 0.0,
-        template.left_unit.allocation_key: risk_on * left_share,
-        template.right_unit.allocation_key: risk_on * (1.0 - left_share),
     }
+    _assign_unit_target_share(
+        target=target,
+        unit=template.left_unit,
+        share=risk_on * left_share,
+    )
+    _assign_unit_target_share(
+        target=target,
+        unit=template.right_unit,
+        share=risk_on * (1.0 - left_share),
+    )
     return normalize_target_allocation(target)
+
+
+def _assign_unit_target_share(
+    *,
+    target: dict[str, float],
+    unit: PairRotationUnit,
+    share: float,
+) -> None:
+    unit_share = max(0.0, float(share))
+    if not unit.is_sleeve:
+        target[unit.allocation_key] = unit_share
+        return
+    members = sorted(unit.member_allocation_keys)
+    if not members:
+        return
+    per_member = unit_share / float(len(members))
+    for key in members:
+        target[key] = per_member
 
 
 def _requires_pair_rotation(
@@ -492,16 +581,15 @@ def _requires_pair_rotation(
 ) -> bool:
     return any(
         abs(
-            float(current_allocation.get(bucket, 0.0))
-            - float(target_allocation.get(bucket, 0.0))
+            _unit_allocation_share(current_allocation, unit)
+            - _unit_allocation_share(target_allocation, unit)
         )
         > tolerance
-        for bucket in (
-            template.left_unit.allocation_key,
-            template.right_unit.allocation_key,
-            "stable",
-        )
-    )
+        for unit in (template.left_unit, template.right_unit)
+    ) or abs(
+        float(current_allocation.get("stable", 0.0))
+        - float(target_allocation.get("stable", 0.0))
+    ) > tolerance
 
 
 @dataclass

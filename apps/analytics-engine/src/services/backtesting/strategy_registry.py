@@ -17,6 +17,7 @@ from src.services.backtesting.capabilities import (
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
     STRATEGY_SPY_ETH_BTC_ROTATION,
@@ -25,6 +26,7 @@ from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     SPY_AUX_SERIES,
+    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     MarketDataRequirements,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
@@ -47,6 +49,11 @@ from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     DmaFgiAdaptiveBinaryEthBtcStrategy,
     build_initial_pair_asset_allocation,
+)
+from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
+    SPY_CRYPTO_TEMPLATE,
+    HierarchicalPairRotationParams,
+    HierarchicalSpyCryptoRotationStrategy,
 )
 from src.services.backtesting.strategies.spy_eth_btc_rotation import (
     SpyEthBtcRotationParams,
@@ -91,6 +98,12 @@ def _normalize_spy_eth_btc_rotation_public_params(
     params: dict[str, Any],
 ) -> dict[str, Any]:
     return SpyEthBtcRotationParams.from_public_params(params).to_public_params()
+
+
+def _normalize_hierarchical_spy_crypto_public_params(
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    return HierarchicalPairRotationParams.from_public_params(params).to_public_params()
 
 
 @dataclass(frozen=True)
@@ -277,6 +290,56 @@ def _build_spy_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseS
     )
 
 
+def _build_hierarchical_spy_crypto_strategy(
+    request: StrategyBuildRequest,
+) -> BaseStrategy:
+    params = HierarchicalPairRotationParams.from_public_params(request.params)
+    strategy_id = (
+        request.resolved_config_id or STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
+    )
+    initial_asset_allocation = {
+        "btc": 0.0,
+        "eth": 0.0,
+        "spy": 0.0,
+        "stable": 1.0,
+        "alt": 0.0,
+    }
+    if request.mode == "compare" and request.initial_allocation is not None:
+        outer_initial = build_initial_pair_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            template=SPY_CRYPTO_TEMPLATE,
+        )
+        inner_initial = build_initial_pair_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+        )
+        crypto_share = float(outer_initial.get("btc", 0.0)) + float(
+            outer_initial.get("eth", 0.0)
+        )
+        inner_risk = float(inner_initial.get("btc", 0.0)) + float(
+            inner_initial.get("eth", 0.0)
+        )
+        btc_weight = (
+            0.5
+            if inner_risk <= 0.0
+            else float(inner_initial.get("btc", 0.0)) / inner_risk
+        )
+        initial_asset_allocation = {
+            "btc": crypto_share * btc_weight,
+            "eth": crypto_share * (1.0 - btc_weight),
+            "spy": float(outer_initial.get("spy", 0.0)),
+            "stable": float(outer_initial.get("stable", 0.0)),
+            "alt": 0.0,
+        }
+    return HierarchicalSpyCryptoRotationStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
 _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_DCA_CLASSIC: StrategyRecipe(
         strategy_id=STRATEGY_DCA_CLASSIC,
@@ -353,6 +416,35 @@ _RECIPES: dict[str, StrategyRecipe] = {
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
         build_strategy=_build_adaptive_binary_eth_btc_strategy,
         supports_daily_suggestion=False,
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: StrategyRecipe(
+        strategy_id=STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
+        display_name="DMA FGI Hierarchical SPY/Crypto",
+        description=(
+            "Two-layer pair-rotation: outer SPY-vs-Crypto sleeve and inner "
+            "BTC-vs-ETH, both running DMA-gated FGI with adaptive-DMA "
+            "reference and binary ratio zones."
+        ),
+        signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset(
+                {
+                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+                    SPY_AUX_SERIES,
+                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+                }
+            ),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
+        build_strategy=_build_hierarchical_spy_crypto_strategy,
+        supports_daily_suggestion=True,
     ),
     **{
         strategy_id: _build_eth_btc_attribution_recipe(strategy_id)

@@ -17,6 +17,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
     STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
     STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
     STRATEGY_DMA_FGI_RATIO_COOLDOWN,
     STRATEGY_DMA_FGI_RATIO_ZONE,
@@ -119,6 +120,7 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
     STRATEGY_SPY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: EthBtcRotationPublicParams,
@@ -275,6 +277,19 @@ def public_params_to_runtime_params(
         )
         return SpyEthBtcRotationParams.from_public_params(flat).to_public_params()
 
+    if strategy_id == STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO:
+        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
+            HierarchicalPairRotationParams,
+        )
+
+        nested_hierarchical = EthBtcRotationPublicParams.model_validate(normalized)
+        flat = _nested_to_flat(
+            nested_hierarchical, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
+        )
+        return HierarchicalPairRotationParams.from_public_params(
+            flat
+        ).to_public_params()
+
     return normalized
 
 
@@ -342,6 +357,31 @@ def runtime_params_to_public_params(
             rotation=_RotationPublicParams(**sections.get("rotation", {})),
         )
         return cast(dict[str, JsonValue], spy_model.model_dump(mode="json"))
+
+    if strategy_id == STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO:
+        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
+            HierarchicalPairRotationParams,
+        )
+
+        resolved_hierarchical = HierarchicalPairRotationParams.from_public_params(
+            raw_params
+        )
+        sections = _flat_to_nested(
+            resolved_hierarchical,
+            _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING,
+        )
+        hierarchical_model = EthBtcRotationPublicParams(
+            signal=_EthBtcSignalPublicParams(**sections.get("signal", {})),
+            pacing=_PacingPublicParams(**sections.get("pacing", {})),
+            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
+            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
+            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
+            rotation=_RotationPublicParams(**sections.get("rotation", {})),
+        )
+        return cast(
+            dict[str, JsonValue],
+            hierarchical_model.model_dump(mode="json"),
+        )
 
     return cast(dict[str, JsonValue], raw_params)
 

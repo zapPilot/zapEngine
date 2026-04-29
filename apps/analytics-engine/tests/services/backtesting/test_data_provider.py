@@ -14,6 +14,9 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_USD_PRICE_FEATURE,
+    SPY_CRYPTO_RATIO_DMA_200_FEATURE,
+    SPY_CRYPTO_RATIO_FEATURE,
+    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     MarketDataRequirements,
 )
 
@@ -134,6 +137,50 @@ async def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series()
     assert rows[0]["extra_data"][ETH_USD_PRICE_FEATURE] == pytest.approx(5_000.0)
     assert rows[1]["extra_data"][ETH_USD_PRICE_FEATURE] == pytest.approx(5_100.0)
     assert rows[0]["prices"] == {"btc": 100_000.0, "eth": 5_000.0}
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_series() -> (
+    None
+):
+    token_price_service = SimpleNamespace(
+        get_price_history=lambda **kwargs: [
+            SimpleNamespace(date=date(2025, 1, 1), price_usd=100_000.0),
+            SimpleNamespace(date=date(2025, 1, 2), price_usd=120_000.0),
+        ],
+        get_dma_history=lambda **kwargs: {},
+    )
+    stock_price_service = SimpleNamespace(
+        get_dma_history=lambda **kwargs: {
+            date(2025, 1, 1): {"price_usd": 500.0, "dma_200": 490.0},
+            date(2025, 1, 2): {"price_usd": 600.0, "dma_200": 500.0},
+        }
+    )
+    provider = BacktestDataProvider(
+        token_price_service=token_price_service,
+        sentiment_service=SimpleNamespace(),
+        stock_price_service=stock_price_service,
+    )
+
+    rows = await provider.fetch_token_prices(
+        token_symbol="BTC",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 2),
+        market_data_requirements=MarketDataRequirements(
+            required_aux_series=frozenset(
+                {SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES}
+            )
+        ),
+    )
+
+    assert rows[0]["extra_data"][SPY_CRYPTO_RATIO_FEATURE] == pytest.approx(0.005)
+    assert rows[0]["extra_data"][SPY_CRYPTO_RATIO_DMA_200_FEATURE] == pytest.approx(
+        0.005
+    )
+    assert rows[1]["extra_data"][SPY_CRYPTO_RATIO_FEATURE] == pytest.approx(0.005)
+    assert rows[1]["extra_data"][SPY_CRYPTO_RATIO_DMA_200_FEATURE] == pytest.approx(
+        0.005
+    )
 
 
 @pytest.mark.asyncio

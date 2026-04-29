@@ -15,6 +15,9 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     ETH_USD_PRICE_FEATURE,
     SPY_AUX_SERIES,
+    SPY_CRYPTO_RATIO_DMA_200_FEATURE,
+    SPY_CRYPTO_RATIO_FEATURE,
+    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
     MarketDataRequirements,
@@ -28,7 +31,13 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 SUPPORTED_PRICE_FEATURES = frozenset({DMA_200_FEATURE})
-SUPPORTED_AUX_SERIES = frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES})
+SUPPORTED_AUX_SERIES = frozenset(
+    {
+        ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+        SPY_AUX_SERIES,
+        SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+    }
+)
 
 
 def resolve_price_feature_history(
@@ -58,6 +67,7 @@ def resolve_price_feature_history(
         raise ValueError(f"Unsupported required auxiliary series: {joined}")
 
     feature_history: dict[str, dict[date, Any]] = {}
+    spy_price_filled: dict[date, float] | None = None
     if DMA_200_FEATURE in requested_features:
         feature_history[DMA_200_FEATURE] = token_price_service.get_dma_history(
             start_date=start_date,
@@ -125,11 +135,12 @@ def resolve_price_feature_history(
         # price → portfolio.rotate_spot_asset / total_value blow up with
         # "Missing price for spot asset 'SPY'" once any SPY balance exists.
         # Real-world equivalent: weekend SPY value = previous Friday close.
-        feature_history[SPY_PRICE_FEATURE] = _forward_fill_daily(
+        spy_price_filled = _forward_fill_daily(
             spy_price_raw,
             start_date=start_date,
             end_date=end_date,
         )
+        feature_history[SPY_PRICE_FEATURE] = spy_price_filled
         spy_dma_200_raw: dict[date, float] = {}
         for snapshot_date, point in spy_history.items():
             dma_value = point.get("dma_200")
@@ -140,7 +151,87 @@ def resolve_price_feature_history(
             start_date=start_date,
             end_date=end_date,
         )
+    if (
+        SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES
+        in declared_requirements.required_aux_series
+    ):
+        if stock_price_service is None:
+            raise ValueError(
+                "stock_price_service is required when SPY/crypto relative strength is requested"
+            )
+        if spy_price_filled is None:
+            spy_history = stock_price_service.get_dma_history(
+                start_date=start_date,
+                end_date=end_date,
+                symbol="SPY",
+            )
+            spy_price_filled = _forward_fill_daily(
+                {
+                    snapshot_date: float(point["price_usd"])
+                    for snapshot_date, point in spy_history.items()
+                },
+                start_date=start_date,
+                end_date=end_date,
+            )
+        days = max((end_date - start_date).days + 7, 1)
+        btc_price_history = token_price_service.get_price_history(
+            days=days,
+            token_symbol="BTC",
+            start_date=start_date,
+            end_date=end_date,
+        )
+        btc_price_raw = {
+            snapshot_date: float(price_value)
+            for snapshot in btc_price_history
+            if (
+                snapshot_date := coerce_to_date(
+                    getattr(snapshot, "date", None)
+                    or getattr(snapshot, "snapshot_date", None)
+                )
+            )
+            is not None
+            and (price_value := getattr(snapshot, "price_usd", None)) is not None
+        }
+        btc_price_filled = _forward_fill_daily(
+            btc_price_raw,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        spy_crypto_ratio_history = _compute_pair_ratio_with_dma(
+            numerator=spy_price_filled,
+            denominator=btc_price_filled,
+            window=200,
+        )
+        feature_history[SPY_CRYPTO_RATIO_FEATURE] = spy_crypto_ratio_history["ratio"]
+        feature_history[SPY_CRYPTO_RATIO_DMA_200_FEATURE] = spy_crypto_ratio_history[
+            "dma_200"
+        ]
     return feature_history
+
+
+def _compute_pair_ratio_with_dma(
+    *,
+    numerator: dict[date, float],
+    denominator: dict[date, float],
+    window: int,
+) -> dict[str, dict[date, float]]:
+    ratio: dict[date, float] = {}
+    for snapshot_date in sorted(set(numerator) & set(denominator)):
+        denominator_value = float(denominator[snapshot_date])
+        numerator_value = float(numerator[snapshot_date])
+        if numerator_value <= 0.0 or denominator_value <= 0.0:
+            continue
+        ratio[snapshot_date] = numerator_value / denominator_value
+
+    dma_200: dict[date, float] = {}
+    rolling_values: list[float] = []
+    resolved_window = max(1, int(window))
+    for snapshot_date in sorted(ratio):
+        rolling_values.append(ratio[snapshot_date])
+        if len(rolling_values) > resolved_window:
+            rolling_values.pop(0)
+        dma_200[snapshot_date] = sum(rolling_values) / float(len(rolling_values))
+    return {"ratio": ratio, "dma_200": dma_200}
 
 
 def _forward_fill_daily(

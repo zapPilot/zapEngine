@@ -15,6 +15,9 @@ from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     PairRotationTemplateDecisionPolicy,
     PairRotationTemplateSignalComponent,
+    PairRotationTemplateSpec,
+    PairRotationUnit,
+    _normalize_pair_allocation,
     build_initial_pair_asset_allocation,
 )
 
@@ -70,6 +73,39 @@ def test_initial_pair_allocation_uses_neutral_eth_btc_risk_split() -> None:
     assert allocation["btc"] == pytest.approx(0.3)
     assert allocation["eth"] == pytest.approx(0.3)
     assert allocation["stable"] == pytest.approx(0.4)
+
+
+def test_sleeve_pair_normalization_keeps_member_assets_out_of_stable() -> None:
+    template = PairRotationTemplateSpec(
+        template_id="test_spy_crypto",
+        signal_id="test_spy_crypto_signal",
+        left_unit=PairRotationUnit(
+            symbol="SPY",
+            allocation_key="spy",
+            price_key="spy",
+            dma_feature_key="spy_dma_200",
+        ),
+        right_unit=PairRotationUnit(
+            symbol="CRYPTO",
+            allocation_key="btc",
+            price_key="btc",
+            dma_feature_key="dma_200",
+            member_allocation_keys=frozenset({"btc", "eth"}),
+        ),
+        ratio_feature_key="spy_crypto_ratio",
+        ratio_dma_feature_key="spy_crypto_ratio_dma_200",
+        required_aux_series=frozenset(),
+    )
+
+    allocation = _normalize_pair_allocation(
+        {"spy": 0.25, "btc": 0.25, "eth": 0.25, "stable": 0.25},
+        template=template,
+    )
+
+    assert allocation["spy"] == pytest.approx(0.25)
+    assert allocation["btc"] == pytest.approx(0.25)
+    assert allocation["eth"] == pytest.approx(0.25)
+    assert allocation["stable"] == pytest.approx(0.25)
 
 
 def test_adaptive_dma_reference_uses_eth_when_eth_is_dominant() -> None:
