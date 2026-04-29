@@ -20,6 +20,7 @@ DEFAULT_ENDPOINT = "http://localhost:8001"
 DEFAULT_COMPARE_PATH = "/api/v3/backtesting/compare"
 DEFAULT_SAVED_CONFIG_ID = "eth_btc_rotation_default"
 DEFAULT_LOOKBACK_DAYS = 30
+DEFAULT_STATEFUL_DATE_LOOKBACK_DAYS = 400
 
 SECTION_ORDER = (
     "market",
@@ -673,6 +674,7 @@ def _build_asset_class_summary(
 ) -> dict[str, Any]:
     target = _safe_mapping(decision.get("target_allocation"))
     current = _safe_mapping(portfolio.get("asset_allocation"))
+    details = _safe_mapping(decision.get("details"))
     return {
         "target_spy": _safe_float(target.get("spy")),
         "target_crypto": (
@@ -689,6 +691,12 @@ def _build_asset_class_summary(
         "reason": decision.get("reason"),
         "action": decision.get("action"),
         "immediate": decision.get("immediate"),
+        "stock_score": details.get("stock_score"),
+        "crypto_score": details.get("crypto_score"),
+        "stock_gate_state": details.get("stock_gate_state"),
+        "crypto_gate_state": details.get("crypto_gate_state"),
+        "overextension_pressure": details.get("overextension_pressure"),
+        "stable_reason": details.get("stable_reason"),
     }
 
 
@@ -1307,6 +1315,7 @@ def _build_request_window(
     to_date: str | None,
     days: int | None,
     lookback_days: int,
+    history_start_date: str | None = None,
 ) -> dict[str, Any]:
     _validate_window_args(
         date_filter=date_filter,
@@ -1318,10 +1327,20 @@ def _build_request_window(
         return {"days": days}
     if date_filter is not None:
         target = _parse_date(date_filter)
+        start = (
+            _parse_date(history_start_date)
+            if history_start_date is not None
+            else target
+            - timedelta(days=max(lookback_days, DEFAULT_STATEFUL_DATE_LOOKBACK_DAYS))
+        )
+        if start > target:
+            raise VerificationError("--history-start-date must be on or before --date.")
         return {
-            "start_date": (target - timedelta(days=lookback_days)).isoformat(),
+            "start_date": start.isoformat(),
             "end_date": target.isoformat(),
         }
+    if history_start_date is not None:
+        raise VerificationError("--history-start-date requires --date.")
     if from_date is not None:
         start = _parse_date(from_date)
         window: dict[str, Any] = {
@@ -1350,6 +1369,7 @@ def _build_compare_request(
     to_date: str | None,
     days: int | None,
     lookback_days: int,
+    history_start_date: str | None = None,
 ) -> dict[str, Any]:
     request: dict[str, Any] = {
         "token_symbol": token_symbol,
@@ -1368,6 +1388,7 @@ def _build_compare_request(
             to_date=to_date,
             days=days,
             lookback_days=lookback_days,
+            history_start_date=history_start_date,
         )
     )
     return request
@@ -1514,6 +1535,7 @@ def analyze_payload(
     output_format: OutputFormat = "json",
     enrich_db: EnrichMode = "auto",
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    history_start_date: str | None = None,
     out_path: str | None = None,
 ) -> str:
     request_body = _build_compare_request(
@@ -1526,6 +1548,7 @@ def analyze_payload(
         to_date=to_date,
         days=days,
         lookback_days=lookback_days,
+        history_start_date=history_start_date,
     )
     payload = _fetch_from_api(endpoint, request_body)
     selected_config_id = _resolve_config_id(saved_config_id, config_id)
@@ -1596,6 +1619,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LOOKBACK_DAYS,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--history-start-date",
+        help="History start date for stateful --date diagnostics",
+    )
     parser.add_argument("--out", dest="out_path", help="Write rendered output to file")
     return parser
 
@@ -1619,6 +1646,7 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.output_format,
             enrich_db=args.enrich_db,
             lookback_days=args.lookback_days,
+            history_start_date=args.history_start_date,
             out_path=args.out_path,
         )
     except VerificationError as exc:

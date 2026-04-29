@@ -313,6 +313,63 @@ def test_analyze_payload_builds_api_request_and_filters_window(
     ]
 
 
+def test_analyze_payload_date_request_uses_stateful_history_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_fetch(endpoint: str, request_body: dict[str, Any]) -> dict[str, Any]:
+        captured["endpoint"] = endpoint
+        captured["request"] = request_body
+        return _payload()
+
+    monkeypatch.setattr(analyzer, "_fetch_from_api", _fake_fetch)
+
+    rendered = analyzer.analyze_payload(
+        endpoint="http://testserver",
+        date_filter="2025-04-23",
+        output_format="json",
+        enrich_db="never",
+    )
+    data = json.loads(rendered)
+
+    assert captured["request"]["start_date"] == "2024-03-19"
+    assert captured["request"]["end_date"] == "2025-04-23"
+    assert [record["date"] for record in data["records"]] == ["2025-04-23"]
+
+
+def test_analyze_payload_date_request_accepts_explicit_history_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_fetch(endpoint: str, request_body: dict[str, Any]) -> dict[str, Any]:
+        captured["request"] = request_body
+        return _spy_payload()
+
+    monkeypatch.setattr(analyzer, "_fetch_from_api", _fake_fetch)
+
+    analyzer.analyze_payload(
+        endpoint="http://testserver",
+        saved_config_id="spy_eth_btc_rotation_default",
+        config_id="spy_eth_btc_rotation_default",
+        date_filter="2026-04-27",
+        history_start_date="2024-11-01",
+        output_format="json",
+        enrich_db="never",
+        profile="spy-eth-btc-rotation",
+    )
+
+    assert captured["request"]["start_date"] == "2024-11-01"
+    assert captured["request"]["end_date"] == "2026-04-27"
+    assert captured["request"]["configs"] == [
+        {
+            "config_id": "spy_eth_btc_rotation_default",
+            "saved_config_id": "spy_eth_btc_rotation_default",
+        }
+    ]
+
+
 def test_analyze_compare_json_contains_lookback_and_rule_classification() -> None:
     rendered = analyzer.analyze_response_payload(
         _payload(),
@@ -352,6 +409,8 @@ def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None
     assert record["spy_dma"]["cross_event"] == "cross_down"
     assert record["asset_class"]["target_spy"] == 0.0
     assert record["asset_class"]["target_crypto"] == pytest.approx(0.4)
+    assert "stock_score" in record["asset_class"]
+    assert "crypto_gate_state" in record["asset_class"]
     assert record["rule"]["classification"] == "intended_rule"
     assert "SPY DMA cross_down" in record["rule"]["summary"]
 

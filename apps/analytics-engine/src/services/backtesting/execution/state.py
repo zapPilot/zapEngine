@@ -234,6 +234,8 @@ def _serialize_decision_details(snapshot: StrategySnapshot) -> dict[str, Any]:
     if snapshot.decision.allocation_name is not None:
         details["allocation_name"] = snapshot.decision.allocation_name
     details["decision_score"] = snapshot.decision.decision_score
+    if snapshot.decision.diagnostics is not None:
+        details.update(snapshot.decision.diagnostics)
     return details
 
 

@@ -20,6 +20,7 @@ class AllocationIntent:
     reason: str
     rule_group: RuleGroup
     decision_score: float
+    diagnostics: dict[str, Any] | None = None
 
     def to_signal_payload(self) -> dict[str, Any]:
         """Serialize the decision to the legacy signal metadata shape."""

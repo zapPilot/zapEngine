@@ -70,7 +70,11 @@ class SentimentDatabaseServiceProtocol(Protocol):
         ...  # pragma: no cover
 
     async def get_sentiment_history(
-        self, hours: int = 24
+        self,
+        hours: int = 24,
+        *,
+        start_time: datetime | date | None = None,
+        end_time: datetime | date | None = None,
     ) -> list[MarketSentimentResponse]:
         """
         Get historical sentiment snapshots within the specified time range.

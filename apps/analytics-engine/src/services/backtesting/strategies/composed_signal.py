@@ -142,6 +142,9 @@ class ComposedSignalStrategy(BaseStrategy):
                 reason=decision.reason,
                 rule_group=decision.rule_group,
                 decision_score=decision.decision_score,
+                diagnostics=(
+                    None if decision.diagnostics is None else dict(decision.diagnostics)
+                ),
             ),
             execution=execution,
         )

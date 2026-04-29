@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 SentimentResultT = TypeVar("SentimentResultT")
 
 
+def _coerce_history_bound(value: datetime | date, *, end_of_day: bool) -> datetime:
+    if isinstance(value, datetime):
+        resolved = value
+        if resolved.tzinfo is None:
+            return resolved.replace(tzinfo=UTC)
+        return resolved.astimezone(UTC)
+    if end_of_day:
+        return datetime(value.year, value.month, value.day, 23, 59, 59, 999999, tzinfo=UTC)
+    return datetime(value.year, value.month, value.day, tzinfo=UTC)
+
+
 class SentimentDatabaseService:
     """
     Service for querying market sentiment data from the database.
@@ -199,7 +210,11 @@ class SentimentDatabaseService:
         return self.get_current_sentiment_sync()
 
     async def get_sentiment_history(
-        self, hours: int = 24
+        self,
+        hours: int = 24,
+        *,
+        start_time: datetime | date | None = None,
+        end_time: datetime | date | None = None,
     ) -> list[MarketSentimentResponse]:
         """
         Get historical sentiment snapshots within the specified time range.
@@ -208,7 +223,9 @@ class SentimentDatabaseService:
         N hours, ordered by snapshot_time ASC.
 
         Args:
-            hours: Number of hours of history to retrieve (default: 24)
+            hours: Number of hours of history to retrieve when start_time is omitted.
+            start_time: Inclusive historical lower bound.
+            end_time: Inclusive historical upper bound.
 
         Returns:
             list[MarketSentimentResponse]: List of historical snapshots
@@ -222,16 +239,29 @@ class SentimentDatabaseService:
             if hours < 1:
                 raise ValueError("Hours must be >= 1")
 
-            logger.info("Querying sentiment history for last %d hours", hours)
+            logger.info("Querying sentiment history")
 
-            # Calculate start timestamp for query
-            min_timestamp = datetime.now(UTC) - timedelta(hours=hours)
+            min_timestamp = (
+                _coerce_history_bound(start_time, end_of_day=False)
+                if start_time is not None
+                else datetime.now(UTC) - timedelta(hours=hours)
+            )
+            max_timestamp = (
+                _coerce_history_bound(end_time, end_of_day=True)
+                if end_time is not None
+                else None
+            )
+            if max_timestamp is not None and min_timestamp > max_timestamp:
+                raise ValueError("start_time must be on or before end_time")
 
             # Execute named query
             rows = self.query_service.execute_query(
                 self.db,
                 QUERY_NAMES.SENTIMENT_HISTORY,
-                {"min_timestamp": min_timestamp},
+                {
+                    "min_timestamp": min_timestamp,
+                    "max_timestamp": max_timestamp,
+                },
             )
 
             if not rows:

@@ -390,6 +390,26 @@ class TestGetSentimentHistory:
         assert args[1] == QUERY_NAMES.SENTIMENT_HISTORY
         # Implementation maps hours to min_timestamp parameter
         assert "min_timestamp" in args[2]
+        assert "max_timestamp" in args[2]
+
+    @pytest.mark.asyncio
+    async def test_get_sentiment_history_uses_explicit_date_range(self):
+        """Should query requested historical bounds instead of relative now only."""
+        mock_db = MagicMock()
+        mock_query_service = MagicMock(spec=QueryService)
+        service = SentimentDatabaseService(mock_db, query_service=mock_query_service)
+        mock_query_service.execute_query.return_value = []
+
+        with patch("src.services.market.sentiment_database_service.logger"):
+            responses = await service.get_sentiment_history(
+                start_time=datetime(2024, 11, 1, tzinfo=UTC),
+                end_time=datetime(2026, 4, 6, tzinfo=UTC),
+            )
+
+        assert responses == []
+        args, _ = mock_query_service.execute_query.call_args
+        assert args[2]["min_timestamp"] == datetime(2024, 11, 1, tzinfo=UTC)
+        assert args[2]["max_timestamp"] == datetime(2026, 4, 6, tzinfo=UTC)
 
     @pytest.mark.asyncio
     async def test_get_sentiment_history_no_data(self):

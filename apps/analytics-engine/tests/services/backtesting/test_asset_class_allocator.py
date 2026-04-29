@@ -41,9 +41,10 @@ def test_allocator_prefers_crypto_when_crypto_low_and_spy_high() -> None:
     )
 
     assert result.allocation["spy"] == pytest.approx(0.0)
-    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(1.0)
-    assert result.allocation["eth"] == pytest.approx(0.25)
-    assert result.allocation["stable"] == pytest.approx(0.0)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.495)
+    assert result.allocation["eth"] == pytest.approx(0.12375)
+    assert result.allocation["stable"] == pytest.approx(0.505)
+    assert result.crypto_gate_state == "accumulation"
 
 
 def test_allocator_moves_to_stable_when_both_classes_are_high() -> None:
@@ -75,9 +76,9 @@ def test_allocator_sums_demands_when_both_attractive_and_over_one() -> None:
 
     assert result.stock_score == pytest.approx(0.6)
     assert result.crypto_score == pytest.approx(0.6)
-    assert result.allocation["spy"] == pytest.approx(0.5)
-    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.5)
-    assert result.allocation["stable"] == pytest.approx(0.0)
+    assert result.allocation["spy"] == pytest.approx(0.0175)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.0225)
+    assert result.allocation["stable"] == pytest.approx(0.96)
 
 
 def test_allocator_leaves_stable_when_demands_under_one() -> None:
@@ -91,9 +92,10 @@ def test_allocator_leaves_stable_when_demands_under_one() -> None:
 
     assert result.stock_score == pytest.approx(0.3)
     assert result.crypto_score == pytest.approx(0.3)
-    assert result.allocation["spy"] == pytest.approx(0.3)
-    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.3)
-    assert result.allocation["stable"] == pytest.approx(0.4)
+    assert result.allocation["spy"] == pytest.approx(0.0)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.0)
+    assert result.allocation["stable"] == pytest.approx(1.0)
+    assert result.stock_gate_state == "overextended"
 
 
 def test_allocator_does_not_starve_strong_signal_with_weak_other() -> None:
@@ -107,9 +109,9 @@ def test_allocator_does_not_starve_strong_signal_with_weak_other() -> None:
 
     assert result.stock_score == pytest.approx(0.8)
     assert result.crypto_score == pytest.approx(0.2)
-    assert result.allocation["spy"] == pytest.approx(0.8)
-    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.2)
-    assert result.allocation["stable"] == pytest.approx(0.0)
+    assert result.allocation["spy"] == pytest.approx(0.2275)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.0)
+    assert result.allocation["stable"] == pytest.approx(0.7725)
 
 
 def test_allocator_preserves_missing_class_current_share() -> None:
@@ -122,8 +124,41 @@ def test_allocator_preserves_missing_class_current_share() -> None:
     )
 
     assert result.allocation["spy"] == pytest.approx(0.3)
-    assert result.allocation["btc"] == pytest.approx(0.7)
+    assert result.allocation["btc"] == pytest.approx(0.45)
     assert result.allocation["alt"] == pytest.approx(0.0)
+
+
+def test_allocator_overextended_stock_and_crypto_sell_down_to_stable() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=0.18,
+        crypto_dma_distance=0.30,
+        crypto_fgi_regime="extreme_greed",
+        eth_share_in_crypto=0.5,
+        current_allocation={"btc": 0.35, "eth": 0.25, "spy": 0.3, "stable": 0.1},
+        stock_has_crossed_up=True,
+        crypto_has_crossed_up=True,
+    )
+
+    assert result.allocation["spy"] == pytest.approx(0.0)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.0)
+    assert result.allocation["stable"] == pytest.approx(1.0)
+    assert result.stable_reason == "no_positive_asset_class_score"
+
+
+def test_allocator_both_crossed_up_uses_score_weighted_risk_with_no_stable() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=0.02,
+        crypto_dma_distance=-0.02,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.25,
+        current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+        stock_has_crossed_up=True,
+        crypto_has_crossed_up=True,
+    )
+
+    assert result.allocation["spy"] == pytest.approx(0.5)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.5)
+    assert result.allocation["stable"] == pytest.approx(0.0)
 
 
 def test_allocator_preserves_full_current_when_both_signals_missing() -> None:

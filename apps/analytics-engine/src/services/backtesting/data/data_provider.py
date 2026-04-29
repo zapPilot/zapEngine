@@ -320,8 +320,11 @@ class BacktestDataProvider:
             days_diff = (end_date - start_date).days + 1
             hours = days_diff * 24
 
-            # Get sentiment history
-            sentiments = await self.sentiment_service.get_sentiment_history(hours=hours)
+            sentiments = await self.sentiment_service.get_sentiment_history(
+                hours=hours,
+                start_time=start_date,
+                end_time=end_date,
+            )
 
             # Map by date, taking most recent sentiment per day
             sentiment_map: dict[date, dict[str, Any]] = {}

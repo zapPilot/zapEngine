@@ -93,6 +93,17 @@ def _build_spy_dma_context(context: StrategyContext) -> StrategyContext:
     )
 
 
+def _build_crypto_dma_context(context: StrategyContext) -> StrategyContext:
+    """Force the crypto asset-class DMA gate to use BTC price vs BTC DMA."""
+    btc_price = context.price_map.get("btc")
+    btc_dma = context.extra_data.get(DMA_200_FEATURE)
+    if not isinstance(btc_price, int | float) or float(btc_price) <= 0.0:
+        return context
+    if not isinstance(btc_dma, int | float) or float(btc_dma) <= 0.0:
+        return context
+    return replace(context, price=float(btc_price))
+
+
 def _extract_macro_fear_greed_score(extra_data: Mapping[str, Any]) -> int | None:
     raw = extra_data.get(MACRO_FEAR_GREED_FEATURE)
     if not isinstance(raw, Mapping):
@@ -284,6 +295,8 @@ class SpyEthBtcRotationState:
     spy_dma_state: DmaMarketState | None
     current_asset_allocation: dict[str, float]
     macro_fear_greed_score: int | None = None
+    stock_has_crossed_up: bool = False
+    crypto_has_crossed_up: bool = False
 
 
 @dataclass
@@ -306,7 +319,10 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
     _crypto_signal: EthBtcRelativeStrengthSignalComponent = field(
         init=False, repr=False
     )
+    _btc_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _spy_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
+    _stock_has_crossed_up: bool = field(default=False, init=False, repr=False)
+    _crypto_has_crossed_up: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._crypto_signal = EthBtcRelativeStrengthSignalComponent(
@@ -314,6 +330,14 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             ratio_cross_cooldown_days=self.params.ratio_cross_cooldown_days,
             rotation_neutral_band=self.params.rotation_neutral_band,
             rotation_max_deviation=self.params.rotation_max_deviation,
+            warmup_lookback_days=self.warmup_lookback_days,
+        )
+        self._btc_dma_signal = DmaGatedFgiSignalComponent(
+            config=self.params.build_signal_config(),
+            market_data_requirements=MarketDataRequirements(
+                requires_sentiment=True,
+                required_price_features=frozenset({DMA_200_FEATURE}),
+            ),
             warmup_lookback_days=self.warmup_lookback_days,
         )
         self._spy_dma_signal = DmaGatedFgiSignalComponent(
@@ -327,22 +351,29 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
 
     def reset(self) -> None:
         self._crypto_signal.reset()
+        self._btc_dma_signal.reset()
         self._spy_dma_signal.reset()
+        self._stock_has_crossed_up = False
+        self._crypto_has_crossed_up = False
 
     def initialize(self, context: StrategyContext) -> None:
         self._crypto_signal.initialize(context)
+        self._btc_dma_signal.initialize(_build_crypto_dma_context(context))
         spy_context = _build_spy_dma_context(context)
         if spy_context is not context:
             self._spy_dma_signal.initialize(spy_context)
 
     def warmup(self, context: StrategyContext) -> None:
         self._crypto_signal.warmup(context)
+        self._btc_dma_signal.warmup(_build_crypto_dma_context(context))
         spy_context = _build_spy_dma_context(context)
         if spy_context is not context:
             self._spy_dma_signal.warmup(spy_context)
 
     def observe(self, context: StrategyContext) -> SpyEthBtcRotationState:
         crypto_state = self._crypto_signal.observe(context)
+        btc_dma_state = self._btc_dma_signal.observe(_build_crypto_dma_context(context))
+        crypto_state = replace(crypto_state, dma_state=btc_dma_state)
         spy_context = _build_spy_dma_context(context)
         spy_state: DmaMarketState | None
         if spy_context is context:
@@ -356,6 +387,10 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
                 context.portfolio.asset_allocation_percentages(context.portfolio_price)
             ),
             macro_fear_greed_score=_extract_macro_fear_greed_score(context.extra_data),
+            stock_has_crossed_up=self._stock_has_crossed_up
+            or (spy_state is not None and spy_state.cross_event == "cross_up"),
+            crypto_has_crossed_up=self._crypto_has_crossed_up
+            or crypto_state.dma_state.cross_event == "cross_up",
         )
 
     def apply_intent(
@@ -370,6 +405,12 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             snapshot=snapshot.crypto_state,
             intent=intent,
         )
+        committed_btc_dma = self._btc_dma_signal.apply_intent(
+            current_date=current_date,
+            snapshot=snapshot.crypto_state.dma_state,
+            intent=intent,
+        )
+        committed_crypto = replace(committed_crypto, dma_state=committed_btc_dma)
         committed_spy = snapshot.spy_dma_state
         if snapshot.spy_dma_state is not None:
             committed_spy = self._spy_dma_signal.apply_intent(
@@ -377,10 +418,20 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
                 snapshot=snapshot.spy_dma_state,
                 intent=intent,
             )
+            if snapshot.spy_dma_state.cross_event == "cross_up":
+                self._stock_has_crossed_up = True
+            elif snapshot.spy_dma_state.cross_event == "cross_down":
+                self._stock_has_crossed_up = False
+        if snapshot.crypto_state.dma_state.cross_event == "cross_up":
+            self._crypto_has_crossed_up = True
+        elif snapshot.crypto_state.dma_state.cross_event == "cross_down":
+            self._crypto_has_crossed_up = False
         return replace(
             snapshot,
             crypto_state=committed_crypto,
             spy_dma_state=committed_spy,
+            stock_has_crossed_up=self._stock_has_crossed_up,
+            crypto_has_crossed_up=self._crypto_has_crossed_up,
         )
 
     def build_signal_observation(
@@ -396,6 +447,11 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
         return replace(
             observation,
             signal_id=self.signal_id,
+            dma=(
+                None
+                if observation.dma is None
+                else replace(observation.dma, outer_dma_asset="BTC")
+            ),
             spy_dma=_convert_spy_dma_to_diagnostics(snapshot.spy_dma_state),
         )
 
@@ -444,25 +500,34 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
             eth_share_in_crypto=eth_share,
             current_allocation=snapshot.current_asset_allocation,
             stock_macro_fgi_score=snapshot.macro_fear_greed_score,
+            stock_cross_event=_get_spy_cross_event(snapshot.spy_dma_state),
+            crypto_cross_event=_get_crypto_cross_event(snapshot.crypto_state.dma_state),
+            stock_has_crossed_up=snapshot.stock_has_crossed_up,
+            crypto_has_crossed_up=snapshot.crypto_has_crossed_up,
         )
         target_allocation = allocation_result.allocation
 
         spy_cross_event = _get_spy_cross_event(snapshot.spy_dma_state)
         crypto_cross_event = _get_crypto_cross_event(snapshot.crypto_state.dma_state)
-
-        (
-            target_allocation,
-            dma_gate_reason,
-            is_immediate,
-        ) = _apply_asset_class_dma_gates(
-            target_allocation=target_allocation,
-            spy_cross_event=spy_cross_event,
-            crypto_cross_event=crypto_cross_event,
-        )
+        cross_reasons: list[str] = []
+        if spy_cross_event is not None:
+            cross_reasons.append(f"spy_dma_{spy_cross_event}")
+        if crypto_cross_event is not None:
+            cross_reasons.append(f"crypto_dma_{crypto_cross_event}")
+        dma_gate_reason = "+".join(cross_reasons) if cross_reasons else None
+        is_immediate = spy_cross_event == "cross_up" or crypto_cross_event == "cross_up"
+        diagnostics = {
+            "stock_score": allocation_result.stock_score,
+            "crypto_score": allocation_result.crypto_score,
+            "stock_gate_state": allocation_result.stock_gate_state,
+            "crypto_gate_state": allocation_result.crypto_gate_state,
+            "overextension_pressure": allocation_result.overextension_pressure,
+            "stable_reason": allocation_result.stable_reason,
+        }
 
         if dma_gate_reason is not None:
             return AllocationIntent(
-                action="sell" if "cross_down" in dma_gate_reason else "buy",
+                action="buy" if "cross_up" in dma_gate_reason else "sell",
                 target_allocation=target_allocation,
                 allocation_name=dma_gate_reason,
                 immediate=is_immediate,
@@ -473,6 +538,7 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
                     allocation_result.crypto_score or 0.0,
                     crypto_intent.decision_score,
                 ),
+                diagnostics=diagnostics,
             )
 
         current_allocation = target_from_current_allocation(
@@ -522,6 +588,7 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
                 allocation_result.crypto_score or 0.0,
                 crypto_intent.decision_score,
             ),
+            diagnostics=diagnostics,
         )
 
 

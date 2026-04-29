@@ -28,6 +28,7 @@ from src.services.backtesting.strategies.spy_eth_btc_rotation import (
     SpyEthBtcRotationSignalComponent,
     SpyEthBtcRotationState,
     SpyEthBtcRotationStrategy,
+    _build_crypto_dma_context,
     _build_spy_dma_context,
     _compose_4bucket_target,
     _crypto_risk_on_share,
@@ -210,6 +211,30 @@ class TestBuildSpyDmaContext:
         assert spy_context is context
 
 
+class TestBuildCryptoDmaContext:
+    def test_uses_btc_price_even_when_portfolio_spot_is_eth(self) -> None:
+        portfolio = Portfolio.from_asset_allocation(
+            10_000.0,
+            {"btc": 0.0, "eth": 1.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            {"btc": 100_000.0, "eth": 5_000.0, "spy": 600.0},
+            spot_asset="BTC",
+        )
+        prices = {"btc": 100_000.0, "eth": 5_000.0, "spy": 600.0}
+        portfolio.rotate_spot_asset("ETH", prices)
+        context = _build_context(
+            portfolio=portfolio,
+            btc_price=100_000.0,
+            eth_price=5_000.0,
+            dma_200=80_000.0,
+        )
+        context = replace(context, price=portfolio.resolve_spot_price(prices))
+
+        crypto_context = _build_crypto_dma_context(context)
+
+        assert context.price == 5_000.0
+        assert crypto_context.price == 100_000.0
+
+
 # ── Signal component integration ─────────────────────────────────────────────
 
 
@@ -226,6 +251,29 @@ class TestSpyEthBtcSignalComponent:
         assert snapshot.spy_dma_state is not None
         assert snapshot.crypto_state is not None
         assert "spy" in snapshot.current_asset_allocation
+
+    def test_observe_uses_btc_dma_for_crypto_gate_when_eth_is_majority(self) -> None:
+        component = self._component()
+        prices = {"btc": 100_000.0, "eth": 5_000.0, "spy": 600.0}
+        portfolio = Portfolio.from_asset_allocation(
+            10_000.0,
+            {"btc": 0.0, "eth": 1.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            prices,
+            spot_asset="BTC",
+        )
+        context = _build_context(
+            portfolio=portfolio,
+            btc_price=100_000.0,
+            eth_price=5_000.0,
+            dma_200=80_000.0,
+        )
+        context = replace(context, price=5_000.0)
+
+        component.initialize(context)
+        snapshot = component.observe(context)
+
+        assert snapshot.crypto_state.dma_state.dma_200 == pytest.approx(80_000.0)
+        assert snapshot.crypto_state.dma_state.dma_distance == pytest.approx(0.25)
 
     def test_observe_extracts_macro_fear_greed_score(self) -> None:
         component = self._component()
@@ -373,7 +421,8 @@ class TestDecidePolicyHoldStatePreservesSpy:
         intent = policy.decide(snapshot)
 
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] == pytest.approx(0.4167, abs=0.01)
+        assert intent.target_allocation["spy"] == pytest.approx(0.0)
+        assert intent.target_allocation["stable"] == pytest.approx(1.0)
 
     def test_hold_state_with_zero_current_spy_enters_via_signals(self) -> None:
         """Under canonical allocator, SPY weight is driven by DMA scores, not
@@ -396,7 +445,8 @@ class TestDecidePolicyHoldStatePreservesSpy:
         intent = policy.decide(snapshot)
 
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] > 0.0
+        assert intent.target_allocation["spy"] == pytest.approx(0.0)
+        assert intent.target_allocation["stable"] == pytest.approx(1.0)
 
     def test_missing_spy_dma_state_also_falls_back_to_current(self) -> None:
         """spy_dma_state=None (data unavailable) reuses the same fallback path.
@@ -433,6 +483,8 @@ class TestDecidePolicyHoldStatePreservesSpy:
                 "eth": 0.0,
                 "stable": 0.5,
             },
+            stock_has_crossed_up=True,
+            crypto_has_crossed_up=True,
         )
         fear_snapshot = SpyEthBtcRotationState(
             crypto_state=base_snapshot.crypto_state,
@@ -461,6 +513,8 @@ class TestDecidePolicyHoldStatePreservesSpy:
                 "eth": 0.0,
                 "stable": 0.5,
             },
+            stock_has_crossed_up=True,
+            crypto_has_crossed_up=True,
         )
         fear_snapshot = SpyEthBtcRotationState(
             crypto_state=base_snapshot.crypto_state,
@@ -527,8 +581,8 @@ class TestDecidePolicyHoldStatePreservesSpy:
         assert intent.target_allocation["spy"] == pytest.approx(0.0)
         assert intent.target_allocation["btc"] + intent.target_allocation[
             "eth"
-        ] == pytest.approx(0.4167, abs=0.01)
-        assert intent.target_allocation["stable"] == pytest.approx(0.5833, abs=0.01)
+        ] == pytest.approx(0.0)
+        assert intent.target_allocation["stable"] == pytest.approx(1.0)
 
     def test_crypto_cross_down_zeroes_only_crypto_sleeve(self) -> None:
         policy = SpyEthBtcRotationDecisionPolicy()
@@ -552,10 +606,10 @@ class TestDecidePolicyHoldStatePreservesSpy:
 
         assert intent.reason == "crypto_dma_cross_down"
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] == pytest.approx(0.4167, abs=0.01)
+        assert intent.target_allocation["spy"] == pytest.approx(0.0)
         assert intent.target_allocation["btc"] == pytest.approx(0.0)
         assert intent.target_allocation["eth"] == pytest.approx(0.0)
-        assert intent.target_allocation["stable"] == pytest.approx(0.5833, abs=0.01)
+        assert intent.target_allocation["stable"] == pytest.approx(1.0)
 
     def test_spy_cross_up_executes_score_derived_target_immediately(self) -> None:
         policy = SpyEthBtcRotationDecisionPolicy()
@@ -575,7 +629,7 @@ class TestDecidePolicyHoldStatePreservesSpy:
         assert intent.reason == "spy_dma_cross_up"
         assert intent.immediate is True
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] == pytest.approx(0.4167, abs=0.01)
+        assert intent.target_allocation["spy"] == pytest.approx(1.0)
 
     def test_crypto_cross_up_preserves_eth_btc_rotation_target(self) -> None:
         policy = SpyEthBtcRotationDecisionPolicy()
