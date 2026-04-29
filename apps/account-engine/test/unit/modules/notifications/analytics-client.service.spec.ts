@@ -39,7 +39,8 @@ describe('AnalyticsClientService', () => {
           spot_usd: 500,
           stable_usd: 500,
           total_value: 1000,
-          allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
+          allocation: { spot: 0.5, stable: 0.5 },
+          asset_allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
         },
         target: {
           allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },

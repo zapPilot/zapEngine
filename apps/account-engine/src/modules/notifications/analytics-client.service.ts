@@ -370,6 +370,10 @@ export class AnalyticsClientService {
             portfolio['allocation'],
             'context["portfolio"]["allocation"]',
           ),
+          asset_allocation: this.getNumericRecord(
+            portfolio['asset_allocation'],
+            'context["portfolio"]["asset_allocation"]',
+          ),
           ...(portfolio['total_assets_usd'] === undefined
             ? {}
             : {
