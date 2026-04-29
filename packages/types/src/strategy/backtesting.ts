@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  AssetAllocationSchema,
   PortfolioAllocationSchema,
   TargetAllocationSchema,
 } from './allocation.js';
@@ -80,6 +81,7 @@ export const BacktestStrategyPortfolioSchema = z.object({
   stable_usd: z.number().nonnegative(),
   total_value: z.number().nonnegative(),
   allocation: PortfolioAllocationSchema,
+  asset_allocation: AssetAllocationSchema,
   spot_asset: BacktestSpotAssetSymbolSchema.nullable().optional(),
 });
 
@@ -201,6 +203,7 @@ export const BacktestStrategySummarySchema = z.object({
   roi_percent: z.number(),
   trade_count: z.number().int().nonnegative(),
   final_allocation: PortfolioAllocationSchema,
+  final_asset_allocation: AssetAllocationSchema,
   max_drawdown_percent: z.number().optional(),
   calmar_ratio: z.number().optional(),
   parameters: JsonObjectSchema,

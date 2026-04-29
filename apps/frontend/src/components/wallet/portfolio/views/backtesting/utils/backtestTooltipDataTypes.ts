@@ -1,5 +1,5 @@
 import type {
-  BacktestPortfolioAllocation,
+  BacktestAssetAllocation,
   BacktestStrategyPoint,
 } from '@/types/backtesting';
 
@@ -26,7 +26,7 @@ export interface SignalItem {
 export interface AllocationBlock {
   id: string;
   displayName: string;
-  allocation: BacktestPortfolioAllocation;
+  allocation: BacktestAssetAllocation;
   index: number | undefined;
 }
 

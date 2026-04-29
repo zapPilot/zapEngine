@@ -8,9 +8,14 @@ const AssetAllocationShape = {
   alt: z.number().min(0).max(1),
 };
 
+const PortfolioAllocationShape = {
+  spot: z.number().min(0).max(1),
+  stable: z.number().min(0).max(1),
+};
+
 export const AssetAllocationSchema = z.object(AssetAllocationShape);
 
-export const PortfolioAllocationSchema = z.object(AssetAllocationShape);
+export const PortfolioAllocationSchema = z.object(PortfolioAllocationShape);
 
 export const TargetAllocationSchema = AssetAllocationSchema.strict().refine(
   (allocation) => allocation.alt === 0,

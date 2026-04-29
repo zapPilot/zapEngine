@@ -1,6 +1,9 @@
 import { formatCurrency } from '@/utils';
 
-import { hasBacktestAllocation } from '../backtestBuckets';
+import {
+  hasBacktestAllocation,
+  resolveBacktestDisplayAllocation,
+} from '../backtestBuckets';
 import type {
   AllocationBlock,
   BacktestTooltipPayloadEntry,
@@ -38,7 +41,9 @@ function buildAllocationBlock(
   sortedStrategyIds: string[] | undefined,
 ): AllocationBlock | null {
   const strategy = strategies?.[strategyId];
-  const allocation = strategy?.portfolio?.allocation;
+  const allocation = strategy
+    ? resolveBacktestDisplayAllocation(strategy)
+    : null;
   if (!allocation || !hasBacktestAllocation(allocation)) {
     return null;
   }

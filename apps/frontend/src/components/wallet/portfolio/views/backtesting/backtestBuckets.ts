@@ -3,8 +3,9 @@ import {
   type UnifiedSegment,
 } from '@/components/wallet/portfolio/components/allocation';
 import type {
+  BacktestAssetAllocation,
   BacktestBucket,
-  BacktestPortfolioAllocation,
+  BacktestStrategyPoint,
   BacktestTransferMetadata,
 } from '@/types/backtesting';
 
@@ -16,7 +17,7 @@ const BACKTEST_ALLOCATION_BUCKETS = [
   'spy',
   'stable',
   'alt',
-] as const satisfies readonly (keyof BacktestPortfolioAllocation)[];
+] as const satisfies readonly (keyof BacktestAssetAllocation)[];
 
 const ALL_BUCKET_VALUES: readonly string[] = [
   'spot',
@@ -47,15 +48,63 @@ export function isBacktestTransfer(
 }
 
 export function hasBacktestAllocation(
-  allocation: BacktestPortfolioAllocation,
+  allocation: BacktestAssetAllocation,
 ): boolean {
   return BACKTEST_ALLOCATION_BUCKETS.some((bucket) => allocation[bucket] > 0);
 }
 
 export function buildBacktestAllocationSegments(
-  allocation: BacktestPortfolioAllocation,
+  allocation: BacktestAssetAllocation,
 ): UnifiedSegment[] {
   return mapAssetAllocationToUnified(allocation);
+}
+
+function isAssetAllocation(
+  allocation: unknown,
+): allocation is BacktestAssetAllocation {
+  if (!allocation || typeof allocation !== 'object') {
+    return false;
+  }
+
+  const maybeAllocation = allocation as Partial<BacktestAssetAllocation>;
+  return BACKTEST_ALLOCATION_BUCKETS.every(
+    (bucket) => typeof maybeAllocation[bucket] === 'number',
+  );
+}
+
+export function resolveBacktestDisplayAllocation(
+  strategy: BacktestStrategyPoint,
+): BacktestAssetAllocation | null {
+  if (isAssetAllocation(strategy.portfolio.asset_allocation)) {
+    return strategy.portfolio.asset_allocation;
+  }
+
+  if (isAssetAllocation(strategy.portfolio.allocation)) {
+    return strategy.portfolio.allocation;
+  }
+
+  const legacyAllocation = strategy.portfolio.allocation as {
+    spot?: number;
+    stable?: number;
+  };
+  const spot = legacyAllocation.spot ?? 0;
+  const stable = legacyAllocation.stable ?? 0;
+
+  if (spot <= 0 && stable <= 0) {
+    return null;
+  }
+
+  return {
+    btc:
+      strategy.portfolio.spot_asset === 'ETH' ||
+      strategy.portfolio.spot_asset === 'SPY'
+        ? 0
+        : spot,
+    eth: strategy.portfolio.spot_asset === 'ETH' ? spot : 0,
+    spy: strategy.portfolio.spot_asset === 'SPY' ? spot : 0,
+    stable,
+    alt: 0,
+  };
 }
 
 function isSpotBucket(bucket: BacktestBucket): boolean {

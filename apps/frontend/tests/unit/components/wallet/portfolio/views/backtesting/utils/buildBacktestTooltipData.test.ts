@@ -62,6 +62,10 @@ function makeStrategyPoint(overrides: {
         spot_asset: overrides.spotAsset,
       }),
       allocation: {
+        spot: spotShare,
+        stable: stableShare,
+      },
+      asset_allocation: {
         ...defaultAllocation,
         ...overrides.allocation,
       },
@@ -302,6 +306,28 @@ describe('buildBacktestTooltipData', () => {
       });
       const ids = result?.sections.allocations.map((a) => a.id) ?? [];
       expect(ids).toContain('stable_only');
+    });
+
+    it('uses the five-bucket asset allocation for allocation blocks', () => {
+      const strategies = {
+        rotation: makeStrategyPoint({
+          spot: 8000,
+          stable: 2000,
+          spotAsset: 'ETH',
+          allocation: { btc: 0.1, eth: 0.5, spy: 0.2, stable: 0.2, alt: 0 },
+        }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+      });
+
+      expect(result?.sections.allocations[0]?.allocation).toEqual({
+        btc: 0.1,
+        eth: 0.5,
+        spy: 0.2,
+        stable: 0.2,
+        alt: 0,
+      });
     });
 
     it('sets index to -1 when sortedStrategyIds is undefined (indexOf not found)', () => {

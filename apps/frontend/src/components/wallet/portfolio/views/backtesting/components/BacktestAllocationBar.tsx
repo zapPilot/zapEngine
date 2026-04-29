@@ -1,14 +1,14 @@
 import type { ReactElement } from 'react';
 
 import { UnifiedAllocationBar } from '@/components/wallet/portfolio/components/allocation';
-import type { BacktestPortfolioAllocation } from '@/types/backtesting';
+import type { BacktestAssetAllocation } from '@/types/backtesting';
 
 import { buildBacktestAllocationSegments } from '../backtestBuckets';
 import { getStrategyColor } from '../utils/strategyDisplay';
 
 export interface BacktestAllocationBarProps {
   displayName: string;
-  allocation: BacktestPortfolioAllocation;
+  allocation: BacktestAssetAllocation;
   strategyId?: string;
   index?: number | undefined;
 }
