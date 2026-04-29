@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "playwright install",
-    "dev": "cross-env VITE_ENABLE_RQ_DEVTOOLS=1 VITE_ENABLE_LOG_VIEWER=0 vite",
+    "dev": "pnpm --filter @zapengine/types build && cross-env VITE_ENABLE_RQ_DEVTOOLS=1 VITE_ENABLE_LOG_VIEWER=0 vite",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 4173",
     "preview": "vite preview --host 0.0.0.0 --port 4173",

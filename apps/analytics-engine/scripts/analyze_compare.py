@@ -10,7 +10,9 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
-AnalysisProfile = Literal["eth-btc-rotation", "dma-cross", "raw"]
+AnalysisProfile = Literal[
+    "eth-btc-rotation", "spy-eth-btc-rotation", "dma-cross", "raw"
+]
 OutputFormat = Literal["text", "json", "markdown"]
 EnrichMode = Literal["auto", "never", "required"]
 
@@ -22,7 +24,9 @@ DEFAULT_LOOKBACK_DAYS = 30
 SECTION_ORDER = (
     "market",
     "outer_dma",
+    "spy_dma",
     "inner_ratio",
+    "asset_class",
     "decision",
     "execution",
     "portfolio",
@@ -144,6 +148,14 @@ def normalize_signal(raw_signal: Any) -> dict[str, Any] | None:
         ratio = dict(ratio)
         normalized_details.setdefault("ratio", dict(ratio))
 
+    spy_dma = raw_signal.get("spy_dma")
+    if not isinstance(spy_dma, dict):
+        candidate_spy_dma = normalized_details.get("spy_dma")
+        spy_dma = dict(candidate_spy_dma) if isinstance(candidate_spy_dma, dict) else {}
+    else:
+        spy_dma = dict(spy_dma)
+        normalized_details.setdefault("spy_dma", dict(spy_dma))
+
     signal_id = raw_signal.get("id")
     if not isinstance(signal_id, str) or not signal_id:
         signal_id = raw_signal.get("signal_id")
@@ -156,6 +168,7 @@ def normalize_signal(raw_signal: Any) -> dict[str, Any] | None:
         "ath_event": ath_event,
         "dma": dma,
         "ratio": ratio,
+        "spy_dma": spy_dma,
         "details": normalized_details,
     }
 
@@ -493,13 +506,14 @@ def _build_consistency(
     reported_zone = dma.get("zone")
     market = _safe_mapping(point.get("market"))
     token_prices = _safe_mapping(market.get("token_price"))
-    btc_price = _safe_float(token_prices.get("btc"))
+    outer_asset = str(dma.get("outer_dma_asset") or "btc").lower()
+    asset_price = _safe_float(token_prices.get(outer_asset))
 
     issues: list[str] = []
     if (
         dma_200 is None
         or reported_distance is None
-        or btc_price is None
+        or asset_price is None
         or dma_200 <= 0.0
     ):
         return {
@@ -509,7 +523,7 @@ def _build_consistency(
             ],
         }
 
-    expected_distance = (btc_price - dma_200) / dma_200
+    expected_distance = (asset_price - dma_200) / dma_200
     if abs(expected_distance) < 1e-12:
         expected_zone = "at"
     elif expected_distance > 0.0:
@@ -517,7 +531,7 @@ def _build_consistency(
     else:
         expected_zone = "below"
 
-    matched_asset = "btc"
+    matched_asset = outer_asset
     if abs(reported_distance - expected_distance) > 1e-9:
         matched_asset = "unknown"
         for asset_symbol in sorted(token_prices):
@@ -533,11 +547,11 @@ def _build_consistency(
                 break
         if matched_asset == "unknown":
             issues.append(
-                f"reported distance {_format_pct(reported_distance, digits=4)} does not match BTC distance {_format_pct(expected_distance, digits=4)}"
+                f"reported distance {_format_pct(reported_distance, digits=4)} does not match {outer_asset.upper()} distance {_format_pct(expected_distance, digits=4)}"
             )
-        elif matched_asset != "btc":
+        elif matched_asset != outer_asset:
             issues.append(
-                f"reported distance matches {matched_asset.upper()} price against BTC DMA instead of BTC price"
+                f"reported distance matches {matched_asset.upper()} price against {outer_asset.upper()} DMA instead of {outer_asset.upper()} price"
             )
     if reported_zone != expected_zone:
         issues.append(
@@ -551,6 +565,7 @@ def _build_consistency(
         "reported_zone": reported_zone,
         "expected_zone": expected_zone,
         "matched_asset": matched_asset,
+        "outer_dma_asset": outer_asset.upper(),
         "issues": issues,
     }
 
@@ -603,11 +618,77 @@ def _build_rule_summary(
         ],
     }
 
+    if reason == "spy_dma_cross_down":
+        return {
+            "classification": "intended_rule",
+            "summary": "SPY DMA cross_down zeroed only the SPY sleeve and left the crypto sleeve governed by its own signal.",
+            "evidence": [
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+                f"execution={execution.get('event')!r}",
+            ],
+        }
+
+    if reason == "spy_dma_cross_up":
+        return {
+            "classification": "intended_rule",
+            "summary": "SPY DMA cross_up immediately executed the score-derived four-asset target.",
+            "evidence": [
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+                f"transfers={json.dumps(execution.get('transfers', []), sort_keys=True)}",
+            ],
+        }
+
+    if reason == "crypto_dma_cross_down":
+        return {
+            "classification": "intended_rule",
+            "summary": "Crypto DMA cross_down zeroed only the BTC/ETH sleeve and left the SPY sleeve governed by its own signal.",
+            "evidence": [
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+                f"execution={execution.get('event')!r}",
+            ],
+        }
+
+    if reason == "crypto_dma_cross_up":
+        return {
+            "classification": "intended_rule",
+            "summary": "Crypto DMA cross_up immediately executed the score-derived four-asset target.",
+            "evidence": [
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+                f"transfers={json.dumps(execution.get('transfers', []), sort_keys=True)}",
+            ],
+        }
+
 
     return {
         "classification": "context",
         "summary": "No special intended-rule narrative was derived for this point.",
         "evidence": [f"reason={reason or 'n/a'}"],
+    }
+
+
+def _build_asset_class_summary(
+    *,
+    decision: dict[str, Any],
+    portfolio: dict[str, Any],
+) -> dict[str, Any]:
+    target = _safe_mapping(decision.get("target_allocation"))
+    current = _safe_mapping(portfolio.get("asset_allocation"))
+    return {
+        "target_spy": _safe_float(target.get("spy")),
+        "target_crypto": (
+            (_safe_float(target.get("btc")) or 0.0)
+            + (_safe_float(target.get("eth")) or 0.0)
+        ),
+        "target_stable": _safe_float(target.get("stable")),
+        "current_spy": _safe_float(current.get("spy")),
+        "current_crypto": (
+            (_safe_float(current.get("btc")) or 0.0)
+            + (_safe_float(current.get("eth")) or 0.0)
+        ),
+        "current_stable": _safe_float(current.get("stable")),
+        "reason": decision.get("reason"),
+        "action": decision.get("action"),
+        "immediate": decision.get("immediate"),
     }
 
 
@@ -635,7 +716,12 @@ def _build_record(
         "date": point["date"],
         "market": point["market"],
         "outer_dma": _safe_mapping(signal_map.get("dma")),
+        "spy_dma": _safe_mapping(signal_map.get("spy_dma")),
         "inner_ratio": resolved_ratio_metrics,
+        "asset_class": _build_asset_class_summary(
+            decision=decision,
+            portfolio=portfolio,
+        ),
         "decision": decision,
         "execution": execution,
         "portfolio": portfolio,
@@ -655,6 +741,18 @@ def _default_sections(profile: AnalysisProfile) -> tuple[str, ...]:
             "execution",
             "portfolio",
             "consistency",
+            "rule",
+        )
+    if profile == "spy-eth-btc-rotation":
+        return (
+            "market",
+            "outer_dma",
+            "spy_dma",
+            "inner_ratio",
+            "asset_class",
+            "decision",
+            "execution",
+            "portfolio",
             "rule",
         )
     return SECTION_ORDER
@@ -746,12 +844,17 @@ def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
         token_prices = _safe_mapping(market.get("token_price"))
         ratio = record["inner_ratio"].get("ratio")
         return [
-            f"MARKET btc={_format_float(token_prices.get('btc'))} eth={_format_float(token_prices.get('eth'))} eth_btc_ratio={_format_float(ratio)} sentiment={market.get('sentiment')} label={market.get('sentiment_label')}",
+            f"MARKET btc={_format_float(token_prices.get('btc'))} eth={_format_float(token_prices.get('eth'))} spy={_format_float(token_prices.get('spy'))} eth_btc_ratio={_format_float(ratio)} sentiment={market.get('sentiment')} label={market.get('sentiment_label')}",
         ]
     if section == "outer_dma":
         dma = _safe_mapping(record["outer_dma"])
         return [
             f"OUTER_DMA dma_200={_format_float(dma.get('dma_200'))} distance={_format_pct(dma.get('distance'))} zone={dma.get('zone')} cross_event={dma.get('cross_event')}",
+        ]
+    if section == "spy_dma":
+        spy_dma = _safe_mapping(record["spy_dma"])
+        return [
+            f"SPY_DMA dma_200={_format_float(spy_dma.get('dma_200'))} distance={_format_pct(spy_dma.get('distance'))} zone={spy_dma.get('zone')} cross_event={spy_dma.get('cross_event')} cooldown_active={spy_dma.get('cooldown_active')} cooldown_remaining_days={spy_dma.get('cooldown_remaining_days')}",
         ]
     if section == "inner_ratio":
         ratio = _safe_mapping(record["inner_ratio"])
@@ -772,6 +875,23 @@ def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
                     f"reason={ratio.get('unavailable_reason') or ''}".rstrip(),
                 )
             ).strip()
+        ]
+    if section == "asset_class":
+        asset_class = _safe_mapping(record["asset_class"])
+        return [
+            "ASSET_CLASS "
+            + " ".join(
+                (
+                    f"target_spy={_format_pct(asset_class.get('target_spy'))}",
+                    f"target_crypto={_format_pct(asset_class.get('target_crypto'))}",
+                    f"target_stable={_format_pct(asset_class.get('target_stable'))}",
+                    f"current_spy={_format_pct(asset_class.get('current_spy'))}",
+                    f"current_crypto={_format_pct(asset_class.get('current_crypto'))}",
+                    f"current_stable={_format_pct(asset_class.get('current_stable'))}",
+                    f"reason={asset_class.get('reason')}",
+                    f"immediate={asset_class.get('immediate')}",
+                )
+            )
         ]
     if section == "decision":
         decision = _safe_mapping(record["decision"])
@@ -901,6 +1021,7 @@ def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
             "### Market",
             f"- BTC: `{_format_float(token_prices.get('btc'))}`",
             f"- ETH: `{_format_float(token_prices.get('eth'))}`",
+            f"- SPY: `{_format_float(token_prices.get('spy'))}`",
             f"- ETH/BTC ratio: `{_format_float(record['inner_ratio'].get('ratio'))}`",
             f"- FGI: `{market.get('sentiment')}` (`{market.get('sentiment_label')}`)",
         ]
@@ -912,6 +1033,19 @@ def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
             f"- Distance: `{_format_pct(dma.get('distance'))}`",
             f"- Zone: `{dma.get('zone')}`",
             f"- Cross event: `{dma.get('cross_event')}`",
+            f"- Asset: `{dma.get('outer_dma_asset')}`",
+        ]
+    if section == "spy_dma":
+        spy_dma = _safe_mapping(record["spy_dma"])
+        return [
+            "### SPY DMA",
+            f"- DMA200: `{_format_float(spy_dma.get('dma_200'))}`",
+            f"- Distance: `{_format_pct(spy_dma.get('distance'))}`",
+            f"- Zone: `{spy_dma.get('zone')}`",
+            f"- Cross event: `{spy_dma.get('cross_event')}`",
+            f"- Cooldown active: `{spy_dma.get('cooldown_active')}`",
+            f"- Cooldown remaining days: `{spy_dma.get('cooldown_remaining_days')}`",
+            f"- Cooldown blocked zone: `{spy_dma.get('cooldown_blocked_zone')}`",
         ]
     if section == "inner_ratio":
         ratio = _safe_mapping(record["inner_ratio"])
@@ -931,6 +1065,19 @@ def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
         if ratio.get("unavailable_reason"):
             lines.append(f"- Note: {ratio.get('unavailable_reason')}")
         return lines
+    if section == "asset_class":
+        asset_class = _safe_mapping(record["asset_class"])
+        return [
+            "### Asset Class",
+            f"- Target SPY: `{_format_pct(asset_class.get('target_spy'))}`",
+            f"- Target crypto: `{_format_pct(asset_class.get('target_crypto'))}`",
+            f"- Target stable: `{_format_pct(asset_class.get('target_stable'))}`",
+            f"- Current SPY: `{_format_pct(asset_class.get('current_spy'))}`",
+            f"- Current crypto: `{_format_pct(asset_class.get('current_crypto'))}`",
+            f"- Current stable: `{_format_pct(asset_class.get('current_stable'))}`",
+            f"- Reason: `{asset_class.get('reason')}`",
+            f"- Immediate: `{asset_class.get('immediate')}`",
+        ]
     if section == "decision":
         decision = _safe_mapping(record["decision"])
         return [
@@ -1021,6 +1168,7 @@ def _compact_context_record(
     signal = point.get("signal") if isinstance(point.get("signal"), dict) else {}
     assert isinstance(signal, dict)
     dma = _safe_mapping(signal.get("dma"))
+    spy_dma = _safe_mapping(signal.get("spy_dma"))
     decision = _safe_mapping(point.get("decision"))
     execution = _safe_mapping(point.get("execution"))
     portfolio = _safe_mapping(point.get("portfolio"))
@@ -1039,6 +1187,10 @@ def _compact_context_record(
         "outer_dma_cross_event": dma.get("cross_event"),
         "outer_dma_zone": dma.get("zone"),
         "outer_dma_distance": dma.get("distance"),
+        "outer_dma_asset": dma.get("outer_dma_asset"),
+        "spy_dma_cross_event": spy_dma.get("cross_event"),
+        "spy_dma_zone": spy_dma.get("zone"),
+        "spy_dma_distance": spy_dma.get("distance"),
         "inner_ratio_zone": ratio.get("zone"),
         "inner_ratio_cross_event": ratio.get("cross_event"),
         "allocation": portfolio.get("allocation"),
@@ -1055,11 +1207,14 @@ def _classify_context_event(
     signal = point.get("signal") if isinstance(point.get("signal"), dict) else {}
     assert isinstance(signal, dict)
     dma = _safe_mapping(signal.get("dma"))
+    spy_dma = _safe_mapping(signal.get("spy_dma"))
     decision = _safe_mapping(point.get("decision"))
     execution = _safe_mapping(point.get("execution"))
     kinds: list[str] = []
     if dma.get("cross_event") in {"cross_up", "cross_down"}:
         kinds.append("cross")
+    if spy_dma.get("cross_event") in {"cross_up", "cross_down"}:
+        kinds.append("spy_cross")
     if str(decision.get("action") or "hold") != "hold":
         kinds.append("decision")
     if execution.get("event") == "rebalance":
@@ -1414,7 +1569,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--total-capital", type=float, default=10_000.0)
     parser.add_argument(
         "--profile",
-        choices=["eth-btc-rotation", "dma-cross", "raw"],
+        choices=["eth-btc-rotation", "spy-eth-btc-rotation", "dma-cross", "raw"],
         default="eth-btc-rotation",
     )
     parser.add_argument(

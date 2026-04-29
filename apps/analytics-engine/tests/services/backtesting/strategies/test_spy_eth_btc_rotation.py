@@ -8,6 +8,7 @@ is a no-op for the SPY DMA gate's FGI conditional branches.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -301,6 +302,35 @@ class TestDecidePolicyHoldStatePreservesSpy:
             ath_event=None,
         )
 
+    def _dma_snapshot(
+        self,
+        *,
+        cross_event: str | None = None,
+        distance: float = 0.05,
+        zone: str = "above",
+    ):
+        from src.services.backtesting.signals.dma_gated_fgi.types import (
+            DmaCooldownState,
+            DmaMarketState,
+        )
+
+        return DmaMarketState(
+            signal_id="dma_gated_fgi",
+            dma_200=580.0,
+            dma_distance=distance,
+            zone=zone,
+            cross_event=cross_event,
+            actionable_cross_event=cross_event,
+            cooldown_state=DmaCooldownState(
+                active=False, remaining_days=0, blocked_zone=None
+            ),
+            fgi_value=50.0,
+            fgi_slope=0.0,
+            fgi_regime="neutral",
+            regime_source="label",
+            ath_event=None,
+        )
+
     def _hold_state_crypto_state(self):
         from src.services.backtesting.signals.dma_gated_fgi.types import (
             DmaCooldownState,
@@ -476,6 +506,103 @@ class TestDecidePolicyHoldStatePreservesSpy:
             assert macro_intent.target_allocation["spy"] == pytest.approx(
                 base_intent.target_allocation["spy"]
             )
+
+    def test_spy_cross_down_zeroes_only_spy_sleeve(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        snapshot = SpyEthBtcRotationState(
+            crypto_state=self._hold_state_crypto_state(),
+            spy_dma_state=self._dma_snapshot(cross_event="cross_down"),
+            current_asset_allocation={
+                "spy": 0.3,
+                "btc": 0.4,
+                "eth": 0.0,
+                "stable": 0.3,
+            },
+        )
+
+        intent = policy.decide(snapshot)
+
+        assert intent.reason == "spy_dma_cross_down"
+        assert intent.target_allocation is not None
+        assert intent.target_allocation["spy"] == pytest.approx(0.0)
+        assert intent.target_allocation["btc"] + intent.target_allocation[
+            "eth"
+        ] == pytest.approx(0.2083, abs=0.01)
+        assert intent.target_allocation["stable"] == pytest.approx(0.7917, abs=0.01)
+
+    def test_crypto_cross_down_zeroes_only_crypto_sleeve(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        crypto_state = self._hold_state_crypto_state()
+        crypto_state = replace(
+            crypto_state,
+            dma_state=self._dma_snapshot(cross_event="cross_down"),
+        )
+        snapshot = SpyEthBtcRotationState(
+            crypto_state=crypto_state,
+            spy_dma_state=self._hold_state_dma_snapshot(),
+            current_asset_allocation={
+                "spy": 0.3,
+                "btc": 0.4,
+                "eth": 0.0,
+                "stable": 0.3,
+            },
+        )
+
+        intent = policy.decide(snapshot)
+
+        assert intent.reason == "crypto_dma_cross_down"
+        assert intent.target_allocation is not None
+        assert intent.target_allocation["spy"] == pytest.approx(0.2083, abs=0.01)
+        assert intent.target_allocation["btc"] == pytest.approx(0.0)
+        assert intent.target_allocation["eth"] == pytest.approx(0.0)
+        assert intent.target_allocation["stable"] == pytest.approx(0.7917, abs=0.01)
+
+    def test_spy_cross_up_executes_score_derived_target_immediately(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        snapshot = SpyEthBtcRotationState(
+            crypto_state=self._hold_state_crypto_state(),
+            spy_dma_state=self._dma_snapshot(cross_event="cross_up"),
+            current_asset_allocation={
+                "spy": 0.0,
+                "btc": 0.4,
+                "eth": 0.0,
+                "stable": 0.6,
+            },
+        )
+
+        intent = policy.decide(snapshot)
+
+        assert intent.reason == "spy_dma_cross_up"
+        assert intent.immediate is True
+        assert intent.target_allocation is not None
+        assert intent.target_allocation["spy"] == pytest.approx(0.2083, abs=0.01)
+
+    def test_crypto_cross_up_preserves_eth_btc_rotation_target(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        crypto_state = self._hold_state_crypto_state()
+        crypto_state = replace(
+            crypto_state,
+            dma_state=self._dma_snapshot(cross_event="cross_up"),
+            ratio_cross_event="cross_up",
+            ratio_zone="above",
+        )
+        snapshot = SpyEthBtcRotationState(
+            crypto_state=crypto_state,
+            spy_dma_state=self._hold_state_dma_snapshot(),
+            current_asset_allocation={
+                "spy": 0.0,
+                "btc": 0.4,
+                "eth": 0.0,
+                "stable": 0.6,
+            },
+        )
+
+        intent = policy.decide(snapshot)
+
+        assert intent.reason == "crypto_dma_cross_up"
+        assert intent.immediate is True
+        assert intent.target_allocation is not None
+        assert intent.target_allocation["eth"] > intent.target_allocation["btc"]
 
 
 # ── Neutral FGI no-op pinning ────────────────────────────────────────────────

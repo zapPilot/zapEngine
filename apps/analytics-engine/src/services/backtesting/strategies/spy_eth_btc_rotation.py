@@ -26,7 +26,7 @@ from src.services.backtesting.constants import (
     STRATEGY_SPY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.decision import AllocationIntent, DecisionAction
-from src.services.backtesting.domain import SignalObservation
+from src.services.backtesting.domain import DmaSignalDiagnostics, SignalObservation
 from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
 )
@@ -40,7 +40,10 @@ from src.services.backtesting.features import (
     SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
-from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.dma_gated_fgi.types import (
+    CrossEvent,
+    DmaMarketState,
+)
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
@@ -129,6 +132,86 @@ def _spy_risk_on_share(allocation: Mapping[str, float] | None) -> float:
     if total <= 0.0:
         return 0.0
     return max(0.0, min(1.0, spy / total))
+
+
+def _get_spy_cross_event(dma_state: DmaMarketState | None) -> CrossEvent | None:
+    if dma_state is None:
+        return None
+    return dma_state.cross_event
+
+
+def _get_crypto_cross_event(dma_state: DmaMarketState | None) -> CrossEvent | None:
+    if dma_state is None:
+        return None
+    return dma_state.cross_event
+
+
+def _apply_asset_class_dma_gates(
+    *,
+    target_allocation: dict[str, float],
+    spy_cross_event: CrossEvent | None,
+    crypto_cross_event: CrossEvent | None,
+) -> tuple[dict[str, float], str | None, bool]:
+    """Apply asset-class DMA gate overrides.
+
+    Returns:
+        tuple of (modified_target_allocation, reason_label, is_immediate)
+    """
+    is_immediate = False
+    modified = dict(target_allocation)
+    reasons: list[str] = []
+
+    if spy_cross_event == "cross_down":
+        spy_share = max(0.0, float(modified.get("spy", 0.0)))
+        modified["spy"] = 0.0
+        modified["stable"] = float(modified.get("stable", 0.0)) + spy_share
+        reasons.append("spy_dma_cross_down")
+    elif spy_cross_event == "cross_up":
+        is_immediate = True
+        reasons.append("spy_dma_cross_up")
+
+    if crypto_cross_event == "cross_down":
+        crypto_share = max(
+            0.0,
+            float(modified.get("btc", 0.0)) + float(modified.get("eth", 0.0)),
+        )
+        modified["btc"] = 0.0
+        modified["eth"] = 0.0
+        modified["stable"] = float(modified.get("stable", 0.0)) + crypto_share
+        reasons.append("crypto_dma_cross_down")
+    elif crypto_cross_event == "cross_up":
+        is_immediate = True
+        reasons.append("crypto_dma_cross_up")
+
+    if not reasons:
+        return modified, None, is_immediate
+
+    if "spy_dma_cross_down" in reasons or "crypto_dma_cross_down" in reasons:
+        modified = _normalize_4bucket_allocation(
+            spy_share=modified.get("spy", 0.0),
+            btc_share=modified.get("btc", 0.0),
+            eth_share=modified.get("eth", 0.0),
+            stable_share=modified.get("stable", 0.0),
+        )
+
+    return modified, "+".join(reasons), is_immediate
+
+
+def _convert_spy_dma_to_diagnostics(
+    dma_state: DmaMarketState | None,
+) -> DmaSignalDiagnostics | None:
+    if dma_state is None:
+        return None
+    return DmaSignalDiagnostics(
+        dma_200=dma_state.dma_200,
+        distance=dma_state.dma_distance,
+        zone=dma_state.zone,
+        cross_event=dma_state.cross_event,
+        cooldown_active=dma_state.cooldown_state.active,
+        cooldown_remaining_days=dma_state.cooldown_state.remaining_days,
+        cooldown_blocked_zone=dma_state.cooldown_state.blocked_zone,
+        fgi_slope=dma_state.fgi_slope,
+    )
 
 
 def _normalize_4bucket_allocation(
@@ -310,7 +393,11 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             snapshot=snapshot.crypto_state,
             intent=intent,
         )
-        return replace(observation, signal_id=self.signal_id)
+        return replace(
+            observation,
+            signal_id=self.signal_id,
+            spy_dma=_convert_spy_dma_to_diagnostics(snapshot.spy_dma_state),
+        )
 
     def build_execution_hints(
         self,
@@ -359,6 +446,35 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
             stock_macro_fgi_score=snapshot.macro_fear_greed_score,
         )
         target_allocation = allocation_result.allocation
+
+        spy_cross_event = _get_spy_cross_event(snapshot.spy_dma_state)
+        crypto_cross_event = _get_crypto_cross_event(snapshot.crypto_state.dma_state)
+
+        (
+            target_allocation,
+            dma_gate_reason,
+            is_immediate,
+        ) = _apply_asset_class_dma_gates(
+            target_allocation=target_allocation,
+            spy_cross_event=spy_cross_event,
+            crypto_cross_event=crypto_cross_event,
+        )
+
+        if dma_gate_reason is not None:
+            return AllocationIntent(
+                action="sell" if "cross_down" in dma_gate_reason else "buy",
+                target_allocation=target_allocation,
+                allocation_name=dma_gate_reason,
+                immediate=is_immediate,
+                reason=dma_gate_reason,
+                rule_group="cross",
+                decision_score=max(
+                    allocation_result.stock_score or 0.0,
+                    allocation_result.crypto_score or 0.0,
+                    crypto_intent.decision_score,
+                ),
+            )
+
         current_allocation = target_from_current_allocation(
             snapshot.current_asset_allocation
         )

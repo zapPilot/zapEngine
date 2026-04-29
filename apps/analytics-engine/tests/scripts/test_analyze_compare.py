@@ -177,6 +177,106 @@ def _payload() -> dict[str, Any]:
     }
 
 
+def _spy_payload() -> dict[str, Any]:
+    return {
+        "window": {
+            "requested": {"days": 2},
+            "effective": {"days": 2},
+            "truncated": False,
+        },
+        "timeline": [
+            {
+                "market": {
+                    "date": "2026-04-27",
+                    "token_price": {"btc": 100.0, "eth": 5.0, "spy": 600.0},
+                    "sentiment": 45,
+                    "sentiment_label": "neutral",
+                },
+                "strategies": {
+                    "spy_eth_btc_rotation_default": {
+                        "portfolio": {
+                            "spot_usd": 4_000.0,
+                            "stable_usd": 6_000.0,
+                            "total_value": 10_000.0,
+                            "allocation": {"spot": 0.4, "stable": 0.6},
+                            "asset_allocation": {
+                                "btc": 0.2,
+                                "eth": 0.2,
+                                "spy": 0.0,
+                                "stable": 0.6,
+                                "alt": 0.0,
+                            },
+                            "spot_asset": "BTC",
+                        },
+                        "signal": {
+                            "id": "spy_eth_btc_rs_signal",
+                            "regime": "neutral",
+                            "raw_value": 45.0,
+                            "confidence": 1.0,
+                            "details": {
+                                "dma": {
+                                    "dma_200": 90.0,
+                                    "distance": 0.1111111111,
+                                    "zone": "above",
+                                    "cross_event": None,
+                                    "outer_dma_asset": "BTC",
+                                },
+                                "spy_dma": {
+                                    "dma_200": 610.0,
+                                    "distance": -0.0163934426,
+                                    "zone": "below",
+                                    "cross_event": "cross_down",
+                                    "cooldown_active": False,
+                                    "cooldown_remaining_days": 0,
+                                    "cooldown_blocked_zone": None,
+                                },
+                                "ratio": {
+                                    "ratio": 0.05,
+                                    "ratio_dma_200": 0.04,
+                                    "distance": 0.25,
+                                    "zone": "above",
+                                    "cross_event": None,
+                                    "cooldown_active": False,
+                                    "cooldown_remaining_days": 0,
+                                    "cooldown_blocked_zone": None,
+                                },
+                            },
+                        },
+                        "decision": {
+                            "action": "sell",
+                            "reason": "spy_dma_cross_down",
+                            "rule_group": "cross",
+                            "target_allocation": {
+                                "btc": 0.2,
+                                "eth": 0.2,
+                                "spy": 0.0,
+                                "stable": 0.6,
+                                "alt": 0.0,
+                            },
+                            "immediate": False,
+                        },
+                        "execution": {
+                            "event": "rebalance",
+                            "transfers": [
+                                {
+                                    "from_bucket": "spy",
+                                    "to_bucket": "stable",
+                                    "amount_usd": 1000.0,
+                                }
+                            ],
+                            "blocked_reason": None,
+                            "step_count": 1,
+                            "steps_remaining": 0,
+                            "interval_days": 1,
+                            "diagnostics": {"plugins": {}},
+                        },
+                    }
+                },
+            }
+        ],
+    }
+
+
 def test_analyze_payload_builds_api_request_and_filters_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -231,6 +331,29 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
     )
     assert data["records"][0]["rule"]["classification"] == "intended_rule"
     assert "full re-entry" in data["records"][0]["rule"]["summary"]
+
+
+def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None:
+    rendered = analyzer.analyze_response_payload(
+        _spy_payload(),
+        strategy_id="spy_eth_btc_rotation_default",
+        output_format="json",
+        enrich_db="never",
+        profile="spy-eth-btc-rotation",
+        source_label="fixture",
+        request_body={"configs": []},
+    )
+    data = json.loads(rendered)
+
+    assert "spy_dma" in data["sections"]
+    assert "asset_class" in data["sections"]
+    record = data["records"][0]
+    assert record["market"]["token_price"]["spy"] == 600.0
+    assert record["spy_dma"]["cross_event"] == "cross_down"
+    assert record["asset_class"]["target_spy"] == 0.0
+    assert record["asset_class"]["target_crypto"] == pytest.approx(0.4)
+    assert record["rule"]["classification"] == "intended_rule"
+    assert "SPY DMA cross_down" in record["rule"]["summary"]
 
 
 def test_analyze_payload_surfaces_api_errors(monkeypatch: pytest.MonkeyPatch) -> None:

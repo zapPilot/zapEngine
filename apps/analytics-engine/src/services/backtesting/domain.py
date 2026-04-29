@@ -43,6 +43,7 @@ class SignalObservation:
     ath_event: str | None = None
     dma: DmaSignalDiagnostics | None = None
     ratio: RatioSignalDiagnostics | None = None
+    spy_dma: DmaSignalDiagnostics | None = None
 
 
 @dataclass(frozen=True, slots=True)

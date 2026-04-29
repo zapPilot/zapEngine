@@ -22,7 +22,11 @@ from src.models.backtesting import (
 from src.services.backtesting.asset_allocation_serialization import (
     serialize_asset_allocation,
 )
-from src.services.backtesting.domain import ExecutionPluginDiagnostic, StrategySnapshot
+from src.services.backtesting.domain import (
+    DmaSignalDiagnostics,
+    ExecutionPluginDiagnostic,
+    StrategySnapshot,
+)
 from src.services.backtesting.execution.block_reasons import (
     resolve_effective_block_reason,
 )
@@ -192,16 +196,7 @@ def _serialize_signal_details(snapshot: StrategySnapshot) -> dict[str, Any]:
     if signal.ath_event is not None:
         details["ath_event"] = signal.ath_event
     if signal.dma is not None:
-        details["dma"] = {
-            "dma_200": signal.dma.dma_200,
-            "distance": signal.dma.distance,
-            "zone": signal.dma.zone,
-            "cross_event": signal.dma.cross_event,
-            "cooldown_active": signal.dma.cooldown_active,
-            "cooldown_remaining_days": signal.dma.cooldown_remaining_days,
-            "cooldown_blocked_zone": signal.dma.cooldown_blocked_zone,
-            "fgi_slope": signal.dma.fgi_slope,
-        }
+        details["dma"] = _serialize_dma_signal(signal.dma)
     if signal.ratio is not None:
         details["ratio"] = {
             "ratio": signal.ratio.ratio,
@@ -213,6 +208,24 @@ def _serialize_signal_details(snapshot: StrategySnapshot) -> dict[str, Any]:
             "cooldown_remaining_days": signal.ratio.cooldown_remaining_days,
             "cooldown_blocked_zone": signal.ratio.cooldown_blocked_zone,
         }
+    if signal.spy_dma is not None:
+        details["spy_dma"] = _serialize_dma_signal(signal.spy_dma)
+    return details
+
+
+def _serialize_dma_signal(dma: DmaSignalDiagnostics) -> dict[str, Any]:
+    details = {
+        "dma_200": dma.dma_200,
+        "distance": dma.distance,
+        "zone": dma.zone,
+        "cross_event": dma.cross_event,
+        "cooldown_active": dma.cooldown_active,
+        "cooldown_remaining_days": dma.cooldown_remaining_days,
+        "cooldown_blocked_zone": dma.cooldown_blocked_zone,
+        "fgi_slope": dma.fgi_slope,
+    }
+    if dma.outer_dma_asset is not None:
+        details["outer_dma_asset"] = dma.outer_dma_asset
     return details
 
 
