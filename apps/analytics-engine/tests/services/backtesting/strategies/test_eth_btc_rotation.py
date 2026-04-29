@@ -9,6 +9,7 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
 )
+from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 from src.services.backtesting.strategies.base import StrategyAction, StrategyContext
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.eth_btc_rotation import (
@@ -18,6 +19,7 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationStrategy,
     _coerce_optional_float,
     _normalize_asset_allocation,
+    _resolve_ratio_target,
     build_initial_eth_btc_asset_allocation,
     default_eth_btc_rotation_params,
 )
@@ -283,8 +285,8 @@ def test_decision_policy_non_cross_buy_keeps_full_risk_target_not_immediate() ->
     assert intent.reason == "below_extreme_fear_buy"
     assert intent.immediate is False
     assert intent.target_allocation == {
-        "btc": 0.0,
-        "eth": 1.0,
+        "btc": 1.0,
+        "eth": 0.0,
         "spy": 0.0,
         "stable": 0.0,
         "alt": 0.0,
@@ -698,7 +700,9 @@ def test_decision_policy_above_ratio_dma_holds_full_btc_without_buying_eth() -> 
     )
 
 
-def test_decision_policy_ratio_cross_up_forces_immediate_full_eth_rotation() -> None:
+def test_decision_policy_ratio_cross_up_marks_immediate_progressive_btc_rotation() -> (
+    None
+):
     component = EthBtcRelativeStrengthSignalComponent()
     decision_policy = EthBtcRotationDecisionPolicy()
     portfolio = Portfolio(
@@ -741,10 +745,10 @@ def test_decision_policy_ratio_cross_up_forces_immediate_full_eth_rotation() -> 
     assert intent.immediate is True
     assert intent.reason == "eth_btc_ratio_cross_up"
     assert intent.target_allocation is not None
-    assert intent.target_allocation["btc"] == pytest.approx(0.0)
-    assert intent.target_allocation["eth"] == pytest.approx(
+    assert intent.target_allocation["btc"] == pytest.approx(
         1.0 - snapshot.current_asset_allocation["stable"]
     )
+    assert intent.target_allocation["eth"] == pytest.approx(0.0)
     assert intent.target_allocation["stable"] == pytest.approx(
         snapshot.current_asset_allocation["stable"]
     )
@@ -801,7 +805,9 @@ def test_signal_component_ratio_cross_up_commit_starts_cooldown_blocking_above()
     assert committed.ratio_cooldown_state.blocked_zone == "above"
 
 
-def test_decision_policy_ratio_cross_down_forces_immediate_full_btc_rotation() -> None:
+def test_decision_policy_ratio_cross_down_marks_immediate_progressive_eth_rotation() -> (
+    None
+):
     component = EthBtcRelativeStrengthSignalComponent()
     decision_policy = EthBtcRotationDecisionPolicy()
     portfolio = Portfolio(
@@ -846,10 +852,10 @@ def test_decision_policy_ratio_cross_down_forces_immediate_full_btc_rotation() -
     assert intent.immediate is True
     assert intent.reason == "eth_btc_ratio_cross_down"
     assert intent.target_allocation is not None
-    assert intent.target_allocation["btc"] == pytest.approx(
+    assert intent.target_allocation["btc"] == pytest.approx(0.0)
+    assert intent.target_allocation["eth"] == pytest.approx(
         1.0 - snapshot.current_asset_allocation["stable"]
     )
-    assert intent.target_allocation["eth"] == pytest.approx(0.0)
     assert intent.target_allocation["stable"] == pytest.approx(
         snapshot.current_asset_allocation["stable"]
     )
@@ -960,24 +966,90 @@ def test_decision_policy_at_ratio_dma_holds_current_btc_eth_split() -> None:
     }
 
 
-def test_rotation_neutral_band_and_max_deviation_do_not_affect_runtime_decisions() -> (
-    None
-):
+def test_resolve_ratio_target_progressive_ramp() -> None:
+    cooldown_state = DmaCooldownState(
+        active=False,
+        remaining_days=0,
+        blocked_zone=None,
+    )
+
+    cases = [
+        (-0.20, 1.0),
+        (-0.10, 0.75),
+        (0.0, 0.5),
+        (0.10, 0.25),
+        (0.20, 0.0),
+    ]
+    for ratio_distance, expected_eth_share in cases:
+        resolved = _resolve_ratio_target(
+            current_allocation={
+                "btc": 0.25,
+                "eth": 0.25,
+                "spy": 0.0,
+                "stable": 0.5,
+            },
+            ratio_zone="at",
+            ratio_distance=ratio_distance,
+            ratio_cross_event=None,
+            ratio_cooldown_state=cooldown_state,
+            rotation_max_deviation=0.20,
+        )
+
+        assert resolved.eth_share_in_risk_on == pytest.approx(expected_eth_share)
+        assert resolved.immediate is False
+
+
+def test_resolve_ratio_target_cooldown_freezes_progressive() -> None:
+    resolved = _resolve_ratio_target(
+        current_allocation={"btc": 0.15, "eth": 0.45, "spy": 0.0, "stable": 0.4},
+        ratio_zone="above",
+        ratio_distance=0.20,
+        ratio_cross_event=None,
+        ratio_cooldown_state=DmaCooldownState(
+            active=True,
+            remaining_days=3,
+            blocked_zone="above",
+        ),
+        rotation_max_deviation=0.20,
+    )
+
+    assert resolved.eth_share_in_risk_on == pytest.approx(0.75)
+    assert resolved.cooldown_blocked is True
+
+
+def test_resolve_ratio_target_cross_marks_immediate_with_progressive_share() -> None:
+    cooldown_state = DmaCooldownState(
+        active=False,
+        remaining_days=0,
+        blocked_zone=None,
+    )
+
+    resolved = _resolve_ratio_target(
+        current_allocation={"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5},
+        ratio_zone="above",
+        ratio_distance=0.10,
+        ratio_cross_event="cross_up",
+        ratio_cooldown_state=cooldown_state,
+        rotation_max_deviation=0.20,
+    )
+
+    assert resolved.eth_share_in_risk_on == pytest.approx(0.25)
+    assert resolved.immediate is True
+
+
+def test_rotation_max_deviation_affects_runtime_decisions() -> None:
     portfolio = Portfolio(
         stable_balance=4_000.0,
         spot_asset="BTC",
         btc_balance=0.06,
         eth_balance=0.0,
     )
-    default_component = EthBtcRelativeStrengthSignalComponent(
+    component = EthBtcRelativeStrengthSignalComponent(
         rotation_neutral_band=0.01,
         rotation_max_deviation=0.10,
     )
-    wide_component = EthBtcRelativeStrengthSignalComponent(
-        rotation_neutral_band=0.25,
-        rotation_max_deviation=0.80,
-    )
-    decision_policy = EthBtcRotationDecisionPolicy()
+    narrow_policy = EthBtcRotationDecisionPolicy(rotation_max_deviation=0.10)
+    wide_policy = EthBtcRotationDecisionPolicy(rotation_max_deviation=0.80)
 
     warmup_context = _build_context(
         snapshot_date=date(2025, 1, 1),
@@ -1002,15 +1074,19 @@ def test_rotation_neutral_band_and_max_deviation_do_not_affect_runtime_decisions
         ratio_dma_200=0.050,
     )
 
-    default_component.initialize(warmup_context)
-    default_component.warmup(warmup_context)
-    wide_component.initialize(warmup_context)
-    wide_component.warmup(warmup_context)
+    component.initialize(warmup_context)
+    component.warmup(warmup_context)
 
-    default_intent = decision_policy.decide(default_component.observe(context))
-    wide_intent = decision_policy.decide(wide_component.observe(context))
+    snapshot = component.observe(context)
+    default_intent = narrow_policy.decide(snapshot)
+    wide_intent = wide_policy.decide(snapshot)
 
-    assert default_intent.target_allocation == wide_intent.target_allocation
+    assert default_intent.target_allocation != wide_intent.target_allocation
+    assert default_intent.target_allocation is not None
+    assert wide_intent.target_allocation is not None
+    assert (
+        default_intent.target_allocation["eth"] > wide_intent.target_allocation["eth"]
+    )
     assert default_intent.reason == wide_intent.reason
 
 
@@ -1429,8 +1505,8 @@ def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
     assert action.snapshot.decision.reason == "below_extreme_fear_buy"
     assert action.snapshot.decision.immediate is False
     assert action.snapshot.decision.target_allocation == {
-        "btc": 0.0,
-        "eth": 1.0,
+        "btc": 1.0,
+        "eth": 0.0,
         "spy": 0.0,
         "stable": 0.0,
         "alt": 0.0,

@@ -137,7 +137,7 @@ def allocate_stock_crypto_target(
             crypto_score=crypto_score,
         )
 
-    risk_budget = max(stock_score, crypto_score)
+    risk_budget = min(1.0, score_total)
     spy = risk_budget * (stock_score / score_total)
     crypto = risk_budget * (crypto_score / score_total)
     btc = crypto * (1.0 - eth_share)

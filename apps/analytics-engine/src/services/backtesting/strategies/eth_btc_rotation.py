@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import Field, JsonValue
 
+from src.services.backtesting.asset_class_allocator import score_dma_distance
 from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
@@ -493,12 +494,7 @@ class EthBtcRelativeStrengthSignalComponent(StatefulSignalComponent):
         if snapshot.ratio_cross_event is None or intent.target_allocation is None:
             return False
         risk_on_share = _risk_on_share(intent.target_allocation)
-        if risk_on_share <= 0.0:
-            return False
-        target_eth_share = _eth_share_in_risk_on(intent.target_allocation)
-        if snapshot.ratio_cross_event == "cross_up":
-            return abs(target_eth_share - 1.0) <= 1e-9
-        return abs(target_eth_share) <= 1e-9
+        return risk_on_share > 0.0
 
     def _ratio_cooldown_state(self, current_date: date) -> DmaCooldownState:
         return DmaCooldownState(
@@ -555,6 +551,7 @@ class EthBtcRotationDecisionPolicy(DecisionPolicy):
 
     decision_policy_id: str = "eth_btc_rotation_policy"
     rotation_drift_threshold: float = 0.03
+    rotation_max_deviation: float = 0.20
     _dma_policy: DmaGatedFgiDecisionPolicy = field(
         default_factory=DmaGatedFgiDecisionPolicy
     )
@@ -574,8 +571,10 @@ class EthBtcRotationDecisionPolicy(DecisionPolicy):
         ratio_target = _resolve_ratio_target(
             current_allocation=current_allocation,
             ratio_zone=snapshot.ratio_zone,
+            ratio_distance=snapshot.ratio_distance,
             ratio_cross_event=snapshot.ratio_cross_event,
             ratio_cooldown_state=snapshot.ratio_cooldown_state,
+            rotation_max_deviation=self.rotation_max_deviation,
         )
         target_allocation = _compose_asset_target(
             stable_share=stable_share,
@@ -658,8 +657,10 @@ def _resolve_ratio_target(
     *,
     current_allocation: Mapping[str, float],
     ratio_zone: Zone | None,
+    ratio_distance: float | None,
     ratio_cross_event: CrossEvent | None,
     ratio_cooldown_state: DmaCooldownState,
+    rotation_max_deviation: float,
 ) -> _ResolvedRatioTarget:
     # Cooldown freezes ALL ratio actions (crosses AND zone rebalancing)
     # to prevent whipsaw when the ratio oscillates around DMA-200.
@@ -668,16 +669,17 @@ def _resolve_ratio_target(
             eth_share_in_risk_on=_eth_share_in_risk_on(current_allocation),
             cooldown_blocked=True,
         )
-    if ratio_cross_event == "cross_up":
-        return _ResolvedRatioTarget(eth_share_in_risk_on=1.0, immediate=True)
-    if ratio_cross_event == "cross_down":
-        return _ResolvedRatioTarget(eth_share_in_risk_on=0.0, immediate=True)
-    if ratio_zone == "below":
-        return _ResolvedRatioTarget(eth_share_in_risk_on=1.0)
-    if ratio_zone == "above":
-        return _ResolvedRatioTarget(eth_share_in_risk_on=0.0)
+    progressive_eth_share = score_dma_distance(
+        ratio_distance,
+        band=rotation_max_deviation,
+    )
+    if progressive_eth_share is None:
+        return _ResolvedRatioTarget(
+            eth_share_in_risk_on=_eth_share_in_risk_on(current_allocation)
+        )
     return _ResolvedRatioTarget(
-        eth_share_in_risk_on=_eth_share_in_risk_on(current_allocation)
+        eth_share_in_risk_on=progressive_eth_share,
+        immediate=ratio_cross_event in {"cross_up", "cross_down"},
     )
 
 
@@ -741,6 +743,7 @@ class EthBtcRotationStrategy(ComposedSignalStrategy):
         )
         self.decision_policy = EthBtcRotationDecisionPolicy(
             rotation_drift_threshold=resolved_params.rotation_drift_threshold,
+            rotation_max_deviation=resolved_params.rotation_max_deviation,
             _dma_policy=DmaGatedFgiDecisionPolicy(
                 dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                 fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,

@@ -767,19 +767,9 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
     eth_rotation_points = [
         point.strategies["eth_rotation_runtime"] for point in result.timeline
     ]
-    assert [point.portfolio.spot_asset for point in eth_rotation_points] == [
-        "BTC",
-        None,
-        "ETH",
-    ]
-    assert eth_rotation_points[0].portfolio.asset_allocation is not None
-    assert eth_rotation_points[0].portfolio.asset_allocation.btc == pytest.approx(
-        0.5, rel=1e-3
-    )
-    assert eth_rotation_points[0].portfolio.asset_allocation.eth == pytest.approx(0.0)
-    assert eth_rotation_points[0].portfolio.asset_allocation.stable == pytest.approx(
-        0.5, rel=1e-3
-    )
+    assert eth_rotation_points[0].decision.target_allocation is not None
+    assert eth_rotation_points[0].decision.target_allocation.btc == pytest.approx(0.25)
+    assert eth_rotation_points[0].decision.target_allocation.eth == pytest.approx(0.25)
     assert eth_rotation_points[1].decision.target_allocation is not None
     assert (
         eth_rotation_points[1].decision.target_allocation.eth
@@ -790,10 +780,11 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
         not (transfer.from_bucket == "eth" and transfer.to_bucket == "btc")
         for transfer in eth_rotation_points[1].execution.transfers
     )
-    assert eth_rotation_points[2].portfolio.asset_allocation is not None
-    assert eth_rotation_points[2].portfolio.asset_allocation.eth == pytest.approx(1.0)
     assert eth_rotation_points[2].decision.target_allocation is not None
-    assert eth_rotation_points[2].decision.target_allocation.eth == pytest.approx(1.0)
+    assert (
+        eth_rotation_points[2].decision.target_allocation.btc
+        > eth_rotation_points[2].decision.target_allocation.eth
+    )
 
 
 def test_run_compare_v3_on_data_caps_non_cross_eth_btc_stable_buy() -> None:
@@ -848,7 +839,10 @@ def test_run_compare_v3_on_data_blocks_above_zone_revert_after_ratio_cross_up() 
 
     cross_day = eth_rotation_points[date(2025, 8, 3)]
     assert cross_day.decision.reason == "eth_btc_ratio_cross_up"
-    assert cross_day.portfolio.spot_asset == "ETH"
+    assert cross_day.decision.target_allocation is not None
+    assert cross_day.decision.target_allocation.btc > (
+        cross_day.decision.target_allocation.eth
+    )
     assert cross_day.signal is not None
     assert cross_day.signal.details["ratio"]["cooldown_active"] is True
     assert cross_day.signal.details["ratio"]["cooldown_blocked_zone"] == "above"
@@ -862,7 +856,10 @@ def test_run_compare_v3_on_data_blocks_above_zone_revert_after_ratio_cross_up() 
         assert state.decision.reason == "eth_btc_ratio_above_side_cooldown_active"
         assert state.execution.event is None
         assert state.execution.transfers == []
-        assert state.portfolio.spot_asset == "ETH"
+        assert state.decision.target_allocation is not None
+        assert state.decision.target_allocation.btc >= (
+            state.decision.target_allocation.eth
+        )
 
 
 def test_run_compare_v3_on_data_blocks_below_zone_revert_after_ratio_cross_down() -> (
@@ -888,7 +885,10 @@ def test_run_compare_v3_on_data_blocks_below_zone_revert_after_ratio_cross_down(
 
     cross_day = eth_rotation_points[date(2025, 8, 3)]
     assert cross_day.decision.reason == "eth_btc_ratio_cross_down"
-    assert cross_day.portfolio.spot_asset == "BTC"
+    assert cross_day.decision.target_allocation is not None
+    assert cross_day.decision.target_allocation.eth > (
+        cross_day.decision.target_allocation.btc
+    )
     assert cross_day.signal is not None
     assert cross_day.signal.details["ratio"]["cooldown_active"] is True
     assert cross_day.signal.details["ratio"]["cooldown_blocked_zone"] == "below"
@@ -899,10 +899,24 @@ def test_run_compare_v3_on_data_blocks_below_zone_revert_after_ratio_cross_down(
         assert state.signal.details["ratio"]["zone"] == "below"
         assert state.signal.details["ratio"]["cooldown_active"] is True
         assert state.signal.details["ratio"]["cooldown_blocked_zone"] == "below"
-        assert state.decision.reason == "eth_btc_ratio_below_side_cooldown_active"
-        assert state.execution.event is None
-        assert state.execution.transfers == []
-        assert state.portfolio.spot_asset == "BTC"
+        assert state.decision.reason in {
+            "eth_btc_ratio_below_side_cooldown_active",
+            "dma_cross_down",
+            "dma_cross_up",
+        }
+        assert state.decision.target_allocation is not None
+        if state.decision.reason == "eth_btc_ratio_below_side_cooldown_active":
+            assert state.execution.event is None
+            assert state.execution.transfers == []
+            assert state.decision.target_allocation.eth >= (
+                state.decision.target_allocation.btc
+            )
+        elif state.decision.reason == "dma_cross_down":
+            assert state.execution.event == "rebalance"
+            assert state.decision.target_allocation.stable == pytest.approx(1.0)
+        else:
+            assert state.execution.event == "rebalance"
+            assert state.decision.target_allocation.btc == pytest.approx(1.0)
 
 
 def test_run_compare_v3_on_data_blocks_eth_btc_rotation_during_cooldown() -> None:
@@ -920,7 +934,7 @@ def test_run_compare_v3_on_data_blocks_eth_btc_rotation_during_cooldown() -> Non
     eth_rotation_points = [
         point.strategies["eth_rotation_cooldown"] for point in result.timeline
     ]
-    first_rotation_day = eth_rotation_points[1]
+    first_rotation_day = eth_rotation_points[4]
     blocked_rotation_day = eth_rotation_points[5]
 
     assert first_rotation_day.decision.rule_group == "rotation"
@@ -1032,13 +1046,20 @@ def test_run_compare_v3_on_data_only_rotates_back_to_btc_after_ratio_moves_above
         for point in result.timeline
     }
 
-    # With dynamic outer DMA, the portfolio already holds ETH from initialization
-    # (ratio below DMA → favor ETH) and ETH is above its DMA — no dma_cross_up.
-    assert eth_rotation_points[date(2025, 7, 2)].portfolio.spot_asset == "ETH"
-    assert eth_rotation_points[date(2025, 7, 3)].portfolio.spot_asset == "ETH"
+    # With dynamic outer DMA, the portfolio initially favors ETH while the ratio
+    # is below DMA, then progressively rotates toward BTC once the ratio moves
+    # above DMA.
+    assert (
+        eth_rotation_points[date(2025, 7, 2)].portfolio.asset_allocation.eth
+        > eth_rotation_points[date(2025, 7, 2)].portfolio.asset_allocation.btc
+    )
+    assert (
+        eth_rotation_points[date(2025, 7, 3)].portfolio.asset_allocation.btc
+        > eth_rotation_points[date(2025, 7, 3)].portfolio.asset_allocation.eth
+    )
 
     post_cross_states = [
-        eth_rotation_points[date(2025, 7, day)] for day in (4, 5, 6, 7)
+        eth_rotation_points[date(2025, 7, day)] for day in (3, 4, 5, 6, 7)
     ]
     assert any(
         state.execution.transfers

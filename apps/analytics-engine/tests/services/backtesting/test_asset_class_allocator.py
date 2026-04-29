@@ -64,6 +64,54 @@ def test_allocator_moves_to_stable_when_both_classes_are_high() -> None:
     }
 
 
+def test_allocator_sums_demands_when_both_attractive_and_over_one() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=-0.06,
+        crypto_dma_distance=-0.06,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.5,
+        current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+    )
+
+    assert result.stock_score == pytest.approx(0.6)
+    assert result.crypto_score == pytest.approx(0.6)
+    assert result.allocation["spy"] == pytest.approx(0.5)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.5)
+    assert result.allocation["stable"] == pytest.approx(0.0)
+
+
+def test_allocator_leaves_stable_when_demands_under_one() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=0.12,
+        crypto_dma_distance=0.12,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.5,
+        current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+    )
+
+    assert result.stock_score == pytest.approx(0.3)
+    assert result.crypto_score == pytest.approx(0.3)
+    assert result.allocation["spy"] == pytest.approx(0.3)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.3)
+    assert result.allocation["stable"] == pytest.approx(0.4)
+
+
+def test_allocator_does_not_starve_strong_signal_with_weak_other() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=-0.18,
+        crypto_dma_distance=0.18,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.5,
+        current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+    )
+
+    assert result.stock_score == pytest.approx(0.8)
+    assert result.crypto_score == pytest.approx(0.2)
+    assert result.allocation["spy"] == pytest.approx(0.8)
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.2)
+    assert result.allocation["stable"] == pytest.approx(0.0)
+
+
 def test_allocator_preserves_missing_class_current_share() -> None:
     result = allocate_stock_crypto_target(
         stock_dma_distance=None,
