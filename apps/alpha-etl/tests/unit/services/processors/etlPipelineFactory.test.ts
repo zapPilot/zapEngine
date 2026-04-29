@@ -17,6 +17,7 @@ const {
   mockWalletProcessor,
   mockHyperliquidProcessor,
   mockSentimentProcessor,
+  mockMacroFearGreedProcessor,
   mockTokenPriceProcessor,
   mockStockPriceProcessor,
 } = vi.hoisted(() => ({
@@ -49,6 +50,12 @@ const {
     healthCheck: vi.fn(),
     getStats: vi.fn(),
     getSourceType: vi.fn().mockReturnValue('feargreed'),
+  } as BaseETLProcessor,
+  mockMacroFearGreedProcessor: {
+    process: vi.fn(),
+    healthCheck: vi.fn(),
+    getStats: vi.fn(),
+    getSourceType: vi.fn().mockReturnValue('macro-fear-greed'),
   } as BaseETLProcessor,
   mockTokenPriceProcessor: {
     process: vi.fn(),
@@ -98,6 +105,14 @@ vi.mock('../../../../src/modules/sentiment/processor.js', () => ({
   SentimentETLProcessor: class MockSentimentETLProcessor {
     constructor() {
       return mockSentimentProcessor;
+    }
+  },
+}));
+
+vi.mock('../../../../src/modules/macro-fear-greed/processor.js', () => ({
+  MacroFearGreedETLProcessor: class MockMacroFearGreedETLProcessor {
+    constructor() {
+      return mockMacroFearGreedProcessor;
     }
   },
 }));
@@ -600,6 +615,9 @@ describe('ETLPipelineFactory', () => {
       mockSentimentProcessor.healthCheck = vi.fn().mockResolvedValue({
         status: 'healthy',
       });
+      mockMacroFearGreedProcessor.healthCheck = vi.fn().mockResolvedValue({
+        status: 'healthy',
+      });
       mockTokenPriceProcessor.healthCheck = vi.fn().mockResolvedValue({
         status: 'healthy',
       });
@@ -614,6 +632,7 @@ describe('ETLPipelineFactory', () => {
       expect(result.sources.debank.status).toBe('healthy');
       expect(result.sources.hyperliquid.status).toBe('healthy');
       expect(result.sources.feargreed.status).toBe('healthy');
+      expect(result.sources['macro-fear-greed'].status).toBe('healthy');
       expect(result.sources['token-price'].status).toBe('healthy');
       expect(result.sources['stock-price'].status).toBe('healthy');
     });
@@ -630,6 +649,9 @@ describe('ETLPipelineFactory', () => {
         status: 'healthy',
       });
       mockSentimentProcessor.healthCheck = vi.fn().mockResolvedValue({
+        status: 'healthy',
+      });
+      mockMacroFearGreedProcessor.healthCheck = vi.fn().mockResolvedValue({
         status: 'healthy',
       });
       mockTokenPriceProcessor.healthCheck = vi.fn().mockResolvedValue({
@@ -649,6 +671,7 @@ describe('ETLPipelineFactory', () => {
       });
       expect(result.sources.hyperliquid.status).toBe('healthy');
       expect(result.sources.feargreed.status).toBe('healthy');
+      expect(result.sources['macro-fear-greed'].status).toBe('healthy');
     });
 
     it('should handle processor health check exceptions', async () => {
