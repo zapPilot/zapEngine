@@ -497,6 +497,7 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         "dca_classic",
         "dma_gated_fgi",
         "eth_btc_rotation",
+        "dma_fgi_adaptive_binary_eth_btc",
         "dma_gated_fgi_btc_asset_control",
         "dma_gated_fgi_eth_btc_control",
         "dma_gated_fgi_adaptive_dma_ref",

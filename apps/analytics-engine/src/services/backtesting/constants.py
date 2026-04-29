@@ -18,6 +18,7 @@ STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_GATED_FGI = "dma_gated_fgi"
 STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
 STRATEGY_SPY_ETH_BTC_ROTATION = "spy_eth_btc_rotation"
+STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC = "dma_fgi_adaptive_binary_eth_btc"
 STRATEGY_DMA_FGI_BTC_ASSET_CONTROL = "dma_gated_fgi_btc_asset_control"
 STRATEGY_DMA_FGI_ETH_BTC_CONTROL = "dma_gated_fgi_eth_btc_control"
 STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF = "dma_gated_fgi_adaptive_dma_ref"
@@ -42,6 +43,7 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DMA_GATED_FGI: "DMA Gated FGI",
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
     STRATEGY_SPY_ETH_BTC_ROTATION: "SPY/ETH/BTC Multi-Asset Rotation",
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: "DMA FGI Adaptive Binary ETH/BTC",
     STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: "DMA FGI BTC Asset Control",
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL: "DMA FGI ETH/BTC Control",
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: "DMA FGI + Adaptive DMA Ref",

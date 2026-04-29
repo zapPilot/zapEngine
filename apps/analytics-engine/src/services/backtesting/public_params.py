@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
     STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
@@ -117,6 +118,7 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
     STRATEGY_DMA_GATED_FGI: DmaGatedFgiPublicParams,
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
     STRATEGY_SPY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: EthBtcRotationPublicParams,
@@ -136,6 +138,7 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
 _ETH_BTC_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
     {
         STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
+        STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
         STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
         STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
         STRATEGY_DMA_FGI_RATIO_ZONE,

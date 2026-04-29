@@ -16,6 +16,7 @@ from src.services.backtesting.capabilities import (
 )
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
     STRATEGY_SPY_ETH_BTC_ROTATION,
@@ -41,6 +42,11 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     EthBtcRotationStrategy,
     build_initial_eth_btc_asset_allocation,
+)
+from src.services.backtesting.strategies.pair_rotation_template import (
+    ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+    DmaFgiAdaptiveBinaryEthBtcStrategy,
+    build_initial_pair_asset_allocation,
 )
 from src.services.backtesting.strategies.spy_eth_btc_rotation import (
     SpyEthBtcRotationParams,
@@ -226,6 +232,26 @@ def _build_eth_btc_attribution_recipe(strategy_id: str) -> StrategyRecipe:
     )
 
 
+def _build_adaptive_binary_eth_btc_strategy(
+    request: StrategyBuildRequest,
+) -> BaseStrategy:
+    params = EthBtcRotationParams.from_public_params(request.params)
+    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC
+    initial_asset_allocation = None
+    if request.mode == "compare" and request.initial_allocation is not None:
+        initial_asset_allocation = build_initial_pair_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+        )
+    return DmaFgiAdaptiveBinaryEthBtcStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
 def _build_spy_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrategy:
     params = SpyEthBtcRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_SPY_ETH_BTC_ROTATION
@@ -308,6 +334,25 @@ _RECIPES: dict[str, StrategyRecipe] = {
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
         build_strategy=_build_eth_btc_rotation_strategy,
         supports_daily_suggestion=True,
+    ),
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: StrategyRecipe(
+        strategy_id=STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+        display_name="DMA FGI Adaptive Binary ETH/BTC",
+        description="Clean pair-template strategy: DMA/FGI stable gate with 50/50 ETH/BTC start, dominant-unit DMA reference, and binary ETH/BTC ratio-zone rotation.",
+        signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_eth_btc_rotation_public_params,
+        build_strategy=_build_adaptive_binary_eth_btc_strategy,
+        supports_daily_suggestion=False,
     ),
     **{
         strategy_id: _build_eth_btc_attribution_recipe(strategy_id)
