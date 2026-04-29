@@ -34,6 +34,7 @@ from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_AUX_SERIES,
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
@@ -87,6 +88,18 @@ def _build_spy_dma_context(context: StrategyContext) -> StrategyContext:
         extra_data=new_extra,
         sentiment=dict(_NEUTRAL_SPY_SENTIMENT),
     )
+
+
+def _extract_macro_fear_greed_score(extra_data: Mapping[str, Any]) -> int | None:
+    raw = extra_data.get(MACRO_FEAR_GREED_FEATURE)
+    if not isinstance(raw, Mapping):
+        return None
+    score = raw.get("normalized_score")
+    if score is None:
+        score = raw.get("value")
+    if not isinstance(score, int | float):
+        return None
+    return max(0, min(100, int(round(float(score)))))
 
 
 def _crypto_risk_on_share(allocation: Mapping[str, float] | None) -> float:
@@ -187,6 +200,7 @@ class SpyEthBtcRotationState:
     crypto_state: EthBtcRotationState
     spy_dma_state: DmaMarketState | None
     current_asset_allocation: dict[str, float]
+    macro_fear_greed_score: int | None = None
 
 
 @dataclass
@@ -198,6 +212,7 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
             requires_sentiment=True,
+            requires_macro_fear_greed=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset(
                 {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}
@@ -257,6 +272,7 @@ class SpyEthBtcRotationSignalComponent(StatefulSignalComponent):
             current_asset_allocation=_normalize_current_4bucket(
                 context.portfolio.asset_allocation_percentages(context.portfolio_price)
             ),
+            macro_fear_greed_score=_extract_macro_fear_greed_score(context.extra_data),
         )
 
     def apply_intent(
@@ -340,6 +356,7 @@ class SpyEthBtcRotationDecisionPolicy(DecisionPolicy):
             crypto_fgi_regime=snapshot.crypto_state.dma_state.fgi_regime,
             eth_share_in_crypto=eth_share,
             current_allocation=snapshot.current_asset_allocation,
+            stock_macro_fgi_score=snapshot.macro_fear_greed_score,
         )
         target_allocation = allocation_result.allocation
         current_allocation = target_from_current_allocation(

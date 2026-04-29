@@ -6,6 +6,7 @@ export const dataSourceEnum = z.enum([
   'debank',
   'hyperliquid',
   'feargreed',
+  'macro-fear-greed',
   'token-price',
   'stock-price',
 ]);

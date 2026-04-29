@@ -174,7 +174,13 @@ describe('Webhooks Router', () => {
 
       const mockJob = createMockJob({
         trigger: 'manual',
-        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
+        sources: [
+          'defillama',
+          'debank',
+          'hyperliquid',
+          'macro-fear-greed',
+          'stock-price',
+        ],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
@@ -186,7 +192,13 @@ describe('Webhooks Router', () => {
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
         trigger: 'manual',
-        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
+        sources: [
+          'defillama',
+          'debank',
+          'hyperliquid',
+          'macro-fear-greed',
+          'stock-price',
+        ],
         filters: undefined,
       });
 
@@ -200,7 +212,13 @@ describe('Webhooks Router', () => {
 
       const mockJob = createMockJob({
         trigger: 'scheduled',
-        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
+        sources: [
+          'defillama',
+          'debank',
+          'hyperliquid',
+          'macro-fear-greed',
+          'stock-price',
+        ],
       });
 
       mockJobQueue.enqueue.mockResolvedValueOnce(mockJob);
@@ -209,7 +227,13 @@ describe('Webhooks Router', () => {
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
         trigger: 'scheduled',
-        sources: ['defillama', 'debank', 'hyperliquid', 'stock-price'],
+        sources: [
+          'defillama',
+          'debank',
+          'hyperliquid',
+          'macro-fear-greed',
+          'stock-price',
+        ],
         filters: undefined,
       });
     });

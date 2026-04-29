@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Collection
-from datetime import date
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.data.feature_loader import resolve_price_feature_history
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_USD_PRICE_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
@@ -23,6 +24,7 @@ from src.services.backtesting.utils import coerce_to_date
 
 if TYPE_CHECKING:  # pragma: no cover
     from src.services.interfaces import (
+        MacroFearGreedDatabaseServiceProtocol,
         SentimentDatabaseServiceProtocol,
         TokenPriceServiceProtocol,
     )
@@ -47,6 +49,7 @@ class BacktestDataProvider:
         token_price_service: TokenPriceServiceProtocol,
         sentiment_service: SentimentDatabaseServiceProtocol,
         stock_price_service: StockPriceServiceProtocol | None = None,
+        macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
     ):
         """Initialize data provider with required services.
 
@@ -59,6 +62,7 @@ class BacktestDataProvider:
         self.token_price_service = token_price_service
         self.sentiment_service = sentiment_service
         self.stock_price_service = stock_price_service
+        self.macro_fear_greed_service = macro_fear_greed_service
 
     @staticmethod
     def _extract_snapshot_date(snapshot: Any) -> date | None:
@@ -178,7 +182,7 @@ class BacktestDataProvider:
         end_date: date,
         token_symbol: str,
     ) -> dict[str, dict[date, Any]]:
-        return resolve_price_feature_history(
+        feature_history = resolve_price_feature_history(
             token_price_service=self.token_price_service,
             stock_price_service=self.stock_price_service,
             market_data_requirements=market_data_requirements,
@@ -187,6 +191,47 @@ class BacktestDataProvider:
             end_date=end_date,
             token_symbol=token_symbol,
         )
+        if (
+            market_data_requirements is not None
+            and market_data_requirements.requires_macro_fear_greed
+        ):
+            if self.macro_fear_greed_service is None:
+                raise ValueError(
+                    "macro_fear_greed_service is required when macro FGI is requested"
+                )
+            macro_history = self.macro_fear_greed_service.get_daily_macro_fear_greed(
+                start_date=start_date,
+                end_date=end_date,
+            )
+            feature_history[MACRO_FEAR_GREED_FEATURE] = self._forward_fill_feature(
+                dict(macro_history),
+                start_date=start_date,
+                end_date=end_date,
+            )
+        return feature_history
+
+    @staticmethod
+    def _forward_fill_feature(
+        sparse: dict[date, Any],
+        *,
+        start_date: date,
+        end_date: date,
+    ) -> dict[date, Any]:
+        if not sparse:
+            return {}
+        sorted_keys = sorted(sparse.keys())
+        filled: dict[date, Any] = {}
+        last_value: Any | None = None
+        cur = start_date
+        series_idx = 0
+        while cur <= end_date:
+            while series_idx < len(sorted_keys) and sorted_keys[series_idx] <= cur:
+                last_value = sparse[sorted_keys[series_idx]]
+                series_idx += 1
+            if last_value is not None:
+                filled[cur] = last_value
+            cur += timedelta(days=1)
+        return filled
 
     async def fetch_token_prices(
         self,

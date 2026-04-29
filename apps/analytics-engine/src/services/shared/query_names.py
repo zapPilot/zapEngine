@@ -36,6 +36,10 @@ class QueryNames:
     SENTIMENT_AT_TIME: str = "get_sentiment_at_time"
     SENTIMENT_DAILY_AGGREGATES: str = "get_daily_sentiment_aggregates"
 
+    # Macro Fear & Greed Queries (CNN US equity FGI)
+    MACRO_FEAR_GREED_CURRENT: str = "get_current_macro_fear_greed"
+    MACRO_FEAR_GREED_DAILY: str = "get_daily_macro_fear_greed"
+
     # Regime Queries
     REGIME_HISTORY: str = "get_regime_history"
 

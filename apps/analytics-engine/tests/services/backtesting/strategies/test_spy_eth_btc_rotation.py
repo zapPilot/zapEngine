@@ -16,6 +16,7 @@ from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_DMA_200_FEATURE,
     SPY_PRICE_FEATURE,
 )
@@ -48,6 +49,7 @@ def _build_context(
     ratio_dma_200: float | None = 0.045,
     sentiment_label: str = "neutral",
     sentiment_value: int = 50,
+    macro_fear_greed_score: int | None = None,
     snapshot_date: date = date(2026, 4, 27),
 ) -> StrategyContext:
     extra: dict[str, object] = {"dma_200": dma_200}
@@ -59,6 +61,14 @@ def _build_context(
         extra[SPY_PRICE_FEATURE] = spy_price
     if spy_dma_200 is not None:
         extra[SPY_DMA_200_FEATURE] = spy_dma_200
+    if macro_fear_greed_score is not None:
+        extra[MACRO_FEAR_GREED_FEATURE] = {
+            "score": float(macro_fear_greed_score),
+            "normalized_score": macro_fear_greed_score,
+            "label": "neutral",
+            "source": "cnn_fear_greed_unofficial",
+            "updated_at": "2026-04-27T00:00:00+00:00",
+        }
     return StrategyContext(
         date=snapshot_date,
         price=btc_price,
@@ -217,6 +227,14 @@ class TestSpyEthBtcSignalComponent:
         assert snapshot.crypto_state is not None
         assert "spy" in snapshot.current_asset_allocation
 
+    def test_observe_extracts_macro_fear_greed_score(self) -> None:
+        component = self._component()
+        portfolio = Portfolio(btc_balance=0.5, eth_balance=10.0, stable_balance=5_000.0)
+        context = _build_context(portfolio=portfolio, macro_fear_greed_score=18)
+        component.initialize(context)
+        snapshot = component.observe(context)
+        assert snapshot.macro_fear_greed_score == 18
+
     def test_observe_skips_spy_state_when_spy_data_missing(self) -> None:
         component = self._component()
         portfolio = Portfolio(btc_balance=0.5, stable_balance=1_000.0)
@@ -374,6 +392,91 @@ class TestDecidePolicyHoldStatePreservesSpy:
 
         assert intent.target_allocation is not None
         assert intent.target_allocation["spy"] == pytest.approx(0.3, abs=0.01)
+
+    def test_macro_extreme_fear_halves_spy_risk_score(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        base_snapshot = SpyEthBtcRotationState(
+            crypto_state=self._hold_state_crypto_state(),
+            spy_dma_state=self._hold_state_dma_snapshot(),
+            current_asset_allocation={
+                "spy": 0.0,
+                "btc": 0.5,
+                "eth": 0.0,
+                "stable": 0.5,
+            },
+        )
+        fear_snapshot = SpyEthBtcRotationState(
+            crypto_state=base_snapshot.crypto_state,
+            spy_dma_state=base_snapshot.spy_dma_state,
+            current_asset_allocation=base_snapshot.current_asset_allocation,
+            macro_fear_greed_score=18,
+        )
+
+        base_intent = policy.decide(base_snapshot)
+        fear_intent = policy.decide(fear_snapshot)
+
+        assert base_intent.target_allocation is not None
+        assert fear_intent.target_allocation is not None
+        assert (
+            fear_intent.target_allocation["spy"] < base_intent.target_allocation["spy"]
+        )
+
+    def test_macro_fear_reduces_spy_risk_score(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        base_snapshot = SpyEthBtcRotationState(
+            crypto_state=self._hold_state_crypto_state(),
+            spy_dma_state=self._hold_state_dma_snapshot(),
+            current_asset_allocation={
+                "spy": 0.0,
+                "btc": 0.5,
+                "eth": 0.0,
+                "stable": 0.5,
+            },
+        )
+        fear_snapshot = SpyEthBtcRotationState(
+            crypto_state=base_snapshot.crypto_state,
+            spy_dma_state=base_snapshot.spy_dma_state,
+            current_asset_allocation=base_snapshot.current_asset_allocation,
+            macro_fear_greed_score=35,
+        )
+
+        base_intent = policy.decide(base_snapshot)
+        fear_intent = policy.decide(fear_snapshot)
+
+        assert base_intent.target_allocation is not None
+        assert fear_intent.target_allocation is not None
+        assert (
+            fear_intent.target_allocation["spy"] < base_intent.target_allocation["spy"]
+        )
+
+    def test_macro_neutral_and_greed_keep_spy_score_unchanged(self) -> None:
+        policy = SpyEthBtcRotationDecisionPolicy()
+        base_snapshot = SpyEthBtcRotationState(
+            crypto_state=self._hold_state_crypto_state(),
+            spy_dma_state=self._hold_state_dma_snapshot(),
+            current_asset_allocation={
+                "spy": 0.0,
+                "btc": 0.5,
+                "eth": 0.0,
+                "stable": 0.5,
+            },
+        )
+        base_intent = policy.decide(base_snapshot)
+        assert base_intent.target_allocation is not None
+
+        for score in (50, 72):
+            macro_intent = policy.decide(
+                SpyEthBtcRotationState(
+                    crypto_state=base_snapshot.crypto_state,
+                    spy_dma_state=base_snapshot.spy_dma_state,
+                    current_asset_allocation=base_snapshot.current_asset_allocation,
+                    macro_fear_greed_score=score,
+                )
+            )
+            assert macro_intent.target_allocation is not None
+            assert macro_intent.target_allocation["spy"] == pytest.approx(
+                base_intent.target_allocation["spy"]
+            )
 
 
 # ── Neutral FGI no-op pinning ────────────────────────────────────────────────

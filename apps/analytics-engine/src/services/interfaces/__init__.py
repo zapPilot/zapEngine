@@ -17,6 +17,7 @@ from .backtesting import BacktestingServiceProtocol
 from .base import QueryServiceProtocol
 from .borrowing import BorrowingServiceProtocol
 from .market import (
+    MacroFearGreedDatabaseServiceProtocol,
     MarketDashboardServiceProtocol,
     MarketSentimentServiceProtocol,
     RegimeTrackingServiceProtocol,
@@ -81,4 +82,5 @@ __all__ = [
     "StrategyTradeHistoryStoreProtocol",
     "MarketDashboardServiceProtocol",
     "StockPriceServiceProtocol",
+    "MacroFearGreedDatabaseServiceProtocol",
 ]

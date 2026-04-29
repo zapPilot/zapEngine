@@ -25,6 +25,7 @@ const DEFAULT_SOURCES = [
   'defillama',
   'debank',
   'hyperliquid',
+  'macro-fear-greed',
   'stock-price',
 ] as const;
 

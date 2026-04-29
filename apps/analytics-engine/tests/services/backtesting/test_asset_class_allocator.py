@@ -6,6 +6,7 @@ from src.services.backtesting.asset_class_allocator import (
     allocate_stock_crypto_target,
     fgi_risk_multiplier,
     score_dma_distance,
+    stock_macro_fgi_overlay,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
@@ -19,6 +20,15 @@ def test_dma_score_increases_below_dma_and_decreases_above_dma() -> None:
 def test_fgi_multiplier_boosts_fear_and_reduces_greed() -> None:
     assert fgi_risk_multiplier("extreme_fear") > fgi_risk_multiplier("neutral")
     assert fgi_risk_multiplier("extreme_greed") < fgi_risk_multiplier("neutral")
+
+
+def test_stock_macro_fgi_overlay_caps_extreme_greed() -> None:
+    assert stock_macro_fgi_overlay(0.95, 80) == pytest.approx(0.8)
+
+
+def test_stock_macro_fgi_overlay_leaves_neutral_and_greed_unchanged() -> None:
+    assert stock_macro_fgi_overlay(0.6, 50) == pytest.approx(0.6)
+    assert stock_macro_fgi_overlay(0.6, 72) == pytest.approx(0.6)
 
 
 def test_allocator_prefers_crypto_when_crypto_low_and_spy_high() -> None:

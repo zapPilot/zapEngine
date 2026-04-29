@@ -1,6 +1,7 @@
 import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
+  MacroFearGreedSnapshotInsert,
   PoolAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
   SentimentSnapshotInsert,
@@ -201,6 +202,33 @@ export function buildSentimentInsertValues(
   records: SentimentSnapshotInsert[],
 ): InsertValuesResult<keyof SentimentSnapshotInsert & string> {
   return buildInsertValuesFor(records, SENTIMENT_COLUMNS);
+}
+
+export const MACRO_FEAR_GREED_COLUMNS: readonly (keyof MacroFearGreedSnapshotInsert)[] =
+  [
+    'snapshot_date',
+    'score',
+    'normalized_score',
+    'label',
+    'source',
+    'provider_updated_at',
+    'raw_rating',
+    'raw_data',
+  ] as const;
+
+export function buildMacroFearGreedInsertValues(
+  records: MacroFearGreedSnapshotInsert[],
+): InsertValuesResult<keyof MacroFearGreedSnapshotInsert & string> {
+  return buildInsertValuesFor(
+    records,
+    MACRO_FEAR_GREED_COLUMNS,
+    (column, value) => {
+      if (column === 'raw_data') {
+        return serializeJson(value);
+      }
+      return toNullishSqlValue(value);
+    },
+  );
 }
 
 export const HYPERLIQUID_VAULT_APR_COLUMNS: readonly (keyof HyperliquidVaultAprSnapshotInsert)[] =

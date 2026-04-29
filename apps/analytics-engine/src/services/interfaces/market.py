@@ -3,6 +3,7 @@ from datetime import date, datetime
 from typing import Any, Protocol, TypedDict
 
 if typing.TYPE_CHECKING:
+    from src.services.market.macro_fear_greed_service import MacroFearGreedPoint
     from src.services.market.token_price_service import PairRatioDmaPoint
 
 from src.models.market_dashboard import MarketDashboardResponse
@@ -120,6 +121,22 @@ class SentimentDatabaseServiceProtocol(Protocol):
             avg_sentiment, min_sentiment, max_sentiment, snapshot_count,
             primary_classification
         """
+        ...  # pragma: no cover
+
+
+class MacroFearGreedDatabaseServiceProtocol(Protocol):
+    """Interface for read-only CNN macro Fear & Greed data."""
+
+    def get_current_macro_fear_greed(self) -> "MacroFearGreedPoint | None":
+        """Get the latest macro Fear & Greed point."""
+        ...  # pragma: no cover
+
+    def get_daily_macro_fear_greed(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> dict[date, "MacroFearGreedPoint"]:
+        """Get macro Fear & Greed points keyed by UTC snapshot date."""
         ...  # pragma: no cover
 
 

@@ -26,6 +26,7 @@ export const TABLES = {
   HYPERLIQUID_VAULT_APR_SNAPSHOTS: `${env.DB_SCHEMA}.hyperliquid_vault_apr_snapshots`,
   PORTFOLIO_ITEM_SNAPSHOTS: 'public.portfolio_item_snapshots',
   SENTIMENT_SNAPSHOTS: `${env.DB_SCHEMA}.sentiment_snapshots`,
+  MACRO_FEAR_GREED_SNAPSHOTS: `${env.DB_SCHEMA}.macro_fear_greed_snapshots`,
   TOKEN_PRICE_SNAPSHOTS: `${env.DB_SCHEMA}.token_price_snapshots`,
   TOKEN_PRICE_DMA_SNAPSHOTS: `${env.DB_SCHEMA}.token_price_dma_snapshots`,
   TOKEN_PAIR_RATIO_DMA_SNAPSHOTS: `${env.DB_SCHEMA}.token_pair_ratio_dma_snapshots`,

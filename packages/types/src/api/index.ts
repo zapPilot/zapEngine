@@ -51,6 +51,7 @@ export type DataSource =
   | 'debank'
   | 'hyperliquid'
   | 'feargreed'
+  | 'macro-fear-greed'
   | 'token-price'
   | 'stock-price';
 
@@ -59,6 +60,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
   'debank',
   'hyperliquid',
   'feargreed',
+  'macro-fear-greed',
   'token-price',
   'stock-price',
 ] as const;

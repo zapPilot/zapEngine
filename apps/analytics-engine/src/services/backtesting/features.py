@@ -16,6 +16,7 @@ ETH_DMA_200_FEATURE = "eth_dma_200"
 SPY_AUX_SERIES = "spy_market"
 SPY_PRICE_FEATURE = "spy_price"
 SPY_DMA_200_FEATURE = "spy_dma_200"
+MACRO_FEAR_GREED_FEATURE = "macro_fear_greed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +67,7 @@ class MarketDataRequirements:
     price_history_days: int = 0
     sentiment_history_days: int = 0
     requires_sentiment: bool = False
+    requires_macro_fear_greed: bool = False
     required_price_features: frozenset[str] = frozenset()
     required_aux_series: frozenset[str] = frozenset()
     max_lag_days: int = 7
@@ -78,6 +80,9 @@ class MarketDataRequirements:
                 other.sentiment_history_days,
             ),
             requires_sentiment=self.requires_sentiment or other.requires_sentiment,
+            requires_macro_fear_greed=(
+                self.requires_macro_fear_greed or other.requires_macro_fear_greed
+            ),
             required_price_features=(
                 self.required_price_features | other.required_price_features
             ),

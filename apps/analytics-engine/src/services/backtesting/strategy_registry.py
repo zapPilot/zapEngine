@@ -245,12 +245,13 @@ _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_SPY_ETH_BTC_ROTATION: StrategyRecipe(
         strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
         display_name="SPY/ETH/BTC Multi-Asset Rotation",
-        description="Add SPY (S&P 500) as a fourth bucket alongside BTC/ETH/stable; SPY uses DMA-only gating with a neutral FGI placeholder until S&P-500 sentiment is available.",
+        description="Add SPY as a fourth bucket alongside BTC/ETH/stable; SPY uses DMA gating plus a CNN US equity Fear & Greed risk overlay.",
         signal_id="spy_eth_btc_rs_signal",
         primary_asset="BTC",
         warmup_lookback_days=14,
         market_data_requirements=MarketDataRequirements(
             requires_sentiment=True,
+            requires_macro_fear_greed=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset(
                 {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}

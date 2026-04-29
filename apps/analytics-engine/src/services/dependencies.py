@@ -25,6 +25,7 @@ from src.services.interfaces import (
     DashboardServiceProtocol,
     DrawdownAnalysisServiceProtocol,
     LandingPageServiceProtocol,
+    MacroFearGreedDatabaseServiceProtocol,
     MarketDashboardServiceProtocol,
     MarketSentimentServiceProtocol,
     PoolPerformanceAggregatorProtocol,
@@ -286,6 +287,18 @@ def get_stock_price_service(
     return StockPriceService(db, query_service)
 
 
+def get_macro_fear_greed_database_service(
+    db: Session = Depends(get_db),
+    query_service: QueryServiceProtocol = Depends(get_query_service),
+) -> MacroFearGreedDatabaseServiceProtocol:
+    """Create read-only MacroFearGreedDatabaseService dependency."""
+    from src.services.market.macro_fear_greed_service import (
+        MacroFearGreedDatabaseService,
+    )
+
+    return MacroFearGreedDatabaseService(db, query_service)
+
+
 def get_market_dashboard_service(
     token_price_service: TokenPriceServiceProtocol = Depends(get_token_price_service),
     sentiment_service: SentimentDatabaseServiceProtocol = Depends(
@@ -308,6 +321,9 @@ def get_backtesting_service(
         get_sentiment_database_service
     ),
     stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
+    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol = Depends(
+        get_macro_fear_greed_database_service
+    ),
 ) -> BacktestingServiceProtocol:
     """Create BacktestingService instance for DCA strategy comparison."""
     from src.services.strategy.backtesting_service import (
@@ -321,6 +337,7 @@ def get_backtesting_service(
         sentiment_service,
         strategy_config_store=StrategyConfigStore(db),
         stock_price_service=stock_price_service,
+        macro_fear_greed_service=macro_fear_greed_service,
     )  # pragma: no cover
 
 
@@ -449,6 +466,9 @@ def get_strategy_daily_suggestion_service(
         get_canonical_snapshot_service
     ),
     stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
+    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol = Depends(
+        get_macro_fear_greed_database_service
+    ),
 ) -> StrategyDailySuggestionServiceProtocol:
     """Create StrategyDailySuggestionService with dependency injection."""
     from src.services.strategy.strategy_config_store import StrategyConfigStore
@@ -468,6 +488,7 @@ def get_strategy_daily_suggestion_service(
         strategy_config_store=StrategyConfigStore(db),
         trade_history_store=StrategyTradeHistoryStore(db),
         stock_price_service=stock_price_service,
+        macro_fear_greed_service=macro_fear_greed_service,
     )
 
 

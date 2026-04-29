@@ -44,6 +44,7 @@ from src.services.strategy.strategy_config_store import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from src.services.interfaces import (
+        MacroFearGreedDatabaseServiceProtocol,
         SentimentDatabaseServiceProtocol,
         TokenPriceServiceProtocol,
     )
@@ -392,11 +393,13 @@ class BacktestingService:
         strategy_config_store: StrategyConfigStore | None = None,
         composition_catalog: CompositionCatalog | None = None,
         stock_price_service: StockPriceServiceProtocol | None = None,
+        macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
     ):
         self.data_provider = BacktestDataProvider(
             token_price_service=token_price_service,
             sentiment_service=sentiment_service,
             stock_price_service=stock_price_service,
+            macro_fear_greed_service=macro_fear_greed_service,
         )
         self.strategy_config_store = strategy_config_store or (
             StrategyConfigStore(db) if db is not None else SeedStrategyConfigStore()

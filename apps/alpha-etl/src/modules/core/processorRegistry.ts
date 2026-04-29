@@ -1,5 +1,6 @@
 import type { BaseETLProcessor } from '../../core/processors/baseETLProcessor.js';
 import { HyperliquidVaultETLProcessor } from '../../modules/hyperliquid/processor.js';
+import { MacroFearGreedETLProcessor } from '../../modules/macro-fear-greed/processor.js';
 import { PoolETLProcessor } from '../../modules/pool/processor.js';
 import { SentimentETLProcessor } from '../../modules/sentiment/processor.js';
 import { StockPriceETLProcessor } from '../../modules/stock-price/processor.js';
@@ -14,6 +15,7 @@ export const PROCESSOR_REGISTRY: Record<DataSource, ProcessorConstructor> = {
   debank: WalletBalanceETLProcessor,
   hyperliquid: HyperliquidVaultETLProcessor,
   feargreed: SentimentETLProcessor,
+  'macro-fear-greed': MacroFearGreedETLProcessor,
   'token-price': TokenPriceETLProcessor,
   'stock-price': StockPriceETLProcessor,
 } as const;

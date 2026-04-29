@@ -159,11 +159,12 @@ describe('ETLPipelineFactory', () => {
           'debank',
           'hyperliquid',
           'feargreed',
+          'macro-fear-greed',
           'token-price',
           'stock-price',
         ]),
       );
-      expect(supportedSources).toHaveLength(6);
+      expect(supportedSources).toHaveLength(7);
     });
 
     it('should create processor instances during initialization', () => {
@@ -863,6 +864,7 @@ describe('ETLPipelineFactory', () => {
         'debank',
         'hyperliquid',
         'feargreed',
+        'macro-fear-greed',
         'token-price',
         'stock-price',
       ]);

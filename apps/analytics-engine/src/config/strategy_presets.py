@@ -130,7 +130,7 @@ _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
         display_name="SPY/ETH/BTC Multi-Asset Rotation",
         description=(
             "Adds SPY (S&P 500) as a fourth bucket to the ETH/BTC rotation. "
-            "SPY uses DMA-only gating (neutral FGI placeholder). Capital is "
+            "SPY uses DMA gating plus a CNN US equity Fear & Greed risk overlay. Capital is "
             "allocated competitively: when both DMA gates are risk-on, SPY "
             "and crypto each get ~50%."
         ),

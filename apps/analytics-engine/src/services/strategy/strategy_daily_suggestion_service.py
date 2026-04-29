@@ -49,6 +49,7 @@ from src.services.backtesting.execution.plugins import (
 from src.services.backtesting.execution.state import build_strategy_state
 from src.services.backtesting.features import (
     ETH_USD_PRICE_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
@@ -73,6 +74,7 @@ if TYPE_CHECKING:
     from src.services.interfaces import (
         CanonicalSnapshotServiceProtocol,
         LandingPageServiceProtocol,
+        MacroFearGreedDatabaseServiceProtocol,
         RegimeTrackingServiceProtocol,
         SentimentDatabaseServiceProtocol,
         StrategyTradeHistoryStoreProtocol,
@@ -113,6 +115,7 @@ class StrategyDailySuggestionService:
     sentiment_service: SentimentDatabaseServiceProtocol
     token_price_service: TokenPriceServiceProtocol
     stock_price_service: StockPriceServiceProtocol | None
+    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None
     canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None
     strategy_config_store: StrategyConfigStore | SeedStrategyConfigStore
     trade_history_store: StrategyTradeHistoryStoreProtocol
@@ -129,12 +132,14 @@ class StrategyDailySuggestionService:
         trade_history_store: StrategyTradeHistoryStoreProtocol | None = None,
         composition_catalog: CompositionCatalog | None = None,
         stock_price_service: StockPriceServiceProtocol | None = None,
+        macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
     ) -> None:
         self.landing_page_service = landing_page_service
         self.regime_tracking_service = regime_tracking_service
         self.sentiment_service = sentiment_service
         self.token_price_service = token_price_service
         self.stock_price_service = stock_price_service
+        self.macro_fear_greed_service = macro_fear_greed_service
         self.canonical_snapshot_service = canonical_snapshot_service
         self.strategy_config_store = strategy_config_store or SeedStrategyConfigStore()
         self.trade_history_store = (
@@ -332,6 +337,19 @@ class StrategyDailySuggestionService:
             end_date=current_date,
             market_data_requirements=market_data_requirements,
         )
+        if market_data_requirements.requires_macro_fear_greed:
+            if self.macro_fear_greed_service is None:
+                raise MarketDataUnavailableError(
+                    "Macro Fear & Greed data service is not configured",
+                    missing_assets=[resolved_config.primary_asset],
+                    oldest_data_date=None,
+                )
+            feature_history[MACRO_FEAR_GREED_FEATURE] = (
+                self.macro_fear_greed_service.get_daily_macro_fear_greed(
+                    start_date=history_start,
+                    end_date=current_date,
+                )
+            )
         if not feature_history:
             return {}, None
         fill_result = forward_fill_for_date(

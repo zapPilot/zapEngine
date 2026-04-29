@@ -39,6 +39,20 @@ def fgi_risk_multiplier(regime: str | None) -> float:
     }.get(normalized, 1.0)
 
 
+def stock_macro_fgi_overlay(stock_score: float, normalized_score: int | None) -> float:
+    """Apply CNN US equity FGI as a SPY-only risk overlay."""
+    if normalized_score is None:
+        return _clamp_unit(stock_score)
+    score = max(0, min(100, int(normalized_score)))
+    if score <= 24:
+        return _clamp_unit(stock_score * 0.5)
+    if score <= 44:
+        return _clamp_unit(stock_score * 0.75)
+    if score <= 75:
+        return _clamp_unit(stock_score)
+    return _clamp_unit(min(stock_score, 0.8))
+
+
 @dataclass(frozen=True, slots=True)
 class StockCryptoAllocationResult:
     allocation: dict[str, float]
@@ -53,11 +67,17 @@ def allocate_stock_crypto_target(
     crypto_fgi_regime: str | None,
     eth_share_in_crypto: float,
     current_allocation: Mapping[str, float] | None,
+    stock_macro_fgi_score: int | None = None,
 ) -> StockCryptoAllocationResult:
     """Allocate across SPY, BTC/ETH, and stable with one canonical target."""
 
     current = target_from_current_allocation(current_allocation)
-    stock_score = score_dma_distance(stock_dma_distance)
+    stock_base_score = score_dma_distance(stock_dma_distance)
+    stock_score = (
+        None
+        if stock_base_score is None
+        else stock_macro_fgi_overlay(stock_base_score, stock_macro_fgi_score)
+    )
     crypto_base_score = score_dma_distance(crypto_dma_distance)
     crypto_score = (
         None
@@ -138,4 +158,5 @@ __all__ = [
     "allocate_stock_crypto_target",
     "fgi_risk_multiplier",
     "score_dma_distance",
+    "stock_macro_fgi_overlay",
 ]

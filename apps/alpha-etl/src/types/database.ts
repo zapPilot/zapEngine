@@ -116,6 +116,17 @@ export interface SentimentSnapshotInsert {
   raw_data: Nullable<Record<string, unknown>>;
 }
 
+export interface MacroFearGreedSnapshotInsert {
+  snapshot_date: string;
+  score: number;
+  normalized_score: number;
+  label: string;
+  source: string;
+  provider_updated_at: string;
+  raw_rating: Nullable<string>;
+  raw_data: Nullable<Record<string, unknown>>;
+}
+
 export interface TokenPriceDmaSnapshotInsert {
   token_symbol: string;
   token_id: string;
