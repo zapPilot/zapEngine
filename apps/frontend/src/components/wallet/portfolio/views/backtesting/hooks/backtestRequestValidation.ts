@@ -9,6 +9,7 @@ const signalParamsSchema = z
   .object({
     cross_cooldown_days: z.coerce.number().int().nonnegative().optional(),
     cross_on_touch: z.boolean().optional(),
+    ratio_cross_cooldown_days: z.coerce.number().int().nonnegative().optional(),
   })
   .extend({
     rotation_neutral_band: z.coerce.number().nonnegative().optional(),
@@ -50,12 +51,20 @@ const rotationParamsSchema = z
   })
   .strict();
 
+const topEscapeParamsSchema = z
+  .object({
+    dma_overextension_threshold: z.coerce.number().nonnegative().optional(),
+    fgi_slope_reversal_threshold: z.coerce.number().optional(),
+  })
+  .strict();
+
 const backtestParamsSchema = z
   .object({
     signal: signalParamsSchema.optional(),
     pacing: pacingParamsSchema.optional(),
     buy_gate: buyGateParamsSchema.optional(),
     trade_quota: tradeQuotaParamsSchema.optional(),
+    top_escape: topEscapeParamsSchema.optional(),
     rotation: rotationParamsSchema.optional(),
   })
   .strict();

@@ -13,6 +13,7 @@ export const BacktestSignalParamsV3Schema = z
   .object({
     cross_cooldown_days: z.number().optional(),
     cross_on_touch: z.boolean().optional(),
+    ratio_cross_cooldown_days: z.number().optional(),
     rotation_neutral_band: z.number().optional(),
     rotation_max_deviation: z.number().optional(),
   })
@@ -48,12 +49,20 @@ export const BacktestRotationParamsV3Schema = z
   })
   .partial();
 
+export const BacktestTopEscapeParamsV3Schema = z
+  .object({
+    dma_overextension_threshold: z.number().optional(),
+    fgi_slope_reversal_threshold: z.number().optional(),
+  })
+  .partial();
+
 export const BacktestCompareParamsV3Schema = z
   .object({
     signal: BacktestSignalParamsV3Schema.optional(),
     pacing: BacktestPacingParamsV3Schema.optional(),
     buy_gate: BacktestBuyGateParamsV3Schema.optional(),
     trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
+    top_escape: BacktestTopEscapeParamsV3Schema.optional(),
     rotation: BacktestRotationParamsV3Schema.optional(),
   })
   .catchall(JsonValueSchema);

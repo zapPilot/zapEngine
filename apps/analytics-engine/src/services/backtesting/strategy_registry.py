@@ -32,6 +32,11 @@ from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiParams,
     DmaGatedFgiStrategy,
 )
+from src.services.backtesting.strategies.eth_btc_attribution import (
+    ATTRIBUTION_VARIANTS,
+    EthBtcAttributionStrategy,
+    build_initial_attribution_asset_allocation,
+)
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     EthBtcRotationStrategy,
@@ -159,6 +164,68 @@ def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrat
     )
 
 
+def _build_eth_btc_attribution_strategy(
+    request: StrategyBuildRequest,
+    *,
+    variant_id: str,
+) -> BaseStrategy:
+    params = EthBtcRotationParams.from_public_params(request.params)
+    strategy_id = request.resolved_config_id or variant_id
+    initial_asset_allocation = None
+    if request.mode == "compare" and request.initial_allocation is not None:
+        variant = ATTRIBUTION_VARIANTS[variant_id]
+        initial_asset_allocation = build_initial_attribution_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            eth_share_in_risk_on=(
+                variant.fixed_eth_share_in_risk_on
+                if variant.rotation_mode == "fixed"
+                else 0.5
+            ),
+        )
+    return EthBtcAttributionStrategy(
+        total_capital=request.total_capital,
+        variant=ATTRIBUTION_VARIANTS[variant_id],
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
+def _make_eth_btc_attribution_builder(variant_id: str) -> StrategyBuilder:
+    def _builder(request: StrategyBuildRequest) -> BaseStrategy:
+        return _build_eth_btc_attribution_strategy(request, variant_id=variant_id)
+
+    return _builder
+
+
+def _eth_btc_attribution_market_data_requirements() -> MarketDataRequirements:
+    return MarketDataRequirements(
+        requires_sentiment=True,
+        required_price_features=frozenset({DMA_200_FEATURE}),
+        required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+        max_lag_days=7,
+    )
+
+
+def _build_eth_btc_attribution_recipe(strategy_id: str) -> StrategyRecipe:
+    variant = ATTRIBUTION_VARIANTS[strategy_id]
+    return StrategyRecipe(
+        strategy_id=strategy_id,
+        display_name=variant.display_name,
+        description=variant.description,
+        signal_id="eth_btc_attribution_signal",
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=_eth_btc_attribution_market_data_requirements(),
+        portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_eth_btc_rotation_public_params,
+        build_strategy=_make_eth_btc_attribution_builder(strategy_id),
+        supports_daily_suggestion=False,
+    )
+
+
 def _build_spy_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrategy:
     params = SpyEthBtcRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_SPY_ETH_BTC_ROTATION
@@ -242,6 +309,10 @@ _RECIPES: dict[str, StrategyRecipe] = {
         build_strategy=_build_eth_btc_rotation_strategy,
         supports_daily_suggestion=True,
     ),
+    **{
+        strategy_id: _build_eth_btc_attribution_recipe(strategy_id)
+        for strategy_id in ATTRIBUTION_VARIANTS
+    },
     STRATEGY_SPY_ETH_BTC_ROTATION: StrategyRecipe(
         strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
         display_name="SPY/ETH/BTC Multi-Asset Rotation",

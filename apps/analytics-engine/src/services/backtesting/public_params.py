@@ -13,8 +13,22 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
+    STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
+    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
+    STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
+    STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
+    STRATEGY_DMA_FGI_RATIO_COOLDOWN,
+    STRATEGY_DMA_FGI_RATIO_ZONE,
     STRATEGY_DMA_GATED_FGI,
+    STRATEGY_ETH_BTC_FULL_MINUS_ADAPTIVE_DMA,
+    STRATEGY_ETH_BTC_FULL_MINUS_PROGRESSIVE_ROTATION,
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_COOLDOWN,
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_CROSS,
+    STRATEGY_ETH_BTC_PROGRESSIVE_ADAPTIVE,
+    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS,
+    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN,
     STRATEGY_ETH_BTC_ROTATION,
+    STRATEGY_ETH_BTC_ROTATION_ATTRIBUTION_FULL,
     STRATEGY_SPY_ETH_BTC_ROTATION,
 )
 
@@ -103,7 +117,40 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
     STRATEGY_DMA_GATED_FGI: DmaGatedFgiPublicParams,
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
     STRATEGY_SPY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_ETH_BTC_CONTROL: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_RATIO_ZONE: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_RATIO_COOLDOWN: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_ROTATION_ATTRIBUTION_FULL: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_FULL_MINUS_ADAPTIVE_DMA: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_CROSS: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_COOLDOWN: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_FULL_MINUS_PROGRESSIVE_ROTATION: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_PROGRESSIVE_ADAPTIVE: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS: EthBtcRotationPublicParams,
+    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN: EthBtcRotationPublicParams,
 }
+
+_ETH_BTC_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
+    {
+        STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
+        STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
+        STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
+        STRATEGY_DMA_FGI_RATIO_ZONE,
+        STRATEGY_DMA_FGI_RATIO_COOLDOWN,
+        STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
+        STRATEGY_ETH_BTC_ROTATION_ATTRIBUTION_FULL,
+        STRATEGY_ETH_BTC_FULL_MINUS_ADAPTIVE_DMA,
+        STRATEGY_ETH_BTC_FULL_MINUS_RATIO_CROSS,
+        STRATEGY_ETH_BTC_FULL_MINUS_RATIO_COOLDOWN,
+        STRATEGY_ETH_BTC_FULL_MINUS_PROGRESSIVE_ROTATION,
+        STRATEGY_ETH_BTC_PROGRESSIVE_ADAPTIVE,
+        STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS,
+        STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN,
+    }
+)
 
 
 def supports_nested_public_params(strategy_id: str) -> bool:
@@ -201,7 +248,9 @@ def public_params_to_runtime_params(
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
+    if strategy_id == STRATEGY_ETH_BTC_ROTATION or (
+        strategy_id in _ETH_BTC_ATTRIBUTION_STRATEGY_IDS
+    ):
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )
@@ -251,7 +300,9 @@ def runtime_params_to_public_params(
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
+    if strategy_id == STRATEGY_ETH_BTC_ROTATION or (
+        strategy_id in _ETH_BTC_ATTRIBUTION_STRATEGY_IDS
+    ):
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )

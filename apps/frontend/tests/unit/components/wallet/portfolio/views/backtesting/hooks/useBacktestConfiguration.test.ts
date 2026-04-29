@@ -624,6 +624,76 @@ describe('useBacktestConfiguration', () => {
     );
   });
 
+  it('includes ETH/BTC signal and top_escape public params when provided', () => {
+    mockPendingDefaults();
+
+    const { result } = renderHook(() => useBacktestConfiguration(), {
+      wrapper: QueryClientWrapper,
+    });
+
+    act(() => {
+      result.current.updateEditorValue(
+        JSON.stringify({
+          total_capital: 10000,
+          configs: [
+            {
+              config_id: 'dma_gated_fgi_ratio_cooldown',
+              strategy_id: 'dma_gated_fgi_ratio_cooldown',
+              params: {
+                signal: {
+                  cross_cooldown_days: 30,
+                  cross_on_touch: true,
+                  ratio_cross_cooldown_days: 30,
+                  rotation_neutral_band: 0.05,
+                  rotation_max_deviation: 0.2,
+                },
+                top_escape: {
+                  dma_overextension_threshold: 0.3,
+                  fgi_slope_reversal_threshold: -0.05,
+                },
+                rotation: {
+                  drift_threshold: 0.03,
+                  cooldown_days: 7,
+                },
+              },
+            },
+          ],
+        }),
+      );
+    });
+
+    act(() => {
+      result.current.handleRunBacktest();
+    });
+
+    expect(result.current.editorError).toBeNull();
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configs: [
+          expect.objectContaining({
+            params: {
+              signal: {
+                cross_cooldown_days: 30,
+                cross_on_touch: true,
+                ratio_cross_cooldown_days: 30,
+                rotation_neutral_band: 0.05,
+                rotation_max_deviation: 0.2,
+              },
+              top_escape: {
+                dma_overextension_threshold: 0.3,
+                fgi_slope_reversal_threshold: -0.05,
+              },
+              rotation: {
+                drift_threshold: 0.03,
+                cooldown_days: 7,
+              },
+            },
+          }),
+        ],
+      }),
+    );
+  });
+
   // -------------------------------------------------------------------------
   // normalizeParams – empty params object stripped to undefined
   // -------------------------------------------------------------------------
