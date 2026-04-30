@@ -294,9 +294,7 @@ def _build_hierarchical_spy_crypto_strategy(
     request: StrategyBuildRequest,
 ) -> BaseStrategy:
     params = HierarchicalPairRotationParams.from_public_params(request.params)
-    strategy_id = (
-        request.resolved_config_id or STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
-    )
+    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
     initial_asset_allocation = {
         "btc": 0.0,
         "eth": 0.0,

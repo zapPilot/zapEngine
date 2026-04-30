@@ -88,6 +88,7 @@ def _dma_runtime_params() -> dict[str, object]:
         "buy_leg_caps": [0.05, 0.10, 0.20],
         "dma_overextension_threshold": 0.3,
         "fgi_slope_reversal_threshold": -0.05,
+        "fgi_slope_recovery_threshold": 0.05,
     }
 
 
@@ -135,6 +136,7 @@ def _eth_rotation_runtime_params() -> dict[str, object]:
         "buy_leg_caps": [0.05, 0.10, 0.20],
         "dma_overextension_threshold": 0.3,
         "fgi_slope_reversal_threshold": -0.05,
+        "fgi_slope_recovery_threshold": 0.05,
         "min_trade_interval_days": 1,
         "rotation_drift_threshold": 0.03,
         "rotation_cooldown_days": 14,

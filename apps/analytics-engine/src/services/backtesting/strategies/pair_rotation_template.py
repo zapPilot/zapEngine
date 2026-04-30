@@ -506,9 +506,7 @@ def _left_share_in_risk_on(
         return template.neutral_left_share_in_risk_on
     return max(
         0.0,
-        min(
-            1.0, _unit_allocation_share(allocation, template.left_unit) / risk_on
-        ),
+        min(1.0, _unit_allocation_share(allocation, template.left_unit) / risk_on),
     )
 
 
@@ -579,17 +577,21 @@ def _requires_pair_rotation(
     template: PairRotationTemplateSpec,
     tolerance: float,
 ) -> bool:
-    return any(
-        abs(
-            _unit_allocation_share(current_allocation, unit)
-            - _unit_allocation_share(target_allocation, unit)
+    return (
+        any(
+            abs(
+                _unit_allocation_share(current_allocation, unit)
+                - _unit_allocation_share(target_allocation, unit)
+            )
+            > tolerance
+            for unit in (template.left_unit, template.right_unit)
+        )
+        or abs(
+            float(current_allocation.get("stable", 0.0))
+            - float(target_allocation.get("stable", 0.0))
         )
         > tolerance
-        for unit in (template.left_unit, template.right_unit)
-    ) or abs(
-        float(current_allocation.get("stable", 0.0))
-        - float(target_allocation.get("stable", 0.0))
-    ) > tolerance
+    )
 
 
 @dataclass
@@ -632,6 +634,7 @@ class DmaFgiAdaptiveBinaryEthBtcStrategy(ComposedSignalStrategy):
             _dma_policy=DmaGatedFgiDecisionPolicy(
                 dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                 fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
+                fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
             ),
         )
         self.execution_engine = AllocationIntentExecutor(

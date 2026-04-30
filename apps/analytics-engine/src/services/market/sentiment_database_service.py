@@ -37,7 +37,9 @@ def _coerce_history_bound(value: datetime | date, *, end_of_day: bool) -> dateti
             return resolved.replace(tzinfo=UTC)
         return resolved.astimezone(UTC)
     if end_of_day:
-        return datetime(value.year, value.month, value.day, 23, 59, 59, 999999, tzinfo=UTC)
+        return datetime(
+            value.year, value.month, value.day, 23, 59, 59, 999999, tzinfo=UTC
+        )
     return datetime(value.year, value.month, value.day, tzinfo=UTC)
 
 

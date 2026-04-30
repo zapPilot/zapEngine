@@ -89,6 +89,7 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "max_trades_30d",
         "dma_overextension_threshold",
         "fgi_slope_reversal_threshold",
+        "fgi_slope_recovery_threshold",
     }
 )
 
@@ -105,6 +106,7 @@ _DMA_COERCION_SPEC: dict[str, Any] = {
     "max_trades_30d": coerce_nullable_int,
     "dma_overextension_threshold": coerce_float,
     "fgi_slope_reversal_threshold": coerce_float,
+    "fgi_slope_recovery_threshold": coerce_float,
 }
 
 
@@ -169,6 +171,11 @@ class DmaGatedFgiParams(BaseModel):
         default=-0.05,
         le=0.0,
         description="FGI slope threshold below which greed-fading sell triggers.",
+    )
+    fgi_slope_recovery_threshold: float = Field(
+        default=0.05,
+        ge=0.0,
+        description="FGI slope threshold above which fear-recovery buy triggers.",
     )
 
     @classmethod
@@ -266,6 +273,7 @@ def _resolve_dma_allocation_intent(
     *,
     dma_overextension_threshold: float = 0.30,
     fgi_slope_reversal_threshold: float = -0.05,
+    fgi_slope_recovery_threshold: float = 0.05,
 ) -> AllocationIntent:
     actionable_cross = snapshot.actionable_cross_event
     if actionable_cross == snapshot.cross_event and actionable_cross is not None:
@@ -350,6 +358,18 @@ def _resolve_dma_allocation_intent(
             target=BUY_TARGET,
             allocation_name="dma_below_extreme_fear_buy",
             reason="below_extreme_fear_buy",
+            rule_group="dma_fgi",
+        )
+    if (
+        snapshot.zone == "below"
+        and snapshot.fgi_regime in ("fear", "extreme_fear")
+        and snapshot.fgi_slope > fgi_slope_recovery_threshold
+    ):
+        return _target_intent(
+            action="buy",
+            target=BUY_TARGET,
+            allocation_name="dma_below_fear_recovering_buy",
+            reason="below_fear_recovering_buy",
             rule_group="dma_fgi",
         )
     if snapshot.ath_event is not None and snapshot.zone == "above":
@@ -515,12 +535,14 @@ class DmaGatedFgiDecisionPolicy(DecisionPolicy):
     decision_policy_id: str = "dma_fgi_policy"
     dma_overextension_threshold: float = 0.30
     fgi_slope_reversal_threshold: float = -0.05
+    fgi_slope_recovery_threshold: float = 0.05
 
     def decide(self, snapshot: DmaMarketState) -> AllocationIntent:
         return _resolve_dma_allocation_intent(
             snapshot,
             dma_overextension_threshold=self.dma_overextension_threshold,
             fgi_slope_reversal_threshold=self.fgi_slope_reversal_threshold,
+            fgi_slope_recovery_threshold=self.fgi_slope_recovery_threshold,
         )
 
 
@@ -557,6 +579,7 @@ class DmaGatedFgiStrategy(ComposedSignalStrategy):
         self.decision_policy = DmaGatedFgiDecisionPolicy(
             dma_overextension_threshold=resolved_params.dma_overextension_threshold,
             fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
+            fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
         )
         self.execution_engine = AllocationIntentExecutor(
             pacing_policy=resolved_params.build_pacing_policy(),

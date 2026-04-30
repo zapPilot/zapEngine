@@ -53,6 +53,7 @@ export const BacktestTopEscapeParamsV3Schema = z
   .object({
     dma_overextension_threshold: z.number().optional(),
     fgi_slope_reversal_threshold: z.number().optional(),
+    fgi_slope_recovery_threshold: z.number().optional(),
   })
   .partial();
 

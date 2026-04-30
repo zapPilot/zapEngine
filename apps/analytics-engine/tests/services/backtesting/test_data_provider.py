@@ -167,9 +167,7 @@ async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_serie
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 2),
         market_data_requirements=MarketDataRequirements(
-            required_aux_series=frozenset(
-                {SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES}
-            )
+            required_aux_series=frozenset({SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES})
         ),
     )
 

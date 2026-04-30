@@ -25,6 +25,7 @@ SCORE_BY_REASON = {
     "dma_cross_up": 1.0,
     "dma_cross_down": -1.0,
     "below_extreme_fear_buy": 1.0,
+    "below_fear_recovering_buy": 0.6,
     "above_dma_overextended_sell": -0.8,
     "above_greed_fading_sell": -0.6,
     "above_greed_sell": -0.5,

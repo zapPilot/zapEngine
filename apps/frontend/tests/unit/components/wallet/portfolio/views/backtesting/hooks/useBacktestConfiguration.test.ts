@@ -650,6 +650,7 @@ describe('useBacktestConfiguration', () => {
                 top_escape: {
                   dma_overextension_threshold: 0.3,
                   fgi_slope_reversal_threshold: -0.05,
+                  fgi_slope_recovery_threshold: 0.05,
                 },
                 rotation: {
                   drift_threshold: 0.03,
@@ -682,6 +683,7 @@ describe('useBacktestConfiguration', () => {
               top_escape: {
                 dma_overextension_threshold: 0.3,
                 fgi_slope_reversal_threshold: -0.05,
+                fgi_slope_recovery_threshold: 0.05,
               },
               rotation: {
                 drift_threshold: 0.03,

@@ -52,18 +52,20 @@ def _clamp_float(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def compute_dma_buy_strength(dma_distance: float | None) -> float:
+def compute_dma_buy_strength(
+    dma_distance: float | None, *, floor: float = 0.03
+) -> float:
     """Return buy-side pacing strength based on DMA deviation.
 
     Formula:
-        buy_strength = clamp((-deviation - 0.10) / 0.25, 0, 1)
+        buy_strength = clamp((-deviation - floor) / 0.25, 0, 1)
 
     This only applies to DMA buy paths. Sell paths ignore this strength.
     """
     if dma_distance is None:
         return 0.0
     deviation = float(dma_distance)
-    return _clamp_float(((-deviation) - 0.10) / 0.25, 0.0, 1.0)
+    return _clamp_float(((-deviation) - float(floor)) / 0.25, 0.0, 1.0)
 
 
 def apply_buy_strength(

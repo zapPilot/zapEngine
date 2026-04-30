@@ -80,6 +80,7 @@ class _TopEscapePublicParams(BaseModel):
 
     dma_overextension_threshold: float = Field(default=0.30, ge=0.0, le=1.0)
     fgi_slope_reversal_threshold: float = Field(default=-0.05, le=0.0)
+    fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
 class _RotationPublicParams(BaseModel):
@@ -197,6 +198,7 @@ _DMA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
     ("max_trades_30d", "trade_quota", "max_trades_30d"),
     ("dma_overextension_threshold", "top_escape", "dma_overextension_threshold"),
     ("fgi_slope_reversal_threshold", "top_escape", "fgi_slope_reversal_threshold"),
+    ("fgi_slope_recovery_threshold", "top_escape", "fgi_slope_recovery_threshold"),
 ]
 
 _ROTATION_EXTRA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [

@@ -216,6 +216,7 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         "dma_gated_fgi",
         "eth_btc_rotation",
         "dma_fgi_adaptive_binary_eth_btc",
+        "dma_fgi_hierarchical_spy_crypto",
         "dma_gated_fgi_btc_asset_control",
         "dma_gated_fgi_eth_btc_control",
         "dma_gated_fgi_adaptive_dma_ref",

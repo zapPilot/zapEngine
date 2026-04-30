@@ -55,6 +55,7 @@ const topEscapeParamsSchema = z
   .object({
     dma_overextension_threshold: z.coerce.number().nonnegative().optional(),
     fgi_slope_reversal_threshold: z.coerce.number().optional(),
+    fgi_slope_recovery_threshold: z.coerce.number().nonnegative().optional(),
   })
   .strict();
 

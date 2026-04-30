@@ -629,6 +629,7 @@ class SpyEthBtcRotationStrategy(ComposedSignalStrategy):
                 _dma_policy=DmaGatedFgiDecisionPolicy(
                     dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                     fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
+                    fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
                 ),
             ),
         )

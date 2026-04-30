@@ -216,13 +216,17 @@ def allocate_stock_crypto_target(
 
     if stock_cross_event == "cross_up":
         preserved_crypto = (
-            current_crypto if crypto_state == "accumulation" and current_crypto > 0 else 0.0
+            current_crypto
+            if crypto_state == "accumulation" and current_crypto > 0
+            else 0.0
         )
         stock_demand = max(0.0, 1.0 - preserved_crypto)
         crypto_demand = preserved_crypto
     elif crypto_cross_event == "cross_up":
         preserved_stock = (
-            current_stock if stock_state == "accumulation" and current_stock > 0 else 0.0
+            current_stock
+            if stock_state == "accumulation" and current_stock > 0
+            else 0.0
         )
         crypto_demand = max(0.0, 1.0 - preserved_stock)
         stock_demand = preserved_stock
