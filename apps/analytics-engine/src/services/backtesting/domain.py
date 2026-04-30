@@ -20,6 +20,8 @@ class DmaSignalDiagnostics:
     cooldown_blocked_zone: str | None = None
     fgi_slope: float | None = None
     outer_dma_asset: str | None = None
+    outer_dma_action_unit: str | None = None
+    outer_dma_reference_asset: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

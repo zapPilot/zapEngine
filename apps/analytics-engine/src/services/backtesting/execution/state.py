@@ -226,6 +226,10 @@ def _serialize_dma_signal(dma: DmaSignalDiagnostics) -> dict[str, Any]:
     }
     if dma.outer_dma_asset is not None:
         details["outer_dma_asset"] = dma.outer_dma_asset
+    if dma.outer_dma_action_unit is not None:
+        details["outer_dma_action_unit"] = dma.outer_dma_action_unit
+    if dma.outer_dma_reference_asset is not None:
+        details["outer_dma_reference_asset"] = dma.outer_dma_reference_asset
     return details
 
 
