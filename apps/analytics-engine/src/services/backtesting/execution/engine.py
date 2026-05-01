@@ -22,6 +22,7 @@ from src.services.backtesting.execution.state import (
     build_strategy_state,
     build_strategy_summaries,
 )
+from src.services.backtesting.features import MACRO_FEAR_GREED_FEATURE
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
     StrategyAction,
@@ -147,6 +148,9 @@ class StrategyEngine:
                             ),
                             sentiment=snapshot.sentiment_value,
                             sentiment_label=snapshot.sentiment_label,
+                            macro_fear_greed=snapshot.extra_data.get(
+                                MACRO_FEAR_GREED_FEATURE
+                            ),
                         ),
                         strategies=strategy_points,
                     )

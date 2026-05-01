@@ -17,7 +17,6 @@ from src.services.backtesting.composition_types import (
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
-    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
     STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
     STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
     STRATEGY_DMA_FGI_RATIO_COOLDOWN,
@@ -85,25 +84,6 @@ class EthBtcAttributionVariant:
 
 
 ATTRIBUTION_VARIANTS: dict[str, EthBtcAttributionVariant] = {
-    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: EthBtcAttributionVariant(
-        strategy_id=STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
-        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_BTC_ASSET_CONTROL],
-        description="Attribution parity control: DMA/FGI stable gate in asset runtime with 100% BTC risk-on split.",
-        adaptive_dma_reference=False,
-        rotation_mode="fixed",
-        ratio_cross_immediate=False,
-        ratio_cooldown=False,
-        fixed_eth_share_in_risk_on=0.0,
-    ),
-    STRATEGY_DMA_FGI_ETH_BTC_CONTROL: EthBtcAttributionVariant(
-        strategy_id=STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
-        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ETH_BTC_CONTROL],
-        description="Attribution control: DMA/FGI stable gate with a fixed 50/50 BTC/ETH risk-on split.",
-        adaptive_dma_reference=False,
-        rotation_mode="fixed",
-        ratio_cross_immediate=False,
-        ratio_cooldown=False,
-    ),
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: EthBtcAttributionVariant(
         strategy_id=STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
         display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF],

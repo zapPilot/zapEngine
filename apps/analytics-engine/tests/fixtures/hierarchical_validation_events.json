@@ -1,0 +1,98 @@
+[
+  {
+    "id": "btc_cross_down_2025_03_08",
+    "description": "BTC price crosses below BTC DMA; crypto sleeve must clear to stable.",
+    "event_type": "crypto_cross_down",
+    "reference_asset": "BTC",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-03-06",
+    "search_end_date": "2025-03-11",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "btc", "value": 0.0},
+      {"type": "target_asset_equals", "asset": "eth", "value": 0.0},
+      {"type": "target_stable_increased_from_previous"}
+    ]
+  },
+  {
+    "id": "eth_cross_down_2025_02_02",
+    "description": "ETH price crosses below ETH DMA; crypto sleeve must clear to stable.",
+    "event_type": "crypto_cross_down",
+    "reference_asset": "ETH",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-01-31",
+    "search_end_date": "2025-02-04",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "btc", "value": 0.0},
+      {"type": "target_asset_equals", "asset": "eth", "value": 0.0},
+      {"type": "target_stable_increased_from_previous"}
+    ]
+  },
+  {
+    "id": "btc_cross_down_preserve_spy_2025_10_16",
+    "description": "BTC cross_down should liquidate crypto while preserving an existing SPY sleeve.",
+    "event_type": "crypto_cross_down",
+    "reference_asset": "BTC",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-10-14",
+    "search_end_date": "2025-10-18",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "btc", "value": 0.0},
+      {"type": "target_asset_equals", "asset": "eth", "value": 0.0},
+      {"type": "target_asset_gt", "asset": "spy", "value": 0.0},
+      {"type": "target_spy_not_greater_than_current"},
+      {"type": "target_stable_increased_from_previous"}
+    ]
+  },
+  {
+    "id": "eth_cross_down_preserve_spy_2025_11_05",
+    "description": "ETH cross_down should liquidate crypto while preserving an existing SPY sleeve.",
+    "event_type": "crypto_cross_down",
+    "reference_asset": "ETH",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-11-03",
+    "search_end_date": "2025-11-07",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "btc", "value": 0.0},
+      {"type": "target_asset_equals", "asset": "eth", "value": 0.0},
+      {"type": "target_asset_gt", "asset": "spy", "value": 0.0},
+      {"type": "target_spy_not_greater_than_current"},
+      {"type": "target_stable_increased_from_previous"}
+    ]
+  },
+  {
+    "id": "extreme_fear_dca_2025_11_21",
+    "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+    "event_type": "extreme_fear_below_crypto_dma",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-11-18",
+    "search_end_date": "2025-11-24",
+    "assertions": [
+      {"type": "target_crypto_increased_from_previous"},
+      {"type": "target_stable_decreased_from_previous"}
+    ]
+  },
+  {
+    "id": "extreme_fear_dca_2026_02_06",
+    "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+    "event_type": "extreme_fear_below_crypto_dma",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2026-02-03",
+    "search_end_date": "2026-02-09",
+    "assertions": [
+      {"type": "target_crypto_increased_from_previous"},
+      {"type": "target_stable_decreased_from_previous"}
+    ]
+  },
+  {
+    "id": "spy_cross_up_redeploy_2026_04_06",
+    "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch.",
+    "event_type": "spy_cross_up",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2026-04-03",
+    "search_end_date": "2026-04-10",
+    "assertions": [
+      {"type": "eventually_target_asset_greater_than_previous", "asset": "spy", "within_days": 4},
+      {"type": "eventually_target_asset_less_than_previous", "asset": "stable", "within_days": 4}
+    ]
+  }
+]

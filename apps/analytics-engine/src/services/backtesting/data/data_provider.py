@@ -191,24 +191,51 @@ class BacktestDataProvider:
             end_date=end_date,
             token_symbol=token_symbol,
         )
-        if (
+        requires_macro_fear_greed = (
             market_data_requirements is not None
             and market_data_requirements.requires_macro_fear_greed
-        ):
-            if self.macro_fear_greed_service is None:
-                raise ValueError(
-                    "macro_fear_greed_service is required when macro FGI is requested"
-                )
-            macro_history = self.macro_fear_greed_service.get_daily_macro_fear_greed(
-                start_date=start_date,
-                end_date=end_date,
-            )
+        )
+        macro_history = self._resolve_macro_fear_greed_history(
+            start_date=start_date,
+            end_date=end_date,
+            required=requires_macro_fear_greed,
+        )
+        if macro_history:
             feature_history[MACRO_FEAR_GREED_FEATURE] = self._forward_fill_feature(
                 dict(macro_history),
                 start_date=start_date,
                 end_date=end_date,
             )
         return feature_history
+
+    def _resolve_macro_fear_greed_history(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+        required: bool,
+    ) -> dict[date, Any]:
+        if self.macro_fear_greed_service is None:
+            if required:
+                raise ValueError(
+                    "macro_fear_greed_service is required when macro FGI is requested"
+                )
+            return {}
+
+        try:
+            return dict(
+                self.macro_fear_greed_service.get_daily_macro_fear_greed(
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+        except Exception as error:
+            if required:
+                raise
+            logger.warning(
+                "Failed to fetch optional macro Fear & Greed data: %s", error
+            )
+            return {}
 
     @staticmethod
     def _forward_fill_feature(

@@ -14,6 +14,7 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_USD_PRICE_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_CRYPTO_RATIO_DMA_200_FEATURE,
     SPY_CRYPTO_RATIO_FEATURE,
     SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
@@ -84,6 +85,92 @@ async def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
 
     assert rows == [{"date": date(2025, 1, 1), "price": 100.0}]
     assert calls == ["prices"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_injects_optional_macro_fear_greed() -> None:
+    macro_fear_greed_service = SimpleNamespace(
+        get_daily_macro_fear_greed=lambda **kwargs: {
+            date(2025, 1, 1): {
+                "score": 24.0,
+                "label": "extreme_fear",
+                "source": "cnn_fear_greed_unofficial",
+                "updated_at": "2025-01-01T12:00:00+00:00",
+                "raw_rating": "Extreme Fear",
+            },
+            date(2025, 1, 3): {
+                "score": 76.0,
+                "label": "greed",
+                "source": "cnn_fear_greed_unofficial",
+                "updated_at": "2025-01-03T12:00:00+00:00",
+                "raw_rating": "Greed",
+            },
+        }
+    )
+    provider = BacktestDataProvider(
+        token_price_service=SimpleNamespace(
+            get_price_history=lambda **kwargs: [
+                SimpleNamespace(date=date(2025, 1, 1), price=100.0),
+                SimpleNamespace(date=date(2025, 1, 2), price=101.0),
+                SimpleNamespace(date=date(2025, 1, 3), price=102.0),
+            ],
+            get_dma_history=lambda **kwargs: {},
+        ),
+        sentiment_service=SimpleNamespace(),
+        macro_fear_greed_service=macro_fear_greed_service,
+    )
+
+    rows = await provider.fetch_token_prices(
+        token_symbol="BTC",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 3),
+    )
+
+    assert rows[0]["extra_data"][MACRO_FEAR_GREED_FEATURE]["score"] == 24.0
+    assert rows[1]["extra_data"][MACRO_FEAR_GREED_FEATURE]["score"] == 24.0
+    assert rows[2]["extra_data"][MACRO_FEAR_GREED_FEATURE]["score"] == 76.0
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_omits_optional_macro_when_service_missing() -> None:
+    provider = BacktestDataProvider(
+        token_price_service=SimpleNamespace(
+            get_price_history=lambda **kwargs: [
+                SimpleNamespace(date=date(2025, 1, 1), price=100.0)
+            ],
+            get_dma_history=lambda **kwargs: {},
+        ),
+        sentiment_service=SimpleNamespace(),
+    )
+
+    rows = await provider.fetch_token_prices(
+        token_symbol="BTC",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 1),
+    )
+
+    assert rows == [{"date": date(2025, 1, 1), "price": 100.0}]
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_requires_macro_service_when_declared() -> None:
+    provider = BacktestDataProvider(
+        token_price_service=SimpleNamespace(
+            get_price_history=lambda **kwargs: [],
+            get_dma_history=lambda **kwargs: {},
+        ),
+        sentiment_service=SimpleNamespace(),
+    )
+
+    with pytest.raises(ValueError, match="macro_fear_greed_service is required"):
+        await provider.fetch_token_prices(
+            token_symbol="BTC",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 1),
+            market_data_requirements=MarketDataRequirements(
+                requires_macro_fear_greed=True
+            ),
+        )
 
 
 @pytest.mark.asyncio

@@ -58,3 +58,9 @@ coverage/
 # Turbo cache
 .turbo/*
 !.turbo/config.json
+
+# analytics-engine
+apps/analytics-engine/*.md
+!apps/analytics-engine/README.md
+!apps/analytics-engine/AGENTS.md
+!apps/analytics-engine/GEMINI.md

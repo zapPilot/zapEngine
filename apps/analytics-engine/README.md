@@ -76,6 +76,30 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
   --windows 2025
 ```
 
+## Hierarchical Regression Events
+
+Run this after changing the hierarchical SPY/crypto strategy to verify fixed
+behavioral checkpoints like BTC/ETH cross-down routing, extreme-fear DCA, and
+the 2026-04-06 SPY cross-up redeploy path.
+
+Start the API first:
+
+```bash
+pnpm --filter @zapengine/analytics-engine dev
+```
+
+Then run the event validator:
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py \
+  --out hierarchical_validation_$(date -I).md
+```
+
+The fixture lives at
+`tests/fixtures/hierarchical_validation_events.json`. Each case uses a search
+window, so uncertain dates such as `2025-03-08 or 2025-03-09` are resolved from
+the compare timeline instead of hard-coded to a single day.
+
 ## Import conventions
 
 - Routers: `src.api.routers.*` (canonical). `src.api.routes.backtesting` is a deprecated shim.

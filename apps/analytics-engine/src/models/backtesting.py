@@ -150,11 +150,20 @@ class StrategyState(BaseModel):
     execution: ExecutionState
 
 
+class MacroFearGreedSnapshot(BaseModel):
+    score: float = Field(ge=0.0, le=100.0)
+    label: str
+    source: str
+    updated_at: str
+    raw_rating: str | None = None
+
+
 class MarketSnapshot(BaseModel):
     date: date
     token_price: dict[str, float]
     sentiment: int | None = None
     sentiment_label: str | None = None
+    macro_fear_greed: MacroFearGreedSnapshot | None = None
 
 
 class TimelinePoint(BaseModel):

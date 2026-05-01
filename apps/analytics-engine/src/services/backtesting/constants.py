@@ -85,65 +85,67 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DMA_GATED_FGI: "DMA Gated FGI",
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
     STRATEGY_SPY_ETH_BTC_ROTATION: "SPY/ETH/BTC Multi-Asset Rotation",
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: "DMA FGI Adaptive Binary ETH/BTC",
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: "DMA FGI Hierarchical SPY/Crypto",
-    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: "DMA FGI BTC Asset Control",
-    STRATEGY_DMA_FGI_ETH_BTC_CONTROL: "DMA FGI ETH/BTC Control",
-    STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: "DMA FGI + Adaptive DMA Ref",
-    STRATEGY_DMA_FGI_RATIO_ZONE: "DMA FGI + Ratio Zone",
-    STRATEGY_DMA_FGI_RATIO_COOLDOWN: "DMA FGI + Ratio Cooldown",
-    STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION: "DMA FGI + Progressive Rotation",
-    STRATEGY_ETH_BTC_ROTATION_ATTRIBUTION_FULL: "ETH/BTC Attribution Full",
-    STRATEGY_ETH_BTC_FULL_MINUS_ADAPTIVE_DMA: "ETH/BTC Full - Adaptive DMA",
-    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_CROSS: "ETH/BTC Full - Ratio Cross",
-    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_COOLDOWN: "ETH/BTC Full - Ratio Cooldown",
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: "126% DMA FGI Adaptive Binary ETH/BTC",
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: "34% DMA FGI Hierarchical SPY/Crypto",
+    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: "(sucks)DMA FGI BTC Asset Control",
+    STRATEGY_DMA_FGI_ETH_BTC_CONTROL: "(sucks) DMA FGI ETH/BTC Control",
+    STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: "(60%) DMA FGI + Adaptive DMA Ref",
+    STRATEGY_DMA_FGI_RATIO_ZONE: "51% DMA FGI + Ratio Zone",
+    STRATEGY_DMA_FGI_RATIO_COOLDOWN: "(60%) DMA FGI + Ratio Cooldown",
+    STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION: "(80%) DMA FGI + Progressive Rotation",
+    STRATEGY_ETH_BTC_ROTATION_ATTRIBUTION_FULL: "(115%) ETH/BTC Attribution Full",
+    STRATEGY_ETH_BTC_FULL_MINUS_ADAPTIVE_DMA: "79% ETH/BTC Full - Adaptive DMA",
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_CROSS: "118% ETH/BTC Full - Ratio Cross",
+    STRATEGY_ETH_BTC_FULL_MINUS_RATIO_COOLDOWN: "116% ETH/BTC Full - Ratio Cooldown",
     STRATEGY_ETH_BTC_FULL_MINUS_PROGRESSIVE_ROTATION: (
-        "ETH/BTC Full - Progressive Rotation"
+        "126% ETH/BTC Full - Progressive Rotation"
     ),
-    STRATEGY_ETH_BTC_PROGRESSIVE_ADAPTIVE: "ETH/BTC Progressive + Adaptive DMA",
-    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS: "ETH/BTC Progressive + Ratio Cross",
+    STRATEGY_ETH_BTC_PROGRESSIVE_ADAPTIVE: "118% ETH/BTC Progressive + Adaptive DMA",
+    STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS: "79% ETH/BTC Progressive + Ratio Cross",
     STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN: (
-        "ETH/BTC Progressive + Ratio Cross Cooldown"
+        "79% ETH/BTC Progressive + Ratio Cross Cooldown"
     ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "Hierarchical Attribution Control",
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL: "Hierarchical Attribution Full",
+    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL: "34% Hierarchical Attribution Full",
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA: (
-        "Hierarchical Full - Adaptive DMA"
+        "102% Hierarchical Full - Adaptive DMA"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH: (
-        "Hierarchical Full - SPY Latch"
+        "33% Hierarchical Full - SPY Latch"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION: (
-        "Hierarchical Full - Greed Sell Suppression"
+        "33% Hierarchical Full - Greed Sell Suppression"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR: (
-        "Hierarchical Full - Buy Floor"
+        "34% Hierarchical Full - Buy Floor"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY: (
-        "Hierarchical Full - Fear Recovery Buy"
+        "32% Hierarchical Full - Fear Recovery Buy"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH: (
-        "Hierarchical NoDMA Full - SPY Latch"
+        "106% Hierarchical NoDMA Full - SPY Latch"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_GREED_SELL_SUPPRESSION: (
-        "Hierarchical NoDMA Full - Greed Sell Suppression"
+        "82% Hierarchical NoDMA Full - Greed Sell Suppression"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_BUY_FLOOR: (
-        "Hierarchical NoDMA Full - Buy Floor"
+        "99% Hierarchical NoDMA Full - Buy Floor"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_FEAR_RECOVERY_BUY: (
-        "Hierarchical NoDMA Full - Fear Recovery Buy"
+        "102% Hierarchical NoDMA Full - Fear Recovery Buy"
     ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: ("Hierarchical Adaptive DMA Only"),
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY: ("Hierarchical SPY Latch Only"),
+    STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: (
+        "32% Hierarchical Adaptive DMA Only"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY: ("81% Hierarchical SPY Latch Only"),
     STRATEGY_DMA_FGI_HIERARCHICAL_GREED_SUPPRESSION_ONLY: (
-        "Hierarchical Greed Suppression Only"
+        "105% Hierarchical Greed Suppression Only"
     ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_BUY_FLOOR_ONLY: ("Hierarchical Buy Floor Only"),
+    STRATEGY_DMA_FGI_HIERARCHICAL_BUY_FLOOR_ONLY: ("85% Hierarchical Buy Floor Only"),
     STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY: (
-        "Hierarchical Fear Recovery Only"
+        "13% Hierarchical Fear Recovery Only"
     ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "Hierarchical Production",
+    STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "34% Hierarchical Production",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

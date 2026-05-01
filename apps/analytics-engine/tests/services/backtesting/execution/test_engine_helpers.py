@@ -19,6 +19,7 @@ from src.services.backtesting.execution.state import (
     build_strategy_summaries,
     calculate_roi_percent,
 )
+from src.services.backtesting.features import MACRO_FEAR_GREED_FEATURE
 from src.services.backtesting.response_utils import (
     coerce_action,
     coerce_rule_group,
@@ -132,6 +133,34 @@ def test_engine_warmup_days_are_excluded_from_timeline() -> None:
     assert strategy.warmup_calls == 1
     assert len(result.timeline) == 1
     assert result.timeline[0].market.date == date(2025, 1, 2)
+
+
+def test_engine_serializes_macro_fear_greed_on_market_snapshot() -> None:
+    engine = StrategyEngine(EngineConfig())
+    macro_fear_greed = {
+        "score": 18.0,
+        "label": "extreme_fear",
+        "source": "cnn_fear_greed_unofficial",
+        "updated_at": "2025-01-01T12:00:00+00:00",
+        "raw_rating": "Extreme Fear",
+    }
+
+    result = engine.run(
+        prices=[
+            {
+                "date": date(2025, 1, 1),
+                "price": 100.0,
+                "extra_data": {MACRO_FEAR_GREED_FEATURE: macro_fear_greed},
+            }
+        ],
+        sentiments={date(2025, 1, 1): {"label": "neutral", "value": 50}},
+        strategies=[WarmupAwareStrategy()],
+        total_capital=1_000.0,
+    )
+
+    dumped = result.model_dump(mode="json")
+    market = dumped["timeline"][0]["market"]
+    assert market["macro_fear_greed"] == macro_fear_greed
 
 
 def test_apply_action_ignores_zero_transfer_and_missing_target() -> None:
