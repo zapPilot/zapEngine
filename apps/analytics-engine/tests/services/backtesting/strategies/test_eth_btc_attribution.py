@@ -6,8 +6,6 @@ import pytest
 
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
-    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL,
-    STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
     STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
     STRATEGY_DMA_FGI_RATIO_COOLDOWN,
     STRATEGY_DMA_FGI_RATIO_ZONE,
@@ -91,41 +89,10 @@ def test_initial_attribution_allocation_can_use_btc_only_risk_split() -> None:
     assert allocation["stable"] == pytest.approx(0.4)
 
 
-def test_btc_asset_control_keeps_fixed_btc_split_despite_ratio_signal() -> None:
-    component = _component(STRATEGY_DMA_FGI_BTC_ASSET_CONTROL)
+def test_fixed_adaptive_dma_ref_keeps_eth_btc_split_despite_ratio_signal() -> None:
+    component = _component(STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF)
     policy = EthBtcAttributionDecisionPolicy(
-        variant=ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_BTC_ASSET_CONTROL]
-    )
-    portfolio = Portfolio(stable_balance=4_000.0, btc_balance=0.06)
-    warmup_context = _context(
-        snapshot_date=date(2025, 1, 1),
-        portfolio=portfolio,
-        ratio=0.040,
-        ratio_dma_200=0.050,
-    )
-    component.initialize(warmup_context)
-    component.warmup(warmup_context)
-
-    snapshot = component.observe(
-        _context(
-            snapshot_date=date(2025, 1, 2),
-            portfolio=portfolio,
-            ratio=0.070,
-            ratio_dma_200=0.050,
-        )
-    )
-    intent = policy.decide(snapshot)
-
-    assert intent.target_allocation is not None
-    assert intent.target_allocation["btc"] == pytest.approx(0.6)
-    assert intent.target_allocation["eth"] == pytest.approx(0.0)
-    assert intent.target_allocation["stable"] == pytest.approx(0.4)
-
-
-def test_control_variant_keeps_fixed_eth_btc_split_despite_ratio_signal() -> None:
-    component = _component(STRATEGY_DMA_FGI_ETH_BTC_CONTROL)
-    policy = EthBtcAttributionDecisionPolicy(
-        variant=ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ETH_BTC_CONTROL]
+        variant=ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF]
     )
     portfolio = Portfolio(
         stable_balance=4_000.0,

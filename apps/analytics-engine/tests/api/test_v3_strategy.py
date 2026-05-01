@@ -28,6 +28,7 @@ from src.models.strategy import (
     DailySuggestionStrategyContextState,
     DailySuggestionTargetState,
 )
+from src.services.backtesting.strategy_registry import list_strategy_recipes
 from src.services.dependencies import (
     get_strategy_config_management_service,
     get_strategy_config_store,
@@ -211,45 +212,11 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     body = cast(dict[str, object], response.json())
     strategies = cast(list[dict[str, object]], body["strategies"])
     presets = cast(list[dict[str, object]], body["presets"])
-    assert [strategy["strategy_id"] for strategy in strategies] == [
-        "dca_classic",
-        "dma_gated_fgi",
-        "eth_btc_rotation",
-        "dma_fgi_adaptive_binary_eth_btc",
-        "dma_fgi_hierarchical_spy_crypto",
-        "dma_gated_fgi_btc_asset_control",
-        "dma_gated_fgi_eth_btc_control",
-        "dma_gated_fgi_adaptive_dma_ref",
-        "dma_gated_fgi_ratio_zone",
-        "dma_gated_fgi_ratio_cooldown",
-        "dma_gated_fgi_progressive_rotation",
-        "eth_btc_rotation_attribution_full",
-        "eth_btc_full_minus_adaptive_dma",
-        "eth_btc_full_minus_ratio_cross",
-        "eth_btc_full_minus_ratio_cooldown",
-        "eth_btc_full_minus_progressive_rotation",
-        "eth_btc_progressive_adaptive",
-        "eth_btc_progressive_ratio_cross",
-        "eth_btc_progressive_ratio_cross_cooldown",
-        "dma_fgi_hierarchical_control",
-        "dma_fgi_hierarchical_full",
-        "dma_fgi_hierarchical_full_minus_adaptive_dma",
-        "dma_fgi_hierarchical_full_minus_spy_latch",
-        "dma_fgi_hierarchical_full_minus_greed_sell_suppression",
-        "dma_fgi_hierarchical_full_minus_buy_floor",
-        "dma_fgi_hierarchical_full_minus_fear_recovery_buy",
-        "dma_fgi_hierarchical_nodma_full_minus_spy_latch",
-        "dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression",
-        "dma_fgi_hierarchical_nodma_full_minus_buy_floor",
-        "dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy",
-        "dma_fgi_hierarchical_adaptive_dma_only",
-        "dma_fgi_hierarchical_spy_latch_only",
-        "dma_fgi_hierarchical_greed_suppression_only",
-        "dma_fgi_hierarchical_buy_floor_only",
-        "dma_fgi_hierarchical_fear_recovery_only",
-        "dma_fgi_hierarchical_prod",
-        "spy_eth_btc_rotation",
-    ]
+    strategy_ids = [cast(str, strategy["strategy_id"]) for strategy in strategies]
+    expected_strategy_ids = [recipe.strategy_id for recipe in list_strategy_recipes()]
+    assert strategy_ids == expected_strategy_ids
+    assert "dma_gated_fgi_btc_asset_control" not in strategy_ids
+    assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
     assert {preset["config_id"] for preset in presets} == {
         "dma_gated_fgi_default",
         "eth_btc_rotation_default",

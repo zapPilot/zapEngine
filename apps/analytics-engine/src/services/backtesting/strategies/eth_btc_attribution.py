@@ -17,7 +17,6 @@ from src.services.backtesting.composition_types import (
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF,
-    STRATEGY_DMA_FGI_ETH_BTC_CONTROL,
     STRATEGY_DMA_FGI_PROGRESSIVE_ROTATION,
     STRATEGY_DMA_FGI_RATIO_COOLDOWN,
     STRATEGY_DMA_FGI_RATIO_ZONE,
@@ -242,7 +241,7 @@ class EthBtcAttributionState:
 class EthBtcAttributionSignalComponent(StatefulSignalComponent):
     config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
     variant: EthBtcAttributionVariant = field(
-        default_factory=lambda: ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ETH_BTC_CONTROL]
+        default_factory=lambda: ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF]
     )
     ratio_cross_cooldown_days: int = 30
     signal_id: str = "eth_btc_attribution_signal"
@@ -632,7 +631,7 @@ def _compose_asset_target(
 class EthBtcAttributionStrategy(ComposedSignalStrategy):
     total_capital: float
     variant: EthBtcAttributionVariant = field(
-        default_factory=lambda: ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ETH_BTC_CONTROL]
+        default_factory=lambda: ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF]
     )
     signal_id: str = "eth_btc_attribution_signal"
     summary_signal_id: str = "eth_btc_attribution_signal"
@@ -643,9 +642,9 @@ class EthBtcAttributionStrategy(ComposedSignalStrategy):
     decision_policy: DecisionPolicy = field(init=False, repr=False)
     execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
     public_params: dict[str, Any] = field(default_factory=dict)
-    strategy_id: str = STRATEGY_DMA_FGI_ETH_BTC_CONTROL
-    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ETH_BTC_CONTROL]
-    canonical_strategy_id: str = STRATEGY_DMA_FGI_ETH_BTC_CONTROL
+    strategy_id: str = STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF
+    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF]
+    canonical_strategy_id: str = STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
 

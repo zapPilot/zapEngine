@@ -20,8 +20,6 @@ STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
 STRATEGY_SPY_ETH_BTC_ROTATION = "spy_eth_btc_rotation"
 STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC = "dma_fgi_adaptive_binary_eth_btc"
 STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO = "dma_fgi_hierarchical_spy_crypto"
-STRATEGY_DMA_FGI_BTC_ASSET_CONTROL = "dma_gated_fgi_btc_asset_control"
-STRATEGY_DMA_FGI_ETH_BTC_CONTROL = "dma_gated_fgi_eth_btc_control"
 STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF = "dma_gated_fgi_adaptive_dma_ref"
 STRATEGY_DMA_FGI_RATIO_ZONE = "dma_gated_fgi_ratio_zone"
 STRATEGY_DMA_FGI_RATIO_COOLDOWN = "dma_gated_fgi_ratio_cooldown"
@@ -87,8 +85,6 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_SPY_ETH_BTC_ROTATION: "SPY/ETH/BTC Multi-Asset Rotation",
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: "126% DMA FGI Adaptive Binary ETH/BTC",
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: "34% DMA FGI Hierarchical SPY/Crypto",
-    STRATEGY_DMA_FGI_BTC_ASSET_CONTROL: "(sucks)DMA FGI BTC Asset Control",
-    STRATEGY_DMA_FGI_ETH_BTC_CONTROL: "(sucks) DMA FGI ETH/BTC Control",
     STRATEGY_DMA_FGI_ADAPTIVE_DMA_REF: "(60%) DMA FGI + Adaptive DMA Ref",
     STRATEGY_DMA_FGI_RATIO_ZONE: "51% DMA FGI + Ratio Zone",
     STRATEGY_DMA_FGI_RATIO_COOLDOWN: "(60%) DMA FGI + Ratio Cooldown",
