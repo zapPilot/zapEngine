@@ -91,7 +91,6 @@ describe('AlphaEtlHttpService', () => {
         status: 'completed',
         walletAddress: '0x1234',
         userId: 'u-1',
-        trigger: 'webhook',
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:01:00Z',
       };

@@ -9,9 +9,9 @@ import {
 export const ETLJobSchema = z
   .object({
     jobId: z.string(),
-    trigger: z.enum(['manual', 'scheduled', 'webhook']),
     status: z.enum(['pending', 'processing', 'completed', 'failed']),
     sources: z.array(z.string()).optional(),
+    tasks: z.array(z.unknown()).optional(),
     filters: z
       .object({
         chains: z.array(z.string()).optional(),

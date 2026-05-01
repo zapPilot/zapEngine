@@ -217,7 +217,6 @@ describe('accountSchemas', () => {
 
       expect(result.job_id).toBe('etl_1767881497530_1rw7jo');
       expect(result.status).toBe('pending');
-      expect(result.trigger).toBeUndefined();
       expect(result.created_at).toBeUndefined();
       expect(result.message).toBeUndefined();
     });
@@ -243,7 +242,6 @@ describe('accountSchemas', () => {
       const fullResponse = {
         job_id: 'test-123',
         status: 'completed',
-        trigger: 'webhook',
         created_at: '2026-01-08T00:00:00Z',
         updated_at: '2026-01-08T01:00:00Z',
         completed_at: '2026-01-08T02:00:00Z',
@@ -258,7 +256,6 @@ describe('accountSchemas', () => {
 
       expect(result.job_id).toBe('test-123');
       expect(result.status).toBe('completed');
-      expect(result.trigger).toBe('webhook');
       expect(result.created_at).toBe('2026-01-08T00:00:00Z');
       expect(result.records_processed).toBe(100);
       expect(result.message).toBe('Job completed successfully');
@@ -280,7 +277,6 @@ describe('accountSchemas', () => {
       expect(result.status).toBe('processing');
       expect(result.created_at).toBe('2024-01-01T00:00:00Z');
       expect(result.message).toBe('Processing...');
-      expect(result.trigger).toBeUndefined();
       expect(result.records_processed).toBeUndefined();
     });
 

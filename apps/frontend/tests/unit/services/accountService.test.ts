@@ -160,7 +160,6 @@ describe('accountService', () => {
           etl_job: {
             job_id: 'job-full',
             status: 'completed',
-            trigger: 'webhook',
             created_at: '2024-01-01T00:00:00Z',
             completed_at: '2024-01-01T02:00:00Z',
             records_processed: 100,
@@ -171,7 +170,6 @@ describe('accountService', () => {
         expected: {
           job_id: 'job-full',
           status: 'completed',
-          trigger: 'webhook',
           created_at: '2024-01-01T00:00:00Z',
           completed_at: '2024-01-01T02:00:00Z',
           records_processed: 100,
@@ -594,7 +592,6 @@ describe('accountService', () => {
       const response = {
         job_id: 'job123',
         status: 'completed',
-        trigger: 'manual',
         created_at: '2024-01-01T00:00:00Z',
       };
       vi.mocked(httpUtils.accountApi.get).mockResolvedValue(response);
@@ -602,7 +599,6 @@ describe('accountService', () => {
       await expect(accountService.getEtlJobStatus('job123')).resolves.toEqual({
         jobId: 'job123',
         status: 'completed',
-        trigger: 'manual',
         createdAt: '2024-01-01T00:00:00Z',
         recordsProcessed: undefined,
         recordsInserted: undefined,

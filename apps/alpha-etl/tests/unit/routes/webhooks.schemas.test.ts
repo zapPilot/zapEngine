@@ -1,10 +1,30 @@
+import { DATA_SOURCES } from '@zapengine/types/api';
 import { describe, it, expect } from 'vitest';
 import { webhookPayloadSchema } from '../../../src/routes/webhooks.schemas.js';
 
 describe('webhookPayloadSchema', () => {
-  it('should reject payloads with both source and sources', () => {
+  it('accepts every shared DATA_SOURCES value', () => {
+    for (const source of DATA_SOURCES) {
+      const result = webhookPayloadSchema.safeParse({ source });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.sources).toEqual([source]);
+        expect(result.data.tasks).toEqual([{ source, operation: 'current' }]);
+      }
+    }
+  });
+
+  it('rejects invalid source values', () => {
     const result = webhookPayloadSchema.safeParse({
-      trigger: 'manual',
+      source: 'btc-price',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects payloads with both source and sources', () => {
+    const result = webhookPayloadSchema.safeParse({
       source: 'defillama',
       sources: ['debank'],
     });
@@ -15,38 +35,55 @@ describe('webhookPayloadSchema', () => {
     }
   });
 
-  it('should coalesce single source into sources array', () => {
+  it('rejects payloads with tasks and sources', () => {
     const result = webhookPayloadSchema.safeParse({
-      trigger: 'manual',
-      source: 'defillama',
+      sources: ['debank'],
+      tasks: [
+        {
+          source: 'token-price',
+          operation: 'backfill',
+          tokens: [{ tokenId: 'bitcoin', tokenSymbol: 'BTC' }],
+        },
+      ],
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.sources).toEqual(['defillama']);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain('tasks');
     }
   });
 
-  it('should pass through sources array directly', () => {
-    const result = webhookPayloadSchema.safeParse({
-      trigger: 'manual',
-      sources: ['defillama', 'debank'],
-    });
+  it('defaults empty payloads to all current sources', () => {
+    const result = webhookPayloadSchema.safeParse({});
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.sources).toEqual(['defillama', 'debank']);
+      expect(result.data.sources).toEqual([...DATA_SOURCES]);
+      expect(result.data.tasks).toHaveLength(DATA_SOURCES.length);
     }
   });
 
-  it('should handle payload with neither source nor sources', () => {
+  it('passes explicit backfill tasks through', () => {
     const result = webhookPayloadSchema.safeParse({
-      trigger: 'scheduled',
+      tasks: [
+        {
+          source: 'macro-fear-greed',
+          operation: 'backfill',
+          startDate: '2021-01-01',
+        },
+      ],
     });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.sources).toBeUndefined();
+      expect(result.data.sources).toEqual(['macro-fear-greed']);
+      expect(result.data.tasks).toEqual([
+        {
+          source: 'macro-fear-greed',
+          operation: 'backfill',
+          startDate: '2021-01-01',
+        },
+      ]);
     }
   });
 });

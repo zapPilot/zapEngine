@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { ETLJobQueue } from '../modules/core/jobQueue.js';
+import { etlJobQueue } from '../modules/core/jobQueueSingleton.js';
+import type { ETLJob } from '../types/index.js';
 import {
   buildErrorApiResponse,
   buildSuccessApiResponse,
@@ -20,50 +21,108 @@ import {
 import { walletFetchSchema, webhookPayloadSchema } from './webhooks.schemas.js';
 
 const router: Router = Router();
-const jobQueue = new ETLJobQueue();
-const DEFAULT_SOURCES = [
-  'defillama',
-  'debank',
-  'hyperliquid',
-  'macro-fear-greed',
-  'stock-price',
-] as const;
+
+type QueueParams = Pick<ETLJob, 'sources' | 'tasks' | 'filters' | 'metadata'>;
+
+async function enqueueJob(
+  params: QueueParams,
+  requestId: string,
+): Promise<ETLJob> {
+  const job = await etlJobQueue.enqueue(params);
+
+  logger.info('ETL job queued successfully', {
+    requestId,
+    jobId: job.jobId,
+    sources: params.sources,
+  });
+
+  return job;
+}
+
+function buildValidationResponse(error: z.ZodError, requestId: string) {
+  return buildWebhookErrorApiResponse(
+    'VALIDATION_ERROR',
+    error.message,
+    requestId,
+    { errors: error.issues },
+  );
+}
+
+router.post('/jobs', async (req, res) => {
+  const requestId = getRequestId(req.headers as Record<string, unknown>);
+
+  try {
+    const payload = webhookPayloadSchema.parse(req.body ?? {});
+
+    logger.info('ETL job request received', {
+      requestId,
+      sources: payload.sources,
+      taskCount: payload.tasks.length,
+    });
+
+    const job = await enqueueJob(
+      {
+        sources: payload.sources,
+        tasks: payload.tasks,
+        filters: payload.filters,
+      },
+      requestId,
+    );
+
+    return res.status(202).json(buildSuccessApiResponse({ jobId: job.jobId }));
+  } catch (error) {
+    logger.error('ETL job request failed:', { error, requestId });
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json(buildValidationResponse(error, requestId));
+    }
+
+    const response = buildWebhookErrorApiResponse(
+      'API_ERROR',
+      toErrorMessage(error),
+      requestId,
+    );
+
+    return res.status(500).json(response);
+  }
+});
 
 router.post('/pipedream', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
-    // parse returns the transformed data
-    const payload = webhookPayloadSchema.parse(req.body);
+    const payload = webhookPayloadSchema.parse(req.body ?? {});
 
-    logger.info('Webhook received from Pipedream', {
+    logger.info('Pipedream compatibility webhook received', {
       requestId,
-      trigger: payload.trigger,
       sources: payload.sources,
+      taskCount: payload.tasks.length,
     });
 
-    const job = await jobQueue.enqueue({
-      trigger: payload.trigger,
-      sources: payload.sources ? [...payload.sources] : [...DEFAULT_SOURCES],
-      filters: payload.filters,
-    });
-
-    logger.info('ETL job queued successfully', {
-      requestId,
-      jobId: job.jobId,
-    });
-
-    return res.json(buildSuccessApiResponse({ jobId: job.jobId }));
-  } catch (error) {
-    logger.error('Webhook processing failed:', { error, requestId });
-
-    const response = buildWebhookErrorApiResponse(
-      'API_ERROR',
-      error instanceof Error ? error.message : 'Unknown error',
+    const job = await enqueueJob(
+      {
+        sources: payload.sources,
+        tasks: payload.tasks,
+        filters: payload.filters,
+      },
       requestId,
     );
 
-    return res.status(400).json(response);
+    return res.status(202).json(buildSuccessApiResponse({ jobId: job.jobId }));
+  } catch (error) {
+    logger.error('Pipedream webhook processing failed:', { error, requestId });
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json(buildValidationResponse(error, requestId));
+    }
+
+    const response = buildWebhookErrorApiResponse(
+      'API_ERROR',
+      toErrorMessage(error),
+      requestId,
+    );
+
+    return res.status(500).json(response);
   }
 });
 
@@ -108,19 +167,20 @@ router.post('/wallet-fetch', async (req, res) => {
       requestId,
       userId: payload.userId,
       walletAddress: maskWalletAddress(payload.walletAddress),
-      trigger: payload.trigger,
     });
 
     // Enqueue job with metadata for single wallet processing
-    const job = await jobQueue.enqueue({
-      trigger: payload.trigger,
-      sources: ['debank'],
-      metadata: {
-        userId: payload.userId,
-        walletAddress: payload.walletAddress,
-        jobType: 'wallet_fetch',
+    const job = await enqueueJob(
+      {
+        sources: ['debank'],
+        metadata: {
+          userId: payload.userId,
+          walletAddress: payload.walletAddress,
+          jobType: 'wallet_fetch',
+        },
       },
-    });
+      requestId,
+    );
 
     logger.info('Wallet fetch job queued successfully', {
       requestId,
@@ -161,7 +221,7 @@ router.get('/jobs/:jobId', async (req, res) => {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
-    const job = jobQueue.getJob(jobId);
+    const job = etlJobQueue.getJob(jobId);
 
     if (!job) {
       return res.status(404).json(
@@ -173,7 +233,7 @@ router.get('/jobs/:jobId', async (req, res) => {
       );
     }
 
-    const result = jobQueue.getResult(jobId);
+    const result = etlJobQueue.getResult(jobId);
 
     logger.info('Job status requested', {
       requestId,

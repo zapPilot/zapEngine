@@ -22,7 +22,6 @@ export const EtlErrorSchema = z.object({
 export const EtlJobStatusSchema = z.object({
   jobId: z.string(),
   status: JobStatusEnum,
-  trigger: z.enum(['webhook', 'manual', 'scheduled']),
   createdAt: z.string().datetime(),
   recordsProcessed: z.number().int().nonnegative().optional(),
   recordsInserted: z.number().int().nonnegative().optional(),
@@ -41,5 +40,4 @@ export type EtlError = z.infer<typeof EtlErrorSchema>;
 export type EtlJobStatus = z.infer<typeof EtlJobStatusSchema>;
 export type EtlJobCreated = z.infer<typeof EtlJobCreatedSchema>;
 
-export type ETLTrigger = 'scheduled' | 'manual' | 'webhook';
 export type ETLJobStatus = 'pending' | 'processing' | 'completed' | 'failed';

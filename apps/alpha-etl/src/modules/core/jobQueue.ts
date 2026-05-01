@@ -59,7 +59,7 @@ export class ETLJobQueue {
   }
 
   async enqueue(
-    params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>,
+    params: Pick<ETLJob, 'sources' | 'tasks' | 'filters' | 'metadata'>,
   ): Promise<ETLJob> {
     const jobId = this.generateJobId();
     const job = createPendingJob(jobId, params);

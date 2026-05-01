@@ -29,7 +29,19 @@ export function accumulateSourceResult(
   source: DataSource,
   sourceResult: ETLProcessResult,
 ): void {
-  target.sourceResults[source] = sourceResult;
+  const sourceResults = target.sourceResults as Partial<
+    Record<DataSource, ETLProcessResult>
+  >;
+  const existing = sourceResults[source];
+  if (existing) {
+    existing.success = existing.success && sourceResult.success;
+    existing.recordsProcessed += sourceResult.recordsProcessed;
+    existing.recordsInserted += sourceResult.recordsInserted;
+    existing.errors.push(...sourceResult.errors);
+  } else {
+    sourceResults[source] = sourceResult;
+  }
+
   target.recordsProcessed += sourceResult.recordsProcessed;
   target.recordsInserted += sourceResult.recordsInserted;
   target.errors.push(...sourceResult.errors.map((err) => `${source}: ${err}`));

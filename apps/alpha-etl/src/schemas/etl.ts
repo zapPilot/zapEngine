@@ -27,7 +27,6 @@ export const EtlErrorSchema = z.object({
 export const EtlJobStatusSchema = z.object({
   jobId: z.string(),
   status: JobStatusEnum,
-  trigger: z.enum(['webhook', 'manual', 'scheduled']),
   createdAt: z.string().datetime(),
   recordsProcessed: z.number().int().nonnegative().optional(),
   recordsInserted: z.number().int().nonnegative().optional(),

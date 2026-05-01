@@ -4,7 +4,13 @@ import {
   type ETLProcessResult,
 } from '../../core/processors/baseETLProcessor.js';
 import { WalletFetchETLProcessor } from '../../modules/wallet/fetchProcessor.js';
-import type { DataSource, ETLJob } from '../../types/index.js';
+import type {
+  DataSource,
+  ETLJob,
+  ETLJobTask,
+  MacroFearGreedBackfillTask,
+  TokenPriceBackfillTask,
+} from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -20,6 +26,30 @@ import {
   PROCESSOR_REGISTRY,
   type ProcessorConstructor,
 } from './processorRegistry.js';
+
+interface BackfillHistoryResult {
+  requested: number;
+  existing: number;
+  fetched: number;
+  inserted: number;
+}
+
+interface TokenPriceBackfillProcessor {
+  backfillHistory(
+    daysBack?: number,
+    tokenId?: string,
+    tokenSymbol?: string,
+  ): Promise<BackfillHistoryResult>;
+  updateDmaForToken(
+    tokenSymbol?: string,
+    tokenId?: string,
+    jobId?: string,
+  ): Promise<{ recordsInserted: number }>;
+}
+
+interface MacroFearGreedBackfillProcessor {
+  backfillHistory(startDate?: string): Promise<BackfillHistoryResult>;
+}
 
 /**
  * Factory for creating and managing ETL processors using Strategy pattern
@@ -61,6 +91,10 @@ export class ETLPipelineFactory {
     // Special routing for wallet_fetch jobs
     if (job.metadata?.jobType === 'wallet_fetch') {
       return this.processSingleSource(job, new WalletFetchETLProcessor());
+    }
+
+    if (job.tasks && job.tasks.length > 0) {
+      return this.processTasksForJob(job, createProcessingResult());
     }
 
     return this.processStandardSources(job, createProcessingResult());
@@ -138,6 +172,103 @@ export class ETLPipelineFactory {
     }
   }
 
+  private createTaskResult(source: DataSource): ETLProcessResult {
+    return {
+      success: true,
+      recordsProcessed: 0,
+      recordsInserted: 0,
+      errors: [],
+      source,
+    };
+  }
+
+  private async processTask(
+    task: ETLJobTask,
+    job: ETLJob,
+  ): Promise<ETLProcessResult> {
+    if (task.operation === 'current') {
+      return this.processSource(task.source, {
+        ...job,
+        sources: [task.source],
+        filters: task.filters ?? job.filters,
+      });
+    }
+
+    if (task.source === 'token-price') {
+      return this.processTokenPriceBackfillTask(task, job);
+    }
+
+    return this.processMacroFearGreedBackfillTask(task, job);
+  }
+
+  private async processTokenPriceBackfillTask(
+    task: TokenPriceBackfillTask,
+    job: ETLJob,
+  ): Promise<ETLProcessResult> {
+    const result = this.createTaskResult('token-price');
+    const processor = this.getProcessor(
+      'token-price',
+    ) as unknown as TokenPriceBackfillProcessor;
+
+    for (const token of task.tokens) {
+      const daysBack = token.daysBack ?? 30;
+
+      try {
+        logger.info('Processing token price backfill task', {
+          jobId: job.jobId,
+          tokenId: token.tokenId,
+          tokenSymbol: token.tokenSymbol,
+          daysBack,
+        });
+
+        const backfillResult = await processor.backfillHistory(
+          daysBack,
+          token.tokenId,
+          token.tokenSymbol,
+        );
+        result.recordsProcessed += backfillResult.requested;
+        result.recordsInserted += backfillResult.inserted;
+
+        await processor.updateDmaForToken(
+          token.tokenSymbol,
+          token.tokenId,
+          job.jobId,
+        );
+      } catch (error) {
+        result.success = false;
+        result.errors.push(`${token.tokenSymbol}: ${toErrorMessage(error)}`);
+      }
+    }
+
+    return result;
+  }
+
+  private async processMacroFearGreedBackfillTask(
+    task: MacroFearGreedBackfillTask,
+    job: ETLJob,
+  ): Promise<ETLProcessResult> {
+    const result = this.createTaskResult('macro-fear-greed');
+    const processor = this.getProcessor(
+      'macro-fear-greed',
+    ) as unknown as MacroFearGreedBackfillProcessor;
+
+    try {
+      logger.info('Processing macro Fear & Greed backfill task', {
+        jobId: job.jobId,
+        startDate: task.startDate,
+      });
+
+      const backfillResult = await processor.backfillHistory(task.startDate);
+      result.recordsProcessed = backfillResult.requested;
+      result.recordsInserted = backfillResult.inserted;
+    } catch (error) {
+      result.success = false;
+      result.errors.push(toErrorMessage(error));
+    }
+
+    return result;
+  }
+
   private async processStandardSources(
     job: ETLJob,
     result: ETLJobProcessingResult,
@@ -149,6 +280,36 @@ export class ETLPipelineFactory {
 
       const duration = Date.now() - startTime;
       logger.info('ETL job processing completed', {
+        jobId: job.jobId,
+        success: result.success,
+        recordsProcessed: result.recordsProcessed,
+        recordsInserted: result.recordsInserted,
+        errorCount: result.errors.length,
+        duration,
+        sourceResults: buildJobSummary(result.sourceResults),
+      });
+
+      return result;
+    } catch (error) {
+      this.applyProcessJobFailure(job, result, error);
+      return result;
+    }
+  }
+
+  private async processTasksForJob(
+    job: ETLJob,
+    result: ETLJobProcessingResult,
+  ): Promise<ETLJobProcessingResult> {
+    const startTime = Date.now();
+
+    try {
+      for (const task of job.tasks ?? []) {
+        const sourceResult = await this.processTask(task, job);
+        accumulateSourceResult(result, task.source, sourceResult);
+      }
+
+      const duration = Date.now() - startTime;
+      logger.info('ETL task job processing completed', {
         jobId: job.jobId,
         success: result.success,
         recordsProcessed: result.recordsProcessed,

@@ -111,7 +111,6 @@ const lenientEtlJobStatusSchema = z
   .object({
     job_id: z.string(),
     status: z.enum(['pending', 'processing', 'completed', 'failed']),
-    trigger: z.enum(['webhook', 'manual', 'scheduled']).optional(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
     completed_at: z.string().optional(),
@@ -203,7 +202,6 @@ export const userProfileResponseSchema = z.object({
     status: 'pending' | 'processing' | 'completed' | 'failed';
     message?: string;
     rate_limited?: boolean;
-    trigger?: 'webhook' | 'manual' | 'scheduled';
     created_at?: string;
     updated_at?: string;
     completed_at?: string;

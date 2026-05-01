@@ -291,7 +291,6 @@ export async function getEtlJobStatus(jobId: string): Promise<EtlJobStatus> {
       return {
         jobId: raw.job_id,
         status: raw.status,
-        trigger: raw.trigger ?? 'manual',
         createdAt: raw.created_at ?? '',
         recordsProcessed: raw.records_processed,
         recordsInserted: raw.records_inserted,

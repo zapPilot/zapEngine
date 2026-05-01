@@ -46,7 +46,6 @@ export function buildJobStatusResponse(
   const response: EtlJobStatus = {
     jobId: job.jobId,
     status: failedResult ? 'failed' : job.status,
-    trigger: job.trigger,
     createdAt: job.createdAt.toISOString(),
   };
 

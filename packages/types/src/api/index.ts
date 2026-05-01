@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Generic API result type for consistent error handling
  */
@@ -43,19 +45,7 @@ export interface ErrorContext {
   [key: string]: unknown;
 }
 
-/**
- * Data sources for ETL pipeline
- */
-export type DataSource =
-  | 'defillama'
-  | 'debank'
-  | 'hyperliquid'
-  | 'feargreed'
-  | 'macro-fear-greed'
-  | 'token-price'
-  | 'stock-price';
-
-export const DATA_SOURCES: readonly DataSource[] = [
+export const DATA_SOURCES = [
   'defillama',
   'debank',
   'hyperliquid',
@@ -64,6 +54,13 @@ export const DATA_SOURCES: readonly DataSource[] = [
   'token-price',
   'stock-price',
 ] as const;
+
+/**
+ * Data sources for ETL pipeline
+ */
+export type DataSource = (typeof DATA_SOURCES)[number];
+
+export const DataSourceSchema = z.enum(DATA_SOURCES);
 
 /**
  * API response wrapper with timestamp

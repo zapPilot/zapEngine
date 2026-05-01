@@ -19,6 +19,7 @@ import {
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
 import { StockPriceDmaService } from '../../modules/stock-price/dmaService.js';
+import type { DailyStockPrice } from '../../modules/stock-price/schema.js';
 import { StockPriceWriter } from '../../modules/stock-price/writer.js';
 import { YahooFinanceFetcher } from '../../modules/stock-price/yahooFetcher.js';
 import type { ETLJob } from '../../types/index.js';
@@ -207,23 +208,17 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
   }
 
   private async executeProcessFlow(job: ETLJob): Promise<ETLProcessResult> {
-    return executeETLFlow<never, never>(
+    return executeETLFlow<DailyStockPrice, DailyStockPrice>(
       job,
       'stock-price',
-      async () => {
+      async () => [
         await this.fetcher.fetchLatestPrice(
           StockPriceETLProcessor.DEFAULT_SYMBOL,
-        );
-        return [];
-      },
-      async () => {
-        throw new Error('Should not reach here');
-      },
-      async () => {
-        const priceData = await this.fetcher.fetchLatestPrice(
-          StockPriceETLProcessor.DEFAULT_SYMBOL,
-        );
-        await this.writer.insertSnapshot(priceData);
+        ),
+      ],
+      async (rawData) => rawData,
+      async (priceData) => {
+        await this.writer.insertSnapshot(priceData[0]!);
         return { recordsInserted: 1, success: true, errors: [] };
       },
     );

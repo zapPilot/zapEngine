@@ -72,19 +72,16 @@ export class AlphaEtlHttpService {
    *
    * @param userId - User UUID
    * @param walletAddress - Ethereum wallet address (0x...)
-   * @param trigger - Trigger type ('manual' | 'webhook')
    * @returns Job ID for status tracking
    * @throws Error if webhook call fails
    */
   async triggerWalletFetch(
     userId: string,
     walletAddress: string,
-    trigger: 'manual' | 'webhook' = 'webhook',
   ): Promise<{ jobId: string }> {
     this.logger.log('Sending wallet fetch webhook to alpha-etl...', {
       userId,
       walletAddress: truncateForLog(walletAddress),
-      trigger,
     });
 
     try {
@@ -98,7 +95,6 @@ export class AlphaEtlHttpService {
           body: JSON.stringify({
             userId,
             walletAddress,
-            trigger,
             secret: this.webhookSecret,
           }),
           signal: AbortSignal.timeout(this.WEBHOOK_TIMEOUT_MS),

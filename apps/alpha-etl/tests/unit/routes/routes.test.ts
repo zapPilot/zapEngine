@@ -2,31 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 
-// Define mocks
-const mockBackfillHistory = vi.fn();
-const mockUpdateDmaForToken = vi.fn();
 const mockGetJob = vi.fn();
 const mockGetResult = vi.fn();
 const mockEnqueue = vi.fn();
 
-// Mock dependencies with factory
-vi.mock("../../../src/modules/token-price/index.js", () => {
-  return {
-    TokenPriceETLProcessor: class {
-      backfillHistory = mockBackfillHistory;
-      updateDmaForToken = mockUpdateDmaForToken;
-    },
-  };
-});
-
-vi.mock("../../../src/modules/core/jobQueue.js", () => ({
-  ETLJobQueue: vi.fn().mockImplementation(function ETLJobQueue() {
-    return {
-      getJob: mockGetJob,
-      getResult: mockGetResult,
-      enqueue: mockEnqueue,
-    };
-  }),
+vi.mock("../../../src/modules/core/jobQueueSingleton.js", () => ({
+  etlJobQueue: {
+    getJob: mockGetJob,
+    getResult: mockGetResult,
+    enqueue: mockEnqueue,
+  },
 }));
 
 vi.mock("../../../src/modules/core/healthStatus.js");
@@ -56,8 +41,6 @@ describe("Routes", () => {
       .webhooksRouter;
 
     // Reset default mock behaviors
-    mockBackfillHistory.mockResolvedValue({ success: true });
-    mockUpdateDmaForToken.mockResolvedValue({ recordsInserted: 1 });
     mockGetJob.mockReturnValue(null);
     mockGetResult.mockReturnValue(null);
     mockEnqueue.mockResolvedValue({ jobId: "job1" });
@@ -76,19 +59,25 @@ describe("Routes", () => {
       expect(res.body.error.code).toBe("VALIDATION_ERROR");
     });
 
-    it("should handle all backfills failing", async () => {
-      // Setup mock failure
-      mockBackfillHistory.mockRejectedValue(new Error("Backfill failed"));
-
+    it("should queue valid token backfill requests", async () => {
       const res = await request(app)
         .post("/backfill")
         .send({
-          trigger: "manual",
           tokens: [{ tokenId: "bitcoin", tokenSymbol: "BTC" }],
         });
 
-      expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain("All backfill requests failed");
+      expect(res.status).toBe(202);
+      expect(res.body.data.jobId).toBe("job1");
+      expect(mockEnqueue).toHaveBeenCalledWith({
+        sources: ["token-price"],
+        tasks: [
+          {
+            source: "token-price",
+            operation: "backfill",
+            tokens: [{ tokenId: "bitcoin", tokenSymbol: "BTC" }],
+          },
+        ],
+      });
     });
   });
 
@@ -118,9 +107,9 @@ describe("Routes", () => {
     it("should return 500 if job status is failed", async () => {
       mockGetJob.mockReturnValue({
         status: "failed",
-        trigger: "manual",
         createdAt: new Date(),
         jobId: "job1",
+        sources: ["defillama"],
       });
       mockGetResult.mockReturnValue({
         success: false,

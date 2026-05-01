@@ -56,8 +56,8 @@ export interface ProcessUserResult<B, P> {
 }
 
 export interface ETLJob {
-  trigger: 'scheduled' | 'manual' | 'webhook';
   sources: DataSource[];
+  tasks?: ETLJobTask[] | undefined;
   filters?:
     | {
         chains?: string[] | undefined;
@@ -71,6 +71,32 @@ export interface ETLJob {
   jobId: string;
 }
 
+export type ETLOperation = 'current' | 'backfill';
+
+export interface CurrentETLTask {
+  source: DataSource;
+  operation: 'current';
+  filters?: ETLFilters | undefined;
+}
+
+export interface TokenPriceBackfillTask {
+  source: 'token-price';
+  operation: 'backfill';
+  tokens: TokenBackfillConfig[];
+}
+
+export interface MacroFearGreedBackfillTask {
+  source: 'macro-fear-greed';
+  operation: 'backfill';
+  startDate?: string | undefined;
+}
+
+export type BackfillETLTask =
+  | TokenPriceBackfillTask
+  | MacroFearGreedBackfillTask;
+
+export type ETLJobTask = CurrentETLTask | BackfillETLTask;
+
 export interface TokenBackfillConfig {
   tokenId: string;
   tokenSymbol: string;
@@ -79,7 +105,6 @@ export interface TokenBackfillConfig {
 
 export interface BackfillPayload {
   tokens: TokenBackfillConfig[];
-  trigger: 'manual' | 'scheduled';
 }
 
 export interface BackfillDmaMetadata {
@@ -136,16 +161,12 @@ export interface ETLJobResultData {
 
 export type ETLJobResult = ApiResult<ETLJobResultData>;
 
-export type WebhookTrigger = 'scheduled' | 'manual';
-
 export interface SingleSourceWebhookPayload {
-  trigger: WebhookTrigger;
   source: DataSource;
   filters?: ETLFilters;
 }
 
 export interface MultiSourceWebhookPayload {
-  trigger: WebhookTrigger;
   sources: DataSource[];
   filters?: ETLFilters;
 }
@@ -155,9 +176,9 @@ export type WebhookPayload =
   | MultiSourceWebhookPayload;
 
 export interface ETLFilters {
-  chains?: string[];
-  protocols?: string[];
-  minTvl?: number;
+  chains?: string[] | undefined;
+  protocols?: string[] | undefined;
+  minTvl?: number | undefined;
 }
 
 export interface SourceHealth {

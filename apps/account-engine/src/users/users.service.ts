@@ -379,7 +379,6 @@ export class UsersService extends BaseService {
         const webhookResult = await this.alphaEtlHttpService.triggerWalletFetch(
           userId,
           walletAddress,
-          'webhook',
         );
 
         this.logger.log('Alpha-ETL webhook response', {

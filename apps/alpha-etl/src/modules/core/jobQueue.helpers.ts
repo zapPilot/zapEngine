@@ -43,12 +43,12 @@ function normalizeJobErrors(errors: unknown): string[] {
 
 export function createPendingJob(
   jobId: string,
-  params: Pick<ETLJob, 'trigger' | 'sources' | 'filters' | 'metadata'>,
+  params: Pick<ETLJob, 'sources' | 'tasks' | 'filters' | 'metadata'>,
 ): ETLJob {
   return {
     jobId,
-    trigger: params.trigger,
     sources: params.sources,
+    tasks: params.tasks,
     filters: params.filters,
     metadata: params.metadata,
     createdAt: new Date(),
