@@ -635,7 +635,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
             params=resolved_params,
             adaptive_crypto_dma_reference=self.adaptive_crypto_dma_reference,
             spy_cross_up_latch_enabled=self.spy_cross_up_latch,
-            dma_buy_strength_floor=resolved_outer_policy.dma_buy_strength_floor,
+            dma_buy_strength_floor=self.dma_buy_strength_floor,
         )
         self.decision_policy = HierarchicalPairRotationDecisionPolicy(
             rotation_drift_threshold=resolved_params.rotation_drift_threshold,
@@ -663,7 +663,12 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
         }
 
     def parameters(self) -> dict[str, Any]:
-        return dict(self.public_params)
+        outer_policy = self.outer_policy
+        assert outer_policy is not None
+        return {
+            **self.public_params,
+            "feature_summary": outer_policy.feature_summary(),
+        }
 
 
 def _build_outer_unit_dma_context(

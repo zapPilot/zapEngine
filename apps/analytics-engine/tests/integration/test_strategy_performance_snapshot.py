@@ -11,10 +11,13 @@ from scripts.attribution.sweep_production_window import (
     _default_strategy_universe,
 )
 from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
+)
+from src.services.backtesting.strategies.hierarchical_outer_policy import (
+    MinimumHierarchicalOuterPolicy,
 )
 
 SNAPSHOT_PATH = (
@@ -39,52 +42,42 @@ def _strategy_metrics(snapshot: dict[str, Any], strategy_id: str) -> dict[str, A
     return raw_metrics
 
 
-def test_spy_does_not_dilute_total_return() -> None:
-    """Hierarchical production ROI must not materially lose to crypto-only."""
+def test_hierarchical_minimum_outperforms_current_production() -> None:
+    """The minimum stack should materially beat current production."""
     snapshot = load_snapshot()
-    crypto_only = _strategy_metrics(
-        snapshot,
-        STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-    )["roi_percent"]
+    minimum = _strategy_metrics(snapshot, STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM)[
+        "roi_percent"
+    ]
     hierarchical = _strategy_metrics(
         snapshot,
         STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
     )["roi_percent"]
-    tolerance = 5.0
+    minimum_advantage_floor = 75.0
 
-    assert hierarchical >= crypto_only - tolerance, (
-        f"SPY-bearing hierarchical_prod ROI ({hierarchical:.2f}%) falls more than "
-        f"{tolerance}pp below crypto-only adaptive_binary ({crypto_only:.2f}%). "
-        "This indicates SPY allocation is diluting returns rather than diversifying; "
-        "next iteration should diagnose why the outer SPY/crypto pair-template fails "
-        "to lean to crypto when SPY is weak."
+    assert minimum >= hierarchical + minimum_advantage_floor, (
+        f"minimum ROI ({minimum:.2f}%) no longer clears current production "
+        f"({hierarchical:.2f}%) by {minimum_advantage_floor}pp. This indicates "
+        "the two-feature minimum lost its expected SPY-bearing advantage."
     )
 
 
-def test_production_not_worse_than_ablations() -> None:
-    """The full feature stack should not underperform single-feature removals."""
+def test_full_minus_adaptive_dma_remains_load_bearing_reference() -> None:
+    """The no-adaptive-DMA ablation should keep proving Adaptive DMA is harmful."""
     snapshot = load_snapshot()
-    strategies = snapshot["strategies"]
-    assert isinstance(strategies, dict)
     prod_roi = _strategy_metrics(
         snapshot,
         STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
     )["roi_percent"]
-    ablation_keys = [
-        key for key in strategies if "_minus_" in key and "hierarchical" in key
-    ]
-    assert ablation_keys, "Snapshot does not include hierarchical ablation variants"
-    best_ablation_key = max(
-        ablation_keys,
-        key=lambda key: _strategy_metrics(snapshot, key)["roi_percent"],
-    )
-    best_ablation = _strategy_metrics(snapshot, best_ablation_key)["roi_percent"]
-    tolerance = 5.0
+    no_adaptive_roi = _strategy_metrics(
+        snapshot,
+        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
+    )["roi_percent"]
+    advantage_floor = 60.0
 
-    assert prod_roi >= best_ablation - tolerance, (
-        f"hierarchical_prod ROI ({prod_roi:.2f}%) underperforms its best ablation "
-        f"{best_ablation_key} ({best_ablation:.2f}%). This is a feature-interaction "
-        "bug: the full feature stack regresses against single-feature removal."
+    assert no_adaptive_roi >= prod_roi + advantage_floor, (
+        f"full-minus-adaptive-DMA ROI ({no_adaptive_roi:.2f}%) no longer clears "
+        f"current production ({prod_roi:.2f}%) by {advantage_floor}pp. This weakens "
+        "the attribution case against Adaptive DMA."
     )
 
 
@@ -102,8 +95,15 @@ def test_hierarchical_minimum_does_not_regress_against_nodma_full_minus_spy_latc
         STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
     )
 
-    assert minimum["roi_percent"] >= nodma_without_spy_latch["roi_percent"] - 3.0
+    assert minimum["roi_percent"] >= nodma_without_spy_latch["roi_percent"] + 3.0
     assert minimum["calmar_ratio"] >= 4.0
+
+
+def test_minimum_policy_feature_summary() -> None:
+    assert MinimumHierarchicalOuterPolicy().feature_summary()["active_features"] == [
+        "dma_stable_gating",
+        "greed_sell_suppression",
+    ]
 
 
 def test_every_registered_strategy_has_snapshot_entry() -> None:

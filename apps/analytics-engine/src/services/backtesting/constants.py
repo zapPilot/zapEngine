@@ -81,9 +81,6 @@ STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION = (
     "dma_fgi_hierarchical_minimum_minus_greed_suppression"
 )
-STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR = (
-    "dma_fgi_hierarchical_minimum_minus_buy_floor"
-)
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING = (
     "dma_fgi_hierarchical_minimum_minus_dma_gating"
 )
@@ -117,16 +114,16 @@ STRATEGY_DISPLAY_NAMES = {
         "102% Hierarchical Full - Adaptive DMA"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH: (
-        "33% Hierarchical Full - SPY Latch"
+        "[DEPRECATED] 33% Hierarchical Full - SPY Latch"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION: (
-        "33% Hierarchical Full - Greed Sell Suppression"
+        "[DEPRECATED] 33% Hierarchical Full - Greed Sell Suppression"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR: (
-        "34% Hierarchical Full - Buy Floor"
+        "[DEPRECATED] 34% Hierarchical Full - Buy Floor"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY: (
-        "32% Hierarchical Full - Fear Recovery Buy"
+        "[DEPRECATED] 32% Hierarchical Full - Fear Recovery Buy"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH: (
         "106% Hierarchical NoDMA Full - SPY Latch"
@@ -141,7 +138,7 @@ STRATEGY_DISPLAY_NAMES = {
         "102% Hierarchical NoDMA Full - Fear Recovery Buy"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: (
-        "32% Hierarchical Adaptive DMA Only"
+        "[DEPRECATED] 32% Hierarchical Adaptive DMA Only"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY: ("81% Hierarchical SPY Latch Only"),
     STRATEGY_DMA_FGI_HIERARCHICAL_GREED_SUPPRESSION_ONLY: (
@@ -149,15 +146,12 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_BUY_FLOOR_ONLY: ("85% Hierarchical Buy Floor Only"),
     STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY: (
-        "13% Hierarchical Fear Recovery Only"
+        "[DEPRECATED] 13% Hierarchical Fear Recovery Only"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "34% Hierarchical Production",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION: (
         "Hierarchical Minimum - Greed Sell Suppression"
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR: (
-        "Hierarchical Minimum - Buy Floor"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING: (
         "Hierarchical Minimum - DMA Gating"

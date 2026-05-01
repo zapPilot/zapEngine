@@ -4,13 +4,8 @@ from datetime import date
 
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION,
-)
-from src.services.backtesting.strategies.hierarchical_attribution import (
-    CURRENT_DMA_BUY_STRENGTH_FLOOR,
-    LEGACY_DMA_BUY_STRENGTH_FLOOR,
 )
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
@@ -45,7 +40,6 @@ def test_minimum_variant_registry_complete() -> None:
     expected = {
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR,
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING,
     }
 
@@ -65,7 +59,10 @@ def test_minimum_strategy_uses_minimum_outer_policy() -> None:
     assert strategy.spy_cross_up_latch is False
     assert strategy.outer_policy.greed_sell_suppression_enabled is True
     assert strategy.outer_policy.dma_stable_gating_enabled is True
-    assert strategy.dma_buy_strength_floor == CURRENT_DMA_BUY_STRENGTH_FLOOR
+    assert strategy.parameters()["feature_summary"] == {
+        "policy": "MinimumHierarchicalOuterPolicy",
+        "active_features": ["dma_stable_gating", "greed_sell_suppression"],
+    }
 
 
 def test_minimum_policy_type_omits_removed_feature_knobs() -> None:
@@ -74,14 +71,12 @@ def test_minimum_policy_type_omits_removed_feature_knobs() -> None:
     assert not hasattr(policy, "adaptive_crypto_dma_reference")
     assert not hasattr(policy, "spy_cross_up_latch")
     assert not hasattr(policy, "fear_recovery_buy_rule")
+    assert not hasattr(policy, "dma_buy_strength_floor")
 
 
 def test_minimum_leave_one_out_variants_change_only_their_policy_surface() -> None:
     no_greed_suppression = _build_strategy(
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION
-    )
-    legacy_buy_floor = _build_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR
     )
     no_dma_gating = _build_strategy(
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING
@@ -89,7 +84,12 @@ def test_minimum_leave_one_out_variants_change_only_their_policy_surface() -> No
 
     assert no_greed_suppression.outer_policy.greed_sell_suppression_enabled is False
     assert no_greed_suppression.outer_policy.dma_stable_gating_enabled is True
-    assert legacy_buy_floor.outer_policy.dma_buy_strength_floor == (
-        LEGACY_DMA_BUY_STRENGTH_FLOOR
-    )
+    assert no_greed_suppression.parameters()["feature_summary"] == {
+        "policy": "MinimumHierarchicalOuterPolicy",
+        "active_features": ["dma_stable_gating"],
+    }
     assert no_dma_gating.outer_policy.dma_stable_gating_enabled is False
+    assert no_dma_gating.parameters()["feature_summary"] == {
+        "policy": "MinimumHierarchicalOuterPolicy",
+        "active_features": ["greed_sell_suppression"],
+    }

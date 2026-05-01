@@ -17,6 +17,12 @@ from src.services.backtesting.capabilities import (
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH,
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
@@ -127,6 +133,34 @@ class StrategyRecipe:
     build_strategy: StrategyBuilder
     runtime_portfolio_mode: RuntimePortfolioMode = "aggregate"
     supports_daily_suggestion: bool = False
+    deprecated: bool = False
+    deprecation_note: str | None = None
+
+
+_DEPRECATED_STRATEGY_NOTES: dict[str, str] = {
+    # DEPRECATED: see snapshot 2026-04-15; Adaptive-DMA-poisoned.
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH: (
+        "Adaptive-DMA-poisoned variant, no longer relevant."
+    ),
+    # DEPRECATED: see snapshot 2026-04-15; Adaptive-DMA-poisoned.
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION: (
+        "Adaptive-DMA-poisoned variant, no longer relevant."
+    ),
+    # DEPRECATED: see snapshot 2026-04-15; Adaptive-DMA-poisoned.
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR: (
+        "Adaptive-DMA-poisoned variant, no longer relevant."
+    ),
+    # DEPRECATED: see snapshot 2026-04-15; Adaptive-DMA-poisoned.
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY: (
+        "Adaptive-DMA-poisoned variant, no longer relevant."
+    ),
+    # DEPRECATED: see snapshot 2026-04-15; anti-baseline, point made.
+    STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: ("Anti-baseline, point made."),
+    # DEPRECATED: see snapshot 2026-04-15; disaster baseline, point made.
+    STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY: (
+        "Disaster baseline, point made."
+    ),
+}
 
 
 def _require_compare_mode(request: StrategyBuildRequest) -> None:
@@ -385,6 +419,7 @@ def _make_hierarchical_attribution_builder(variant_id: str) -> StrategyBuilder:
 
 def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
     variant = HIERARCHICAL_ATTRIBUTION_VARIANTS[strategy_id]
+    deprecation_note = _DEPRECATED_STRATEGY_NOTES.get(strategy_id)
     return StrategyRecipe(
         strategy_id=strategy_id,
         display_name=variant.display_name,
@@ -409,6 +444,8 @@ def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
         build_strategy=_make_hierarchical_attribution_builder(strategy_id),
         supports_daily_suggestion=False,
+        deprecated=deprecation_note is not None,
+        deprecation_note=deprecation_note,
     )
 
 

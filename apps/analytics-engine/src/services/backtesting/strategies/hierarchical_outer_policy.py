@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
@@ -19,6 +19,7 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
     CURRENT_DMA_BUY_STRENGTH_FLOOR,
     FEAR_RECOVERY_BUY_RULE,
     FULL_DISABLED_RULES,
+    PLAIN_GREED_SELL_RULE,
 )
 from src.services.backtesting.strategies.pair_rotation_template import (
     PairRotationTemplateSpec,
@@ -51,11 +52,6 @@ class HierarchicalOuterSnapshot:
 class HierarchicalOuterDecisionPolicy(Protocol):
     """Decides SPY-vs-crypto-vs-stable allocation from DMA + FGI state."""
 
-    @property
-    def dma_buy_strength_floor(self) -> float:
-        """DMA buy-side floor used by execution hints."""
-        ...
-
     def decide(self, snapshot: HierarchicalOuterSnapshot) -> AllocationIntent:
         """Return an outer-sleeve intent whose target is the outer allocation."""
         ...
@@ -67,6 +63,10 @@ class HierarchicalOuterDecisionPolicy(Protocol):
         snapshot: HierarchicalOuterSnapshot,
     ) -> AllocationIntent:
         """Adjust a composed final intent after inner/outer target composition."""
+        ...
+
+    def feature_summary(self) -> dict[str, Any]:
+        """Return the active runtime feature surface for auditability."""
         ...
 
 
@@ -110,6 +110,23 @@ class FullFeaturedOuterPolicy:
             ),
         )
 
+    def feature_summary(self) -> dict[str, Any]:
+        active = ["dma_stable_gating"]
+        if self.adaptive_crypto_dma_reference:
+            active.append("adaptive_dma_reference")
+        if self.spy_cross_up_latch:
+            active.append("spy_cross_up_latch")
+        if PLAIN_GREED_SELL_RULE in self.disabled_rules:
+            active.append("greed_sell_suppression")
+        if FEAR_RECOVERY_BUY_RULE not in self.disabled_rules:
+            active.append("fear_recovery_buy")
+        if self.dma_buy_strength_floor > 0.0:
+            active.append(f"buy_floor={self.dma_buy_strength_floor:g}")
+        return {
+            "policy": "FullFeaturedOuterPolicy",
+            "active_features": active,
+        }
+
     def _dma_policy(self) -> DmaGatedFgiDecisionPolicy:
         return DmaGatedFgiDecisionPolicy(
             dma_overextension_threshold=self.dma_overextension_threshold,
@@ -121,9 +138,8 @@ class FullFeaturedOuterPolicy:
 
 @dataclass(frozen=True)
 class MinimumHierarchicalOuterPolicy:
-    """Three-feature minimum: DMA gating, greed-sell suppression, buy floor."""
+    """Two-feature minimum: DMA gating plus greed-sell suppression."""
 
-    dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
     greed_sell_suppression_enabled: bool = True
     dma_stable_gating_enabled: bool = True
     rotation_drift_threshold: float = 0.03
@@ -152,6 +168,17 @@ class MinimumHierarchicalOuterPolicy:
         snapshot: HierarchicalOuterSnapshot,
     ) -> AllocationIntent:
         return intent
+
+    def feature_summary(self) -> dict[str, Any]:
+        active: list[str] = []
+        if self.dma_stable_gating_enabled:
+            active.append("dma_stable_gating")
+        if self.greed_sell_suppression_enabled:
+            active.append("greed_sell_suppression")
+        return {
+            "policy": "MinimumHierarchicalOuterPolicy",
+            "active_features": active,
+        }
 
     def _dma_policy(self) -> DmaGatedFgiDecisionPolicy:
         disabled_rules = frozenset({FEAR_RECOVERY_BUY_RULE})

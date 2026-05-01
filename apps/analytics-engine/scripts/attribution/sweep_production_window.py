@@ -29,6 +29,7 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
 )
+from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
@@ -79,7 +80,15 @@ class DriftRow:
     status: str
 
 
-def _default_strategy_universe() -> list[str]:
+def _is_deprecated_strategy(strategy_id: str) -> bool:
+    try:
+        return get_strategy_recipe(strategy_id).deprecated
+    except ValueError:
+        display_name = STRATEGY_DISPLAY_NAMES.get(strategy_id, "")
+        return display_name.startswith("[DEPRECATED] ")
+
+
+def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]:
     strategy_ids: list[str] = []
     seen: set[str] = set()
     for strategy_id in (
@@ -93,6 +102,8 @@ def _default_strategy_universe() -> list[str]:
         STRATEGY_DMA_GATED_FGI,
     ):
         if strategy_id in seen:
+            continue
+        if exclude_deprecated and _is_deprecated_strategy(strategy_id):
             continue
         strategy_ids.append(strategy_id)
         seen.add(strategy_id)
@@ -229,8 +240,9 @@ def collect_snapshot(
     total_capital: float,
     tolerances: dict[str, float],
     show_progress: bool = True,
+    exclude_deprecated: bool = False,
 ) -> dict[str, Any]:
-    strategy_ids = _default_strategy_universe()
+    strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
     start_date = _window_start(reference_date, window_days)
     if show_progress:
         print(
@@ -326,9 +338,10 @@ def diff_snapshots(
     expected: dict[str, Any],
     actual: dict[str, Any],
     tolerances: dict[str, float],
+    exclude_deprecated: bool = False,
 ) -> list[DriftRow]:
     rows: list[DriftRow] = []
-    strategy_ids = _default_strategy_universe()
+    strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
     for strategy_id in strategy_ids:
         for metric in METRIC_KEYS:
             expected_value = _snapshot_metric(expected, strategy_id, metric)
@@ -414,6 +427,48 @@ def _write_snapshot(path: Path, snapshot: dict[str, Any]) -> None:
     path.write_text(json.dumps(snapshot, indent=2) + "\n")
 
 
+def _merge_preserved_deprecated_entries(
+    *,
+    existing: dict[str, Any] | None,
+    actual: dict[str, Any],
+) -> dict[str, Any]:
+    if existing is None:
+        return actual
+    existing_strategies = existing.get("strategies")
+    actual_strategies = actual.get("strategies")
+    if not isinstance(existing_strategies, dict) or not isinstance(
+        actual_strategies, dict
+    ):
+        return actual
+
+    merged_strategies = {
+        strategy_id: dict(entry)
+        for strategy_id, entry in actual_strategies.items()
+        if isinstance(entry, dict)
+    }
+    for strategy_id, entry in existing_strategies.items():
+        if strategy_id in merged_strategies or not isinstance(entry, dict):
+            continue
+        if not _is_deprecated_strategy(strategy_id):
+            continue
+        preserved_entry = dict(entry)
+        preserved_entry["display_name"] = STRATEGY_DISPLAY_NAMES.get(
+            strategy_id,
+            str(preserved_entry.get("display_name", strategy_id)),
+        )
+        merged_strategies[strategy_id] = preserved_entry
+
+    ordered_strategies = {
+        strategy_id: merged_strategies[strategy_id]
+        for strategy_id in _default_strategy_universe(exclude_deprecated=False)
+        if strategy_id in merged_strategies
+    }
+    return {
+        **actual,
+        "strategies": ordered_strategies,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
@@ -437,6 +492,15 @@ def main() -> None:
         help="Overwrite the snapshot fixture with current compare API results.",
     )
     parser.add_argument(
+        "--exclude-deprecated",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Exclude deprecated strategy recipes. Defaults on for --check and "
+            "--update-snapshot, off for diagnostic runs."
+        ),
+    )
+    parser.add_argument(
         "--no-progress",
         action="store_true",
         help="Disable stderr progress output.",
@@ -455,6 +519,11 @@ def main() -> None:
             tolerance_arg=None if args.tolerance is None else str(args.tolerance),
         )
     )
+    exclude_deprecated = (
+        bool(args.check or args.update_snapshot)
+        if args.exclude_deprecated is None
+        else bool(args.exclude_deprecated)
+    )
     actual = collect_snapshot(
         endpoint=str(args.endpoint),
         reference_date=reference_date,
@@ -462,9 +531,15 @@ def main() -> None:
         total_capital=total_capital,
         tolerances=tolerances,
         show_progress=not bool(args.no_progress),
+        exclude_deprecated=exclude_deprecated,
     )
     if args.update_snapshot:
-        _write_snapshot(snapshot_path, actual)
+        snapshot = (
+            _merge_preserved_deprecated_entries(existing=expected, actual=actual)
+            if exclude_deprecated
+            else actual
+        )
+        _write_snapshot(snapshot_path, snapshot)
         print(f"Updated snapshot: {snapshot_path}")
         return
 
@@ -472,7 +547,12 @@ def main() -> None:
         print(f"Snapshot fixture not found: {snapshot_path}", file=sys.stderr)
         raise SystemExit(1 if args.check else 0)
 
-    rows = diff_snapshots(expected=expected, actual=actual, tolerances=tolerances)
+    rows = diff_snapshots(
+        expected=expected,
+        actual=actual,
+        tolerances=tolerances,
+        exclude_deprecated=exclude_deprecated,
+    )
     print(render_drift_table(rows), end="")
     if args.check and any(row.status != "OK" for row in rows):
         raise SystemExit(1)

@@ -4,8 +4,6 @@ from datetime import date
 
 import pytest
 
-from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
@@ -16,7 +14,10 @@ from src.services.backtesting.features import (
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.hierarchical_attribution import (
+    CURRENT_DMA_BUY_STRENGTH_FLOOR,
+    FEAR_RECOVERY_BUY_RULE,
     FULL_DISABLED_RULES,
+    LEGACY_DMA_BUY_STRENGTH_FLOOR,
 )
 from src.services.backtesting.strategies.hierarchical_outer_policy import (
     FullFeaturedOuterPolicy,
@@ -88,7 +89,11 @@ def _outer_snapshot(
             if isinstance(policy, FullFeaturedOuterPolicy)
             else False
         ),
-        dma_buy_strength_floor=policy.dma_buy_strength_floor,
+        dma_buy_strength_floor=(
+            policy.dma_buy_strength_floor
+            if isinstance(policy, FullFeaturedOuterPolicy)
+            else LEGACY_DMA_BUY_STRENGTH_FLOOR
+        ),
     )
     component.initialize(contexts[0])
     for warmup_context in contexts[:-1]:
@@ -209,49 +214,6 @@ def test_minimum_policy_suppresses_plain_greed_sell() -> None:
     assert unsuppressed.target_allocation["stable"] == pytest.approx(1.0)
 
 
-def test_signal_component_honors_outer_policy_buy_floor() -> None:
-    policy = MinimumHierarchicalOuterPolicy(dma_buy_strength_floor=0.10)
-    snapshot, component = _outer_snapshot(
-        policy=policy,
-        contexts=[
-            _context(
-                portfolio=_portfolio(
-                    {"spy": 0.0, "btc": 0.5, "eth": 0.0, "stable": 0.5}
-                ),
-                btc_price=95_000.0,
-                dma_200=100_000.0,
-                fgi_value=15.0,
-            )
-        ],
-    )
-    assert snapshot.crypto_dma_state is not None
-    intent = AllocationIntent(
-        action="buy",
-        target_allocation={"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
-        allocation_name="dma_cross_up_entry",
-        immediate=False,
-        reason="dma_cross_up",
-        rule_group="cross",
-        decision_score=0.0,
-        diagnostics={
-            "outer_dma_asset": "CRYPTO",
-            "outer_dma_action_unit": "CRYPTO",
-            "outer_dma_reference_asset": "BTC",
-            "outer_dma_reference_by_asset": {"CRYPTO": "BTC"},
-        },
-    )
-
-    hints = component.build_execution_hints(
-        snapshot=snapshot,
-        intent=intent,
-        signal_confidence=1.0,
-    )
-
-    assert hints.buy_strength == pytest.approx(
-        compute_dma_buy_strength(-0.05, floor=0.10)
-    )
-
-
 def test_minimum_policy_does_not_fire_fear_recovery_buy() -> None:
     portfolio = _portfolio({"spy": 0.0, "btc": 0.5, "eth": 0.0, "stable": 0.5})
     policy = MinimumHierarchicalOuterPolicy()
@@ -290,3 +252,94 @@ def test_minimum_policy_does_not_fire_fear_recovery_buy() -> None:
     assert intent.target_allocation["stable"] == pytest.approx(
         snapshot.outer_state.current_asset_allocation["stable"]
     )
+
+
+def test_minimum_policy_feature_summary() -> None:
+    assert MinimumHierarchicalOuterPolicy().feature_summary() == {
+        "policy": "MinimumHierarchicalOuterPolicy",
+        "active_features": ["dma_stable_gating", "greed_sell_suppression"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected_features"),
+    [
+        (
+            FullFeaturedOuterPolicy(disabled_rules=FULL_DISABLED_RULES),
+            [
+                "dma_stable_gating",
+                "adaptive_dma_reference",
+                "spy_cross_up_latch",
+                "greed_sell_suppression",
+                "fear_recovery_buy",
+                f"buy_floor={CURRENT_DMA_BUY_STRENGTH_FLOOR:g}",
+            ],
+        ),
+        (
+            FullFeaturedOuterPolicy(
+                adaptive_crypto_dma_reference=False,
+                spy_cross_up_latch=False,
+                disabled_rules=FULL_DISABLED_RULES
+                | frozenset({FEAR_RECOVERY_BUY_RULE}),
+                dma_buy_strength_floor=0.0,
+            ),
+            ["dma_stable_gating", "greed_sell_suppression"],
+        ),
+        (
+            FullFeaturedOuterPolicy(
+                disabled_rules=frozenset(),
+                dma_buy_strength_floor=LEGACY_DMA_BUY_STRENGTH_FLOOR,
+            ),
+            [
+                "dma_stable_gating",
+                "adaptive_dma_reference",
+                "spy_cross_up_latch",
+                "fear_recovery_buy",
+                f"buy_floor={LEGACY_DMA_BUY_STRENGTH_FLOOR:g}",
+            ],
+        ),
+    ],
+)
+def test_full_featured_policy_feature_summary_reflects_config(
+    policy: FullFeaturedOuterPolicy,
+    expected_features: list[str],
+) -> None:
+    assert policy.feature_summary() == {
+        "policy": "FullFeaturedOuterPolicy",
+        "active_features": expected_features,
+    }
+
+
+def test_minimum_policy_intent_matches_legacy_buy_floor_free_config() -> None:
+    class LegacyMinimumPolicyWithBuyFloorZero:
+        dma_buy_strength_floor = 0.0
+
+        def decide(self, snapshot: HierarchicalOuterSnapshot) -> object:
+            return MinimumHierarchicalOuterPolicy().decide(snapshot)
+
+    portfolio = _portfolio({"spy": 0.4, "btc": 0.0, "eth": 0.0, "stable": 0.6})
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[
+            _context(
+                portfolio=portfolio,
+                spy_price=560.0,
+                spy_dma_200=580.0,
+                btc_price=95_000.0,
+                dma_200=100_000.0,
+                snapshot_date=date(2026, 4, 5),
+            ),
+            _context(
+                portfolio=portfolio,
+                spy_price=600.0,
+                spy_dma_200=580.0,
+                btc_price=100_000.0,
+                dma_200=95_000.0,
+                snapshot_date=date(2026, 4, 6),
+            ),
+        ],
+    )
+
+    assert MinimumHierarchicalOuterPolicy().decide(
+        snapshot
+    ) == LegacyMinimumPolicyWithBuyFloorZero().decide(snapshot)
