@@ -103,7 +103,10 @@ def validate_case(
         end_date=_parse_date(str(case["search_end_date"])),
     )
     event_point = _find_event_point(
-        case=case, points=window_points, strategy_id=strategy_id
+        case=case,
+        points=window_points,
+        timeline=timeline,
+        strategy_id=strategy_id,
     )
     if event_point is None:
         inspected_dates = tuple(_point_date(point) for point in window_points)
@@ -179,6 +182,7 @@ def _find_event_point(
     *,
     case: Mapping[str, Any],
     points: Sequence[Mapping[str, Any]],
+    timeline: Sequence[Mapping[str, Any]],
     strategy_id: str,
 ) -> Mapping[str, Any] | None:
     event_type = str(case["event_type"])
@@ -187,6 +191,21 @@ def _find_event_point(
             point=point,
             strategy_id=strategy_id,
             reference_asset=_optional_upper(case.get("reference_asset")),
+        ):
+            return point
+        if event_type == "crypto_cross_up" and _is_crypto_cross_up(
+            point=point,
+            strategy_id=strategy_id,
+            reference_asset=_optional_upper(case.get("reference_asset")),
+        ):
+            return point
+        if event_type == "spy_cross_down" and (
+            _dma_details(
+                point=point,
+                strategy_id=strategy_id,
+                key="spy_dma",
+            ).get("cross_event")
+            == "cross_down"
         ):
             return point
         if (
@@ -207,6 +226,22 @@ def _find_event_point(
             == "below"
         ):
             return point
+        if event_type == "eth_btc_ratio_cross_up" and _is_inner_ratio_cross(
+            timeline=timeline,
+            point=point,
+            strategy_id=strategy_id,
+            from_zone="below",
+            to_zone="above",
+        ):
+            return point
+        if event_type == "eth_btc_ratio_cross_down" and _is_inner_ratio_cross(
+            timeline=timeline,
+            point=point,
+            strategy_id=strategy_id,
+            from_zone="above",
+            to_zone="below",
+        ):
+            return point
     return None
 
 
@@ -223,6 +258,38 @@ def _is_crypto_cross_down(
         return True
     observed_reference = _optional_upper(dma.get("outer_dma_reference_asset"))
     return observed_reference == reference_asset
+
+
+def _is_crypto_cross_up(
+    *,
+    point: Mapping[str, Any],
+    strategy_id: str,
+    reference_asset: str | None,
+) -> bool:
+    dma = _dma_details(point=point, strategy_id=strategy_id, key="dma")
+    if dma.get("cross_event") != "cross_up":
+        return False
+    if reference_asset is None:
+        return True
+    observed_reference = _optional_upper(dma.get("outer_dma_reference_asset"))
+    return observed_reference == reference_asset
+
+
+def _is_inner_ratio_cross(
+    *,
+    timeline: Sequence[Mapping[str, Any]],
+    point: Mapping[str, Any],
+    strategy_id: str,
+    from_zone: str,
+    to_zone: str,
+) -> bool:
+    previous_point = _previous_point(timeline=timeline, event_point=point)
+    if previous_point is None:
+        return False
+    return (
+        _inner_ratio_zone(point=previous_point, strategy_id=strategy_id) == from_zone
+        and _inner_ratio_zone(point=point, strategy_id=strategy_id) == to_zone
+    )
 
 
 def _evaluate_assertions(
@@ -362,6 +429,20 @@ def _evaluate_assertion(
             strategy_id=strategy_id,
             comparator="not_greater_than",
         )
+    if assertion_type == "if_current_crypto_gt_target_asset_equals":
+        return _assert_if_current_crypto_gt_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            strategy_id=strategy_id,
+            comparator="equals",
+        )
+    if assertion_type == "if_current_crypto_gt_target_asset_gt":
+        return _assert_if_current_crypto_gt_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            strategy_id=strategy_id,
+            comparator="greater_than",
+        )
     if assertion_type == "eventually_target_asset_greater_than_previous":
         return _assert_eventual_asset_vs_previous(
             assertion=assertion,
@@ -460,6 +541,25 @@ def _assert_asset_vs_current(
         previous=current,
         comparator=comparator,
         previous_label="current",
+    )
+
+
+def _assert_if_current_crypto_gt_asset_compare(
+    *,
+    assertion: Mapping[str, Any],
+    point: Mapping[str, Any],
+    strategy_id: str,
+    comparator: str,
+) -> str | None:
+    current_crypto = _portfolio_crypto(point=point, strategy_id=strategy_id)
+    threshold = float(assertion.get("current_crypto_threshold", EPSILON))
+    if current_crypto <= threshold:
+        return None
+    return _assert_asset_compare(
+        assertion=assertion,
+        point=point,
+        strategy_id=strategy_id,
+        comparator=comparator,
     )
 
 
@@ -643,6 +743,14 @@ def _dma_details(
 def _decision(*, point: Mapping[str, Any], strategy_id: str) -> Mapping[str, Any]:
     decision = _strategy_state(point=point, strategy_id=strategy_id).get("decision")
     return decision if isinstance(decision, Mapping) else {}
+
+
+def _inner_ratio_zone(*, point: Mapping[str, Any], strategy_id: str) -> str | None:
+    details = _decision(point=point, strategy_id=strategy_id).get("details")
+    if not isinstance(details, Mapping):
+        return None
+    zone = details.get("inner_ratio_zone")
+    return str(zone) if isinstance(zone, str) else None
 
 
 def _strategy_state(*, point: Mapping[str, Any], strategy_id: str) -> Mapping[str, Any]:

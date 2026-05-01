@@ -28,19 +28,68 @@
     ]
   },
   {
-    "id": "btc_cross_down_preserve_spy_2025_10_16",
-    "description": "BTC cross_down should liquidate crypto while preserving an existing SPY sleeve.",
+    "id": "btc_cross_down_preserve_spy_2025_10_18",
+    "description": "BTC cross_down should liquidate crypto while preserving an existing SPY sleeve. SQL-resolved event date is 2025-10-18.",
     "event_type": "crypto_cross_down",
     "reference_asset": "BTC",
     "run_start_date": "2025-01-01",
     "search_start_date": "2025-10-14",
-    "search_end_date": "2025-10-18",
+    "search_end_date": "2025-10-20",
     "assertions": [
       {"type": "target_asset_equals", "asset": "btc", "value": 0.0},
       {"type": "target_asset_equals", "asset": "eth", "value": 0.0},
       {"type": "target_asset_gt", "asset": "spy", "value": 0.0},
       {"type": "target_spy_not_greater_than_current"},
       {"type": "target_stable_increased_from_previous"}
+    ]
+  },
+  {
+    "id": "btc_cross_up_2025_04_22",
+    "description": "BTC price crosses above BTC DMA; crypto risk-on should DCA a non-zero amount from stable.",
+    "event_type": "crypto_cross_up",
+    "reference_asset": "BTC",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-04-18",
+    "search_end_date": "2025-04-26",
+    "assertions": [
+      {"type": "target_crypto_increased_from_previous"},
+      {"type": "target_stable_decreased_from_previous"}
+    ]
+  },
+  {
+    "id": "eth_cross_up_2025_06_09",
+    "description": "ETH has no price-vs-ETH-DMA cross_up near 2025-04-22; SQL resolves the next ETH cross_up to 2025-06-09.",
+    "event_type": "crypto_cross_up",
+    "reference_asset": "ETH",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-06-06",
+    "search_end_date": "2025-06-12",
+    "assertions": [
+      {"type": "target_crypto_increased_from_previous"},
+      {"type": "target_stable_decreased_from_previous"}
+    ]
+  },
+  {
+    "id": "spy_cross_down_2025_03_10",
+    "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
+    "event_type": "spy_cross_down",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-03-03",
+    "search_end_date": "2025-03-12",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "spy", "value": 0.0}
+    ]
+  },
+  {
+    "id": "spy_cross_up_redeploy_2025_05_12",
+    "description": "SPY price crosses above SPY DMA; existing stable should redeploy into SPY on cross-up or latch-follow-through days.",
+    "event_type": "spy_cross_up",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-05-07",
+    "search_end_date": "2025-05-14",
+    "assertions": [
+      {"type": "eventually_target_asset_greater_than_previous", "asset": "spy", "within_days": 4},
+      {"type": "eventually_target_asset_less_than_previous", "asset": "stable", "within_days": 4}
     ]
   },
   {
@@ -84,8 +133,19 @@
     ]
   },
   {
-    "id": "spy_cross_up_redeploy_2026_04_06",
-    "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch.",
+    "id": "spy_cross_down_2026_03_20",
+    "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
+    "event_type": "spy_cross_down",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2026-03-14",
+    "search_end_date": "2026-03-22",
+    "assertions": [
+      {"type": "target_asset_equals", "asset": "spy", "value": 0.0}
+    ]
+  },
+  {
+    "id": "spy_cross_up_redeploy_2026_04_08",
+    "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch. SQL-resolved event date is 2026-04-08.",
     "event_type": "spy_cross_up",
     "run_start_date": "2025-01-01",
     "search_start_date": "2026-04-03",
@@ -93,6 +153,30 @@
     "assertions": [
       {"type": "eventually_target_asset_greater_than_previous", "asset": "spy", "within_days": 4},
       {"type": "eventually_target_asset_less_than_previous", "asset": "stable", "within_days": 4}
+    ]
+  },
+  {
+    "id": "eth_btc_ratio_cross_up_rotate_btc_to_eth_2025_07_15",
+    "description": "ETH/BTC ratio crosses up; if crypto is held, the crypto sleeve should rotate from BTC into ETH.",
+    "event_type": "eth_btc_ratio_cross_up",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2025-07-08",
+    "search_end_date": "2025-07-18",
+    "assertions": [
+      {"type": "if_current_crypto_gt_target_asset_equals", "asset": "btc", "value": 0.0},
+      {"type": "if_current_crypto_gt_target_asset_gt", "asset": "eth", "value": 0.0}
+    ]
+  },
+  {
+    "id": "eth_btc_ratio_cross_down_rotate_eth_to_btc_2026_01_20",
+    "description": "ETH/BTC ratio has a whipsaw near 2026-01-16; SQL resolves the sustained cross_down to 2026-01-20. If crypto is held, the crypto sleeve should rotate from ETH into BTC.",
+    "event_type": "eth_btc_ratio_cross_down",
+    "run_start_date": "2025-01-01",
+    "search_start_date": "2026-01-18",
+    "search_end_date": "2026-01-22",
+    "assertions": [
+      {"type": "if_current_crypto_gt_target_asset_equals", "asset": "eth", "value": 0.0},
+      {"type": "if_current_crypto_gt_target_asset_gt", "asset": "btc", "value": 0.0}
     ]
   }
 ]

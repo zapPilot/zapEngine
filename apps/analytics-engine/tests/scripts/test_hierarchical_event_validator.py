@@ -24,6 +24,7 @@ def _point(
     reference_asset: str = "BTC",
     spy_dma_cross: str | None = None,
     sentiment_label: str = "neutral",
+    inner_ratio_zone: str = "below",
     action: str = "hold",
     reason: str = "regime_no_signal",
 ) -> dict[str, Any]:
@@ -71,6 +72,7 @@ def _point(
                     "rule_group": "cross" if dma_cross or spy_dma_cross else "dma_fgi",
                     "target_allocation": {**target, "alt": 0.0},
                     "immediate": bool(dma_cross or spy_dma_cross),
+                    "details": {"inner_ratio_zone": inner_ratio_zone},
                 },
                 "execution": {"event": "rebalance", "transfers": []},
             }
@@ -83,7 +85,7 @@ def test_load_event_cases_and_build_compare_request() -> None:
 
     request = build_compare_request(cases=cases)
 
-    assert len(cases) == 7
+    assert len(cases) == 14
     assert request["start_date"] == "2025-01-01"
     assert request["end_date"] == "2026-04-10"
     assert request["configs"][0]["strategy_id"] == DEFAULT_CONFIG_ID
@@ -180,6 +182,149 @@ def test_wrong_crypto_cash_routing_to_spy_fails() -> None:
 
     assert result.passed is False
     assert "target spy=0.700000; expected <= current 0.400000" in result.message
+
+
+def test_crypto_cross_up_event_passes_when_crypto_increases_from_stable() -> None:
+    case = {
+        "id": "mock_cross_up",
+        "event_type": "crypto_cross_up",
+        "reference_asset": "BTC",
+        "search_start_date": "2025-04-22",
+        "search_end_date": "2025-04-22",
+        "assertions": [
+            {"type": "target_crypto_increased_from_previous"},
+            {"type": "target_stable_decreased_from_previous"},
+        ],
+    }
+    timeline = [
+        _point(
+            "2025-04-21",
+            target={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+            portfolio={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+        ),
+        _point(
+            "2025-04-22",
+            target={"btc": 0.25, "eth": 0.0, "spy": 0.0, "stable": 0.75},
+            portfolio={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+            dma_cross="cross_up",
+            action="buy",
+            reason="dma_cross_up",
+        ),
+    ]
+
+    result = validate_case(case=case, timeline=timeline)
+
+    assert result.passed is True
+    assert result.event_date == "2025-04-22"
+
+
+def test_spy_cross_down_event_passes_when_spy_clears() -> None:
+    case = {
+        "id": "mock_spy_cross_down",
+        "event_type": "spy_cross_down",
+        "search_start_date": "2025-03-10",
+        "search_end_date": "2025-03-10",
+        "assertions": [{"type": "target_asset_equals", "asset": "spy", "value": 0.0}],
+    }
+    timeline = [
+        _point(
+            "2025-03-10",
+            target={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+            portfolio={"btc": 0.0, "eth": 0.0, "spy": 0.5, "stable": 0.5},
+            spy_dma_cross="cross_down",
+            action="sell",
+            reason="dma_cross_down",
+        )
+    ]
+
+    result = validate_case(case=case, timeline=timeline)
+
+    assert result.passed is True
+    assert result.event_date == "2025-03-10"
+
+
+def test_ratio_cross_up_requires_btc_to_eth_rotation_when_crypto_is_held() -> None:
+    case = {
+        "id": "mock_ratio_cross_up",
+        "event_type": "eth_btc_ratio_cross_up",
+        "search_start_date": "2025-07-15",
+        "search_end_date": "2025-07-15",
+        "assertions": [
+            {
+                "type": "if_current_crypto_gt_target_asset_equals",
+                "asset": "btc",
+                "value": 0.0,
+            },
+            {
+                "type": "if_current_crypto_gt_target_asset_gt",
+                "asset": "eth",
+                "value": 0.0,
+            },
+        ],
+    }
+    timeline = [
+        _point(
+            "2025-07-14",
+            target={"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5},
+            portfolio={"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5},
+            inner_ratio_zone="below",
+        ),
+        _point(
+            "2025-07-15",
+            target={"btc": 0.0, "eth": 0.5, "spy": 0.0, "stable": 0.5},
+            portfolio={"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5},
+            inner_ratio_zone="above",
+            action="buy",
+            reason="pair_ratio_rebalance",
+        ),
+    ]
+
+    result = validate_case(case=case, timeline=timeline)
+
+    assert result.passed is True
+    assert result.event_date == "2025-07-15"
+
+
+def test_ratio_cross_down_requires_eth_to_btc_rotation_when_crypto_is_held() -> None:
+    case = {
+        "id": "mock_ratio_cross_down",
+        "event_type": "eth_btc_ratio_cross_down",
+        "search_start_date": "2026-01-20",
+        "search_end_date": "2026-01-20",
+        "assertions": [
+            {
+                "type": "if_current_crypto_gt_target_asset_equals",
+                "asset": "eth",
+                "value": 0.0,
+            },
+            {
+                "type": "if_current_crypto_gt_target_asset_gt",
+                "asset": "btc",
+                "value": 0.0,
+            },
+        ],
+    }
+    timeline = [
+        _point(
+            "2026-01-19",
+            target={"btc": 0.0, "eth": 0.4, "spy": 0.0, "stable": 0.6},
+            portfolio={"btc": 0.0, "eth": 0.4, "spy": 0.0, "stable": 0.6},
+            inner_ratio_zone="above",
+        ),
+        _point(
+            "2026-01-20",
+            target={"btc": 0.4, "eth": 0.0, "spy": 0.0, "stable": 0.6},
+            portfolio={"btc": 0.0, "eth": 0.4, "spy": 0.0, "stable": 0.6},
+            inner_ratio_zone="below",
+            action="buy",
+            reason="pair_ratio_rebalance",
+        ),
+    ]
+
+    result = validate_case(case=case, timeline=timeline)
+
+    assert result.passed is True
+    assert result.event_date == "2026-01-20"
 
 
 def test_extreme_fear_without_dca_buy_fails() -> None:
