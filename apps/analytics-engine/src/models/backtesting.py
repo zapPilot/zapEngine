@@ -170,8 +170,10 @@ class StrategySummary(BaseModel):
     final_value: float = Field(ge=0.0)
     roi_percent: float
     trade_count: int = Field(ge=0)
+    sharpe_ratio: float = 0.0
     calmar_ratio: float = 0.0
     max_drawdown_percent: float = 0.0
+    win_rate_percent: float | None = None
     final_allocation: Allocation
     final_asset_allocation: AssetAllocation
     parameters: dict[str, JsonValue] = Field(default_factory=dict)

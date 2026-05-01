@@ -522,6 +522,10 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         "dma_fgi_hierarchical_full_minus_greed_sell_suppression",
         "dma_fgi_hierarchical_full_minus_buy_floor",
         "dma_fgi_hierarchical_full_minus_fear_recovery_buy",
+        "dma_fgi_hierarchical_nodma_full_minus_spy_latch",
+        "dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression",
+        "dma_fgi_hierarchical_nodma_full_minus_buy_floor",
+        "dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy",
         "dma_fgi_hierarchical_adaptive_dma_only",
         "dma_fgi_hierarchical_spy_latch_only",
         "dma_fgi_hierarchical_greed_suppression_only",
@@ -566,6 +570,7 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
 
     parsed = BacktestResponse.model_validate(response.json())
     assert set(parsed.strategies) == {"dca_classic", "dma_gated_fgi_default"}
+    assert parsed.strategies["dca_classic"].sharpe_ratio == pytest.approx(0.0)
     assert parsed.strategies["dca_classic"].calmar_ratio == pytest.approx(0.31)
     assert parsed.strategies["dca_classic"].max_drawdown_percent == pytest.approx(-4.2)
     assert parsed.strategies["dma_gated_fgi_default"].calmar_ratio == pytest.approx(

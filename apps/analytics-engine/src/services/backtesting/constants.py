@@ -55,6 +55,18 @@ STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR = (
 STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY = (
     "dma_fgi_hierarchical_full_minus_fear_recovery_buy"
 )
+STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH = (
+    "dma_fgi_hierarchical_nodma_full_minus_spy_latch"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_GREED_SELL_SUPPRESSION = (
+    "dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_BUY_FLOOR = (
+    "dma_fgi_hierarchical_nodma_full_minus_buy_floor"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_FEAR_RECOVERY_BUY = (
+    "dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy"
+)
 STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY = (
     "dma_fgi_hierarchical_adaptive_dma_only"
 )
@@ -109,6 +121,18 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY: (
         "Hierarchical Full - Fear Recovery Buy"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH: (
+        "Hierarchical NoDMA Full - SPY Latch"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_GREED_SELL_SUPPRESSION: (
+        "Hierarchical NoDMA Full - Greed Sell Suppression"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_BUY_FLOOR: (
+        "Hierarchical NoDMA Full - Buy Floor"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_FEAR_RECOVERY_BUY: (
+        "Hierarchical NoDMA Full - Fear Recovery Buy"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: ("Hierarchical Adaptive DMA Only"),
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY: ("Hierarchical SPY Latch Only"),

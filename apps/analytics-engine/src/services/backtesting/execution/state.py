@@ -128,6 +128,7 @@ def build_strategy_summaries(
             final_value=final_value,
             roi_percent=calculate_roi_percent(final_value, total_capital),
             trade_count=trade_counts[strategy.strategy_id],
+            sharpe_ratio=performance_metrics["sharpe_ratio"],
             calmar_ratio=performance_metrics["calmar_ratio"],
             max_drawdown_percent=performance_metrics["max_drawdown_percent"],
             final_allocation=Allocation(**allocation),

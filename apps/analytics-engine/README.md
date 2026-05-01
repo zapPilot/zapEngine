@@ -23,6 +23,59 @@ Grouped under `/api/v2`:
 
 Interactive docs at `/docs`.
 
+## Hierarchical Attribution Sweep
+
+Run this when validating the hierarchical SPY/crypto tactic stack across the
+registered attribution variants.
+
+Start the API first:
+
+```bash
+pnpm --filter @zapengine/analytics-engine dev
+```
+
+Then run the sweep from the repo root:
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
+  --windows 2024,2025,2026,combined \
+  --out attribution_$(date -I).md
+```
+
+The script posts each `dma_fgi_hierarchical_*` variant to
+`/api/v3/backtesting/compare` and renders a markdown table with Calmar, Sharpe,
+max drawdown, ROI, trades, win rate, delta Calmar versus control, and a
+cross-window validation label.
+
+Phase 2 NoDMA leave-one-out sweep:
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
+  --windows 2024,2025,2026,combined \
+  --baseline-strategy dma_fgi_hierarchical_full_minus_adaptive_dma \
+  --variants dma_fgi_hierarchical_full_minus_adaptive_dma,dma_fgi_hierarchical_nodma_full_minus_spy_latch,dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression,dma_fgi_hierarchical_nodma_full_minus_buy_floor,dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy \
+  --out attribution_phase2_$(date -I).md
+```
+
+Useful options:
+
+```bash
+--endpoint http://localhost:8001   # API base URL; this is the default
+--windows 2024,2025,2026,combined  # comma-separated windows to run
+--total-capital 10000              # default initial capital
+--baseline-strategy <strategy-id>  # baseline for delta Calmar and validation
+--variants <strategy-id,...>       # optional registered variant subset
+--out attribution_2026-05-01.md    # optional markdown output path
+--no-progress                      # disable stderr progress bar
+```
+
+Quick single-window run:
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
+  --windows 2025
+```
+
 ## Import conventions
 
 - Routers: `src.api.routers.*` (canonical). `src.api.routes.backtesting` is a deprecated shim.
