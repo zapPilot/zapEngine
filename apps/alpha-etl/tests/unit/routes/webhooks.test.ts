@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { ETLJob, ETLJobResult } from '../../../src/types/index.js';
@@ -105,7 +105,10 @@ describe('Webhooks Router', () => {
         ],
       };
 
-      await request(app).post('/webhooks/jobs').send({ tasks: [task] }).expect(202);
+      await request(app)
+        .post('/webhooks/jobs')
+        .send({ tasks: [task] })
+        .expect(202);
 
       expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
         sources: ['token-price'],
@@ -209,6 +212,240 @@ describe('Webhooks Router', () => {
         completedAt: '2024-01-01T00:00:01.000Z',
       });
       expect(response.body.data.trigger).toBeUndefined();
+    });
+  });
+
+  describe('POST /webhooks/jobs error envelopes', () => {
+    it('returns 400 with VALIDATION_ERROR envelope and zod issues on bad payload', async () => {
+      const response = await request(app)
+        .post('/webhooks/jobs')
+        .send({
+          sources: ['debank'],
+          tasks: [{ source: 'token-price', operation: 'backfill', tokens: [] }],
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.context.requestId).toBe('test-request-id');
+      expect(Array.isArray(response.body.error.context.errors)).toBe(true);
+      expect(response.body.error.context.errors.length).toBeGreaterThan(0);
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 with API_ERROR envelope when enqueue throws', async () => {
+      mockJobQueue.enqueue.mockRejectedValueOnce(new Error('db down'));
+
+      const response = await request(app).post('/webhooks/jobs').send({});
+
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('API_ERROR');
+      expect(response.body.error.message).toContain('db down');
+      expect(response.body.error.context.requestId).toBe('test-request-id');
+    });
+
+    it('returns 500 envelope when enqueue throws a non-Error value', async () => {
+      // toErrorMessage's fallback path for non-Error throws.
+      mockJobQueue.enqueue.mockRejectedValueOnce('plain string failure');
+
+      const response = await request(app).post('/webhooks/jobs').send({});
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe('API_ERROR');
+      expect(typeof response.body.error.message).toBe('string');
+    });
+
+    it('returns 400 on malformed JSON body', async () => {
+      // express.json()'s SyntaxError from body-parser surfaces as a 400 with
+      // its own envelope, NOT through our zod validation path. This test
+      // pins that behavior so future changes notice if it shifts.
+      const response = await request(app)
+        .post('/webhooks/jobs')
+        .set('Content-Type', 'application/json')
+        .send('{not json');
+
+      expect(response.status).toBe(400);
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /webhooks/wallet-fetch security and validation', () => {
+    const ORIGINAL_SECRET = process.env['WEBHOOK_SECRET'];
+
+    afterEach(() => {
+      // Restore env so cross-suite leakage stays impossible.
+      if (ORIGINAL_SECRET === undefined) {
+        delete process.env['WEBHOOK_SECRET'];
+      } else {
+        process.env['WEBHOOK_SECRET'] = ORIGINAL_SECRET;
+      }
+    });
+
+    it('rejects payload with invalid wallet address', async () => {
+      const response = await request(app).post('/webhooks/wallet-fetch').send({
+        userId: '123e4567-e89b-12d3-a456-426614174000',
+        walletAddress: 'not-a-wallet',
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 when WEBHOOK_SECRET is set and secret is missing', async () => {
+      process.env['WEBHOOK_SECRET'] = 'expected';
+
+      const response = await request(app).post('/webhooks/wallet-fetch').send({
+        userId: '123e4567-e89b-12d3-a456-426614174000',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('UNAUTHORIZED');
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 when WEBHOOK_SECRET is set and secret mismatches', async () => {
+      process.env['WEBHOOK_SECRET'] = 'expected';
+
+      const response = await request(app).post('/webhooks/wallet-fetch').send({
+        userId: '123e4567-e89b-12d3-a456-426614174000',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+        secret: 'wrong',
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('UNAUTHORIZED');
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('accepts payload when WEBHOOK_SECRET is set and secret matches', async () => {
+      process.env['WEBHOOK_SECRET'] = 'expected';
+
+      const response = await request(app).post('/webhooks/wallet-fetch').send({
+        userId: '123e4567-e89b-12d3-a456-426614174000',
+        walletAddress: '0x1234567890123456789012345678901234567890',
+        secret: 'expected',
+      });
+
+      expect(response.status).toBe(202);
+      expect(mockJobQueue.enqueue).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('GET /webhooks/jobs/:jobId edge cases', () => {
+    it('returns 404 with API_ERROR envelope when job is unknown', async () => {
+      mockJobQueue.getJob.mockReturnValueOnce(undefined);
+
+      const response = await request(app).get('/webhooks/jobs/missing-id');
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('API_ERROR');
+      expect(response.body.error.message).toBe('Job not found');
+    });
+
+    it('returns 500 envelope when getJob throws', async () => {
+      mockJobQueue.getJob.mockImplementationOnce(() => {
+        throw new Error('boom');
+      });
+
+      const response = await request(app).get('/webhooks/jobs/job-123');
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe('API_ERROR');
+      expect(response.body.error.message).toBe('Failed to retrieve job status');
+    });
+
+    it('returns 202 while job is still processing', async () => {
+      // determineJobStatusCode returns 202 for pending/processing regardless
+      // of whether a result snapshot exists yet.
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'processing' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce(undefined);
+
+      const response = await request(app).get('/webhooks/jobs/job-123');
+
+      expect(response.status).toBe(202);
+      expect(response.body.data.status).toBe('processing');
+    });
+
+    it('returns 206 when a completed job has source-level errors', async () => {
+      // hasPartialSourceFailures branch of the 206 logic.
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'completed' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce({
+        success: true,
+        data: {
+          jobId: 'job-123',
+          status: 'completed',
+          recordsProcessed: 5,
+          recordsInserted: 5,
+          sourceResults: {
+            defillama: {
+              success: false,
+              recordsProcessed: 0,
+              recordsInserted: 0,
+              errors: ['rate-limited'],
+              source: 'defillama',
+            },
+          },
+          duration: 100,
+          completedAt: new Date('2024-01-01T00:00:01Z'),
+        },
+      });
+
+      const response = await request(app).get('/webhooks/jobs/job-123');
+
+      expect(response.status).toBe(206);
+    });
+
+    it('returns 206 when recordsInserted < recordsProcessed', async () => {
+      // Records-mismatch branch of the 206 logic — distinct from the
+      // source-errors branch above.
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'completed' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce({
+        success: true,
+        data: {
+          jobId: 'job-123',
+          status: 'completed',
+          recordsProcessed: 10,
+          recordsInserted: 7,
+          sourceResults: {},
+          duration: 100,
+          completedAt: new Date('2024-01-01T00:00:01Z'),
+        },
+      });
+
+      const response = await request(app).get('/webhooks/jobs/job-123');
+
+      expect(response.status).toBe(206);
+    });
+
+    it('returns 500 with failed-result error when job failed', async () => {
+      mockJobQueue.getJob.mockReturnValueOnce(
+        createMockJob({ status: 'failed' }),
+      );
+      mockJobQueue.getResult.mockReturnValueOnce({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'pipeline crashed',
+          source: 'system',
+          context: { jobId: 'job-123' },
+        },
+      });
+
+      const response = await request(app).get('/webhooks/jobs/job-123');
+
+      expect(response.status).toBe(500);
+      expect(response.body.data.status).toBe('failed');
+      expect(response.body.data.error?.message).toBe('pipeline crashed');
     });
   });
 });

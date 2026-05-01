@@ -34,6 +34,14 @@ export interface QueueStatus {
   isProcessing: boolean;
 }
 
+// Bound the in-memory queue: evict terminal (completed/failed) jobs once
+// they age past TERMINAL_RETENTION_MS or when the count of terminal jobs
+// exceeds MAX_TERMINAL_JOBS. Pending/processing jobs are never evicted.
+// Wallet-fetch job state still survives in Postgres via persistJobStatus,
+// so account-engine's polling path is unaffected by eviction.
+export const TERMINAL_RETENTION_MS = 60 * 60 * 1000;
+export const MAX_TERMINAL_JOBS = 500;
+
 type PipelineProcessResult = Awaited<
   ReturnType<ETLPipelineFactory['processJob']>
 >;
@@ -50,6 +58,10 @@ export class ETLJobQueue {
   // Current design: in-memory queue state, so process-local jobs are lost on restart.
   private readonly jobs = new Map<string, ETLJob>();
   private readonly results = new Map<string, ETLJobResult>();
+  // Insertion-ordered map of jobId -> completion timestamp (ms). Used to evict
+  // terminal jobs by age and count. Maps preserve insertion order, so iterating
+  // gives us oldest-first without sorting.
+  private readonly terminalAt = new Map<string, number>();
   private readonly processor: ETLPipelineFactory;
   // Current design: single worker to preserve simple FIFO processing semantics.
   private isProcessing = false;
@@ -251,6 +263,7 @@ export class ETLJobQueue {
       ? 'completed'
       : 'failed';
     job.status = finalStatus;
+    this.terminalAt.set(job.jobId, Date.now());
 
     const jobResult = createSuccessResult(job, outcome, finalStatus);
     this.results.set(job.jobId, jobResult);
@@ -271,6 +284,7 @@ export class ETLJobQueue {
     logger.error('Job processing failed', { jobId: job.jobId, error });
 
     job.status = 'failed';
+    this.terminalAt.set(job.jobId, Date.now());
 
     await this.persistJobStatus(job.jobId, 'failed', {
       ...job.metadata,
@@ -295,8 +309,49 @@ export class ETLJobQueue {
   private scheduleNextProcessing(): void {
     // Limitation: a small delay keeps the sequential in-memory queue from tight-looping.
     setTimeout(() => {
+      this.evictTerminalJobs();
       void this.processNext();
     }, TIMEOUTS.JOB_PROCESSING_DELAY_MS);
+  }
+
+  /**
+   * Evict terminal jobs (completed/failed) that exceed the retention window
+   * or count cap. Pending/processing jobs are never touched.
+   *
+   * Iteration order is insertion order (Map semantics), so the loop visits
+   * oldest entries first — we evict by age first, then by count if too many
+   * remain. O(n) per call where n is bounded by MAX_TERMINAL_JOBS.
+   */
+  private evictTerminalJobs(): void {
+    const now = Date.now();
+    for (const [jobId, completedAt] of this.terminalAt) {
+      if (now - completedAt < TERMINAL_RETENTION_MS) {
+        // Map is insertion-ordered; once one entry is fresh, the rest are too.
+        break;
+      }
+      this.removeTerminalJob(jobId);
+    }
+
+    const overflow = this.terminalAt.size - MAX_TERMINAL_JOBS;
+    if (overflow <= 0) {
+      return;
+    }
+
+    let dropped = 0;
+    for (const jobId of this.terminalAt.keys()) {
+      if (dropped >= overflow) {
+        break;
+      }
+      this.removeTerminalJob(jobId);
+      dropped += 1;
+    }
+  }
+
+  private removeTerminalJob(jobId: string): void {
+    this.jobs.delete(jobId);
+    this.results.delete(jobId);
+    this.terminalAt.delete(jobId);
+    logger.debug('Evicted terminal job', { jobId });
   }
 
   getQueueStatus(): QueueStatus {
