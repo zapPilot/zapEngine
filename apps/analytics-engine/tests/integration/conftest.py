@@ -21,6 +21,7 @@ from sqlalchemy.orm import sessionmaker
 INTEGRATION_TEST_DB_ADVISORY_LOCK_KEY = 132450091
 INTEGRATION_DB_LOCK_RETRY_ATTEMPTS = 5
 INTEGRATION_DB_LOCK_RETRY_DELAY_SECONDS = 0.1
+NO_INTEGRATION_DB_MARKER = "no_integration_db"
 
 
 def _normalize_integration_async_url(db_url: str) -> str:
@@ -32,6 +33,15 @@ def _normalize_integration_async_url(db_url: str) -> str:
         return db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
     return db_url
+
+
+def _collection_requires_integration_db(request: pytest.FixtureRequest) -> bool:
+    items = getattr(request.session, "items", ())
+    if not items:
+        return True
+    return any(
+        item.get_closest_marker(NO_INTEGRATION_DB_MARKER) is None for item in items
+    )
 
 
 @pytest.fixture(scope="session")
@@ -706,7 +716,7 @@ def assert_endpoint_consistency():
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def ensure_integration_mv_exists(integration_db_url: str):
+async def ensure_integration_mv_exists(request: pytest.FixtureRequest):
     """
     Verify portfolio_category_trend_mv exists in integration database.
 
@@ -716,6 +726,18 @@ async def ensure_integration_mv_exists(integration_db_url: str):
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
 
+    if not _collection_requires_integration_db(request):
+        return
+
+    db_url = os.getenv("DATABASE_INTEGRATION_URL")
+    if not db_url:
+        pytest.skip(
+            "DATABASE_INTEGRATION_URL not set - skipping integration tests. "
+            "Set this environment variable to run PostgreSQL integration tests. "
+            "Recommended: export DATABASE_INTEGRATION_URL="
+            "'postgresql+asyncpg://user:pass@localhost/test_db'"
+        )
+    integration_db_url = _normalize_integration_async_url(db_url)
     engine = create_async_engine(integration_db_url, echo=False)
 
     async with engine.begin() as conn:

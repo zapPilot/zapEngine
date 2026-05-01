@@ -12,6 +12,7 @@
     "type-check": "uv run mypy src",
     "test": "bash scripts/ci/run-tests-precommit.sh",
     "test:ci": "bash scripts/ci/run-tests-precommit.sh --coverage --cov-fail-under 95",
+    "test:strategy-snapshot": "uv run python scripts/attribution/sweep_production_window.py --check",
     "test:coverage": "bash scripts/ci/run-tests-precommit.sh --coverage",
     "test:watch": "uv run ptw -- src tests",
     "format": "uv run ruff format src tests",

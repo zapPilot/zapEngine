@@ -65,6 +65,14 @@ _SERIES_REGISTRY: dict[str, SeriesDescriptor] = {
         color_hint="#10B981",
         scale=(0.0, 100.0),
     ),
+    "macro_fear_greed": SeriesDescriptor(
+        kind=SeriesKind.gauge,
+        unit="score",
+        label="Macro Fear & Greed",
+        frequency=SeriesFrequency.daily,
+        color_hint="#14B8A6",
+        scale=(0.0, 100.0),
+    ),
 }
 
 _PRIMARY_SERIES = "btc"
@@ -78,16 +86,19 @@ class MarketDashboardService:
         token_price_service: Any,
         sentiment_service: Any,
         stock_price_service: Any,
+        macro_fear_greed_service: Any | None = None,
     ) -> None:
         """
         Args:
             token_price_service: Cryptocurrency price data (BTC and pair ratios)
             sentiment_service: Fear & Greed Index sentiment
             stock_price_service: S&P 500 (SPY) price data
+            macro_fear_greed_service: CNN macro Fear & Greed data
         """
         self.token_price_service = token_price_service
         self.sentiment_service = sentiment_service
         self.stock_price_service = stock_price_service
+        self.macro_fear_greed_service = macro_fear_greed_service
 
     @staticmethod
     def _map_sentiment_to_regime(value: int) -> RegimeId:
@@ -127,6 +138,10 @@ class MarketDashboardService:
         spy_dma_rows = self.stock_price_service.get_dma_history(
             start_date=start_date, end_date=end_date
         )
+        macro_fear_greed_map = self._get_macro_fear_greed_history(
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         sentiment_map: dict[date, float] = {}
         for row in sentiment_rows:
@@ -151,6 +166,11 @@ class MarketDashboardService:
                     last = spy_filled[d]
                 elif last is not None:
                     spy_filled[d] = last
+
+        macro_fear_greed_filled = self._forward_fill_macro_fear_greed(
+            macro_fear_greed_map,
+            price_dates,
+        )
 
         snapshots: list[MarketSnapshot] = []
         for p, p_date in zip(btc_prices, price_dates, strict=True):
@@ -205,6 +225,20 @@ class MarketDashboardService:
                     tags={"regime": regime.value},
                 )
 
+            macro_fear_greed = macro_fear_greed_filled.get(p_date)
+            if macro_fear_greed is not None:
+                label = str(macro_fear_greed.get("label", ""))
+                raw_rating = macro_fear_greed.get("raw_rating")
+                tags = {
+                    "label": str(raw_rating) if raw_rating is not None else label,
+                    "regime": label,
+                    "source": str(macro_fear_greed.get("source", "")),
+                }
+                values["macro_fear_greed"] = SeriesPoint(
+                    value=float(macro_fear_greed["score"]),
+                    tags=tags,
+                )
+
             snapshots.append(MarketSnapshot(snapshot_date=p_date, values=values))
 
         return MarketDashboardResponse(
@@ -217,3 +251,47 @@ class MarketDashboardService:
                 timestamp=datetime.now(UTC),
             ),
         )
+
+    def _get_macro_fear_greed_history(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+    ) -> dict[date, dict[str, Any]]:
+        if self.macro_fear_greed_service is None:
+            return {}
+        try:
+            return dict(
+                self.macro_fear_greed_service.get_daily_macro_fear_greed(
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+        except Exception as error:
+            logger.warning("Failed to fetch macro Fear & Greed data: %s", error)
+            return {}
+
+    @staticmethod
+    def _forward_fill_macro_fear_greed(
+        sparse: dict[date, dict[str, Any]],
+        price_dates: list[date],
+    ) -> dict[date, dict[str, Any]]:
+        if not sparse or not price_dates:
+            return {}
+
+        sorted_macro_dates = sorted(sparse)
+        filled: dict[date, dict[str, Any]] = {}
+        last_value: dict[str, Any] | None = None
+        macro_idx = 0
+
+        for current_date in sorted(price_dates):
+            while (
+                macro_idx < len(sorted_macro_dates)
+                and sorted_macro_dates[macro_idx] <= current_date
+            ):
+                last_value = sparse[sorted_macro_dates[macro_idx]]
+                macro_idx += 1
+            if last_value is not None:
+                filled[current_date] = last_value
+
+        return filled

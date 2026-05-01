@@ -73,6 +73,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "integration: PostgreSQL integration tests requiring DATABASE_INTEGRATION_URL (deselect with '-m \"not integration\"')",
+    "no_integration_db: Integration-directory tests that do not require DATABASE_INTEGRATION_URL",
     "postgres: Tests requiring PostgreSQL-specific features (::numeric casts, window functions)",
 ]
 filterwarnings = [

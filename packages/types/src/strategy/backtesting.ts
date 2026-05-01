@@ -180,11 +180,20 @@ export const BacktestStrategySetSchema = <T extends z.ZodType>(
   valueSchema: T,
 ): z.ZodRecord<z.ZodString, T> => z.record(z.string(), valueSchema);
 
+export const BacktestMacroFearGreedSnapshotSchema = z.object({
+  score: z.number().min(0).max(100),
+  label: z.string(),
+  source: z.string(),
+  updated_at: z.string(),
+  raw_rating: z.string().nullable().optional(),
+});
+
 export const BacktestMarketPointSchema = z.object({
   date: z.string(),
   token_price: z.record(z.string(), z.number()),
   sentiment: z.number().int().nullable(),
   sentiment_label: z.string().nullable(),
+  macro_fear_greed: BacktestMacroFearGreedSnapshotSchema.nullable().optional(),
 });
 
 export const BacktestTimelinePointSchema = z.object({
@@ -283,6 +292,9 @@ export type BacktestExecutionDiagnostics = z.infer<
 export type BacktestExecution = z.infer<typeof BacktestExecutionSchema>;
 export type BacktestStrategyPoint = z.infer<typeof BacktestStrategyPointSchema>;
 export type BacktestStrategySet<T> = Record<string, T>;
+export type BacktestMacroFearGreedSnapshot = z.infer<
+  typeof BacktestMacroFearGreedSnapshotSchema
+>;
 export type BacktestMarketPoint = z.infer<typeof BacktestMarketPointSchema>;
 export type BacktestTimelinePoint = z.infer<typeof BacktestTimelinePointSchema>;
 export type BacktestPeriodInfo = z.infer<typeof BacktestPeriodInfoSchema>;

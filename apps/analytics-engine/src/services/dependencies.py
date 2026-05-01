@@ -305,12 +305,18 @@ def get_market_dashboard_service(
         get_sentiment_database_service
     ),
     stock_price_service: StockPriceServiceProtocol = Depends(get_stock_price_service),
+    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol = Depends(
+        get_macro_fear_greed_database_service
+    ),
 ) -> MarketDashboardServiceProtocol:
     """Create MarketDashboardService instance for aggregated market data."""
     from src.services.market.market_dashboard_service import MarketDashboardService
 
     return MarketDashboardService(
-        token_price_service, sentiment_service, stock_price_service
+        token_price_service,
+        sentiment_service,
+        stock_price_service,
+        macro_fear_greed_service,
     )
 
 

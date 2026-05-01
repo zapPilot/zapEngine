@@ -35,6 +35,8 @@ def _make_service(
     eth_btc_ratio_map: dict[date, dict[str, Any]] | None = None,
     sentiment_rows: list[dict[str, Any]] | None = None,
     spy_dma_rows: dict[date, dict[str, Any]] | None = None,
+    macro_fear_greed_rows: dict[date, dict[str, Any]] | None = None,
+    macro_fear_greed_error: Exception | None = None,
 ) -> MarketDashboardService:
     """Construct MarketDashboardService with mocked sub-services."""
     mock_price_service = Mock()
@@ -50,8 +52,21 @@ def _make_service(
     mock_stock_service = Mock()
     mock_stock_service.get_dma_history.return_value = spy_dma_rows or {}
 
+    mock_macro_fear_greed_service = Mock()
+    if macro_fear_greed_error is not None:
+        mock_macro_fear_greed_service.get_daily_macro_fear_greed.side_effect = (
+            macro_fear_greed_error
+        )
+    else:
+        mock_macro_fear_greed_service.get_daily_macro_fear_greed.return_value = (
+            macro_fear_greed_rows or {}
+        )
+
     return MarketDashboardService(
-        mock_price_service, mock_sentiment_service, mock_stock_service
+        mock_price_service,
+        mock_sentiment_service,
+        mock_stock_service,
+        mock_macro_fear_greed_service,
     )
 
 
@@ -96,7 +111,13 @@ class TestSeriesRegistry:
         service = _make_service()
         result = service.get_market_dashboard(days=1)
 
-        assert set(result.series.keys()) == {"btc", "spy", "eth_btc", "fgi"}
+        assert set(result.series.keys()) == {
+            "btc",
+            "spy",
+            "eth_btc",
+            "fgi",
+            "macro_fear_greed",
+        }
 
     def test_registry_descriptors_have_required_fields(self):
         service = _make_service()
@@ -114,6 +135,12 @@ class TestSeriesRegistry:
         fgi = result.series["fgi"]
         assert fgi.kind == SeriesKind.gauge
         assert fgi.scale == (0.0, 100.0)
+
+        macro_fgi = result.series["macro_fear_greed"]
+        assert macro_fgi.kind == SeriesKind.gauge
+        assert macro_fgi.unit == "score"
+        assert macro_fgi.frequency == SeriesFrequency.daily
+        assert macro_fgi.scale == (0.0, 100.0)
 
 
 class TestGetMarketDashboard:
@@ -270,6 +297,66 @@ class TestGetMarketDashboard:
         result = service.get_market_dashboard(days=30)
 
         assert "fgi" not in result.snapshots[0].values
+
+    def test_macro_fear_greed_populated_when_data_present(self):
+        d = date(2025, 1, 15)
+        prices = [_make_price_snapshot(d, 95000.0)]
+        macro_rows = {
+            d: {
+                "score": 34.0,
+                "label": "fear",
+                "source": "cnn_fear_greed_unofficial",
+                "updated_at": "2025-01-15T12:00:00+00:00",
+                "raw_rating": "Fear",
+            }
+        }
+
+        service = _make_service(prices=prices, macro_fear_greed_rows=macro_rows)
+        result = service.get_market_dashboard(days=30)
+
+        macro_fgi = result.snapshots[0].values["macro_fear_greed"]
+        assert macro_fgi.value == 34.0
+        assert macro_fgi.tags == {
+            "label": "Fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial",
+        }
+
+    def test_macro_fear_greed_forward_fills_sparse_rows(self):
+        first = date(2025, 1, 15)
+        second = date(2025, 1, 16)
+        prices = [
+            _make_price_snapshot(first, 95000.0),
+            _make_price_snapshot(second, 96000.0),
+        ]
+        macro_rows = {
+            first: {
+                "score": 34.0,
+                "label": "fear",
+                "source": "cnn_fear_greed_unofficial",
+                "updated_at": "2025-01-15T12:00:00+00:00",
+                "raw_rating": None,
+            }
+        }
+
+        service = _make_service(prices=prices, macro_fear_greed_rows=macro_rows)
+        result = service.get_market_dashboard(days=30)
+
+        assert result.snapshots[0].values["macro_fear_greed"].value == 34.0
+        assert result.snapshots[1].values["macro_fear_greed"].value == 34.0
+        assert result.snapshots[1].values["macro_fear_greed"].tags["label"] == "fear"
+
+    def test_macro_fear_greed_omitted_when_service_fails(self):
+        d = date(2025, 1, 15)
+        prices = [_make_price_snapshot(d, 95000.0)]
+
+        service = _make_service(
+            prices=prices,
+            macro_fear_greed_error=RuntimeError("macro down"),
+        )
+        result = service.get_market_dashboard(days=30)
+
+        assert "macro_fear_greed" not in result.snapshots[0].values
 
     def test_sentiment_string_date_is_parsed(self):
         d = date(2025, 3, 1)

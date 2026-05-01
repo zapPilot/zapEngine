@@ -76,6 +76,45 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
   --windows 2025
 ```
 
+## Strategy Performance Snapshot
+
+Run this after changing a backtesting strategy or signal component. The snapshot
+uses a pinned `reference_date` so re-runs are reproducible; update the date only
+when you intentionally want to re-anchor the production window.
+
+Start the API first:
+
+```bash
+pnpm --filter @zapengine/analytics-engine dev
+```
+
+Then run the 500-day production window from the repo root:
+
+```bash
+# Show drift vs snapshot; diagnostic mode never fails on metric drift.
+pnpm --filter @zapengine/analytics-engine exec uv run python \
+  scripts/attribution/sweep_production_window.py
+
+# Strict CI gate; exits 1 when drift exceeds per-metric tolerance.
+pnpm --filter @zapengine/analytics-engine test:strategy-snapshot
+
+# Update snapshot after an intentional strategy behavior change.
+pnpm --filter @zapengine/analytics-engine exec uv run python \
+  scripts/attribution/sweep_production_window.py --update-snapshot
+```
+
+The fixture lives at
+`tests/fixtures/strategy_performance_snapshot_500d.json` and records ROI,
+Calmar, Sharpe, max drawdown, and trade count for the registered production
+measurement strategy universe. Per-metric tolerances are stored in the fixture
+and can be overridden for an ad hoc run:
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python \
+  scripts/attribution/sweep_production_window.py --check \
+  --tolerance roi=2.0,calmar=0.10,sharpe=0.10,max_dd=1.0,trades=5
+```
+
 ## Hierarchical Regression Events
 
 Run this after changing the hierarchical SPY/crypto strategy to verify fixed

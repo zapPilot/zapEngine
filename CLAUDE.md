@@ -53,6 +53,10 @@ After linking, Turbo checks remote cache on local misses — `pnpm check:local` 
 
 Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new dependencies. Type checking is strict (mypy); all functions need type annotations.
 
+# Analytics strategy measurement
+
+After changing any backtesting strategy or signal component, start analytics-engine on port 8001 and run `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot`. The checked-in 500-day snapshot fixture is pinned to a reference date; refresh it only after an intentional strategy behavior change with `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot`.
+
 # AI Tool Documentation
 
 This repository uses **CLAUDE.md** as the single source of truth for AI assistant context.
