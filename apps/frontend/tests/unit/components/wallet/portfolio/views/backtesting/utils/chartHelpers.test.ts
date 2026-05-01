@@ -248,6 +248,29 @@ describe('buildChartPoint', () => {
     expect(result.sentiment).toBe(18);
   });
 
+  it('copies macro fear and greed score from the market snapshot', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        market: {
+          date: '2024-01-01',
+          token_price: { btc: 50000 },
+          sentiment: null,
+          sentiment_label: null,
+          macro_fear_greed: {
+            score: 35,
+            label: 'fear',
+            source: 'cnn_fear_greed_unofficial',
+            updated_at: '2024-01-01T12:00:00+00:00',
+            raw_rating: 'Fear',
+          },
+        },
+      }),
+      [],
+    );
+
+    expect(result.macro_fear_greed).toBe(35);
+  });
+
   it('falls back to a sentiment label index', () => {
     const result = buildChartPoint(
       createTimelinePoint({
@@ -418,6 +441,12 @@ describe('buildChartPoint', () => {
     );
 
     expect(result.sentiment).toBeNull();
+  });
+
+  it('returns null macro fear and greed when the market snapshot omits it', () => {
+    const result = buildChartPoint(createTimelinePoint(), []);
+
+    expect(result.macro_fear_greed).toBeNull();
   });
 
   it('returns null dma_200 when no strategies have DMA data', () => {

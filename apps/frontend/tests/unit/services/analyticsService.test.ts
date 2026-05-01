@@ -724,7 +724,7 @@ describe('analyticsService', () => {
       const result = await getMarketDashboardData();
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
-        '/api/v2/market/dashboard?days=365&token=btc',
+        '/api/v2/market/dashboard?days=365',
       );
       expect(result.snapshots).toHaveLength(2);
       expect(result.meta.primary_series).toBe('price');
@@ -738,10 +738,10 @@ describe('analyticsService', () => {
       };
       analyticsEngineGetSpy.mockResolvedValue(customResponse);
 
-      const result = await getMarketDashboardData(90, 'eth');
+      const result = await getMarketDashboardData(90);
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
-        '/api/v2/market/dashboard?days=90&token=eth',
+        '/api/v2/market/dashboard?days=90',
       );
       expect(result.meta.days_requested).toBe(90);
     });

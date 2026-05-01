@@ -48,6 +48,24 @@ export function renderIndicatorLayers(
     );
   }
 
+  if (activeIndicators.has('macroFearGreed')) {
+    layers.push(
+      <Line
+        key="indicator-macro-fear-greed"
+        yAxisId="sentimentRight"
+        type="monotone"
+        dataKey="macro_fear_greed"
+        name="Macro FGI"
+        stroke="#14b8a6"
+        strokeWidth={1.25}
+        dot={false}
+        connectNulls={true}
+        strokeOpacity={0.55}
+        legendType="none"
+      />,
+    );
+  }
+
   if (activeIndicators.has('btcPrice')) {
     layers.push(
       <Line

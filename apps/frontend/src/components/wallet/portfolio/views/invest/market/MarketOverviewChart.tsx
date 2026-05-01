@@ -41,7 +41,9 @@ interface ChartDataPoint {
   sp500_price_usd: number | null;
   sp500_dma_200: number | null;
   sentiment_value: number | null;
+  macro_fear_greed: number | null;
   regime: string | null;
+  macro_fear_greed_label: string | null;
   // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
   btc_price_normalized: number | null;
   btc_dma_normalized: number | null;
@@ -58,7 +60,9 @@ interface MarketOverviewChartProps {
 interface TooltipPayload {
   payload?: {
     sentiment_value?: number | null;
+    macro_fear_greed?: number | null;
     regime?: string | null;
+    macro_fear_greed_label?: string | null;
     btc_dma_200?: number | null;
     eth_btc_ratio?: number | null;
     eth_btc_dma_200?: number | null;
@@ -131,6 +135,11 @@ function formatTooltipValue(
     const regimeLabel = regime ? REGIME_LABELS[regime] : '';
     return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
+  if (labelName === 'Macro FGI') {
+    const rawFgi = payload?.macro_fear_greed;
+    const label = payload?.macro_fear_greed_label ?? '';
+    return [`${String(rawFgi)} (${label})`, labelName];
+  }
   return [value as string | number, labelName];
 }
 
@@ -173,6 +182,7 @@ export function MarketOverviewChart({
       const spy = d.values['spy'];
       const ethBtc = d.values['eth_btc'];
       const fgi = d.values['fgi'];
+      const macroFearGreed = d.values['macro_fear_greed'];
       const btcPrice = btc?.value ?? null;
       const btcDma = btc?.indicators?.['dma_200']?.value ?? null;
       const spyPrice = spy?.value ?? null;
@@ -187,7 +197,12 @@ export function MarketOverviewChart({
         sp500_price_usd: spyPrice,
         sp500_dma_200: spyDma,
         sentiment_value: fgi?.value ?? null,
+        macro_fear_greed: macroFearGreed?.value ?? null,
         regime: fgi?.tags?.['regime'] ?? null,
+        macro_fear_greed_label:
+          macroFearGreed?.tags?.['label'] ??
+          macroFearGreed?.tags?.['regime'] ??
+          null,
         btc_price_normalized: normalize(btcPrice, btcMinMax.min, btcMinMax.max),
         btc_dma_normalized: normalize(btcDma, btcMinMax.min, btcMinMax.max),
         sp500_price_normalized: normalize(
@@ -245,7 +260,7 @@ export function MarketOverviewChart({
     activeLines.has('spyDma200');
   const showRatioAxis =
     activeLines.has('ethBtcRatio') || activeLines.has('ethBtcDma200');
-  const showFgi = activeLines.has('fgi');
+  const showFgi = activeLines.has('fgi') || activeLines.has('macro_fear_greed');
 
   const activeLineDescriptors = useMemo(
     () => MARKET_LINES.filter((line) => activeLines.has(line.key)),
@@ -396,6 +411,7 @@ export function MarketOverviewChart({
 
           {activeLineDescriptors.map((line) => {
             const isFgi = line.key === 'fgi';
+            const isMacroFgi = line.key === 'macro_fear_greed';
             const isBtcPrice = line.key === 'btcPrice';
 
             const strokeDasharrayProps = line.strokeDasharray
@@ -422,7 +438,7 @@ export function MarketOverviewChart({
                 name={line.label}
                 dataKey={line.dataKey}
                 stroke={isFgi ? 'url(#fgiLineGradient)' : line.color}
-                strokeWidth={isFgi ? 2.5 : 2}
+                strokeWidth={isFgi || isMacroFgi ? 2.5 : 2}
                 dot={false}
                 {...strokeDasharrayProps}
                 connectNulls

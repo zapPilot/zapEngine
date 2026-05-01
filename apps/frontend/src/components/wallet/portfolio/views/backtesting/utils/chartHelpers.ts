@@ -222,6 +222,11 @@ function getPrimaryDma(
   return null;
 }
 
+function getMacroFearGreedScore(point: BacktestTimelinePoint): number | null {
+  const score = point.market.macro_fear_greed?.score;
+  return typeof score === 'number' ? score : null;
+}
+
 export function sentimentLabelToIndex(
   label: string | null | undefined,
 ): number | null {
@@ -341,6 +346,7 @@ export function buildChartPoint(
   data['sentiment'] =
     point.market.sentiment ??
     sentimentLabelToIndex(point.market.sentiment_label);
+  data['macro_fear_greed'] = getMacroFearGreedScore(point);
 
   const acc = createSignalAccumulator();
   processStrategyTransfers(point, strategyIds, acc);

@@ -11,7 +11,6 @@ import { createQueryConfig } from '../queryDefaults';
  * Replaces manual useState + useEffect fetching in MarketDashboardView.
  *
  * @param days - Number of days of history (default: 365)
- * @param token - Token symbol (default: 'btc')
  * @returns React Query result with market dashboard snapshots
  *
  * @example
@@ -23,10 +22,10 @@ import { createQueryConfig } from '../queryDefaults';
  * }
  * ```
  */
-export function useMarketDashboardQuery(days = 365, token = 'btc') {
+export function useMarketDashboardQuery(days = 365) {
   return useQuery({
-    queryKey: ['market-dashboard', days, token.toLowerCase()],
-    queryFn: () => getMarketDashboardData(days, token),
+    queryKey: ['market-dashboard', days],
+    queryFn: () => getMarketDashboardData(days),
     ...createQueryConfig({
       dataType: 'etl',
     }),

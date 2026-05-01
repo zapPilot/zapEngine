@@ -35,7 +35,11 @@ const buildParsedTooltipData = ({
 
   const firstPayload = payload[0]?.payload;
   const market = firstPayload?.['market'] as
-    | { date?: string; sentiment_label?: string | null }
+    | {
+        date?: string;
+        sentiment_label?: string | null;
+        macro_fear_greed?: { label?: string | null } | null;
+      }
     | undefined;
   const eventStrategies = firstPayload?.['eventStrategies'] as
     | EventStrategiesRecord
@@ -48,6 +52,7 @@ const buildParsedTooltipData = ({
     payload,
     eventStrategies,
     market?.sentiment_label ?? undefined,
+    market?.macro_fear_greed?.label ?? undefined,
     strategies,
     orderedIds,
   );
@@ -71,6 +76,7 @@ const buildParsedTooltipData = ({
 const INDICATOR_KEY_TO_SIGNAL_NAMES: Record<IndicatorKey, string[]> = {
   btcPrice: ['BTC Price'],
   dma200: ['DMA 200'],
+  macroFearGreed: ['Macro FGI'],
   sentiment: ['Sentiment'],
 };
 

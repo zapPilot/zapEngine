@@ -1,6 +1,10 @@
 import { CHART_SIGNALS, type SignalKey } from '../utils/chartHelpers';
 
-export type IndicatorKey = 'btcPrice' | 'dma200' | 'sentiment';
+export type IndicatorKey =
+  | 'btcPrice'
+  | 'dma200'
+  | 'macroFearGreed'
+  | 'sentiment';
 
 export interface LegendItem {
   label: string;
@@ -22,6 +26,7 @@ export const INDICATOR_LEGEND: IndicatorLegendItem[] = [
   { key: 'btcPrice', label: 'BTC Price', color: '#3b82f6' },
   { key: 'dma200', label: 'DMA 200', color: '#f59e0b' },
   { key: 'sentiment', label: 'Sentiment', color: '#a855f7' },
+  { key: 'macroFearGreed', label: 'Macro FGI', color: '#14b8a6' },
 ];
 
 /** Event subset shown in the chart legend (excludes borrow/repay/liquidate). */

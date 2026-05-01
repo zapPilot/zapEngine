@@ -182,14 +182,12 @@ export async function getBorrowingPositions(
  * Combines BTC price, 200 DMA, and Fear & Greed Index into a single series.
  *
  * @param days - Days of history (default: 365)
- * @param token - Token symbol (default: 'btc')
  * @returns Promise<MarketDashboardResponse>
  */
 export async function getMarketDashboardData(
   days = 365,
-  token = 'btc',
 ): Promise<MarketDashboardResponse> {
-  const params = new URLSearchParams({ days: String(days), token });
+  const params = new URLSearchParams({ days: String(days) });
   const endpoint = `/api/v2/market/dashboard?${params}`;
   const response = await httpUtils.analyticsEngine.get(endpoint);
   return validateMarketDashboardResponse(response);

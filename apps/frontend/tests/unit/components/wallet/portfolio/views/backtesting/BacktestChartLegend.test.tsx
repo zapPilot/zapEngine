@@ -6,6 +6,7 @@ import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesti
 
 const ACTIVE_INDICATORS = new Set<IndicatorKey>([
   'sentiment',
+  'macroFearGreed',
   'btcPrice',
   'dma200',
 ]);
@@ -41,6 +42,7 @@ describe('BacktestChartLegend', () => {
     expect(screen.getByText('DCA Classic')).toBeInTheDocument();
     expect(screen.getByText('DMA Gated FGI Default')).toBeInTheDocument();
     expect(screen.getByText('Sentiment')).toBeInTheDocument();
+    expect(screen.getByText('Macro FGI')).toBeInTheDocument();
     expect(screen.getByText('DMA 200')).toBeInTheDocument();
     expect(screen.getByText('Buy Spot')).toBeInTheDocument();
     expect(screen.getByText('Sell Spot')).toBeInTheDocument();
@@ -74,10 +76,12 @@ describe('BacktestChartLegend', () => {
     );
 
     const sentimentBtn = screen.getByText('Sentiment').closest('button');
+    const macroFgiBtn = screen.getByText('Macro FGI').closest('button');
     const btcPriceBtn = screen.getByText('BTC Price').closest('button');
     const dma200Btn = screen.getByText('DMA 200').closest('button');
 
     expect(sentimentBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(macroFgiBtn?.getAttribute('aria-pressed')).toBe('false');
     expect(btcPriceBtn?.getAttribute('aria-pressed')).toBe('false');
     expect(dma200Btn?.getAttribute('aria-pressed')).toBe('false');
   });

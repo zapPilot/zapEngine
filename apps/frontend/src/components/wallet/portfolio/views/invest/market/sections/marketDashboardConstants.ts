@@ -59,6 +59,7 @@ export const MARKET_LINE_KEYS = [
   'spyPrice',
   'spyDma200',
   'fgi',
+  'macro_fear_greed',
 ] as const;
 
 export type MarketLineKey = (typeof MARKET_LINE_KEYS)[number];
@@ -147,6 +148,14 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'fgi',
     defaultActive: true,
     dataKey: 'sentiment_value',
+  },
+  {
+    key: 'macro_fear_greed',
+    label: 'Macro FGI',
+    color: '#14B8A6',
+    axis: 'fgi',
+    defaultActive: true,
+    dataKey: 'macro_fear_greed',
   },
 ];
 

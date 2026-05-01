@@ -155,6 +155,7 @@ function getStrategyDetailItems(
  * @param payload - Recharts tooltip payload
  * @param eventStrategies - Strategy names keyed by signal event
  * @param sentiment - Sentiment label for the current point
+ * @param macroFearGreedLabel - Macro FGI label for the current point
  * @param strategies - Strategy data keyed by strategy ID
  * @param orderedIds - Ordered strategy IDs for detail rendering
  * @returns Tooltip sections without allocations
@@ -163,6 +164,7 @@ export function buildTooltipSections(
   payload: BacktestTooltipPayloadEntry[],
   eventStrategies: EventStrategiesRecord | undefined,
   sentiment: string | undefined,
+  macroFearGreedLabel: string | undefined,
   strategies: StrategiesRecord | undefined,
   orderedIds: string[],
 ): TooltipSections {
@@ -186,6 +188,7 @@ export function buildTooltipSections(
           name,
           typeof entry.value === 'number' ? entry.value : undefined,
           sentiment,
+          macroFearGreedLabel,
         ),
         color,
       });
@@ -227,7 +230,7 @@ export function buildTooltipSections(
 // SIGNAL FORMATTING (merged from backtestTooltipSignalFormatting.ts)
 // =============================================================================
 
-const KNOWN_SIGNALS = ['BTC Price', 'Sentiment', 'VIX', 'DMA 200'];
+const KNOWN_SIGNALS = ['BTC Price', 'Sentiment', 'Macro FGI', 'VIX', 'DMA 200'];
 
 function formatSentimentValue(
   value: number | undefined,
@@ -256,15 +259,21 @@ function isKnownSignal(name: string): boolean {
  * @param signalName - Signal display name
  * @param value - Raw numeric value
  * @param sentiment - Sentiment label for the current point
+ * @param macroFearGreedLabel - Macro FGI label for the current point
  * @returns Formatted display value
  */
 function formatSignalValue(
   signalName: string,
   value: number | undefined,
   sentiment: string | undefined,
+  macroFearGreedLabel: string | undefined,
 ): string | number {
   if (signalName === 'Sentiment') {
     return formatSentimentValue(value, sentiment);
+  }
+
+  if (signalName === 'Macro FGI') {
+    return formatSentimentValue(value, macroFearGreedLabel);
   }
 
   if (signalName === 'BTC Price' || signalName === 'DMA 200') {

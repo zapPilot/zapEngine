@@ -16,7 +16,9 @@ let capturedTooltipFormatter:
       props: {
         payload?: {
           sentiment_value?: number | null;
+          macro_fear_greed?: number | null;
           regime?: string | null;
+          macro_fear_greed_label?: string | null;
           btc_dma_200?: number | null;
           eth_btc_ratio?: number | null;
           eth_btc_dma_200?: number | null;
@@ -68,7 +70,9 @@ vi.mock('recharts', async () => {
       props: {
         payload?: {
           sentiment_value?: number | null;
+          macro_fear_greed?: number | null;
           regime?: string | null;
+          macro_fear_greed_label?: string | null;
           btc_dma_200?: number | null;
           eth_btc_ratio?: number | null;
           eth_btc_dma_200?: number | null;
@@ -127,6 +131,8 @@ interface SnapshotOpts {
   ethBtcRatio?: number | null;
   ethBtcDma?: number | null;
   ethBtcIsAbove?: boolean | null;
+  macroFearGreed?: number | null;
+  macroFearGreedLabel?: string | null;
 }
 
 function makeSnapshot(opts: SnapshotOpts) {
@@ -183,6 +189,14 @@ function makeSnapshot(opts: SnapshotOpts) {
     };
   }
 
+  if (opts.macroFearGreed != null) {
+    values['macro_fear_greed'] = {
+      value: opts.macroFearGreed,
+      indicators: {},
+      tags: opts.macroFearGreedLabel ? { label: opts.macroFearGreedLabel } : {},
+    };
+  }
+
   return { snapshot_date: opts.date, values };
 }
 
@@ -206,6 +220,8 @@ const mockData = makeResponse([
     btcDma: 38000,
     sentiment: 65,
     regime: 'g',
+    macroFearGreed: 55,
+    macroFearGreedLabel: 'Neutral',
     ethBtcRatio: 0.0532,
     ethBtcDma: 0.0498,
     ethBtcIsAbove: true,
@@ -216,6 +232,8 @@ const mockData = makeResponse([
     btcDma: 38500,
     sentiment: 70,
     regime: 'eg',
+    macroFearGreed: 61,
+    macroFearGreedLabel: 'Greed',
     ethBtcRatio: 0.0541,
     ethBtcDma: 0.05,
     ethBtcIsAbove: true,
@@ -273,7 +291,7 @@ describe('MarketDashboardView', () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => {
-      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(1900, 'btc');
+      expect(mockGetMarketDashboardData).toHaveBeenCalledWith(1900);
     });
     expect(mockGetMarketDashboardData).toHaveBeenCalledTimes(1);
   });
@@ -308,7 +326,7 @@ describe('MarketDashboardView', () => {
     expect(screen.getByText('Leader Signal')).toBeDefined();
   });
 
-  it('renders all five line-toggle pills', async () => {
+  it('renders all market line-toggle pills', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
@@ -317,13 +335,14 @@ describe('MarketDashboardView', () => {
     expect(screen.getByTestId('line-toggle-ethBtcRatio')).toBeDefined();
     expect(screen.getByTestId('line-toggle-ethBtcDma200')).toBeDefined();
     expect(screen.getByTestId('line-toggle-fgi')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-macro_fear_greed')).toBeDefined();
   });
 
   it('reflects default-on / default-off state via aria-pressed', async () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
-    // Default-on: BTC price + BTC DMA + FGI
+    // Default-on: BTC price + BTC DMA + FGI + Macro FGI
     expect(
       screen.getByTestId('line-toggle-btcPrice').getAttribute('aria-pressed'),
     ).toBe('true');
@@ -344,6 +363,11 @@ describe('MarketDashboardView', () => {
         .getByTestId('line-toggle-ethBtcDma200')
         .getAttribute('aria-pressed'),
     ).toBe('false');
+    expect(
+      screen
+        .getByTestId('line-toggle-macro_fear_greed')
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
   });
 
   it('flips aria-pressed when a toggle is clicked', async () => {
@@ -535,6 +559,18 @@ describe('MarketDashboardView', () => {
       });
       expect(String(formattedValue)).toBe('65 (Greed)');
       expect(label).toBe('Fear & Greed Index');
+    });
+
+    it('formats Macro FGI with raw score and label', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue, label] = fmt(61, 'Macro FGI', {
+        payload: {
+          macro_fear_greed: 61,
+          macro_fear_greed_label: 'Greed',
+        },
+      });
+      expect(String(formattedValue)).toBe('61 (Greed)');
+      expect(label).toBe('Macro FGI');
     });
 
     it('formats Fear & Greed Index with empty label when regime is undefined', async () => {

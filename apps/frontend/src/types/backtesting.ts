@@ -10,6 +10,7 @@ export type {
   BacktestDmaSignalDetails,
   BacktestExecution,
   BacktestExecutionDiagnostics,
+  BacktestMacroFearGreedSnapshot,
   BacktestMarketPoint,
   BacktestPacingParamsV3,
   BacktestPeriodInfo,

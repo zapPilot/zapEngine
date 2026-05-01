@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
 import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 
 vi.mock('@/utils', () => ({
@@ -13,8 +14,22 @@ vi.mock('@/utils', () => ({
 function makeMarket(
   date = '2026-01-15',
   sentiment_label: string | null = 'fear',
+  macro_fear_greed:
+    | {
+        score: number;
+        label?: string | null;
+        source: string;
+        updated_at: string;
+        raw_rating?: string | null;
+      }
+    | null
+    | undefined = undefined,
 ) {
-  return { date, sentiment_label };
+  return {
+    date,
+    sentiment_label,
+    ...(macro_fear_greed !== undefined ? { macro_fear_greed } : {}),
+  };
 }
 
 function makeStrategyPoint(overrides: {
@@ -404,6 +419,88 @@ describe('buildBacktestTooltipData', () => {
       );
       // Only first character is uppercased; rest is kept as-is
       expect(sentiment?.value).toBe('Extreme_greed (90)');
+    });
+  });
+
+  describe('formatSignalValue — Macro FGI', () => {
+    it('formats macro fear and greed label and score', () => {
+      const market = makeMarket('2026-01-15', 'fear', {
+        score: 35,
+        label: 'fear',
+        source: 'cnn_fear_greed_unofficial',
+        updated_at: '2026-01-15T12:00:00+00:00',
+        raw_rating: 'Fear',
+      });
+      const payload = [
+        {
+          name: 'Macro FGI',
+          value: 35,
+          color: '#14b8a6',
+          payload: { market },
+        },
+      ];
+
+      const result = buildBacktestTooltipData({ payload });
+      const macroFgi = result?.sections.signals.find(
+        (s) => s.name === 'Macro FGI',
+      );
+
+      expect(macroFgi?.value).toBe('Fear (35)');
+    });
+
+    it("displays 'Unknown' when macro fear and greed label is absent", () => {
+      const market = makeMarket('2026-01-15', 'fear', null);
+      const payload = [
+        {
+          name: 'Macro FGI',
+          value: 42,
+          color: '#14b8a6',
+          payload: { market },
+        },
+      ];
+
+      const result = buildBacktestTooltipData({ payload });
+      const macroFgi = result?.sections.signals.find(
+        (s) => s.name === 'Macro FGI',
+      );
+
+      expect(macroFgi?.value).toBe('Unknown (42)');
+    });
+
+    it('filters macro fear and greed when its indicator is inactive', () => {
+      const market = makeMarket('2026-01-15', 'fear', {
+        score: 35,
+        label: 'fear',
+        source: 'cnn_fear_greed_unofficial',
+        updated_at: '2026-01-15T12:00:00+00:00',
+        raw_rating: 'Fear',
+      });
+      const payload = [
+        {
+          name: 'Sentiment',
+          value: 25,
+          color: '#f59e0b',
+          payload: { market },
+        },
+        {
+          name: 'Macro FGI',
+          value: 35,
+          color: '#14b8a6',
+          payload: { market },
+        },
+      ];
+
+      const result = buildBacktestTooltipData({
+        payload,
+        activeIndicators: new Set<IndicatorKey>(['sentiment']),
+      });
+
+      expect(
+        result?.sections.signals.some((signal) => signal.name === 'Macro FGI'),
+      ).toBe(false);
+      expect(
+        result?.sections.signals.some((signal) => signal.name === 'Sentiment'),
+      ).toBe(true);
     });
   });
 

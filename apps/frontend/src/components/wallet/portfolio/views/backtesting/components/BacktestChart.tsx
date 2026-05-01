@@ -54,7 +54,8 @@ export const BacktestChart = memo(function BacktestChart({
 
   const showPriceAxis =
     activeIndicators.has('btcPrice') || activeIndicators.has('dma200');
-  const showSentimentAxis = activeIndicators.has('sentiment');
+  const showSentimentAxis =
+    activeIndicators.has('sentiment') || activeIndicators.has('macroFearGreed');
 
   return (
     <BaseCard
@@ -127,7 +128,7 @@ export const BacktestChart = memo(function BacktestChart({
                 {...AXIS_DEFAULTS}
                 width={48}
                 label={{
-                  value: 'Sentiment',
+                  value: '0-100 Index',
                   angle: 90,
                   position: 'insideRight',
                   style: { fontSize: 10, fill: '#a855f7' },
