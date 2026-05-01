@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -413,6 +414,47 @@ def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None
     assert "crypto_gate_state" in record["asset_class"]
     assert record["rule"]["classification"] == "intended_rule"
     assert "SPY DMA cross_down" in record["rule"]["summary"]
+
+
+def test_analyze_compare_surfaces_matched_rule_name() -> None:
+    payload = deepcopy(_payload())
+    strategy = payload["timeline"][1]["strategies"]["eth_btc_rotation_default"]
+    strategy["decision"]["details"] = {"matched_rule_name": "above_greed_sell"}
+
+    rendered = analyzer.analyze_response_payload(
+        payload,
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="markdown",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        sections=["decision", "rule"],
+    )
+
+    assert "Matched rule: `above_greed_sell`" in rendered
+    assert "Sell when price is above DMA and FGI is greed." in rendered
+
+
+def test_analyze_compare_renders_active_tactics_section() -> None:
+    payload = deepcopy(_payload())
+    for point in payload["timeline"]:
+        state = point["strategies"].pop("eth_btc_rotation_default")
+        point["strategies"]["dma_fgi_hierarchical_full"] = state
+
+    rendered = analyzer.analyze_response_payload(
+        payload,
+        strategy_id="dma_fgi_hierarchical_full",
+        date_filter="2025-04-22",
+        output_format="markdown",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        sections=["active_tactics"],
+    )
+
+    assert "### Active Tactics" in rendered
+    assert "Adaptive crypto DMA reference: `True`" in rendered
 
 
 def test_analyze_payload_surfaces_api_errors(monkeypatch: pytest.MonkeyPatch) -> None:

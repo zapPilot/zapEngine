@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, cast
 
@@ -46,11 +46,6 @@ from src.services.backtesting.features import DMA_200_FEATURE, MarketDataRequire
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.signals.contracts import SignalContext
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
-from src.services.backtesting.signals.dma_gated_fgi.constants import (
-    BUY_TARGET,
-    SCORE_BY_REASON,
-    SELL_TARGET,
-)
 from src.services.backtesting.signals.dma_gated_fgi.metadata import build_signal_output
 from src.services.backtesting.signals.dma_gated_fgi.runtime import (
     DmaGatedFgiSignalRuntime,
@@ -60,11 +55,18 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     SignalId,
     Zone,
 )
-from src.services.backtesting.signals.dma_gated_fgi.utils import _cross_target_zone
 from src.services.backtesting.strategies.base import (
     StrategyContext,
 )
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
+from src.services.backtesting.tactics.base import (
+    Rule,
+    RuleConfig,
+    hold_intent,
+    hold_reason,
+    target_intent,
+)
+from src.services.backtesting.tactics.rules import DEFAULT_RULES, RULE_NAMES
 from src.services.backtesting.utils import (
     coerce_bool,
     coerce_float,
@@ -90,6 +92,7 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "dma_overextension_threshold",
         "fgi_slope_reversal_threshold",
         "fgi_slope_recovery_threshold",
+        "disabled_rules",
     }
 )
 
@@ -108,6 +111,20 @@ _DMA_COERCION_SPEC: dict[str, Any] = {
     "fgi_slope_reversal_threshold": coerce_float,
     "fgi_slope_recovery_threshold": coerce_float,
 }
+
+
+def _coerce_rule_name_set(value: Any, *, field_name: str) -> frozenset[str]:
+    if not isinstance(value, list | tuple | set | frozenset):
+        raise ValueError(f"{field_name} must be an array of rule names")
+    names = frozenset(str(item) for item in value)
+    invalid_names = sorted(names - RULE_NAMES)
+    if invalid_names:
+        joined = ", ".join(invalid_names)
+        raise ValueError(f"{field_name} contains unsupported rule names: {joined}")
+    return names
+
+
+_DMA_COERCION_SPEC["disabled_rules"] = _coerce_rule_name_set
 
 
 class DmaGatedFgiParams(BaseModel):
@@ -177,6 +194,10 @@ class DmaGatedFgiParams(BaseModel):
         ge=0.0,
         description="FGI slope threshold above which fear-recovery buy triggers.",
     )
+    disabled_rules: frozenset[str] = Field(
+        default_factory=frozenset,
+        description="DMA/FGI tactical rule names to skip during policy evaluation.",
+    )
 
     @classmethod
     def from_public_params(
@@ -192,7 +213,12 @@ class DmaGatedFgiParams(BaseModel):
         return cls(**normalized)
 
     def to_public_params(self) -> dict[str, JsonValue]:
-        return cast(dict[str, JsonValue], self.model_dump(exclude_none=True))
+        params = self.model_dump(exclude_none=True)
+        if self.disabled_rules:
+            params["disabled_rules"] = sorted(self.disabled_rules)
+        else:
+            params.pop("disabled_rules", None)
+        return cast(dict[str, JsonValue], params)
 
     def build_signal_config(self) -> DmaGatedFgiConfig:
         return DmaGatedFgiConfig(
@@ -233,19 +259,11 @@ def default_dma_gated_fgi_params() -> dict[str, JsonValue]:
 
 
 def _hold_reason(zone: Zone) -> str:
-    return "regime_no_signal" if zone != "at" else "price_equal_dma_hold"
+    return hold_reason(zone)
 
 
 def _hold_intent(*, reason: str, rule_group: RuleGroup) -> AllocationIntent:
-    return AllocationIntent(
-        action="hold",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason=reason,
-        rule_group=rule_group,
-        decision_score=0.0,
-    )
+    return hold_intent(reason=reason, rule_group=rule_group)
 
 
 def _target_intent(
@@ -257,14 +275,13 @@ def _target_intent(
     rule_group: RuleGroup,
     immediate: bool = False,
 ) -> AllocationIntent:
-    return AllocationIntent(
+    return target_intent(
         action=action,
-        target_allocation=dict(target),
+        target=target,
         allocation_name=allocation_name,
-        immediate=immediate,
         reason=reason,
         rule_group=rule_group,
-        decision_score=SCORE_BY_REASON.get(reason, 0.0),
+        immediate=immediate,
     )
 
 
@@ -274,113 +291,28 @@ def _resolve_dma_allocation_intent(
     dma_overextension_threshold: float = 0.30,
     fgi_slope_reversal_threshold: float = -0.05,
     fgi_slope_recovery_threshold: float = 0.05,
+    rules: tuple[Rule, ...] = DEFAULT_RULES,
+    config: RuleConfig | None = None,
+    disabled_rules: frozenset[str] = frozenset(),
 ) -> AllocationIntent:
-    actionable_cross = snapshot.actionable_cross_event
-    if actionable_cross == snapshot.cross_event and actionable_cross is not None:
-        target_zone = _cross_target_zone(actionable_cross)
-        if (
-            snapshot.cooldown_state.active
-            and target_zone == snapshot.cooldown_state.blocked_zone
-        ):
-            return _hold_intent(
-                reason=f"{target_zone}_side_cooldown_active",
-                rule_group="cooldown",
-            )
-        if actionable_cross == "cross_down":
-            return _target_intent(
-                action="sell",
-                target=SELL_TARGET,
-                allocation_name="dma_cross_down_exit",
-                reason="dma_cross_down",
-                rule_group="cross",
-                immediate=True,
-            )
-        return _target_intent(
-            action="buy",
-            target=BUY_TARGET,
-            allocation_name="dma_cross_up_entry",
-            reason="dma_cross_up",
-            rule_group="cross",
-            immediate=True,
-        )
-
-    if (
-        snapshot.cooldown_state.active
-        and snapshot.zone == snapshot.cooldown_state.blocked_zone
-    ):
-        return _hold_intent(
-            reason=f"{snapshot.zone}_side_cooldown_active",
-            rule_group="cooldown",
-        )
-
-    if (
-        snapshot.zone == "above"
-        and snapshot.dma_distance >= dma_overextension_threshold
-    ):
-        return _target_intent(
-            action="sell",
-            target=SELL_TARGET,
-            allocation_name="dma_above_overextended_sell",
-            reason="above_dma_overextended_sell",
-            rule_group="dma_fgi",
-        )
-    if snapshot.zone == "above" and snapshot.fgi_regime == "extreme_greed":
-        return _target_intent(
-            action="sell",
-            target=SELL_TARGET,
-            allocation_name="dma_above_extreme_greed_sell",
-            reason="above_extreme_greed_sell",
-            rule_group="dma_fgi",
-        )
-    if (
-        snapshot.zone == "above"
-        and snapshot.fgi_regime in ("greed", "extreme_greed")
-        and snapshot.fgi_slope < fgi_slope_reversal_threshold
-    ):
-        return _target_intent(
-            action="sell",
-            target=SELL_TARGET,
-            allocation_name="dma_above_greed_fading_sell",
-            reason="above_greed_fading_sell",
-            rule_group="dma_fgi",
-        )
-    if snapshot.zone == "above" and snapshot.fgi_regime == "greed":
-        return _target_intent(
-            action="sell",
-            target=SELL_TARGET,
-            allocation_name="dma_above_greed_sell",
-            reason="above_greed_sell",
-            rule_group="dma_fgi",
-        )
-    if snapshot.zone == "below" and snapshot.fgi_regime == "extreme_fear":
-        return _target_intent(
-            action="buy",
-            target=BUY_TARGET,
-            allocation_name="dma_below_extreme_fear_buy",
-            reason="below_extreme_fear_buy",
-            rule_group="dma_fgi",
-        )
-    if (
-        snapshot.zone == "below"
-        and snapshot.fgi_regime in ("fear", "extreme_fear")
-        and snapshot.fgi_slope > fgi_slope_recovery_threshold
-    ):
-        return _target_intent(
-            action="buy",
-            target=BUY_TARGET,
-            allocation_name="dma_below_fear_recovering_buy",
-            reason="below_fear_recovering_buy",
-            rule_group="dma_fgi",
-        )
-    if snapshot.ath_event is not None and snapshot.zone == "above":
-        return _target_intent(
-            action="sell",
-            target=SELL_TARGET,
-            allocation_name="dma_ath_sell",
-            reason="ath_sell",
-            rule_group="ath",
-        )
-    return _hold_intent(reason=_hold_reason(snapshot.zone), rule_group="none")
+    resolved_config = config or RuleConfig(
+        dma_overextension_threshold=dma_overextension_threshold,
+        fgi_slope_reversal_threshold=fgi_slope_reversal_threshold,
+        fgi_slope_recovery_threshold=fgi_slope_recovery_threshold,
+    )
+    for rule in rules:
+        if rule.name in disabled_rules:
+            continue
+        if rule.matches(snapshot, config=resolved_config):
+            intent = rule.build_intent(snapshot, config=resolved_config)
+            diagnostics = dict(intent.diagnostics or {})
+            diagnostics.setdefault("matched_rule_name", rule.name)
+            return replace(intent, diagnostics=diagnostics)
+    intent = hold_intent(reason=hold_reason(snapshot.zone), rule_group="none")
+    return replace(
+        intent,
+        diagnostics={"matched_rule_name": "regime_no_signal_hold"},
+    )
 
 
 def _build_signal_observation(
@@ -536,6 +468,7 @@ class DmaGatedFgiDecisionPolicy(DecisionPolicy):
     dma_overextension_threshold: float = 0.30
     fgi_slope_reversal_threshold: float = -0.05
     fgi_slope_recovery_threshold: float = 0.05
+    disabled_rules: frozenset[str] = frozenset()
 
     def decide(self, snapshot: DmaMarketState) -> AllocationIntent:
         return _resolve_dma_allocation_intent(
@@ -543,6 +476,7 @@ class DmaGatedFgiDecisionPolicy(DecisionPolicy):
             dma_overextension_threshold=self.dma_overextension_threshold,
             fgi_slope_reversal_threshold=self.fgi_slope_reversal_threshold,
             fgi_slope_recovery_threshold=self.fgi_slope_recovery_threshold,
+            disabled_rules=self.disabled_rules,
         )
 
 
@@ -580,6 +514,7 @@ class DmaGatedFgiStrategy(ComposedSignalStrategy):
             dma_overextension_threshold=resolved_params.dma_overextension_threshold,
             fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
             fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
+            disabled_rules=resolved_params.disabled_rules,
         )
         self.execution_engine = AllocationIntentExecutor(
             pacing_policy=resolved_params.build_pacing_policy(),

@@ -45,6 +45,9 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationStrategy,
     build_initial_eth_btc_asset_allocation,
 )
+from src.services.backtesting.strategies.hierarchical_attribution import (
+    HIERARCHICAL_ATTRIBUTION_VARIANTS,
+)
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     DmaFgiAdaptiveBinaryEthBtcStrategy,
@@ -295,6 +298,19 @@ def _build_hierarchical_spy_crypto_strategy(
 ) -> BaseStrategy:
     params = HierarchicalPairRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
+    initial_asset_allocation = _build_initial_hierarchical_asset_allocation(request)
+    return HierarchicalSpyCryptoRotationStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
+def _build_initial_hierarchical_asset_allocation(
+    request: StrategyBuildRequest,
+) -> dict[str, float]:
     initial_asset_allocation = {
         "btc": 0.0,
         "eth": 0.0,
@@ -302,39 +318,93 @@ def _build_hierarchical_spy_crypto_strategy(
         "stable": 1.0,
         "alt": 0.0,
     }
-    if request.mode == "compare" and request.initial_allocation is not None:
-        outer_initial = build_initial_pair_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            template=SPY_CRYPTO_TEMPLATE,
-        )
-        inner_initial = build_initial_pair_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
-        )
-        crypto_share = float(outer_initial.get("btc", 0.0)) + float(
-            outer_initial.get("eth", 0.0)
-        )
-        inner_risk = float(inner_initial.get("btc", 0.0)) + float(
-            inner_initial.get("eth", 0.0)
-        )
-        btc_weight = (
-            0.5
-            if inner_risk <= 0.0
-            else float(inner_initial.get("btc", 0.0)) / inner_risk
-        )
-        initial_asset_allocation = {
-            "btc": crypto_share * btc_weight,
-            "eth": crypto_share * (1.0 - btc_weight),
-            "spy": float(outer_initial.get("spy", 0.0)),
-            "stable": float(outer_initial.get("stable", 0.0)),
-            "alt": 0.0,
-        }
+    if request.mode != "compare" or request.initial_allocation is None:
+        return initial_asset_allocation
+    outer_initial = build_initial_pair_asset_allocation(
+        aggregate_allocation=request.initial_allocation,
+        template=SPY_CRYPTO_TEMPLATE,
+    )
+    inner_initial = build_initial_pair_asset_allocation(
+        aggregate_allocation=request.initial_allocation,
+        template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+    )
+    crypto_share = float(outer_initial.get("btc", 0.0)) + float(
+        outer_initial.get("eth", 0.0)
+    )
+    inner_risk = float(inner_initial.get("btc", 0.0)) + float(
+        inner_initial.get("eth", 0.0)
+    )
+    btc_weight = (
+        0.5 if inner_risk <= 0.0 else float(inner_initial.get("btc", 0.0)) / inner_risk
+    )
+    return {
+        "btc": crypto_share * btc_weight,
+        "eth": crypto_share * (1.0 - btc_weight),
+        "spy": float(outer_initial.get("spy", 0.0)),
+        "stable": float(outer_initial.get("stable", 0.0)),
+        "alt": 0.0,
+    }
+
+
+def _build_hierarchical_attribution_strategy(
+    request: StrategyBuildRequest,
+    *,
+    variant_id: str,
+) -> BaseStrategy:
+    params = HierarchicalPairRotationParams.from_public_params(request.params)
+    variant = HIERARCHICAL_ATTRIBUTION_VARIANTS[variant_id]
+    strategy_id = request.resolved_config_id or variant_id
     return HierarchicalSpyCryptoRotationStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
-        initial_asset_allocation=initial_asset_allocation,
+        canonical_strategy_id=variant_id,
+        initial_asset_allocation=_build_initial_hierarchical_asset_allocation(request),
+        adaptive_crypto_dma_reference=variant.adaptive_crypto_dma_reference,
+        spy_cross_up_latch=variant.spy_cross_up_latch,
+        outer_disabled_rules=variant.disabled_rules,
+        inner_disabled_rules=variant.disabled_rules - frozenset({"above_greed_sell"}),
+        dma_buy_strength_floor=variant.dma_buy_strength_floor,
+    )
+
+
+def _make_hierarchical_attribution_builder(variant_id: str) -> StrategyBuilder:
+    def _builder(request: StrategyBuildRequest) -> BaseStrategy:
+        return _build_hierarchical_attribution_strategy(
+            request,
+            variant_id=variant_id,
+        )
+
+    return _builder
+
+
+def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
+    variant = HIERARCHICAL_ATTRIBUTION_VARIANTS[strategy_id]
+    return StrategyRecipe(
+        strategy_id=strategy_id,
+        display_name=variant.display_name,
+        description=variant.description,
+        signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset(
+                {
+                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+                    SPY_AUX_SERIES,
+                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+                }
+            ),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
+        build_strategy=_make_hierarchical_attribution_builder(strategy_id),
+        supports_daily_suggestion=False,
     )
 
 
@@ -447,6 +517,10 @@ _RECIPES: dict[str, StrategyRecipe] = {
     **{
         strategy_id: _build_eth_btc_attribution_recipe(strategy_id)
         for strategy_id in ATTRIBUTION_VARIANTS
+    },
+    **{
+        strategy_id: _build_hierarchical_attribution_recipe(strategy_id)
+        for strategy_id in HIERARCHICAL_ATTRIBUTION_VARIANTS
     },
     STRATEGY_SPY_ETH_BTC_ROTATION: StrategyRecipe(
         strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,

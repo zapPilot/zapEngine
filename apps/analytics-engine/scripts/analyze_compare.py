@@ -10,6 +10,11 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
+from src.services.backtesting.strategies.hierarchical_attribution import (
+    HIERARCHICAL_ATTRIBUTION_VARIANTS,
+)
+from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
+
 AnalysisProfile = Literal[
     "eth-btc-rotation", "spy-eth-btc-rotation", "dma-cross", "raw"
 ]
@@ -28,6 +33,7 @@ SECTION_ORDER = (
     "spy_dma",
     "inner_ratio",
     "asset_class",
+    "active_tactics",
     "decision",
     "execution",
     "portfolio",
@@ -580,13 +586,26 @@ def _build_rule_summary(
     decision = _safe_mapping(point.get("decision"))
     execution = _safe_mapping(point.get("execution"))
     target_assets = _safe_mapping(decision.get("target_allocation"))
+    decision_details = _safe_mapping(decision.get("details"))
     reason = str(decision.get("reason") or "")
+    matched_rule_name = decision_details.get("matched_rule_name")
 
     if consistency.get("status") == "mismatch":
         return {
             "classification": "anomaly",
             "summary": "Observed outer DMA signal is inconsistent with BTC market data; treat this as engine behavior, not intended strategy logic.",
             "evidence": consistency.get("issues", []),
+        }
+
+    if isinstance(matched_rule_name, str) and matched_rule_name in RULE_DESCRIPTIONS:
+        return {
+            "classification": "intended_rule",
+            "summary": RULE_DESCRIPTIONS[matched_rule_name],
+            "evidence": [
+                f"matched_rule_name={matched_rule_name}",
+                f"reason={reason or 'n/a'}",
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+            ],
         }
 
     if reason == "dma_cross_down":
@@ -615,9 +634,9 @@ def _build_rule_summary(
             "summary": "Outer BTC DMA cross_up forced immediate full re-entry into spot.",
             "evidence": [
                 inner_ratio_note,
-            f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
-        ],
-    }
+                f"target_allocation={json.dumps(target_assets, sort_keys=True)}",
+            ],
+        }
 
     if reason == "spy_dma_cross_down":
         return {
@@ -658,7 +677,6 @@ def _build_rule_summary(
                 f"transfers={json.dumps(execution.get('transfers', []), sort_keys=True)}",
             ],
         }
-
 
     return {
         "classification": "context",
@@ -704,6 +722,7 @@ def _build_record(
     point: dict[str, Any],
     *,
     ratio_metrics: dict[str, Any],
+    strategy_id: str,
 ) -> dict[str, Any]:
     decision = _safe_mapping(point.get("decision"))
     execution = _safe_mapping(point.get("execution"))
@@ -730,11 +749,24 @@ def _build_record(
             decision=decision,
             portfolio=portfolio,
         ),
+        "active_tactics": _build_active_tactics(strategy_id),
         "decision": decision,
         "execution": execution,
         "portfolio": portfolio,
         "consistency": consistency,
         "rule": rule,
+    }
+
+
+def _build_active_tactics(strategy_id: str) -> dict[str, Any]:
+    variant = HIERARCHICAL_ATTRIBUTION_VARIANTS.get(strategy_id)
+    if variant is None:
+        return {}
+    return {
+        "adaptive_crypto_dma_reference": variant.adaptive_crypto_dma_reference,
+        "spy_cross_up_latch": variant.spy_cross_up_latch,
+        "disabled_rules": sorted(variant.disabled_rules),
+        "dma_buy_strength_floor": variant.dma_buy_strength_floor,
     }
 
 
@@ -901,8 +933,24 @@ def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
                 )
             )
         ]
+    if section == "active_tactics":
+        tactics = _safe_mapping(record["active_tactics"])
+        if not tactics:
+            return []
+        return [
+            "ACTIVE_TACTICS "
+            + " ".join(
+                (
+                    f"adaptive_crypto_dma_reference={tactics.get('adaptive_crypto_dma_reference')}",
+                    f"spy_cross_up_latch={tactics.get('spy_cross_up_latch')}",
+                    f"disabled_rules={json.dumps(tactics.get('disabled_rules'), sort_keys=True)}",
+                    f"dma_buy_strength_floor={tactics.get('dma_buy_strength_floor')}",
+                )
+            )
+        ]
     if section == "decision":
         decision = _safe_mapping(record["decision"])
+        details = _safe_mapping(decision.get("details"))
         return [
             "DECISION "
             + " ".join(
@@ -910,8 +958,9 @@ def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
                     f"action={decision.get('action')}",
                     f"reason={decision.get('reason')}",
                     f"rule_group={decision.get('rule_group')}",
+                    f"matched_rule_name={details.get('matched_rule_name')}",
                     f"immediate={decision.get('immediate')}",
-            f"target_allocation={json.dumps(decision.get('target_allocation'), sort_keys=True)}",
+                    f"target_allocation={json.dumps(decision.get('target_allocation'), sort_keys=True)}",
                 )
             )
         ]
@@ -1086,16 +1135,29 @@ def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
             f"- Reason: `{asset_class.get('reason')}`",
             f"- Immediate: `{asset_class.get('immediate')}`",
         ]
+    if section == "active_tactics":
+        tactics = _safe_mapping(record["active_tactics"])
+        if not tactics:
+            return []
+        return [
+            "### Active Tactics",
+            f"- Adaptive crypto DMA reference: `{tactics.get('adaptive_crypto_dma_reference')}`",
+            f"- SPY cross-up latch: `{tactics.get('spy_cross_up_latch')}`",
+            f"- Disabled rules: `{json.dumps(tactics.get('disabled_rules'), sort_keys=True)}`",
+            f"- DMA buy-strength floor: `{tactics.get('dma_buy_strength_floor')}`",
+        ]
     if section == "decision":
         decision = _safe_mapping(record["decision"])
+        details = _safe_mapping(decision.get("details"))
         return [
             "### Decision",
             f"- Action: `{decision.get('action')}`",
             f"- Reason: `{decision.get('reason')}`",
             f"- Rule group: `{decision.get('rule_group')}`",
+            f"- Matched rule: `{details.get('matched_rule_name')}`",
             f"- Immediate: `{decision.get('immediate')}`",
-        f"- Target allocation: `{json.dumps(decision.get('target_allocation'), sort_keys=True)}`",
-    ]
+            f"- Target allocation: `{json.dumps(decision.get('target_allocation'), sort_keys=True)}`",
+        ]
     if section == "execution":
         execution = _safe_mapping(record["execution"])
         return [
@@ -1478,6 +1540,7 @@ def analyze_response_payload(
             _build_record(
                 point,
                 ratio_metrics=ratio_metrics.get(point["date"], _empty_ratio_metrics()),
+                strategy_id=selected_strategy_id,
             )
             for point in filtered_points
         ]

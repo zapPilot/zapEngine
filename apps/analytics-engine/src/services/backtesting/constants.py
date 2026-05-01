@@ -38,6 +38,35 @@ STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS = "eth_btc_progressive_ratio_cross"
 STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN = (
     "eth_btc_progressive_ratio_cross_cooldown"
 )
+STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL = "dma_fgi_hierarchical_full"
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA = (
+    "dma_fgi_hierarchical_full_minus_adaptive_dma"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH = (
+    "dma_fgi_hierarchical_full_minus_spy_latch"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION = (
+    "dma_fgi_hierarchical_full_minus_greed_sell_suppression"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR = (
+    "dma_fgi_hierarchical_full_minus_buy_floor"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY = (
+    "dma_fgi_hierarchical_full_minus_fear_recovery_buy"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY = (
+    "dma_fgi_hierarchical_adaptive_dma_only"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY = "dma_fgi_hierarchical_spy_latch_only"
+STRATEGY_DMA_FGI_HIERARCHICAL_GREED_SUPPRESSION_ONLY = (
+    "dma_fgi_hierarchical_greed_suppression_only"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_BUY_FLOOR_ONLY = "dma_fgi_hierarchical_buy_floor_only"
+STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY = (
+    "dma_fgi_hierarchical_fear_recovery_only"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_PROD = "dma_fgi_hierarchical_prod"
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
@@ -64,6 +93,33 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_ETH_BTC_PROGRESSIVE_RATIO_CROSS_COOLDOWN: (
         "ETH/BTC Progressive + Ratio Cross Cooldown"
     ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "Hierarchical Attribution Control",
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL: "Hierarchical Attribution Full",
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA: (
+        "Hierarchical Full - Adaptive DMA"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_SPY_LATCH: (
+        "Hierarchical Full - SPY Latch"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_GREED_SELL_SUPPRESSION: (
+        "Hierarchical Full - Greed Sell Suppression"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR: (
+        "Hierarchical Full - Buy Floor"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_FEAR_RECOVERY_BUY: (
+        "Hierarchical Full - Fear Recovery Buy"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY: ("Hierarchical Adaptive DMA Only"),
+    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_LATCH_ONLY: ("Hierarchical SPY Latch Only"),
+    STRATEGY_DMA_FGI_HIERARCHICAL_GREED_SUPPRESSION_ONLY: (
+        "Hierarchical Greed Suppression Only"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_BUY_FLOOR_ONLY: ("Hierarchical Buy Floor Only"),
+    STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY: (
+        "Hierarchical Fear Recovery Only"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "Hierarchical Production",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

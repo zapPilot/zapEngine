@@ -23,6 +23,7 @@ from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
 )
 from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
@@ -44,6 +45,10 @@ from src.services.backtesting.strategies.dma_gated_fgi import (
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     _suppress_ath_sell_intent,
+)
+from src.services.backtesting.strategies.hierarchical_attribution import (
+    CURRENT_DMA_BUY_STRENGTH_FLOOR,
+    FULL_DISABLED_RULES,
 )
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
@@ -145,6 +150,9 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
     signal_id: str = SPY_CRYPTO_TEMPLATE.signal_id
     market_data_requirements: MarketDataRequirements = field(init=False)
     warmup_lookback_days: int = 14
+    adaptive_crypto_dma_reference: bool = True
+    spy_cross_up_latch_enabled: bool = True
+    dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
     _outer_signal: PairRotationTemplateSignalComponent = field(init=False, repr=False)
     _inner_signal: PairRotationTemplateSignalComponent = field(init=False, repr=False)
     _spy_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
@@ -220,6 +228,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         self._crypto_dma_reference_asset = _select_crypto_dma_reference_asset(
             context.portfolio.asset_allocation_percentages(context.portfolio_price),
             previous_reference_asset=self._crypto_dma_reference_asset,
+            adaptive=self.adaptive_crypto_dma_reference,
         )
         spy_context = _build_outer_unit_dma_context(
             context, SPY_CRYPTO_TEMPLATE.left_unit
@@ -239,6 +248,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         self._crypto_dma_reference_asset = _select_crypto_dma_reference_asset(
             context.portfolio.asset_allocation_percentages(context.portfolio_price),
             previous_reference_asset=self._crypto_dma_reference_asset,
+            adaptive=self.adaptive_crypto_dma_reference,
         )
         spy_context = _build_outer_unit_dma_context(
             context, SPY_CRYPTO_TEMPLATE.left_unit
@@ -260,6 +270,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         self._crypto_dma_reference_asset = _select_crypto_dma_reference_asset(
             raw_allocation,
             previous_reference_asset=self._crypto_dma_reference_asset,
+            adaptive=self.adaptive_crypto_dma_reference,
         )
         spy_dma_state = _observe_optional_dma_state(
             self._spy_dma_signal,
@@ -375,6 +386,10 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         current_date: date,
         spy_dma_state: DmaMarketState | None,
     ) -> None:
+        if not self.spy_cross_up_latch_enabled:
+            self._spy_latch_active = False
+            self._spy_latch_activated_on = None
+            return
         if _is_spy_latch_expired(
             current_date=current_date,
             activated_on=self._spy_latch_activated_on,
@@ -431,6 +446,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             selected_dma_asset == SPY_CRYPTO_TEMPLATE.left_unit.symbol
             and snapshot.spy_dma_state is not None
         ):
+            selected_dma_state = snapshot.spy_dma_state
             hints = self._spy_dma_signal.build_execution_hints(
                 snapshot=snapshot.spy_dma_state,
                 intent=intent,
@@ -445,16 +461,26 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
                 btc_signal=self._btc_dma_signal,
                 eth_signal=self._eth_dma_signal,
             )
+            selected_dma_state = snapshot.crypto_dma_state
             hints = crypto_signal.build_execution_hints(
                 snapshot=snapshot.crypto_dma_state,
                 intent=intent,
                 signal_confidence=signal_confidence,
             )
         else:
+            selected_dma_state = None
             hints = self._outer_signal.build_execution_hints(
                 snapshot=snapshot.outer_state,
                 intent=intent,
                 signal_confidence=signal_confidence,
+            )
+        if hints.enable_buy_gate and selected_dma_state is not None:
+            hints = replace(
+                hints,
+                buy_strength=compute_dma_buy_strength(
+                    selected_dma_state.dma_distance,
+                    floor=self.dma_buy_strength_floor,
+                ),
             )
         return replace(
             hints,
@@ -467,7 +493,9 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
     decision_policy_id: str = "hierarchical_spy_crypto_policy"
     rotation_drift_threshold: float = 0.03
     _outer_dma_policy: DmaGatedFgiDecisionPolicy = field(
-        default_factory=DmaGatedFgiDecisionPolicy
+        default_factory=lambda: DmaGatedFgiDecisionPolicy(
+            disabled_rules=FULL_DISABLED_RULES
+        )
     )
     _inner_policy: PairRotationTemplateDecisionPolicy = field(
         default_factory=lambda: PairRotationTemplateDecisionPolicy(
@@ -549,6 +577,11 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
     canonical_strategy_id: str = STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
+    adaptive_crypto_dma_reference: bool = True
+    spy_cross_up_latch: bool = True
+    outer_disabled_rules: frozenset[str] = FULL_DISABLED_RULES
+    inner_disabled_rules: frozenset[str] = frozenset()
+    dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
 
     def __post_init__(self) -> None:
         if self.signal_id != SPY_CRYPTO_TEMPLATE.signal_id:
@@ -560,7 +593,10 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
         )
         self.params = resolved_params
         self.signal_component = HierarchicalPairRotationSignalComponent(
-            params=resolved_params
+            params=resolved_params,
+            adaptive_crypto_dma_reference=self.adaptive_crypto_dma_reference,
+            spy_cross_up_latch_enabled=self.spy_cross_up_latch,
+            dma_buy_strength_floor=self.dma_buy_strength_floor,
         )
         self.decision_policy = HierarchicalPairRotationDecisionPolicy(
             rotation_drift_threshold=resolved_params.rotation_drift_threshold,
@@ -568,6 +604,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
                 dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                 fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
                 fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
+                disabled_rules=self.outer_disabled_rules,
             ),
             _inner_policy=PairRotationTemplateDecisionPolicy(
                 template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
@@ -576,6 +613,8 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
                     dma_overextension_threshold=resolved_params.dma_overextension_threshold,
                     fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
                     fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
+                    disabled_rules=self.inner_disabled_rules
+                    or resolved_params.disabled_rules,
                 ),
             ),
         )
@@ -620,6 +659,7 @@ def _select_crypto_dma_reference_asset(
     allocation: Mapping[str, float],
     *,
     previous_reference_asset: str,
+    adaptive: bool = True,
 ) -> str:
     previous = (
         previous_reference_asset
@@ -627,6 +667,8 @@ def _select_crypto_dma_reference_asset(
         in {_CRYPTO_DMA_REFERENCE_BTC, _CRYPTO_DMA_REFERENCE_ETH}
         else _CRYPTO_DMA_REFERENCE_BTC
     )
+    if not adaptive:
+        return _CRYPTO_DMA_REFERENCE_BTC
     btc = max(0.0, float(allocation.get("btc", 0.0)))
     eth = max(0.0, float(allocation.get("eth", 0.0)))
     crypto_share = btc + eth
@@ -816,28 +858,9 @@ def _resolve_optional_outer_dma_intent(
             rule_group="none",
             decision_score=0.0,
         )
-    return _suppress_plain_greed_sell_intent(
+    return _suppress_ath_sell_intent(
         intent=dma_policy.decide(dma_state),
         snapshot=dma_state,
-    )
-
-
-def _suppress_plain_greed_sell_intent(
-    *,
-    intent: AllocationIntent,
-    snapshot: DmaMarketState,
-) -> AllocationIntent:
-    suppressed = _suppress_ath_sell_intent(intent=intent, snapshot=snapshot)
-    if suppressed.reason != "above_greed_sell":
-        return suppressed
-    return AllocationIntent(
-        action="hold",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason="above_greed_sell_suppressed",
-        rule_group="none",
-        decision_score=0.0,
     )
 
 
