@@ -3,6 +3,8 @@ import {
   createFailedETLResult,
   type ETLProcessResult,
 } from '../../core/processors/baseETLProcessor.js';
+import { MacroFearGreedETLProcessor } from '../../modules/macro-fear-greed/processor.js';
+import { TokenPriceETLProcessor } from '../../modules/token-price/processor.js';
 import { WalletFetchETLProcessor } from '../../modules/wallet/fetchProcessor.js';
 import type {
   DataSource,
@@ -26,30 +28,6 @@ import {
   PROCESSOR_REGISTRY,
   type ProcessorConstructor,
 } from './processorRegistry.js';
-
-interface BackfillHistoryResult {
-  requested: number;
-  existing: number;
-  fetched: number;
-  inserted: number;
-}
-
-interface TokenPriceBackfillProcessor {
-  backfillHistory(
-    daysBack?: number,
-    tokenId?: string,
-    tokenSymbol?: string,
-  ): Promise<BackfillHistoryResult>;
-  updateDmaForToken(
-    tokenSymbol?: string,
-    tokenId?: string,
-    jobId?: string,
-  ): Promise<{ recordsInserted: number }>;
-}
-
-interface MacroFearGreedBackfillProcessor {
-  backfillHistory(startDate?: string): Promise<BackfillHistoryResult>;
-}
 
 /**
  * Factory for creating and managing ETL processors using Strategy pattern
@@ -208,7 +186,7 @@ export class ETLPipelineFactory {
     const result = this.createTaskResult('token-price');
     const processor = this.getProcessor(
       'token-price',
-    ) as unknown as TokenPriceBackfillProcessor;
+    ) as TokenPriceETLProcessor;
 
     for (const token of task.tokens) {
       const daysBack = token.daysBack ?? 30;
@@ -250,7 +228,7 @@ export class ETLPipelineFactory {
     const result = this.createTaskResult('macro-fear-greed');
     const processor = this.getProcessor(
       'macro-fear-greed',
-    ) as unknown as MacroFearGreedBackfillProcessor;
+    ) as MacroFearGreedETLProcessor;
 
     try {
       logger.info('Processing macro Fear & Greed backfill task', {

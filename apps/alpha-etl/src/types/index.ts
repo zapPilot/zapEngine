@@ -71,8 +71,6 @@ export interface ETLJob {
   jobId: string;
 }
 
-export type ETLOperation = 'current' | 'backfill';
-
 export interface CurrentETLTask {
   source: DataSource;
   operation: 'current';
@@ -102,30 +100,6 @@ export interface TokenBackfillConfig {
   tokenSymbol: string;
   daysBack?: number | undefined;
 }
-
-export interface BackfillPayload {
-  tokens: TokenBackfillConfig[];
-}
-
-export interface BackfillDmaMetadata {
-  dmaAttempted: boolean;
-  dmaUpserted: number;
-  dmaRetries: number;
-  dmaSuccess: boolean;
-  dmaError?: string | undefined;
-}
-
-export interface BackfillTokenResultData extends BackfillDmaMetadata {
-  tokenSymbol: string;
-  tokenId: string;
-  requested: number;
-  existing: number;
-  fetched: number;
-  inserted: number;
-  duration: number;
-}
-
-export type BackfillResult = ApiResult<BackfillTokenResultData>;
 
 export interface VipUser {
   user_id: string;
@@ -160,20 +134,6 @@ export interface ETLJobResultData {
 }
 
 export type ETLJobResult = ApiResult<ETLJobResultData>;
-
-export interface SingleSourceWebhookPayload {
-  source: DataSource;
-  filters?: ETLFilters;
-}
-
-export interface MultiSourceWebhookPayload {
-  sources: DataSource[];
-  filters?: ETLFilters;
-}
-
-export type WebhookPayload =
-  | SingleSourceWebhookPayload
-  | MultiSourceWebhookPayload;
 
 export interface ETLFilters {
   chains?: string[] | undefined;

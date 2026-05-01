@@ -13,7 +13,7 @@ const filtersSchema = z.object({
   minTvl: z.number().positive().optional(),
 });
 
-const tokenConfigSchema = z.object({
+export const tokenConfigSchema = z.object({
   tokenId: z.string().min(1),
   tokenSymbol: z.string().min(1).max(10),
   daysBack: z.number().positive().max(365).optional(),
@@ -63,7 +63,6 @@ function getTaskSources(tasks: ETLJobTask[]): DataSource[] {
 
 export const webhookPayloadSchema = z
   .object({
-    trigger: z.unknown().optional(),
     source: dataSourceEnum.optional(),
     sources: z.array(dataSourceEnum).min(1).optional(),
     tasks: z.array(jobTaskSchema).min(1).optional(),
@@ -102,17 +101,10 @@ export const webhookPayloadSchema = z
     };
   });
 
-export const walletFetchSchema = z
-  .object({
-    userId: z.string().uuid(),
-    walletAddress: z.string().refine(isWalletAddress, {
-      message: 'Invalid Ethereum wallet address',
-    }),
-    trigger: z.unknown().optional(),
-    secret: z.string().optional(),
-  })
-  .transform((data) => ({
-    userId: data.userId,
-    walletAddress: data.walletAddress,
-    secret: data.secret,
-  }));
+export const walletFetchSchema = z.object({
+  userId: z.string().uuid(),
+  walletAddress: z.string().refine(isWalletAddress, {
+    message: 'Invalid Ethereum wallet address',
+  }),
+  secret: z.string().optional(),
+});
