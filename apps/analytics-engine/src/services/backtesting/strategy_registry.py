@@ -48,6 +48,10 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
 )
+from src.services.backtesting.strategies.hierarchical_minimum import (
+    MINIMUM_HIERARCHICAL_VARIANTS,
+    HierarchicalMinimumStrategy,
+)
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     DmaFgiAdaptiveBinaryEthBtcStrategy,
@@ -408,6 +412,64 @@ def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
     )
 
 
+def _build_hierarchical_minimum_strategy(
+    request: StrategyBuildRequest,
+    *,
+    variant_id: str,
+) -> BaseStrategy:
+    params = HierarchicalPairRotationParams.from_public_params(request.params)
+    variant = MINIMUM_HIERARCHICAL_VARIANTS[variant_id]
+    strategy_id = request.resolved_config_id or variant_id
+    return HierarchicalMinimumStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        canonical_strategy_id=variant_id,
+        initial_asset_allocation=_build_initial_hierarchical_asset_allocation(request),
+        outer_policy=variant.outer_policy,
+    )
+
+
+def _make_hierarchical_minimum_builder(variant_id: str) -> StrategyBuilder:
+    def _builder(request: StrategyBuildRequest) -> BaseStrategy:
+        return _build_hierarchical_minimum_strategy(
+            request,
+            variant_id=variant_id,
+        )
+
+    return _builder
+
+
+def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
+    variant = MINIMUM_HIERARCHICAL_VARIANTS[strategy_id]
+    return StrategyRecipe(
+        strategy_id=strategy_id,
+        display_name=variant.display_name,
+        description=variant.description,
+        signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset(
+                {
+                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+                    SPY_AUX_SERIES,
+                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+                }
+            ),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
+        build_strategy=_make_hierarchical_minimum_builder(strategy_id),
+        supports_daily_suggestion=False,
+    )
+
+
 _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_DCA_CLASSIC: StrategyRecipe(
         strategy_id=STRATEGY_DCA_CLASSIC,
@@ -521,6 +583,10 @@ _RECIPES: dict[str, StrategyRecipe] = {
     **{
         strategy_id: _build_hierarchical_attribution_recipe(strategy_id)
         for strategy_id in HIERARCHICAL_ATTRIBUTION_VARIANTS
+    },
+    **{
+        strategy_id: _build_hierarchical_minimum_recipe(strategy_id)
+        for strategy_id in MINIMUM_HIERARCHICAL_VARIANTS
     },
     STRATEGY_SPY_ETH_BTC_ROTATION: StrategyRecipe(
         strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,

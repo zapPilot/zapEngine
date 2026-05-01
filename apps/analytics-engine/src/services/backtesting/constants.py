@@ -77,6 +77,16 @@ STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY = (
     "dma_fgi_hierarchical_fear_recovery_only"
 )
 STRATEGY_DMA_FGI_HIERARCHICAL_PROD = "dma_fgi_hierarchical_prod"
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION = (
+    "dma_fgi_hierarchical_minimum_minus_greed_suppression"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR = (
+    "dma_fgi_hierarchical_minimum_minus_buy_floor"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING = (
+    "dma_fgi_hierarchical_minimum_minus_dma_gating"
+)
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
@@ -142,6 +152,16 @@ STRATEGY_DISPLAY_NAMES = {
         "13% Hierarchical Fear Recovery Only"
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "34% Hierarchical Production",
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION: (
+        "Hierarchical Minimum - Greed Sell Suppression"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_BUY_FLOOR: (
+        "Hierarchical Minimum - Buy Floor"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING: (
+        "Hierarchical Minimum - DMA Gating"
+    ),
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

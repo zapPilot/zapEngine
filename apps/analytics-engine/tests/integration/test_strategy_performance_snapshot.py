@@ -12,6 +12,8 @@ from scripts.attribution.sweep_production_window import (
 )
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
 )
 
@@ -84,6 +86,24 @@ def test_production_not_worse_than_ablations() -> None:
         f"{best_ablation_key} ({best_ablation:.2f}%). This is a feature-interaction "
         "bug: the full feature stack regresses against single-feature removal."
     )
+
+
+def test_hierarchical_minimum_does_not_regress_against_nodma_full_minus_spy_latch() -> (
+    None
+):
+    """The minimum stack should preserve NoDMA/full-minus-SPY-latch performance."""
+    snapshot = load_snapshot()
+    minimum = _strategy_metrics(
+        snapshot,
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    )
+    nodma_without_spy_latch = _strategy_metrics(
+        snapshot,
+        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
+    )
+
+    assert minimum["roi_percent"] >= nodma_without_spy_latch["roi_percent"] - 3.0
+    assert minimum["calmar_ratio"] >= 4.0
 
 
 def test_every_registered_strategy_has_snapshot_entry() -> None:

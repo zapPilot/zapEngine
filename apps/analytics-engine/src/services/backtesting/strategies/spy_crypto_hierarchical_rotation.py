@@ -50,6 +50,12 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
     CURRENT_DMA_BUY_STRENGTH_FLOOR,
     FULL_DISABLED_RULES,
 )
+from src.services.backtesting.strategies.hierarchical_outer_policy import (
+    FullFeaturedOuterPolicy,
+    HierarchicalOuterDecisionPolicy,
+    HierarchicalOuterSnapshot,
+    is_spy_latch_expired,
+)
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     PairRotationTemplateDecisionPolicy,
@@ -94,8 +100,8 @@ SPY_CRYPTO_TEMPLATE = PairRotationTemplateSpec(
     above_dma_left_share_in_risk_on=1.0,
 )
 
-OUTER_CROSS_UP_FOLLOW_THROUGH_DAYS = 14
 _CRYPTO_DMA_REFERENCE_BTC = "BTC"
+OUTER_CROSS_UP_FOLLOW_THROUGH_DAYS = 14
 _CRYPTO_DMA_REFERENCE_ETH = "ETH"
 _CRYPTO_REFERENCE_ETH_UPPER_THRESHOLD = 0.55
 _CRYPTO_REFERENCE_ETH_LOWER_THRESHOLD = 0.45
@@ -390,7 +396,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             self._spy_latch_active = False
             self._spy_latch_activated_on = None
             return
-        if _is_spy_latch_expired(
+        if is_spy_latch_expired(
             current_date=current_date,
             activated_on=self._spy_latch_activated_on,
         ):
@@ -492,10 +498,8 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
 class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
     decision_policy_id: str = "hierarchical_spy_crypto_policy"
     rotation_drift_threshold: float = 0.03
-    _outer_dma_policy: DmaGatedFgiDecisionPolicy = field(
-        default_factory=lambda: DmaGatedFgiDecisionPolicy(
-            disabled_rules=FULL_DISABLED_RULES
-        )
+    outer_policy: HierarchicalOuterDecisionPolicy = field(
+        default_factory=FullFeaturedOuterPolicy
     )
     _inner_policy: PairRotationTemplateDecisionPolicy = field(
         default_factory=lambda: PairRotationTemplateDecisionPolicy(
@@ -504,10 +508,11 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
     )
 
     def decide(self, snapshot: HierarchicalPairRotationState) -> AllocationIntent:
-        outer_intent, outer_target = _resolve_dual_dma_outer_decision(
-            snapshot=snapshot,
-            dma_policy=self._outer_dma_policy,
-            rotation_drift_threshold=self.rotation_drift_threshold,
+        outer_snapshot = _build_outer_snapshot(snapshot)
+        outer_intent = self.outer_policy.decide(outer_snapshot)
+        outer_target = (
+            outer_intent.target_allocation
+            or snapshot.outer_state.current_asset_allocation
         )
         inner_intent = self._inner_policy.decide(snapshot.inner_state)
         inner_target = (
@@ -517,10 +522,25 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
         target_allocation = _compose_hierarchical_target(
             outer_target=outer_target,
             inner_target=inner_target,
-            spy_latch_active=snapshot.spy_latch_active,
+            spy_latch_active=False,
             pre_existing_stable_share=float(
                 snapshot.current_asset_allocation.get("stable", 0.0)
             ),
+        )
+        target_adjustment_intent = self.outer_policy.apply_post_intent_adjustments(
+            intent=AllocationIntent(
+                action="hold",
+                target_allocation=target_allocation,
+                allocation_name=None,
+                immediate=False,
+                reason="hierarchical_target_adjustment",
+                rule_group="none",
+                decision_score=0.0,
+            ),
+            snapshot=outer_snapshot,
+        )
+        target_allocation = (
+            target_adjustment_intent.target_allocation or target_allocation
         )
         selected_intent = _select_intent_metadata(
             outer_intent=outer_intent,
@@ -582,6 +602,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
     outer_disabled_rules: frozenset[str] = FULL_DISABLED_RULES
     inner_disabled_rules: frozenset[str] = frozenset()
     dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
+    outer_policy: HierarchicalOuterDecisionPolicy | None = None
 
     def __post_init__(self) -> None:
         if self.signal_id != SPY_CRYPTO_TEMPLATE.signal_id:
@@ -592,20 +613,33 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
             else HierarchicalPairRotationParams.from_public_params(self.params)
         )
         self.params = resolved_params
+        resolved_outer_policy = self.outer_policy or FullFeaturedOuterPolicy(
+            adaptive_crypto_dma_reference=self.adaptive_crypto_dma_reference,
+            spy_cross_up_latch=self.spy_cross_up_latch,
+            disabled_rules=self.outer_disabled_rules,
+            dma_buy_strength_floor=self.dma_buy_strength_floor,
+            rotation_drift_threshold=resolved_params.rotation_drift_threshold,
+            dma_overextension_threshold=resolved_params.dma_overextension_threshold,
+            fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
+            fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
+        )
+        self.outer_policy = resolved_outer_policy
+        if isinstance(resolved_outer_policy, FullFeaturedOuterPolicy):
+            self.adaptive_crypto_dma_reference = (
+                resolved_outer_policy.adaptive_crypto_dma_reference
+            )
+            self.spy_cross_up_latch = resolved_outer_policy.spy_cross_up_latch
+            self.outer_disabled_rules = resolved_outer_policy.disabled_rules
+            self.dma_buy_strength_floor = resolved_outer_policy.dma_buy_strength_floor
         self.signal_component = HierarchicalPairRotationSignalComponent(
             params=resolved_params,
             adaptive_crypto_dma_reference=self.adaptive_crypto_dma_reference,
             spy_cross_up_latch_enabled=self.spy_cross_up_latch,
-            dma_buy_strength_floor=self.dma_buy_strength_floor,
+            dma_buy_strength_floor=resolved_outer_policy.dma_buy_strength_floor,
         )
         self.decision_policy = HierarchicalPairRotationDecisionPolicy(
             rotation_drift_threshold=resolved_params.rotation_drift_threshold,
-            _outer_dma_policy=DmaGatedFgiDecisionPolicy(
-                dma_overextension_threshold=resolved_params.dma_overextension_threshold,
-                fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
-                fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
-                disabled_rules=self.outer_disabled_rules,
-            ),
+            outer_policy=resolved_outer_policy,
             _inner_policy=PairRotationTemplateDecisionPolicy(
                 template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
                 rotation_drift_threshold=resolved_params.rotation_drift_threshold,
@@ -644,6 +678,22 @@ def _build_outer_unit_dma_context(
         return None
     new_extra = {**context.extra_data, DMA_200_FEATURE: float(dma_value)}
     return replace(context, price=float(price), extra_data=new_extra)
+
+
+def _build_outer_snapshot(
+    snapshot: HierarchicalPairRotationState,
+) -> HierarchicalOuterSnapshot:
+    return HierarchicalOuterSnapshot(
+        template=SPY_CRYPTO_TEMPLATE,
+        outer_state=snapshot.outer_state,
+        spy_dma_state=snapshot.spy_dma_state,
+        crypto_dma_state=snapshot.crypto_dma_state,
+        crypto_dma_reference_asset=snapshot.crypto_dma_reference_asset,
+        spy_latch_active=snapshot.spy_latch_active,
+        pre_existing_stable_share=float(
+            snapshot.current_asset_allocation.get("stable", 0.0)
+        ),
+    )
 
 
 def _observe_optional_dma_state(

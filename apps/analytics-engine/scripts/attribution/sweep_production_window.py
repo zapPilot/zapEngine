@@ -26,6 +26,9 @@ from src.services.backtesting.strategies.eth_btc_attribution import (
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
 )
+from src.services.backtesting.strategies.hierarchical_minimum import (
+    MINIMUM_HIERARCHICAL_VARIANTS,
+)
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
@@ -81,6 +84,7 @@ def _default_strategy_universe() -> list[str]:
     seen: set[str] = set()
     for strategy_id in (
         *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
+        *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
         *ATTRIBUTION_VARIANTS.keys(),
         STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
         STRATEGY_ETH_BTC_ROTATION,
