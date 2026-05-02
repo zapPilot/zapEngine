@@ -315,7 +315,7 @@ export default function HeroLiquidMetalCanvas({
       radial.addColorStop(0, palette.high);
       radial.addColorStop(0.28, palette.base);
       radial.addColorStop(0.78, palette.low);
-      radial.addColorStop(1, '#0d0d0e');
+      radial.addColorStop(1, palette.low);
       g.fillStyle = radial;
       g.beginPath();
       g.arc(center, center, s * 0.5, 0, Math.PI * 2);
@@ -325,7 +325,7 @@ export default function HeroLiquidMetalCanvas({
       sweep.addColorStop(0, 'rgba(255,255,255,0.00)');
       sweep.addColorStop(0.44, 'rgba(255,255,255,0.26)');
       sweep.addColorStop(0.51, 'rgba(255,255,255,0.04)');
-      sweep.addColorStop(1, 'rgba(0,0,0,0.18)');
+      sweep.addColorStop(1, 'rgba(0,0,0,0.06)');
       g.fillStyle = sweep;
       g.beginPath();
       g.arc(center, center, s * 0.48, 0, Math.PI * 2);

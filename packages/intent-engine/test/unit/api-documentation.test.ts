@@ -93,7 +93,7 @@ describe('API Documentation Consistency', () => {
 
   describe('Execution Layer API', () => {
     it('should export ExecutionStrategy type', () => {
-      expect(intentEngine.ExecutionStrategy).toBeDefined();
+      expect(intentEngine.ExecutionStrategyType).toBeDefined();
     });
   });
 });
