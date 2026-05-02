@@ -7,7 +7,10 @@ from dataclasses import dataclass, field
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
@@ -16,6 +19,9 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 from src.services.backtesting.strategies.hierarchical_outer_policy import (
     HierarchicalOuterDecisionPolicy,
     MinimumHierarchicalOuterPolicy,
+    MinimumHierarchicalOuterPolicyBelowDmaHold,
+    MinimumHierarchicalOuterPolicyCrossCooldown,
+    MinimumHierarchicalOuterPolicyDmaDisciplined,
     MinimumHierarchicalOuterPolicyDualAboveHold,
     MinimumHierarchicalOuterPolicyWithBuffer,
 )
@@ -97,6 +103,30 @@ MINIMUM_HIERARCHICAL_VARIANTS: dict[str, MinimumHierarchicalVariant] = {
             "both SPY and crypto are above DMA."
         ),
         outer_policy=MinimumHierarchicalOuterPolicyDualAboveHold(),
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN: _variant(
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
+        description=(
+            "Research variant for Phase D: suppress allocation increases during "
+            "the 30-day period after each asset's DMA cross-down."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicyCrossCooldown(),
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD: _variant(
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
+        description=(
+            "Research variant for Phase D: do not increase SPY, BTC, or ETH "
+            "while the asset is below its own DMA, except extreme-fear DCA."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicyBelowDmaHold(),
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED: _variant(
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
+        description=(
+            "Research variant for Phase D: combine cross-down cooldown and "
+            "below-DMA hold with the extreme-fear DCA carve-out."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicyDmaDisciplined(),
     ),
 }
 

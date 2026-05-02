@@ -146,6 +146,9 @@ class HierarchicalPairRotationState:
     spy_latch_active: bool
     spy_latch_activated_on: date | None
     current_asset_allocation: dict[str, float]
+    spy_days_since_cross_down: int | None
+    btc_days_since_cross_down: int | None
+    eth_days_since_cross_down: int | None
 
 
 @dataclass
@@ -175,6 +178,9 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         repr=False,
     )
     _spy_latch_active: bool = field(default=False, init=False, repr=False)
+    _last_spy_cross_down_on: date | None = field(default=None, init=False, repr=False)
+    _last_btc_cross_down_on: date | None = field(default=None, init=False, repr=False)
+    _last_eth_cross_down_on: date | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         config = self.params.build_signal_config()
@@ -227,6 +233,9 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         self._crypto_dma_reference_asset = _CRYPTO_DMA_REFERENCE_BTC
         self._spy_latch_activated_on = None
         self._spy_latch_active = False
+        self._last_spy_cross_down_on = None
+        self._last_btc_cross_down_on = None
+        self._last_eth_cross_down_on = None
 
     def initialize(self, context: StrategyContext) -> None:
         self._outer_signal.initialize(context)
@@ -295,6 +304,12 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             btc_dma_state=btc_dma_state,
             eth_dma_state=eth_dma_state,
         )
+        self._update_cross_down_dates(
+            current_date=context.date,
+            spy_dma_state=spy_dma_state,
+            btc_dma_state=btc_dma_state,
+            eth_dma_state=eth_dma_state,
+        )
         self._update_spy_latch(
             current_date=context.date,
             spy_dma_state=spy_dma_state,
@@ -315,6 +330,18 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             spy_latch_active=self._spy_latch_active,
             spy_latch_activated_on=self._spy_latch_activated_on,
             current_asset_allocation=target_from_current_allocation(raw_allocation),
+            spy_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_spy_cross_down_on,
+            ),
+            btc_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_btc_cross_down_on,
+            ),
+            eth_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_eth_cross_down_on,
+            ),
         )
 
     def apply_intent(
@@ -414,6 +441,33 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         ):
             self._spy_latch_active = False
             self._spy_latch_activated_on = None
+
+    def _update_cross_down_dates(
+        self,
+        *,
+        current_date: date,
+        spy_dma_state: DmaMarketState | None,
+        btc_dma_state: DmaMarketState | None,
+        eth_dma_state: DmaMarketState | None,
+    ) -> None:
+        if (
+            spy_dma_state is not None
+            and spy_dma_state.actionable_cross_event == "cross_down"
+            and spy_dma_state.cross_event == "cross_down"
+        ):
+            self._last_spy_cross_down_on = current_date
+        if (
+            btc_dma_state is not None
+            and btc_dma_state.actionable_cross_event == "cross_down"
+            and btc_dma_state.cross_event == "cross_down"
+        ):
+            self._last_btc_cross_down_on = current_date
+        if (
+            eth_dma_state is not None
+            and eth_dma_state.actionable_cross_event == "cross_down"
+            and eth_dma_state.cross_event == "cross_down"
+        ):
+            self._last_eth_cross_down_on = current_date
 
     def build_signal_observation(
         self,
@@ -536,12 +590,17 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
                 reason="hierarchical_target_adjustment",
                 rule_group="none",
                 decision_score=0.0,
+                diagnostics={
+                    "outer_reason": outer_intent.reason,
+                    "inner_reason": inner_intent.reason,
+                },
             ),
             snapshot=outer_snapshot,
         )
         target_allocation = (
             target_adjustment_intent.target_allocation or target_allocation
         )
+        target_adjustment_diagnostics = target_adjustment_intent.diagnostics or {}
         selected_intent = _select_intent_metadata(
             outer_intent=outer_intent,
             inner_intent=inner_intent,
@@ -562,6 +621,11 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             ),
             diagnostics={
                 **(selected_intent.diagnostics or {}),
+                **{
+                    key: value
+                    for key, value in target_adjustment_diagnostics.items()
+                    if key not in {"outer_reason", "inner_reason"}
+                },
                 "outer_reason": outer_intent.reason,
                 "inner_reason": inner_intent.reason,
                 "outer_ratio_zone": snapshot.outer_state.ratio_zone,
@@ -698,7 +762,19 @@ def _build_outer_snapshot(
         pre_existing_stable_share=float(
             snapshot.current_asset_allocation.get("stable", 0.0)
         ),
+        btc_dma_state=snapshot.btc_dma_state,
+        eth_dma_state=snapshot.eth_dma_state,
+        current_asset_allocation=snapshot.current_asset_allocation,
+        spy_days_since_cross_down=snapshot.spy_days_since_cross_down,
+        btc_days_since_cross_down=snapshot.btc_days_since_cross_down,
+        eth_days_since_cross_down=snapshot.eth_days_since_cross_down,
     )
+
+
+def _days_since(*, current_date: date, event_date: date | None) -> int | None:
+    if event_date is None:
+        return None
+    return max(0, (current_date - event_date).days)
 
 
 def _observe_optional_dma_state(

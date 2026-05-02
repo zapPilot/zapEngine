@@ -68,6 +68,30 @@
       "roi_percent": 107.694,
       "trade_count": 72
     },
+    "dma_fgi_hierarchical_minimum_cross_cooldown": {
+      "display_name": "[RESEARCH] Hierarchical Minimum - Cross Cooldown 30d",
+      "calmar_ratio": 4.3301,
+      "sharpe_ratio": 1.8457,
+      "max_drawdown_percent": -17.3266,
+      "roi_percent": 115.3497,
+      "trade_count": 73
+    },
+    "dma_fgi_hierarchical_minimum_below_dma_hold": {
+      "display_name": "[RESEARCH] Hierarchical Minimum - Below-DMA Hold",
+      "calmar_ratio": 2.9045,
+      "sharpe_ratio": 1.6333,
+      "max_drawdown_percent": -5.0474,
+      "roi_percent": 20.646,
+      "trade_count": 89
+    },
+    "dma_fgi_hierarchical_minimum_dma_disciplined": {
+      "display_name": "[RESEARCH] Hierarchical Minimum - DMA Disciplined",
+      "calmar_ratio": 2.6334,
+      "sharpe_ratio": 1.4629,
+      "max_drawdown_percent": -5.1397,
+      "roi_percent": 19.0273,
+      "trade_count": 88
+    },
     "dma_fgi_adaptive_binary_eth_btc": {
       "display_name": "126% DMA FGI Adaptive Binary ETH/BTC",
       "calmar_ratio": 4.6689,

@@ -33,6 +33,15 @@ STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER = (
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD = (
     "dma_fgi_hierarchical_minimum_dual_above_hold"
 )
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN = (
+    "dma_fgi_hierarchical_minimum_cross_cooldown"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD = (
+    "dma_fgi_hierarchical_minimum_below_dma_hold"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED = (
+    "dma_fgi_hierarchical_minimum_dma_disciplined"
+)
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
@@ -53,6 +62,15 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD: (
         "[RESEARCH] Hierarchical Minimum - Dual Above Hold"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN: (
+        "[RESEARCH] Hierarchical Minimum - Cross Cooldown 30d"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD: (
+        "[RESEARCH] Hierarchical Minimum - Below-DMA Hold"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED: (
+        "[RESEARCH] Hierarchical Minimum - DMA Disciplined"
     ),
 }
 

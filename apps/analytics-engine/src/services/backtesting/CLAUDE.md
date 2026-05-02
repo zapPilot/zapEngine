@@ -58,8 +58,12 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 | Fear Recovery Buy | `_only` = 14.28% ROI, Calmar 0.67 | Worst non-DCA strategy |
 | SPY Cross-Up Latch | -0.69pp in full; +3.86pp in NoDMA full | Noise; removed |
 | Buy Floor | +0.28pp Δ when removed (below noise) | Noise; removed at type level |
+| Cross-Down Cooldown | `_cross_cooldown` = 115.35% ROI (-6.09pp), 73 trades | Harmful as a broad outer/inner constraint |
+| Below-DMA Hold | `_below_dma_hold` = 20.65% ROI; `_dma_disciplined` = 19.03% ROI | Too blunt; confirmed the 2025-04-22 inner ETH allocation bug but destroyed profitable risk exposure |
 
 Signal/noise threshold: **|Δ| < 0.5pp** = noise; **0.5pp ≤ |Δ| < 2pp** = weak signal; **|Δ| ≥ 2pp** = actionable.
+
+Phase D note: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` is BTC 0.00%, ETH 90.48%, confirming an inner-pair below-DMA allocation bug; the broad below-DMA hold variants were not viable.
 
 ## Adding a new variant
 
@@ -137,7 +141,7 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
   --strategy-id dma_fgi_hierarchical_minimum
 ```
 
-> Note: `dma_fgi_hierarchical_minimum` intentionally fails `extreme_fear_dca_*` events (Fear Recovery Buy is excluded).
+> Note: `dma_fgi_hierarchical_minimum` and the Phase D research variants are expected to pass `extreme_fear_dca_*`; Fear Recovery Buy is a separate non-extreme-fear rule.
 
 ### Diagnosis (SPY tax)
 

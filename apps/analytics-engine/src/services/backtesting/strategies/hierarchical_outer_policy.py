@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, Protocol
 
@@ -47,6 +47,12 @@ class HierarchicalOuterSnapshot:
     crypto_dma_reference_asset: str
     spy_latch_active: bool
     pre_existing_stable_share: float
+    btc_dma_state: DmaMarketState | None = None
+    eth_dma_state: DmaMarketState | None = None
+    current_asset_allocation: dict[str, float] = field(default_factory=dict)
+    spy_days_since_cross_down: int | None = None
+    btc_days_since_cross_down: int | None = None
+    eth_days_since_cross_down: int | None = None
 
 
 class HierarchicalOuterDecisionPolicy(Protocol):
@@ -224,6 +230,115 @@ class MinimumHierarchicalOuterPolicyDualAboveHold(MinimumHierarchicalOuterPolicy
                 "dma_stable_gating",
                 "greed_sell_suppression",
                 "dual_above_hold",
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class MinimumHierarchicalOuterPolicyCrossCooldown(MinimumHierarchicalOuterPolicy):
+    """Minimum policy that blocks increases during cross-down cooldowns."""
+
+    cooldown_days: int = 30
+
+    def apply_post_intent_adjustments(
+        self,
+        *,
+        intent: AllocationIntent,
+        snapshot: HierarchicalOuterSnapshot,
+    ) -> AllocationIntent:
+        adjusted = super().apply_post_intent_adjustments(
+            intent=intent,
+            snapshot=snapshot,
+        )
+        adjusted = _apply_cross_down_preservation(
+            intent=adjusted,
+            snapshot=snapshot,
+        )
+        return _apply_cross_down_cooldown_hold(
+            intent=adjusted,
+            snapshot=snapshot,
+            cooldown_days=self.cooldown_days,
+        )
+
+    def feature_summary(self) -> dict[str, Any]:
+        return {
+            "policy": "MinimumHierarchicalOuterPolicyCrossCooldown",
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                f"cross_down_cooldown={self.cooldown_days}d",
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class MinimumHierarchicalOuterPolicyBelowDmaHold(MinimumHierarchicalOuterPolicy):
+    """Minimum policy that blocks allocation increases below each asset DMA."""
+
+    def apply_post_intent_adjustments(
+        self,
+        *,
+        intent: AllocationIntent,
+        snapshot: HierarchicalOuterSnapshot,
+    ) -> AllocationIntent:
+        adjusted = super().apply_post_intent_adjustments(
+            intent=intent,
+            snapshot=snapshot,
+        )
+        adjusted = _apply_cross_down_preservation(
+            intent=adjusted,
+            snapshot=snapshot,
+        )
+        return _apply_below_dma_hold(intent=adjusted, snapshot=snapshot)
+
+    def feature_summary(self) -> dict[str, Any]:
+        return {
+            "policy": "MinimumHierarchicalOuterPolicyBelowDmaHold",
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                "below_dma_hold",
+                "extreme_fear_dca_carve_out",
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class MinimumHierarchicalOuterPolicyDmaDisciplined(MinimumHierarchicalOuterPolicy):
+    """Minimum policy with cooldown and below-DMA increase discipline."""
+
+    cooldown_days: int = 30
+
+    def apply_post_intent_adjustments(
+        self,
+        *,
+        intent: AllocationIntent,
+        snapshot: HierarchicalOuterSnapshot,
+    ) -> AllocationIntent:
+        adjusted = super().apply_post_intent_adjustments(
+            intent=intent,
+            snapshot=snapshot,
+        )
+        adjusted = _apply_cross_down_preservation(
+            intent=adjusted,
+            snapshot=snapshot,
+        )
+        adjusted = _apply_cross_down_cooldown_hold(
+            intent=adjusted,
+            snapshot=snapshot,
+            cooldown_days=self.cooldown_days,
+        )
+        return _apply_below_dma_hold(intent=adjusted, snapshot=snapshot)
+
+    def feature_summary(self) -> dict[str, Any]:
+        return {
+            "policy": "MinimumHierarchicalOuterPolicyDmaDisciplined",
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                f"cross_down_cooldown={self.cooldown_days}d",
+                "below_dma_hold",
+                "extreme_fear_dca_carve_out",
             ],
         }
 
@@ -416,6 +531,299 @@ def _should_hold_dual_above(snapshot: HierarchicalOuterSnapshot) -> bool:
     return (
         _outer_unit_share(current_allocation, snapshot.template.left_unit) > 0.0
         or _outer_unit_share(current_allocation, snapshot.template.right_unit) > 0.0
+    )
+
+
+def _apply_cross_down_cooldown_hold(
+    *,
+    intent: AllocationIntent,
+    snapshot: HierarchicalOuterSnapshot,
+    cooldown_days: int,
+) -> AllocationIntent:
+    if intent.target_allocation is None or cooldown_days <= 0:
+        return intent
+    current = _current_asset_allocation(snapshot)
+    target = normalize_target_allocation(intent.target_allocation)
+    adjustments: list[str] = []
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.left_unit,
+        should_cap=_within_cross_down_cooldown(
+            dma_state=snapshot.spy_dma_state,
+            days_since_cross_down=snapshot.spy_days_since_cross_down,
+            cooldown_days=cooldown_days,
+        ),
+        adjustments=adjustments,
+        label="spy_cross_down_cooldown",
+    )
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.right_unit,
+        should_cap=_within_cross_down_cooldown(
+            dma_state=snapshot.crypto_dma_state,
+            days_since_cross_down=_crypto_days_since_cross_down(snapshot),
+            cooldown_days=cooldown_days,
+        ),
+        adjustments=adjustments,
+        label="crypto_cross_down_cooldown",
+    )
+    target = _cap_inner_asset_increase(
+        target_allocation=target,
+        current_allocation=current,
+        asset="btc",
+        peer_asset="eth",
+        should_cap=_within_cross_down_cooldown(
+            dma_state=snapshot.btc_dma_state,
+            days_since_cross_down=snapshot.btc_days_since_cross_down,
+            cooldown_days=cooldown_days,
+        ),
+        peer_can_receive=not _within_cross_down_cooldown(
+            dma_state=snapshot.eth_dma_state,
+            days_since_cross_down=snapshot.eth_days_since_cross_down,
+            cooldown_days=cooldown_days,
+        ),
+        adjustments=adjustments,
+        label="btc_cross_down_cooldown",
+    )
+    target = _cap_inner_asset_increase(
+        target_allocation=target,
+        current_allocation=current,
+        asset="eth",
+        peer_asset="btc",
+        should_cap=_within_cross_down_cooldown(
+            dma_state=snapshot.eth_dma_state,
+            days_since_cross_down=snapshot.eth_days_since_cross_down,
+            cooldown_days=cooldown_days,
+        ),
+        peer_can_receive=not _within_cross_down_cooldown(
+            dma_state=snapshot.btc_dma_state,
+            days_since_cross_down=snapshot.btc_days_since_cross_down,
+            cooldown_days=cooldown_days,
+        ),
+        adjustments=adjustments,
+        label="eth_cross_down_cooldown",
+    )
+    return _with_post_adjustment_diagnostics(
+        intent=intent,
+        target_allocation=target,
+        adjustments=adjustments,
+    )
+
+
+def _apply_cross_down_preservation(
+    *,
+    intent: AllocationIntent,
+    snapshot: HierarchicalOuterSnapshot,
+) -> AllocationIntent:
+    if intent.target_allocation is None or not _reason_mentions(
+        intent,
+        "dma_cross_down",
+    ):
+        return intent
+    current = _current_asset_allocation(snapshot)
+    target = normalize_target_allocation(intent.target_allocation)
+    adjustments: list[str] = []
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.left_unit,
+        should_cap=True,
+        adjustments=adjustments,
+        label="cross_down_preserve_spy",
+    )
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.right_unit,
+        should_cap=True,
+        adjustments=adjustments,
+        label="cross_down_preserve_crypto",
+    )
+    return _with_post_adjustment_diagnostics(
+        intent=intent,
+        target_allocation=target,
+        adjustments=adjustments,
+    )
+
+
+def _apply_below_dma_hold(
+    *,
+    intent: AllocationIntent,
+    snapshot: HierarchicalOuterSnapshot,
+) -> AllocationIntent:
+    if intent.target_allocation is None or _is_extreme_fear_dca_intent(intent):
+        return intent
+    current = _current_asset_allocation(snapshot)
+    target = normalize_target_allocation(intent.target_allocation)
+    adjustments: list[str] = []
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.left_unit,
+        should_cap=_is_below_dma(snapshot.spy_dma_state),
+        adjustments=adjustments,
+        label="spy_below_dma_hold",
+    )
+    target = _cap_outer_unit_increase_to_stable(
+        target_allocation=target,
+        current_allocation=current,
+        unit=snapshot.template.right_unit,
+        should_cap=_is_below_dma(snapshot.crypto_dma_state),
+        adjustments=adjustments,
+        label="crypto_below_dma_hold",
+    )
+    target = _cap_inner_asset_increase(
+        target_allocation=target,
+        current_allocation=current,
+        asset="btc",
+        peer_asset="eth",
+        should_cap=_is_below_dma(snapshot.btc_dma_state),
+        peer_can_receive=_is_above_dma(snapshot.eth_dma_state),
+        adjustments=adjustments,
+        label="btc_below_dma_hold",
+    )
+    target = _cap_inner_asset_increase(
+        target_allocation=target,
+        current_allocation=current,
+        asset="eth",
+        peer_asset="btc",
+        should_cap=_is_below_dma(snapshot.eth_dma_state),
+        peer_can_receive=_is_above_dma(snapshot.btc_dma_state),
+        adjustments=adjustments,
+        label="eth_below_dma_hold",
+    )
+    return _with_post_adjustment_diagnostics(
+        intent=intent,
+        target_allocation=target,
+        adjustments=adjustments,
+    )
+
+
+def _current_asset_allocation(
+    snapshot: HierarchicalOuterSnapshot,
+) -> dict[str, float]:
+    if snapshot.current_asset_allocation:
+        return target_from_current_allocation(snapshot.current_asset_allocation)
+    return target_from_current_allocation(snapshot.outer_state.current_asset_allocation)
+
+
+def _is_below_dma(dma_state: DmaMarketState | None) -> bool:
+    return dma_state is not None and dma_state.zone == "below"
+
+
+def _is_above_dma(dma_state: DmaMarketState | None) -> bool:
+    return dma_state is not None and dma_state.zone == "above"
+
+
+def _crypto_days_since_cross_down(snapshot: HierarchicalOuterSnapshot) -> int | None:
+    if snapshot.crypto_dma_reference_asset == "ETH":
+        return snapshot.eth_days_since_cross_down
+    return snapshot.btc_days_since_cross_down
+
+
+def _within_cross_down_cooldown(
+    *,
+    dma_state: DmaMarketState | None,
+    days_since_cross_down: int | None,
+    cooldown_days: int,
+) -> bool:
+    if days_since_cross_down is not None:
+        return 0 <= days_since_cross_down < cooldown_days
+    return (
+        dma_state is not None
+        and dma_state.cooldown_state.active
+        and dma_state.cooldown_state.blocked_zone == "above"
+    )
+
+
+def _cap_outer_unit_increase_to_stable(
+    *,
+    target_allocation: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    unit: PairRotationUnit,
+    should_cap: bool,
+    adjustments: list[str],
+    label: str,
+) -> dict[str, float]:
+    target = normalize_target_allocation(target_allocation)
+    if not should_cap:
+        return target
+    target_share = _outer_unit_share(target, unit)
+    current_share = _outer_unit_share(current_allocation, unit)
+    excess = target_share - current_share
+    if excess <= 1e-9:
+        return target
+    if target_share <= 0.0:
+        return target
+    scale = max(0.0, current_share) / target_share
+    for key in unit.aggregate_allocation_keys():
+        target[key] = max(0.0, float(target.get(key, 0.0))) * scale
+    target["stable"] = max(0.0, float(target.get("stable", 0.0))) + excess
+    adjustments.append(label)
+    return normalize_target_allocation(target)
+
+
+def _cap_inner_asset_increase(
+    *,
+    target_allocation: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    asset: str,
+    peer_asset: str,
+    should_cap: bool,
+    peer_can_receive: bool,
+    adjustments: list[str],
+    label: str,
+) -> dict[str, float]:
+    target = normalize_target_allocation(target_allocation)
+    if not should_cap:
+        return target
+    target_share = max(0.0, float(target.get(asset, 0.0)))
+    current_share = max(0.0, float(current_allocation.get(asset, 0.0)))
+    excess = target_share - current_share
+    if excess <= 1e-9:
+        return target
+    target[asset] = current_share
+    destination = peer_asset if peer_can_receive else "stable"
+    target[destination] = max(0.0, float(target.get(destination, 0.0))) + excess
+    adjustments.append(label)
+    return normalize_target_allocation(target)
+
+
+def _is_extreme_fear_dca_intent(intent: AllocationIntent) -> bool:
+    return _reason_mentions(intent, "below_extreme_fear_buy")
+
+
+def _reason_mentions(intent: AllocationIntent, expected_reason: str) -> bool:
+    reasons = {intent.reason}
+    diagnostics = intent.diagnostics or {}
+    for key in ("outer_reason", "inner_reason"):
+        value = diagnostics.get(key)
+        if isinstance(value, str):
+            reasons.add(value)
+    return any(expected_reason in reason for reason in reasons)
+
+
+def _with_post_adjustment_diagnostics(
+    *,
+    intent: AllocationIntent,
+    target_allocation: Mapping[str, float],
+    adjustments: list[str],
+) -> AllocationIntent:
+    if not adjustments:
+        return intent
+    diagnostics = dict(intent.diagnostics or {})
+    existing = diagnostics.get("post_intent_adjustments")
+    existing_adjustments = existing if isinstance(existing, list) else []
+    diagnostics["post_intent_adjustments"] = [
+        *existing_adjustments,
+        *adjustments,
+    ]
+    return replace(
+        intent,
+        target_allocation=normalize_target_allocation(target_allocation),
+        diagnostics=diagnostics,
     )
 
 
@@ -656,6 +1064,9 @@ __all__ = [
     "FullFeaturedOuterPolicy",
     "HierarchicalOuterDecisionPolicy",
     "HierarchicalOuterSnapshot",
+    "MinimumHierarchicalOuterPolicyBelowDmaHold",
+    "MinimumHierarchicalOuterPolicyCrossCooldown",
+    "MinimumHierarchicalOuterPolicyDmaDisciplined",
     "MinimumHierarchicalOuterPolicyDualAboveHold",
     "MinimumHierarchicalOuterPolicyWithBuffer",
     "MinimumHierarchicalOuterPolicy",

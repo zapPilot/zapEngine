@@ -14,7 +14,10 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
 )
@@ -28,6 +31,9 @@ VALIDATION_STRATEGY_IDS = (
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
 )
@@ -596,7 +602,7 @@ def _evaluate_assertion(
         )
     if assertion_type == "target_spy_not_increased_from_previous":
         return _assert_asset_vs_previous(
-            assertion={"asset": "spy"},
+            assertion={**assertion, "asset": "spy"},
             point=event_point,
             previous_point=previous_point,
             strategy_id=strategy_id,
@@ -604,7 +610,7 @@ def _evaluate_assertion(
         )
     if assertion_type == "target_spy_not_greater_than_current":
         return _assert_asset_vs_current(
-            assertion={"asset": "spy"},
+            assertion={**assertion, "asset": "spy"},
             point=event_point,
             strategy_id=strategy_id,
             comparator="not_greater_than",
@@ -713,6 +719,7 @@ def _assert_asset_vs_previous(
         actual=actual,
         previous=previous,
         comparator=comparator,
+        tolerance=_assertion_tolerance(assertion),
     )
 
 
@@ -733,6 +740,7 @@ def _assert_asset_vs_current(
         previous=current,
         comparator=comparator,
         previous_label="current",
+        tolerance=_assertion_tolerance(assertion),
     )
 
 
@@ -886,8 +894,14 @@ def _compare_current_to_previous(
     previous: float,
     comparator: str,
     previous_label: str = "previous",
+    tolerance: float = EPSILON,
 ) -> str | None:
-    if _comparison_passes(actual=actual, previous=previous, comparator=comparator):
+    if _comparison_passes(
+        actual=actual,
+        previous=previous,
+        comparator=comparator,
+        tolerance=tolerance,
+    ):
         return None
     symbol = {
         "greater_than": ">",
@@ -900,14 +914,27 @@ def _compare_current_to_previous(
     )
 
 
-def _comparison_passes(*, actual: float, previous: float, comparator: str) -> bool:
+def _comparison_passes(
+    *,
+    actual: float,
+    previous: float,
+    comparator: str,
+    tolerance: float = EPSILON,
+) -> bool:
     if comparator == "greater_than":
-        return actual > previous + EPSILON
+        return actual > previous + tolerance
     if comparator == "less_than":
-        return actual < previous - EPSILON
+        return actual < previous - tolerance
     if comparator == "not_greater_than":
-        return actual <= previous + EPSILON
+        return actual <= previous + tolerance
     raise ValueError(f"Unsupported comparator: {comparator}")
+
+
+def _assertion_tolerance(assertion: Mapping[str, Any]) -> float:
+    raw = assertion.get("tolerance")
+    if isinstance(raw, int | float):
+        return float(raw)
+    return EPSILON
 
 
 def _asset_from_assertion(assertion: Mapping[str, Any]) -> str:

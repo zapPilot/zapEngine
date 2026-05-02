@@ -7,6 +7,22 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-02 - SPY tax fix attempt: DMA-discipline variants (Phase D)
+- **Commit**: this commit (DMA cooldown/below-DMA research variants + sweep)
+- **D-1 finding**: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` is BTC 0.00%, ETH 90.48%, SPY 9.52%, stable 0.00%; inner-pair fix needed yes.
+- **Variants**:
+  - `dma_fgi_hierarchical_minimum_cross_cooldown`: 30-day actionable cross-down cooldown for SPY/BTC/ETH allocation increases.
+  - `dma_fgi_hierarchical_minimum_below_dma_hold`: no allocation increase while SPY/BTC/ETH is below its own DMA, with extreme-fear DCA carve-out.
+  - `dma_fgi_hierarchical_minimum_dma_disciplined`: both constraints together.
+- **Results vs `dma_fgi_hierarchical_minimum` baseline (121.44% ROI, 85 trades)**:
+  - `_cross_cooldown`: ROI 115.35%, delta -6.09pp, trades 73 (delta -12)
+  - `_below_dma_hold`: ROI 20.65%, delta -100.79pp, trades 89 (delta +4)
+  - `_dma_disciplined`: ROI 19.03%, delta -102.41pp, trades 88 (delta +3)
+- **Validation events**: `validate_hierarchical_events.py --all-strategies` passes; `extreme_fear_dca_*` remain pass for all new variants. The BTC cross-down SPY-preservation assertion now allows a 1e-5 numeric tolerance for share-level normalization noise.
+- **Diagnostic**: combined variant reduces divergence events from 27 to 18, but destroys profitable risk exposure; remaining pattern verdict is S1.
+- **Verdict**: no fix. The constraints are too blunt; below-DMA hold converts the confirmed 2025-04-22 inner-pair bug into a broad risk-off drag rather than closing the 23.84pp SPY-tax gap.
+- **Next**: Phase E should isolate the inner BTC/ETH DMA correctness gap without applying outer below-DMA hold globally; also revisit a direct S2 composition constraint or ETH max-down logic separately.
+
 ### 2026-05-02 - SPY tax fix attempt: S1/S4 targeted variants
 - **Commit**: this commit (targeted S1/S4 research variants + sweep)
 - **Variants**:
