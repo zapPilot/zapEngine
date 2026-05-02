@@ -14,7 +14,7 @@ export function Protocols() {
           subtitle={MESSAGES.protocols.subtitle}
         />
 
-        <CardGrid columns={3}>
+        <CardGrid columns={4}>
           {MESSAGES.protocols.items.map((protocol, index) => (
             <a
               key={protocol.name}

@@ -80,7 +80,7 @@ export function Hero() {
               whileTap={{ scale: 0.98 }}
               onClick={() =>
                 document
-                  .getElementById('protocols')
+                  .getElementById('backtest')
                   ?.scrollIntoView({ behavior: 'smooth' })
               }
             >

@@ -5,9 +5,8 @@ export const LINKS = {
   // Telegram bot is not live yet. CTA labels say "(Coming Soon)" so users know.
   // Once the bot ships, replace this handle and drop the "(Coming Soon)" suffix in messages.ts.
   telegramBot: 'https://t.me/zap_pilot_bot',
-  // Dedicated backtests page does not exist yet; route to the top-level docs
-  // site until `content/docs/strategy/backtests.mdx` is published.
-  strategyBacktests: 'https://docs.zap-pilot.org/',
+  // Dedicated backtests page does not exist yet; route to the docs backtest section.
+  strategyBacktests: '/docs#backtest',
 
   // Documentation and resources
   documentation: 'https://docs.zap-pilot.org/',

@@ -16,16 +16,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Zap Pilot - Landing Page',
+  title: 'Zap Pilot — Disciplined 3-Pillar Portfolio Autopilot',
   description:
-    'Zap Pilot is a DeFi intent-based execution engine that transforms user intent into automated, cross-chain investment actions — all in one click, with funds always staying in their own wallet.',
+    'Zap Pilot rebalances S&P500 (Ondo), BTC/ETH, and stablecoins by macro regime — buy in fear, defend in greed. 100% self-custody: we deliver the bundle, you sign it.',
   keywords:
-    'DeFi, intent-based execution, cross-chain, cryptocurrency, blockchain, yield farming, vault strategies',
+    'tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
   authors: [{ name: 'Zap Pilot Team' }],
   openGraph: {
-    title: 'Zap Pilot - Landing Page',
+    title: 'Zap Pilot — Disciplined 3-Pillar Portfolio Autopilot',
     description:
-      'Transform your investment intent into automated, cross-chain actions — all in one click.',
+      'Zap Pilot rebalances S&P500 (Ondo), BTC/ETH, and stablecoins by macro regime — buy in fear, defend in greed. 100% self-custody: we deliver the bundle, you sign it.',
     url: 'https://zap-pilot.org',
     siteName: 'Zap Pilot',
     images: [
@@ -41,9 +41,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zap Pilot - Landing Page',
+    title: 'Zap Pilot — Disciplined 3-Pillar Portfolio Autopilot',
     description:
-      'Transform your investment intent into automated, cross-chain actions — all in one click.',
+      'Zap Pilot rebalances S&P500 (Ondo), BTC/ETH, and stablecoins by macro regime — buy in fear, defend in greed. 100% self-custody: we deliver the bundle, you sign it.',
     images: ['/zap-pilot-logo.svg'],
   },
   icons: {

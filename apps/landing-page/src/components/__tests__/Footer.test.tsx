@@ -135,7 +135,9 @@ describe('Footer', () => {
       render(<Footer />);
 
       expect(screen.getByText(/Built with/)).toBeInTheDocument();
-      expect(screen.getByText(/for DeFi/)).toBeInTheDocument();
+      expect(
+        screen.getByText(MESSAGES.footer.builtWith.suffix),
+      ).toBeInTheDocument();
     });
 
     it('should render heart emoji', () => {

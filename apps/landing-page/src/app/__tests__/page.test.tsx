@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import HomePage from '../page';
+import { MESSAGES } from '@/config/messages';
 
 vi.mock('@/components/AnimatedBackground', () => ({
   AnimatedBackground: () => <div data-testid="animated-background" />,
@@ -13,8 +14,8 @@ describe('HomePage', () => {
       const content = container.textContent || '';
 
       expect(content).toMatch(/Connect Telegram Bot/);
-      expect(content).toMatch(/Macro Indicators/);
-      expect(content).toMatch(/Regime-Driven/);
+      expect(content).toMatch(/Three Pillars/);
+      expect(content).toMatch(/Self-Custody/);
       expect(content).toMatch(/Execute/);
       expect(content).toMatch(/BlackRock/);
     });
@@ -71,7 +72,7 @@ describe('HomePage', () => {
       const content = container.textContent || '';
 
       const heroIndex = content.indexOf('Connect Telegram Bot');
-      const featuresIndex = content.indexOf('Macro Indicators');
+      const featuresIndex = content.indexOf(MESSAGES.features.items[0]!.title);
       expect(heroIndex).toBeLessThan(featuresIndex);
     });
   });

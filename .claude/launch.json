@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landing-page",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:landing"],
+      "port": 3000
+    }
+  ]
+}

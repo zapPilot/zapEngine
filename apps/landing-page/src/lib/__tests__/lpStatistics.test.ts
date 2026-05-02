@@ -51,8 +51,9 @@ describe('statistics', () => {
       expect(protocolsStat).toBeDefined();
       expect(protocolsStat?.type).toBe('icons');
       expect(protocolsStat?.icons?.map((icon) => icon.name)).toEqual([
-        'Morpho',
+        'Ondo',
         'GMX',
+        'Morpho',
         'Hyperliquid',
       ]);
     });

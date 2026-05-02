@@ -90,12 +90,12 @@ describe('Hero', () => {
       );
     });
 
-    it('should scroll to protocols section when secondary CTA is clicked', () => {
+    it('should scroll to backtest section when secondary CTA is clicked', () => {
       const mockScrollIntoView = vi.fn();
       const mockElement = { scrollIntoView: mockScrollIntoView };
-      vi.spyOn(document, 'getElementById').mockReturnValue(
-        mockElement as unknown as HTMLElement,
-      );
+      const getElementByIdSpy = vi
+        .spyOn(document, 'getElementById')
+        .mockReturnValue(mockElement as unknown as HTMLElement);
 
       render(<Hero />);
 
@@ -108,6 +108,7 @@ describe('Hero', () => {
         fireEvent.click(secondaryButton);
       }
 
+      expect(getElementByIdSpy).toHaveBeenCalledWith('backtest');
       expect(mockScrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
     });
   });

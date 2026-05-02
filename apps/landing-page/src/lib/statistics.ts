@@ -43,8 +43,9 @@ export const STATISTICS: Stat[] = [
     label: 'Integrated Protocols',
     type: 'icons',
     icons: [
-      { src: '/protocols/morpho.webp', alt: 'Morpho', name: 'Morpho' },
+      { src: '/protocols/ondo.webp', alt: 'Ondo', name: 'Ondo' },
       { src: '/protocols/gmx-v2.webp', alt: 'GMX v2', name: 'GMX' },
+      { src: '/protocols/morpho.webp', alt: 'Morpho', name: 'Morpho' },
       {
         src: '/protocols/hyperliquid.webp',
         alt: 'Hyperliquid',

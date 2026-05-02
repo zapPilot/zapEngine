@@ -24,28 +24,28 @@ export const MESSAGES = {
   slogans: {
     philosophy: 'Buy in fear. Defend in greed.',
     philosophyDescription:
-      'A rule-based, regime-aware strategy that allocates across BTC, ETH, and stables — executed from your own wallet in one bundled transaction.',
+      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet in one bundled transaction. ~90% of the return comes from the strategy itself, not from yield.',
   },
 
   // Hero section
   hero: {
-    badge: '🛰️ Vision',
+    badge: '🛰️ Disciplined Portfolio Autopilot',
     title: {
       primary: 'The Non-Custodial BlackRock in Your Wallet',
       line1: 'The Non-Custodial',
       line2: 'BlackRock in Your Wallet',
     },
     subtitle:
-      'Stop letting emotions ruin your investments. Zap Pilot brings BlackRock-grade asset allocation to your wallet — fully automated, always self-custodial.',
+      'Three pillars — S&P500, BTC/ETH, stablecoins — rebalanced by regime, not by emotion. Sell when markets are greedy, buy when they are fearful. 100% self-custody: we deliver the bundle, you sign it.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
-    ctaSecondary: 'Protocol Integrations',
+    ctaSecondary: 'See the Backtest',
   },
 
   // Regime Visualizer section (second screen)
   regimeVisualizer: {
-    title: 'Market Regimes & Logic',
+    title: 'Regime Signals, Not Emotion',
     subtitle:
-      'Using the 200-Day Moving Average (200MA), Fear & Greed Index (FGI), and ETH/BTC relative strength to identify market conditions and rebalance systematically.',
+      'Using the 200-Day Moving Average (200MA), Fear & Greed Index (FGI), and ETH/BTC relative strength to decide when the three-pillar portfolio should buy risk, defend in cash, or rotate inside crypto.',
     interactionHint: '👆 Explore each regime to see how we respond',
     errorMessage: 'Unable to load regime visualizer',
     errorRetry: 'Please refresh the page or try again later.',
@@ -56,33 +56,33 @@ export const MESSAGES = {
   features: {
     title: 'Why Zap Pilot?',
     subtitle:
-      'A smarter way to manage your crypto — powered by macroeconomic indicators and self-custodial smart accounts.',
+      'A disciplined portfolio autopilot across S&P500, BTC/ETH, and cash — powered by macro regime signals and your own wallet.',
     learnMore: 'Learn more',
     items: [
       {
-        title: 'Macro Indicators',
+        title: 'The Three Pillars',
         description:
-          'Price vs the 200-Day Moving Average (200MA) plus the Fear & Greed Index (FGI) — two simple, objective signals decide whether the regime is risk-on, risk-off, or in-between.',
+          "S&P500 via Ondo's tokenized index, BTC/ETH for crypto risk-on, and stablecoins for defense. Three assets, one disciplined allocator. No tokens you can't pronounce, no protocols you don't understand.",
       },
       {
-        title: 'Regime-Driven Strategy',
+        title: 'Macro Regime Engine',
         description:
-          'Rule-based allocation across BTC, ETH, and stables. Risk-on when price is above DMA-200 and sentiment is not frothy; defensive when below DMA-200 or in extreme greed. No discretion, no overrides.',
+          'Two objective signals — price vs the 200-Day Moving Average and the Fear & Greed Index — decide risk-on, risk-off, or in-between. ETH/BTC relative strength adds a 30-day-cooldown rotation overlay on top. No discretion, no overrides.',
       },
       {
-        title: 'ETH/BTC Rotation Overlay',
+        title: 'Strategy First, Yield Second',
         description:
-          'On top of the risk-on/off gate, we watch ETH/BTC relative strength vs its own 200-DMA. When ETH outperforms, we tilt the risk bucket toward ETH; when BTC leads, we rotate back. A 30-day cooldown after each cross prevents whipsaw.',
+          '~90% of returns come from regime trading itself — buying weakness, selling froth. While idle, your capital earns baseline yield (Ondo for S&P500, GMX for BTC/ETH, Morpho/Hyperliquid for stables) — but yield is the icing, not the strategy.',
       },
       {
-        title: 'Intent-Based Smart Accounts',
+        title: '100% Self-Custody EOA',
         description:
-          'Each rebalance is one bundled intent. Executes as an EIP-7702 batch on supported wallets, or a multicall3 transaction as a fallback. No custody, no approvals spread across days.',
+          'Your funds live in your own externally-owned account. We never custody, never approve, never hold keys. Each rebalance is a pre-packaged bundle delivered to you — you review, you sign, you move on.',
       },
       {
-        title: 'One-Click Rebalancing',
+        title: 'One-Click Bundled Rebalance',
         description:
-          'You get the new target allocation (BTC / ETH / stable) pre-packaged as a single batch transaction. One signature inside your own wallet — done.',
+          'EIP-7702 batch on supported wallets, multicall3 as fallback. Every regime shift becomes a single transaction across the three pillars — one signature, fully self-custodial, fully transparent.',
       },
     ],
   },
@@ -97,7 +97,7 @@ export const MESSAGES = {
         icon: 'LineChart' as const,
         title: 'Monitor',
         description:
-          'Constantly tracking 200MA and FGI to detect shifts in the market regime.',
+          'We watch 200MA, FGI, and ETH/BTC relative strength 24/7 — looking for regime shifts across S&P500, crypto, and cash.',
         color: 'from-purple-500 to-violet-600',
       },
       {
@@ -105,7 +105,7 @@ export const MESSAGES = {
         icon: 'Bell' as const,
         title: 'Signal',
         description:
-          'When the regime shifts, you get a Telegram message with the new target allocation (BTC / ETH / stable) and a pre-built transfer bundle ready to sign.',
+          'When the regime moves, you get a Telegram message with the new target allocation across all three pillars and a pre-built bundle ready to sign.',
         color: 'from-blue-500 to-cyan-600',
       },
       {
@@ -113,17 +113,51 @@ export const MESSAGES = {
         icon: 'Zap' as const,
         title: 'Execute',
         description:
-          'Sign one bundled transaction in your own wallet — EIP-7702 batch on supported wallets, multicall3 as a fallback. No custody hand-off.',
+          'Sign one bundled transaction in your own wallet — EIP-7702 batch on supported wallets, multicall3 as fallback. Idle capital quietly earns baseline yield until the next signal.',
         color: 'from-green-500 to-emerald-600',
       },
     ],
+  },
+
+  // Backtest proof section
+  backtest: {
+    title: 'Backtested Across Cycles',
+    subtitle:
+      'The strategy was tested across {{TBD: window, e.g. 2017–2025}} including the 2018 bear, 2020 COVID crash, 2022 drawdown, and 2024 rally.',
+    stats: [
+      {
+        label: 'CAGR',
+        value: '{{TBD: e.g. 24.3%}}',
+        sublabel: 'vs HODL: {{TBD}}',
+      },
+      {
+        label: 'Max Drawdown',
+        value: '{{TBD: e.g. -18.5%}}',
+        sublabel: 'vs HODL: {{TBD}}',
+      },
+      {
+        label: 'Sharpe Ratio',
+        value: '{{TBD: e.g. 1.42}}',
+        sublabel: 'risk-adjusted return',
+      },
+      {
+        label: 'Vs Buy-&-Hold',
+        value: '{{TBD: e.g. +12.1%}}',
+        sublabel: '{{TBD: window}}',
+      },
+    ],
+    disclaimer:
+      'Past performance does not guarantee future results. Backtest details and methodology in the docs.',
+    ctaText: 'Read methodology',
+    ctaLink: '/docs#backtest',
   },
 
   // CTA section
   cta: {
     title: "The goal isn't to trade more;",
     titleSecondLine: "it's to trade right.",
-    subtitle: 'Be your own BlackRock.',
+    subtitle:
+      'Be your own BlackRock — three pillars, one wallet, zero emotion.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
     ctaSecondary: 'Read the Strategy',
   },
@@ -133,7 +167,8 @@ export const MESSAGES = {
     title: 'Use Cases',
     subtitle: 'Real scenarios where Zap Pilot keeps you disciplined.',
     bottomMessage: {
-      line1: 'Let the 200MA, FGI, and ETH/BTC ratio guide your allocation.',
+      line1:
+        'Let the 200MA, FGI, and ETH/BTC ratio guide your three-pillar allocation.',
       line2:
         'Zap Pilot bundles the rebalance — you sign once, inside your own wallet.',
     },
@@ -143,7 +178,7 @@ export const MESSAGES = {
   footer: {
     brand: {
       description:
-        'Regime-driven BTC/ETH/stable allocation, executed from your own wallet in one bundled transaction.',
+        'A regime-driven 3-pillar allocator (S&P500 · BTC/ETH · Stables), executed from your own wallet in one bundled transaction. 100% self-custody.',
     },
     sections: {
       product: 'Product',
@@ -158,7 +193,7 @@ export const MESSAGES = {
     copyright: '© {year} Zap Pilot. All rights reserved.',
     builtWith: {
       prefix: 'Built with',
-      suffix: 'for DeFi',
+      suffix: 'for disciplined self-custody',
     },
   },
 
@@ -187,7 +222,7 @@ export const MESSAGES = {
   // Core value propositions (reusable)
   values: {
     selfCustody: 'Your keys, your crypto, always',
-    sentimentDriven: 'Driven by Fear & Greed',
+    sentimentDriven: 'Driven by macro regime, not emotion',
     manualSigning: 'You sign every transaction',
     oneClickExecution: 'One bundled, one signature',
     notAFund: 'Not a fund. You are in control.',
@@ -195,28 +230,39 @@ export const MESSAGES = {
 
   // Protocols section
   protocols: {
-    title: 'Integrated Protocols',
+    title: 'Where Idle Capital Sits',
     subtitle:
-      'Where your stablecoins earn yield while you wait for the next move.',
+      '~90% of returns come from the strategy itself — regime-based rebalancing across S&P500, BTC/ETH, and stables. While waiting for the next signal, idle capital earns baseline yield in best-in-class venues. We are not a yield aggregator; yield is the icing.',
     items: [
       {
-        name: 'Morpho',
-        category: 'Lending',
-        description: 'Earn yield on stablecoins via curated lending vaults.',
-        logo: '/protocols/morpho.webp',
-        link: 'https://morpho.org',
+        name: 'Ondo',
+        category: 'Tokenized S&P500',
+        description:
+          "On-chain exposure to U.S. equities via Ondo's tokenized S&P500 — the equity pillar of the portfolio.",
+        logo: '/protocols/ondo.webp',
+        link: 'https://ondo.finance',
       },
       {
         name: 'GMX v2',
-        category: 'LP Vaults',
-        description: 'On-chain perpetual liquidity backing BTC/ETH trades.',
+        category: 'BTC/ETH Parking',
+        description:
+          'Where idle BTC/ETH earns baseline yield via GLP/GMX vaults while the regime stays risk-on.',
         logo: '/protocols/gmx-v2.webp',
         link: 'https://gmx.io',
       },
       {
+        name: 'Morpho',
+        category: 'Stablecoin Parking',
+        description:
+          'Curated lending vaults where idle stablecoins earn baseline yield during risk-off regimes.',
+        logo: '/protocols/morpho.webp',
+        link: 'https://morpho.org',
+      },
+      {
         name: 'Hyperliquid',
-        category: 'Delta-Neutral',
-        description: 'Leading perp DEX market making for stable yields.',
+        category: 'Stablecoin Parking',
+        description:
+          'HLP delta-neutral market making — an alternative idle-stable parking venue for diversification.',
         logo: '/protocols/hyperliquid.webp',
         link: 'https://hyperfoundation.org/',
       },

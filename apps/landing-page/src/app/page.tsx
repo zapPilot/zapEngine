@@ -2,6 +2,7 @@ import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
 import { HowItWorks } from '@/components/HowItWorks';
 import { Features } from '@/components/Features';
+import { BacktestProof } from '@/components/BacktestProof';
 import { Protocols } from '@/components/Protocols';
 import { CTA } from '@/components/CTA';
 import { Footer } from '@/components/Footer';
@@ -16,6 +17,7 @@ export default function HomePage() {
       <Hero />
       <HowItWorks />
       <Features />
+      <BacktestProof />
       <Protocols />
       <CTA />
       <Footer />

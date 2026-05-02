@@ -20,56 +20,60 @@ describe('Features', () => {
   });
 
   describe('feature cards', () => {
-    it('should render Macro Indicators feature', () => {
+    it('should render Three Pillars feature', () => {
       render(<Features />);
 
-      expect(screen.getByText('Macro Indicators')).toBeInTheDocument();
-      expect(screen.getByText(/200-Day Moving Average/)).toBeInTheDocument();
-    });
-
-    it('should render Regime-Driven Strategy feature', () => {
-      render(<Features />);
-
-      expect(screen.getByText('Regime-Driven Strategy')).toBeInTheDocument();
-      expect(screen.getByText(/Rule-based allocation/)).toBeInTheDocument();
-    });
-
-    it('should render ETH/BTC Rotation Overlay feature', () => {
-      render(<Features />);
-
-      expect(screen.getByText('ETH/BTC Rotation Overlay')).toBeInTheDocument();
       expect(
-        screen.getByText(/relative strength vs its own 200-DMA/),
+        screen.getByText(MESSAGES.features.items[0]!.title),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/No tokens you can't pronounce/),
       ).toBeInTheDocument();
     });
 
-    it('should render Intent-Based Smart Accounts feature', () => {
+    it('should render Macro Regime Engine feature', () => {
       render(<Features />);
 
       expect(
-        screen.getByText('Intent-Based Smart Accounts'),
+        screen.getByText(MESSAGES.features.items[1]!.title),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/200-Day Moving Average/)).toBeInTheDocument();
+    });
+
+    it('should render Strategy First, Yield Second feature', () => {
+      render(<Features />);
+
+      expect(
+        screen.getByText(MESSAGES.features.items[2]!.title),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/yield is the icing/)).toBeInTheDocument();
+    });
+
+    it('should render Self-Custody EOA feature', () => {
+      render(<Features />);
+
+      expect(
+        screen.getByText(MESSAGES.features.items[3]!.title),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/externally-owned account/)).toBeInTheDocument();
+    });
+
+    it('should render One-Click Bundled Rebalance feature', () => {
+      render(<Features />);
+
+      expect(
+        screen.getByText(MESSAGES.features.items[4]!.title),
       ).toBeInTheDocument();
       expect(screen.getByText(/EIP-7702/)).toBeInTheDocument();
       expect(screen.getByText(/multicall3/)).toBeInTheDocument();
     });
 
-    it('should render One-Click Rebalancing feature', () => {
-      render(<Features />);
-
-      expect(screen.getByText('One-Click Rebalancing')).toBeInTheDocument();
-      expect(screen.getByText(/batch transaction/)).toBeInTheDocument();
-    });
-
     it('should render exactly 5 feature cards', () => {
       render(<Features />);
 
-      const featureTitles = [
-        'Macro Indicators',
-        'Regime-Driven Strategy',
-        'ETH/BTC Rotation Overlay',
-        'Intent-Based Smart Accounts',
-        'One-Click Rebalancing',
-      ];
+      const featureTitles = MESSAGES.features.items.map(
+        (feature) => feature.title,
+      );
 
       featureTitles.forEach((title) => {
         expect(screen.getByText(title)).toBeInTheDocument();
@@ -81,7 +85,7 @@ describe('Features', () => {
     it('should render learn more links for each feature', () => {
       render(<Features />);
 
-      const learnMoreLinks = screen.getAllByText('Learn more');
+      const learnMoreLinks = screen.getAllByText(MESSAGES.features.learnMore);
       expect(learnMoreLinks.length).toBe(5);
     });
 
@@ -89,7 +93,7 @@ describe('Features', () => {
       render(<Features />);
 
       const learnMoreLinks = screen.getAllByRole('link', {
-        name: 'Learn more',
+        name: MESSAGES.features.learnMore,
       });
       learnMoreLinks.forEach((link) => {
         expect(link).toHaveAttribute(
@@ -103,7 +107,7 @@ describe('Features', () => {
       render(<Features />);
 
       const learnMoreLinks = screen.getAllByRole('link', {
-        name: 'Learn more',
+        name: MESSAGES.features.learnMore,
       });
       learnMoreLinks.forEach((link) => {
         expect(link).toHaveAttribute('target', '_blank');
@@ -173,11 +177,11 @@ describe('Features', () => {
 
       // Each feature should have a paragraph description
       const descriptions = [
+        /No tokens you can't pronounce/,
         /200-Day Moving Average/,
-        /Rule-based allocation/,
-        /relative strength vs its own 200-DMA/,
+        /regime trading itself/,
+        /externally-owned account/,
         /EIP-7702/,
-        /batch transaction/,
       ];
 
       descriptions.forEach((desc) => {
