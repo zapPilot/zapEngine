@@ -221,6 +221,8 @@ export const BacktestStrategySummarySchema = z.object({
   final_value: z.number().nonnegative(),
   roi_percent: z.number(),
   trade_count: z.number().int().nonnegative(),
+  sharpe_ratio: z.number().optional(),
+  win_rate_percent: z.number().nullable().optional(),
   final_allocation: PortfolioAllocationSchema,
   final_asset_allocation: AssetAllocationSchema,
   max_drawdown_percent: z.number().optional(),

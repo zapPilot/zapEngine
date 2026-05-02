@@ -196,6 +196,9 @@
           "roi_percent": {
             "type": "number"
           },
+          "sharpe_ratio": {
+            "type": "number"
+          },
           "signal_id": {
             "anyOf": [
               {
@@ -217,6 +220,16 @@
             "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
+          },
+          "win_rate_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -246,6 +259,49 @@
             "properties": {
               "date": {
                 "type": "string"
+              },
+              "macro_fear_greed": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "raw_rating": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "score": {
+                        "maximum": 100,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "source": {
+                        "type": "string"
+                      },
+                      "updated_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "label",
+                      "source",
+                      "updated_at"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "sentiment": {
                 "anyOf": [

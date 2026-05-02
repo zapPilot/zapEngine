@@ -113,10 +113,28 @@
             "cross_on_touch": {
               "type": "boolean"
             },
+            "ratio_cross_cooldown_days": {
+              "type": "number"
+            },
             "rotation_max_deviation": {
               "type": "number"
             },
             "rotation_neutral_band": {
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "top_escape": {
+          "additionalProperties": false,
+          "properties": {
+            "dma_overextension_threshold": {
+              "type": "number"
+            },
+            "fgi_slope_recovery_threshold": {
+              "type": "number"
+            },
+            "fgi_slope_reversal_threshold": {
               "type": "number"
             }
           },

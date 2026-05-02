@@ -6,15 +6,16 @@ import {
 } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
 
 describe('INDICATOR_LEGEND', () => {
-  it('has exactly 3 items', () => {
-    expect(INDICATOR_LEGEND).toHaveLength(3);
+  it('has exactly 4 items', () => {
+    expect(INDICATOR_LEGEND).toHaveLength(4);
   });
 
-  it('contains btcPrice, dma200, and sentiment in order', () => {
+  it('contains btcPrice, dma200, sentiment, and macroFearGreed in order', () => {
     expect(INDICATOR_LEGEND.map((item) => item.key)).toEqual([
       'btcPrice',
       'dma200',
       'sentiment',
+      'macroFearGreed',
     ]);
   });
 
@@ -23,6 +24,7 @@ describe('INDICATOR_LEGEND', () => {
       { key: 'btcPrice', label: 'BTC Price', color: '#3b82f6' },
       { key: 'dma200', label: 'DMA 200', color: '#f59e0b' },
       { key: 'sentiment', label: 'Sentiment', color: '#a855f7' },
+      { key: 'macroFearGreed', label: 'Macro FGI', color: '#14b8a6' },
     ]);
   });
 });
