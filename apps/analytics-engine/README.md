@@ -31,19 +31,9 @@ See [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) f
 - Snapshot fixture workflow (`sweep_production_window.py`)
 - Hierarchical attribution & regression event commands
 
-## Import conventions
+## Import conventions & dead-code policy
 
-- Routers: `src.api.routers.*` (canonical)
-- Strategies: `src.services.strategy.*` (canonical)
-
-## Dead-code policy
-
-Two enforced checks on every push:
-
-- `uv run python scripts/quality/check_service_reachability.py` — rejects unreachable `*ServiceDep` bindings
-- `uv run vulture src/ vulture_whitelist.py --min-confidence 80` — symbol-level unused detection (weekly audit drops to 60)
-
-Every entry in `vulture_whitelist.py` must carry an inline reason. Removing a module requires removing its whitelist entries in the same PR.
+See [CLAUDE.md](./CLAUDE.md).
 
 ## Environment
 

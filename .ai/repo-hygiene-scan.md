@@ -24,6 +24,13 @@ Assign each file to ONE layer using path rules:
 - /execution/ → execution
 - /infrastructure/ → infrastructure
 
+**Foundation paths (always treated as the LOWEST layer, regardless of `/ui/` in the path):**
+
+- `components/ui/*` — shared design-system primitives (buttons, progress bars, etc.)
+- `lib/ui/*` — shared UI utility functions (e.g. `cn`, `classNames`)
+
+These are consumed by ALL layers and never constitute an upward dependency.
+
 If unclear → "unknown"
 
 DO NOT guess
@@ -75,6 +82,15 @@ ui → application → strategy → execution → infrastructure
 Rules:
 - can import same or LOWER layer
 - importing HIGHER layer → violation
+
+**Excluded from violation checks (foundation-layer imports):**
+
+Do NOT report a layer violation when the import target is any of:
+- `@/components/ui/*` — shared UI primitives
+- `@/lib/ui/*` — shared UI utilities (e.g. `cn`)
+- `@/lib/*` — general shared utilities
+
+These paths are foundational; importing them from any layer is always valid.
 
 type: layer_violation
 

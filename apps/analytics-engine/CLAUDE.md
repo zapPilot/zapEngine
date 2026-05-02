@@ -44,3 +44,17 @@ This directory uses **CLAUDE.md** as the single source of truth for AI assistant
 | `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
 
 **Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
+
+# Import conventions
+
+- Routers: `src.api.routers.*` (canonical)
+- Strategies: `src.services.strategy.*` (canonical)
+
+# Dead-code policy
+
+Two enforced checks on every push:
+
+- `uv run python scripts/quality/check_service_reachability.py` — rejects unreachable `*ServiceDep` bindings
+- `uv run vulture src/ vulture_whitelist.py --min-confidence 80` — symbol-level unused detection (weekly audit drops to 60)
+
+Every entry in `vulture_whitelist.py` must carry an inline reason. Removing a module requires removing its whitelist entries in the same PR.
