@@ -153,7 +153,7 @@ export class StockPriceWriter extends BaseWriter<
     const query = `
       SELECT snapshot_date, price_usd, symbol
       FROM ${tableName}
-      WHERE source = 'alphavantage' AND symbol = $1
+      WHERE source = 'yahoo-finance' AND symbol = $1
       ORDER BY snapshot_date DESC
       LIMIT 1
     `;
@@ -197,7 +197,7 @@ export class StockPriceWriter extends BaseWriter<
     const query = `
       SELECT COUNT(*) as count
       FROM ${tableName}
-      WHERE source = 'alphavantage' AND symbol = $1
+      WHERE source = 'yahoo-finance' AND symbol = $1
     `;
 
     try {
@@ -218,7 +218,7 @@ export class StockPriceWriter extends BaseWriter<
     startDate: Date,
     endDate: Date,
     symbol: string = StockPriceWriter.DEFAULT_SYMBOL,
-    source = 'alphavantage',
+    source = 'yahoo-finance',
   ): Promise<string[]> {
     const tableName = this.getSnapshotsTableName();
     const query = `

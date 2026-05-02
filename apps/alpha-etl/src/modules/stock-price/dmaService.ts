@@ -96,7 +96,7 @@ export class StockPriceDmaService {
     const query = `
       SELECT snapshot_date, price_usd, dma_200, is_above_dma
       FROM ${tableName}
-      WHERE source = 'alphavantage' AND symbol = $1
+      WHERE source = 'yahoo-finance' AND symbol = $1
       ORDER BY snapshot_date DESC
       LIMIT 1
     `;
