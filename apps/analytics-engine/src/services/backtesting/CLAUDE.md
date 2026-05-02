@@ -120,6 +120,18 @@ it adds positive contribution in the current minimum environment — historical
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-02 - SPY tax fix attempt: S1/S4 targeted variants
+- **Commit**: this commit (targeted S1/S4 research variants + sweep)
+- **Variants**:
+  - `dma_fgi_hierarchical_minimum_dma_buffer`: S1 test; requires 3% above-DMA distance before above-DMA DMA buy entries.
+  - `dma_fgi_hierarchical_minimum_dual_above_hold`: S4 test; holds the current outer allocation while both SPY and crypto are above DMA.
+- **Results vs `dma_fgi_hierarchical_minimum` baseline (121.44% ROI, 85 trades)**:
+  - `_dma_buffer`: ROI 121.49%, delta +0.05pp, trades 85 (delta 0)
+  - `_dual_above_hold`: ROI 107.69%, delta -13.74pp, trades 72 (delta -13)
+- **Validation**: `validate_hierarchical_events.py --all-strategies` now includes both research variants; all expected hierarchical events pass.
+- **Verdict**: fix failed. Best variant is below 125% ROI, so neither pre-designed S1 nor S4 modifier recovers the 23.84pp SPY tax.
+- **Next**: re-run diagnosis with finer instrumentation around stable-vs-SPY allocation and post-sell redeploy timing. The first diagnosis correctly identified weak SPY events and oscillation, but these simple gates did not isolate the return leak.
+
 ### 2026-05-02 - SPY tax pattern diagnosis
 - **Commit**: `8ab4485` (SPY tax diagnostic tooling)
 - **Diagnostic**: `apps/analytics-engine/docs/diagnostics/spy_tax_2026-04-15.md`

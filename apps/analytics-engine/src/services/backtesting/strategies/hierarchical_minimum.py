@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     LEGACY_DMA_BUY_STRENGTH_FLOOR,
@@ -14,6 +16,8 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 from src.services.backtesting.strategies.hierarchical_outer_policy import (
     HierarchicalOuterDecisionPolicy,
     MinimumHierarchicalOuterPolicy,
+    MinimumHierarchicalOuterPolicyDualAboveHold,
+    MinimumHierarchicalOuterPolicyWithBuffer,
 )
 from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
     SPY_CRYPTO_TEMPLATE,
@@ -77,6 +81,22 @@ MINIMUM_HIERARCHICAL_VARIANTS: dict[str, MinimumHierarchicalVariant] = {
             "greed sell suppression."
         ),
         outer_policy=MinimumHierarchicalOuterPolicy(),
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER: _variant(
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
+        description=(
+            "Research variant for S1: require a 3% DMA entry buffer before "
+            "SPY or crypto can enter from a DMA buy intent."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicyWithBuffer(),
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD: _variant(
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
+        description=(
+            "Research variant for S4: hold the current outer allocation while "
+            "both SPY and crypto are above DMA."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicyDualAboveHold(),
     ),
 }
 

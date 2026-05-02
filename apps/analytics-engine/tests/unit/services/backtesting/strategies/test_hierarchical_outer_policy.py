@@ -24,6 +24,8 @@ from src.services.backtesting.strategies.hierarchical_outer_policy import (
     HierarchicalOuterDecisionPolicy,
     HierarchicalOuterSnapshot,
     MinimumHierarchicalOuterPolicy,
+    MinimumHierarchicalOuterPolicyDualAboveHold,
+    MinimumHierarchicalOuterPolicyWithBuffer,
 )
 from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
     SPY_CRYPTO_TEMPLATE,
@@ -247,6 +249,80 @@ def test_minimum_policy_feature_summary() -> None:
         "policy": "MinimumHierarchicalOuterPolicy",
         "active_features": ["dma_stable_gating", "greed_sell_suppression"],
     }
+
+
+def test_minimum_buffer_policy_requires_dma_distance_for_entry() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0})
+    policy = MinimumHierarchicalOuterPolicyWithBuffer(dma_entry_buffer=0.03)
+    snapshot, _component = _outer_snapshot(
+        policy=policy,
+        contexts=[
+            _context(
+                portfolio=portfolio,
+                spy_price=560.0,
+                spy_dma_200=580.0,
+                snapshot_date=date(2026, 4, 5),
+            ),
+            _context(
+                portfolio=portfolio,
+                spy_price=590.0,
+                spy_dma_200=580.0,
+                snapshot_date=date(2026, 4, 6),
+            ),
+        ],
+    )
+
+    intent = policy.decide(snapshot)
+
+    assert intent.reason == "regime_no_signal"
+    assert intent.target_allocation is not None
+    assert intent.target_allocation["spy"] == pytest.approx(0.0)
+    assert intent.target_allocation["stable"] == pytest.approx(1.0)
+
+
+def test_minimum_buffer_policy_allows_entry_past_dma_distance() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0})
+    policy = MinimumHierarchicalOuterPolicyWithBuffer(dma_entry_buffer=0.03)
+    snapshot, _component = _outer_snapshot(
+        policy=policy,
+        contexts=[
+            _context(
+                portfolio=portfolio,
+                spy_price=560.0,
+                spy_dma_200=580.0,
+                snapshot_date=date(2026, 4, 5),
+            ),
+            _context(
+                portfolio=portfolio,
+                spy_price=604.0,
+                spy_dma_200=580.0,
+                snapshot_date=date(2026, 4, 6),
+            ),
+        ],
+    )
+
+    intent = policy.decide(snapshot)
+
+    assert intent.target_allocation is not None
+    assert intent.target_allocation["spy"] == pytest.approx(1.0)
+    assert intent.target_allocation["stable"] == pytest.approx(0.0)
+
+
+def test_minimum_dual_above_policy_holds_existing_outer_allocation() -> None:
+    portfolio = _portfolio({"spy": 0.4, "btc": 0.6, "eth": 0.0, "stable": 0.0})
+    policy = MinimumHierarchicalOuterPolicyDualAboveHold()
+    snapshot, _component = _outer_snapshot(
+        policy=policy,
+        contexts=[_context(portfolio=portfolio)],
+    )
+
+    intent = policy.decide(snapshot)
+
+    assert intent.reason == "dual_above_hold"
+    assert intent.target_allocation is not None
+    assert intent.target_allocation["spy"] == pytest.approx(0.4)
+    assert intent.target_allocation["btc"] == pytest.approx(0.6)
+    assert intent.target_allocation["stable"] == pytest.approx(0.0)
 
 
 @pytest.mark.parametrize(

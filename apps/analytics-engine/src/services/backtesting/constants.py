@@ -27,6 +27,12 @@ STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA = (
 )
 STRATEGY_DMA_FGI_HIERARCHICAL_PROD = "dma_fgi_hierarchical_prod"
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER = (
+    "dma_fgi_hierarchical_minimum_dma_buffer"
+)
+STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD = (
+    "dma_fgi_hierarchical_minimum_dual_above_hold"
+)
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
@@ -42,6 +48,12 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD: "34% Hierarchical Production",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER: (
+        "[RESEARCH] Hierarchical Minimum - DMA Buffer"
+    ),
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD: (
+        "[RESEARCH] Hierarchical Minimum - Dual Above Hold"
+    ),
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

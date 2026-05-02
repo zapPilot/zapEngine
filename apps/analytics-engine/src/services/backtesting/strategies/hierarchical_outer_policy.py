@@ -166,6 +166,68 @@ class MinimumHierarchicalOuterPolicy:
         return DmaGatedFgiDecisionPolicy(disabled_rules=disabled_rules)
 
 
+@dataclass(frozen=True)
+class MinimumHierarchicalOuterPolicyWithBuffer(MinimumHierarchicalOuterPolicy):
+    """Minimum policy with a symmetric DMA entry buffer for SPY and crypto."""
+
+    dma_entry_buffer: float = 0.03
+
+    def decide(self, snapshot: HierarchicalOuterSnapshot) -> AllocationIntent:
+        return _resolve_dual_dma_outer_decision(
+            snapshot=snapshot,
+            dma_policy=self._dma_policy(),
+            rotation_drift_threshold=0.03,
+            dma_entry_buffer=self.dma_entry_buffer,
+        )
+
+    def feature_summary(self) -> dict[str, Any]:
+        return {
+            "policy": "MinimumHierarchicalOuterPolicyWithBuffer",
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                f"dma_entry_buffer={self.dma_entry_buffer:g}",
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class MinimumHierarchicalOuterPolicyDualAboveHold(MinimumHierarchicalOuterPolicy):
+    """Minimum policy that avoids rebalancing while both sleeves are above DMA."""
+
+    def decide(self, snapshot: HierarchicalOuterSnapshot) -> AllocationIntent:
+        if _should_hold_dual_above(snapshot):
+            return AllocationIntent(
+                action="hold",
+                target_allocation=normalize_target_allocation(
+                    snapshot.outer_state.current_asset_allocation
+                ),
+                allocation_name=None,
+                immediate=False,
+                reason="dual_above_hold",
+                rule_group="none",
+                decision_score=0.0,
+                diagnostics={
+                    "outer_dma_assets": [
+                        snapshot.template.left_unit.symbol,
+                        snapshot.template.right_unit.symbol,
+                    ],
+                    "outer_dma_reason": "both_above_dma",
+                },
+            )
+        return super().decide(snapshot)
+
+    def feature_summary(self) -> dict[str, Any]:
+        return {
+            "policy": "MinimumHierarchicalOuterPolicyDualAboveHold",
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                "dual_above_hold",
+            ],
+        }
+
+
 def is_spy_latch_expired(
     *,
     current_date: date,
@@ -227,11 +289,13 @@ def _resolve_dual_dma_outer_decision(
     snapshot: HierarchicalOuterSnapshot,
     dma_policy: DmaGatedFgiDecisionPolicy,
     rotation_drift_threshold: float,
+    dma_entry_buffer: float = 0.0,
 ) -> AllocationIntent:
     template = snapshot.template
     spy_intent = _resolve_optional_outer_dma_intent(
         dma_state=snapshot.spy_dma_state,
         dma_policy=dma_policy,
+        dma_entry_buffer=dma_entry_buffer,
     )
     spy_intent = _with_outer_dma_reference_diagnostics(
         intent=spy_intent,
@@ -241,6 +305,7 @@ def _resolve_dual_dma_outer_decision(
     crypto_intent = _resolve_optional_outer_dma_intent(
         dma_state=snapshot.crypto_dma_state,
         dma_policy=dma_policy,
+        dma_entry_buffer=dma_entry_buffer,
     )
     crypto_intent = _with_outer_dma_reference_diagnostics(
         intent=crypto_intent,
@@ -300,6 +365,7 @@ def _resolve_optional_outer_dma_intent(
     *,
     dma_state: DmaMarketState | None,
     dma_policy: DmaGatedFgiDecisionPolicy,
+    dma_entry_buffer: float = 0.0,
 ) -> AllocationIntent:
     if dma_state is None:
         return AllocationIntent(
@@ -311,9 +377,45 @@ def _resolve_optional_outer_dma_intent(
             rule_group="none",
             decision_score=0.0,
         )
-    return _suppress_ath_sell_intent(
+    intent = _suppress_ath_sell_intent(
         intent=dma_policy.decide(dma_state),
         snapshot=dma_state,
+    )
+    if (
+        dma_entry_buffer > 0.0
+        and _is_outer_dma_buy_intent(intent)
+        and dma_state.zone == "above"
+        and dma_state.dma_distance < dma_entry_buffer
+    ):
+        diagnostics = dict(intent.diagnostics or {})
+        diagnostics["dma_entry_buffer"] = dma_entry_buffer
+        diagnostics["dma_entry_buffer_distance"] = dma_state.dma_distance
+        return replace(
+            intent,
+            action="hold",
+            target_allocation=None,
+            allocation_name=None,
+            immediate=False,
+            reason="dma_entry_buffer_hold",
+            rule_group="none",
+            decision_score=0.0,
+            diagnostics=diagnostics,
+        )
+    return intent
+
+
+def _should_hold_dual_above(snapshot: HierarchicalOuterSnapshot) -> bool:
+    if snapshot.spy_dma_state is None or snapshot.crypto_dma_state is None:
+        return False
+    if (
+        snapshot.spy_dma_state.zone != "above"
+        or snapshot.crypto_dma_state.zone != "above"
+    ):
+        return False
+    current_allocation = snapshot.outer_state.current_asset_allocation
+    return (
+        _outer_unit_share(current_allocation, snapshot.template.left_unit) > 0.0
+        or _outer_unit_share(current_allocation, snapshot.template.right_unit) > 0.0
     )
 
 
@@ -554,6 +656,8 @@ __all__ = [
     "FullFeaturedOuterPolicy",
     "HierarchicalOuterDecisionPolicy",
     "HierarchicalOuterSnapshot",
+    "MinimumHierarchicalOuterPolicyDualAboveHold",
+    "MinimumHierarchicalOuterPolicyWithBuffer",
     "MinimumHierarchicalOuterPolicy",
     "is_spy_latch_expired",
     "max_allocation_drift",
