@@ -17,6 +17,7 @@ type CoinPalette = {
   rim: string;
   edge: string;
   glow: THREE.ColorRepresentation;
+  emissiveIntensity: number;
 };
 
 type CoinDefinition = {
@@ -45,6 +46,36 @@ type CoinRuntime = {
 type DisposableObject = THREE.Object3D & {
   geometry?: THREE.BufferGeometry;
   material?: THREE.Material | THREE.Material[];
+};
+
+const TOKEN_COLORS: Record<'spy' | 'btc' | 'usd', CoinPalette> = {
+  spy: {
+    base: '#d7dde7',
+    high: '#ffffff',
+    low: '#596473',
+    rim: '#eef3fa',
+    edge: '#a7b0bf',
+    glow: 0xd7dde7,
+    emissiveIntensity: 0.015,
+  },
+  btc: {
+    base: '#f7931a',
+    high: '#ffad3b',
+    low: '#c76a08',
+    rim: '#ff9f1c',
+    edge: '#dd7b12',
+    glow: 0xf7931a,
+    emissiveIntensity: 0.055,
+  },
+  usd: {
+    base: '#2775ca',
+    high: '#55a0ef',
+    low: '#2775ca',
+    rim: '#2775ca',
+    edge: '#216fbd',
+    glow: 0x2775ca,
+    emissiveIntensity: 0.18,
+  },
 };
 
 function get2dContext(canvas: HTMLCanvasElement) {
@@ -673,6 +704,8 @@ export default function HeroLiquidMetalCanvas({
         roughnessMap: faceRoughness,
         bumpMap: faceHeight,
         bumpScale: 0.028,
+        emissive: palette.base,
+        emissiveIntensity: palette.emissiveIntensity,
         envMapIntensity: 1.85,
         clearcoat: 0.55,
         clearcoatRoughness: 0.16,
@@ -761,14 +794,7 @@ export default function HeroLiquidMetalCanvas({
     const spy = makeCoin({
       radius: 0.56,
       thickness: 0.14,
-      palette: {
-        base: '#d7dde7',
-        high: '#ffffff',
-        low: '#596473',
-        rim: '#eef3fa',
-        edge: '#a7b0bf',
-        glow: 0xd7dde7,
-      },
+      palette: TOKEN_COLORS.spy,
       drawFace: drawSPYFace,
     });
     spy.position.set(-1.58, 0.88, 0.32);
@@ -778,14 +804,7 @@ export default function HeroLiquidMetalCanvas({
     const btc = makeCoin({
       radius: 0.76,
       thickness: 0.18,
-      palette: {
-        base: '#f7931a',
-        high: '#ffd98c',
-        low: '#5a3408',
-        rim: '#ffb84d',
-        edge: '#b16410',
-        glow: 0xf7931a,
-      },
+      palette: TOKEN_COLORS.btc,
       drawFace: drawBTCETHFace,
     });
     btc.position.set(1.35, 0.02, 0.0);
@@ -795,14 +814,7 @@ export default function HeroLiquidMetalCanvas({
     const usd = makeCoin({
       radius: 0.49,
       thickness: 0.12,
-      palette: {
-        base: '#2775ca',
-        high: '#9ed4ff',
-        low: '#082747',
-        rim: '#61a8ef',
-        edge: '#155796',
-        glow: 0x2775ca,
-      },
+      palette: TOKEN_COLORS.usd,
       drawFace: drawUSDCFace,
     });
     usd.position.set(-0.78, -1.1, 0.22);
@@ -818,7 +830,7 @@ export default function HeroLiquidMetalCanvas({
         sway: { amp: 0.085, freq: 0.45, phase: 0.0 },
         bob: { amp: 0.055, freq: 0.7, phase: 0.0 },
         label: labels.spy,
-        color: new THREE.Color(0xd7dde7),
+        color: new THREE.Color(TOKEN_COLORS.spy.base),
       },
       {
         mesh: btc,
@@ -828,7 +840,7 @@ export default function HeroLiquidMetalCanvas({
         sway: { amp: 0.095, freq: 0.38, phase: 1.1 },
         bob: { amp: 0.08, freq: 0.54, phase: 1.1 },
         label: labels.btc,
-        color: new THREE.Color(0xf7931a),
+        color: new THREE.Color(TOKEN_COLORS.btc.base),
       },
       {
         mesh: usd,
@@ -838,7 +850,7 @@ export default function HeroLiquidMetalCanvas({
         sway: { amp: 0.075, freq: 0.52, phase: 2.3 },
         bob: { amp: 0.048, freq: 0.84, phase: 2.3 },
         label: labels.usd,
-        color: new THREE.Color(0x2775ca),
+        color: new THREE.Color(TOKEN_COLORS.usd.base),
       },
     ];
 
@@ -1020,9 +1032,36 @@ export default function HeroLiquidMetalCanvas({
       flowGroup.add(core);
     }
 
-    addLiquidFlow(0, 1, '#d7dde7', '#f7931a', 0.02, 0.105, 0.03, 0.44);
-    addLiquidFlow(1, 2, '#f7931a', '#2775ca', 0.023, 0.088, 0.39, 0.52);
-    addLiquidFlow(2, 0, '#2775ca', '#d7dde7', 0.018, 0.118, 0.68, 0.48);
+    addLiquidFlow(
+      0,
+      1,
+      TOKEN_COLORS.spy.base,
+      TOKEN_COLORS.btc.base,
+      0.02,
+      0.105,
+      0.03,
+      0.44,
+    );
+    addLiquidFlow(
+      1,
+      2,
+      TOKEN_COLORS.btc.base,
+      TOKEN_COLORS.usd.base,
+      0.023,
+      0.088,
+      0.39,
+      0.52,
+    );
+    addLiquidFlow(
+      2,
+      0,
+      TOKEN_COLORS.usd.base,
+      TOKEN_COLORS.spy.base,
+      0.018,
+      0.118,
+      0.68,
+      0.48,
+    );
 
     const flowCore = new THREE.Group();
     const coreRingMat = new THREE.MeshBasicMaterial({
