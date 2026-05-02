@@ -33,8 +33,8 @@ See [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) f
 
 ## Import conventions
 
-- Routers: `src.api.routers.*` (canonical). `src.api.routes.backtesting` is a deprecated shim.
-- Strategies: `src.services.strategy.*` (canonical). `src.services.strategies.outlier_filter_strategy` is a deprecated shim.
+- Routers: `src.api.routers.*` (canonical)
+- Strategies: `src.services.strategy.*` (canonical)
 
 ## Dead-code policy
 
