@@ -120,6 +120,17 @@ type: naming_issue
 
 ---
 
+### 7. Configuration Drift (STRICT)
+
+Detect if local configuration files drastically drift from base configurations.
+
+**EXCEPTIONS:**
+- Do NOT flag `"declaration": false` or `"declarationMap": false` in frontend or application `tsconfig.json` files as drift. These are required overrides to prevent strict library-level type checks (e.g., TS4058) in non-library applications.
+
+type: tsconfig_drift
+
+---
+
 ## STEP 4 — Confidence
 
 - clear → 0.9
@@ -157,7 +168,7 @@ DO NOT report as dead code:
   },
   "items": [
     {
-      "type": "potential_dead_code | unused_import | circular_dependency | layer_violation | orphan_file | naming_issue",
+      "type": "potential_dead_code | unused_import | circular_dependency | layer_violation | orphan_file | naming_issue | tsconfig_drift",
       "file": "string or string[]",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "confidence": number,
