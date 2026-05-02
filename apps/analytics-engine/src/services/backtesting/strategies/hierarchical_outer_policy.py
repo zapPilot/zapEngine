@@ -140,25 +140,11 @@ class FullFeaturedOuterPolicy:
 class MinimumHierarchicalOuterPolicy:
     """Two-feature minimum: DMA gating plus greed-sell suppression."""
 
-    greed_sell_suppression_enabled: bool = True
-    dma_stable_gating_enabled: bool = True
-    rotation_drift_threshold: float = 0.03
-
     def decide(self, snapshot: HierarchicalOuterSnapshot) -> AllocationIntent:
-        if not self.dma_stable_gating_enabled:
-            target = _resolve_outer_ratio_target(
-                outer_state=snapshot.outer_state,
-                template=snapshot.template,
-            )
-            return _build_outer_ratio_intent(
-                current_allocation=snapshot.outer_state.current_asset_allocation,
-                target_allocation=target,
-                rotation_drift_threshold=self.rotation_drift_threshold,
-            )
         return _resolve_dual_dma_outer_decision(
             snapshot=snapshot,
             dma_policy=self._dma_policy(),
-            rotation_drift_threshold=self.rotation_drift_threshold,
+            rotation_drift_threshold=0.03,
         )
 
     def apply_post_intent_adjustments(
@@ -170,20 +156,13 @@ class MinimumHierarchicalOuterPolicy:
         return intent
 
     def feature_summary(self) -> dict[str, Any]:
-        active: list[str] = []
-        if self.dma_stable_gating_enabled:
-            active.append("dma_stable_gating")
-        if self.greed_sell_suppression_enabled:
-            active.append("greed_sell_suppression")
         return {
             "policy": "MinimumHierarchicalOuterPolicy",
-            "active_features": active,
+            "active_features": ["dma_stable_gating", "greed_sell_suppression"],
         }
 
     def _dma_policy(self) -> DmaGatedFgiDecisionPolicy:
-        disabled_rules = frozenset({FEAR_RECOVERY_BUY_RULE})
-        if self.greed_sell_suppression_enabled:
-            disabled_rules = disabled_rules | FULL_DISABLED_RULES
+        disabled_rules = frozenset({FEAR_RECOVERY_BUY_RULE}) | FULL_DISABLED_RULES
         return DmaGatedFgiDecisionPolicy(disabled_rules=disabled_rules)
 
 

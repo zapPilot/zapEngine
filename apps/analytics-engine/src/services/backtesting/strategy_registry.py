@@ -342,7 +342,9 @@ def _build_hierarchical_minimum_strategy(
     *,
     variant_id: str,
 ) -> BaseStrategy:
-    params = HierarchicalPairRotationParams.from_public_params(request.params)
+    params = HierarchicalPairRotationParams.from_public_params(
+        request.params
+    ).model_copy(update={"rotation_cooldown_days": 7})
     variant = MINIMUM_HIERARCHICAL_VARIANTS[variant_id]
     strategy_id = request.resolved_config_id or variant_id
     return HierarchicalMinimumStrategy(

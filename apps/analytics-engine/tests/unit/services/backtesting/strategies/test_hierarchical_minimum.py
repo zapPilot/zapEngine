@@ -5,6 +5,9 @@ from datetime import date
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
 )
+from src.services.backtesting.strategies.hierarchical_attribution import (
+    LEGACY_DMA_BUY_STRENGTH_FLOOR,
+)
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
     HierarchicalMinimumStrategy,
@@ -49,8 +52,8 @@ def test_minimum_strategy_uses_minimum_outer_policy() -> None:
     assert isinstance(strategy.outer_policy, MinimumHierarchicalOuterPolicy)
     assert strategy.adaptive_crypto_dma_reference is False
     assert strategy.spy_cross_up_latch is False
-    assert strategy.outer_policy.greed_sell_suppression_enabled is True
-    assert strategy.outer_policy.dma_stable_gating_enabled is True
+    assert strategy.dma_buy_strength_floor == LEGACY_DMA_BUY_STRENGTH_FLOOR
+    assert strategy.execution_engine.rotation_cooldown_days == 7
     assert strategy.parameters()["feature_summary"] == {
         "policy": "MinimumHierarchicalOuterPolicy",
         "active_features": ["dma_stable_gating", "greed_sell_suppression"],
@@ -60,6 +63,9 @@ def test_minimum_strategy_uses_minimum_outer_policy() -> None:
 def test_minimum_policy_type_omits_removed_feature_knobs() -> None:
     policy = MinimumHierarchicalOuterPolicy()
 
+    assert not hasattr(policy, "greed_sell_suppression_enabled")
+    assert not hasattr(policy, "dma_stable_gating_enabled")
+    assert not hasattr(policy, "rotation_drift_threshold")
     assert not hasattr(policy, "adaptive_crypto_dma_reference")
     assert not hasattr(policy, "spy_cross_up_latch")
     assert not hasattr(policy, "fear_recovery_buy_rule")

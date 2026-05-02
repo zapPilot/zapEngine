@@ -92,7 +92,7 @@ def _outer_snapshot(
         dma_buy_strength_floor=(
             policy.dma_buy_strength_floor
             if isinstance(policy, FullFeaturedOuterPolicy)
-            else LEGACY_DMA_BUY_STRENGTH_FLOOR
+            else 0.0
         ),
     )
     component.initialize(contexts[0])
@@ -190,28 +190,16 @@ def test_policy_lifts_crypto_to_stable_on_crypto_cross_down(
 
 def test_minimum_policy_suppresses_plain_greed_sell() -> None:
     portfolio = _portfolio({"spy": 0.5, "btc": 0.5, "eth": 0.0, "stable": 0.0})
-    suppressed_snapshot, _component = _outer_snapshot(
-        policy=MinimumHierarchicalOuterPolicy(greed_sell_suppression_enabled=True),
-        contexts=[_context(portfolio=portfolio, fgi_value=65.0)],
-    )
-    unsuppressed_snapshot, _component = _outer_snapshot(
-        policy=MinimumHierarchicalOuterPolicy(greed_sell_suppression_enabled=False),
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
         contexts=[_context(portfolio=portfolio, fgi_value=65.0)],
     )
 
-    suppressed = MinimumHierarchicalOuterPolicy(
-        greed_sell_suppression_enabled=True
-    ).decide(suppressed_snapshot)
-    unsuppressed = MinimumHierarchicalOuterPolicy(
-        greed_sell_suppression_enabled=False
-    ).decide(unsuppressed_snapshot)
+    suppressed = MinimumHierarchicalOuterPolicy().decide(snapshot)
 
     assert suppressed.reason != "above_greed_sell"
     assert suppressed.target_allocation is not None
     assert suppressed.target_allocation["stable"] == pytest.approx(0.0)
-    assert unsuppressed.reason == "spy_above_greed_sell+crypto_above_greed_sell"
-    assert unsuppressed.target_allocation is not None
-    assert unsuppressed.target_allocation["stable"] == pytest.approx(1.0)
 
 
 def test_minimum_policy_does_not_fire_fear_recovery_buy() -> None:
