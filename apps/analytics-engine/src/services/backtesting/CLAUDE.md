@@ -120,6 +120,19 @@ it adds positive contribution in the current minimum environment — historical
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-02 - SPY tax pattern diagnosis
+- **Commit**: `8ab4485` (SPY tax diagnostic tooling)
+- **Diagnostic**: `apps/analytics-engine/docs/diagnostics/spy_tax_2026-04-15.md`
+- **Pattern verdict**: S1 + S4
+- **Key statistics**:
+  - Total divergence events: 27
+  - SPY entries with negative 5-day forward return: 50.0%
+  - Median crypto-cut size at SPY entry: 0.00 percentage points
+  - Oscillation count (entry+exit within 7 days): 8
+  - Total "regret" (forward crypto return lost across SPY entries): 1.80 percentage points
+- **Interpretation**: The SPY tax is primarily false-positive/whipsaw allocation, not a coarse crypto haircut. SPY entries have weak short-term follow-through and 8 of 14 entries reverse within a week, while the median crypto-cut size is 0.00pp. That supports S1 and S4, and does not support S2 as the main driver.
+- **Next**: Phase C will build variants targeting S1 and S4 specifically.
+
 ### 2026-05-02 — SPY tax decomposed via `dma_fgi_eth_btc_minimum`
 - **Commit**: `05326af` (eth_btc_minimum research variant + sweep)
 - **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `dma_fgi_hierarchical_minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
