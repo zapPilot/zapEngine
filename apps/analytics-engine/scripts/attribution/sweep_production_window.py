@@ -16,6 +16,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
     STRATEGY_SPY_ETH_BTC_ROTATION,
@@ -67,6 +68,7 @@ TOLERANCE_ALIASES = {
     "trades": "trade_count",
     "trade_count": "trade_count",
 }
+EXCLUDED_DISPLAY_PREFIXES = ("[DEPRECATED] ", "[RESEARCH] ")
 
 
 @dataclass(frozen=True)
@@ -80,12 +82,15 @@ class DriftRow:
     status: str
 
 
-def _is_deprecated_strategy(strategy_id: str) -> bool:
+def _is_excluded_strategy(strategy_id: str) -> bool:
     try:
-        return get_strategy_recipe(strategy_id).deprecated
+        recipe = get_strategy_recipe(strategy_id)
+        if recipe.deprecated:
+            return True
+        display_name = recipe.display_name
     except ValueError:
         display_name = STRATEGY_DISPLAY_NAMES.get(strategy_id, "")
-        return display_name.startswith("[DEPRECATED] ")
+    return display_name.startswith(EXCLUDED_DISPLAY_PREFIXES)
 
 
 def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]:
@@ -96,6 +101,7 @@ def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]
         *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
         *ATTRIBUTION_VARIANTS.keys(),
         STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
         STRATEGY_ETH_BTC_ROTATION,
         STRATEGY_SPY_ETH_BTC_ROTATION,
         STRATEGY_DCA_CLASSIC,
@@ -103,7 +109,7 @@ def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]
     ):
         if strategy_id in seen:
             continue
-        if exclude_deprecated and _is_deprecated_strategy(strategy_id):
+        if exclude_deprecated and _is_excluded_strategy(strategy_id):
             continue
         strategy_ids.append(strategy_id)
         seen.add(strategy_id)
@@ -427,7 +433,7 @@ def _write_snapshot(path: Path, snapshot: dict[str, Any]) -> None:
     path.write_text(json.dumps(snapshot, indent=2) + "\n")
 
 
-def _merge_preserved_deprecated_entries(
+def _merge_preserved_excluded_entries(
     *,
     existing: dict[str, Any] | None,
     actual: dict[str, Any],
@@ -449,7 +455,7 @@ def _merge_preserved_deprecated_entries(
     for strategy_id, entry in existing_strategies.items():
         if strategy_id in merged_strategies or not isinstance(entry, dict):
             continue
-        if not _is_deprecated_strategy(strategy_id):
+        if not _is_excluded_strategy(strategy_id):
             continue
         preserved_entry = dict(entry)
         preserved_entry["display_name"] = STRATEGY_DISPLAY_NAMES.get(
@@ -496,8 +502,8 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help=(
-            "Exclude deprecated strategy recipes. Defaults on for --check and "
-            "--update-snapshot, off for diagnostic runs."
+            "Exclude deprecated/research strategy recipes. Defaults on for "
+            "--check and off for --update-snapshot/diagnostic runs."
         ),
     )
     parser.add_argument(
@@ -520,7 +526,7 @@ def main() -> None:
         )
     )
     exclude_deprecated = (
-        bool(args.check or args.update_snapshot)
+        bool(args.check)
         if args.exclude_deprecated is None
         else bool(args.exclude_deprecated)
     )
@@ -535,7 +541,7 @@ def main() -> None:
     )
     if args.update_snapshot:
         snapshot = (
-            _merge_preserved_deprecated_entries(existing=expected, actual=actual)
+            _merge_preserved_excluded_entries(existing=expected, actual=actual)
             if exclude_deprecated
             else actual
         )

@@ -16,7 +16,9 @@ from src.services.backtesting.capabilities import (
 )
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
+    STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_ADAPTIVE_DMA_ONLY,
     STRATEGY_DMA_FGI_HIERARCHICAL_FEAR_RECOVERY_ONLY,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_BUY_FLOOR,
@@ -46,6 +48,9 @@ from src.services.backtesting.strategies.eth_btc_attribution import (
     EthBtcAttributionStrategy,
     build_initial_attribution_asset_allocation,
 )
+from src.services.backtesting.strategies.eth_btc_minimum import (
+    DmaFgiEthBtcMinimumStrategy,
+)
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     EthBtcRotationStrategy,
@@ -53,6 +58,7 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
+    PLAIN_GREED_SELL_RULE,
 )
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
@@ -298,6 +304,26 @@ def _build_adaptive_binary_eth_btc_strategy(
             template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
         )
     return DmaFgiAdaptiveBinaryEthBtcStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
+def _build_eth_btc_minimum_strategy(request: StrategyBuildRequest) -> BaseStrategy:
+    params = EthBtcRotationParams.from_public_params(request.params).model_copy(
+        update={"disabled_rules": frozenset({PLAIN_GREED_SELL_RULE})}
+    )
+    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ETH_BTC_MINIMUM
+    initial_asset_allocation = None
+    if request.mode == "compare" and request.initial_allocation is not None:
+        initial_asset_allocation = build_initial_pair_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+        )
+    return DmaFgiEthBtcMinimumStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
@@ -582,6 +608,28 @@ _RECIPES: dict[str, StrategyRecipe] = {
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
         build_strategy=_build_adaptive_binary_eth_btc_strategy,
+        supports_daily_suggestion=False,
+    ),
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM: StrategyRecipe(
+        strategy_id=STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ETH_BTC_MINIMUM],
+        description=(
+            "Research-only ETH/BTC pair-template strategy: DMA/FGI stable gate "
+            "with plain greed sell suppression and no SPY layer."
+        ),
+        signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset({DMA_200_FEATURE}),
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_eth_btc_rotation_public_params,
+        build_strategy=_build_eth_btc_minimum_strategy,
         supports_daily_suggestion=False,
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: StrategyRecipe(

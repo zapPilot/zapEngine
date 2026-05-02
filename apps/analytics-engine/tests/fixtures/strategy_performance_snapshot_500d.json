@@ -276,6 +276,14 @@
       "roi_percent": 141.2093,
       "trade_count": 59
     },
+    "dma_fgi_eth_btc_minimum": {
+      "display_name": "[RESEARCH] ETH/BTC Minimum (no SPY)",
+      "calmar_ratio": 4.4634,
+      "sharpe_ratio": 1.9789,
+      "max_drawdown_percent": -20.7165,
+      "roi_percent": 145.2834,
+      "trade_count": 51
+    },
     "eth_btc_rotation": {
       "display_name": "ETH/BTC Relative Strength Rotation",
       "calmar_ratio": 4.4234,

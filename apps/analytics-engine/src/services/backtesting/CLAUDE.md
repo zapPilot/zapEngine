@@ -13,7 +13,8 @@ If you are NOT working on strategy iteration, you can skip this file.
 |---|---|---:|---|
 | `dma_fgi_hierarchical_minimum` | **Current iteration target** | 121.44% | [hierarchical_minimum.py](./strategies/hierarchical_minimum.py) |
 | `dma_fgi_hierarchical_prod` | Current production (= `_full`) | 36.62% | [spy_crypto_hierarchical_rotation.py](./strategies/spy_crypto_hierarchical_rotation.py) |
-| `dma_fgi_adaptive_binary_eth_btc` | All-time ROI champion (no SPY) | 141.21% | [pair_rotation_template.py](./strategies/pair_rotation_template.py) |
+| `dma_fgi_eth_btc_minimum` | Research-only — see iteration log entry 2026-05-02 | 145.28% | [eth_btc_minimum.py](./strategies/eth_btc_minimum.py) |
+| `dma_fgi_adaptive_binary_eth_btc` | Production benchmark champion (no SPY, non-research) | 141.21% | [pair_rotation_template.py](./strategies/pair_rotation_template.py) |
 | `dma_fgi_hierarchical_control` | Original hierarchical baseline | 91.95% | spy_crypto_hierarchical_rotation.py |
 | `eth_btc_rotation_attribution_full` | ETH/BTC attribution baseline | 126.91% | [eth_btc_attribution.py](./strategies/eth_btc_attribution.py) |
 
@@ -35,11 +36,12 @@ delta from the relevant leave-one-out variant in the snapshot fixture.
 
 ### Greed Sell Suppression
 - **Δ when removed**: -22.10pp ROI in current minimum (`_minus_greed_suppression` = 99.34% vs 121.44%; originally -22.05pp with 99.11% vs 121.16%); -21.08pp in NoDMA Full (`nodma_full_minus_greed_sell_suppression` 89.80% vs sibling baseline 110.88%)
+- **2-asset check**: `dma_fgi_eth_btc_minimum` = 145.28% vs `dma_fgi_adaptive_binary_eth_btc` = 141.21%, so plain greed sell suppression is also +4.07pp in the ETH/BTC-only context.
 - **Established**: cross-validated across two baseline contexts
-- **Mechanism**: when in extreme greed regime AND `disabled_rules` does not include `PLAIN_GREED_SELL_RULE`, suppress the sell-to-stable intent. Counter-intuitively, NOT taking profit on extreme greed outperforms taking profit because the greed regime in 2024–2026 was a continuation signal, not a top signal.
+- **Mechanism**: when in plain greed regime and `disabled_rules` includes `PLAIN_GREED_SELL_RULE`, suppress the sell-to-stable intent. Counter-intuitively, NOT taking profit on greed outperforms taking profit because the greed regime in 2024–2026 was a continuation signal, not a top signal. The separate `above_extreme_greed_sell` rule remains active.
 
 ### Inner ETH/BTC ratio rotation (`ADAPTIVE_BINARY_ETH_BTC_TEMPLATE`)
-- **Evidence**: `dma_fgi_adaptive_binary_eth_btc` (uses this template alone) is the all-time champion at 141.21% ROI, 4.67 Calmar
+- **Evidence**: `dma_fgi_adaptive_binary_eth_btc` (uses this template alone) is the non-research benchmark at 141.21% ROI, 4.67 Calmar
 - **Established**: pre-existing strategy, validated by snapshot
 - **Mechanism**: ratio-zone classification (above/at/below ETH-BTC ratio DMA) drives binary BTC↔ETH allocation within the crypto sleeve. Reused by hierarchical strategies as the inner layer.
 
@@ -98,6 +100,7 @@ it adds positive contribution in the current minimum environment — historical
 - `_minus_X` = leave-one-out variant (full set minus feature X)
 - `_only` = isolation variant (control + feature X alone)
 - `[DEPRECATED]` prefix = retained for historical comparison but excluded from default sweep runs (Phase A); code path remains until Phase B
+- `[RESEARCH]` prefix = retained in snapshot for attribution but excluded from default `--check`; do not promote without a separate production decision
 - `(sucks)` prefix = pre-existing label for confirmed-bad strategies (kept as anti-baselines)
 
 ### Adding a new variant
@@ -110,6 +113,13 @@ it adds positive contribution in the current minimum environment — historical
 ## Iteration log
 
 Newest first. Each entry: date, commit, finding, key numbers.
+
+### 2026-05-02 — SPY tax decomposition via `dma_fgi_eth_btc_minimum`
+- **Commit**: pending
+- **Hypothesis**: 20pp gap between `dma_fgi_adaptive_binary_eth_btc` (141%) and `dma_fgi_hierarchical_minimum` (121%) is some mix of SPY constraint cost / outer-policy architecture cost / context-dependent greed_sell_suppression.
+- **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%.
+- **Interpretation**: Greed_sell_suppression is **net positive in 2-asset too**. SPY tax is even larger than 20pp; outer policy is recovering some of it.
+- **Next action**: Audit `dma_fgi_adaptive_binary_eth_btc` to add greed_sell_suppression, then promote that as the new champion benchmark if the production-grade variant reproduces the research result.
 
 ### 2026-04-15 — Buy Floor removed, Phase A deprecation
 - **Commit**: `e3e140c` (Buy Floor removal + 8 strategies marked DEPRECATED)
@@ -167,7 +177,7 @@ pnpm --filter @zapengine/analytics-engine exec uv run python \
   scripts/attribution/sweep_production_window.py --check \
   --tolerance roi=2.0,calmar=0.10,sharpe=0.10,max_dd=1.0,trades=5
 
-# Exclude deprecated strategies (default for --check / --update-snapshot)
+# Exclude deprecated/research strategies (default for --check)
 sweep_production_window.py --exclude-deprecated
 ```
 
