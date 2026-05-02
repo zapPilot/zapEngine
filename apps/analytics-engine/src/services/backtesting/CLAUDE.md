@@ -1,271 +1,148 @@
 # Backtesting Strategy Iteration
 
 This file is auto-loaded by Claude Code when working on backtesting strategies.
-It captures iteration history, attribution findings, and conventions that the
-500-day snapshot fixture (`tests/fixtures/strategy_performance_snapshot_500d.json`)
-encodes as numbers but doesn't explain.
+For historical iteration records, see [ITERATION_LOG.md](./ITERATION_LOG.md).
 
 If you are NOT working on strategy iteration, you can skip this file.
 
-## Active strategies
+## Current template baseline
 
-| Strategy ID | Status | ROI (500d) | Source file |
-|---|---|---:|---|
-| `dma_fgi_hierarchical_minimum` | **Current iteration target** | 121.44% | [hierarchical_minimum.py](./strategies/hierarchical_minimum.py) |
-| `dma_fgi_eth_btc_minimum` | Research-only — see iteration log entry 2026-05-02 | 145.28% | [eth_btc_minimum.py](./strategies/eth_btc_minimum.py) |
-| `dma_fgi_adaptive_binary_eth_btc` | Production benchmark champion (no SPY, non-research) | 141.21% | [pair_rotation_template.py](./strategies/pair_rotation_template.py) |
-| `dma_fgi_hierarchical_full` | Legacy full hierarchical stack | 36.62% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
-| `dma_fgi_hierarchical_prod` | Current production (= `_full`) | 36.62% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
-| `dma_fgi_hierarchical_full_minus_adaptive_dma` | Load-bearing attribution reference | 110.88% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
-| `dma_fgi_hierarchical_control` | Original hierarchical baseline | 91.95% | spy_crypto_hierarchical_rotation.py |
-| `dma_fgi_hierarchical_spy_crypto` | Legacy hierarchical reference | n/a (not in 500d fixture) | [spy_crypto_hierarchical_rotation.py](./strategies/spy_crypto_hierarchical_rotation.py) |
-| `eth_btc_rotation` | Basic ETH/BTC strategy reference | 126.26% | [eth_btc_rotation.py](./strategies/eth_btc_rotation.py) |
-| `dma_gated_fgi` | Basic DMA-gated FGI reference | 25.75% | [dma_gated_fgi.py](./strategies/dma_gated_fgi.py) |
-| `dca_classic` | Negative baseline | -14.36% | [dca_classic.py](./strategies/dca_classic.py) |
+**`dma_fgi_hierarchical_minimum`** — 121.44% ROI, 4.50 Calmar, 500d window.
 
-The composable architecture lives in:
-- [pair_rotation_template.py](./strategies/pair_rotation_template.py) — generic two-unit DMA-gated rotation, used as both outer (SPY/crypto) and inner (ETH/BTC) layers
-- [hierarchical_outer_policy.py](./strategies/hierarchical_outer_policy.py) — `HierarchicalOuterDecisionPolicy` Protocol + concrete `FullFeaturedOuterPolicy` (legacy) and `MinimumHierarchicalOuterPolicy` (current)
+### Composition
+
+```
+Outer layer (SPY / crypto):  SPY_CRYPTO_TEMPLATE with DMA gating
+  └── Inner layer (ETH / BTC): ADAPTIVE_BINARY_ETH_BTC_TEMPLATE (ratio rotation)
+
+Outer policy: MinimumHierarchicalOuterPolicy (zero tunable fields)
+  ├── Feature 1: DMA stable gating
+  │   └── When crypto < CRYPTO_DMA in fear regime → lift to stable
+  └── Feature 2: Greed Sell Suppression
+      └── When extreme greed + PLAIN_GREED_SELL_RULE not disabled → suppress sell-to-stable
+```
+
+Source files:
+- [hierarchical_minimum.py](./strategies/hierarchical_minimum.py) — strategy recipe
+- [hierarchical_outer_policy.py](./strategies/hierarchical_outer_policy.py) — `MinimumHierarchicalOuterPolicy` Protocol implementation
+- [pair_rotation_template.py](./strategies/pair_rotation_template.py) — generic two-unit DMA-gated rotation (outer + inner reuse)
 
 `MinimumHierarchicalOuterPolicy` has **zero dataclass fields** by design — every potential tunable was tested and removed. Don't add fields without a snapshot diff justifying it.
 
+### Reference benchmarks
+
+| Strategy | ROI (500d) | Notes |
+|---|---|---|
+| `dma_fgi_hierarchical_minimum` | 121.44% | Current target |
+| `dma_fgi_eth_btc_minimum` | 145.28% | Research only — no SPY, 2-asset |
+| `dma_fgi_adaptive_binary_eth_btc` | 141.21% | Production champion (no SPY) |
+| `dma_fgi_hierarchical_full_minus_adaptive_dma` | 110.88% | Attribution reference |
+| `dma_gated_fgi` | 25.75% | Basic DMA-gated FGI baseline |
+| `dca_classic` | -14.36% | Negative baseline |
+
 ## What works (do not regress)
 
-Each entry includes the commit where the finding was established and the ROI
-delta from the relevant leave-one-out variant in the snapshot fixture.
+Each finding is established by ROI delta from leave-one-out variants in the snapshot fixture.
 
-### DMA stable gating
-- **Δ when removed**: -96.96pp ROI (`dma_fgi_hierarchical_minimum_minus_dma_gating` = 24.48% vs current minimum 121.44%; originally -96.68pp vs 121.16% at establishment)
-- **Established**: commit `fe8db22` (minimum strategy + leave-one-out variants)
-- **Mechanism**: when crypto < CRYPTO_DMA in fear regime, lift to stable. Foundation feature — without it the strategy reduces to undisciplined DCA.
-
-### Greed Sell Suppression
-- **Δ when removed**: -22.05pp ROI in `dma_fgi_hierarchical_minimum`; -21.08pp in NoDMA Full
-- **Universal across 2-asset and 3-asset**: confirmed +4.07pp in 2-asset (`dma_fgi_eth_btc_minimum` 145.28% vs `dma_fgi_adaptive_binary_eth_btc` 141.21%, both no SPY)
-- **Established**: cross-validated across SPY-bearing and SPY-less contexts
-- **Trade-off**: in 2-asset, +4.07pp ROI comes with -0.21 Calmar and -1.42pp MaxDD — risk/return trade, not free lunch. Acceptable when ROI dominates.
-- **Mechanism**: when in extreme greed regime AND `disabled_rules` does not include `PLAIN_GREED_SELL_RULE`, suppress sell-to-stable intent.
-
-### Inner ETH/BTC ratio rotation (`ADAPTIVE_BINARY_ETH_BTC_TEMPLATE`)
-- **Evidence**: `dma_fgi_adaptive_binary_eth_btc` (uses this template alone) is the non-research benchmark at 141.21% ROI, 4.67 Calmar
-- **Established**: pre-existing strategy, validated by snapshot
-- **Mechanism**: ratio-zone classification (above/at/below ETH-BTC ratio DMA) drives binary BTC↔ETH allocation within the crypto sleeve. Reused by hierarchical strategies as the inner layer.
+| Feature | Δ when removed | Established |
+|---|---|---|
+| DMA stable gating | **-96.96pp** ROI | `fe8db22` |
+| Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
+| Inner ETH/BTC ratio rotation | (isolated in `dma_fgi_adaptive_binary_eth_btc` = 141.21%) | pre-existing |
 
 ## What doesn't work (do not re-introduce without new evidence)
 
-These features were tested via leave-one-out attribution and removed. If you
-think one of them is needed, you must justify with a new snapshot diff showing
-it adds positive contribution in the current minimum environment — historical
-"intuition" is not enough.
+| Feature | Evidence | Verdict |
+|---|---|---|
+| Adaptive DMA Reference | +74.26pp Δ when removed from full | Harmful; excluded at type level |
+| Fear Recovery Buy | `_only` = 14.28% ROI, Calmar 0.67 | Worst non-DCA strategy |
+| SPY Cross-Up Latch | -0.69pp in full; +3.86pp in NoDMA full | Noise; removed |
+| Buy Floor | +0.28pp Δ when removed (below noise) | Noise; removed at type level |
 
-### Adaptive DMA Reference (`adaptive_crypto_dma_reference`)
-- **Δ when removed**: +74.26pp ROI (`dma_fgi_hierarchical_full_minus_adaptive_dma` 110.88% vs full 36.62%)
-- **Confirmed harmful in**: hierarchical full, NoDMA full, single-feature-only (`adaptive_dma_only` 37.42%)
-- **Excluded at type level**: `MinimumHierarchicalOuterPolicy` has no `adaptive_crypto_dma_reference` field
-- **Last seen in**: `FullFeaturedOuterPolicy` (legacy, kept until Phase B production migration)
+Signal/noise threshold: **|Δ| < 0.5pp** = noise; **0.5pp ≤ |Δ| < 2pp** = weak signal; **|Δ| ≥ 2pp** = actionable.
 
-### Fear Recovery Buy (`below_fear_recovering_buy` rule)
-- **Δ in `_only` variant**: ROI 14.28%, Calmar 0.67 (worst non-DCA strategy in fixture)
-- **Δ when removed from minimum**: ~0pp (already removed; minimum doesn't include it)
-- **Δ when removed from full**: -6.17pp (full_minus_fear_recovery 30.45% vs full 36.62%; small "negative" because full is poisoned by Adaptive DMA, masking the rule's true neutrality)
-- **Trade-off**: removes the `extreme_fear_dca_2025_11_21` and `extreme_fear_dca_2026_02_06` event-validator triggers in `tests/fixtures/hierarchical_validation_events.json`. **This is intentional** — those events validate the legacy production behavior, not the minimum's.
+## Adding a new variant
 
-### SPY Cross-Up Latch (`spy_cross_up_latch`)
-- **Δ when removed from full**: -0.69pp (noise)
-- **Δ when removed from NoDMA full**: +3.86pp (slightly net negative)
-- **Δ in minimum**: not applicable — removed entirely
-- **Why SPY still gets allocated without it**: outer pair-template (`SPY_CRYPTO_TEMPLATE`) DMA gating runs independently of the latch. SPY > SPY_DMA → SPY allocated. The latch was a 14-day "follow-through" ratchet that the data says is unnecessary.
-
-### Buy Floor (`dma_buy_strength_floor`)
-- **Δ when removed from minimum**: +0.28pp (`minimum_minus_buy_floor` 121.44% vs old minimum 121.16%, 1 trade difference)
-- **Verdict**: noise. Removed at type level in commit `e3e140c` (Buy Floor removal + Phase A deprecation).
-- **Past confusion**: in NoDMA Full, leave-one-out showed -2.65pp Δ — looked meaningful. The 0.28pp result in the cleaner minimum environment shows that earlier delta was a feature-interaction artifact, not a real Buy Floor effect.
-
-## Conventions
-
-### Signal/noise threshold
-- **|Δ| < 0.5pp ROI** = noise, do not interpret
-- **0.5pp ≤ |Δ| < 2pp** = weak signal; require confirmation in second baseline before acting
-- **|Δ| ≥ 2pp** = actionable
-
-### Window choice
-- Always use the 500-day production window (matches frontend `DEFAULT_DAYS = 500`).
-- The yearly windows in `sweep_hierarchical.py` (`2024`, `2025`, `2026`) are **diagnostic only** — path-dependent state (cooldowns, latches, ratchets) resets at year boundaries, breaking path-dependent strategies.
-- The snapshot fixture's `reference_date` is pinned (`2026-04-15` as of last update). Do not change it without explicit re-anchoring; otherwise drift detection becomes meaningless.
-
-### Per-metric tolerances (in fixture, also defaults)
-| Metric | Tolerance |
-|---|---|
-| `roi_percent` | ±2.0 (absolute pct) |
-| `calmar_ratio` | ±0.10 |
-| `sharpe_ratio` | ±0.10 |
-| `max_drawdown_percent` | ±1.0 (absolute pct) |
-| `trade_count` | ±5 |
-
-### Naming
-- `_minus_X` = leave-one-out variant (full set minus feature X)
-- `_only` = isolation variant (control + feature X alone)
-- `[DEPRECATED]` prefix = retained for historical comparison but excluded from default sweep runs (Phase A); code path remains until Phase B
-- `[RESEARCH]` prefix = retained in snapshot for attribution but excluded from default `--check`; do not promote without a separate production decision
-- `(sucks)` prefix = pre-existing label for confirmed-bad strategies (kept as anti-baselines)
-
-### Adding a new variant
 1. Append entry to relevant `*_VARIANTS` dict (e.g. `MINIMUM_HIERARCHICAL_VARIANTS`)
 2. Add display name in [constants.py](./constants.py)
 3. Add recipe in [strategy_registry.py](./strategy_registry.py)
 4. Run `sweep_production_window.py --update-snapshot`
-5. Inspect snapshot diff and update this CLAUDE.md's "Active strategies" or iteration log
+5. Inspect snapshot diff — if |Δ| ≥ 2pp and consistent across baselines, update this file's "Current template baseline" section
+6. Append entry to [ITERATION_LOG.md](./ITERATION_LOG.md)
 
-## Iteration log
+## Conventions
 
-Newest first. Each entry: date, commit, finding, key numbers.
-
-### 2026-05-02 - SPY tax fix attempt: S1/S4 targeted variants
-- **Commit**: this commit (targeted S1/S4 research variants + sweep)
-- **Variants**:
-  - `dma_fgi_hierarchical_minimum_dma_buffer`: S1 test; requires 3% above-DMA distance before above-DMA DMA buy entries.
-  - `dma_fgi_hierarchical_minimum_dual_above_hold`: S4 test; holds the current outer allocation while both SPY and crypto are above DMA.
-- **Results vs `dma_fgi_hierarchical_minimum` baseline (121.44% ROI, 85 trades)**:
-  - `_dma_buffer`: ROI 121.49%, delta +0.05pp, trades 85 (delta 0)
-  - `_dual_above_hold`: ROI 107.69%, delta -13.74pp, trades 72 (delta -13)
-- **Validation**: `validate_hierarchical_events.py --all-strategies` now includes both research variants; all expected hierarchical events pass.
-- **Verdict**: fix failed. Best variant is below 125% ROI, so neither pre-designed S1 nor S4 modifier recovers the 23.84pp SPY tax.
-- **Next**: re-run diagnosis with finer instrumentation around stable-vs-SPY allocation and post-sell redeploy timing. The first diagnosis correctly identified weak SPY events and oscillation, but these simple gates did not isolate the return leak.
-
-### 2026-05-02 - SPY tax pattern diagnosis
-- **Commit**: `8ab4485` (SPY tax diagnostic tooling)
-- **Diagnostic**: `apps/analytics-engine/docs/diagnostics/spy_tax_2026-04-15.md`
-- **Pattern verdict**: S1 + S4
-- **Key statistics**:
-  - Total divergence events: 27
-  - SPY entries with negative 5-day forward return: 50.0%
-  - Median crypto-cut size at SPY entry: 0.00 percentage points
-  - Oscillation count (entry+exit within 7 days): 8
-  - Total "regret" (forward crypto return lost across SPY entries): 1.80 percentage points
-- **Interpretation**: The SPY tax is primarily false-positive/whipsaw allocation, not a coarse crypto haircut. SPY entries have weak short-term follow-through and 8 of 14 entries reverse within a week, while the median crypto-cut size is 0.00pp. That supports S1 and S4, and does not support S2 as the main driver.
-- **Next**: Phase C will build variants targeting S1 and S4 specifically.
-
-### 2026-05-02 — SPY tax decomposed via `dma_fgi_eth_btc_minimum`
-- **Commit**: `05326af` (eth_btc_minimum research variant + sweep)
-- **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `dma_fgi_hierarchical_minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
-- **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%, Calmar 4.46, MaxDD -20.72%, 51 trades
-- **Interpretation (Branch 2)**: Greed Sell Suppression is **universal positive** (+4.07pp in 2-asset vs adaptive_binary 141.21%). SPY tax is **23.84pp** (= 145.28 - 121.44), larger than first estimated. SPY tax is **architecture-induced, not asset-induced** — `hierarchical_minimum` executes 33 more trades than the 2-asset version (84 vs 51), strongly suggesting outer SPY/crypto switching is over-active and mistimes asset transitions.
-- **Next iteration target**: diagnose SPY/crypto switch timing in outer pair-template. Suspects: outer DMA gating threshold too aggressive, composition formula shrinks crypto share too fast when SPY rises, symmetric DMA200 windows ignore asset volatility differences, no "both-above-DMA hold" rule (oscillates between SPY and crypto).
-
-### 2026-04-15 — Buy Floor removed, Phase A deprecation
-- **Commit**: `e3e140c` (Buy Floor removal + 8 strategies marked DEPRECATED)
-- **Finding**: `dma_buy_strength_floor` has +0.28pp Δ in the minimum baseline (1 trade difference over 500 days). Below noise threshold. Removed from `MinimumHierarchicalOuterPolicy` at the type level. Added `feature_summary()` method to outer policy Protocol.
-- **Snapshot delta**: `dma_fgi_hierarchical_minimum` 121.16% → ~121.44% (matches old `_minus_buy_floor` exactly, validating behavior-equivalence).
-- **Deprecated**: 4 `full_minus_*` Phase 1 variants (poisoned by Adaptive DMA), `adaptive_dma_only`, `fear_recovery_only`, two `(sucks)` controls.
-
-### 2026-04-15 — `dma_fgi_hierarchical_minimum` shipped
-- **Commit**: `fe8db22`
-- **Finding**: Minimum hierarchical SPY/crypto strategy (DMA gating + Greed Sell Suppression + Buy Floor + inner ETH/BTC rotation) hits 121.16% ROI vs production 36.62%. Validates that Adaptive DMA Reference + Fear Recovery Buy + SPY Cross-Up Latch are all unnecessary or harmful.
-- **Architecture**: introduced `HierarchicalOuterDecisionPolicy` Protocol, extracted `FullFeaturedOuterPolicy` from existing strategy class (behavior-preserving refactor), added `MinimumHierarchicalOuterPolicy` as a 2-feature composition.
-- **Snapshot deltas**:
-  - `dma_fgi_hierarchical_minimum`: 121.16% ROI, 4.50 Calmar
-  - `_minus_greed_suppression`: 99.11% (-22.05pp Δ — Greed Sell Suppression strongest active feature)
-  - `_minus_buy_floor`: 121.44% (+0.28pp Δ — Buy Floor noise; led to next iteration)
-  - `_minus_dma_gating`: 24.48% (-96.68pp Δ — DMA gating is foundation)
-
-### 2026-04-15 — 500-day snapshot fixture established
-- **Commit**: `6b09fa6` (snapshot fixture + sweep_production_window.py)
-- **Finding**: Yearly attribution windows in `sweep_hierarchical.py` don't predict 500-day production performance — path-dependent state resets at year boundaries. New script runs the same 500-day window the frontend uses, with snapshot fixture as ground truth.
-- **Cross-strategy bug surfaced**: `test_spy_does_not_dilute_total_return` and `test_production_not_worse_than_ablations` fail on initial snapshot — these are intentional regression markers for the next iteration to fix.
-
-### Adding new entries
-
-When you complete an iteration, prepend a new entry above with:
-1. Date
-2. Commit hash (use `git rev-parse --short HEAD` after merging)
-3. One-paragraph finding
-4. Key snapshot delta numbers (copy from `git diff` of fixture)
+- **Window**: always 500-day production window (`DEFAULT_DAYS = 500` in frontend). Yearly windows in `sweep_hierarchical.py` are **diagnostic only** — path-dependent state resets at year boundaries.
+- **Snapshot fixture** (`tests/fixtures/strategy_performance_snapshot_500d.json`) `reference_date` is pinned to `2026-04-15`. Do not change without re-anchoring.
+- **Naming**: `_minus_X` = leave-one-out; `_only` = isolation; `[DEPRECATED]` = excluded from default `--check`; `[RESEARCH]` = excluded from default `--check`, no production promotion.
 
 ## Commands
 
-Start the API first for scripts that call `/api/v3/backtesting/compare`:
+> All scripts require the API running: `pnpm --filter @zapengine/analytics-engine dev`
+
+### Snapshot (CI gate)
 
 ```bash
-pnpm --filter @zapengine/analytics-engine dev
-```
-
-### Strategy Performance Snapshot
-
-```bash
-# Show drift vs snapshot (diagnostic; never fails on metric drift)
-pnpm --filter @zapengine/analytics-engine exec uv run python \
-  scripts/attribution/sweep_production_window.py
-
-# Strict CI gate (exits 1 when drift exceeds per-metric tolerance)
+# Strict CI check — exits 1 on drift (default: excludes deprecated/research)
 pnpm --filter @zapengine/analytics-engine test:strategy-snapshot
 
-# Update snapshot after intentional behavior change
-pnpm --filter @zapengine/analytics-engine exec uv run python \
-  scripts/attribution/sweep_production_window.py --update-snapshot
+# Diagnostic — shows drift but never fails
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py
 
-# Ad hoc strict check with explicit per-metric tolerances
-pnpm --filter @zapengine/analytics-engine exec uv run python \
-  scripts/attribution/sweep_production_window.py --check \
+# Update after intentional behavior change
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot
+
+# Ad hoc strict check with explicit tolerances
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --check \
   --tolerance roi=2.0,calmar=0.10,sharpe=0.10,max_dd=1.0,trades=5
-
-# Exclude deprecated/research strategies (default for --check)
-sweep_production_window.py --exclude-deprecated
 ```
 
-### Hierarchical Attribution Sweep (yearly windows; diagnostic only)
+### Attribution (yearly windows; diagnostic only)
 
 ```bash
+# Default: all windows + all registered variants
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
-  --windows 2024,2025,2026,combined \
-  --out attribution_$(date -I).md
-```
+  --windows 2024,2025,2026,combined
 
-Phase 2 NoDMA leave-one-out sweep (historical diagnostic):
+# Single window
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py --windows 2025
 
-```bash
+# Custom baseline + variants + markdown output
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
   --windows 2024,2025,2026,combined \
   --baseline-strategy dma_fgi_hierarchical_full_minus_adaptive_dma \
   --variants dma_fgi_hierarchical_full_minus_adaptive_dma,dma_fgi_hierarchical_nodma_full_minus_spy_latch,dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression,dma_fgi_hierarchical_nodma_full_minus_buy_floor,dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy \
-  --out attribution_phase2_$(date -I).md
+  --out attribution_$(date -I).md
 ```
 
-Quick single-window run:
+Common `sweep_hierarchical.py` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--endpoint` | `http://localhost:8001` | API base URL |
+| `--windows` | `2024,2025,2026,combined` | Comma-separated windows |
+| `--baseline-strategy` | — | Baseline for delta Calmar |
+| `--variants` | all registered | Comma-separated strategy IDs |
+| `--out` | — | Markdown output path |
+| `--no-progress` | false | Disable progress bar |
+
+### Validation (hierarchical regression events)
 
 ```bash
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
-  --windows 2025
-```
+# All strategies
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py
 
-Useful `sweep_hierarchical.py` options:
-
-```bash
---endpoint http://localhost:8001   # API base URL; this is the default
---windows 2024,2025,2026,combined  # comma-separated windows to run
---total-capital 10000              # default initial capital
---baseline-strategy <strategy-id>  # baseline for delta Calmar and validation
---variants <strategy-id,...>       # optional registered variant subset
---out attribution_2026-05-01.md    # optional markdown output path
---no-progress                      # disable stderr progress bar
-```
-
-### Hierarchical Regression Events
-
-```bash
+# Specific strategy
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py \
-  --out hierarchical_validation_$(date -I).md
-
-# Validate against a specific strategy (e.g. minimum)
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py \
-  --strategy-id dma_fgi_hierarchical_minimum \
-  --config-id dma_fgi_hierarchical_minimum
+  --strategy-id dma_fgi_hierarchical_minimum
 ```
 
-Note: the minimum strategy intentionally fails `extreme_fear_dca_*` events because Fear Recovery Buy is excluded.
+> Note: `dma_fgi_hierarchical_minimum` intentionally fails `extreme_fear_dca_*` events (Fear Recovery Buy is excluded).
 
-# Diagnose command:
-```
-pnpm --filter @zapengine/analytics-engine exec uv run python  scripts/attribution/diagnose_spy_tax.py \
+### Diagnosis (SPY tax)
+
+```bash
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/diagnose_spy_tax.py \
   --baseline-strategy dma_fgi_hierarchical_minimum \
   --reference-strategy dma_fgi_eth_btc_minimum \
   --reference-date 2026-04-15 \
