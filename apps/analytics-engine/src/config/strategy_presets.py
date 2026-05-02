@@ -18,7 +18,6 @@ from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
-    STRATEGY_SPY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.public_params import (
     get_default_public_params,
@@ -27,9 +26,6 @@ from src.services.backtesting.public_params import (
 )
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.eth_btc_rotation import EthBtcRotationParams
-from src.services.backtesting.strategies.spy_eth_btc_rotation import (
-    SpyEthBtcRotationParams,
-)
 
 
 @dataclass(frozen=True)
@@ -69,22 +65,11 @@ STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {
             "cooldown_days": 14,
         },
     },
-    STRATEGY_SPY_ETH_BTC_ROTATION: {
-        "trade_quota": {
-            "min_trade_interval_days": 1,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-        "rotation": {
-            "cooldown_days": 14,
-        },
-    },
 }
 # ─────────────────────────────────────────────────────────────────────────────
 
 DMA_DEFAULT_CONFIG_ID: Final[str] = "dma_gated_fgi_default"
 ETH_BTC_ROTATION_CONFIG_ID: Final[str] = "eth_btc_rotation_default"
-SPY_ETH_BTC_ROTATION_CONFIG_ID: Final[str] = "spy_eth_btc_rotation_default"
 
 _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
     "cross_cooldown_days",
@@ -93,7 +78,6 @@ _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
 _PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[DmaGatedFgiParams]]] = {
     STRATEGY_DMA_GATED_FGI: DmaGatedFgiParams,
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationParams,
-    STRATEGY_SPY_ETH_BTC_ROTATION: SpyEthBtcRotationParams,
 }
 _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
     _ComposedPresetDefinition(
@@ -124,26 +108,6 @@ _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
         ),
         bucket_mapper_id="eth_btc_stable",
         is_default=True,
-    ),
-    _ComposedPresetDefinition(
-        config_id=SPY_ETH_BTC_ROTATION_CONFIG_ID,
-        display_name="SPY/ETH/BTC Multi-Asset Rotation",
-        description=(
-            "Adds SPY (S&P 500) as a fourth bucket to the ETH/BTC rotation. "
-            "SPY uses DMA gating plus a CNN US equity Fear & Greed risk overlay. Capital is "
-            "allocated competitively: when both DMA gates are risk-on, SPY "
-            "and crypto each get ~50%."
-        ),
-        strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
-        signal_component_id="spy_eth_btc_rs_signal",
-        decision_component_id="spy_eth_btc_rotation_policy",
-        signal_param_fields=(
-            *_DEFAULT_SIGNAL_PARAM_FIELDS,
-            "ratio_cross_cooldown_days",
-            "rotation_neutral_band",
-            "rotation_max_deviation",
-        ),
-        bucket_mapper_id="spy_eth_btc_stable",
     ),
 )
 

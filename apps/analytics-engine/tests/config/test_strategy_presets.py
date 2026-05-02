@@ -9,7 +9,6 @@ import pytest
 from src.config.strategy_presets import (
     DMA_DEFAULT_CONFIG_ID,
     ETH_BTC_ROTATION_CONFIG_ID,
-    SPY_ETH_BTC_ROTATION_CONFIG_ID,
     STRATEGY_PRESETS,
     STRATEGY_TUNING_OVERRIDES,
     get_backtest_defaults,
@@ -33,12 +32,10 @@ def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
     assert [preset.config_id for preset in presets] == [
         DMA_DEFAULT_CONFIG_ID,
         ETH_BTC_ROTATION_CONFIG_ID,
-        SPY_ETH_BTC_ROTATION_CONFIG_ID,
     ]
     assert {preset.strategy_id for preset in presets} == {
         "dma_gated_fgi",
         "eth_btc_rotation",
-        "spy_eth_btc_rotation",
     }
     assert (
         presets[1].params["signal"]["cross_cooldown_days"]

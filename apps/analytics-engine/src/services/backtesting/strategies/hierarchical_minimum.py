@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     LEGACY_DMA_BUY_STRENGTH_FLOOR,
@@ -79,24 +77,6 @@ MINIMUM_HIERARCHICAL_VARIANTS: dict[str, MinimumHierarchicalVariant] = {
             "greed sell suppression."
         ),
         outer_policy=MinimumHierarchicalOuterPolicy(),
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION: _variant(
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_GREED_SUPPRESSION,
-        description=(
-            "Leave-one-out: minimum hierarchical stack with canonical plain "
-            "greed sells enabled."
-        ),
-        outer_policy=MinimumHierarchicalOuterPolicy(
-            greed_sell_suppression_enabled=False
-        ),
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING: _variant(
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_MINUS_DMA_GATING,
-        description=(
-            "Leave-one-out: minimum hierarchical stack with outer DMA stable "
-            "gating disabled."
-        ),
-        outer_policy=MinimumHierarchicalOuterPolicy(dma_stable_gating_enabled=False),
     ),
 }
 

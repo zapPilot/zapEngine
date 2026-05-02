@@ -12,11 +12,16 @@ If you are NOT working on strategy iteration, you can skip this file.
 | Strategy ID | Status | ROI (500d) | Source file |
 |---|---|---:|---|
 | `dma_fgi_hierarchical_minimum` | **Current iteration target** | 121.44% | [hierarchical_minimum.py](./strategies/hierarchical_minimum.py) |
-| `dma_fgi_hierarchical_prod` | Current production (= `_full`) | 36.62% | [spy_crypto_hierarchical_rotation.py](./strategies/spy_crypto_hierarchical_rotation.py) |
 | `dma_fgi_eth_btc_minimum` | Research-only — see iteration log entry 2026-05-02 | 145.28% | [eth_btc_minimum.py](./strategies/eth_btc_minimum.py) |
 | `dma_fgi_adaptive_binary_eth_btc` | Production benchmark champion (no SPY, non-research) | 141.21% | [pair_rotation_template.py](./strategies/pair_rotation_template.py) |
+| `dma_fgi_hierarchical_full` | Legacy full hierarchical stack | 36.62% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
+| `dma_fgi_hierarchical_prod` | Current production (= `_full`) | 36.62% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
+| `dma_fgi_hierarchical_full_minus_adaptive_dma` | Load-bearing attribution reference | 110.88% | [hierarchical_attribution.py](./strategies/hierarchical_attribution.py) |
 | `dma_fgi_hierarchical_control` | Original hierarchical baseline | 91.95% | spy_crypto_hierarchical_rotation.py |
-| `eth_btc_rotation_attribution_full` | ETH/BTC attribution baseline | 126.91% | [eth_btc_attribution.py](./strategies/eth_btc_attribution.py) |
+| `dma_fgi_hierarchical_spy_crypto` | Legacy hierarchical reference | n/a (not in 500d fixture) | [spy_crypto_hierarchical_rotation.py](./strategies/spy_crypto_hierarchical_rotation.py) |
+| `eth_btc_rotation` | Basic ETH/BTC strategy reference | 126.26% | [eth_btc_rotation.py](./strategies/eth_btc_rotation.py) |
+| `dma_gated_fgi` | Basic DMA-gated FGI reference | 25.75% | [dma_gated_fgi.py](./strategies/dma_gated_fgi.py) |
+| `dca_classic` | Negative baseline | -14.36% | [dca_classic.py](./strategies/dca_classic.py) |
 
 The composable architecture lives in:
 - [pair_rotation_template.py](./strategies/pair_rotation_template.py) — generic two-unit DMA-gated rotation, used as both outer (SPY/crypto) and inner (ETH/BTC) layers
@@ -35,10 +40,11 @@ delta from the relevant leave-one-out variant in the snapshot fixture.
 - **Mechanism**: when crypto < CRYPTO_DMA in fear regime, lift to stable. Foundation feature — without it the strategy reduces to undisciplined DCA.
 
 ### Greed Sell Suppression
-- **Δ when removed**: -22.10pp ROI in current minimum (`_minus_greed_suppression` = 99.34% vs 121.44%; originally -22.05pp with 99.11% vs 121.16%); -21.08pp in NoDMA Full (`nodma_full_minus_greed_sell_suppression` 89.80% vs sibling baseline 110.88%)
-- **2-asset check**: `dma_fgi_eth_btc_minimum` = 145.28% vs `dma_fgi_adaptive_binary_eth_btc` = 141.21%, so plain greed sell suppression is also +4.07pp in the ETH/BTC-only context.
-- **Established**: cross-validated across two baseline contexts
-- **Mechanism**: when in plain greed regime and `disabled_rules` includes `PLAIN_GREED_SELL_RULE`, suppress the sell-to-stable intent. Counter-intuitively, NOT taking profit on greed outperforms taking profit because the greed regime in 2024–2026 was a continuation signal, not a top signal. The separate `above_extreme_greed_sell` rule remains active.
+- **Δ when removed**: -22.05pp ROI in `dma_fgi_hierarchical_minimum`; -21.08pp in NoDMA Full
+- **Universal across 2-asset and 3-asset**: confirmed +4.07pp in 2-asset (`dma_fgi_eth_btc_minimum` 145.28% vs `dma_fgi_adaptive_binary_eth_btc` 141.21%, both no SPY)
+- **Established**: cross-validated across SPY-bearing and SPY-less contexts
+- **Trade-off**: in 2-asset, +4.07pp ROI comes with -0.21 Calmar and -1.42pp MaxDD — risk/return trade, not free lunch. Acceptable when ROI dominates.
+- **Mechanism**: when in extreme greed regime AND `disabled_rules` does not include `PLAIN_GREED_SELL_RULE`, suppress sell-to-stable intent.
 
 ### Inner ETH/BTC ratio rotation (`ADAPTIVE_BINARY_ETH_BTC_TEMPLATE`)
 - **Evidence**: `dma_fgi_adaptive_binary_eth_btc` (uses this template alone) is the non-research benchmark at 141.21% ROI, 4.67 Calmar
@@ -114,12 +120,12 @@ it adds positive contribution in the current minimum environment — historical
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
-### 2026-05-02 — SPY tax decomposition via `dma_fgi_eth_btc_minimum`
-- **Commit**: pending
-- **Hypothesis**: 20pp gap between `dma_fgi_adaptive_binary_eth_btc` (141%) and `dma_fgi_hierarchical_minimum` (121%) is some mix of SPY constraint cost / outer-policy architecture cost / context-dependent greed_sell_suppression.
-- **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%.
-- **Interpretation**: Greed_sell_suppression is **net positive in 2-asset too**. SPY tax is even larger than 20pp; outer policy is recovering some of it.
-- **Next action**: Audit `dma_fgi_adaptive_binary_eth_btc` to add greed_sell_suppression, then promote that as the new champion benchmark if the production-grade variant reproduces the research result.
+### 2026-05-02 — SPY tax decomposed via `dma_fgi_eth_btc_minimum`
+- **Commit**: `05326af` (eth_btc_minimum research variant + sweep)
+- **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `dma_fgi_hierarchical_minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
+- **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%, Calmar 4.46, MaxDD -20.72%, 51 trades
+- **Interpretation (Branch 2)**: Greed Sell Suppression is **universal positive** (+4.07pp in 2-asset vs adaptive_binary 141.21%). SPY tax is **23.84pp** (= 145.28 - 121.44), larger than first estimated. SPY tax is **architecture-induced, not asset-induced** — `hierarchical_minimum` executes 33 more trades than the 2-asset version (84 vs 51), strongly suggesting outer SPY/crypto switching is over-active and mistimes asset transitions.
+- **Next iteration target**: diagnose SPY/crypto switch timing in outer pair-template. Suspects: outer DMA gating threshold too aggressive, composition formula shrinks crypto share too fast when SPY rises, symmetric DMA200 windows ignore asset volatility differences, no "both-above-DMA hold" rule (oscillates between SPY and crypto).
 
 ### 2026-04-15 — Buy Floor removed, Phase A deprecation
 - **Commit**: `e3e140c` (Buy Floor removal + 8 strategies marked DEPRECATED)

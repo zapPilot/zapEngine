@@ -418,4 +418,4 @@ def test_markdown_report_marks_failures() -> None:
 
     report = render_markdown_report([result])
 
-    assert "| missing_cross | FAIL | n/a |" in report
+    assert "| missing_cross | pass | FAIL | n/a |" in report

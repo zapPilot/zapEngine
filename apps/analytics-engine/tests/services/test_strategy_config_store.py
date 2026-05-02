@@ -66,7 +66,6 @@ def test_list_configs_falls_back_to_seed_configs_when_table_missing(
     assert [config.config_id for config in configs] == [
         "dma_gated_fgi_default",
         "eth_btc_rotation_default",
-        "spy_eth_btc_rotation_default",
         "dca_classic",
     ]
     assert store.resolve_config(None).config_id == "eth_btc_rotation_default"

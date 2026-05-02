@@ -19,7 +19,6 @@ from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
     map_portfolio_to_eth_btc_stable_buckets,
-    map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
 from src.services.backtesting.composition_types import (
@@ -30,7 +29,6 @@ from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
-    STRATEGY_SPY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
     DmaBuyGateExecutionPlugin,
@@ -51,11 +49,6 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRelativeStrengthSignalComponent,
     EthBtcRotationDecisionPolicy,
     EthBtcRotationParams,
-)
-from src.services.backtesting.strategies.spy_eth_btc_rotation import (
-    SpyEthBtcRotationDecisionPolicy,
-    SpyEthBtcRotationParams,
-    SpyEthBtcRotationSignalComponent,
 )
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from src.services.backtesting.utils import (
@@ -122,17 +115,6 @@ def _build_eth_btc_rs_signal_component(
         )
     )
     return EthBtcRelativeStrengthSignalComponent(**signal_kwargs)
-
-
-def _build_spy_eth_btc_rs_signal_component(
-    params: Mapping[str, Any],
-) -> SpyEthBtcRotationSignalComponent:
-    """Build SPY/ETH/BTC rotation signal component from params."""
-    if not params:
-        return SpyEthBtcRotationSignalComponent()
-    return SpyEthBtcRotationSignalComponent(
-        params=SpyEthBtcRotationParams.from_public_params(dict(params)),
-    )
 
 
 def _build_decision_policy(
@@ -362,35 +344,6 @@ def _build_eth_btc_saved_config_from_legacy(
     )
 
 
-def _build_spy_eth_btc_saved_config_from_legacy(
-    config_id: str,
-    params: Mapping[str, Any],
-) -> SavedStrategyConfig:
-    default_runtime_params = resolve_strategy_default_runtime_params(
-        STRATEGY_SPY_ETH_BTC_ROTATION
-    )
-    merged_params = {
-        **default_runtime_params,
-        **params,
-    }
-    resolved_params = SpyEthBtcRotationParams.from_public_params(merged_params)
-    return _build_composed_saved_config_from_legacy(
-        config_id,
-        params,
-        strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
-        params_class=SpyEthBtcRotationParams,
-        signal_component_id="spy_eth_btc_rs_signal",
-        decision_component_id="spy_eth_btc_rotation_policy",
-        default_runtime_params=default_runtime_params,
-        bucket_mapper_id="spy_eth_btc_stable",
-        signal_extra_params={
-            "ratio_cross_cooldown_days": resolved_params.ratio_cross_cooldown_days,
-            "rotation_neutral_band": resolved_params.rotation_neutral_band,
-            "rotation_max_deviation": resolved_params.rotation_max_deviation,
-        },
-    )
-
-
 @dataclass(frozen=True)
 class StrategyFamilySpec:
     """Descriptor for one saved-config strategy family."""
@@ -543,7 +496,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
         signal_components={
             "dma_gated_fgi_signal": _build_dma_gated_fgi_signal_component,
             "eth_btc_rs_signal": _build_eth_btc_rs_signal_component,
-            "spy_eth_btc_rs_signal": _build_spy_eth_btc_rs_signal_component,
         },
         decision_policies={
             "dma_fgi_policy": lambda p: _build_decision_policy(
@@ -551,9 +503,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
             ),
             "eth_btc_rotation_policy": lambda p: _build_decision_policy(
                 EthBtcRotationDecisionPolicy, p, "eth_btc_rotation_policy"
-            ),
-            "spy_eth_btc_rotation_policy": lambda p: _build_decision_policy(
-                SpyEthBtcRotationDecisionPolicy, p, "spy_eth_btc_rotation_policy"
             ),
         },
         pacing_policies={
@@ -569,7 +518,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
         bucket_mappers={
             "two_bucket_spot_stable": map_portfolio_to_two_buckets,
             "eth_btc_stable": map_portfolio_to_eth_btc_stable_buckets,
-            "spy_eth_btc_stable": map_portfolio_to_spy_eth_btc_stable_buckets,
         },
         strategy_families={
             STRATEGY_DCA_CLASSIC: StrategyFamilySpec(
@@ -599,16 +547,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
                     {"signal", "decision_policy", "pacing_policy", "execution_profile"}
                 ),
                 legacy_saved_config_builder=_build_eth_btc_saved_config_from_legacy,
-            ),
-            STRATEGY_SPY_ETH_BTC_ROTATION: StrategyFamilySpec(
-                strategy_id=STRATEGY_SPY_ETH_BTC_ROTATION,
-                composition_kind="composed",
-                mutable_via_admin=True,
-                runtime_portfolio_mode="asset",
-                required_slots=frozenset(
-                    {"signal", "decision_policy", "pacing_policy", "execution_profile"}
-                ),
-                legacy_saved_config_builder=_build_spy_eth_btc_saved_config_from_legacy,
             ),
         },
     )

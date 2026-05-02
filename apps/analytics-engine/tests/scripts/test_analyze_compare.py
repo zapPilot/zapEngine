@@ -194,7 +194,7 @@ def _spy_payload() -> dict[str, Any]:
                     "sentiment_label": "neutral",
                 },
                 "strategies": {
-                    "spy_eth_btc_rotation_default": {
+                    "dma_fgi_hierarchical_spy_crypto": {
                         "portfolio": {
                             "spot_usd": 4_000.0,
                             "stable_usd": 6_000.0,
@@ -352,8 +352,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
 
     analyzer.analyze_payload(
         endpoint="http://testserver",
-        saved_config_id="spy_eth_btc_rotation_default",
-        config_id="spy_eth_btc_rotation_default",
+        saved_config_id="dma_fgi_hierarchical_spy_crypto",
+        config_id="dma_fgi_hierarchical_spy_crypto",
         date_filter="2026-04-27",
         history_start_date="2024-11-01",
         output_format="json",
@@ -365,8 +365,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
     assert captured["request"]["end_date"] == "2026-04-27"
     assert captured["request"]["configs"] == [
         {
-            "config_id": "spy_eth_btc_rotation_default",
-            "saved_config_id": "spy_eth_btc_rotation_default",
+            "config_id": "dma_fgi_hierarchical_spy_crypto",
+            "saved_config_id": "dma_fgi_hierarchical_spy_crypto",
         }
     ]
 
@@ -394,7 +394,7 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
 def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None:
     rendered = analyzer.analyze_response_payload(
         _spy_payload(),
-        strategy_id="spy_eth_btc_rotation_default",
+        strategy_id="dma_fgi_hierarchical_spy_crypto",
         output_format="json",
         enrich_db="never",
         profile="spy-eth-btc-rotation",

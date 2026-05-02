@@ -19,10 +19,6 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
-    STRATEGY_SPY_ETH_BTC_ROTATION,
-)
-from src.services.backtesting.strategies.eth_btc_attribution import (
-    ATTRIBUTION_VARIANTS,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
@@ -69,6 +65,7 @@ TOLERANCE_ALIASES = {
     "trade_count": "trade_count",
 }
 EXCLUDED_DISPLAY_PREFIXES = ("[DEPRECATED] ", "[RESEARCH] ")
+DEPRECATED_STRATEGIES_FIELD = "deprecated_strategies"
 
 
 @dataclass(frozen=True)
@@ -99,11 +96,9 @@ def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]
     for strategy_id in (
         *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
         *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
-        *ATTRIBUTION_VARIANTS.keys(),
         STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
         STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
         STRATEGY_ETH_BTC_ROTATION,
-        STRATEGY_SPY_ETH_BTC_ROTATION,
         STRATEGY_DCA_CLASSIC,
         STRATEGY_DMA_GATED_FGI,
     ):
@@ -121,6 +116,15 @@ def _load_snapshot(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Strategy performance snapshot must be a JSON object")
     return payload
+
+
+def _snapshot_deprecated_strategies(snapshot: dict[str, Any] | None) -> set[str]:
+    if snapshot is None:
+        return set()
+    raw = snapshot.get(DEPRECATED_STRATEGIES_FIELD)
+    if not isinstance(raw, list):
+        return set()
+    return {strategy_id for strategy_id in raw if isinstance(strategy_id, str)}
 
 
 def _parse_tolerances(raw: str | None, base: dict[str, float]) -> dict[str, float]:
@@ -267,7 +271,7 @@ def collect_snapshot(
             end_date=reference_date.isoformat(),
             total_capital=total_capital,
         )
-    return {
+    snapshot: dict[str, Any] = {
         "reference_date": reference_date.isoformat(),
         "window_days": window_days,
         "window_start": start_date.isoformat(),
@@ -279,6 +283,7 @@ def collect_snapshot(
             for strategy_id in strategy_ids
         },
     }
+    return snapshot
 
 
 def _expected_context(
@@ -293,16 +298,22 @@ def _expected_context(
     reference_date_raw = reference_date_arg or (
         str(existing.get("reference_date")) if existing else DEFAULT_REFERENCE_DATE
     )
-    window_days = int(
+    window_days_raw: object = (
         days_arg
         if days_arg is not None
         else (existing.get("window_days") if existing else DEFAULT_WINDOW_DAYS)
     )
-    total_capital = float(
+    if not isinstance(window_days_raw, int):
+        raise ValueError("Snapshot window_days must be an integer")
+    window_days = window_days_raw
+    total_capital_raw: object = (
         total_capital_arg
         if total_capital_arg is not None
         else (existing.get("total_capital") if existing else DEFAULT_TOTAL_CAPITAL)
     )
+    if not isinstance(total_capital_raw, int | float):
+        raise ValueError("Snapshot total_capital must be numeric")
+    total_capital = float(total_capital_raw)
     base_tolerances = dict(DEFAULT_TOLERANCES)
     if existing and isinstance(existing.get("tolerances"), dict):
         base_tolerances.update(
@@ -348,6 +359,11 @@ def diff_snapshots(
 ) -> list[DriftRow]:
     rows: list[DriftRow] = []
     strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
+    strategy_ids = [
+        strategy_id
+        for strategy_id in strategy_ids
+        if strategy_id not in _snapshot_deprecated_strategies(expected)
+    ]
     for strategy_id in strategy_ids:
         for metric in METRIC_KEYS:
             expected_value = _snapshot_metric(expected, strategy_id, metric)
@@ -452,25 +468,33 @@ def _merge_preserved_excluded_entries(
         for strategy_id, entry in actual_strategies.items()
         if isinstance(entry, dict)
     }
+    deprecated_strategies = _snapshot_deprecated_strategies(existing)
     for strategy_id, entry in existing_strategies.items():
         if strategy_id in merged_strategies or not isinstance(entry, dict):
             continue
-        if not _is_excluded_strategy(strategy_id):
+        if strategy_id not in deprecated_strategies and not _is_excluded_strategy(
+            strategy_id
+        ):
             continue
         preserved_entry = dict(entry)
-        preserved_entry["display_name"] = STRATEGY_DISPLAY_NAMES.get(
-            strategy_id,
-            str(preserved_entry.get("display_name", strategy_id)),
-        )
+        if strategy_id in STRATEGY_DISPLAY_NAMES:
+            preserved_entry["display_name"] = STRATEGY_DISPLAY_NAMES[strategy_id]
         merged_strategies[strategy_id] = preserved_entry
 
+    active_order = _default_strategy_universe(exclude_deprecated=False)
+    historical_order = [
+        strategy_id
+        for strategy_id in existing_strategies
+        if strategy_id in deprecated_strategies and strategy_id in merged_strategies
+    ]
     ordered_strategies = {
         strategy_id: merged_strategies[strategy_id]
-        for strategy_id in _default_strategy_universe(exclude_deprecated=False)
+        for strategy_id in (*active_order, *historical_order)
         if strategy_id in merged_strategies
     }
     return {
         **actual,
+        DEPRECATED_STRATEGIES_FIELD: sorted(deprecated_strategies),
         "strategies": ordered_strategies,
     }
 
@@ -540,11 +564,7 @@ def main() -> None:
         exclude_deprecated=exclude_deprecated,
     )
     if args.update_snapshot:
-        snapshot = (
-            _merge_preserved_excluded_entries(existing=expected, actual=actual)
-            if exclude_deprecated
-            else actual
-        )
+        snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         _write_snapshot(snapshot_path, snapshot)
         print(f"Updated snapshot: {snapshot_path}")
         return

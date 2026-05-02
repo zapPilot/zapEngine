@@ -15,7 +15,6 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
 )
 
 
@@ -139,7 +138,7 @@ def test_run_sweep_with_variants_subset(monkeypatch: MonkeyPatch) -> None:
     )
     variants_subset = [
         STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
+        STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
     ]
 
     results = run_sweep(
@@ -159,5 +158,5 @@ def test_run_sweep_with_variants_subset(monkeypatch: MonkeyPatch) -> None:
     assert requested_strategy_ids == variants_subset
     assert list(results["2025"]) == variants_subset
     assert "Hierarchical Full - Adaptive DMA" in rendered
-    assert "Hierarchical NoDMA Full - SPY Latch" in rendered
+    assert "Hierarchical Attribution Full" in rendered
     assert "Hierarchical Attribution Control" not in rendered

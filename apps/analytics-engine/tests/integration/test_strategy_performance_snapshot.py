@@ -13,7 +13,6 @@ from scripts.attribution.sweep_production_window import (
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
 )
 from src.services.backtesting.strategies.hierarchical_outer_policy import (
@@ -81,24 +80,6 @@ def test_full_minus_adaptive_dma_remains_load_bearing_reference() -> None:
     )
 
 
-def test_hierarchical_minimum_does_not_regress_against_nodma_full_minus_spy_latch() -> (
-    None
-):
-    """The minimum stack should preserve NoDMA/full-minus-SPY-latch performance."""
-    snapshot = load_snapshot()
-    minimum = _strategy_metrics(
-        snapshot,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    )
-    nodma_without_spy_latch = _strategy_metrics(
-        snapshot,
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
-    )
-
-    assert minimum["roi_percent"] >= nodma_without_spy_latch["roi_percent"] + 3.0
-    assert minimum["calmar_ratio"] >= 4.0
-
-
 def test_minimum_policy_feature_summary() -> None:
     assert MinimumHierarchicalOuterPolicy().feature_summary()["active_features"] == [
         "dma_stable_gating",
@@ -111,7 +92,8 @@ def test_every_registered_strategy_has_snapshot_entry() -> None:
     snapshot = load_snapshot()
     strategies = snapshot["strategies"]
     assert isinstance(strategies, dict)
-    expected = set(_default_strategy_universe())
+    deprecated = set(snapshot.get("deprecated_strategies", []))
+    expected = set(_default_strategy_universe()) | deprecated
     actual = set(strategies)
 
     assert actual == expected, (

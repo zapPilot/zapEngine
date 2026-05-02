@@ -9,11 +9,25 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
+from src.services.backtesting.constants import (
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
+)
 
 ASSET_KEYS = frozenset({"btc", "eth", "spy", "stable", "alt"})
-DEFAULT_STRATEGY_ID = STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
-DEFAULT_CONFIG_ID = STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
+DEFAULT_STRATEGY_ID = STRATEGY_DMA_FGI_HIERARCHICAL_PROD
+DEFAULT_CONFIG_ID = STRATEGY_DMA_FGI_HIERARCHICAL_PROD
+VALIDATION_STRATEGY_IDS = (
+    STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
+    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
+    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+)
+EXPECTED_RESULT_VALUES = frozenset({"pass", "fail", "n/a"})
 EPSILON = 1e-6
 
 
@@ -21,8 +35,10 @@ EPSILON = 1e-6
 class EventValidationResult:
     case_id: str
     passed: bool
+    expected_result: str
     event_date: str | None
     message: str
+    rationale: str = ""
     inspected_dates: tuple[str, ...] = ()
 
 
@@ -46,6 +62,29 @@ def _validate_case_shape(case: Mapping[str, Any]) -> None:
     assertions = case.get("assertions")
     if not isinstance(assertions, list) or not assertions:
         raise ValueError(f"Fixture case {case['id']} must define assertions")
+    expected_results = case.get("expected_results")
+    if not isinstance(expected_results, Mapping):
+        raise ValueError(f"Fixture case {case['id']} must define expected_results")
+    missing = [
+        strategy_id
+        for strategy_id in VALIDATION_STRATEGY_IDS
+        if strategy_id not in expected_results
+    ]
+    if missing:
+        raise ValueError(
+            f"Fixture case {case['id']} missing expected_results for: "
+            + ", ".join(missing)
+        )
+    invalid = {
+        strategy_id: value
+        for strategy_id, value in expected_results.items()
+        if strategy_id in VALIDATION_STRATEGY_IDS
+        and (not isinstance(value, str) or value not in EXPECTED_RESULT_VALUES)
+    }
+    if invalid:
+        raise ValueError(
+            f"Fixture case {case['id']} has invalid expected_results: {invalid!r}"
+        )
 
 
 def build_compare_request(
@@ -53,6 +92,7 @@ def build_compare_request(
     cases: Sequence[Mapping[str, Any]],
     strategy_id: str = DEFAULT_STRATEGY_ID,
     config_id: str = DEFAULT_CONFIG_ID,
+    strategy_ids: Sequence[str] | None = None,
     total_capital: float = 10_000.0,
 ) -> dict[str, Any]:
     if not cases:
@@ -62,18 +102,30 @@ def build_compare_request(
         for case in cases
     )
     end_date = max(_parse_date(str(case["search_end_date"])) for case in cases)
-    return {
-        "token_symbol": "BTC",
-        "total_capital": total_capital,
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "configs": [
+    configs = (
+        [
+            {
+                "config_id": resolved_strategy_id,
+                "strategy_id": resolved_strategy_id,
+                "params": {},
+            }
+            for resolved_strategy_id in strategy_ids
+        ]
+        if strategy_ids is not None
+        else [
             {
                 "config_id": config_id,
                 "strategy_id": strategy_id,
                 "params": {},
             }
-        ],
+        ]
+    )
+    return {
+        "token_symbol": "BTC",
+        "total_capital": total_capital,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "configs": configs,
     }
 
 
@@ -97,6 +149,17 @@ def validate_case(
     strategy_id: str = DEFAULT_CONFIG_ID,
 ) -> EventValidationResult:
     case_id = str(case["id"])
+    expected_result = _expected_result(case=case, strategy_id=strategy_id)
+    rationale = str(case.get("rationale") or "")
+    if expected_result == "n/a":
+        return EventValidationResult(
+            case_id=case_id,
+            passed=True,
+            expected_result=expected_result,
+            event_date=None,
+            message="not applicable",
+            rationale=rationale,
+        )
     window_points = _points_in_window(
         timeline=timeline,
         start_date=_parse_date(str(case["search_start_date"])),
@@ -110,16 +173,55 @@ def validate_case(
     )
     if event_point is None:
         inspected_dates = tuple(_point_date(point) for point in window_points)
+        if expected_result == "fail":
+            return EventValidationResult(
+                case_id=case_id,
+                passed=True,
+                expected_result=expected_result,
+                event_date=None,
+                message=(
+                    f"expected fail: no matching {case['event_type']} event found"
+                ),
+                rationale=rationale,
+                inspected_dates=inspected_dates,
+            )
         return EventValidationResult(
             case_id=case_id,
             passed=False,
+            expected_result=expected_result,
             event_date=None,
             message=(
                 f"No matching {case['event_type']} event found in "
                 f"{case['search_start_date']}..{case['search_end_date']}; "
                 f"inspected dates: {', '.join(inspected_dates) or 'none'}"
             ),
+            rationale=rationale,
             inspected_dates=inspected_dates,
+        )
+
+    if expected_result == "fail":
+        failure = _evaluate_assertions(
+            case=case,
+            timeline=timeline,
+            event_point=event_point,
+            strategy_id=strategy_id,
+        )
+        if failure is None:
+            return EventValidationResult(
+                case_id=case_id,
+                passed=False,
+                expected_result=expected_result,
+                event_date=_point_date(event_point),
+                message="expected fail but assertion set held",
+                rationale=rationale,
+            )
+        return EventValidationResult(
+            case_id=case_id,
+            passed=True,
+            expected_result=expected_result,
+            event_date=_point_date(event_point),
+            message=f"expected fail: {failure}",
+            rationale=rationale,
         )
 
     failure = _evaluate_assertions(
@@ -132,14 +234,18 @@ def validate_case(
         return EventValidationResult(
             case_id=case_id,
             passed=False,
+            expected_result=expected_result,
             event_date=_point_date(event_point),
             message=failure,
+            rationale=rationale,
         )
     return EventValidationResult(
         case_id=case_id,
         passed=True,
+        expected_result=expected_result,
         event_date=_point_date(event_point),
         message="passed",
+        rationale=rationale,
     )
 
 
@@ -147,8 +253,8 @@ def render_markdown_report(results: Sequence[EventValidationResult]) -> str:
     lines = [
         "# Hierarchical Regression Event Validation",
         "",
-        "| Case | Status | Event Date | Message |",
-        "|---|---|---|---|",
+        "| Case | Expected | Status | Event Date | Message | Rationale |",
+        "|---|---|---|---|---|---|",
     ]
     for result in results:
         status = "PASS" if result.passed else "FAIL"
@@ -157,13 +263,67 @@ def render_markdown_report(results: Sequence[EventValidationResult]) -> str:
             + " | ".join(
                 (
                     result.case_id,
+                    result.expected_result,
                     status,
                     result.event_date or "n/a",
                     result.message.replace("|", "\\|"),
+                    result.rationale.replace("|", "\\|"),
                 )
             )
             + " |"
         )
+    return "\n".join(lines) + "\n"
+
+
+def render_multi_strategy_report(
+    results_by_strategy: Mapping[str, Sequence[EventValidationResult]],
+) -> str:
+    strategy_ids = list(results_by_strategy)
+    case_ids: list[str] = []
+    for results in results_by_strategy.values():
+        for result in results:
+            if result.case_id not in case_ids:
+                case_ids.append(result.case_id)
+
+    lines = [
+        "# Hierarchical Regression Event Validation",
+        "",
+        "| Event | " + " | ".join(strategy_ids) + " |",
+        "|---|" + "|".join("---" for _ in strategy_ids) + "|",
+    ]
+    for case_id in case_ids:
+        cells = [case_id]
+        for strategy_id in strategy_ids:
+            result = next(
+                item
+                for item in results_by_strategy[strategy_id]
+                if item.case_id == case_id
+            )
+            if result.expected_result == "n/a":
+                cells.append("n/a")
+            else:
+                cells.append("PASS" if result.passed else "FAIL")
+        lines.append("| " + " | ".join(cells) + " |")
+    lines.append("")
+    lines.append("## Details")
+    for strategy_id in strategy_ids:
+        lines.extend(["", f"### {strategy_id}", ""])
+        lines.append("| Event | Expected | Status | Message |")
+        lines.append("|---|---|---|---|")
+        for result in results_by_strategy[strategy_id]:
+            status = "PASS" if result.passed else "FAIL"
+            lines.append(
+                "| "
+                + " | ".join(
+                    (
+                        result.case_id,
+                        result.expected_result,
+                        status,
+                        result.message.replace("|", "\\|"),
+                    )
+                )
+                + " |"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -176,6 +336,18 @@ def _timeline(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if not isinstance(timeline, list):
         raise ValueError("Compare payload must include timeline array")
     return [point for point in timeline if isinstance(point, Mapping)]
+
+
+def _expected_result(*, case: Mapping[str, Any], strategy_id: str) -> str:
+    expected_results = case.get("expected_results")
+    if not isinstance(expected_results, Mapping):
+        return "pass"
+    raw = expected_results.get(strategy_id)
+    if not isinstance(raw, str) or raw not in EXPECTED_RESULT_VALUES:
+        raise ValueError(
+            f"Fixture case {case['id']} missing expected result for {strategy_id}"
+        )
+    return raw
 
 
 def _find_event_point(
@@ -256,7 +428,9 @@ def _is_crypto_cross_down(
         return False
     if reference_asset is None:
         return True
-    observed_reference = _optional_upper(dma.get("outer_dma_reference_asset"))
+    observed_reference = _optional_upper(
+        dma.get("outer_dma_reference_asset") or dma.get("outer_dma_asset")
+    )
     return observed_reference == reference_asset
 
 
@@ -271,7 +445,9 @@ def _is_crypto_cross_up(
         return False
     if reference_asset is None:
         return True
-    observed_reference = _optional_upper(dma.get("outer_dma_reference_asset"))
+    observed_reference = _optional_upper(
+        dma.get("outer_dma_reference_asset") or dma.get("outer_dma_asset")
+    )
     return observed_reference == reference_asset
 
 
@@ -471,6 +647,18 @@ def _evaluate_assertion(
             point=event_point,
             strategy_id=strategy_id,
         )
+    if assertion_type == "decision_detail_equals":
+        return _assert_decision_detail_equals(
+            assertion=assertion,
+            point=event_point,
+            strategy_id=strategy_id,
+        )
+    if assertion_type == "ratio_zone_equals":
+        return _assert_ratio_zone_equals(
+            assertion=assertion,
+            point=event_point,
+            strategy_id=strategy_id,
+        )
     return f"Unsupported assertion type: {assertion_type!r}"
 
 
@@ -651,6 +839,41 @@ def _assert_decision_reason_in(
     return None
 
 
+def _assert_decision_detail_equals(
+    *,
+    assertion: Mapping[str, Any],
+    point: Mapping[str, Any],
+    strategy_id: str,
+) -> str | None:
+    key = assertion.get("key")
+    if not isinstance(key, str) or not key:
+        return _failure(point, "decision_detail_equals assertion must define key")
+    expected = assertion.get("value")
+    details = _decision(point=point, strategy_id=strategy_id).get("details")
+    actual = details.get(key) if isinstance(details, Mapping) else None
+    if actual != expected:
+        return _failure(
+            point,
+            f"decision detail {key}={actual!r}; expected {expected!r}",
+        )
+    return None
+
+
+def _assert_ratio_zone_equals(
+    *,
+    assertion: Mapping[str, Any],
+    point: Mapping[str, Any],
+    strategy_id: str,
+) -> str | None:
+    expected = assertion.get("zone")
+    if not isinstance(expected, str) or not expected:
+        return _failure(point, "ratio_zone_equals assertion must define zone")
+    actual = _inner_ratio_zone(point=point, strategy_id=strategy_id)
+    if actual != expected:
+        return _failure(point, f"ratio zone={actual!r}; expected {expected!r}")
+    return None
+
+
 def _compare_current_to_previous(
     *,
     point: Mapping[str, Any],
@@ -748,9 +971,13 @@ def _decision(*, point: Mapping[str, Any], strategy_id: str) -> Mapping[str, Any
 def _inner_ratio_zone(*, point: Mapping[str, Any], strategy_id: str) -> str | None:
     details = _decision(point=point, strategy_id=strategy_id).get("details")
     if not isinstance(details, Mapping):
-        return None
+        details = {}
     zone = details.get("inner_ratio_zone")
-    return str(zone) if isinstance(zone, str) else None
+    if isinstance(zone, str):
+        return zone
+    ratio = _dma_details(point=point, strategy_id=strategy_id, key="ratio")
+    signal_zone = ratio.get("zone")
+    return str(signal_zone) if isinstance(signal_zone, str) else None
 
 
 def _strategy_state(*, point: Mapping[str, Any], strategy_id: str) -> Mapping[str, Any]:
@@ -841,9 +1068,11 @@ __all__ = [
     "DEFAULT_CONFIG_ID",
     "DEFAULT_STRATEGY_ID",
     "EventValidationResult",
+    "VALIDATION_STRATEGY_IDS",
     "all_passed",
     "build_compare_request",
     "load_event_cases",
+    "render_multi_strategy_report",
     "render_markdown_report",
     "validate_case",
     "validate_cases",

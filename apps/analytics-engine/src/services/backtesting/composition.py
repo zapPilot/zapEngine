@@ -22,10 +22,7 @@ from src.services.backtesting.composition_catalog import (
     SignalComponentFactory,
     get_default_composition_catalog,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_ETH_BTC_ROTATION,
-    STRATEGY_SPY_ETH_BTC_ROTATION,
-)
+from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
 from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
 )
@@ -230,10 +227,7 @@ def _validate_component_params(
 
 
 def _resolve_rotation_cooldown_days(saved_config: SavedStrategyConfig) -> int:
-    if saved_config.strategy_id not in {
-        STRATEGY_ETH_BTC_ROTATION,
-        STRATEGY_SPY_ETH_BTC_ROTATION,
-    }:
+    if saved_config.strategy_id != STRATEGY_ETH_BTC_ROTATION:
         return 0
     runtime_params = public_params_to_runtime_params(
         saved_config.strategy_id,

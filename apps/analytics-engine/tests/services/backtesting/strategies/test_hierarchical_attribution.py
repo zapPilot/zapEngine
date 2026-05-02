@@ -6,15 +6,10 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_BUY_FLOOR,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_FEAR_RECOVERY_BUY,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_GREED_SELL_SUPPRESSION,
-    STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH,
     STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     CURRENT_DMA_BUY_STRENGTH_FLOOR,
-    FEAR_RECOVERY_BUY_RULE,
     FULL_DISABLED_RULES,
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
     LEGACY_DMA_BUY_STRENGTH_FLOOR,
@@ -45,7 +40,12 @@ def _build_variant_strategy(strategy_id: str) -> HierarchicalSpyCryptoRotationSt
 
 
 def test_variant_registry_complete() -> None:
-    assert len(HIERARCHICAL_ATTRIBUTION_VARIANTS) == 17
+    assert set(HIERARCHICAL_ATTRIBUTION_VARIANTS) == {
+        STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
+        STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
+        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
+        STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
+    }
     for strategy_id, variant in HIERARCHICAL_ATTRIBUTION_VARIANTS.items():
         recipe = get_strategy_recipe(strategy_id)
         assert recipe.strategy_id == strategy_id
@@ -73,34 +73,14 @@ def test_full_variant_uses_post_fix_tactic_surface() -> None:
     assert strategy.dma_buy_strength_floor == CURRENT_DMA_BUY_STRENGTH_FLOOR
 
 
-def test_phase2_nodma_variants_use_nodma_baseline_surface() -> None:
+def test_full_minus_adaptive_dma_keeps_full_surface_without_adaptive_dma() -> None:
     baseline = _build_variant_strategy(
         STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA
     )
-    no_spy_latch = _build_variant_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_SPY_LATCH
-    )
-    no_greed_suppression = _build_variant_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_GREED_SELL_SUPPRESSION
-    )
-    legacy_buy_floor = _build_variant_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_BUY_FLOOR
-    )
-    no_fear_recovery = _build_variant_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_NODMA_FULL_MINUS_FEAR_RECOVERY_BUY
-    )
-
     assert baseline.adaptive_crypto_dma_reference is False
-    assert no_spy_latch.adaptive_crypto_dma_reference is False
-    assert no_spy_latch.spy_cross_up_latch is False
-    assert no_spy_latch.outer_disabled_rules == FULL_DISABLED_RULES
-    assert no_greed_suppression.adaptive_crypto_dma_reference is False
-    assert no_greed_suppression.spy_cross_up_latch is True
-    assert no_greed_suppression.outer_disabled_rules == frozenset()
-    assert legacy_buy_floor.adaptive_crypto_dma_reference is False
-    assert legacy_buy_floor.dma_buy_strength_floor == LEGACY_DMA_BUY_STRENGTH_FLOOR
-    assert no_fear_recovery.adaptive_crypto_dma_reference is False
-    assert FEAR_RECOVERY_BUY_RULE in no_fear_recovery.outer_disabled_rules
+    assert baseline.spy_cross_up_latch is True
+    assert baseline.outer_disabled_rules == FULL_DISABLED_RULES
+    assert baseline.dma_buy_strength_floor == CURRENT_DMA_BUY_STRENGTH_FLOOR
 
 
 def test_prod_variant_is_full_alias() -> None:
