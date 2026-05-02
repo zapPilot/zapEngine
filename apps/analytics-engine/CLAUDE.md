@@ -19,6 +19,12 @@ From inside this directory, drop the `--filter …` prefix: `pnpm dev`, `pnpm te
 - SQL queries live in `src/queries/sql/*.sql` (query registry pattern, not inline strings)
 - Set `DATABASE_READ_ONLY=true` in `.env`
 
+# Strategy iteration
+
+When working on backtesting strategies (anything under `src/services/backtesting/`), see [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) for the iteration log, attribution conventions, and strategy-related commands.
+
+Do not duplicate strategy iteration content here — that file is the canonical home.
+
 # IMPORTANT: Do not add deduplication to `daily_portfolio_snapshots`
 
 Never add `ROW_NUMBER()`, `PARTITION BY id_raw`, or `DISTINCT ON (id_raw)` to the `daily_portfolio_snapshots` MV.

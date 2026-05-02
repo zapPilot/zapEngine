@@ -31,6 +31,7 @@ IGNORE_PATTERNS = [
     "regime_tracking_service.py",  # DB-backed service with session DI
     "backtesting/strategies/",  # Template Method pattern (base class hooks)
     "backtesting/execution/pacing/",  # Pacing policies with similar imports (refactored to base class)
+    "backtesting/tactics/rules/",  # Explicit Rule protocol implementations share the same class shape
 ]
 
 

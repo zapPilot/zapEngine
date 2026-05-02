@@ -25,6 +25,10 @@ from src.models.market_dashboard import (
     SeriesPoint,
 )
 from src.models.regime_tracking import RegimeId
+from src.services.backtesting.data.forward_fill import forward_fill_on_dates
+from src.services.market.macro_fear_greed_history import (
+    resolve_macro_fear_greed_history,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -158,16 +162,9 @@ class MarketDashboardService:
             p_date = date.fromisoformat(p.date) if isinstance(p.date, str) else p.date
             price_dates.append(p_date)
 
-        spy_filled: dict[date, dict[str, Any]] = dict(spy_dma_rows)
-        if spy_dma_rows:
-            last: dict[str, Any] | None = None
-            for d in sorted(price_dates):
-                if d in spy_filled:
-                    last = spy_filled[d]
-                elif last is not None:
-                    spy_filled[d] = last
+        spy_filled = forward_fill_on_dates(dict(spy_dma_rows), price_dates)
 
-        macro_fear_greed_filled = self._forward_fill_macro_fear_greed(
+        macro_fear_greed_filled = forward_fill_on_dates(
             macro_fear_greed_map,
             price_dates,
         )
@@ -258,40 +255,9 @@ class MarketDashboardService:
         start_date: date,
         end_date: date,
     ) -> dict[date, dict[str, Any]]:
-        if self.macro_fear_greed_service is None:
-            return {}
-        try:
-            return dict(
-                self.macro_fear_greed_service.get_daily_macro_fear_greed(
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            )
-        except Exception as error:
-            logger.warning("Failed to fetch macro Fear & Greed data: %s", error)
-            return {}
-
-    @staticmethod
-    def _forward_fill_macro_fear_greed(
-        sparse: dict[date, dict[str, Any]],
-        price_dates: list[date],
-    ) -> dict[date, dict[str, Any]]:
-        if not sparse or not price_dates:
-            return {}
-
-        sorted_macro_dates = sorted(sparse)
-        filled: dict[date, dict[str, Any]] = {}
-        last_value: dict[str, Any] | None = None
-        macro_idx = 0
-
-        for current_date in sorted(price_dates):
-            while (
-                macro_idx < len(sorted_macro_dates)
-                and sorted_macro_dates[macro_idx] <= current_date
-            ):
-                last_value = sparse[sorted_macro_dates[macro_idx]]
-                macro_idx += 1
-            if last_value is not None:
-                filled[current_date] = last_value
-
-        return filled
+        return resolve_macro_fear_greed_history(
+            macro_fear_greed_service=self.macro_fear_greed_service,
+            start_date=start_date,
+            end_date=end_date,
+            logger=logger,
+        )

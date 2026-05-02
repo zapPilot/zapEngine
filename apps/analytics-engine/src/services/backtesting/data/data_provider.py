@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Collection
-from datetime import date, timedelta
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.data.feature_loader import resolve_price_feature_history
+from src.services.backtesting.data.forward_fill import forward_fill_daily
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_USD_PRICE_FEATURE,
@@ -21,6 +22,9 @@ from src.services.backtesting.features import (
     MarketDataRequirements,
 )
 from src.services.backtesting.utils import coerce_to_date
+from src.services.market.macro_fear_greed_history import (
+    resolve_macro_fear_greed_history,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from src.services.interfaces import (
@@ -201,8 +205,8 @@ class BacktestDataProvider:
             required=requires_macro_fear_greed,
         )
         if macro_history:
-            feature_history[MACRO_FEAR_GREED_FEATURE] = self._forward_fill_feature(
-                dict(macro_history),
+            feature_history[MACRO_FEAR_GREED_FEATURE] = forward_fill_daily(
+                macro_history,
                 start_date=start_date,
                 end_date=end_date,
             )
@@ -215,50 +219,17 @@ class BacktestDataProvider:
         end_date: date,
         required: bool,
     ) -> dict[date, Any]:
-        if self.macro_fear_greed_service is None:
-            if required:
-                raise ValueError(
-                    "macro_fear_greed_service is required when macro FGI is requested"
-                )
-            return {}
-
-        try:
-            return dict(
-                self.macro_fear_greed_service.get_daily_macro_fear_greed(
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            )
-        except Exception as error:
-            if required:
-                raise
-            logger.warning(
-                "Failed to fetch optional macro Fear & Greed data: %s", error
-            )
-            return {}
-
-    @staticmethod
-    def _forward_fill_feature(
-        sparse: dict[date, Any],
-        *,
-        start_date: date,
-        end_date: date,
-    ) -> dict[date, Any]:
-        if not sparse:
-            return {}
-        sorted_keys = sorted(sparse.keys())
-        filled: dict[date, Any] = {}
-        last_value: Any | None = None
-        cur = start_date
-        series_idx = 0
-        while cur <= end_date:
-            while series_idx < len(sorted_keys) and sorted_keys[series_idx] <= cur:
-                last_value = sparse[sorted_keys[series_idx]]
-                series_idx += 1
-            if last_value is not None:
-                filled[cur] = last_value
-            cur += timedelta(days=1)
-        return filled
+        return resolve_macro_fear_greed_history(
+            macro_fear_greed_service=self.macro_fear_greed_service,
+            start_date=start_date,
+            end_date=end_date,
+            logger=logger,
+            required=required,
+            missing_service_message=(
+                "macro_fear_greed_service is required when macro FGI is requested"
+            ),
+            failure_log_message="Failed to fetch optional macro Fear & Greed data: %s",
+        )
 
     async def fetch_token_prices(
         self,
