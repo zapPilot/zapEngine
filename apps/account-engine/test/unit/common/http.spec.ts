@@ -9,7 +9,7 @@ import {
   RateLimitException,
   toErrorResponse,
   UnauthorizedException,
-} from '@/common/http';
+} from '../../../src/common/http';
 
 describe('HttpException', () => {
   describe('getStatus()', () => {

@@ -2,15 +2,15 @@ import {
   type Job,
   JobStatus,
   JobType,
-} from '@/modules/jobs/interfaces/job.interface';
-import { JobQueueService } from '@/modules/jobs/job-queue.service';
-import { WeeklyReportProcessor } from '@/modules/jobs/processors/weekly-report.processor';
-import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
-import { ChartService } from '@/modules/notifications/chart.service';
-import { EmailService } from '@/modules/notifications/email.service';
-import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
-import { SupabaseUserService } from '@/modules/notifications/supabase-user.service';
-import { TemplateService } from '@/modules/notifications/template.service';
+} from '../../../../../src/modules/jobs/interfaces/job.interface';
+import { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
+import { WeeklyReportProcessor } from '../../../../../src/modules/jobs/processors/weekly-report.processor';
+import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client.service';
+import { ChartService } from '../../../../../src/modules/notifications/chart.service';
+import { EmailService } from '../../../../../src/modules/notifications/email.service';
+import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
+import { SupabaseUserService } from '../../../../../src/modules/notifications/supabase-user.service';
+import { TemplateService } from '../../../../../src/modules/notifications/template.service';
 
 function createPendingJob(overrides: Partial<Job> = {}): Job {
   return {

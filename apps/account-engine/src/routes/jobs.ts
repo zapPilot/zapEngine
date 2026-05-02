@@ -1,11 +1,10 @@
 import { Hono } from 'hono';
 
-import { JOB_CONFIG } from '@/common/constants';
-import { requireApiKey } from '@/common/guards';
-import { HttpStatus, NotFoundException, toErrorResponse } from '@/common/http';
-import type { AppServices } from '@/container';
-import { Job, JobType } from '@/modules/jobs/interfaces/job.interface';
-
+import { JOB_CONFIG } from '../common/constants';
+import { requireApiKey } from '../common/guards';
+import { HttpStatus, NotFoundException, toErrorResponse } from '../common/http';
+import type { AppServices } from '../container';
+import { Job, JobType } from '../modules/jobs/interfaces/job.interface';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
 import {
   type DailySuggestionBatchBody,

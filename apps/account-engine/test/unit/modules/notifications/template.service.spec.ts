@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 
 import type { Mock } from 'vitest';
 
-import { TemplateService } from '@/modules/notifications/template.service';
+import { TemplateService } from '../../../../src/modules/notifications/template.service';
 
 vi.mock('node:fs');
 

@@ -5,12 +5,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "rootDir": ".",
-    "noEmit": true,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/container": ["./src/container.ts"],
-      "@/test-utils": ["./test/test-utils/index.ts"]
-    }
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist"]

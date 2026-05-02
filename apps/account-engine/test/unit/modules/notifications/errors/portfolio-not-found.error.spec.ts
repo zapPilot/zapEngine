@@ -1,4 +1,4 @@
-import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
+import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
 
 describe('PortfolioNotFoundError', () => {
   it('is instanceof Error', () => {

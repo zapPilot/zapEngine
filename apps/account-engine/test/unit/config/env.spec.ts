@@ -1,5 +1,5 @@
-import { BadRequestException } from '@/common/http';
-import { loadEnv } from '@/config/env';
+import { BadRequestException } from '../../../src/common/http';
+import { loadEnv } from '../../../src/config/env';
 
 const validEnv = {
   SUPABASE_URL: 'https://example.supabase.co',

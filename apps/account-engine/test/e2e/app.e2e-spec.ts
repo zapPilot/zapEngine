@@ -1,4 +1,4 @@
-import type { AppServices } from '@/container';
+import type { AppServices } from '../../src/container';
 
 import { createApp } from '../../src/app';
 

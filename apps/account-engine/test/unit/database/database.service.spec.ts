@@ -1,8 +1,8 @@
 import type { Mock } from 'vitest';
 
-import { ConfigService } from '@/config/config.service';
-import { DatabaseService } from '@/database/database.service';
-import { createMockConfigService } from '@/test-utils';
+import { ConfigService } from '../../../src/config/config.service';
+import { DatabaseService } from '../../../src/database/database.service';
+import { createMockConfigService } from '../../test-utils';
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn().mockReturnValue({

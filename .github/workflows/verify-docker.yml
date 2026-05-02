@@ -17,4 +17,10 @@ jobs:
       - name: Build Dockerfile
         env:
           APP: ${{ inputs.app }}
-        run: docker build --file "apps/${APP}/Dockerfile" --target build .
+        run: |
+          if [ "$APP" = "account-engine" ]; then
+            docker build --file "apps/${APP}/Dockerfile" --tag "${APP}:verify" .
+            docker run --rm -e NODE_ENV=test "${APP}:verify"
+          else
+            docker build --file "apps/${APP}/Dockerfile" --target build .
+          fi

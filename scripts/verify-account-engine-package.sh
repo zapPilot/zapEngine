@@ -35,4 +35,6 @@ if [ ! -f "$required_file" ]; then
   exit 1
 fi
 
+NODE_ENV=test node "$required_file"
+
 echo "Verified account-engine deploy package: $required_file"

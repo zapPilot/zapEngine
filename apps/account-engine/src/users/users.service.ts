@@ -1,23 +1,22 @@
-import { CHANNEL_TYPE_TELEGRAM } from '@/common/constants';
-import { ServiceLayerException } from '@/common/exceptions';
+import { CHANNEL_TYPE_TELEGRAM } from '../common/constants';
+import { ServiceLayerException } from '../common/exceptions';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-} from '@/common/http';
-import { AlphaEtlHttpService } from '@/common/services';
+} from '../common/http';
+import { AlphaEtlHttpService } from '../common/services';
 import {
   generateDefaultWalletLabel,
   getErrorMessage,
   truncateForLog,
-} from '@/common/utils';
-import { BaseService } from '@/database/base.service';
-import { DatabaseService } from '@/database/database.service';
-import { UserValidationService } from '@/database/user-validation.service';
+} from '../common/utils';
+import { BaseService } from '../database/base.service';
+import { DatabaseService } from '../database/database.service';
+import { UserValidationService } from '../database/user-validation.service';
 // EtlJobStatus type from @zapengine/types/etl is used by AlphaEtlHttpService
-import { TelegramService } from '@/modules/notifications/telegram.service';
-import { TelegramTokenService } from '@/modules/notifications/telegram-token.service';
-
+import { TelegramService } from '../modules/notifications/telegram.service';
+import { TelegramTokenService } from '../modules/notifications/telegram-token.service';
 import {
   AddWalletResponse,
   ConnectWalletResponse,

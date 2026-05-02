@@ -1,4 +1,7 @@
-import { Logger } from '@/common/logger';
+import { Logger } from '../../../common/logger';
+import { AnalyticsClientService } from '../../notifications/analytics-client.service';
+import { DailySuggestionData } from '../../notifications/interfaces/daily-suggestion.interface';
+import { TelegramService } from '../../notifications/telegram.service';
 import {
   createJobFailureResult,
   DailySuggestionBatchPayload,
@@ -8,12 +11,9 @@ import {
   JobProcessor,
   JobType,
   LogLevel,
-} from '@/modules/jobs/interfaces/job.interface';
-import { JobQueueService } from '@/modules/jobs/job-queue.service';
-import { BatchFanoutHelper } from '@/modules/jobs/utils/batch-fanout.helper';
-import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
-import { DailySuggestionData } from '@/modules/notifications/interfaces/daily-suggestion.interface';
-import { TelegramService } from '@/modules/notifications/telegram.service';
+} from '../interfaces/job.interface';
+import { JobQueueService } from '../job-queue.service';
+import { BatchFanoutHelper } from '../utils/batch-fanout.helper';
 
 /**
  * Processor for daily suggestion Telegram notification jobs.

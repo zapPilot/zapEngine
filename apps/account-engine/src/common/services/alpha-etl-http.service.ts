@@ -1,10 +1,9 @@
 import { type EtlJobStatus, EtlJobStatusSchema } from '@zapengine/types/etl';
 
-import { HttpStatus } from '@/common/http';
-import { Logger } from '@/common/logger';
-import { ConfigService } from '@/config/config.service';
-
+import { ConfigService } from '../../config/config.service';
 import { ServiceLayerException } from '../exceptions';
+import { HttpStatus } from '../http';
+import { Logger } from '../logger';
 import { getErrorMessage, truncateForLog } from '../utils';
 
 /**

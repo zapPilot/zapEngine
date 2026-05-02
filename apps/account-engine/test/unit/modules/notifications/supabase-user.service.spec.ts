@@ -1,9 +1,9 @@
-import { ServiceLayerException } from '@/common/exceptions';
-import { DatabaseService } from '@/database/database.service';
-import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
-import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
-import { SupabaseUserService } from '@/modules/notifications/supabase-user.service';
-import { createMockDatabaseService } from '@/test-utils';
+import { ServiceLayerException } from '../../../../src/common/exceptions';
+import { DatabaseService } from '../../../../src/database/database.service';
+import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client.service';
+import { PortfolioNotFoundError } from '../../../../src/modules/notifications/errors/portfolio-not-found.error';
+import { SupabaseUserService } from '../../../../src/modules/notifications/supabase-user.service';
+import { createMockDatabaseService } from '../../../test-utils';
 
 function createMocks() {
   const dbMock = createMockDatabaseService();

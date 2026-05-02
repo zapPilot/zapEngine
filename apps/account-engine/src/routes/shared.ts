@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator';
 import type { Context } from 'hono';
 
-import { HttpStatus, toErrorResponse } from '@/common/http';
+import { HttpStatus, toErrorResponse } from '../common/http';
 
 export function validationHook(
   result: {

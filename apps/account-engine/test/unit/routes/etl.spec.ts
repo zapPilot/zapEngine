@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 
-import type { AppServices } from '@/container';
-import { createEtlRoutes } from '@/routes/etl';
+import type { AppServices } from '../../../src/container';
+import { createEtlRoutes } from '../../../src/routes/etl';
 
 function createServices(overrides: Partial<AppServices> = {}): AppServices {
   return {

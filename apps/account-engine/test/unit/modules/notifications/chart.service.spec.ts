@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 
 import type { Mock } from 'vitest';
 
-import { ServiceLayerException } from '@/common/exceptions';
-import { ChartService } from '@/modules/notifications/chart.service';
+import { ServiceLayerException } from '../../../../src/common/exceptions';
+import { ChartService } from '../../../../src/modules/notifications/chart.service';
 
 vi.mock('node:fs');
 

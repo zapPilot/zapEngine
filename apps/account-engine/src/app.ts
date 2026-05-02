@@ -2,21 +2,21 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { HttpStatus, toErrorResponse } from '@/common/http';
-import { Logger } from '@/common/logger';
-import { createRequestLoggerMiddleware } from '@/common/middleware';
+import { HttpStatus, toErrorResponse } from './common/http';
+import { Logger } from './common/logger';
+import { createRequestLoggerMiddleware } from './common/middleware';
 import {
   type AppServices,
   createContainer,
   startServices,
   stopServices,
-} from '@/container';
-import { createEtlRoutes } from '@/routes/etl';
-import { createHealthRoutes, type ReleaseMetadataEnv } from '@/routes/health';
-import { createJobsRoutes } from '@/routes/jobs';
-import { jsonResponse } from '@/routes/shared';
-import { createTelegramRoutes } from '@/routes/telegram';
-import { createUsersRoutes } from '@/routes/users';
+} from './container';
+import { createEtlRoutes } from './routes/etl';
+import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
+import { createJobsRoutes } from './routes/jobs';
+import { jsonResponse } from './routes/shared';
+import { createTelegramRoutes } from './routes/telegram';
+import { createUsersRoutes } from './routes/users';
 
 const logger = new Logger('Bootstrap');
 

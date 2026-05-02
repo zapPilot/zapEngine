@@ -1,6 +1,6 @@
 import type { MockInstance } from 'vitest';
 
-import { createRequestLoggerMiddleware } from '@/common/middleware/logger.middleware';
+import { createRequestLoggerMiddleware } from '../../../../src/common/middleware/logger.middleware';
 
 function makeContext(status: number, headers: Record<string, string> = {}) {
   return {

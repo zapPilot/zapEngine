@@ -1,8 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-import { Logger } from '@/common/logger';
-import { ConfigService } from '@/config/config.service';
-import { Database } from '@/types/database.types';
+import { Logger } from '../common/logger';
+import { ConfigService } from '../config/config.service';
+import { Database } from '../types/database.types';
 
 export class DatabaseService {
   private readonly logger = new Logger(DatabaseService.name);

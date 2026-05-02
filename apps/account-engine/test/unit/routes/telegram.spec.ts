@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import type { Mock } from 'vitest';
 
-import { getErrorStatus, toErrorResponse } from '@/common/http';
-import type { AppServices } from '@/container';
-import { createTelegramRoutes } from '@/routes/telegram';
+import { getErrorStatus, toErrorResponse } from '../../../src/common/http';
+import type { AppServices } from '../../../src/container';
+import { createTelegramRoutes } from '../../../src/routes/telegram';
 
 function createServices(
   overrides: Partial<Record<string, unknown>> = {},

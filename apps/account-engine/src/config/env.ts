@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { BadRequestException } from '@/common/http';
+import { BadRequestException } from '../common/http';
 
 const portSchema = z.coerce.number().int().min(1).max(65535);
 

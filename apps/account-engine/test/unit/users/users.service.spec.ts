@@ -1,16 +1,16 @@
-import { ServiceLayerException } from '@/common/exceptions';
+import { ServiceLayerException } from '../../../src/common/exceptions';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-} from '@/common/http';
-import { AlphaEtlHttpService } from '@/common/services';
-import { DatabaseService } from '@/database/database.service';
-import { UserValidationService } from '@/database/user-validation.service';
-import { TelegramService } from '@/modules/notifications/telegram.service';
-import { TelegramTokenService } from '@/modules/notifications/telegram-token.service';
-import { createMockDatabaseService } from '@/test-utils';
-import { UsersService } from '@/users/users.service';
+} from '../../../src/common/http';
+import { AlphaEtlHttpService } from '../../../src/common/services';
+import { DatabaseService } from '../../../src/database/database.service';
+import { UserValidationService } from '../../../src/database/user-validation.service';
+import { TelegramService } from '../../../src/modules/notifications/telegram.service';
+import { TelegramTokenService } from '../../../src/modules/notifications/telegram-token.service';
+import { createMockDatabaseService } from '../../test-utils';
+import { UsersService } from '../../../src/users/users.service';
 
 function createMocks() {
   const dbMock = createMockDatabaseService();

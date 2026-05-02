@@ -1,12 +1,11 @@
 import { DailySuggestionResponseSchema } from '@zapengine/types/strategy';
 
-import { ANALYTICS_CONFIG } from '@/common/constants';
-import { ServiceLayerException } from '@/common/exceptions';
-import { HttpStatus } from '@/common/http';
-import { Logger } from '@/common/logger';
-import { getErrorMessage, UrlValidator } from '@/common/utils';
-import { ConfigService } from '@/config/config.service';
-
+import { ANALYTICS_CONFIG } from '../../common/constants';
+import { ServiceLayerException } from '../../common/exceptions';
+import { HttpStatus } from '../../common/http';
+import { Logger } from '../../common/logger';
+import { getErrorMessage, UrlValidator } from '../../common/utils';
+import { ConfigService } from '../../config/config.service';
 import { PortfolioNotFoundError } from './errors/portfolio-not-found.error';
 import { DailySuggestionData } from './interfaces/daily-suggestion.interface';
 import {

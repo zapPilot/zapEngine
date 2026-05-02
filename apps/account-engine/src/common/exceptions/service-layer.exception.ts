@@ -1,4 +1,4 @@
-import { AppError, HttpStatus } from '@/common/http';
+import { AppError, HttpStatus } from '../http';
 
 /**
  * Custom exception for wrapping service layer errors with context.

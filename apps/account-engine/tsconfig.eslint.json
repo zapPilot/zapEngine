@@ -2,12 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "noEmit": true,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/container": ["./src/container.ts"],
-      "@/test-utils": ["./test/test-utils/index.ts"]
-    }
+    "noEmit": true
   },
   "include": [
     "src/**/*",

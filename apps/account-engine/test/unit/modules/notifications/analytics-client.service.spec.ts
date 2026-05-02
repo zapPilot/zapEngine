@@ -1,9 +1,9 @@
 import type { Mock } from 'vitest';
 
-import { ServiceLayerException } from '@/common/exceptions';
-import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
-import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
-import { createMockConfigService } from '@/test-utils';
+import { ServiceLayerException } from '../../../../src/common/exceptions';
+import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client.service';
+import { PortfolioNotFoundError } from '../../../../src/modules/notifications/errors/portfolio-not-found.error';
+import { createMockConfigService } from '../../../test-utils';
 
 describe('AnalyticsClientService', () => {
   let service: AnalyticsClientService;

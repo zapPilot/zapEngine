@@ -1,5 +1,18 @@
-import { Logger } from '@/common/logger';
-import { getErrorMessage } from '@/common/utils';
+import { Logger } from '../../../common/logger';
+import { getErrorMessage } from '../../../common/utils';
+import { AnalyticsClientService } from '../../notifications/analytics-client.service';
+import { ChartService } from '../../notifications/chart.service';
+import { EmailService } from '../../notifications/email.service';
+import { PortfolioNotFoundError } from '../../notifications/errors/portfolio-not-found.error';
+import { PortfolioResponse } from '../../notifications/interfaces/portfolio-response.interface';
+import {
+  BalanceHistoryPoint,
+  SupabaseUserService,
+} from '../../notifications/supabase-user.service';
+import {
+  EmailMetrics,
+  TemplateService,
+} from '../../notifications/template.service';
 import {
   createJobFailureResult,
   Job,
@@ -9,22 +22,9 @@ import {
   LogLevel,
   SingleUserReportJobPayload,
   WeeklyReportJobPayload,
-} from '@/modules/jobs/interfaces/job.interface';
-import { JobQueueService } from '@/modules/jobs/job-queue.service';
-import { BatchFanoutHelper } from '@/modules/jobs/utils/batch-fanout.helper';
-import { AnalyticsClientService } from '@/modules/notifications/analytics-client.service';
-import { ChartService } from '@/modules/notifications/chart.service';
-import { EmailService } from '@/modules/notifications/email.service';
-import { PortfolioNotFoundError } from '@/modules/notifications/errors/portfolio-not-found.error';
-import { PortfolioResponse } from '@/modules/notifications/interfaces/portfolio-response.interface';
-import {
-  BalanceHistoryPoint,
-  SupabaseUserService,
-} from '@/modules/notifications/supabase-user.service';
-import {
-  EmailMetrics,
-  TemplateService,
-} from '@/modules/notifications/template.service';
+} from '../interfaces/job.interface';
+import { JobQueueService } from '../job-queue.service';
+import { BatchFanoutHelper } from '../utils/batch-fanout.helper';
 
 /**
  * Processor for weekly report related jobs

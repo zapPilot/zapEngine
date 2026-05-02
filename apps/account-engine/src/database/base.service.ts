@@ -1,10 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-import { ServiceLayerException } from '@/common/exceptions';
-import { HttpException, HttpStatus } from '@/common/http';
-import { Logger } from '@/common/logger';
-import { Database } from '@/types/database.types';
-
+import { ServiceLayerException } from '../common/exceptions';
+import { HttpException, HttpStatus } from '../common/http';
+import { Logger } from '../common/logger';
+import { Database } from '../types/database.types';
 import { DatabaseService } from './database.service';
 import {
   DatabaseOperationResult,

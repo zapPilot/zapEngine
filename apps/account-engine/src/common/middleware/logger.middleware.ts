@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 
-import { Logger } from '@/common/logger';
+import { Logger } from '../logger';
 
 export function createRequestLoggerMiddleware(): MiddlewareHandler {
   const logger = new Logger('HTTP');

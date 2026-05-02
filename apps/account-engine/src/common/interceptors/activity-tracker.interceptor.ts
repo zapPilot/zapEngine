@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
 
-import { Logger } from '@/common/logger';
-import { getErrorMessage } from '@/common/utils';
-import { DatabaseService } from '@/database/database.service';
+import { DatabaseService } from '../../database/database.service';
+import { Logger } from '../logger';
+import { getErrorMessage } from '../utils';
 
 /**
  * ActivityTracker updates users.last_activity_at for a given userId with

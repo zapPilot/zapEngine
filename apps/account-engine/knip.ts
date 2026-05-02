@@ -12,7 +12,7 @@ export default defineKnipConfig({
     'nest-cli.json',
     'src/types/database.types.ts',
   ],
-  ignoreDependencies: ['@zapengine/types', 'tsconfig-paths'],
+  ignoreDependencies: ['@zapengine/types'],
   includeEntryExports: true,
   vitest: {
     config: ['vitest.config.ts'],

@@ -1,6 +1,6 @@
-import { ServiceLayerException } from '@/common/exceptions';
-import { AlphaEtlHttpService } from '@/common/services/alpha-etl-http.service';
-import { createMockConfigService } from '@/test-utils';
+import { ServiceLayerException } from '../../../../src/common/exceptions';
+import { AlphaEtlHttpService } from '../../../../src/common/services/alpha-etl-http.service';
+import { createMockConfigService } from '../../../test-utils';
 
 describe('AlphaEtlHttpService', () => {
   let service: AlphaEtlHttpService;
@@ -30,15 +30,24 @@ describe('AlphaEtlHttpService', () => {
     });
 
     it('retries once on first failure then returns result', async () => {
-      const fetchMock = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('ECONNREFUSED'))
-        .mockResolvedValueOnce({ ok: true });
-      global.fetch = fetchMock;
+      vi.useFakeTimers();
+      try {
+        const fetchMock = vi
+          .fn()
+          .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+          .mockResolvedValueOnce({ ok: true });
+        global.fetch = fetchMock;
 
-      const result = await service.healthPing();
-      expect(result).toBe(true);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+        const result = service.healthPing();
+
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+        await vi.advanceTimersByTimeAsync(2000);
+
+        await expect(result).resolves.toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('returns false when both attempts fail', async () => {

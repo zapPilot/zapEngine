@@ -1,14 +1,14 @@
 import { Telegraf } from 'telegraf';
 import type { Mock } from 'vitest';
 
-import { DatabaseService } from '@/database/database.service';
-import { TelegramService } from '@/modules/notifications/telegram.service';
-import { TelegramTokenService } from '@/modules/notifications/telegram-token.service';
+import { DatabaseService } from '../../../../src/database/database.service';
+import { TelegramService } from '../../../../src/modules/notifications/telegram.service';
+import { TelegramTokenService } from '../../../../src/modules/notifications/telegram-token.service';
 import {
   createMockConfigService,
   createMockDatabaseService,
   createMockQueryBuilder,
-} from '@/test-utils';
+} from '../../../test-utils';
 
 // Mock telegraf at module level.
 // Use a regular function (not arrow) because Vitest invokes the

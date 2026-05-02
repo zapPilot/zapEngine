@@ -53,46 +53,6 @@ export default defineConfig({
         find: /^@zapengine\/types\/(.*)$/,
         replacement: path.resolve(__dirname, '__mocks__/@zapengine/types/$1'),
       },
-      {
-        find: '@/test-utils',
-        replacement: path.resolve(__dirname, 'test/test-utils/index.ts'),
-      },
-      {
-        find: '@container',
-        replacement: path.resolve(__dirname, 'src/container.ts'),
-      },
-      {
-        find: /^@\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/$1'),
-      },
-      {
-        find: /^@common\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/common/$1'),
-      },
-      {
-        find: /^@database\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/database/$1'),
-      },
-      {
-        find: /^@modules\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/modules/$1'),
-      },
-      {
-        find: /^@users\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/users/$1'),
-      },
-      {
-        find: /^@config\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/config/$1'),
-      },
-      {
-        find: /^@db-types\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/types/$1'),
-      },
-      {
-        find: /^@routes\/(.*)$/,
-        replacement: path.resolve(__dirname, 'src/routes/$1'),
-      },
     ],
   },
   esbuild: {

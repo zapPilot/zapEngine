@@ -1,4 +1,4 @@
-import { isWalletAddress } from '@/common/validation/wallet-address.util';
+import { isWalletAddress } from '../../../../src/common/validation/wallet-address.util';
 
 describe('isWalletAddress', () => {
   it('returns true for a valid lowercase hex address', () => {

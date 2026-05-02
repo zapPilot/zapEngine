@@ -9,11 +9,6 @@
     "isolatedModules": true,
     "removeComments": true,
     "allowSyntheticDefaultImports": true,
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/container": ["./src/container.ts"]
-    },
     "incremental": true
   },
   "include": ["src/**/*"],

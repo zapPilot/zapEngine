@@ -1,4 +1,4 @@
-import { jsonResponse, validationHook } from '@/routes/shared';
+import { jsonResponse, validationHook } from '../../../src/routes/shared';
 
 function makeContext() {
   const jsonMock = vi.fn();

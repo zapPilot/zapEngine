@@ -1,13 +1,13 @@
-import { ServiceLayerException } from '@/common/exceptions';
+import { ServiceLayerException } from '../../../src/common/exceptions';
 import {
   BadRequestException,
   ConflictException,
   HttpStatus,
   NotFoundException,
-} from '@/common/http';
-import { BaseService } from '@/database/base.service';
-import { DatabaseService } from '@/database/database.service';
-import { createMockDatabaseService } from '@/test-utils';
+} from '../../../src/common/http';
+import { BaseService } from '../../../src/database/base.service';
+import { DatabaseService } from '../../../src/database/database.service';
+import { createMockDatabaseService } from '../../test-utils';
 
 /** Concrete subclass that exposes protected BaseService methods for testing */
 class TestableService extends BaseService {

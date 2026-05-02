@@ -1,10 +1,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { CHART_CONFIG } from '@/common/constants';
-import { ServiceLayerException } from '@/common/exceptions';
-import { Logger } from '@/common/logger';
-import { getErrorMessage } from '@/common/utils';
+import { CHART_CONFIG } from '../../common/constants';
+import { ServiceLayerException } from '../../common/exceptions';
+import { Logger } from '../../common/logger';
+import { getErrorMessage } from '../../common/utils';
 
 export interface ChartDataPoint {
   date: string | Date;

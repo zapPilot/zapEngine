@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:24-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
 
 ENV PNPM_HOME="/pnpm"
@@ -30,7 +30,7 @@ RUN pnpm --filter @zapengine/types build \
  && pnpm --filter @zapengine/account-engine deploy --legacy --prod --store-dir=/pnpm/store /out \
  && test -f /out/dist/main.js
 
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ARG COMMIT_SHA=""
