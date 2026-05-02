@@ -74,6 +74,12 @@ export function Navbar() {
                 />
               </motion.a>
             ))}
+            <a
+              href="/v2/"
+              className="hidden lg:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono tracking-widest text-gray-400 border border-gray-700 hover:border-amber-200/60 hover:text-amber-100 transition"
+            >
+              v2 · liquid metal →
+            </a>
             <motion.button
               className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-purple-500/25"
               whileHover={{ scale: 1.05, y: -2 }}
@@ -128,6 +134,14 @@ export function Navbar() {
               >
                 {MESSAGES.navbar.launchApp}
               </motion.button>
+              <motion.a
+                href="/v2/"
+                className="block text-gray-300 hover:text-amber-100 py-2 transition-colors duration-200 font-mono tracking-widest text-xs uppercase"
+                onClick={() => setIsOpen(false)}
+                {...staggeredSlideIn(navItems.length + 1, 'left', 0.1)}
+              >
+                v2 · liquid metal →
+              </motion.a>
             </div>
           </motion.div>
         )}

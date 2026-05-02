@@ -262,3 +262,13 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
 ```
 
 Note: the minimum strategy intentionally fails `extreme_fear_dca_*` events because Fear Recovery Buy is excluded.
+
+# Diagnose command:
+```
+pnpm --filter @zapengine/analytics-engine exec uv run python  scripts/attribution/diagnose_spy_tax.py \
+  --baseline-strategy dma_fgi_hierarchical_minimum \
+  --reference-strategy dma_fgi_eth_btc_minimum \
+  --reference-date 2026-04-15 \
+  --window-days 500 \
+  --out diagnostic_$(date -I).md
+```
