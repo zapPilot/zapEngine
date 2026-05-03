@@ -12,6 +12,9 @@ describe('LandingPageV2', () => {
       expect(content).toMatch(/Three steps/);
       expect(content).toMatch(/What the engine trades into/);
       expect(content).toMatch(/Trades drove the return/);
+      expect(content).toMatch(/Before you connect a wallet/);
+      expect(content).toMatch(/Where idle capital parks/);
+      expect(content).toMatch(/100% Self-Custody/);
     });
 
     it('should render navigation links', () => {
@@ -44,8 +47,12 @@ describe('LandingPageV2', () => {
 
       const heroIndex = content.indexOf('Trade with discipline');
       const howItWorksIndex = content.indexOf('Three steps');
+      const faqIndex = content.indexOf('Before you connect a wallet');
+      const protocolsIndex = content.indexOf('Where idle capital parks');
       expect(heroIndex).toBeLessThan(howItWorksIndex);
+      expect(faqIndex).toBeLessThan(protocolsIndex);
       expect(heroIndex).toBeGreaterThan(-1);
+      expect(faqIndex).toBeGreaterThan(-1);
     });
   });
 

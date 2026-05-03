@@ -53,6 +53,25 @@ describe('ProtocolsV2', () => {
       expect(screen.getByText('Tokenized S&P500')).toBeInTheDocument();
       expect(screen.getAllByText('Stablecoin Parking').length).toBe(2);
     });
+
+    it('renders protocol logo images with fixed dimensions', () => {
+      render(<ProtocolsV2 />);
+
+      const ondoLogo = screen.getByAltText('Ondo logo');
+      expect(ondoLogo).toHaveAttribute('src', '/protocols/ondo.webp');
+      expect(ondoLogo).toHaveAttribute('width', '64');
+      expect(ondoLogo).toHaveAttribute('height', '64');
+      expect(screen.getByAltText('GMX v2 logo')).toBeInTheDocument();
+      expect(screen.getByAltText('Morpho logo')).toBeInTheDocument();
+      expect(screen.getByAltText('Hyperliquid logo')).toBeInTheDocument();
+    });
+
+    it('renders protocol descriptions', () => {
+      render(<ProtocolsV2 />);
+
+      expect(screen.getByText(/On-chain exposure/)).toBeInTheDocument();
+      expect(screen.getByText(/Curated lending vaults/)).toBeInTheDocument();
+    });
   });
 
   describe('accessibility', () => {
@@ -61,9 +80,9 @@ describe('ProtocolsV2', () => {
       expect(container.querySelector('#protocols')).toBeInTheDocument();
     });
 
-    it('has protocol chip row with aria-label', () => {
+    it('has protocol card grid with aria-label', () => {
       const { container } = render(<ProtocolsV2 />);
-      expect(container.querySelector('.protocol-chip-row')).toHaveAttribute(
+      expect(container.querySelector('.protocol-card-grid')).toHaveAttribute(
         'aria-label',
         'Supported protocols',
       );

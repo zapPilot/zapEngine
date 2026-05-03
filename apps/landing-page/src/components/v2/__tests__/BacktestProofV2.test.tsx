@@ -50,6 +50,18 @@ describe('BacktestProofV2', () => {
   });
 
   describe('comparison', () => {
+    it('renders equity curve chart above stats', () => {
+      const { container } = render(<BacktestProofV2 />);
+
+      expect(container.querySelector('.equity-curve')).toBeInTheDocument();
+      expect(container.querySelector('.equity-curve-chart')).toHaveAttribute(
+        'role',
+        'img',
+      );
+      expect(screen.getByText('Indexed growth')).toBeInTheDocument();
+      expect(screen.getByText('Strategy vs DCA Classic')).toBeInTheDocument();
+    });
+
     it('renders comparison row with aria-label', () => {
       const { container } = render(<BacktestProofV2 />);
       expect(container.querySelector('.comparison-row')).toHaveAttribute(
@@ -61,8 +73,8 @@ describe('BacktestProofV2', () => {
     it('renders both strategy and DCA comparison items', () => {
       render(<BacktestProofV2 />);
 
-      expect(screen.getByText('Strategy')).toBeInTheDocument();
-      expect(screen.getByText('DCA Classic')).toBeInTheDocument();
+      expect(screen.getAllByText('Strategy').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('DCA Classic').length).toBeGreaterThan(0);
     });
   });
 

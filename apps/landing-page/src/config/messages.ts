@@ -337,6 +337,8 @@ export const MESSAGES = {
         description:
           "On-chain exposure to U.S. equities via Ondo's tokenized S&P500 — the equity pillar the engine trades into when risk is rewarded.",
         logo: '/protocols/ondo.webp',
+        accent: '#d4c5a3',
+        glow: 'rgba(212, 197, 163, 0.14)',
         link: 'https://ondo.finance',
       },
       {
@@ -345,6 +347,8 @@ export const MESSAGES = {
         description:
           'Where idle BTC/ETH can earn baseline yield while the regime stays risk-on between rebalance signals.',
         logo: '/protocols/gmx-v2.webp',
+        accent: '#7c6df2',
+        glow: 'rgba(124, 109, 242, 0.14)',
         link: 'https://gmx.io',
       },
       {
@@ -353,6 +357,8 @@ export const MESSAGES = {
         description:
           'Curated lending vaults where defensive stablecoins can park during risk-off regimes.',
         logo: '/protocols/morpho.webp',
+        accent: '#2775ca',
+        glow: 'rgba(39, 117, 202, 0.14)',
         link: 'https://morpho.org',
       },
       {
@@ -361,8 +367,76 @@ export const MESSAGES = {
         description:
           'HLP delta-neutral market making — an alternative defensive parking venue between strategy trades.',
         logo: '/protocols/hyperliquid.webp',
+        accent: '#20b8a6',
+        glow: 'rgba(32, 184, 166, 0.14)',
         link: 'https://hyperfoundation.org/',
       },
     ],
   },
+
+  // FAQ section
+  faq: {
+    title: 'Before you connect a wallet.',
+    subtitle:
+      'The strategy is designed to stay self-custodial, explicit, and reviewable. These are the practical questions that should be answered before anyone signs.',
+    items: [
+      {
+        question: 'How is Zap Pilot truly non-custodial?',
+        answer:
+          'Your funds stay in your own externally owned account. Zap Pilot prepares a rebalance bundle; you review it and sign from your wallet. We never hold private keys, custody assets, or move funds without your signature.',
+      },
+      {
+        question: 'What happens if I miss a rebalance window?',
+        answer:
+          'Nothing moves automatically. The engine keeps watching the regime and can deliver the next eligible bundle, but your current allocation may drift until you choose to sign.',
+      },
+      {
+        question: 'What are the fees?',
+        answer:
+          'Network gas and protocol-level fees are paid from your wallet and previewed before signing. Zap Pilot fee terms will be disclosed before launch; the backtest does not assume a hidden custody or management fee.',
+      },
+      {
+        question: 'Which chain does this run on?',
+        answer:
+          'Zap Pilot is built for EVM mainnet execution with wallet-signed bundles. EIP-7702 batching is used where supported, with multicall3 as the fallback path.',
+      },
+      {
+        question: 'What if Ondo, Morpho, GMX, or Hyperliquid has an issue?',
+        answer:
+          'Parking venues are modular, not custody requirements. If a venue is unavailable or unattractive, the bundle can route defensively instead. You still review the destination and protocol risk before signing.',
+      },
+      {
+        question: 'Can I customize my allocations?',
+        answer:
+          'The initial launch focuses on curated, published strategy rules so behavior is easy to verify. Saved configuration controls can come later without changing the self-custody execution model.',
+      },
+      {
+        question: 'How are gas costs handled with the bundled transaction?',
+        answer:
+          'The bundle compresses the rebalance into one wallet action where possible. Your wallet previews gas before signing, and you can skip execution if conditions are not worth it.',
+      },
+      {
+        question: 'Is the strategy open-source or verifiable?',
+        answer:
+          'The methodology, parameters, and on-chain transactions are designed to be inspectable. Strategy docs and source links are published so the rules can be reviewed instead of trusted blindly.',
+      },
+    ],
+  },
+
+  // Trust strip section
+  trustBadges: [
+    {
+      label: '100% Self-Custody · EOA',
+      icon: 'KeyRound',
+    },
+    {
+      label: 'Live on Mainnet',
+      icon: 'Activity',
+    },
+    {
+      label: 'Open-source strategy',
+      icon: 'GitBranch',
+      linkType: 'github',
+    },
+  ],
 } as const;
