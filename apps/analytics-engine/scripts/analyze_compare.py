@@ -787,27 +787,40 @@ def _load_constraint_cases(
         raise VerificationError(
             f"Constraints fixture is not valid JSON: {path}"
         ) from exc
-    if not isinstance(payload, list):
-        raise VerificationError("Constraints fixture root must be a JSON array.")
+    if not isinstance(payload, dict):
+        raise VerificationError("Constraints fixture root must be a JSON object.")
 
     cases: list[dict[str, Any]] = []
-    for index, raw_case in enumerate(payload):
-        if not isinstance(raw_case, dict):
+    for date_key, date_data in payload.items():
+        if not isinstance(date_data, dict) or "events" not in date_data:
             raise VerificationError(
-                f"Constraint case at index {index} must be an object."
+                f"Constraint case for date {date_key} must be an object with an 'events' array."
             )
-        case = dict(raw_case)
-        for key in ("id", "event_date", "event_type"):
-            if not isinstance(case.get(key), str) or not case.get(key):
+
+        events = date_data["events"]
+        if not isinstance(events, list):
+            raise VerificationError(
+                f"Constraint case for date {date_key} 'events' must be an array."
+            )
+
+        for index, raw_case in enumerate(events):
+            if not isinstance(raw_case, dict):
                 raise VerificationError(
-                    f"Constraint case at index {index} must define non-empty string '{key}'."
+                    f"Constraint case at index {index} for date {date_key} must be an object."
                 )
-        assertions = case.get("assertions")
-        if not isinstance(assertions, list) or not assertions:
-            raise VerificationError(
-                f"Constraint case {case['id']} must define a non-empty assertions array."
-            )
-        cases.append(case)
+            case = dict(raw_case)
+            case["event_date"] = date_key
+            for key in ("id", "event_date", "event_type"):
+                if not isinstance(case.get(key), str) or not case.get(key):
+                    raise VerificationError(
+                        f"Constraint case at index {index} for date {date_key} must define non-empty string '{key}'."
+                    )
+            assertions = case.get("assertions")
+            if not isinstance(assertions, list) or not assertions:
+                raise VerificationError(
+                    f"Constraint case {case.get('id', 'unknown')} must define a non-empty assertions array."
+                )
+            cases.append(case)
 
     if not event_ids:
         return cases

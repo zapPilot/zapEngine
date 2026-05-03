@@ -17,6 +17,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
+    STRATEGY_DMA_FGI_FLAT_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
@@ -119,6 +120,7 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM: EthBtcRotationPublicParams,
+    STRATEGY_DMA_FGI_FLAT_MINIMUM: DmaGatedFgiPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: EthBtcRotationPublicParams,
@@ -138,6 +140,12 @@ _ETH_BTC_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
     {
         STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
         STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+    }
+)
+
+_DMA_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
+    {
+        STRATEGY_DMA_FGI_FLAT_MINIMUM,
     }
 )
 
@@ -248,7 +256,9 @@ def public_params_to_runtime_params(
     if strategy_id == STRATEGY_DCA_CLASSIC:
         return {}
 
-    if strategy_id == STRATEGY_DMA_GATED_FGI:
+    if strategy_id == STRATEGY_DMA_GATED_FGI or (
+        strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS
+    ):
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         nested = DmaGatedFgiPublicParams.model_validate(normalized)
@@ -297,7 +307,9 @@ def runtime_params_to_public_params(
             raise ValueError("dca_classic does not accept params")
         return {}
 
-    if strategy_id == STRATEGY_DMA_GATED_FGI:
+    if strategy_id == STRATEGY_DMA_GATED_FGI or (
+        strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS
+    ):
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)

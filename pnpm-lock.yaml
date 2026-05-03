@@ -377,9 +377,6 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
-      framer-motion:
-        specifier: ^12.19.1
-        version: 12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       fumadocs-core:
         specifier: ^15.8.5
         version: 15.8.5(@types/react@19.2.14)(algoliasearch@5.50.2)(lucide-react@0.523.0(react@19.2.5))(next@15.5.15(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-router@7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)

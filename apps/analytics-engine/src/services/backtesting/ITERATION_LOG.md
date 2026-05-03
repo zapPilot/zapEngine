@@ -7,6 +7,15 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-03 — Flat minimum baseline
+- **Commit**: this commit (`dma_fgi_flat_minimum` research baseline + sweep)
+- **Rationale**: Break the strategy out of the hierarchical outer SPY/crypto sleeve and inner BTC/ETH ratio framework while preserving the minimum stack's event-driven DMA semantics. The flat baseline removes outer/inner gating, adaptive crypto DMA reference selection, ETH/BTC ratio rotation, and target composers; each of SPY/BTC/ETH gets its own DMA-200 gate. Cross-down sells only the triggering asset to stable, explicit buy intents redeploy existing stable, and no-signal days preserve the current allocation.
+- **Result**: `dma_fgi_flat_minimum` ROI = 24.04%, Calmar 0.93, MaxDD -18.31%, 55 trades.
+- **Comparison**:
+  - vs `dma_fgi_hierarchical_minimum` (121.44% ROI, 4.50 Calmar, -17.46% MaxDD, 85 trades): -97.40pp ROI, -3.57 Calmar, 0.85pp deeper drawdown, -30 trades.
+  - vs `dma_fgi_eth_btc_minimum` (145.28% ROI, 4.46 Calmar, -20.72% MaxDD, 51 trades): -121.24pp ROI, -3.53 Calmar, 2.41pp shallower drawdown, +4 trades.
+- **Validation note**: `analyze_compare.py` on 2025-02-02 now passes `eth_cross_down_2025_02_02` for `dma_fgi_flat_minimum`: `target_allocation.eth = 0.0`, portfolio ETH = 0.0, and stable rises to ~72.11%.
+
 ### 2026-05-02 - SPY tax fix attempt: DMA-discipline variants (Phase D)
 - **Commit**: this commit (DMA cooldown/below-DMA research variants + sweep)
 - **D-1 finding**: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` is BTC 0.00%, ETH 90.48%, SPY 9.52%, stable 0.00%; inner-pair fix needed yes.

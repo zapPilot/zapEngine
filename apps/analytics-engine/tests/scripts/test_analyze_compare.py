@@ -463,21 +463,24 @@ def test_constraint_validation_passes_and_uses_full_history(
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "cross_up_stable_deploy",
-                    "event_date": "2025-04-22",
-                    "event_type": "crypto_cross_up",
-                    "assertions": [
+            {
+                "2025-04-22": {
+                    "events": [
                         {
-                            "type": "target_asset_equals",
-                            "asset": "stable",
-                            "value": 0.0,
-                        },
-                        {"type": "target_stable_decreased_from_previous"},
-                    ],
+                            "id": "cross_up_stable_deploy",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                },
+                                {"type": "target_stable_decreased_from_previous"},
+                            ],
+                        }
+                    ]
                 }
-            ]
+            }
         )
     )
 
@@ -503,16 +506,23 @@ def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "missing_spy_cross_down",
-                    "event_date": "2025-04-22",
-                    "event_type": "spy_cross_down",
-                    "assertions": [
-                        {"type": "target_asset_equals", "asset": "stable", "value": 0.0}
-                    ],
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "missing_spy_cross_down",
+                            "event_type": "spy_cross_down",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
                 }
-            ]
+            }
         )
     )
 
@@ -542,14 +552,19 @@ def test_ratio_cross_constraint_requires_zone_transition(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "ratio_cross_up",
-                    "event_date": "2025-04-22",
-                    "event_type": "eth_btc_ratio_cross_up",
-                    "assertions": [{"type": "ratio_zone_equals", "zone": "above"}],
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "ratio_cross_up",
+                            "event_type": "eth_btc_ratio_cross_up",
+                            "assertions": [
+                                {"type": "ratio_zone_equals", "zone": "above"}
+                            ],
+                        }
+                    ]
                 }
-            ]
+            }
         )
     )
 
@@ -577,24 +592,34 @@ def test_constraint_event_id_filters_selected_events(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "unchecked_failure",
-                    "event_date": "2025-04-22",
-                    "event_type": "spy_cross_down",
-                    "assertions": [
-                        {"type": "target_asset_equals", "asset": "stable", "value": 0.0}
-                    ],
-                },
-                {
-                    "id": "checked_pass",
-                    "event_date": "2025-04-22",
-                    "event_type": "crypto_cross_up",
-                    "assertions": [
-                        {"type": "target_asset_equals", "asset": "stable", "value": 0.0}
-                    ],
-                },
-            ]
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "unchecked_failure",
+                            "event_type": "spy_cross_down",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        },
+                        {
+                            "id": "checked_pass",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        },
+                    ]
+                }
+            }
         )
     )
 
@@ -621,16 +646,23 @@ def test_constraints_outside_selected_range_are_skipped(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "outside",
-                    "event_date": "2025-04-22",
-                    "event_type": "crypto_cross_up",
-                    "assertions": [
-                        {"type": "target_asset_equals", "asset": "stable", "value": 0.0}
-                    ],
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "outside",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
                 }
-            ]
+            }
         )
     )
 
@@ -685,17 +717,24 @@ def test_main_exits_nonzero_after_printing_constraint_report(
     fixture = tmp_path / "constraints.json"
     fixture.write_text(
         json.dumps(
-            [
-                {
-                    "id": "bad_reference",
-                    "event_date": "2025-04-22",
-                    "event_type": "crypto_cross_up",
-                    "reference_asset": "BTC",
-                    "assertions": [
-                        {"type": "target_asset_equals", "asset": "stable", "value": 0.0}
-                    ],
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "bad_reference",
+                            "event_type": "crypto_cross_up",
+                            "reference_asset": "BTC",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
                 }
-            ]
+            }
         )
     )
 

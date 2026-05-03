@@ -124,6 +124,14 @@
       "roi_percent": 145.2834,
       "trade_count": 51
     },
+    "dma_fgi_flat_minimum": {
+      "display_name": "[RESEARCH] Flat Minimum \u2014 Equal-Weight DMA",
+      "calmar_ratio": 0.929,
+      "sharpe_ratio": 0.8492,
+      "max_drawdown_percent": -18.3065,
+      "roi_percent": 24.0432,
+      "trade_count": 55
+    },
     "eth_btc_rotation": {
       "display_name": "ETH/BTC Relative Strength Rotation",
       "calmar_ratio": 4.4234,

@@ -19,6 +19,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+    STRATEGY_DMA_FGI_FLAT_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
     STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
@@ -26,8 +27,10 @@ from src.services.backtesting.constants import (
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+    ETH_DMA_200_FEATURE,
     SPY_AUX_SERIES,
     SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+    SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
@@ -51,6 +54,10 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
     HierarchicalMinimumStrategy,
+)
+from src.services.backtesting.strategies.minimum import (
+    FlatMinimumStrategy,
+    build_initial_flat_minimum_asset_allocation,
 )
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
@@ -214,6 +221,34 @@ def _build_eth_btc_minimum_strategy(request: StrategyBuildRequest) -> BaseStrate
             template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
         )
     return DmaFgiEthBtcMinimumStrategy(
+        total_capital=request.total_capital,
+        params=params,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        initial_asset_allocation=initial_asset_allocation,
+    )
+
+
+def _build_flat_minimum_strategy(request: StrategyBuildRequest) -> BaseStrategy:
+    params = DmaGatedFgiParams.from_public_params(request.params)
+    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_FLAT_MINIMUM
+    initial_asset_allocation = None
+    if request.mode == "compare" and request.initial_allocation is not None:
+        first_price_row = request.user_prices[0] if request.user_prices else {}
+        initial_asset_allocation = build_initial_flat_minimum_asset_allocation(
+            aggregate_allocation=request.initial_allocation,
+            extra_data=cast(
+                Mapping[str, Any] | None,
+                first_price_row.get("extra_data"),
+            ),
+            price_map=cast(Mapping[str, float] | None, first_price_row.get("prices")),
+            primary_price=(
+                float(first_price_row["price"])
+                if isinstance(first_price_row.get("price"), int | float)
+                else None
+            ),
+        )
+    return FlatMinimumStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
@@ -398,6 +433,33 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
     )
 
 
+def _build_flat_minimum_recipe() -> StrategyRecipe:
+    return StrategyRecipe(
+        strategy_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
+        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_FLAT_MINIMUM],
+        description=(
+            "Research-only flat SPY/BTC/ETH strategy: independent DMA-200 "
+            "gates, equal-weight risk allocation, greed sell suppression, "
+            "and below-DMA extreme-fear DCA."
+        ),
+        signal_id="dma_fgi_flat_minimum_signal",
+        primary_asset="BTC",
+        warmup_lookback_days=14,
+        market_data_requirements=MarketDataRequirements(
+            requires_sentiment=True,
+            required_price_features=frozenset(
+                {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+            ),
+            max_lag_days=7,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_dma_public_params,
+        build_strategy=_build_flat_minimum_strategy,
+        supports_daily_suggestion=False,
+    )
+
+
 _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_DCA_CLASSIC: StrategyRecipe(
         strategy_id=STRATEGY_DCA_CLASSIC,
@@ -497,6 +559,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         build_strategy=_build_eth_btc_minimum_strategy,
         supports_daily_suggestion=False,
     ),
+    STRATEGY_DMA_FGI_FLAT_MINIMUM: _build_flat_minimum_recipe(),
     STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: StrategyRecipe(
         strategy_id=STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
         display_name="DMA FGI Hierarchical SPY/Crypto",

@@ -19,6 +19,7 @@ STRATEGY_DMA_GATED_FGI = "dma_gated_fgi"
 STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
 STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC = "dma_fgi_adaptive_binary_eth_btc"
 STRATEGY_DMA_FGI_ETH_BTC_MINIMUM = "dma_fgi_eth_btc_minimum"
+STRATEGY_DMA_FGI_FLAT_MINIMUM = "dma_fgi_flat_minimum"
 STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL = "dma_fgi_eth_btc_minimum_surgical"
 STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL = "dma_fgi_eth_btc_minimum_structural"
 STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO = "dma_fgi_hierarchical_spy_crypto"
@@ -51,6 +52,7 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: "126% DMA FGI Adaptive Binary ETH/BTC",
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM: "[RESEARCH] ETH/BTC Minimum (no SPY)",
+    STRATEGY_DMA_FGI_FLAT_MINIMUM: "[RESEARCH] Flat Minimum — Equal-Weight DMA",
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: (
         "[RESEARCH] ETH/BTC Minimum - Surgical Composer"
     ),
