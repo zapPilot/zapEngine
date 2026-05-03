@@ -1,12 +1,10 @@
 [
   {
     "id": "btc_cross_down_2025_03_08",
+    "event_date": "2025-03-08",
     "description": "BTC price crosses below BTC DMA; crypto sleeve must clear to stable.",
     "event_type": "crypto_cross_down",
     "reference_asset": "BTC",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-03-06",
-    "search_end_date": "2025-03-11",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -19,30 +17,14 @@
         "value": 0
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "All validation strategies retain crypto DMA cross-down risk-off behavior."
   },
   {
     "id": "eth_cross_down_2025_02_02",
+    "event_date": "2025-02-02",
     "description": "ETH price crosses below ETH DMA; crypto sleeve must clear to stable.",
     "event_type": "crypto_cross_down",
     "reference_asset": "ETH",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-01-31",
-    "search_end_date": "2025-02-04",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -60,30 +42,14 @@
         "value": 1
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "fail",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "fail",
-      "dma_fgi_hierarchical_minimum": "fail",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "fail",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
-      "dma_fgi_eth_btc_minimum_surgical": "fail",
-      "dma_fgi_eth_btc_minimum_structural": "fail"
-    },
     "rationale": "ETH-specific cross-down applies to ETH/BTC strategies on this window; the hierarchical strategies are using the BTC outer DMA reference here."
   },
   {
     "id": "btc_cross_down_preserve_spy_2025_10_18",
+    "event_date": "2025-10-18",
     "description": "BTC cross_down should liquidate crypto while preserving an existing SPY sleeve. SQL-resolved event date is 2025-10-18.",
     "event_type": "crypto_cross_down",
     "reference_asset": "BTC",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-10-14",
-    "search_end_date": "2025-10-20",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -108,84 +74,37 @@
         "type": "target_stable_increased_from_previous"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "fail",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "BTC cross-down SPY preservation applies to the non-adaptive BTC-reference hierarchical strategies in this window; prod is using ETH as its adaptive crypto DMA reference."
   },
   {
     "id": "btc_cross_up_2025_04_22",
+    "event_date": "2025-04-22",
     "description": "BTC price crosses above BTC DMA; crypto risk-on should DCA a non-zero amount from stable.",
     "event_type": "crypto_cross_up",
     "reference_asset": "BTC",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-04-18",
-    "search_end_date": "2025-04-26",
     "assertions": [
       {
         "type": "target_asset_equals",
         "asset": "stable",
         "value": 0
+      },
+      {
+        "type": "target_asset_increased_from_previous",
+        "asset": "btc"
+      },
+      {
+        "type": "target_asset_decreased_from_previous",
+        "asset": "stable"
       }
     ],
-    "expected_results": {
-      "default": {
-        "assertions": [
-          {
-            "type": "target_asset_equals",
-            "asset": "stable",
-            "value": 0
-          },
-          {
-            "type": "target_asset_increased_from_previous",
-            "asset": "btc"
-          },
-          {
-            "type": "target_asset_decreased_from_previous",
-            "asset": "stable"
-          }
-        ]
-      },
-      "dma_fgi_hierarchical_prod": "fail",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": {
-        "assertions": [
-          {
-            "type": "target_asset_equals",
-            "asset": "stable",
-            "value": 0
-          }
-        ]
-      },
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
-    },
     "rationale": "BTC cross-up redeploy applies to BTC-reference strategies; prod is using ETH as its adaptive crypto DMA reference in this window."
   },
   {
     "id": "eth_cross_up_2025_06_09",
+    "event_date": "2025-06-09",
     "description": "ETH has no price-vs-ETH-DMA cross_up near 2025-04-22; SQL resolves the next ETH cross_up to 2025-06-09.",
     "event_type": "crypto_cross_up",
     "reference_asset": "ETH",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-06-06",
-    "search_end_date": "2025-06-12",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -193,29 +112,13 @@
         "value": 0
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "fail",
-      "dma_fgi_hierarchical_minimum": "fail",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "fail",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
-      "dma_fgi_eth_btc_minimum_surgical": "fail",
-      "dma_fgi_eth_btc_minimum_structural": "fail"
-    },
     "rationale": "ETH cross-up applies to adaptive/ETH-referencing strategies in this window; the minimum hierarchical variants use BTC as their crypto DMA reference."
   },
   {
     "id": "spy_cross_down_2025_03_10",
+    "event_date": "2025-03-10",
     "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
     "event_type": "spy_cross_down",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-03-03",
-    "search_end_date": "2025-03-12",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -223,29 +126,13 @@
         "value": 0
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "SPY cross-down risk-off applies only to SPY-bearing hierarchical strategies."
   },
   {
     "id": "spy_cross_up_redeploy_2025_05_12",
+    "event_date": "2025-05-12",
     "description": "SPY price crosses above SPY DMA; existing stable should redeploy into SPY on cross-up or latch-follow-through days.",
     "event_type": "spy_cross_up",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-05-07",
-    "search_end_date": "2025-05-14",
     "assertions": [
       {
         "type": "decision_detail_equals",
@@ -253,30 +140,14 @@
         "value": true
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "fail",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "fail",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
-      "dma_fgi_eth_btc_minimum_surgical": "fail",
-      "dma_fgi_eth_btc_minimum_structural": "fail"
-    },
     "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
   },
   {
     "id": "eth_cross_down_preserve_spy_2025_11_05",
+    "event_date": "2025-11-05",
     "description": "ETH cross_down should liquidate crypto while preserving an existing SPY sleeve.",
     "event_type": "crypto_cross_down",
     "reference_asset": "ETH",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-11-03",
-    "search_end_date": "2025-11-07",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -300,29 +171,13 @@
         "type": "target_stable_increased_from_previous"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "fail",
-      "dma_fgi_hierarchical_minimum": "fail",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "fail",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
-      "dma_fgi_eth_btc_minimum_surgical": "fail",
-      "dma_fgi_eth_btc_minimum_structural": "fail"
-    },
     "rationale": "ETH cross-down SPY preservation applies to prod's adaptive ETH-reference path in this window; the BTC-reference minimum variants have no ETH DMA cross-down event here."
   },
   {
     "id": "extreme_fear_dca_2025_11_21",
+    "event_date": "2025-11-21",
     "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
     "event_type": "extreme_fear_below_crypto_dma",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-11-18",
-    "search_end_date": "2025-11-24",
     "assertions": [
       {
         "type": "target_crypto_increased_from_previous"
@@ -331,29 +186,13 @@
         "type": "target_stable_decreased_from_previous"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
   },
   {
     "id": "extreme_fear_dca_2026_02_06",
+    "event_date": "2026-02-06",
     "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
     "event_type": "extreme_fear_below_crypto_dma",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2026-02-03",
-    "search_end_date": "2026-02-09",
     "assertions": [
       {
         "type": "target_crypto_increased_from_previous"
@@ -362,29 +201,13 @@
         "type": "target_stable_decreased_from_previous"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
   },
   {
     "id": "spy_cross_down_2026_03_20",
+    "event_date": "2026-03-20",
     "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
     "event_type": "spy_cross_down",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2026-03-14",
-    "search_end_date": "2026-03-22",
     "assertions": [
       {
         "type": "target_asset_equals",
@@ -392,29 +215,13 @@
         "value": 0
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "SPY cross-down risk-off applies only to SPY-bearing hierarchical strategies."
   },
   {
     "id": "spy_cross_up_redeploy_2026_04_08",
+    "event_date": "2026-04-08",
     "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch. SQL-resolved event date is 2026-04-08.",
     "event_type": "spy_cross_up",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2026-04-03",
-    "search_end_date": "2026-04-10",
     "assertions": [
       {
         "type": "decision_detail_equals",
@@ -422,78 +229,32 @@
         "value": true
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "fail",
-      "dma_fgi_eth_btc_minimum": "n/a",
-      "dma_fgi_adaptive_binary_eth_btc": "n/a",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "fail",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
-      "dma_fgi_eth_btc_minimum_surgical": "fail",
-      "dma_fgi_eth_btc_minimum_structural": "fail"
-    },
     "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
   },
   {
     "id": "eth_btc_ratio_cross_up_rotate_btc_to_eth_2025_07_15",
+    "event_date": "2025-07-15",
     "description": "ETH/BTC ratio crosses up; strategies should surface the above-ratio transition in the inner ratio zone.",
     "event_type": "eth_btc_ratio_cross_up",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2025-07-08",
-    "search_end_date": "2025-07-18",
     "assertions": [
       {
         "type": "ratio_zone_equals",
         "zone": "above"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
   },
   {
     "id": "eth_btc_ratio_cross_down_rotate_eth_to_btc_2026_01_20",
+    "event_date": "2026-01-20",
     "description": "ETH/BTC ratio has a whipsaw near 2026-01-16; SQL resolves the sustained cross_down to 2026-01-20. Strategies should surface the below-ratio transition in the inner ratio zone.",
     "event_type": "eth_btc_ratio_cross_down",
-    "run_start_date": "2025-01-01",
-    "search_start_date": "2026-01-18",
-    "search_end_date": "2026-01-22",
     "assertions": [
       {
         "type": "ratio_zone_equals",
         "zone": "below"
       }
     ],
-    "expected_results": {
-      "dma_fgi_hierarchical_prod": "pass",
-      "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
-      "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
-      "dma_fgi_adaptive_binary_eth_btc": "pass",
-      "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
-      "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
-      "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
-      "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
-      "dma_fgi_eth_btc_minimum_surgical": "pass",
-      "dma_fgi_eth_btc_minimum_structural": "pass"
-    },
     "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
   }
 ]

@@ -26,6 +26,12 @@ DEFAULT_COMPARE_PATH = "/api/v3/backtesting/compare"
 DEFAULT_SAVED_CONFIG_ID = "eth_btc_rotation_default"
 DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_STATEFUL_DATE_LOOKBACK_DAYS = 400
+APP_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONSTRAINTS_FIXTURE = (
+    APP_ROOT / "tests/fixtures/hierarchical_validation_events.json"
+)
+ASSET_KEYS = frozenset({"btc", "eth", "spy", "stable", "alt"})
+CONSTRAINT_EPSILON = 1e-6
 
 SECTION_ORDER = (
     "market",
@@ -44,6 +50,15 @@ SECTION_ORDER = (
 
 class VerificationError(ValueError):
     """Raised when compare-payload tooling encounters invalid data."""
+
+
+class ConstraintValidationFailed(Exception):
+    """Raised after rendering output when selected constraints fail."""
+
+    def __init__(self, rendered: str, validation: dict[str, Any]) -> None:
+        super().__init__("Compare constraints failed.")
+        self.rendered = rendered
+        self.validation = validation
 
 
 def load_payload(source: dict[str, Any]) -> dict[str, Any]:
@@ -758,6 +773,835 @@ def _build_record(
     }
 
 
+def _load_constraint_cases(
+    fixture_path: str | Path,
+    *,
+    event_ids: list[str] | None,
+) -> list[dict[str, Any]]:
+    path = Path(fixture_path)
+    if not path.exists():
+        raise VerificationError(f"Constraints fixture not found: {path}")
+    try:
+        payload = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise VerificationError(
+            f"Constraints fixture is not valid JSON: {path}"
+        ) from exc
+    if not isinstance(payload, list):
+        raise VerificationError("Constraints fixture root must be a JSON array.")
+
+    cases: list[dict[str, Any]] = []
+    for index, raw_case in enumerate(payload):
+        if not isinstance(raw_case, dict):
+            raise VerificationError(
+                f"Constraint case at index {index} must be an object."
+            )
+        case = dict(raw_case)
+        for key in ("id", "event_date", "event_type"):
+            if not isinstance(case.get(key), str) or not case.get(key):
+                raise VerificationError(
+                    f"Constraint case at index {index} must define non-empty string '{key}'."
+                )
+        assertions = case.get("assertions")
+        if not isinstance(assertions, list) or not assertions:
+            raise VerificationError(
+                f"Constraint case {case['id']} must define a non-empty assertions array."
+            )
+        cases.append(case)
+
+    if not event_ids:
+        return cases
+
+    selected = set(event_ids)
+    filtered = [case for case in cases if str(case["id"]) in selected]
+    missing = selected - {str(case["id"]) for case in filtered}
+    if missing:
+        raise VerificationError(
+            "Unknown constraint event id(s): " + ", ".join(sorted(missing))
+        )
+    return filtered
+
+
+def _constraint_event_dates(
+    *,
+    filtered_points: list[dict[str, Any]],
+) -> set[str]:
+    return {str(point["date"]) for point in filtered_points}
+
+
+def _build_constraint_validation(
+    *,
+    points: list[dict[str, Any]],
+    filtered_points: list[dict[str, Any]],
+    fixture_path: str | Path | None,
+    event_ids: list[str] | None,
+) -> dict[str, Any]:
+    if fixture_path is None:
+        return {
+            "enabled": False,
+            "fixture": None,
+            "passed": True,
+            "checked": 0,
+            "violations": [],
+            "results": [],
+            "skipped": [],
+        }
+
+    cases = _load_constraint_cases(fixture_path, event_ids=event_ids)
+    selected_dates = _constraint_event_dates(filtered_points=filtered_points)
+    results: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for case in cases:
+        event_date = str(case["event_date"])
+        if event_date not in selected_dates:
+            skipped.append(
+                {
+                    "id": case["id"],
+                    "event_date": event_date,
+                    "reason": "outside selected analysis window",
+                }
+            )
+            continue
+        results.append(_validate_constraint_case(case=case, points=points))
+
+    violations = [result for result in results if not result["passed"]]
+    return {
+        "enabled": True,
+        "fixture": str(Path(fixture_path)),
+        "passed": not violations,
+        "checked": len(results),
+        "violations": violations,
+        "results": results,
+        "skipped": skipped,
+    }
+
+
+def _validate_constraint_case(
+    *,
+    case: dict[str, Any],
+    points: list[dict[str, Any]],
+) -> dict[str, Any]:
+    case_id = str(case["id"])
+    event_date = str(case["event_date"])
+    event_point = _point_for_date(points=points, event_date=event_date)
+    description = case.get("description")
+    rationale = case.get("rationale")
+    base_result: dict[str, Any] = {
+        "id": case_id,
+        "event_date": event_date,
+        "event_type": case["event_type"],
+        "description": description if isinstance(description, str) else "",
+        "rationale": rationale if isinstance(rationale, str) else "",
+        "passed": False,
+        "message": "",
+        "assertions_checked": 0,
+    }
+    if event_point is None:
+        return {
+            **base_result,
+            "message": f"{event_date}: no compare timeline point found",
+        }
+
+    trigger_failure = _constraint_event_trigger_failure(
+        case=case,
+        point=event_point,
+        points=points,
+    )
+    if trigger_failure is not None:
+        return {**base_result, "message": trigger_failure}
+
+    assertions = [
+        assertion
+        for assertion in case.get("assertions", [])
+        if isinstance(assertion, dict)
+    ]
+    if not assertions:
+        return {**base_result, "message": "No assertions defined for constraint case"}
+
+    for assertion in assertions:
+        failure = _evaluate_constraint_assertion(
+            assertion=assertion,
+            points=points,
+            event_point=event_point,
+        )
+        if failure is not None:
+            return {
+                **base_result,
+                "message": failure,
+                "assertions_checked": len(assertions),
+            }
+    return {
+        **base_result,
+        "passed": True,
+        "message": "passed",
+        "assertions_checked": len(assertions),
+    }
+
+
+def _constraint_event_trigger_failure(
+    *,
+    case: dict[str, Any],
+    point: dict[str, Any],
+    points: list[dict[str, Any]],
+) -> str | None:
+    event_type = str(case["event_type"])
+    if event_type == "crypto_cross_down":
+        return _crypto_cross_trigger_failure(
+            point=point,
+            expected_cross="cross_down",
+            reference_asset=_optional_upper(case.get("reference_asset")),
+        )
+    if event_type == "crypto_cross_up":
+        return _crypto_cross_trigger_failure(
+            point=point,
+            expected_cross="cross_up",
+            reference_asset=_optional_upper(case.get("reference_asset")),
+        )
+    if event_type == "spy_cross_down":
+        return _dma_cross_trigger_failure(
+            point=point,
+            dma_key="spy_dma",
+            expected_cross="cross_down",
+        )
+    if event_type == "spy_cross_up":
+        return _dma_cross_trigger_failure(
+            point=point,
+            dma_key="spy_dma",
+            expected_cross="cross_up",
+        )
+    if event_type == "extreme_fear_below_crypto_dma":
+        label = _constraint_sentiment_label(point)
+        dma = _constraint_dma(point, key="dma")
+        if label == "extreme_fear" and dma.get("zone") == "below":
+            return None
+        return _constraint_failure(
+            point,
+            "expected extreme_fear sentiment with crypto DMA zone below; "
+            f"observed sentiment={label!r}, dma_zone={dma.get('zone')!r}",
+        )
+    if event_type == "eth_btc_ratio_cross_up":
+        return _inner_ratio_cross_trigger_failure(
+            points=points,
+            point=point,
+            from_zone="below",
+            to_zone="above",
+        )
+    if event_type == "eth_btc_ratio_cross_down":
+        return _inner_ratio_cross_trigger_failure(
+            points=points,
+            point=point,
+            from_zone="above",
+            to_zone="below",
+        )
+    return _constraint_failure(
+        point, f"Unsupported constraint event type: {event_type!r}"
+    )
+
+
+def _crypto_cross_trigger_failure(
+    *,
+    point: dict[str, Any],
+    expected_cross: str,
+    reference_asset: str | None,
+) -> str | None:
+    failure = _dma_cross_trigger_failure(
+        point=point,
+        dma_key="dma",
+        expected_cross=expected_cross,
+    )
+    if failure is not None:
+        return failure
+    if reference_asset is None:
+        return None
+    dma = _constraint_dma(point, key="dma")
+    observed_reference = _optional_upper(
+        dma.get("outer_dma_reference_asset") or dma.get("outer_dma_asset")
+    )
+    if observed_reference == reference_asset:
+        return None
+    return _constraint_failure(
+        point,
+        f"expected crypto DMA reference {reference_asset}; observed {observed_reference!r}",
+    )
+
+
+def _dma_cross_trigger_failure(
+    *,
+    point: dict[str, Any],
+    dma_key: str,
+    expected_cross: str,
+) -> str | None:
+    dma = _constraint_dma(point, key=dma_key)
+    observed = dma.get("cross_event")
+    if observed == expected_cross:
+        return None
+    return _constraint_failure(
+        point,
+        f"expected {dma_key} cross_event={expected_cross!r}; observed {observed!r}",
+    )
+
+
+def _inner_ratio_cross_trigger_failure(
+    *,
+    points: list[dict[str, Any]],
+    point: dict[str, Any],
+    from_zone: str,
+    to_zone: str,
+) -> str | None:
+    previous_point = _previous_constraint_point(points=points, event_point=point)
+    if previous_point is None:
+        return _constraint_failure(
+            point,
+            "No previous point available for ratio-cross event trigger",
+        )
+    previous = _constraint_inner_ratio_zone(previous_point)
+    observed = _constraint_inner_ratio_zone(point)
+    if previous == from_zone and observed == to_zone:
+        return None
+    return _constraint_failure(
+        point,
+        f"expected inner ratio zone transition {from_zone!r}->{to_zone!r}; "
+        f"observed {previous!r}->{observed!r}",
+    )
+
+
+def _evaluate_constraint_assertion(
+    *,
+    assertion: dict[str, Any],
+    points: list[dict[str, Any]],
+    event_point: dict[str, Any],
+) -> str | None:
+    assertion_type = assertion.get("type")
+    previous_point = _previous_constraint_point(points=points, event_point=event_point)
+    if assertion_type == "target_asset_equals":
+        return _constraint_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            comparator="equals",
+        )
+    if assertion_type in {"target_asset_greater_than", "target_asset_gt"}:
+        return _constraint_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            comparator="greater_than",
+        )
+    if assertion_type == "target_asset_gte":
+        return _constraint_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            comparator="greater_than_or_equal",
+        )
+    if assertion_type in {
+        "target_asset_greater_than_previous",
+        "target_asset_increased_from_previous",
+    }:
+        return _constraint_asset_vs_previous(
+            assertion=assertion,
+            point=event_point,
+            previous_point=previous_point,
+            comparator="greater_than",
+        )
+    if assertion_type in {
+        "target_asset_less_than_previous",
+        "target_asset_decreased_from_previous",
+    }:
+        return _constraint_asset_vs_previous(
+            assertion=assertion,
+            point=event_point,
+            previous_point=previous_point,
+            comparator="less_than",
+        )
+    if assertion_type in {
+        "target_asset_not_greater_than_previous",
+        "target_asset_not_increased_from_previous",
+    }:
+        return _constraint_asset_vs_previous(
+            assertion=assertion,
+            point=event_point,
+            previous_point=previous_point,
+            comparator="not_greater_than",
+        )
+    if assertion_type in {
+        "target_asset_not_greater_than_current",
+        "target_asset_not_increased_from_current",
+    }:
+        return _constraint_asset_vs_current(
+            assertion=assertion,
+            point=event_point,
+            comparator="not_greater_than",
+        )
+    if assertion_type in {
+        "target_crypto_greater_than_previous",
+        "target_crypto_increased_from_previous",
+    }:
+        return _constraint_crypto_vs_previous(
+            point=event_point,
+            previous_point=previous_point,
+            comparator="greater_than",
+        )
+    if assertion_type == "target_stable_decreased_from_previous":
+        return _constraint_asset_vs_previous(
+            assertion={"asset": "stable"},
+            point=event_point,
+            previous_point=previous_point,
+            comparator="less_than",
+        )
+    if assertion_type == "target_stable_increased_from_previous":
+        return _constraint_asset_vs_previous(
+            assertion={"asset": "stable"},
+            point=event_point,
+            previous_point=previous_point,
+            comparator="greater_than",
+        )
+    if assertion_type == "target_spy_not_increased_from_previous":
+        return _constraint_asset_vs_previous(
+            assertion={**assertion, "asset": "spy"},
+            point=event_point,
+            previous_point=previous_point,
+            comparator="not_greater_than",
+        )
+    if assertion_type == "target_spy_not_greater_than_current":
+        return _constraint_asset_vs_current(
+            assertion={**assertion, "asset": "spy"},
+            point=event_point,
+            comparator="not_greater_than",
+        )
+    if assertion_type == "if_current_crypto_gt_target_asset_equals":
+        return _constraint_if_current_crypto_gt_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            comparator="equals",
+        )
+    if assertion_type == "if_current_crypto_gt_target_asset_gt":
+        return _constraint_if_current_crypto_gt_asset_compare(
+            assertion=assertion,
+            point=event_point,
+            comparator="greater_than",
+        )
+    if assertion_type == "eventually_target_asset_greater_than_previous":
+        return _constraint_eventual_asset_vs_previous(
+            assertion=assertion,
+            points=points,
+            event_point=event_point,
+            comparator="greater_than",
+        )
+    if assertion_type == "eventually_target_asset_less_than_previous":
+        return _constraint_eventual_asset_vs_previous(
+            assertion=assertion,
+            points=points,
+            event_point=event_point,
+            comparator="less_than",
+        )
+    if assertion_type == "decision_action_in":
+        return _constraint_decision_action_in(assertion=assertion, point=event_point)
+    if assertion_type == "decision_reason_in":
+        return _constraint_decision_reason_in(assertion=assertion, point=event_point)
+    if assertion_type == "decision_detail_equals":
+        return _constraint_decision_detail_equals(
+            assertion=assertion, point=event_point
+        )
+    if assertion_type == "ratio_zone_equals":
+        return _constraint_ratio_zone_equals(assertion=assertion, point=event_point)
+    return _constraint_failure(
+        event_point,
+        f"Unsupported assertion type: {assertion_type!r}",
+    )
+
+
+def _constraint_asset_compare(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+    comparator: str,
+) -> str | None:
+    asset = _constraint_asset(assertion)
+    actual = _constraint_target_asset(point, asset=asset)
+    expected = float(assertion.get("value", 0.0))
+    if comparator == "equals" and abs(actual - expected) > CONSTRAINT_EPSILON:
+        return _constraint_failure(
+            point,
+            f"target {asset}={actual:.6f}; expected {expected:.6f}",
+        )
+    if comparator == "greater_than" and actual <= expected + CONSTRAINT_EPSILON:
+        return _constraint_failure(
+            point,
+            f"target {asset}={actual:.6f}; expected > {expected:.6f}",
+        )
+    if comparator == "greater_than_or_equal" and actual < expected - CONSTRAINT_EPSILON:
+        return _constraint_failure(
+            point,
+            f"target {asset}={actual:.6f}; expected >= {expected:.6f}",
+        )
+    return None
+
+
+def _constraint_asset_vs_previous(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+    previous_point: dict[str, Any] | None,
+    comparator: str,
+) -> str | None:
+    if previous_point is None:
+        return _constraint_failure(
+            point,
+            "No previous point available for previous-allocation assertion",
+        )
+    asset = _constraint_asset(assertion)
+    actual = _constraint_target_asset(point, asset=asset)
+    previous = _constraint_portfolio_asset(previous_point, asset=asset)
+    return _constraint_compare_current_to_previous(
+        point=point,
+        label=f"target {asset}",
+        actual=actual,
+        previous=previous,
+        comparator=comparator,
+        tolerance=_constraint_tolerance(assertion),
+    )
+
+
+def _constraint_asset_vs_current(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+    comparator: str,
+) -> str | None:
+    asset = _constraint_asset(assertion)
+    actual = _constraint_target_asset(point, asset=asset)
+    current = _constraint_portfolio_asset(point, asset=asset)
+    return _constraint_compare_current_to_previous(
+        point=point,
+        label=f"target {asset}",
+        actual=actual,
+        previous=current,
+        comparator=comparator,
+        previous_label="current",
+        tolerance=_constraint_tolerance(assertion),
+    )
+
+
+def _constraint_if_current_crypto_gt_asset_compare(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+    comparator: str,
+) -> str | None:
+    current_crypto = _constraint_portfolio_crypto(point)
+    threshold = float(assertion.get("current_crypto_threshold", CONSTRAINT_EPSILON))
+    if current_crypto <= threshold:
+        return None
+    return _constraint_asset_compare(
+        assertion=assertion,
+        point=point,
+        comparator=comparator,
+    )
+
+
+def _constraint_crypto_vs_previous(
+    *,
+    point: dict[str, Any],
+    previous_point: dict[str, Any] | None,
+    comparator: str,
+) -> str | None:
+    if previous_point is None:
+        return _constraint_failure(
+            point, "No previous point available for crypto assertion"
+        )
+    actual = _constraint_target_crypto(point)
+    previous = _constraint_portfolio_crypto(previous_point)
+    return _constraint_compare_current_to_previous(
+        point=point,
+        label="target crypto",
+        actual=actual,
+        previous=previous,
+        comparator=comparator,
+    )
+
+
+def _constraint_eventual_asset_vs_previous(
+    *,
+    assertion: dict[str, Any],
+    points: list[dict[str, Any]],
+    event_point: dict[str, Any],
+    comparator: str,
+) -> str | None:
+    asset = _constraint_asset(assertion)
+    within_days = int(assertion.get("within_days", 0))
+    event_date = _parse_date(str(event_point["date"]))
+    end_date = event_date + timedelta(days=max(0, within_days))
+    inspected: list[str] = []
+    for point in points:
+        point_date = _parse_date(str(point["date"]))
+        if point_date < event_date or point_date > end_date:
+            continue
+        previous_point = _previous_constraint_point(points=points, event_point=point)
+        if previous_point is None:
+            continue
+        inspected.append(str(point["date"]))
+        actual = _constraint_target_asset(point, asset=asset)
+        previous = _constraint_portfolio_asset(previous_point, asset=asset)
+        if _constraint_comparison_passes(
+            actual=actual,
+            previous=previous,
+            comparator=comparator,
+        ):
+            return None
+    return _constraint_failure(
+        event_point,
+        f"No point within {within_days} days satisfied {asset} {comparator} previous; "
+        f"inspected dates: {', '.join(inspected) or 'none'}",
+    )
+
+
+def _constraint_decision_action_in(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    expected = assertion.get("values")
+    if not isinstance(expected, list):
+        return _constraint_failure(
+            point,
+            "decision_action_in assertion must define values array",
+        )
+    action = _constraint_decision(point).get("action")
+    if action not in expected:
+        return _constraint_failure(
+            point,
+            f"decision action={action!r}; expected one of {expected!r}",
+        )
+    return None
+
+
+def _constraint_decision_reason_in(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    expected = assertion.get("values") or assertion.get("reasons")
+    if not isinstance(expected, list):
+        return _constraint_failure(
+            point,
+            "decision_reason_in assertion must define values array",
+        )
+    reason = _constraint_decision(point).get("reason")
+    if reason not in expected:
+        return _constraint_failure(
+            point,
+            f"decision reason={reason!r}; expected one of {expected!r}",
+        )
+    return None
+
+
+def _constraint_decision_detail_equals(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    key = assertion.get("key")
+    if not isinstance(key, str) or not key:
+        return _constraint_failure(
+            point,
+            "decision_detail_equals assertion must define key",
+        )
+    expected = assertion.get("value")
+    details = _safe_mapping(_constraint_decision(point).get("details"))
+    actual = details.get(key)
+    if actual != expected:
+        return _constraint_failure(
+            point,
+            f"decision detail {key}={actual!r}; expected {expected!r}",
+        )
+    return None
+
+
+def _constraint_ratio_zone_equals(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    expected = assertion.get("zone")
+    if not isinstance(expected, str) or not expected:
+        return _constraint_failure(
+            point, "ratio_zone_equals assertion must define zone"
+        )
+    actual = _constraint_inner_ratio_zone(point)
+    if actual != expected:
+        return _constraint_failure(
+            point, f"ratio zone={actual!r}; expected {expected!r}"
+        )
+    return None
+
+
+def _constraint_compare_current_to_previous(
+    *,
+    point: dict[str, Any],
+    label: str,
+    actual: float,
+    previous: float,
+    comparator: str,
+    previous_label: str = "previous",
+    tolerance: float = CONSTRAINT_EPSILON,
+) -> str | None:
+    if _constraint_comparison_passes(
+        actual=actual,
+        previous=previous,
+        comparator=comparator,
+        tolerance=tolerance,
+    ):
+        return None
+    symbol = {
+        "greater_than": ">",
+        "less_than": "<",
+        "not_greater_than": "<=",
+    }.get(comparator, comparator)
+    return _constraint_failure(
+        point,
+        f"{label}={actual:.6f}; expected {symbol} {previous_label} {previous:.6f}",
+    )
+
+
+def _constraint_comparison_passes(
+    *,
+    actual: float,
+    previous: float,
+    comparator: str,
+    tolerance: float = CONSTRAINT_EPSILON,
+) -> bool:
+    if comparator == "greater_than":
+        return actual > previous + tolerance
+    if comparator == "less_than":
+        return actual < previous - tolerance
+    if comparator == "not_greater_than":
+        return actual <= previous + tolerance
+    raise VerificationError(f"Unsupported constraint comparator: {comparator}")
+
+
+def _constraint_asset(assertion: dict[str, Any]) -> str:
+    asset = str(assertion.get("asset", "")).lower()
+    if asset not in ASSET_KEYS:
+        raise VerificationError(f"Unsupported asset in assertion: {asset!r}")
+    return asset
+
+
+def _constraint_tolerance(assertion: dict[str, Any]) -> float:
+    raw = assertion.get("tolerance")
+    if isinstance(raw, int | float) and not isinstance(raw, bool):
+        return float(raw)
+    return CONSTRAINT_EPSILON
+
+
+def _constraint_target_asset(point: dict[str, Any], *, asset: str) -> float:
+    target = _constraint_decision(point).get("target_allocation")
+    if not isinstance(target, dict):
+        return 0.0
+    return _constraint_number(target.get(asset))
+
+
+def _constraint_portfolio_asset(point: dict[str, Any], *, asset: str) -> float:
+    portfolio = _safe_mapping(point.get("portfolio"))
+    allocation = portfolio.get("asset_allocation")
+    if not isinstance(allocation, dict):
+        return 0.0
+    return _constraint_number(allocation.get(asset))
+
+
+def _constraint_target_crypto(point: dict[str, Any]) -> float:
+    return _constraint_target_asset(point, asset="btc") + _constraint_target_asset(
+        point,
+        asset="eth",
+    )
+
+
+def _constraint_portfolio_crypto(point: dict[str, Any]) -> float:
+    return _constraint_portfolio_asset(
+        point,
+        asset="btc",
+    ) + _constraint_portfolio_asset(point, asset="eth")
+
+
+def _constraint_decision(point: dict[str, Any]) -> dict[str, Any]:
+    return _safe_mapping(point.get("decision"))
+
+
+def _constraint_signal(point: dict[str, Any]) -> dict[str, Any]:
+    signal = point.get("signal")
+    return signal if isinstance(signal, dict) else {}
+
+
+def _constraint_dma(point: dict[str, Any], *, key: str) -> dict[str, Any]:
+    signal = _constraint_signal(point)
+    direct = signal.get(key)
+    if isinstance(direct, dict):
+        return direct
+    details = _safe_mapping(signal.get("details"))
+    detail_value = details.get(key)
+    return detail_value if isinstance(detail_value, dict) else {}
+
+
+def _constraint_inner_ratio_zone(point: dict[str, Any]) -> str | None:
+    details = _safe_mapping(_constraint_decision(point).get("details"))
+    zone = details.get("inner_ratio_zone")
+    if isinstance(zone, str):
+        return zone
+    ratio = _constraint_dma(point, key="ratio")
+    signal_zone = ratio.get("zone")
+    return signal_zone if isinstance(signal_zone, str) else None
+
+
+def _constraint_sentiment_label(point: dict[str, Any]) -> str | None:
+    market = _safe_mapping(point.get("market"))
+    label = market.get("sentiment_label")
+    if label is not None:
+        return str(label).lower()
+    signal = _constraint_signal(point)
+    regime = signal.get("regime")
+    return str(regime).lower() if regime is not None else None
+
+
+def _point_for_date(
+    *,
+    points: list[dict[str, Any]],
+    event_date: str,
+) -> dict[str, Any] | None:
+    for point in points:
+        if point["date"] == event_date:
+            return point
+    return None
+
+
+def _previous_constraint_point(
+    *,
+    points: list[dict[str, Any]],
+    event_point: dict[str, Any],
+) -> dict[str, Any] | None:
+    event_date = _parse_date(str(event_point["date"]))
+    previous_points = [
+        point for point in points if _parse_date(str(point["date"])) < event_date
+    ]
+    if not previous_points:
+        return None
+    return max(previous_points, key=lambda point: _parse_date(str(point["date"])))
+
+
+def _constraint_failure(point: dict[str, Any], message: str) -> str:
+    return f"{point['date']}: {message}"
+
+
+def _constraint_number(value: Any) -> float:
+    return (
+        float(value)
+        if isinstance(value, int | float) and not isinstance(value, bool)
+        else 0.0
+    )
+
+
+def _optional_upper(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    return value.upper()
+
+
 def _build_active_tactics(strategy_id: str) -> dict[str, Any]:
     variant = HIERARCHICAL_ATTRIBUTION_VARIANTS.get(strategy_id)
     if variant is None:
@@ -858,6 +1702,7 @@ def _render_text(
     sections: tuple[str, ...],
     warnings: list[str],
     lookback_context: dict[str, Any] | None = None,
+    constraint_validation: dict[str, Any] | None = None,
 ) -> str:
     lines: list[str] = []
     if warnings:
@@ -875,7 +1720,45 @@ def _render_text(
         lines.append(f"DATE {record['date']}")
         for section in sections:
             lines.extend(_render_text_section(section, record))
+    constraint_lines = _render_text_constraints(constraint_validation)
+    if constraint_lines:
+        if lines:
+            lines.append("")
+        lines.extend(constraint_lines)
     return "\n".join(lines).rstrip()
+
+
+def _render_text_constraints(validation: dict[str, Any] | None) -> list[str]:
+    if not validation:
+        return []
+    if validation.get("enabled") is False:
+        return ["CONSTRAINT_VALIDATION enabled=False passed=True checked=0"]
+    lines = [
+        "CONSTRAINT_VALIDATION "
+        + " ".join(
+            (
+                f"enabled={validation.get('enabled')}",
+                f"passed={validation.get('passed')}",
+                f"checked={validation.get('checked')}",
+                f"violations={len(validation.get('violations', []))}",
+            )
+        )
+    ]
+    for result in validation.get("results", []):
+        if isinstance(result, dict):
+            lines.append(
+                "CONSTRAINT "
+                + " ".join(
+                    (
+                        f"id={result.get('id')}",
+                        f"date={result.get('event_date')}",
+                        f"type={result.get('event_type')}",
+                        f"passed={result.get('passed')}",
+                        f"message={result.get('message')}",
+                    )
+                )
+            )
+    return lines
 
 
 def _render_text_section(section: str, record: dict[str, Any]) -> list[str]:
@@ -1052,6 +1935,7 @@ def _render_markdown(
     sections: tuple[str, ...],
     warnings: list[str],
     lookback_context: dict[str, Any] | None = None,
+    constraint_validation: dict[str, Any] | None = None,
 ) -> str:
     lines = ["# Compare Analysis", ""]
     if warnings:
@@ -1067,7 +1951,57 @@ def _render_markdown(
         for section in sections:
             lines.extend(_render_markdown_section(section, record))
             lines.append("")
+    constraint_lines = _render_markdown_constraints(constraint_validation)
+    if constraint_lines:
+        lines.extend(constraint_lines)
     return "\n".join(lines).rstrip()
+
+
+def _render_markdown_constraints(validation: dict[str, Any] | None) -> list[str]:
+    if not validation:
+        return []
+    if validation.get("enabled") is False:
+        return [
+            "## Constraint Validation",
+            "",
+            "- Enabled: `False`",
+            "- Passed: `True`",
+        ]
+    lines = [
+        "## Constraint Validation",
+        "",
+        f"- Passed: `{validation.get('passed')}`",
+        f"- Checked: `{validation.get('checked')}`",
+        f"- Violations: `{len(validation.get('violations', []))}`",
+        "",
+    ]
+    results = [
+        result for result in validation.get("results", []) if isinstance(result, dict)
+    ]
+    if results:
+        lines.extend(
+            [
+                "| Event | Date | Type | Status | Message |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for result in results:
+            status = "PASS" if result.get("passed") else "FAIL"
+            message = str(result.get("message") or "").replace("|", "\\|")
+            lines.append(
+                "| "
+                + " | ".join(
+                    (
+                        str(result.get("id")),
+                        str(result.get("event_date")),
+                        str(result.get("event_type")),
+                        status,
+                        message,
+                    )
+                )
+                + " |"
+            )
+    return lines
 
 
 def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
@@ -1489,6 +2423,9 @@ def analyze_response_payload(
     request_body: dict[str, Any],
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     out_path: str | None = None,
+    constraints_fixture: str | None = str(DEFAULT_CONSTRAINTS_FIXTURE),
+    constraint_event_ids: list[str] | None = None,
+    fail_on_constraint_violation: bool = False,
 ) -> str:
     payload = load_payload(payload)
     timeline = load_timeline(payload)
@@ -1502,6 +2439,12 @@ def analyze_response_payload(
     )
     selected_start = filtered_points[0]["date"] if filtered_points else None
     compare_ratio_metrics, warnings = _derive_ratio_metrics(normalized_points)
+    constraint_validation = _build_constraint_validation(
+        points=normalized_points,
+        filtered_points=filtered_points,
+        fixture_path=constraints_fixture,
+        event_ids=constraint_event_ids,
+    )
 
     if profile == "raw":
         lookback_context = _build_lookback_context(
@@ -1519,6 +2462,7 @@ def analyze_response_payload(
                 "window": payload.get("window"),
                 "warnings": warnings,
                 "lookback_context": lookback_context,
+                "constraint_validation": constraint_validation,
                 "records": filtered_points,
             },
             indent=2,
@@ -1557,6 +2501,7 @@ def analyze_response_payload(
                     "window": payload.get("window"),
                     "warnings": all_warnings,
                     "lookback_context": lookback_context,
+                    "constraint_validation": constraint_validation,
                     "records": records,
                 },
                 indent=2,
@@ -1568,6 +2513,7 @@ def analyze_response_payload(
                 selected_sections,
                 all_warnings,
                 lookback_context=lookback_context,
+                constraint_validation=constraint_validation,
             )
         else:
             rendered = _render_text(
@@ -1575,10 +2521,13 @@ def analyze_response_payload(
                 selected_sections,
                 all_warnings,
                 lookback_context=lookback_context,
+                constraint_validation=constraint_validation,
             )
 
     if out_path is not None:
         Path(out_path).write_text(rendered)
+    if fail_on_constraint_violation and not constraint_validation.get("passed", True):
+        raise ConstraintValidationFailed(rendered, constraint_validation)
     return rendered
 
 
@@ -1600,6 +2549,9 @@ def analyze_payload(
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     history_start_date: str | None = None,
     out_path: str | None = None,
+    constraints_fixture: str | None = str(DEFAULT_CONSTRAINTS_FIXTURE),
+    constraint_event_ids: list[str] | None = None,
+    fail_on_constraint_violation: bool = False,
 ) -> str:
     request_body = _build_compare_request(
         saved_config_id=saved_config_id,
@@ -1629,6 +2581,9 @@ def analyze_payload(
         request_body=request_body,
         lookback_days=lookback_days,
         out_path=out_path,
+        constraints_fixture=constraints_fixture,
+        constraint_event_ids=constraint_event_ids,
+        fail_on_constraint_violation=fail_on_constraint_violation,
     )
 
 
@@ -1686,6 +2641,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--history-start-date",
         help="History start date for stateful --date diagnostics",
     )
+    parser.add_argument(
+        "--constraints-fixture",
+        default=str(DEFAULT_CONSTRAINTS_FIXTURE),
+        help="JSON fixture of event constraints to validate against selected strategy.",
+    )
+    parser.add_argument(
+        "--no-constraints",
+        action="store_true",
+        help="Disable fixture constraint validation.",
+    )
+    parser.add_argument(
+        "--constraint-event-id",
+        action="append",
+        help="Validate only the named constraint event; repeatable.",
+    )
     parser.add_argument("--out", dest="out_path", help="Write rendered output to file")
     return parser
 
@@ -1711,7 +2681,15 @@ def main(argv: list[str] | None = None) -> int:
             lookback_days=args.lookback_days,
             history_start_date=args.history_start_date,
             out_path=args.out_path,
+            constraints_fixture=None
+            if args.no_constraints
+            else str(args.constraints_fixture),
+            constraint_event_ids=args.constraint_event_id,
+            fail_on_constraint_violation=True,
         )
+    except ConstraintValidationFailed as exc:
+        print(exc.rendered)
+        return 1
     except VerificationError as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -1724,6 +2702,8 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "ConstraintValidationFailed",
+    "DEFAULT_CONSTRAINTS_FIXTURE",
     "DEFAULT_ENDPOINT",
     "DEFAULT_SAVED_CONFIG_ID",
     "analyze_payload",

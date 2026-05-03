@@ -133,15 +133,30 @@ Common `sweep_hierarchical.py` options:
 ### Validation (hierarchical regression events)
 
 ```bash
-# All strategies
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py
+# Selected strategy over the full validation fixture window
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
+  --saved-config-id dma_fgi_hierarchical_prod \
+  --config-id dma_fgi_hierarchical_prod \
+  --from-date 2025-01-01 \
+  --to-date 2026-04-10 \
+  --profile spy-eth-btc-rotation \
+  --format markdown
 
-# Specific strategy
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/validate_hierarchical_events.py \
-  --strategy-id dma_fgi_hierarchical_minimum
+# Single event constraint
+pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
+  --saved-config-id dma_fgi_hierarchical_minimum \
+  --config-id dma_fgi_hierarchical_minimum \
+  --date 2025-04-22 \
+  --history-start-date 2025-01-01 \
+  --constraint-event-id btc_cross_up_2025_04_22 \
+  --profile spy-eth-btc-rotation \
+  --format json
 ```
 
-> Note: `dma_fgi_hierarchical_minimum` and the Phase D research variants are expected to pass `extreme_fear_dca_*`; Fear Recovery Buy is a separate non-extreme-fear rule.
+`analyze_compare.py` loads `tests/fixtures/hierarchical_validation_events.json`
+by default, checks constraints against the selected `config-id`, and exits
+non-zero when any selected constraint fails. Use `--no-constraints` only for
+diagnostics that should not gate strategy iteration.
 
 ### Diagnosis (SPY tax)
 
