@@ -16,7 +16,7 @@ export function NavbarV2() {
         <span className="brand-mark" aria-hidden />
         <span className="brand-name">
           {MESSAGES.common.brandName}
-          <em>— allocator</em>
+          <em>— rules engine</em>
         </span>
       </a>
 

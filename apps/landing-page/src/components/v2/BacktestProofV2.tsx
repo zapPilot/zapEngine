@@ -27,6 +27,17 @@ export function BacktestProofV2() {
           ))}
         </div>
 
+        <div className="comparison-row" aria-label="Strategy versus DCA">
+          {MESSAGES.backtest.comparison.map((item) => (
+            <div className="comparison-item" key={item.label}>
+              <strong>{item.label}</strong>
+              <span>ROI {item.roi}</span>
+              <span>Max DD {item.maxDrawdown}</span>
+              <span>{item.trades} trades</span>
+            </div>
+          ))}
+        </div>
+
         <p className="proof-disclaimer">{MESSAGES.backtest.disclaimer}</p>
       </div>
     </section>

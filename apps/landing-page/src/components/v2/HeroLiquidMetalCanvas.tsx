@@ -6,9 +6,12 @@ import * as THREE from 'three';
 
 type HeroLiquidMetalCanvasProps = {
   heroRef: RefObject<HTMLElement | null>;
+  regime?: 'greed' | 'fear' | 'neutral';
 };
 
 type CoinFaceMode = 'color' | 'height';
+type HeroRegime = NonNullable<HeroLiquidMetalCanvasProps['regime']>;
+type FlowLeg = 'risk' | 'stable' | 'rotation';
 
 type CoinPalette = {
   base: string;
@@ -46,6 +49,18 @@ type CoinRuntime = {
 type DisposableObject = THREE.Object3D & {
   geometry?: THREE.BufferGeometry;
   material?: THREE.Material | THREE.Material[];
+};
+
+type FlowMaterialEntry = {
+  material: THREE.ShaderMaterial;
+  leg: FlowLeg;
+};
+
+type PhysicalMaterialEntry = {
+  material: THREE.MeshPhysicalMaterial;
+  leg: FlowLeg;
+  baseOpacity: number;
+  activeOpacity: number;
 };
 
 const TOKEN_COLORS: Record<'spy' | 'btc' | 'usd', CoinPalette> = {
@@ -114,6 +129,7 @@ function disposeObjectTree(root: THREE.Object3D) {
 
 export default function HeroLiquidMetalCanvas({
   heroRef,
+  regime = 'greed',
 }: HeroLiquidMetalCanvasProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -854,7 +870,8 @@ export default function HeroLiquidMetalCanvas({
       },
     ];
 
-    const flowMaterials: THREE.ShaderMaterial[] = [];
+    const flowMaterials: FlowMaterialEntry[] = [];
+    const pipeMaterials: PhysicalMaterialEntry[] = [];
     const flowGroup = new THREE.Group();
     flowGroup.renderOrder = 1;
     scene.add(flowGroup);
@@ -897,6 +914,42 @@ export default function HeroLiquidMetalCanvas({
     }
 
     const flowTexture = makeFlowTexture();
+    const pipeRoughness = makeBrushedRoughnessTexture(1024, 0.46);
+
+    function getFlowIntensity(leg: FlowLeg, activeRegime: HeroRegime) {
+      if (activeRegime === 'neutral') {
+        return 0.56;
+      }
+
+      if (activeRegime === 'greed') {
+        return leg === 'risk' ? 1 : leg === 'rotation' ? 0.72 : 0.28;
+      }
+
+      return leg === 'stable' ? 1 : leg === 'rotation' ? 0.68 : 0.26;
+    }
+
+    function makePipeMaterial(
+      leg: FlowLeg,
+      color: THREE.ColorRepresentation,
+      baseOpacity: number,
+      activeOpacity: number,
+    ) {
+      const material = new THREE.MeshPhysicalMaterial({
+        color,
+        transparent: true,
+        opacity: baseOpacity,
+        metalness: 0.95,
+        roughness: 0.36,
+        roughnessMap: pipeRoughness,
+        envMapIntensity: 1.4,
+        clearcoat: 0.58,
+        clearcoatRoughness: 0.22,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      pipeMaterials.push({ material, leg, baseOpacity, activeOpacity });
+      return material;
+    }
 
     function makeLiquidMaterial(
       colorA: THREE.ColorRepresentation,
@@ -904,6 +957,7 @@ export default function HeroLiquidMetalCanvas({
       alpha: number,
       speed: number,
       offset: number,
+      leg: FlowLeg,
       tubeLift = 0,
     ) {
       const material = new THREE.ShaderMaterial({
@@ -914,6 +968,7 @@ export default function HeroLiquidMetalCanvas({
           uAlpha: { value: alpha },
           uSpeed: { value: speed },
           uOffset: { value: offset },
+          uActive: { value: getFlowIntensity(leg, regime) },
           uTex: { value: flowTexture },
           uLift: { value: tubeLift },
         },
@@ -937,6 +992,7 @@ export default function HeroLiquidMetalCanvas({
       uniform float uAlpha;
       uniform float uSpeed;
       uniform float uOffset;
+      uniform float uActive;
       uniform vec3 uColorA;
       uniform vec3 uColorB;
       uniform sampler2D uTex;
@@ -949,11 +1005,17 @@ export default function HeroLiquidMetalCanvas({
         float endpointFade = smoothstep(0.00, 0.10, vUv.x) * smoothstep(1.00, 0.90, vUv.x);
         float radial = 0.66 + 0.34 * sin(vUv.y * 6.2831853);
         float traveling = pow(max(0.0, sin((vUv.x * 2.4 - uTime * uSpeed + uOffset) * 6.2831853)), 2.2);
+        float pulseHead = fract(uTime / 6.0 + uOffset);
+        float pulseDist = abs(vUv.x - pulseHead);
+        pulseDist = min(pulseDist, 1.0 - pulseDist);
+        float eventPulse = exp(-(pulseDist * pulseDist) / 0.0018) * uActive;
         float shimmer = 0.74 + 0.26 * sin((vUv.x * 28.0 + vUv.y * 8.0 - uTime * 5.2) + uOffset * 6.2831853);
         vec3 base = mix(uColorA, uColorB, smoothstep(0.08, 0.92, vUv.x));
         vec3 highlight = vec3(1.0, 0.93, 0.78) * (0.34 + traveling * 0.72);
         vec3 color = base * (0.46 + 0.50 * tex.r) + highlight * tex.a * shimmer;
-        float alpha = uAlpha * endpointFade * radial * (0.34 + tex.a * 0.74 + traveling * 0.38);
+        color += vec3(1.0, 0.86, 0.52) * eventPulse * 0.9;
+        float activeMask = mix(0.36, 1.18, uActive);
+        float alpha = uAlpha * activeMask * endpointFade * radial * (0.34 + tex.a * 0.74 + traveling * 0.38 + eventPulse * 0.78);
         gl_FragColor = vec4(color, alpha);
         if (gl_FragColor.a < 0.015) discard;
       }
@@ -964,7 +1026,7 @@ export default function HeroLiquidMetalCanvas({
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
       });
-      flowMaterials.push(material);
+      flowMaterials.push({ material, leg });
       return material;
     }
 
@@ -1007,12 +1069,21 @@ export default function HeroLiquidMetalCanvas({
       speed: number,
       offset: number,
       lift: number,
+      leg: FlowLeg,
     ) {
       const curve = makeFlowCurve(fromIdx, toIdx, lift);
+      const shellRadius = radius * 2.9;
+
+      const shell = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 220, shellRadius, 22, false),
+        makePipeMaterial(leg, '#c8c3b4', 0.08, 0.23),
+      );
+      shell.renderOrder = 0;
+      flowGroup.add(shell);
 
       const body = new THREE.Mesh(
         new THREE.TubeGeometry(curve, 220, radius, 14, false),
-        makeLiquidMaterial(colorA, colorB, 0.34, speed, offset, lift),
+        makeLiquidMaterial(colorA, colorB, 0.34, speed, offset, leg, lift),
       );
       body.renderOrder = 1;
       flowGroup.add(body);
@@ -1025,11 +1096,26 @@ export default function HeroLiquidMetalCanvas({
           0.48,
           speed * 1.18,
           offset + 0.27,
+          leg,
           lift + 0.3,
         ),
       );
       core.renderOrder = 2;
       flowGroup.add(core);
+
+      for (const t of [0.08, 0.92]) {
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(shellRadius * 1.08, radius * 0.32, 12, 84),
+          makePipeMaterial(leg, '#d4c5a3', 0.14, 0.36),
+        );
+        collar.position.copy(curve.getPoint(t));
+        collar.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 0, 1),
+          curve.getTangent(t).normalize(),
+        );
+        collar.renderOrder = 3;
+        flowGroup.add(collar);
+      }
     }
 
     addLiquidFlow(
@@ -1041,6 +1127,7 @@ export default function HeroLiquidMetalCanvas({
       0.105,
       0.03,
       0.44,
+      'risk',
     );
     addLiquidFlow(
       1,
@@ -1051,6 +1138,7 @@ export default function HeroLiquidMetalCanvas({
       0.088,
       0.39,
       0.52,
+      'stable',
     );
     addLiquidFlow(
       2,
@@ -1061,6 +1149,7 @@ export default function HeroLiquidMetalCanvas({
       0.118,
       0.68,
       0.48,
+      'rotation',
     );
 
     const flowCore = new THREE.Group();
@@ -1146,13 +1235,26 @@ export default function HeroLiquidMetalCanvas({
         }
       }
 
-      for (const material of flowMaterials) {
+      for (const { material, leg } of flowMaterials) {
         const timeUniform = material.uniforms['uTime'] as
           | THREE.IUniform<number>
           | undefined;
         if (timeUniform) {
           timeUniform.value = t;
         }
+        const activeUniform = material.uniforms['uActive'] as
+          | THREE.IUniform<number>
+          | undefined;
+        if (activeUniform) {
+          activeUniform.value = getFlowIntensity(leg, regime);
+        }
+      }
+      for (const entry of pipeMaterials) {
+        const intensity = getFlowIntensity(entry.leg, regime);
+        entry.material.opacity =
+          entry.baseOpacity +
+          (entry.activeOpacity - entry.baseOpacity) * intensity;
+        entry.material.envMapIntensity = 1.08 + intensity * 0.74;
       }
       flowTexture.offset.x = (t * 0.075) % 1;
       flowCore.rotation.z = t * 0.22;
@@ -1208,7 +1310,7 @@ export default function HeroLiquidMetalCanvas({
       disposeObjectTree(scene);
       renderer.dispose();
     };
-  }, [heroRef]);
+  }, [heroRef, regime]);
 
   return (
     <div className="scene">

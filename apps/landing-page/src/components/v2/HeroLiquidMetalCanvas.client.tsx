@@ -5,6 +5,7 @@ import type { RefObject } from 'react';
 
 export type HeroLiquidMetalCanvasProps = {
   heroRef: RefObject<HTMLElement | null>;
+  regime?: 'greed' | 'fear' | 'neutral';
 };
 
 const HeroLiquidMetalCanvasClient = dynamic<HeroLiquidMetalCanvasProps>(

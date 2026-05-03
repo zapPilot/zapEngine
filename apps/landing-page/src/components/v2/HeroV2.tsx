@@ -10,17 +10,17 @@ const HERO_PILLARS = [
   {
     className: 'spy',
     name: 'S&P 500',
-    tag: 'Risk-on · equities',
+    tag: 'Trade into equities',
   },
   {
     className: 'btc',
     name: 'BTC / ETH',
-    tag: 'Crypto · beta',
+    tag: 'Trade into beta',
   },
   {
     className: 'usd',
     name: 'Stablecoins',
-    tag: 'Defensive · yield',
+    tag: 'Trade into defense',
   },
 ] as const;
 
@@ -36,13 +36,9 @@ export function HeroV2() {
         </div>
 
         <h1 className="hero-title">
-          The{' '}
-          <em>
-            Non-Custodial
-            <br />
-            BlackRock
-          </em>{' '}
-          in <span className="accent-block">Your Wallet.</span>
+          Trade with <em>discipline.</em>
+          <br />
+          Yield is the <span className="accent-block">icing.</span>
         </h1>
 
         <p className="hero-sub">{MESSAGES.hero.subtitle}</p>
@@ -75,21 +71,10 @@ export function HeroV2() {
       </div>
 
       <div className="hero-visual" aria-label="Liquid metal allocation scene">
-        <HeroLiquidMetalCanvas heroRef={heroRef} />
-      </div>
-
-      <div className="regime-ribbon" aria-label="Current regime snapshot">
-        <span className="pulse" aria-hidden />
-        <span>Regime</span>
-        <span className="v">Risk-On</span>
-        <span className="sep">·</span>
-        <span>FGI</span>
-        <span className="v">72</span>
-        <span className="sep">·</span>
-        <span>200MA</span>
-        <span className="v">+14.2%</span>
-        <span className="sep">·</span>
-        <span>Live</span>
+        <HeroLiquidMetalCanvas
+          heroRef={heroRef}
+          regime={MESSAGES.regimeTelemetry.regime}
+        />
       </div>
     </section>
   );

@@ -5,7 +5,7 @@ export function ProtocolsV2() {
   return (
     <section className="v2-section protocols-v2" id="protocols">
       <div className="section-inner">
-        <div className="section-kicker">Idle capital venues</div>
+        <div className="section-kicker">Between trades</div>
         <h2>{MESSAGES.protocols.title}</h2>
         <p className="protocol-copy">{MESSAGES.protocols.subtitle}</p>
 

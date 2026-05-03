@@ -26,10 +26,12 @@ describe('BacktestProof', () => {
     );
   });
 
-  it('should render four configured stat tiles', () => {
+  it('should render configured stat tiles', () => {
     render(<BacktestProof />);
 
-    expect(screen.getAllByTestId('backtest-stat-tile')).toHaveLength(4);
+    expect(screen.getAllByTestId('backtest-stat-tile')).toHaveLength(
+      MESSAGES.backtest.stats.length,
+    );
 
     MESSAGES.backtest.stats.forEach((stat) => {
       expect(screen.getByText(stat.label)).toBeInTheDocument();

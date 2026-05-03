@@ -17,7 +17,7 @@ describe('HomePage', () => {
       expect(content).toMatch(/Three Pillars/);
       expect(content).toMatch(/Self-Custody/);
       expect(content).toMatch(/Execute/);
-      expect(content).toMatch(/BlackRock/);
+      expect(content).toMatch(/Trade with discipline/);
     });
 
     it('should render navigation links', () => {
