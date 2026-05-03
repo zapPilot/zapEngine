@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import JsonValue
 
@@ -117,6 +117,23 @@ _CRYPTO_ETH_REFERENCE_UNIT = PairRotationUnit(
     price_key="eth",
     dma_feature_key=ETH_DMA_200_FEATURE,
 )
+_COMPOSITION_EPSILON = 1e-9
+
+
+class HierarchicalTargetComposer(Protocol):
+    """Composes the final asset target from outer and inner pair targets."""
+
+    def __call__(
+        self,
+        *,
+        outer_target: Mapping[str, float],
+        inner_target: Mapping[str, float],
+        current_allocation: Mapping[str, float],
+        outer_intent: AllocationIntent,
+        inner_intent: AllocationIntent,
+        spy_latch_active: bool,
+        pre_existing_stable_share: float,
+    ) -> dict[str, float]: ...
 
 
 class HierarchicalPairRotationParams(EthBtcRotationParams):
@@ -560,6 +577,9 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE
         )
     )
+    composer: HierarchicalTargetComposer = field(
+        default_factory=lambda: _compose_hierarchical_target
+    )
 
     def decide(self, snapshot: HierarchicalPairRotationState) -> AllocationIntent:
         outer_snapshot = _build_outer_snapshot(snapshot)
@@ -573,9 +593,12 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             inner_intent.target_allocation
             or snapshot.inner_state.current_asset_allocation
         )
-        target_allocation = _compose_hierarchical_target(
+        target_allocation = self.composer(
             outer_target=outer_target,
             inner_target=inner_target,
+            current_allocation=snapshot.current_asset_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
             spy_latch_active=False,
             pre_existing_stable_share=float(
                 snapshot.current_asset_allocation.get("stable", 0.0)
@@ -667,6 +690,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
     inner_disabled_rules: frozenset[str] = frozenset()
     dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
     outer_policy: HierarchicalOuterDecisionPolicy | None = None
+    composer: HierarchicalTargetComposer | None = None
 
     def __post_init__(self) -> None:
         if self.signal_id != SPY_CRYPTO_TEMPLATE.signal_id:
@@ -715,6 +739,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
                     or resolved_params.disabled_rules,
                 ),
             ),
+            composer=self.composer or _compose_hierarchical_target,
         )
         self.execution_engine = AllocationIntentExecutor(
             pacing_policy=resolved_params.build_pacing_policy(),
@@ -1224,39 +1249,244 @@ def _compose_hierarchical_target(
     *,
     outer_target: Mapping[str, float],
     inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
     spy_latch_active: bool,
     pre_existing_stable_share: float,
 ) -> dict[str, float]:
     outer = normalize_target_allocation(outer_target)
     inner = normalize_target_allocation(inner_target)
-    crypto_share = max(0.0, float(outer.get("btc", 0.0))) + max(
-        0.0,
-        float(outer.get("eth", 0.0)),
+    crypto_share = _crypto_share(outer)
+    crypto_split = _split_crypto_by_inner_target(
+        amount=crypto_share,
+        inner_target=inner,
     )
+    target = {
+        "spy": float(outer.get("spy", 0.0)),
+        "btc": crypto_split["btc"],
+        "eth": crypto_split["eth"],
+        "stable": float(outer.get("stable", 0.0)) + crypto_split["stable"],
+        "alt": 0.0,
+    }
+    return _normalize_composed_target(
+        target=target,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_surgical(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    trigger_asset = _trigger_crypto_delta_asset(outer_intent)
+    if trigger_asset is None:
+        return _compose_hierarchical_target(
+            outer_target=outer_target,
+            inner_target=inner_target,
+            current_allocation=current_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
+            spy_latch_active=spy_latch_active,
+            pre_existing_stable_share=pre_existing_stable_share,
+        )
+    outer = normalize_target_allocation(outer_target)
+    current = target_from_current_allocation(current_allocation)
+    crypto_delta = _positive_crypto_delta(outer=outer, current=current)
+    if crypto_delta <= _COMPOSITION_EPSILON:
+        return _compose_hierarchical_target(
+            outer_target=outer_target,
+            inner_target=inner_target,
+            current_allocation=current_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
+            spy_latch_active=spy_latch_active,
+            pre_existing_stable_share=pre_existing_stable_share,
+        )
+    return _compose_delta_first_target(
+        outer_target=outer,
+        inner_target=inner_target,
+        crypto_delta_by_asset={trigger_asset: crypto_delta},
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_structural(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    outer = normalize_target_allocation(outer_target)
+    current = target_from_current_allocation(current_allocation)
+    crypto_delta = _positive_crypto_delta(outer=outer, current=current)
+    crypto_delta_by_asset = (
+        _positive_crypto_delta_by_outer_asset(
+            outer=outer,
+            current=current,
+            crypto_delta=crypto_delta,
+        )
+        if crypto_delta > _COMPOSITION_EPSILON
+        else {}
+    )
+    return _compose_delta_first_target(
+        outer_target=outer,
+        inner_target=inner_target,
+        crypto_delta_by_asset=crypto_delta_by_asset,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_delta_first_target(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    crypto_delta_by_asset: Mapping[str, float],
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    outer = normalize_target_allocation(outer_target)
+    delta_btc = max(0.0, float(crypto_delta_by_asset.get("btc", 0.0)))
+    delta_eth = max(0.0, float(crypto_delta_by_asset.get("eth", 0.0)))
+    delta_crypto = min(_crypto_share(outer), delta_btc + delta_eth)
+    residual_crypto = max(0.0, _crypto_share(outer) - delta_crypto)
+    residual_split = _split_crypto_by_inner_target(
+        amount=residual_crypto,
+        inner_target=inner_target,
+    )
+    target = {
+        "spy": float(outer.get("spy", 0.0)),
+        "btc": residual_split["btc"] + delta_btc,
+        "eth": residual_split["eth"] + delta_eth,
+        "stable": float(outer.get("stable", 0.0)) + residual_split["stable"],
+        "alt": 0.0,
+    }
+    return _normalize_composed_target(
+        target=target,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _split_crypto_by_inner_target(
+    *,
+    amount: float,
+    inner_target: Mapping[str, float],
+) -> dict[str, float]:
+    crypto_amount = max(0.0, float(amount))
+    inner = normalize_target_allocation(inner_target)
     inner_btc = max(0.0, float(inner.get("btc", 0.0)))
     inner_eth = max(0.0, float(inner.get("eth", 0.0)))
     inner_risk = inner_btc + inner_eth
     inner_stable = max(0.0, min(1.0, float(inner.get("stable", 0.0))))
     if inner_risk <= 0.0:
-        btc_share = 0.0
-        eth_share = 0.0
-    else:
-        investable_crypto = crypto_share * max(0.0, min(1.0, inner_risk))
-        btc_share = investable_crypto * (inner_btc / inner_risk)
-        eth_share = investable_crypto * (inner_eth / inner_risk)
-    target = {
-        "spy": float(outer.get("spy", 0.0)),
-        "btc": btc_share,
-        "eth": eth_share,
-        "stable": float(outer.get("stable", 0.0)) + crypto_share * inner_stable,
-        "alt": 0.0,
+        return {"btc": 0.0, "eth": 0.0, "stable": crypto_amount}
+    investable_crypto = crypto_amount * max(0.0, min(1.0, inner_risk))
+    return {
+        "btc": investable_crypto * (inner_btc / inner_risk),
+        "eth": investable_crypto * (inner_eth / inner_risk),
+        "stable": crypto_amount * inner_stable,
     }
-    if spy_latch_active:
-        target = _apply_spy_latch_to_target(
-            target_allocation=target,
-            pre_existing_stable_share=pre_existing_stable_share,
-        )
-    return normalize_target_allocation(target)
+
+
+def _positive_crypto_delta(
+    *,
+    outer: Mapping[str, float],
+    current: Mapping[str, float],
+) -> float:
+    return max(0.0, _crypto_share(outer) - _crypto_share(current))
+
+
+def _positive_crypto_delta_by_outer_asset(
+    *,
+    outer: Mapping[str, float],
+    current: Mapping[str, float],
+    crypto_delta: float,
+) -> dict[str, float]:
+    positive_deltas = {
+        asset: max(0.0, float(outer.get(asset, 0.0)) - float(current.get(asset, 0.0)))
+        for asset in ("btc", "eth")
+    }
+    positive_total = sum(positive_deltas.values())
+    if positive_total <= _COMPOSITION_EPSILON:
+        return {}
+    scale = min(1.0, max(0.0, crypto_delta) / positive_total)
+    return {
+        asset: amount * scale
+        for asset, amount in positive_deltas.items()
+        if amount * scale > _COMPOSITION_EPSILON
+    }
+
+
+def _trigger_crypto_delta_asset(intent: AllocationIntent) -> str | None:
+    if intent.action != "buy" or intent.target_allocation is None:
+        return None
+    diagnostics = intent.diagnostics or {}
+    action_unit = diagnostics.get("outer_dma_action_unit") or diagnostics.get(
+        "outer_dma_asset"
+    )
+    action_units = diagnostics.get("outer_dma_assets")
+    if action_unit != SPY_CRYPTO_TEMPLATE.right_unit.symbol and (
+        not isinstance(action_units, list)
+        or SPY_CRYPTO_TEMPLATE.right_unit.symbol not in action_units
+    ):
+        return None
+    if intent.rule_group == "cross":
+        asset_key = _crypto_asset_key(diagnostics.get("cross_up_asset"))
+        if asset_key is not None:
+            return asset_key
+        cross_up_assets = diagnostics.get("cross_up_assets")
+        if isinstance(cross_up_assets, list):
+            for asset in cross_up_assets:
+                asset_key = _crypto_asset_key(asset)
+                if asset_key is not None:
+                    return asset_key
+        return _crypto_asset_key(diagnostics.get("outer_dma_reference_asset"))
+    if "below_extreme_fear_buy" in intent.reason:
+        return _crypto_asset_key(diagnostics.get("outer_dma_reference_asset"))
+    return None
+
+
+def _crypto_asset_key(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.lower()
+    return normalized if normalized in {"btc", "eth"} else None
+
+
+def _crypto_share(allocation: Mapping[str, float]) -> float:
+    return max(0.0, float(allocation.get("btc", 0.0))) + max(
+        0.0,
+        float(allocation.get("eth", 0.0)),
+    )
+
+
+def _normalize_composed_target(
+    *,
+    target: Mapping[str, float],
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    normalized = normalize_target_allocation(target)
+    if not spy_latch_active:
+        return normalized
+    return _apply_spy_latch_to_target(
+        target_allocation=normalized,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
 
 
 def _apply_spy_latch_to_target(
@@ -1380,7 +1610,10 @@ __all__ = [
     "HierarchicalPairRotationParams",
     "HierarchicalPairRotationSignalComponent",
     "HierarchicalPairRotationState",
+    "HierarchicalTargetComposer",
     "HierarchicalSpyCryptoRotationStrategy",
     "SPY_CRYPTO_TEMPLATE",
+    "_compose_structural",
+    "_compose_surgical",
     "default_hierarchical_pair_rotation_params",
 ]

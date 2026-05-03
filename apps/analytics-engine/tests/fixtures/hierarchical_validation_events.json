@@ -29,7 +29,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "All validation strategies retain crypto DMA cross-down risk-off behavior."
   },
@@ -68,7 +70,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
+      "dma_fgi_eth_btc_minimum_surgical": "fail",
+      "dma_fgi_eth_btc_minimum_structural": "fail"
     },
     "rationale": "ETH-specific cross-down applies to ETH/BTC strategies on this window; the hierarchical strategies are using the BTC outer DMA reference here."
   },
@@ -114,7 +118,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "BTC cross-down SPY preservation applies to the non-adaptive BTC-reference hierarchical strategies in this window; prod is using ETH as its adaptive crypto DMA reference."
   },
@@ -134,10 +140,35 @@
       }
     ],
     "expected_results": {
+      "default": {
+        "assertions": [
+          {
+            "type": "target_asset_equals",
+            "asset": "stable",
+            "value": 0
+          },
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "btc"
+          },
+          {
+            "type": "target_asset_decreased_from_previous",
+            "asset": "stable"
+          }
+        ]
+      },
       "dma_fgi_hierarchical_prod": "fail",
       "dma_fgi_hierarchical_full_minus_adaptive_dma": "pass",
       "dma_fgi_hierarchical_minimum": "pass",
-      "dma_fgi_eth_btc_minimum": "pass",
+      "dma_fgi_eth_btc_minimum": {
+        "assertions": [
+          {
+            "type": "target_asset_equals",
+            "asset": "stable",
+            "value": 0
+          }
+        ]
+      },
       "dma_fgi_adaptive_binary_eth_btc": "pass",
       "dma_fgi_hierarchical_minimum_dma_buffer": "pass",
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
@@ -172,7 +203,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
+      "dma_fgi_eth_btc_minimum_surgical": "fail",
+      "dma_fgi_eth_btc_minimum_structural": "fail"
     },
     "rationale": "ETH cross-up applies to adaptive/ETH-referencing strategies in this window; the minimum hierarchical variants use BTC as their crypto DMA reference."
   },
@@ -200,7 +233,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "SPY cross-down risk-off applies only to SPY-bearing hierarchical strategies."
   },
@@ -228,7 +263,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
+      "dma_fgi_eth_btc_minimum_surgical": "fail",
+      "dma_fgi_eth_btc_minimum_structural": "fail"
     },
     "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
   },
@@ -273,7 +310,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
+      "dma_fgi_eth_btc_minimum_surgical": "fail",
+      "dma_fgi_eth_btc_minimum_structural": "fail"
     },
     "rationale": "ETH cross-down SPY preservation applies to prod's adaptive ETH-reference path in this window; the BTC-reference minimum variants have no ETH DMA cross-down event here."
   },
@@ -302,7 +341,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
   },
@@ -331,7 +372,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
   },
@@ -359,7 +402,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "SPY cross-down risk-off applies only to SPY-bearing hierarchical strategies."
   },
@@ -387,7 +432,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "fail",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "fail",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "fail",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "fail",
+      "dma_fgi_eth_btc_minimum_surgical": "fail",
+      "dma_fgi_eth_btc_minimum_structural": "fail"
     },
     "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
   },
@@ -414,7 +461,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
   },
@@ -441,7 +490,9 @@
       "dma_fgi_hierarchical_minimum_dual_above_hold": "pass",
       "dma_fgi_hierarchical_minimum_cross_cooldown": "pass",
       "dma_fgi_hierarchical_minimum_below_dma_hold": "pass",
-      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass"
+      "dma_fgi_hierarchical_minimum_dma_disciplined": "pass",
+      "dma_fgi_eth_btc_minimum_surgical": "pass",
+      "dma_fgi_eth_btc_minimum_structural": "pass"
     },
     "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
   }

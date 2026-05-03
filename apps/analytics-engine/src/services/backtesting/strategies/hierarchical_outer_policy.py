@@ -928,6 +928,31 @@ def _build_outer_dma_intent(
             _asset_dma_allocation_name(unit, intent) for unit, intent in specs
         )
     )
+    diagnostics: dict[str, Any] = {
+        "outer_dma_asset": primary_unit.symbol,
+        "outer_dma_action_unit": primary_unit.symbol,
+        "outer_dma_reference_asset": _intent_reference_asset(
+            primary_unit,
+            primary_intent,
+        ),
+        "outer_dma_assets": [unit.symbol for unit, _intent in specs],
+        "outer_dma_reference_assets": [
+            _intent_reference_asset(unit, intent) for unit, intent in specs
+        ],
+        "outer_dma_reference_by_asset": {
+            unit.symbol: _intent_reference_asset(unit, intent) for unit, intent in specs
+        },
+    }
+    cross_up_assets = [
+        _intent_reference_asset(unit, intent)
+        for unit, intent in specs
+        if intent.action == "buy"
+        and intent.rule_group == "cross"
+        and intent.reason == "dma_cross_up"
+    ]
+    if cross_up_assets:
+        diagnostics["cross_up_asset"] = cross_up_assets[0]
+        diagnostics["cross_up_assets"] = cross_up_assets
     return AllocationIntent(
         action=primary_intent.action,
         target_allocation=dict(target_allocation),
@@ -936,22 +961,7 @@ def _build_outer_dma_intent(
         reason=reason,
         rule_group=primary_intent.rule_group,
         decision_score=primary_intent.decision_score,
-        diagnostics={
-            "outer_dma_asset": primary_unit.symbol,
-            "outer_dma_action_unit": primary_unit.symbol,
-            "outer_dma_reference_asset": _intent_reference_asset(
-                primary_unit,
-                primary_intent,
-            ),
-            "outer_dma_assets": [unit.symbol for unit, _intent in specs],
-            "outer_dma_reference_assets": [
-                _intent_reference_asset(unit, intent) for unit, intent in specs
-            ],
-            "outer_dma_reference_by_asset": {
-                unit.symbol: _intent_reference_asset(unit, intent)
-                for unit, intent in specs
-            },
-        },
+        diagnostics=diagnostics,
     )
 
 

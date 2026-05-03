@@ -355,6 +355,7 @@ def _build_hierarchical_minimum_strategy(
         canonical_strategy_id=variant_id,
         initial_asset_allocation=_build_initial_hierarchical_asset_allocation(request),
         outer_policy=variant.outer_policy,
+        composer=variant.composer,
     )
 
 

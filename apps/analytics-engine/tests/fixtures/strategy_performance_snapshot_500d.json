@@ -92,6 +92,22 @@
       "roi_percent": 19.0273,
       "trade_count": 88
     },
+    "dma_fgi_eth_btc_minimum_surgical": {
+      "display_name": "[RESEARCH] ETH/BTC Minimum - Surgical Composer",
+      "calmar_ratio": 3.7528,
+      "sharpe_ratio": 1.7519,
+      "max_drawdown_percent": -5.1067,
+      "roi_percent": 27.1853,
+      "trade_count": 81
+    },
+    "dma_fgi_eth_btc_minimum_structural": {
+      "display_name": "[RESEARCH] ETH/BTC Minimum - Structural Composer",
+      "calmar_ratio": 3.7093,
+      "sharpe_ratio": 1.7171,
+      "max_drawdown_percent": -5.0908,
+      "roi_percent": 26.7746,
+      "trade_count": 78
+    },
     "dma_fgi_adaptive_binary_eth_btc": {
       "display_name": "126% DMA FGI Adaptive Binary ETH/BTC",
       "calmar_ratio": 4.6689,

@@ -12,6 +12,8 @@ from typing import Any
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
     STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
@@ -34,6 +36,8 @@ VALIDATION_STRATEGY_IDS = (
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
     STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
 )
@@ -70,30 +74,68 @@ def _validate_case_shape(case: Mapping[str, Any]) -> None:
         if not isinstance(case.get(key), str) or not case.get(key):
             raise ValueError(f"Fixture case must define non-empty string '{key}'")
     assertions = case.get("assertions")
-    if not isinstance(assertions, list) or not assertions:
+    if assertions is not None and (not isinstance(assertions, list) or not assertions):
         raise ValueError(f"Fixture case {case['id']} must define assertions")
     expected_results = case.get("expected_results")
     if not isinstance(expected_results, Mapping):
         raise ValueError(f"Fixture case {case['id']} must define expected_results")
-    missing = [
-        strategy_id
-        for strategy_id in VALIDATION_STRATEGY_IDS
-        if strategy_id not in expected_results
-    ]
+    if "default" not in expected_results:
+        missing = [
+            strategy_id
+            for strategy_id in VALIDATION_STRATEGY_IDS
+            if strategy_id not in expected_results
+        ]
+    else:
+        missing = []
     if missing:
         raise ValueError(
             f"Fixture case {case['id']} missing expected_results for: "
             + ", ".join(missing)
         )
-    invalid = {
-        strategy_id: value
-        for strategy_id, value in expected_results.items()
-        if strategy_id in VALIDATION_STRATEGY_IDS
-        and (not isinstance(value, str) or value not in EXPECTED_RESULT_VALUES)
-    }
-    if invalid:
+    for strategy_id, value in expected_results.items():
+        _validate_expectation_entry(
+            case_id=str(case["id"]),
+            strategy_id=str(strategy_id),
+            value=value,
+        )
+    if assertions is None and not any(
+        isinstance(value, Mapping) and isinstance(value.get("assertions"), list)
+        for value in expected_results.values()
+    ):
+        raise ValueError(f"Fixture case {case['id']} must define assertions")
+
+
+def _validate_expectation_entry(
+    *,
+    case_id: str,
+    strategy_id: str,
+    value: Any,
+) -> None:
+    if isinstance(value, str):
+        if value in EXPECTED_RESULT_VALUES:
+            return
         raise ValueError(
-            f"Fixture case {case['id']} has invalid expected_results: {invalid!r}"
+            f"Fixture case {case_id} has invalid expected result for "
+            f"{strategy_id}: {value!r}"
+        )
+    if not isinstance(value, Mapping):
+        raise ValueError(
+            f"Fixture case {case_id} has invalid expected result for "
+            f"{strategy_id}: {value!r}"
+        )
+    expected_result = value.get("expected_result", value.get("result", "pass"))
+    if (
+        not isinstance(expected_result, str)
+        or expected_result not in EXPECTED_RESULT_VALUES
+    ):
+        raise ValueError(
+            f"Fixture case {case_id} has invalid expected result for "
+            f"{strategy_id}: {expected_result!r}"
+        )
+    assertions = value.get("assertions")
+    if assertions is not None and (not isinstance(assertions, list) or not assertions):
+        raise ValueError(
+            f"Fixture case {case_id} has invalid assertions for {strategy_id}"
         )
 
 
@@ -349,15 +391,51 @@ def _timeline(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _expected_result(*, case: Mapping[str, Any], strategy_id: str) -> str:
+    raw = _expectation_entry(case=case, strategy_id=strategy_id)
+    if isinstance(raw, Mapping):
+        expected_result = raw.get("expected_result", raw.get("result", "pass"))
+    else:
+        expected_result = raw
+    if (
+        not isinstance(expected_result, str)
+        or expected_result not in EXPECTED_RESULT_VALUES
+    ):
+        raise ValueError(
+            f"Fixture case {case['id']} missing expected result for {strategy_id}"
+        )
+    return expected_result
+
+
+def _expectation_entry(*, case: Mapping[str, Any], strategy_id: str) -> Any:
     expected_results = case.get("expected_results")
     if not isinstance(expected_results, Mapping):
         return "pass"
     raw = expected_results.get(strategy_id)
-    if not isinstance(raw, str) or raw not in EXPECTED_RESULT_VALUES:
+    if raw is None:
+        raw = expected_results.get("default")
+    if raw is None:
         raise ValueError(
             f"Fixture case {case['id']} missing expected result for {strategy_id}"
         )
     return raw
+
+
+def _assertions_for_case(
+    *,
+    case: Mapping[str, Any],
+    strategy_id: str,
+) -> Sequence[Mapping[str, Any]]:
+    raw_expectation = _expectation_entry(case=case, strategy_id=strategy_id)
+    if isinstance(raw_expectation, Mapping):
+        assertions = raw_expectation.get("assertions")
+        if isinstance(assertions, list):
+            return [
+                assertion for assertion in assertions if isinstance(assertion, Mapping)
+            ]
+    assertions = case.get("assertions")
+    if not isinstance(assertions, list):
+        return ()
+    return [assertion for assertion in assertions if isinstance(assertion, Mapping)]
 
 
 def _find_event_point(
@@ -486,7 +564,10 @@ def _evaluate_assertions(
     strategy_id: str,
 ) -> str | None:
     previous_point = _previous_point(timeline=timeline, event_point=event_point)
-    for assertion in case.get("assertions", []):
+    assertions = _assertions_for_case(case=case, strategy_id=strategy_id)
+    if not assertions:
+        return "No assertions defined for validation case"
+    for assertion in assertions:
         if not isinstance(assertion, Mapping):
             return "Assertion entry must be an object"
         failure = _evaluate_assertion(

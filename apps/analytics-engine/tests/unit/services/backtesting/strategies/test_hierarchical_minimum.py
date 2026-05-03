@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 
 from src.services.backtesting.constants import (
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
@@ -50,6 +52,8 @@ def test_minimum_variant_registry_complete() -> None:
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
+        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
+        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
     }
     for strategy_id, variant in MINIMUM_HIERARCHICAL_VARIANTS.items():
         recipe = get_strategy_recipe(strategy_id)

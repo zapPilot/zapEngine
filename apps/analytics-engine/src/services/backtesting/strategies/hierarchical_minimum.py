@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
@@ -28,6 +30,9 @@ from src.services.backtesting.strategies.hierarchical_outer_policy import (
 from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
     SPY_CRYPTO_TEMPLATE,
     HierarchicalSpyCryptoRotationStrategy,
+    HierarchicalTargetComposer,
+    _compose_structural,
+    _compose_surgical,
 )
 
 
@@ -63,6 +68,7 @@ class MinimumHierarchicalVariant:
     display_name: str
     description: str
     outer_policy: MinimumHierarchicalOuterPolicy
+    composer: HierarchicalTargetComposer | None = None
 
 
 def _variant(
@@ -70,12 +76,14 @@ def _variant(
     *,
     description: str,
     outer_policy: MinimumHierarchicalOuterPolicy,
+    composer: HierarchicalTargetComposer | None = None,
 ) -> MinimumHierarchicalVariant:
     return MinimumHierarchicalVariant(
         strategy_id=strategy_id,
         display_name=STRATEGY_DISPLAY_NAMES[strategy_id],
         description=description,
         outer_policy=outer_policy,
+        composer=composer,
     )
 
 
@@ -127,6 +135,26 @@ MINIMUM_HIERARCHICAL_VARIANTS: dict[str, MinimumHierarchicalVariant] = {
             "below-DMA hold with the extreme-fear DCA carve-out."
         ),
         outer_policy=MinimumHierarchicalOuterPolicyDmaDisciplined(),
+    ),
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: _variant(
+        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
+        description=(
+            "Research variant for the minimum hierarchical stack: route "
+            "crypto cross-up and extreme-fear outer deltas to the triggering "
+            "BTC/ETH asset while preserving the legacy composer otherwise."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicy(),
+        composer=_compose_surgical,
+    ),
+    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL: _variant(
+        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
+        description=(
+            "Research variant for the minimum hierarchical stack: compose "
+            "outer sleeve changes as asset-level deltas before applying the "
+            "inner ETH/BTC ratio to the residual crypto sleeve."
+        ),
+        outer_policy=MinimumHierarchicalOuterPolicy(),
+        composer=_compose_structural,
     ),
 }
 
