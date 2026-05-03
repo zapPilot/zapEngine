@@ -14,7 +14,7 @@ a new derived metric (RSI, dma_50, etc.) is just another `indicators` entry.
 Series id conventions:
 - lowercase snake_case
 - ratios use `<base>_<quote>` (e.g. `eth_btc`)
-- raw assets use ticker (e.g. `btc`, `spy`)
+- raw assets use ticker (e.g. `btc`, `eth`, `spy`)
 - indices use a short label (e.g. `fgi`)
 """
 
@@ -122,6 +122,14 @@ class MarketDashboardResponse(BaseModel):
                         "color_hint": "#FFFFFF",
                         "scale": None,
                     },
+                    "eth": {
+                        "kind": "asset",
+                        "unit": "usd",
+                        "label": "ETH",
+                        "frequency": "daily",
+                        "color_hint": "#627EEA",
+                        "scale": None,
+                    },
                     "spy": {
                         "kind": "asset",
                         "unit": "usd",
@@ -155,6 +163,13 @@ class MarketDashboardResponse(BaseModel):
                                 "value": 78260.6,
                                 "indicators": {
                                     "dma_200": {"value": 85657.6, "is_above": False}
+                                },
+                                "tags": {},
+                            },
+                            "eth": {
+                                "value": 3120.4,
+                                "indicators": {
+                                    "dma_200": {"value": 2940.1, "is_above": True}
                                 },
                                 "tags": {},
                             },

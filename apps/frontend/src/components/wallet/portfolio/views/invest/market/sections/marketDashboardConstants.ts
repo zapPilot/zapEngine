@@ -54,6 +54,8 @@ export const AXIS_COLOR = '#9CA3AF';
 export const MARKET_LINE_KEYS = [
   'btcPrice',
   'btcDma200',
+  'ethPrice',
+  'ethDma200',
   'ethBtcRatio',
   'ethBtcDma200',
   'spyPrice',
@@ -105,6 +107,23 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: true,
     dataKey: 'btc_dma_normalized',
+    strokeDasharray: '5 5',
+  },
+  {
+    key: 'ethPrice',
+    label: 'ETH Price',
+    color: '#627EEA',
+    axis: 'price',
+    defaultActive: true,
+    dataKey: 'eth_price_normalized',
+  },
+  {
+    key: 'ethDma200',
+    label: 'ETH 200 DMA',
+    color: '#818CF8',
+    axis: 'price',
+    defaultActive: true,
+    dataKey: 'eth_dma_normalized',
     strokeDasharray: '5 5',
   },
   {

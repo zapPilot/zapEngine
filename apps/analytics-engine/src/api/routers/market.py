@@ -487,9 +487,9 @@ async def get_market_dashboard(
     """
     Get aggregated market data for dashboard visualization.
 
-    Returns a `series` registry declaring each series (BTC, SPY, ETH/BTC, FGI)
-    plus a chronological list of `snapshots`, where each snapshot's `values`
-    map carries a uniform SeriesPoint per series id.
+    Returns a `series` registry declaring each series (BTC, ETH, SPY, ETH/BTC,
+    FGI) plus a chronological list of `snapshots`, where each snapshot's
+    `values` map carries a uniform SeriesPoint per series id.
     """
     payload = dashboard_service.get_market_dashboard(days=days)
 

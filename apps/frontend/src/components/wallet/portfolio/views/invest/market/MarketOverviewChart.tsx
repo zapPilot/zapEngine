@@ -28,14 +28,16 @@ type RegimeKey = keyof typeof REGIME_COLORS;
 
 /**
  * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
- * self-describing snapshot whose `values` map keys series ids (`btc`, `spy`,
- * `eth_btc`, `fgi`) to `{ value, indicators, tags }`. We flatten + normalize
- * here so `<Line dataKey>` can reference plain field names.
+ * self-describing snapshot whose `values` map keys series ids (`btc`, `eth`,
+ * `spy`, `eth_btc`, `fgi`) to `{ value, indicators, tags }`. We flatten +
+ * normalize here so `<Line dataKey>` can reference plain field names.
  */
 interface ChartDataPoint {
   snapshot_date: string;
   price_usd: number | null;
   btc_dma_200: number | null;
+  eth_price_usd: number | null;
+  eth_dma_200: number | null;
   eth_btc_ratio: number | null;
   eth_btc_dma_200: number | null;
   sp500_price_usd: number | null;
@@ -47,6 +49,9 @@ interface ChartDataPoint {
   // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
   btc_price_normalized: number | null;
   btc_dma_normalized: number | null;
+  // Normalized - ETH Price + ETH DMA share same scale
+  eth_price_normalized: number | null;
+  eth_dma_normalized: number | null;
   // Normalized - SPY Price + SPY DMA share same scale
   sp500_price_normalized: number | null;
   sp500_dma_normalized: number | null;
@@ -64,6 +69,8 @@ interface TooltipPayload {
     regime?: string | null;
     macro_fear_greed_label?: string | null;
     btc_dma_200?: number | null;
+    eth_price_usd?: number | null;
+    eth_dma_200?: number | null;
     eth_btc_ratio?: number | null;
     eth_btc_dma_200?: number | null;
     price_usd?: number | null;
@@ -99,6 +106,8 @@ function normalize(v: number | null, min: number, max: number): number | null {
 const DOLLAR_FORMAT_LABELS: Record<string, string> = {
   'BTC Price': 'price_usd',
   'BTC 200 DMA': 'btc_dma_200',
+  'ETH Price': 'eth_price_usd',
+  'ETH 200 DMA': 'eth_dma_200',
   'SPY Price': 'sp500_price_usd',
   'SPY 200 DMA': 'sp500_dma_200',
 };
@@ -161,30 +170,39 @@ export function MarketOverviewChart({
 }: MarketOverviewChartProps): JSX.Element {
   const chartData = useMemo<ChartDataPoint[]>(() => {
     const btcValues: number[] = [];
+    const ethValues: number[] = [];
     const sp500Values: number[] = [];
 
     for (const d of data) {
       const btc = d.values['btc'];
+      const eth = d.values['eth'];
       const spy = d.values['spy'];
       if (btc?.value != null) btcValues.push(btc.value);
       const btcDma = btc?.indicators?.['dma_200']?.value;
       if (btcDma != null) btcValues.push(btcDma);
+      if (eth?.value != null) ethValues.push(eth.value);
+      const ethDma = eth?.indicators?.['dma_200']?.value;
+      if (ethDma != null) ethValues.push(ethDma);
       if (spy?.value != null) sp500Values.push(spy.value);
       const spyDma = spy?.indicators?.['dma_200']?.value;
       if (spyDma != null) sp500Values.push(spyDma);
     }
 
     const btcMinMax = getMinMax(btcValues);
+    const ethMinMax = getMinMax(ethValues);
     const sp500MinMax = getMinMax(sp500Values);
 
     return data.map((d) => {
       const btc = d.values['btc'];
+      const eth = d.values['eth'];
       const spy = d.values['spy'];
       const ethBtc = d.values['eth_btc'];
       const fgi = d.values['fgi'];
       const macroFearGreed = d.values['macro_fear_greed'];
       const btcPrice = btc?.value ?? null;
       const btcDma = btc?.indicators?.['dma_200']?.value ?? null;
+      const ethPrice = eth?.value ?? null;
+      const ethDma = eth?.indicators?.['dma_200']?.value ?? null;
       const spyPrice = spy?.value ?? null;
       const spyDma = spy?.indicators?.['dma_200']?.value ?? null;
 
@@ -192,6 +210,8 @@ export function MarketOverviewChart({
         snapshot_date: d.snapshot_date,
         price_usd: btcPrice,
         btc_dma_200: btcDma,
+        eth_price_usd: ethPrice,
+        eth_dma_200: ethDma,
         eth_btc_ratio: ethBtc?.value ?? null,
         eth_btc_dma_200: ethBtc?.indicators?.['dma_200']?.value ?? null,
         sp500_price_usd: spyPrice,
@@ -205,6 +225,8 @@ export function MarketOverviewChart({
           null,
         btc_price_normalized: normalize(btcPrice, btcMinMax.min, btcMinMax.max),
         btc_dma_normalized: normalize(btcDma, btcMinMax.min, btcMinMax.max),
+        eth_price_normalized: normalize(ethPrice, ethMinMax.min, ethMinMax.max),
+        eth_dma_normalized: normalize(ethDma, ethMinMax.min, ethMinMax.max),
         sp500_price_normalized: normalize(
           spyPrice,
           sp500MinMax.min,
@@ -256,6 +278,8 @@ export function MarketOverviewChart({
   const showPriceAxis =
     activeLines.has('btcPrice') ||
     activeLines.has('btcDma200') ||
+    activeLines.has('ethPrice') ||
+    activeLines.has('ethDma200') ||
     activeLines.has('spyPrice') ||
     activeLines.has('spyDma200');
   const showRatioAxis =
@@ -330,7 +354,7 @@ export function MarketOverviewChart({
               domain={[0, 100]}
               tickFormatter={formatPriceLabel}
               label={{
-                value: 'BTC / SPY',
+                value: 'BTC / ETH / SPY',
                 angle: -90,
                 position: 'insideLeft',
                 fill: AXIS_COLOR,
