@@ -1,26 +1,29 @@
-import { Navbar } from '@/components/Navbar';
-import { Hero } from '@/components/Hero';
-import { HowItWorks } from '@/components/HowItWorks';
-import { Features } from '@/components/Features';
-import { BacktestProof } from '@/components/BacktestProof';
-import { Protocols } from '@/components/Protocols';
-import { CTA } from '@/components/CTA';
-import { Footer } from '@/components/Footer';
-import { AnimatedBackground } from '@/components/AnimatedBackground';
+import { BacktestProofV2 } from '@/components/v2/BacktestProofV2';
+import { CTAV2 } from '@/components/v2/CTAV2';
+import { FooterV2 } from '@/components/v2/FooterV2';
+import { HeroV2 } from '@/components/v2/HeroV2';
+import { HowItWorksV2 } from '@/components/v2/HowItWorksV2';
+import { NavbarV2 } from '@/components/v2/NavbarV2';
+import { PillarsV2 } from '@/components/v2/PillarsV2';
+import { ProtocolsV2 } from '@/components/v2/ProtocolsV2';
+import { RegimeStripV2 } from '@/components/v2/RegimeStripV2';
+import { WhyItWorksV2 } from '@/components/v2/WhyItWorksV2';
 
-export default function HomePage() {
+export default function LandingPageV2() {
   return (
-    <div className="min-h-screen bg-gray-950 text-white overflow-x-hidden">
-      <AnimatedBackground />
-
-      <Navbar />
-      <Hero />
-      <HowItWorks />
-      <Features />
-      <BacktestProof />
-      <Protocols />
-      <CTA />
-      <Footer />
+    <div className="v2-root">
+      <NavbarV2 />
+      <main>
+        <HeroV2 />
+        <RegimeStripV2 />
+        <HowItWorksV2 />
+        <PillarsV2 />
+        <BacktestProofV2 />
+        <WhyItWorksV2 />
+        <ProtocolsV2 />
+        <CTAV2 />
+      </main>
+      <FooterV2 />
     </div>
   );
 }

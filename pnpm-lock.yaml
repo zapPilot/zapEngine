@@ -374,12 +374,12 @@ importers:
       '@next/third-parties':
         specifier: ^15.3.4
         version: 15.5.15(next@15.5.15(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      framer-motion:
+        specifier: ^12.19.1
+        version: 12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       fumadocs-core:
         specifier: ^15.8.5
         version: 15.8.5(@types/react@19.2.14)(algoliasearch@5.50.2)(lucide-react@0.523.0(react@19.2.5))(next@15.5.15(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-router@7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
@@ -401,9 +401,6 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
-      tailwind-merge:
-        specifier: ^3.4.0
-        version: 3.5.0
       three:
         specifier: ^0.160.0
         version: 0.160.1

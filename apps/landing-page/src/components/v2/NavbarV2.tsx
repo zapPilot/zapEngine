@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-html-link-for-pages -- v1/v2 toggles intentionally use hard reloads so WebGL contexts fully tear down. */
 import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 
@@ -29,7 +28,12 @@ export function NavbarV2() {
       </div>
 
       <div className="nav-actions">
-        <a className="version-toggle" href="/">
+        <a
+          className="version-toggle"
+          href="https://app.zap-pilot.org/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           ← v1
         </a>
         <a

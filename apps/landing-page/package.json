@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",
-    "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.19.1",
     "fumadocs-core": "^15.8.5",
@@ -35,7 +34,6 @@
     "next": "^15.5.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.4.0",
     "three": "^0.160.0"
   },
   "devDependencies": {

@@ -35,4 +35,3 @@ function customRender(
 export * from '@testing-library/react';
 
 // Override render with custom render
-export { customRender as render };
