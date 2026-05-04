@@ -12,7 +12,11 @@ def test_cross_down_exit_zeroes_only_crossed_assets_to_stable() -> None:
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),
-            "BTC": state(symbol="BTC", cross_event="cross_down"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
             "ETH": state(symbol="ETH"),
         },
         current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
@@ -35,3 +39,21 @@ def test_cross_down_exit_ignores_non_cross_down_days() -> None:
     rule = CrossDownExitRule()
 
     assert not rule.matches(snapshot(), config=PortfolioRuleConfig())
+
+
+def test_cross_down_exit_does_not_fire_when_actionable_cross_is_suppressed() -> None:
+    rule = CrossDownExitRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event=None,
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.40, "eth": 0.30, "spy": 0.20, "stable": 0.10, "alt": 0.0},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False

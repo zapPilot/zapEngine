@@ -62,7 +62,7 @@ def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
-        if snapshot.assets[symbol].cross_event == "cross_down"
+        if snapshot.assets[symbol].actionable_cross_event == "cross_down"
     ]
 
 

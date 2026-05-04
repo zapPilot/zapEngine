@@ -7,6 +7,12 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-04 — Portfolio cross-down cooldown gating
+- **Commit**: pending local change on `57be82e` (`dma_fgi_portfolio_rules` cross-down cooldown)
+- **Finding**: Portfolio cross rules now consume `actionable_cross_event`, and the DMA signal engine now suppresses actionable crosses whose target zone is still cooldown-blocked. This makes the existing 30-day cross cooldown effective for `dma_fgi_portfolio_rules`: after a cross-down commits, raw cross-up observations can still appear, but they are not actionable until the blocked-side cooldown has cleared.
+- **Snapshot delta vs previous `dma_fgi_portfolio_rules` baseline**: ROI 9.37% → 29.73% (+20.36pp), Calmar 0.29 → 1.33 (+1.03), Sharpe 0.40 → 0.99 (+0.59), MaxDD -22.83% → -15.73% (+7.10pp), trades 102 → 82 (-20).
+- **Attribution sanity**: `_minus_cross_up_eq_weight` remains near the old risk-managed reference at 10.02% ROI / 1.02 Calmar / 71 trades, confirming the cooldown keeps cross-up exposure selective rather than removing the rule outright. `_minus_cross_down_exit` falls to 8.97% ROI, so the cross-down exit remains valuable once whipsaw re-entry is blocked.
+
 ### 2026-05-04 — Flat portfolio-rule engine
 - **Commit**: this commit (`dma_fgi_portfolio_rules` research baseline + attribution variants)
 - **Finding**: Added a portfolio-level rule layer parallel to asset-local tactics. The canonical strategy evaluates the five flat rules first-match-wins: cross-down exits, cross-up equal-weight, extreme-fear DCA buy, DMA-overextension DCA sell, and FGI-downshift DCA sell. Each rule has its own file and a leave-one-out strategy id for snapshot attribution.

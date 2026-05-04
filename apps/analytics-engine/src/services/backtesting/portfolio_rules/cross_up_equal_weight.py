@@ -57,7 +57,7 @@ class CrossUpEqualWeightRule:
 
 def _has_cross_up(snapshot: PortfolioSnapshot) -> bool:
     return any(
-        snapshot.assets[symbol].cross_event == "cross_up"
+        snapshot.assets[symbol].actionable_cross_event == "cross_up"
         for symbol in symbols_for_snapshot(snapshot)
     )
 

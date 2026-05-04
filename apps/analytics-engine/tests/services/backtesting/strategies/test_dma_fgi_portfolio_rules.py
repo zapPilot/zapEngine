@@ -115,6 +115,52 @@ def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:
     assert action.transfers[0].to_bucket == "eth"
 
 
+def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
+        prices,
+    )
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    warmup_context = _context(
+        context_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
+    )
+    cross_down_context = _context(
+        context_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 110.0, "eth": 110.0, "spy": 110.0},
+    )
+    stable_portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+        prices,
+    )
+    cross_up_context = _context(
+        context_date=date(2025, 1, 3),
+        portfolio=stable_portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
+    )
+
+    strategy.initialize(portfolio, None, warmup_context)
+    strategy.warmup_day(warmup_context)
+    cross_down = strategy.on_day(cross_down_context)
+    cross_up = strategy.on_day(cross_up_context)
+
+    assert cross_down.snapshot.decision.reason == "portfolio_cross_down_exit"
+    assert cross_down.snapshot.signal.dma is not None
+    assert cross_down.snapshot.signal.dma.cooldown_blocked_zone == "above"
+    assert cross_up.snapshot.decision.reason == "regime_no_signal"
+    assert cross_up.snapshot.decision.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+    )
+
+
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     first_snapshot = _flat_state(

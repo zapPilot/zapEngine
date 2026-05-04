@@ -194,6 +194,10 @@ class DmaSignalEngine:
         if cooldown_just_expired and observed_cross is None:
             self._last_actionable_zone = zone
         actionable_cross = self._detect_cross(self._last_actionable_zone, zone)
+        actionable_cross = self._suppress_cooldown_blocked_cross(
+            current_date=context.date,
+            actionable_cross=actionable_cross,
+        )
 
         return DmaMarketState(
             signal_id="dma_gated_fgi",
@@ -300,6 +304,18 @@ class DmaSignalEngine:
         self._cooldown_end_date = current_date + timedelta(
             days=self.config.cross_cooldown_days
         )
+
+    def _suppress_cooldown_blocked_cross(
+        self,
+        *,
+        current_date: date,
+        actionable_cross: CrossEvent | None,
+    ) -> CrossEvent | None:
+        if actionable_cross is None or not self._is_cooldown_active(current_date):
+            return actionable_cross
+        if _cross_target_zone(actionable_cross) == self._cooldown_blocked_zone:
+            return None
+        return actionable_cross
 
     def _finalize_state_transition(
         self,

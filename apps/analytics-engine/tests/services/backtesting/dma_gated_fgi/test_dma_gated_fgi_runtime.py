@@ -302,7 +302,7 @@ def test_signal_engine_releases_cooldown_without_retroactive_cross() -> None:
         )
     )
     assert blocked_state.cross_event == "cross_up"
-    assert blocked_state.actionable_cross_event == "cross_up"
+    assert blocked_state.actionable_cross_event is None
     engine.apply_intent(
         current_date=date(2025, 1, 3),
         market_state=blocked_state,
