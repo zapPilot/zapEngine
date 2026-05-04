@@ -11,6 +11,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaMarketState,
     Zone,
 )
+from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 
 
 def state(
@@ -59,6 +60,7 @@ def snapshot(
     macro_regime: str | None = None,
     crypto_regime: str | None = None,
     cycle_open: dict[str, bool] | None = None,
+    eth_btc_ratio_state: EthBtcRatioState | None = None,
 ) -> PortfolioSnapshot:
     resolved_assets = assets or {
         "SPY": state(symbol="SPY"),
@@ -73,4 +75,5 @@ def snapshot(
         macro_fgi_regime=macro_regime,
         crypto_fgi_regime=crypto_regime,
         cycle_open_per_symbol=cycle_open or {},
+        eth_btc_ratio_state=eth_btc_ratio_state,
     )

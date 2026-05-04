@@ -13,12 +13,16 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
     ExtremeFearDcaBuyRule,
 )
+from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
+    EthBtcRatioRotationRule,
+)
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
+    EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
     ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),

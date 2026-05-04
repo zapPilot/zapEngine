@@ -12,6 +12,7 @@ from src.services.backtesting.decision import (
     RuleGroup,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from src.services.backtesting.tactics.base import target_intent
 from src.services.backtesting.target_allocation import (
     normalize_target_allocation,
@@ -57,6 +58,7 @@ class PortfolioSnapshot:
     macro_fgi_value: float | None = None
     crypto_fgi_value: float | None = None
     cycle_open_per_symbol: Mapping[str, bool] = field(default_factory=dict)
+    eth_btc_ratio_state: EthBtcRatioState | None = None
 
 
 class PortfolioRule(Protocol):
