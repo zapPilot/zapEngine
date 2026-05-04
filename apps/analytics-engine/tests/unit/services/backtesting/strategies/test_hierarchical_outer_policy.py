@@ -349,7 +349,9 @@ def test_minimum_policy_post_adjustment_noops_without_active_latch() -> None:
     assert adjusted is intent
 
 
-def test_minimum_policy_latch_uses_default_target_share_and_appends_diagnostics() -> None:
+def test_minimum_policy_latch_uses_default_target_share_and_appends_diagnostics() -> (
+    None
+):
     portfolio = _portfolio({"spy": 0.0, "btc": 1.0, "eth": 0.0, "stable": 0.0})
     snapshot, _component = _outer_snapshot(
         policy=MinimumHierarchicalOuterPolicy(),

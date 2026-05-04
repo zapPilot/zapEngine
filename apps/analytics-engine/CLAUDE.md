@@ -33,18 +33,6 @@ All records in a batch are valid; there is no duplicate data to remove.
 See `migrations/015_simplify_daily_portfolio_snapshots.sql`.
 Regression guard: `tests/test_safeguards_deduplication.py` will fail if incorrect dedup is introduced.
 
-# AI Tool Documentation
-
-This directory uses **CLAUDE.md** as the single source of truth for AI assistant context.
-
-| File        | Purpose                                  | Type                  |
-| ----------- | ---------------------------------------- | --------------------- |
-| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
-| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
-| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
-
-**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
-
 # Import conventions
 
 - Routers: `src.api.routers.*` (canonical)

@@ -121,8 +121,8 @@ class DmaSignalEngine:
         )
         ath_event = _normalize_ath_event(context.ath_event)
         fgi_slope = self._update_fgi_slope(fgi_value)
-        macro_value, macro_regime, macro_regime_source = (
-            self._extract_macro_fear_greed(context.extra_data)
+        macro_value, macro_regime, macro_regime_source = self._extract_macro_fear_greed(
+            context.extra_data
         )
         return (
             dma_200,

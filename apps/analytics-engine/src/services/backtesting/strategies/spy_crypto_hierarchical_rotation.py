@@ -209,9 +209,8 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
     def __post_init__(self) -> None:
         config = self.params.build_signal_config()
         self.market_data_requirements = (
-            SPY_CRYPTO_TEMPLATE.market_data_requirements().merge(
-                ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.market_data_requirements()
-            )
+            SPY_CRYPTO_TEMPLATE.market_data_requirements()
+            .merge(ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.market_data_requirements())
             .merge(MarketDataRequirements(requires_macro_fear_greed=True))
         )
         self._outer_signal = PairRotationTemplateSignalComponent(

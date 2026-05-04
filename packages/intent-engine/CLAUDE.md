@@ -1,4 +1,4 @@
-See @CLAUDE.md for monorepo development guidelines.
+See @../../CLAUDE.md for monorepo development guidelines.
 
 # Package-Specific Constraints
 
