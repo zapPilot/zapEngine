@@ -12,7 +12,11 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
-from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.dma_gated_fgi.types import (
+    DmaCooldownState,
+    DmaMarketState,
+)
+from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesDecisionPolicy,
@@ -264,6 +268,22 @@ def test_strategy_ratio_cross_up_rotates_btc_to_eth() -> None:
     )
 
 
+def test_eth_btc_rotation_swaps_btc_to_eth_on_2025_07_15_cross_up() -> None:
+    """Canonical 2025-07-15 scenario: ETH/BTC ratio cross-up swaps BTC to ETH."""
+    snapshot = _flat_minimum_state_with_ratio_cross_up(
+        current_alloc={"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30}
+    )
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+
+    intent = policy.decide(snapshot)
+
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["matched_rule_name"] == "eth_btc_ratio_rotation"
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.40, "spy": 0.30, "stable": 0.30, "alt": 0.0}
+    )
+
+
 def test_strategy_ratio_cross_down_rotates_eth_to_btc() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
@@ -455,6 +475,30 @@ def _flat_state(
         btc_dma_state=btc,
         eth_dma_state=state(symbol="ETH"),
         current_asset_allocation=current,
+    )
+
+
+def _flat_minimum_state_with_ratio_cross_up(
+    *,
+    current_alloc: dict[str, float],
+) -> FlatMinimumState:
+    return FlatMinimumState(
+        spy_dma_state=state(symbol="SPY"),
+        btc_dma_state=state(symbol="BTC"),
+        eth_dma_state=state(symbol="ETH"),
+        current_asset_allocation=current_alloc,
+        eth_btc_ratio_state=EthBtcRatioState(
+            ratio=0.07,
+            ratio_dma_200=0.06,
+            zone="above",
+            cross_event="cross_up",
+            actionable_cross_event="cross_up",
+            cooldown_state=DmaCooldownState(
+                active=False,
+                remaining_days=0,
+                blocked_zone=None,
+            ),
+        ),
     )
 
 
