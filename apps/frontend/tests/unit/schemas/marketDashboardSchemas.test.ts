@@ -6,7 +6,7 @@ import {
 } from '@/schemas/api/analytics/dashboardSchemas';
 
 describe('marketDashboardResponseSchema', () => {
-  it('accepts a snapshot with btc / spy / eth_btc / fgi series', () => {
+  it('accepts a snapshot with btc / eth / eth_btc / fgi series', () => {
     const payload = {
       series: {
         btc: {
@@ -15,6 +15,14 @@ describe('marketDashboardResponseSchema', () => {
           label: 'BTC',
           frequency: 'daily',
           color_hint: '#FFFFFF',
+          scale: null,
+        },
+        eth: {
+          kind: 'asset',
+          unit: 'usd',
+          label: 'ETH',
+          frequency: 'daily',
+          color_hint: '#627EEA',
           scale: null,
         },
         fgi: {
@@ -33,6 +41,11 @@ describe('marketDashboardResponseSchema', () => {
             btc: {
               value: 42000,
               indicators: { dma_200: { value: 38000, is_above: true } },
+              tags: {},
+            },
+            eth: {
+              value: 3200,
+              indicators: { dma_200: { value: 3000, is_above: true } },
               tags: {},
             },
             eth_btc: {

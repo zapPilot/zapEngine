@@ -1,0 +1,67 @@
+{
+  "window": {
+    "start": "2024-12-02",
+    "end": "2026-04-15",
+    "days": 500
+  },
+  "source": "Sampled landing-page visualization derived from the pinned analytics-engine 500-day snapshot; indexed to 100. Final values match snapshot ROI metrics.",
+  "drawdownBand": {
+    "label": "Max drawdown range",
+    "strategyPercent": -17.46,
+    "dcaPercent": -43.02
+  },
+  "series": [
+    {
+      "id": "strategy",
+      "label": "Strategy",
+      "color": "#d4c5a3",
+      "values": [
+        { "date": "2024-12-02", "value": 100.0 },
+        { "date": "2024-12-31", "value": 104.2 },
+        { "date": "2025-01-31", "value": 112.8 },
+        { "date": "2025-02-28", "value": 121.3 },
+        { "date": "2025-03-31", "value": 114.9 },
+        { "date": "2025-04-30", "value": 129.4 },
+        { "date": "2025-05-31", "value": 146.1 },
+        { "date": "2025-06-30", "value": 139.7 },
+        { "date": "2025-07-31", "value": 161.2 },
+        { "date": "2025-08-31", "value": 173.4 },
+        { "date": "2025-09-30", "value": 154.6 },
+        { "date": "2025-10-31", "value": 187.2 },
+        { "date": "2025-11-30", "value": 202.6 },
+        { "date": "2025-12-31", "value": 191.8 },
+        { "date": "2026-01-31", "value": 211.5 },
+        { "date": "2026-02-01", "value": 226.0 },
+        { "date": "2026-02-28", "value": 186.6 },
+        { "date": "2026-03-31", "value": 216.7 },
+        { "date": "2026-04-15", "value": 221.44 }
+      ]
+    },
+    {
+      "id": "dca",
+      "label": "DCA Classic",
+      "color": "#52525b",
+      "values": [
+        { "date": "2024-12-02", "value": 100.0 },
+        { "date": "2024-12-31", "value": 97.4 },
+        { "date": "2025-01-31", "value": 92.6 },
+        { "date": "2025-02-28", "value": 88.1 },
+        { "date": "2025-03-31", "value": 80.3 },
+        { "date": "2025-04-30", "value": 75.7 },
+        { "date": "2025-05-31", "value": 82.2 },
+        { "date": "2025-06-30", "value": 78.6 },
+        { "date": "2025-07-31", "value": 86.4 },
+        { "date": "2025-08-31", "value": 90.1 },
+        { "date": "2025-09-30", "value": 70.2 },
+        { "date": "2025-10-31", "value": 76.8 },
+        { "date": "2025-11-30", "value": 83.6 },
+        { "date": "2025-12-31", "value": 69.4 },
+        { "date": "2026-01-31", "value": 77.8 },
+        { "date": "2026-02-01", "value": 82.0 },
+        { "date": "2026-02-28", "value": 56.98 },
+        { "date": "2026-03-31", "value": 82.1 },
+        { "date": "2026-04-15", "value": 85.64 }
+      ]
+    }
+  ]
+}

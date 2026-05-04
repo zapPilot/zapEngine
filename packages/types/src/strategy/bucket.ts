@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/**
+ * BucketSchema defines the tradeable asset buckets for portfolio allocation.
+ * Note: 'alt' is used internally in backtesting (target_allocation.py TARGET_ASSET_KEYS)
+ * but is not a tradeable bucket - it represents non-tradeable assets and must be 0 in targets.
+ * Transfer operations only involve 4 tradeable assets: btc, eth, spy, stable.
+ */
 export const BucketSchema = z.enum(['spot', 'stable', 'btc', 'eth', 'spy']);
 
 export const BucketTransferSchema = z.object({

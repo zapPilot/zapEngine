@@ -1,113 +1,43 @@
 ---
-title: Welcome to Zap Pilot Docs
-description: Documentation for the Zap Pilot 3-pillar disciplined portfolio autopilot.
+title: Zap Pilot
+description: A disciplined, self-custodial allocator across S&P 500, BTC/ETH, and stablecoins — executed from your own EOA wallet.
 ---
 
-# Zap Pilot: The Non-Custodial BlackRock in Your Wallet
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Card, Cards } from 'fumadocs-ui/components/card';
 
-**Zap Pilot is a disciplined, self-custodial allocator across S&P500, BTC/ETH, and stablecoins. It is strategy-first, yield-second: regime rules drive the return profile, while idle capital earns baseline yield between rebalances.**
+Zap Pilot is BlackRock-style portfolio discipline running inside a wallet you already own. A rules engine watches objective market signals, prepares a rebalance bundle, and asks you to sign it from your own EOA. Buy in fear, defend in greed, no emotion, no custody.
 
----
+## The three pillars
 
-## 🛰️ Vision
+The portfolio is always a mix of three understandable assets — no tokens you can't pronounce, no protocols you don't understand:
 
-Zap Pilot brings institutional portfolio discipline to a user-owned EOA wallet. It is not a yield aggregator and it does not custody funds. The product watches objective market signals, prepares a rebalance bundle, and asks you to sign it from your own wallet.
+- **S&P 500** via Ondo's tokenized index — the equity pillar.
+- **BTC + ETH** — crypto risk-on, with an ETH/BTC relative-strength rotation overlay.
+- **Stablecoins** — defensive cash leg for risk-off regimes.
 
-The goal is simple: buy when markets are fearful, defend when markets are greedy, and remove emotion from allocation decisions.
+Allocation across the three pillars shifts with the market regime.
 
----
+## What stays in your wallet
 
-## 🧱 The Three Pillars
+<Callout type="info" title="Self-custody by construction">
+  Your funds live in your own externally-owned account. Zap Pilot **never
+  custodies, never holds keys, and never asks for standing approvals**. Each
+  rebalance is a pre-built transaction bundle — you review, you sign, you move
+  on.
+</Callout>
 
-Zap Pilot allocates across three understandable pillars:
+## Where to go next
 
-- **S&P500 via Ondo:** tokenized U.S. equity exposure for the portfolio's equity pillar.
-- **BTC / ETH:** crypto risk-on exposure, with ETH/BTC relative strength deciding rotation inside the crypto bucket.
-- **Stablecoins:** cash defense when the macro regime turns unfavorable.
-
-All assets remain in the user's EOA. Zap Pilot delivers a pre-built transaction bundle; the user reviews and signs.
-
----
-
-## 🧠 The Strategy: Regime, Not Emotion
-
-The Macro Regime Engine uses two objective signals to decide whether the portfolio should be risk-on, risk-off, or somewhere between:
-
-- **200-Day Moving Average (200MA):** trend filter for whether risk assets are above or below their long-term regime line.
-- **Fear & Greed Index (FGI):** sentiment filter for whether markets are fearful, neutral, or frothy.
-- **ETH/BTC Rotation Overlay:** when crypto risk is active, ETH/BTC relative strength versus its own 200MA decides whether BTC or ETH leads. A 30-day cooldown after each cross reduces whipsaw.
-
-| Regime   | Signal Read                                  | Portfolio Posture                            |
-| -------- | -------------------------------------------- | -------------------------------------------- |
-| Risk-on  | Above 200MA, sentiment not frothy            | Increase S&P500 and BTC/ETH exposure         |
-| Risk-off | Below 200MA or extreme greed defense trigger | Increase stablecoin defense                  |
-| Sideways | Mixed trend and sentiment                    | Balanced allocation across the three pillars |
-
-Target weights are strategy parameters and may change as the backtest is finalized.
-
----
-
-## 💡 Strategy First, Yield Second
-
-Zap Pilot's core claim is not APR. Approximately **`{{TBD: e.g. 90%}}`** of returns are expected to come from the regime strategy itself: buying weakness, selling froth, and staying disciplined through cycles.
-
-Idle capital can still earn baseline yield while waiting for the next rebalance:
-
-- **Ondo:** tokenized S&P500 exposure for the equity pillar.
-- **GMX:** idle BTC/ETH parking during risk-on regimes.
-- **Morpho:** curated stablecoin lending vaults during defensive regimes.
-- **Hyperliquid:** alternative idle-stable parking via HLP delta-neutral market making.
-
-Yield is the icing, not the strategy. We do not pitch headline APR because the allocator's edge comes from discipline, not chasing the highest venue.
-
----
-
-## ⚡ Execution: Intent-Based & One-Click
-
-Every rebalance follows the same simple flow:
-
-1. **Monitor:** Zap Pilot watches 200MA, FGI, and ETH/BTC relative strength 24/7.
-2. **Signal:** When the regime shifts, you receive a Telegram message with the new target allocation across S&P500, BTC/ETH, and stables.
-3. **Execute:** Sign one bundled transaction in your own wallet.
-
-Execution uses **EIP-7702** batch support where available and **multicall3** as a fallback. The bundle is transparent before signing.
-
----
-
-## 🛡️ Security First (Non-Custodial)
-
-Zap Pilot is built around user custody:
-
-- **EOA only:** funds stay in the user's externally-owned account.
-- **No custody:** Zap Pilot never holds keys or assets.
-- **No standing approvals:** each rebalance is a specific bundle the user signs.
-- **Transparent execution:** the user can review the prepared transaction before signing.
-
----
-
-<span id="backtest" />
-
-## 📊 Backtest
-
-Backtest results will be published here when the final analytics-engine run is locked.
-
-| Metric        | Result                 | Comparison           |
-| ------------- | ---------------------- | -------------------- |
-| CAGR          | `{{TBD: e.g. 24.3%}}`  | vs HODL: `{{TBD}}`   |
-| Max Drawdown  | `{{TBD: e.g. -18.5%}}` | vs HODL: `{{TBD}}`   |
-| Sharpe Ratio  | `{{TBD: e.g. 1.42}}`   | Risk-adjusted return |
-| Vs Buy-&-Hold | `{{TBD: e.g. +12.1%}}` | `{{TBD: window}}`    |
-
-Methodology will include the tested window, reference dates, data sources, rebalance assumptions, and transaction-cost assumptions.
-
-Past performance does not guarantee future results.
-
----
-
-## 🚀 Get Started
-
-- [**Connect Telegram Bot**](#) - Start receiving strategy signals when the bot launches.
-- [**Read methodology**](#backtest) - Review the backtest placeholders and methodology notes.
-- [**Protocol roles**](#) - Understand where idle capital can sit between rebalances.
-
-> "The goal isn't to trade more; it's to trade right. Be your own BlackRock."
+<Cards>
+  <Card
+    title="How it works"
+    href="/docs/how-it-works"
+    description="Sense the regime, decide the allocation, sign one bundle. The three-step flow and the two execution paths."
+  />
+  <Card
+    title="Architecture"
+    href="/docs/architecture"
+    description="Five apps and one shared package. What each one does — and what it deliberately does not do."
+  />
+</Cards>

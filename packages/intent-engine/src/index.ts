@@ -42,7 +42,6 @@ export {
 export {
   detectEIP7702Support,
   determineExecutionStrategy,
-  type ExecutionStrategy,
   encodeMulticall3,
   executeWithEIP7702,
   waitForEIP7702Confirmation,
@@ -228,3 +227,25 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
     },
   };
 }
+
+// =============================================================================
+// Runtime markers for TypeScript interfaces (erased at compile time)
+// =============================================================================
+
+/**
+ * Runtime marker for IntentEngineConfig interface type
+ * Use `typeof IntentEngineConfig` for the TypeScript type
+ */
+export const IntentEngineConfig = 'IntentEngineConfig';
+
+/**
+ * Runtime marker for IntentEngine interface type
+ * Use `typeof IntentEngine` for the TypeScript type
+ */
+export const IntentEngine = 'IntentEngine';
+
+/**
+ * Runtime marker for ExecutionStrategy type
+ * Use `typeof ExecutionStrategy` for the TypeScript type
+ */
+export const ExecutionStrategyType = 'ExecutionStrategy';

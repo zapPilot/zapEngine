@@ -457,6 +457,314 @@ def test_analyze_compare_renders_active_tactics_section() -> None:
     assert "Adaptive crypto DMA reference: `True`" in rendered
 
 
+def test_constraint_validation_passes_and_uses_full_history(
+    tmp_path: Any,
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "cross_up_stable_deploy",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                },
+                                {"type": "target_stable_decreased_from_previous"},
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is True
+    assert validation["checked"] == 1
+    assert validation["results"][0]["id"] == "cross_up_stable_deploy"
+
+
+def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "missing_spy_cross_down",
+                            "event_type": "spy_cross_down",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is False
+    assert validation["checked"] == 1
+    assert validation["violations"][0]["id"] == "missing_spy_cross_down"
+    assert (
+        "expected spy_dma cross_event='cross_down'"
+        in validation["violations"][0]["message"]
+    )
+
+
+def test_ratio_cross_constraint_requires_zone_transition(tmp_path: Any) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "ratio_cross_up",
+                            "event_type": "eth_btc_ratio_cross_up",
+                            "assertions": [
+                                {"type": "ratio_zone_equals", "zone": "above"}
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is False
+    assert (
+        "expected inner ratio zone transition 'below'->'above'"
+        in validation["violations"][0]["message"]
+    )
+
+
+def test_constraint_event_id_filters_selected_events(tmp_path: Any) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "unchecked_failure",
+                            "event_type": "spy_cross_down",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        },
+                        {
+                            "id": "checked_pass",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        },
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+        constraint_event_ids=["checked_pass"],
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is True
+    assert validation["checked"] == 1
+    assert validation["results"][0]["id"] == "checked_pass"
+
+
+def test_constraints_outside_selected_range_are_skipped(tmp_path: Any) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "outside",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        from_date="2025-04-23",
+        to_date="2025-04-23",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is True
+    assert validation["checked"] == 0
+    assert validation["skipped"][0]["id"] == "outside"
+
+
+def test_no_constraints_disables_validation() -> None:
+    rendered = analyzer.analyze_response_payload(
+        _payload(),
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-22",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=None,
+    )
+    data = json.loads(rendered)
+
+    assert data["constraint_validation"] == {
+        "enabled": False,
+        "fixture": None,
+        "passed": True,
+        "checked": 0,
+        "violations": [],
+        "results": [],
+        "skipped": [],
+    }
+
+
+def test_main_exits_nonzero_after_printing_constraint_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "bad_reference",
+                            "event_type": "crypto_cross_up",
+                            "reference_asset": "BTC",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 0.0,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
+        return _payload()
+
+    monkeypatch.setattr(analyzer, "_fetch_from_api", _fake_fetch)
+
+    exit_code = analyzer.main(
+        [
+            "--endpoint",
+            "http://testserver",
+            "--date",
+            "2025-04-22",
+            "--format",
+            "json",
+            "--enrich-db",
+            "never",
+            "--constraints-fixture",
+            str(fixture),
+        ]
+    )
+    output = capsys.readouterr().out
+    data = json.loads(output)
+
+    assert exit_code == 1
+    assert data["constraint_validation"]["passed"] is False
+    assert data["constraint_validation"]["violations"][0]["id"] == "bad_reference"
+
+
 def test_analyze_payload_surfaces_api_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
         raise analyzer.VerificationError("Compare API request failed: boom")

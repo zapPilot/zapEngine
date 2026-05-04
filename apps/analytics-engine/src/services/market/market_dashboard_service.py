@@ -5,9 +5,11 @@ Assembles the self-describing market dashboard payload: a `series` registry
 plus a chronological list of `MarketSnapshot`s whose `values` map carries a
 uniform `SeriesPoint` keyed by the same series id used in the registry.
 
-Adding a new data source: register a descriptor in `_SERIES_REGISTRY`, fetch
-its data, and populate `values[<id>]` per snapshot. The router and frontend
-need no shape changes.
+Adding a new data source to the wire payload: register a descriptor in
+`_SERIES_REGISTRY`, fetch its data, and populate `values[<id>]` per snapshot.
+The current frontend Market Overview chart still needs explicit line
+registration, flattening, normalization, tooltip formatting, and tests before a
+new series is visible.
 """
 
 import logging
@@ -33,9 +35,8 @@ from src.services.market.macro_fear_greed_history import (
 logger = logging.getLogger(__name__)
 
 
-# Static series registry. Adding a new series here + populating its values
-# in `get_market_dashboard` is the only change needed to surface a new
-# data source on the dashboard.
+# Static series registry for the API payload. Adding a new chart-visible series
+# also requires frontend registration; see the market dashboard chart runbook.
 _SERIES_REGISTRY: dict[str, SeriesDescriptor] = {
     "btc": SeriesDescriptor(
         kind=SeriesKind.asset,
@@ -43,6 +44,14 @@ _SERIES_REGISTRY: dict[str, SeriesDescriptor] = {
         label="BTC",
         frequency=SeriesFrequency.daily,
         color_hint="#FFFFFF",
+        scale=None,
+    ),
+    "eth": SeriesDescriptor(
+        kind=SeriesKind.asset,
+        unit="usd",
+        label="ETH",
+        frequency=SeriesFrequency.daily,
+        color_hint="#627EEA",
         scale=None,
     ),
     "spy": SeriesDescriptor(
@@ -94,7 +103,7 @@ class MarketDashboardService:
     ) -> None:
         """
         Args:
-            token_price_service: Cryptocurrency price data (BTC and pair ratios)
+            token_price_service: Cryptocurrency price data (BTC, ETH, and pair ratios)
             sentiment_service: Fear & Greed Index sentiment
             stock_price_service: S&P 500 (SPY) price data
             macro_fear_greed_service: CNN macro Fear & Greed data
@@ -127,8 +136,14 @@ class MarketDashboardService:
         btc_prices = self.token_price_service.get_price_history(
             days=days, token_symbol="BTC"
         )
+        eth_prices = self.token_price_service.get_price_history(
+            days=days, token_symbol="ETH"
+        )
         btc_dma_map = self.token_price_service.get_dma_history(
             start_date=start_date, end_date=end_date, token_symbol="BTC"
+        )
+        eth_dma_map = self.token_price_service.get_dma_history(
+            start_date=start_date, end_date=end_date, token_symbol="ETH"
         )
         eth_btc_ratio_map = self.token_price_service.get_pair_ratio_dma_history(
             start_date=start_date,
@@ -162,6 +177,15 @@ class MarketDashboardService:
             p_date = date.fromisoformat(p.date) if isinstance(p.date, str) else p.date
             price_dates.append(p_date)
 
+        eth_price_map: dict[date, float] = {}
+        for eth_price in eth_prices:
+            eth_date = (
+                date.fromisoformat(eth_price.date)
+                if isinstance(eth_price.date, str)
+                else eth_price.date
+            )
+            eth_price_map[eth_date] = eth_price.price_usd
+
         spy_filled = forward_fill_on_dates(dict(spy_dma_rows), price_dates)
 
         macro_fear_greed_filled = forward_fill_on_dates(
@@ -180,6 +204,19 @@ class MarketDashboardService:
                     value=btc_dma, is_above=p.price_usd > btc_dma
                 )
             values["btc"] = SeriesPoint(value=p.price_usd, indicators=btc_indicators)
+
+            eth_price = eth_price_map.get(p_date)
+            if eth_price is not None:
+                eth_indicators: dict[str, Indicator] = {}
+                eth_dma = eth_dma_map.get(p_date)
+                if eth_dma is not None:
+                    eth_indicators["dma_200"] = Indicator(
+                        value=eth_dma, is_above=eth_price > eth_dma
+                    )
+                values["eth"] = SeriesPoint(
+                    value=eth_price,
+                    indicators=eth_indicators,
+                )
 
             spy_point = spy_filled.get(p_date)
             if spy_point is not None:

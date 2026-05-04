@@ -24,19 +24,19 @@ export const MESSAGES = {
   slogans: {
     philosophy: 'Buy in fear. Defend in greed.',
     philosophyDescription:
-      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet in one bundled transaction. ~90% of the return comes from the strategy itself, not from yield.',
+      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet in one bundled transaction. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
   },
 
   // Hero section
   hero: {
-    badge: '🛰️ Disciplined Portfolio Autopilot',
+    badge: 'Disciplined Portfolio Autopilot',
     title: {
-      primary: 'The Non-Custodial BlackRock in Your Wallet',
-      line1: 'The Non-Custodial',
-      line2: 'BlackRock in Your Wallet',
+      primary: 'Trade with discipline. Yield is the icing.',
+      line1: 'Trade with discipline.',
+      line2: 'Yield is the icing.',
     },
     subtitle:
-      'Three pillars — S&P500, BTC/ETH, stablecoins — rebalanced by regime, not by emotion. Sell when markets are greedy, buy when they are fearful. 100% self-custody: we deliver the bundle, you sign it.',
+      'A rules engine that earns from trades, not yield. ~90% of the return comes from buying weakness and defending in greed across S&P500, BTC/ETH, and stables. We deliver the bundle; you sign it from your own wallet.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
     ctaSecondary: 'See the Backtest',
   },
@@ -50,6 +50,34 @@ export const MESSAGES = {
     errorMessage: 'Unable to load regime visualizer',
     errorRetry: 'Please refresh the page or try again later.',
     loadingMessage: 'Loading regime visualizer...',
+  },
+
+  // V2 live telemetry strip
+  regimeTelemetry: {
+    status: 'live · mainnet',
+    regime: 'greed' as const,
+    items: [
+      {
+        label: 'Regime',
+        value: 'Greed',
+        detail: 'Risk-on legs active',
+      },
+      {
+        label: 'FGI',
+        value: '72',
+        detail: 'Greed zone',
+      },
+      {
+        label: '200MA Δ',
+        value: '+14.2%',
+        detail: 'Above trend',
+      },
+      {
+        label: 'Next rebal',
+        value: '02:14:00',
+        detail: 'Queued check',
+      },
+    ],
   },
 
   // Features section
@@ -121,33 +149,52 @@ export const MESSAGES = {
 
   // Backtest proof section
   backtest: {
-    title: 'Backtested Across Cycles',
+    title: 'Trades drove the return.',
     subtitle:
-      'The strategy was tested across {{TBD: window, e.g. 2017–2025}} including the 2018 bear, 2020 COVID crash, 2022 drawdown, and 2024 rally.',
+      '500-day strategy snapshot pinned to 2026-04-15. Minimum hierarchical production candidate vs DCA Classic, daily signal evaluation, 85 executed trades.',
     stats: [
       {
-        label: 'CAGR',
-        value: '{{TBD: e.g. 24.3%}}',
-        sublabel: 'vs HODL: {{TBD}}',
+        label: 'ROI vs DCA',
+        value: '+135.8pp',
+        sublabel: '121.44% strategy vs -14.36% DCA',
       },
       {
-        label: 'Max Drawdown',
-        value: '{{TBD: e.g. -18.5%}}',
-        sublabel: 'vs HODL: {{TBD}}',
+        label: 'Strategy ROI',
+        value: '121.44%',
+        sublabel: '500-day window',
+      },
+      {
+        label: 'Calmar Ratio',
+        value: '4.50',
+        sublabel: 'vs DCA: -0.25',
       },
       {
         label: 'Sharpe Ratio',
-        value: '{{TBD: e.g. 1.42}}',
-        sublabel: 'risk-adjusted return',
+        value: '1.91',
+        sublabel: 'vs DCA: -0.17',
       },
       {
-        label: 'Vs Buy-&-Hold',
-        value: '{{TBD: e.g. +12.1%}}',
-        sublabel: '{{TBD: window}}',
+        label: 'Max Drawdown',
+        value: '-17.46%',
+        sublabel: 'vs DCA: -43.02%',
+      },
+    ],
+    comparison: [
+      {
+        label: 'Strategy',
+        roi: '121.44%',
+        maxDrawdown: '-17.46%',
+        trades: '85',
+      },
+      {
+        label: 'DCA Classic',
+        roi: '-14.36%',
+        maxDrawdown: '-43.02%',
+        trades: '500',
       },
     ],
     disclaimer:
-      'Past performance does not guarantee future results. Backtest details and methodology in the docs.',
+      'Past performance does not guarantee future results. Backtest window: 2024-12-02 to 2026-04-15, reference date pinned to 2026-04-15.',
     ctaText: 'Read methodology',
     ctaLink: '/docs#backtest',
   },
@@ -157,9 +204,59 @@ export const MESSAGES = {
     title: "The goal isn't to trade more;",
     titleSecondLine: "it's to trade right.",
     subtitle:
-      'Be your own BlackRock — three pillars, one wallet, zero emotion.',
+      'A rules engine watches the regime, builds the rebalance, and leaves custody with you. Yield waits in the background.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
     ctaSecondary: 'Read the Strategy',
+  },
+
+  // V2 How It Works section
+  howItWorksV2: {
+    title: 'Three steps. One signature.',
+    subtitle:
+      'The engine turns regime data into a concrete allocation change, then hands execution back to your wallet.',
+    steps: [
+      {
+        title: 'Sense',
+        meta: '200MA · FGI · ETH/BTC',
+        description:
+          'The 200-day moving average, Fear & Greed Index, and ETH/BTC ratio are watched continuously. Two macro signals, no discretion.',
+      },
+      {
+        title: 'Decide',
+        meta: 'Buy fear · defend greed',
+        description:
+          'Regime moves trigger a target allocation across S&P500, BTC/ETH, and stables. The engine trades into the pillar the rules call for.',
+      },
+      {
+        title: 'Sign',
+        meta: 'EIP-7702 · multicall3',
+        description:
+          'Telegram delivers a pre-built bundle. EIP-7702 batch on supported wallets, multicall3 fallback. One signature, your keys.',
+      },
+    ],
+  },
+
+  // V2 feature attribution section
+  whyItWorks: {
+    title: 'What happens if we remove a feature?',
+    subtitle:
+      'Two leave-one-out ablations from the 500-day snapshot explain why this is a trading strategy first.',
+    source:
+      'Source: leave-one-out backtests, 500-day window, snapshot fixture pinned 2026-04-15.',
+    items: [
+      {
+        feature: 'DMA stable gating',
+        impact: '-96.96pp ROI',
+        description:
+          'Stops buying when crypto crosses below the 200-day moving average. It prevents the DCA-into-a-falling-knife failure mode.',
+      },
+      {
+        feature: 'Greed Sell Suppression',
+        impact: '-22.05pp ROI',
+        description:
+          'Holds through extreme-greed peaks instead of forcing early de-risking. It removes the emotional sell bias.',
+      },
+    ],
   },
 
   // Use Cases section
@@ -230,42 +327,116 @@ export const MESSAGES = {
 
   // Protocols section
   protocols: {
-    title: 'Where Idle Capital Sits',
+    title: 'Where idle capital parks between trades',
     subtitle:
-      '~90% of returns come from the strategy itself — regime-based rebalancing across S&P500, BTC/ETH, and stables. While waiting for the next signal, idle capital earns baseline yield in best-in-class venues. We are not a yield aggregator; yield is the icing.',
+      'Yield is the icing — not the strategy. Between regime signals, idle S&P500, BTC/ETH, and stablecoin exposure can earn baseline yield in best-in-class venues while the rules wait for the next trade.',
     items: [
       {
         name: 'Ondo',
         category: 'Tokenized S&P500',
         description:
-          "On-chain exposure to U.S. equities via Ondo's tokenized S&P500 — the equity pillar of the portfolio.",
+          "On-chain exposure to U.S. equities via Ondo's tokenized S&P500 — the equity pillar the engine trades into when risk is rewarded.",
         logo: '/protocols/ondo.webp',
+        accent: '#d4c5a3',
+        glow: 'rgba(212, 197, 163, 0.14)',
         link: 'https://ondo.finance',
       },
       {
         name: 'GMX v2',
         category: 'BTC/ETH Parking',
         description:
-          'Where idle BTC/ETH earns baseline yield via GLP/GMX vaults while the regime stays risk-on.',
+          'Where idle BTC/ETH can earn baseline yield while the regime stays risk-on between rebalance signals.',
         logo: '/protocols/gmx-v2.webp',
+        accent: '#7c6df2',
+        glow: 'rgba(124, 109, 242, 0.14)',
         link: 'https://gmx.io',
       },
       {
         name: 'Morpho',
         category: 'Stablecoin Parking',
         description:
-          'Curated lending vaults where idle stablecoins earn baseline yield during risk-off regimes.',
+          'Curated lending vaults where defensive stablecoins can park during risk-off regimes.',
         logo: '/protocols/morpho.webp',
+        accent: '#2775ca',
+        glow: 'rgba(39, 117, 202, 0.14)',
         link: 'https://morpho.org',
       },
       {
         name: 'Hyperliquid',
         category: 'Stablecoin Parking',
         description:
-          'HLP delta-neutral market making — an alternative idle-stable parking venue for diversification.',
+          'HLP delta-neutral market making — an alternative defensive parking venue between strategy trades.',
         logo: '/protocols/hyperliquid.webp',
+        accent: '#20b8a6',
+        glow: 'rgba(32, 184, 166, 0.14)',
         link: 'https://hyperfoundation.org/',
       },
     ],
   },
+
+  // FAQ section
+  faq: {
+    title: 'Before you connect a wallet.',
+    subtitle:
+      'The strategy is designed to stay self-custodial, explicit, and reviewable. These are the practical questions that should be answered before anyone signs.',
+    items: [
+      {
+        question: 'How is Zap Pilot truly non-custodial?',
+        answer:
+          'Your funds stay in your own externally owned account. Zap Pilot prepares a rebalance bundle; you review it and sign from your wallet. We never hold private keys, custody assets, or move funds without your signature.',
+      },
+      {
+        question: 'What happens if I miss a rebalance window?',
+        answer:
+          'Nothing moves automatically. The engine keeps watching the regime and can deliver the next eligible bundle, but your current allocation may drift until you choose to sign.',
+      },
+      {
+        question: 'What are the fees?',
+        answer:
+          'Network gas and protocol-level fees are paid from your wallet and previewed before signing. Zap Pilot fee terms will be disclosed before launch; the backtest does not assume a hidden custody or management fee.',
+      },
+      {
+        question: 'Which chain does this run on?',
+        answer:
+          'Zap Pilot is built for EVM mainnet execution with wallet-signed bundles. EIP-7702 batching is used where supported, with multicall3 as the fallback path.',
+      },
+      {
+        question: 'What if Ondo, Morpho, GMX, or Hyperliquid has an issue?',
+        answer:
+          'Parking venues are modular, not custody requirements. If a venue is unavailable or unattractive, the bundle can route defensively instead. You still review the destination and protocol risk before signing.',
+      },
+      {
+        question: 'Can I customize my allocations?',
+        answer:
+          'The initial launch focuses on curated, published strategy rules so behavior is easy to verify. Saved configuration controls can come later without changing the self-custody execution model.',
+      },
+      {
+        question: 'How are gas costs handled with the bundled transaction?',
+        answer:
+          'The bundle compresses the rebalance into one wallet action where possible. Your wallet previews gas before signing, and you can skip execution if conditions are not worth it.',
+      },
+      {
+        question: 'Is the strategy open-source or verifiable?',
+        answer:
+          'The methodology, parameters, and on-chain transactions are designed to be inspectable. Strategy docs and source links are published so the rules can be reviewed instead of trusted blindly.',
+      },
+    ],
+  },
+
+  // Trust strip section
+  trustBadges: [
+    {
+      label: '100% Self-Custody · EOA',
+      icon: 'KeyRound',
+    },
+    {
+      label: 'Live on Mainnet',
+      icon: 'Activity',
+    },
+    {
+      label: 'Open-source strategy',
+      icon: 'GitBranch',
+      linkType: 'github',
+    },
+  ],
 } as const;

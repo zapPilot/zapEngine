@@ -18,7 +18,11 @@ class BelowExtremeFearBuyRule:
     description: str = "Buy when price is below DMA and FGI is extreme fear."
 
     def matches(self, snapshot: DmaMarketState, *, config: RuleConfig) -> bool:
-        return snapshot.zone == "below" and snapshot.fgi_regime == "extreme_fear"
+        return (
+            snapshot.asset_symbol != "SPY"
+            and snapshot.zone == "below"
+            and snapshot.fgi_regime == "extreme_fear"
+        )
 
     def build_intent(
         self,

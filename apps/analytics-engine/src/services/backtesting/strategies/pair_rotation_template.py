@@ -25,6 +25,7 @@ from src.services.backtesting.execution.allocation_intent_executor import (
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
+    DMA_ASSET_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
@@ -277,7 +278,11 @@ class PairRotationTemplateSignalComponent(StatefulSignalComponent):
         dma_value = context.extra_data.get(outer_unit.dma_feature_key)
         if not isinstance(dma_value, int | float) or float(dma_value) <= 0.0:
             return replace(context, price=float(price)), outer_unit
-        new_extra = {**context.extra_data, DMA_200_FEATURE: float(dma_value)}
+        new_extra = {
+            **context.extra_data,
+            DMA_200_FEATURE: float(dma_value),
+            DMA_ASSET_FEATURE: outer_unit.symbol,
+        }
         return replace(context, price=float(price), extra_data=new_extra), outer_unit
 
 

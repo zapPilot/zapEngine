@@ -33,14 +33,16 @@ All records in a batch are valid; there is no duplicate data to remove.
 See `migrations/015_simplify_daily_portfolio_snapshots.sql`.
 Regression guard: `tests/test_safeguards_deduplication.py` will fail if incorrect dedup is introduced.
 
-# AI Tool Documentation
+# Import conventions
 
-This directory uses **CLAUDE.md** as the single source of truth for AI assistant context.
+- Routers: `src.api.routers.*` (canonical)
+- Strategies: `src.services.strategy.*` (canonical)
 
-| File        | Purpose                                  | Type                  |
-| ----------- | ---------------------------------------- | --------------------- |
-| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
-| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
-| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
+# Dead-code policy
 
-**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
+Two enforced checks on every push:
+
+- `uv run python scripts/quality/check_service_reachability.py` — rejects unreachable `*ServiceDep` bindings
+- `uv run vulture src/ vulture_whitelist.py --min-confidence 80` — symbol-level unused detection (weekly audit drops to 60)
+
+Every entry in `vulture_whitelist.py` must carry an inline reason. Removing a module requires removing its whitelist entries in the same PR.

@@ -42,6 +42,10 @@ class DmaMarketState:
     fgi_regime: str
     regime_source: RegimeSource
     ath_event: AthEvent | None
+    asset_symbol: str | None = None
+    macro_fear_greed_value: float | None = None
+    macro_fear_greed_regime: str | None = None
+    macro_fear_greed_regime_source: RegimeSource | None = None
 
     @property
     def price_above_dma(self) -> bool:

@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
 import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
+import type {
+  BacktestBucket,
+  BacktestTransferMetadata,
+} from '@/types/backtesting';
 
 vi.mock('@/utils', () => ({
   formatCurrency: (value: number) => `$${Math.round(value).toLocaleString()}`,
@@ -45,10 +49,13 @@ function makeStrategyPoint(overrides: {
   };
   signal?: object | null;
   decision?: {
-    action: string;
+    action: 'buy' | 'sell' | 'hold';
     reason: string;
-    details?: { target_spot_asset?: unknown };
+    rule_group?: 'cross' | 'cooldown' | 'dma_fgi' | 'ath' | 'rotation' | 'none';
+    immediate?: boolean;
+    details?: { allocation_name?: string | null; target_spot_asset?: unknown };
   };
+  transfers?: BacktestTransferMetadata[];
   blocked_reason?: string | null;
   buy_gate?: { block_reason: string | null } | null;
 }) {
@@ -89,10 +96,22 @@ function makeStrategyPoint(overrides: {
       overrides.signal !== undefined
         ? overrides.signal
         : { id: 'dma_gated_fgi' },
-    decision: overrides.decision ?? { action: 'hold', reason: 'baseline' },
+    decision: {
+      action: overrides.decision?.action ?? 'hold',
+      reason: overrides.decision?.reason ?? 'baseline',
+      rule_group: overrides.decision?.rule_group ?? 'none',
+      target_allocation: {
+        ...defaultAllocation,
+        ...overrides.allocation,
+      },
+      immediate: overrides.decision?.immediate ?? false,
+      ...(overrides.decision?.details !== undefined && {
+        details: overrides.decision.details,
+      }),
+    },
     execution: {
       event: null,
-      transfers: [],
+      transfers: overrides.transfers ?? [],
       blocked_reason: overrides.blocked_reason ?? null,
       step_count: 0,
       steps_remaining: 0,
@@ -132,6 +151,14 @@ function minimalPayload(
   ];
 }
 
+function transfer(
+  from_bucket: BacktestBucket,
+  to_bucket: BacktestBucket,
+  amount_usd: number,
+): BacktestTransferMetadata {
+  return { from_bucket, to_bucket, amount_usd };
+}
+
 // Full payload used across multiple tests (mirrors original fixture)
 function createTooltipPayload() {
   return [
@@ -159,10 +186,13 @@ function createTooltipPayload() {
             decision: {
               action: 'buy',
               reason: 'below_extreme_fear_buy',
+              rule_group: 'dma_fgi',
               details: {
+                allocation_name: 'dma_below_extreme_fear_buy',
                 target_spot_asset: 'ETH',
               },
             },
+            transfers: [transfer('stable', 'eth', 240)],
             blocked_reason: 'cooldown_active',
             buy_gate: { block_reason: 'sideways_pending' },
           }),
@@ -356,7 +386,7 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.allocations[0]?.index).toBeUndefined();
     });
 
-    it('keeps stable-only allocations free of spot asset detail', () => {
+    it('shows no asset changes for stable-only hold points without transfers', () => {
       const strategies = {
         stable_only: makeStrategyPoint({
           spot: 0,
@@ -376,8 +406,10 @@ describe('buildBacktestTooltipData', () => {
         sortedStrategyIds: ['stable_only'],
       });
 
-      const detailNames = (result?.sections.details ?? []).map((d) => d.name);
-      expect(detailNames).not.toContain('stable only spot asset');
+      expect(result?.sections.decision?.assetChanges).toEqual([]);
+      expect(result?.sections.decision?.assetChangeNote?.label).toBe(
+        'No asset changes - held position',
+      );
     });
   });
 
@@ -732,188 +764,163 @@ describe('buildBacktestTooltipData', () => {
   });
 
   // ------------------------------------------------------------------
-  // Detail items — decision + blocked + buy-gate
+  // Decision summary
   // ------------------------------------------------------------------
 
-  describe('detail items (decision / blocked / buy gate)', () => {
-    it('adds only a decision detail when blocked_reason and buy_gate are null', () => {
+  describe('decision summary', () => {
+    it('uses the active non-DCA comparison strategy only', () => {
       const strategies = {
-        my_strat: makeStrategyPoint({
-          spot: 0,
-          stable: 10000,
-          signal: { id: 'dma_gated_fgi' },
-          decision: { action: 'hold', reason: 'waiting' },
-          blocked_reason: null,
-          buy_gate: null,
-        }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strat'],
-      });
-      const details = result?.sections.details ?? [];
-      expect(details).toHaveLength(1);
-      expect(details[0]?.name).toMatch(/decision/);
-    });
-
-    it('adds decision + blocked detail when blocked_reason is set', () => {
-      const strategies = {
-        my_strat: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
-          decision: { action: 'buy', reason: 'signal' },
-          blocked_reason: 'cooldown_active',
-          buy_gate: null,
-        }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strat'],
-      });
-      const details = result?.sections.details ?? [];
-      const names = details.map((d) => d.name);
-      expect(names).toContain('my strat decision');
-      expect(names).toContain('my strat blocked');
-    });
-
-    it('adds a spot asset detail from portfolio.spot_asset when available', () => {
-      const strategies = {
-        my_strat: makeStrategyPoint({
-          spotAsset: 'ETH',
+        dca_classic: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
           decision: {
-            action: 'hold',
-            reason: 'rotation',
-            details: {
-              target_spot_asset: 'btc',
-            },
+            action: 'buy',
+            reason: 'daily_buy',
+            rule_group: 'none',
           },
-          blocked_reason: null,
-          buy_gate: null,
+          transfers: [transfer('stable', 'btc', 100)],
         }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strat'],
-      });
-      const details = result?.sections.details ?? [];
-
-      expect(details).toEqual(
-        expect.arrayContaining([
-          {
-            name: 'my strat spot asset',
-            value: 'ETH',
-            color: '#627EEA',
-          },
-        ]),
-      );
-    });
-
-    it('uses canonical allocation instead of legacy target_spot_asset for spot asset details', () => {
-      const strategies = {
-        my_strat: makeStrategyPoint({
+        primary_strategy: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
           decision: {
-            action: 'hold',
-            reason: 'rotation',
+            action: 'buy',
+            reason: 'below_extreme_fear_buy',
+            rule_group: 'dma_fgi',
             details: {
-              target_spot_asset: 'eth',
+              allocation_name: 'dma_below_extreme_fear_buy',
             },
           },
-          blocked_reason: null,
-          buy_gate: null,
+          transfers: [transfer('stable', 'eth', 200)],
         }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strat'],
-      });
-      const details = result?.sections.details ?? [];
-
-      expect(details).toEqual(
-        expect.arrayContaining([
-          {
-            name: 'my strat spot asset',
-            value: 'BTC',
-            color: '#F7931A',
-          },
-        ]),
-      );
-    });
-
-    it('skips spot asset detail for stable-only points', () => {
-      const strategies = {
-        my_strat: makeStrategyPoint({
-          spot: 0,
-          stable: 10000,
-          spotAsset: null,
+        secondary_strategy: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
           decision: {
             action: 'sell',
-            reason: 'go_stable',
-            details: {
-              target_spot_asset: 'ETH',
-            },
+            reason: 'above_greed_sell',
+            rule_group: 'dma_fgi',
           },
-          blocked_reason: null,
-          buy_gate: null,
+          transfers: [transfer('btc', 'stable', 300)],
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['my_strat'],
+        sortedStrategyIds: [
+          'dca_classic',
+          'primary_strategy',
+          'secondary_strategy',
+        ],
       });
-      const detailNames = (result?.sections.details ?? []).map((d) => d.name);
 
-      expect(detailNames).not.toContain('my strat spot asset');
+      expect(result?.sections.decision?.strategyId).toBe('primary_strategy');
+      expect(result?.sections.decision?.displayName).toBe('primary strategy');
+      expect(result?.sections.decision?.rule).toEqual({
+        label: 'dma_below_extreme_fear_buy',
+        group: 'dma_fgi',
+      });
+      expect(result?.sections.decision?.action.label).toBe('Buy');
+      expect(result?.sections.decision?.assetChanges).toEqual([
+        {
+          label: 'Stable -> ETH',
+          value: '$200',
+          color: '#86efac',
+        },
+      ]);
     });
 
-    it('adds buy-gate detail when buy_gate.block_reason is set', () => {
+    it('falls back to the decision reason when allocation_name is missing', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
-          decision: { action: 'buy', reason: 'signal' },
-          blocked_reason: null,
-          buy_gate: { block_reason: 'sideways_pending' },
+          decision: {
+            action: 'hold',
+            reason: 'regime_no_signal',
+            rule_group: 'none',
+          },
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
         sortedStrategyIds: ['my_strat'],
       });
-      const details = result?.sections.details ?? [];
-      const names = details.map((d) => d.name);
-      expect(names).toContain('my strat buy gate');
-    });
 
-    it('skips detail for a strategy whose signal is null', () => {
-      const strategies = {
-        no_signal: makeStrategyPoint({ signal: null }),
-      };
-      const result = buildBacktestTooltipData({
-        payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: ['no_signal'],
+      expect(result?.sections.decision?.rule).toEqual({
+        label: 'regime_no_signal',
+        group: 'none',
       });
-      expect(result?.sections.details).toHaveLength(0);
     });
 
-    it('skips buy-gate detail when buy_gate.block_reason is null (non-string)', () => {
-      // Exercises the `typeof blockReason === "string"` false branch in getBuyGateBlockReason:
-      // plugin exists and is an object, but block_reason is null → returns null → no buy-gate detail
+    it('formats buy, sell, and rotation asset changes from transfers', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
           signal: { id: 'dma_gated_fgi' },
-          decision: { action: 'hold', reason: 'waiting' },
-          blocked_reason: null,
-          buy_gate: { block_reason: null },
+          decision: {
+            action: 'buy',
+            reason: 'mixed_rebalance',
+            rule_group: 'rotation',
+          },
+          transfers: [
+            transfer('stable', 'eth', 200),
+            transfer('btc', 'stable', 150),
+            transfer('btc', 'eth', 125),
+          ],
         }),
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
         sortedStrategyIds: ['my_strat'],
       });
-      const names = (result?.sections.details ?? []).map((d) => d.name);
-      expect(names).not.toContain('my strat buy gate');
-      expect(names).toContain('my strat decision');
+
+      expect(result?.sections.decision?.assetChanges).toEqual([
+        { label: 'Stable -> ETH', value: '$200', color: '#86efac' },
+        { label: 'BTC -> Stable', value: '$150', color: '#fca5a5' },
+        { label: 'BTC -> ETH', value: '$125', color: '#c4b5fd' },
+      ]);
+    });
+
+    it('uses a blocked no-change note when there are no transfers', () => {
+      const strategies = {
+        my_strat: makeStrategyPoint({
+          signal: { id: 'dma_gated_fgi' },
+          decision: {
+            action: 'buy',
+            reason: 'below_extreme_fear_buy',
+            rule_group: 'dma_fgi',
+          },
+          blocked_reason: 'cooldown_active',
+        }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['my_strat'],
+      });
+
+      expect(result?.sections.decision?.assetChanges).toEqual([]);
+      expect(result?.sections.decision?.assetChangeNote).toEqual({
+        label: 'No asset changes - blocked by cooldown_active',
+        color: '#fda4af',
+      });
+    });
+
+    it('uses a held-position no-change note when there are no transfers and no block', () => {
+      const strategies = {
+        my_strat: makeStrategyPoint({
+          signal: { id: 'dma_gated_fgi' },
+          decision: {
+            action: 'hold',
+            reason: 'waiting',
+            rule_group: 'none',
+          },
+        }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['my_strat'],
+      });
+
+      expect(result?.sections.decision?.assetChanges).toEqual([]);
+      expect(result?.sections.decision?.assetChangeNote).toEqual({
+        label: 'No asset changes - held position',
+        color: '#cbd5e1',
+      });
     });
   });
 
@@ -1073,37 +1080,33 @@ describe('buildBacktestTooltipData', () => {
       ]);
     });
 
-    it('includes decision, blocked, and buy-gate details for strategies with signals', () => {
+    it('includes the active comparison decision summary', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
         label: '2026-01-01',
         sortedStrategyIds: ['dca_classic', 'dma_gated_fgi_default'],
       });
 
-      expect(result?.sections.details).toEqual(
-        expect.arrayContaining([
+      expect(result?.sections.decision).toEqual({
+        strategyId: 'dma_gated_fgi_default',
+        displayName: 'DMA Gated FGI Default',
+        rule: {
+          label: 'dma_below_extreme_fear_buy',
+          group: 'dma_fgi',
+        },
+        action: {
+          label: 'Buy',
+          color: '#86efac',
+        },
+        assetChanges: [
           {
-            name: 'DMA Gated FGI Default decision',
-            value: 'buy · below_extreme_fear_buy',
-            color: '#cbd5e1',
+            label: 'Stable -> ETH',
+            value: '$240',
+            color: '#86efac',
           },
-          {
-            name: 'DMA Gated FGI Default blocked',
-            value: 'cooldown_active',
-            color: '#fda4af',
-          },
-          {
-            name: 'DMA Gated FGI Default spot asset',
-            value: 'ETH',
-            color: '#627EEA',
-          },
-          {
-            name: 'DMA Gated FGI Default buy gate',
-            value: 'sideways_pending',
-            color: '#fcd34d',
-          },
-        ]),
-      );
+        ],
+        assetChangeNote: null,
+      });
     });
   });
 });

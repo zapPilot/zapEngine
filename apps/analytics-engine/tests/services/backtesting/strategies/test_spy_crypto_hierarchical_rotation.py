@@ -559,7 +559,7 @@ def test_spy_cross_up_with_existing_stable_deploys_to_spy() -> None:
     assert intent.target_allocation["stable"] == pytest.approx(0.0)
 
 
-def test_spy_latch_redeploys_over_subsequent_days() -> None:
+def test_spy_latch_does_not_redeploy_existing_stable_over_subsequent_days() -> None:
     component, policy = _component_and_policy()
     warmup = _build_context(
         portfolio=_portfolio({"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0}),
@@ -601,8 +601,8 @@ def test_spy_latch_redeploys_over_subsequent_days() -> None:
             ),
         )
         assert intent.target_allocation is not None
-        assert intent.target_allocation["spy"] > current_spy
-        assert intent.target_allocation["stable"] == pytest.approx(0.0)
+        assert intent.target_allocation["spy"] == pytest.approx(current_spy)
+        assert intent.target_allocation["stable"] == pytest.approx(current_stable)
 
 
 def test_spy_latch_expires_after_14_days() -> None:
@@ -675,7 +675,7 @@ def test_spy_latch_deactivates_on_spy_below_dma() -> None:
     assert intent.target_allocation["stable"] == pytest.approx(1.0)
 
 
-def test_spy_latch_does_not_redeploy_freshly_created_stable_from_crypto_sell() -> None:
+def test_spy_latch_redeploys_freshly_created_stable_from_crypto_sell() -> None:
     component, policy = _component_and_policy()
     warmup = _build_context(
         portfolio=_portfolio({"spy": 0.5, "btc": 0.3, "eth": 0.0, "stable": 0.2}),
@@ -715,8 +715,8 @@ def test_spy_latch_does_not_redeploy_freshly_created_stable_from_crypto_sell() -
     assert intent.target_allocation["btc"] + intent.target_allocation[
         "eth"
     ] == pytest.approx(0.0)
-    assert intent.target_allocation["spy"] == pytest.approx(0.7)
-    assert intent.target_allocation["stable"] == pytest.approx(0.3)
+    assert intent.target_allocation["spy"] == pytest.approx(0.8)
+    assert intent.target_allocation["stable"] == pytest.approx(0.2)
 
 
 def test_below_dma_extreme_fear_produces_nonzero_buy_pacing() -> None:

@@ -30,10 +30,34 @@ export interface AllocationBlock {
   index: number | undefined;
 }
 
-export interface DetailItem {
-  name: string;
+export interface DecisionRuleItem {
+  label: string;
+  group: string;
+}
+
+export interface DecisionActionItem {
+  label: string;
+  color: string;
+}
+
+export interface DecisionAssetChangeItem {
+  label: string;
   value: string;
   color: string;
+}
+
+export interface DecisionAssetChangeNote {
+  label: string;
+  color: string;
+}
+
+export interface DecisionSummary {
+  strategyId: string;
+  displayName: string;
+  rule: DecisionRuleItem;
+  action: DecisionActionItem;
+  assetChanges: DecisionAssetChangeItem[];
+  assetChangeNote: DecisionAssetChangeNote | null;
 }
 
 export interface ParsedTooltipData {
@@ -42,7 +66,7 @@ export interface ParsedTooltipData {
     strategies: TooltipItem[];
     events: EventItem[];
     signals: SignalItem[];
-    details: DetailItem[];
+    decision: DecisionSummary | null;
     allocations: AllocationBlock[];
   };
 }
@@ -61,7 +85,7 @@ export interface TooltipSections {
   strategies: TooltipItem[];
   events: EventItem[];
   signals: SignalItem[];
-  details: DetailItem[];
+  decision: DecisionSummary | null;
 }
 
 export interface ParsedTooltipSource {

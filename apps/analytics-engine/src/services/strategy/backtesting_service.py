@@ -164,6 +164,13 @@ def _resolve_runtime_config(
     composition_catalog: CompositionCatalog | None = None,
 ) -> ResolvedSavedStrategyConfig:
     resolved_catalog = composition_catalog or get_default_composition_catalog()
+    if request_config.saved_config_id:
+        recipe_alias = _resolve_saved_config_recipe_alias(
+            request_config=request_config,
+            config_store=config_store,
+        )
+        if recipe_alias is not None:
+            return recipe_alias
     if _has_composition_path(request_config, resolved_catalog):
         resolved = resolve_saved_strategy_config(
             resolve_compare_request_config(
@@ -192,6 +199,36 @@ def _resolve_runtime_config(
         runtime_portfolio_mode=recipe.runtime_portfolio_mode,
         supports_daily_suggestion=recipe.supports_daily_suggestion,
         public_params=dict(request_config.params),
+        build_strategy=recipe.build_strategy,
+    )
+
+
+def _resolve_saved_config_recipe_alias(
+    *,
+    request_config: Any,
+    config_store: StrategyConfigStore,
+) -> ResolvedSavedStrategyConfig | None:
+    saved_config_id = str(request_config.saved_config_id)
+    if config_store.get_config(saved_config_id) is not None:
+        return None
+    try:
+        recipe = get_strategy_recipe(saved_config_id)
+    except ValueError:
+        return None
+    return ResolvedSavedStrategyConfig(
+        saved_config_id=saved_config_id,
+        request_config_id=request_config.config_id,
+        strategy_id=recipe.strategy_id,
+        display_name=request_config.config_id,
+        description=recipe.description,
+        primary_asset=recipe.primary_asset,
+        summary_signal_id=recipe.signal_id,
+        warmup_lookback_days=recipe.warmup_lookback_days,
+        market_data_requirements=recipe.market_data_requirements,
+        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
+        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
+        supports_daily_suggestion=recipe.supports_daily_suggestion,
+        public_params=recipe.normalize_public_params({}),
         build_strategy=recipe.build_strategy,
     )
 

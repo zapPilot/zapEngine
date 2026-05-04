@@ -1,0 +1,139 @@
+---
+title: How the system is built
+description: A product-level view — what you can do, how funds flow, what protects you, and what Zap Pilot connects to.
+---
+
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Zap Pilot sits between you and the DeFi market as a disciplined autopilot. You stay in control of your wallet; Zap Pilot watches the market, prepares moves, and asks for one signature when it's time to act.
+
+## What you can do
+
+<Tabs items={['Deposit', 'Configure', 'Auto-rotate', 'Withdraw']}>
+
+<Tab>
+
+**Hold your assets in your own wallet.**
+
+There is no Zap Pilot deposit address and no smart contract that takes custody. You keep S&P 500 exposure, BTC, ETH, and stablecoins in the wallet you already use.
+
+</Tab>
+
+<Tab>
+
+**Choose your strategy posture.**
+
+Pick the disciplined three-pillar allocator out of the box, or set your own preferences for how aggressively the portfolio rotates between risk-on and risk-off regimes.
+
+</Tab>
+
+<Tab>
+
+**Let the system rotate allocations for you.**
+
+When the macro regime shifts, Zap Pilot prepares a rebalance bundle that brings your portfolio back to its target allocation. You receive a notification, review the bundle, and approve.
+
+</Tab>
+
+<Tab>
+
+**Withdraw at any time.**
+
+Because the assets never leave your wallet, withdrawing is just sending — no exit queues, no unbonding periods, no protocol-level lockups imposed by Zap Pilot.
+
+</Tab>
+
+</Tabs>
+
+## How funds flow
+
+Zap Pilot is best understood as three cooperating layers, each with a clear job:
+
+<Tabs items={['Market & data layer', 'Strategy engine', 'Execution layer']}>
+
+<Tab>
+
+**Aggregates DeFi market data.**
+
+Continuously gathers prices, on-chain activity, sentiment, and yield-venue performance across the assets the portfolio touches. Nothing here moves money — it only watches.
+
+</Tab>
+
+<Tab>
+
+**Translates the market into a target allocation.**
+
+Applies the regime rules — long-term trend, sentiment, ETH/BTC relative strength — and produces a target weight across the three pillars (S&P 500, BTC + ETH, stablecoins). Strategy logic is fully rules-based: no discretion, no overrides.
+
+</Tab>
+
+<Tab>
+
+**Turns the target into a single signed transaction.**
+
+When the target diverges from your current allocation, the execution layer prepares one bundled transaction that performs the entire rebalance. You sign it from your own wallet; the bundle either fully succeeds or fully reverts — no half-applied state.
+
+</Tab>
+
+</Tabs>
+
+## What protects you
+
+<Callout type="info" title="Non-custodial by construction">
+  Zap Pilot never holds your keys, never takes custody of your assets, and never
+  asks for standing approvals. Every move requires a fresh signature from you,
+  and you can stop using the product at any time without recovering anything —
+  your funds were always in your wallet.
+</Callout>
+
+Risk is isolated by design:
+
+- **You sign every rebalance.** No automated bot can move funds on your behalf. If you ignore a signal, nothing happens.
+- **Each bundle is reviewable.** Before signing you can see exactly what the transaction will do. There are no hidden legs.
+- **No pooled vault.** Your allocation is independent. There is no shared contract that, if compromised, drains everyone.
+- **Strategy and execution are separable.** If you stop trusting the strategy, you keep your assets. If you stop trusting the product entirely, you keep your wallet.
+
+## What Zap Pilot connects to
+
+<Tabs items={['Supported wallets', 'Asset venues', 'Data sources']}>
+
+<Tab>
+
+**Wallets you already use.**
+
+Any standard externally-owned account works. Wallets that support modern atomic-batch standards get a single-signature, all-or-nothing rebalance; wallets without that support fall back to a single bundled transaction that achieves the same end result.
+
+</Tab>
+
+<Tab>
+
+**Where your assets actually sit between rebalances.**
+
+- **Tokenized S&P 500** for the equity pillar.
+- **BTC and ETH** held directly, with relative-strength rotation between them.
+- **Stablecoins** for the defensive leg, optionally parked in conservative yield venues so idle capital still earns a baseline.
+
+The specific venues evolve as the DeFi landscape changes; what stays fixed is the three-pillar shape of the portfolio.
+
+</Tab>
+
+<Tab>
+
+**The signals that drive decisions.**
+
+- **Long-term trend** — a moving-average filter that decides whether risk assets are above or below their long-term regime line.
+- **Market sentiment** — a fear-and-greed reading used to dial risk down when the market gets euphoric.
+- **In-crypto rotation** — ETH/BTC relative strength to decide which crypto leg leads when crypto risk is on.
+
+Inputs come from established public market-data providers; nothing in the strategy depends on a private oracle or a custom price feed.
+
+</Tab>
+
+</Tabs>
+
+<Callout type="warn" title="Honest status">
+  The signing experience is rolling out gradually. The strategy engine and the
+  bundled-execution model are in place; the in-app flow that hands you the
+  prepared bundle for one-click signing is the last mile still being polished.
+</Callout>

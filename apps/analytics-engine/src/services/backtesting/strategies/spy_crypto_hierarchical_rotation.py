@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import JsonValue
 
@@ -26,6 +26,7 @@ from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
+    DMA_ASSET_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     SPY_AUX_SERIES,
@@ -117,6 +118,23 @@ _CRYPTO_ETH_REFERENCE_UNIT = PairRotationUnit(
     price_key="eth",
     dma_feature_key=ETH_DMA_200_FEATURE,
 )
+_COMPOSITION_EPSILON = 1e-9
+
+
+class HierarchicalTargetComposer(Protocol):
+    """Composes the final asset target from outer and inner pair targets."""
+
+    def __call__(
+        self,
+        *,
+        outer_target: Mapping[str, float],
+        inner_target: Mapping[str, float],
+        current_allocation: Mapping[str, float],
+        outer_intent: AllocationIntent,
+        inner_intent: AllocationIntent,
+        spy_latch_active: bool,
+        pre_existing_stable_share: float,
+    ) -> dict[str, float]: ...
 
 
 class HierarchicalPairRotationParams(EthBtcRotationParams):
@@ -145,7 +163,11 @@ class HierarchicalPairRotationState:
     crypto_dma_reference_asset: str
     spy_latch_active: bool
     spy_latch_activated_on: date | None
+    spy_latch_target_share: float | None
     current_asset_allocation: dict[str, float]
+    spy_days_since_cross_down: int | None
+    btc_days_since_cross_down: int | None
+    eth_days_since_cross_down: int | None
 
 
 @dataclass
@@ -174,14 +196,22 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         init=False,
         repr=False,
     )
+    _spy_latch_target_share: float | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
     _spy_latch_active: bool = field(default=False, init=False, repr=False)
+    _last_spy_cross_down_on: date | None = field(default=None, init=False, repr=False)
+    _last_btc_cross_down_on: date | None = field(default=None, init=False, repr=False)
+    _last_eth_cross_down_on: date | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         config = self.params.build_signal_config()
         self.market_data_requirements = (
-            SPY_CRYPTO_TEMPLATE.market_data_requirements().merge(
-                ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.market_data_requirements()
-            )
+            SPY_CRYPTO_TEMPLATE.market_data_requirements()
+            .merge(ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.market_data_requirements())
+            .merge(MarketDataRequirements(requires_macro_fear_greed=True))
         )
         self._outer_signal = PairRotationTemplateSignalComponent(
             config=config,
@@ -226,7 +256,11 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         self._eth_dma_signal.reset()
         self._crypto_dma_reference_asset = _CRYPTO_DMA_REFERENCE_BTC
         self._spy_latch_activated_on = None
+        self._spy_latch_target_share = None
         self._spy_latch_active = False
+        self._last_spy_cross_down_on = None
+        self._last_btc_cross_down_on = None
+        self._last_eth_cross_down_on = None
 
     def initialize(self, context: StrategyContext) -> None:
         self._outer_signal.initialize(context)
@@ -295,12 +329,19 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             btc_dma_state=btc_dma_state,
             eth_dma_state=eth_dma_state,
         )
+        self._update_cross_down_dates(
+            current_date=context.date,
+            spy_dma_state=spy_dma_state,
+            btc_dma_state=btc_dma_state,
+            eth_dma_state=eth_dma_state,
+        )
+        outer_state = self._outer_signal.observe(context)
         self._update_spy_latch(
             current_date=context.date,
             spy_dma_state=spy_dma_state,
         )
         return HierarchicalPairRotationState(
-            outer_state=self._outer_signal.observe(context),
+            outer_state=outer_state,
             inner_state=replace(
                 inner_state,
                 current_asset_allocation=_normalize_crypto_sleeve_allocation(
@@ -314,7 +355,20 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             crypto_dma_reference_asset=self._crypto_dma_reference_asset,
             spy_latch_active=self._spy_latch_active,
             spy_latch_activated_on=self._spy_latch_activated_on,
+            spy_latch_target_share=self._spy_latch_target_share,
             current_asset_allocation=target_from_current_allocation(raw_allocation),
+            spy_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_spy_cross_down_on,
+            ),
+            btc_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_btc_cross_down_on,
+            ),
+            eth_days_since_cross_down=_days_since(
+                current_date=context.date,
+                event_date=self._last_eth_cross_down_on,
+            ),
         )
 
     def apply_intent(
@@ -395,6 +449,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         if not self.spy_cross_up_latch_enabled:
             self._spy_latch_active = False
             self._spy_latch_activated_on = None
+            self._spy_latch_target_share = None
             return
         if is_spy_latch_expired(
             current_date=current_date,
@@ -402,11 +457,13 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         ):
             self._spy_latch_active = False
             self._spy_latch_activated_on = None
+            self._spy_latch_target_share = None
         if spy_dma_state is None:
             return
         if spy_dma_state.actionable_cross_event == "cross_up":
             self._spy_latch_active = True
             self._spy_latch_activated_on = current_date
+            self._spy_latch_target_share = 1.0
             return
         if (
             spy_dma_state.zone in {"below", "at"}
@@ -414,6 +471,34 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
         ):
             self._spy_latch_active = False
             self._spy_latch_activated_on = None
+            self._spy_latch_target_share = None
+
+    def _update_cross_down_dates(
+        self,
+        *,
+        current_date: date,
+        spy_dma_state: DmaMarketState | None,
+        btc_dma_state: DmaMarketState | None,
+        eth_dma_state: DmaMarketState | None,
+    ) -> None:
+        if (
+            spy_dma_state is not None
+            and spy_dma_state.actionable_cross_event == "cross_down"
+            and spy_dma_state.cross_event == "cross_down"
+        ):
+            self._last_spy_cross_down_on = current_date
+        if (
+            btc_dma_state is not None
+            and btc_dma_state.actionable_cross_event == "cross_down"
+            and btc_dma_state.cross_event == "cross_down"
+        ):
+            self._last_btc_cross_down_on = current_date
+        if (
+            eth_dma_state is not None
+            and eth_dma_state.actionable_cross_event == "cross_down"
+            and eth_dma_state.cross_event == "cross_down"
+        ):
+            self._last_eth_cross_down_on = current_date
 
     def build_signal_observation(
         self,
@@ -506,6 +591,9 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE
         )
     )
+    composer: HierarchicalTargetComposer = field(
+        default_factory=lambda: _compose_hierarchical_target
+    )
 
     def decide(self, snapshot: HierarchicalPairRotationState) -> AllocationIntent:
         outer_snapshot = _build_outer_snapshot(snapshot)
@@ -519,9 +607,12 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             inner_intent.target_allocation
             or snapshot.inner_state.current_asset_allocation
         )
-        target_allocation = _compose_hierarchical_target(
+        target_allocation = self.composer(
             outer_target=outer_target,
             inner_target=inner_target,
+            current_allocation=snapshot.current_asset_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
             spy_latch_active=False,
             pre_existing_stable_share=float(
                 snapshot.current_asset_allocation.get("stable", 0.0)
@@ -536,12 +627,17 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
                 reason="hierarchical_target_adjustment",
                 rule_group="none",
                 decision_score=0.0,
+                diagnostics={
+                    "outer_reason": outer_intent.reason,
+                    "inner_reason": inner_intent.reason,
+                },
             ),
             snapshot=outer_snapshot,
         )
         target_allocation = (
             target_adjustment_intent.target_allocation or target_allocation
         )
+        target_adjustment_diagnostics = target_adjustment_intent.diagnostics or {}
         selected_intent = _select_intent_metadata(
             outer_intent=outer_intent,
             inner_intent=inner_intent,
@@ -562,6 +658,11 @@ class HierarchicalPairRotationDecisionPolicy(DecisionPolicy):
             ),
             diagnostics={
                 **(selected_intent.diagnostics or {}),
+                **{
+                    key: value
+                    for key, value in target_adjustment_diagnostics.items()
+                    if key not in {"outer_reason", "inner_reason"}
+                },
                 "outer_reason": outer_intent.reason,
                 "inner_reason": inner_intent.reason,
                 "outer_ratio_zone": snapshot.outer_state.ratio_zone,
@@ -603,6 +704,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
     inner_disabled_rules: frozenset[str] = frozenset()
     dma_buy_strength_floor: float = CURRENT_DMA_BUY_STRENGTH_FLOOR
     outer_policy: HierarchicalOuterDecisionPolicy | None = None
+    composer: HierarchicalTargetComposer | None = None
 
     def __post_init__(self) -> None:
         if self.signal_id != SPY_CRYPTO_TEMPLATE.signal_id:
@@ -651,6 +753,7 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
                     or resolved_params.disabled_rules,
                 ),
             ),
+            composer=self.composer or _compose_hierarchical_target,
         )
         self.execution_engine = AllocationIntentExecutor(
             pacing_policy=resolved_params.build_pacing_policy(),
@@ -681,7 +784,11 @@ def _build_outer_unit_dma_context(
     dma_value = context.extra_data.get(unit.dma_feature_key)
     if not isinstance(dma_value, int | float) or float(dma_value) <= 0.0:
         return None
-    new_extra = {**context.extra_data, DMA_200_FEATURE: float(dma_value)}
+    new_extra = {
+        **context.extra_data,
+        DMA_200_FEATURE: float(dma_value),
+        DMA_ASSET_FEATURE: unit.symbol,
+    }
     return replace(context, price=float(price), extra_data=new_extra)
 
 
@@ -695,10 +802,23 @@ def _build_outer_snapshot(
         crypto_dma_state=snapshot.crypto_dma_state,
         crypto_dma_reference_asset=snapshot.crypto_dma_reference_asset,
         spy_latch_active=snapshot.spy_latch_active,
+        spy_latch_target_share=snapshot.spy_latch_target_share,
         pre_existing_stable_share=float(
             snapshot.current_asset_allocation.get("stable", 0.0)
         ),
+        btc_dma_state=snapshot.btc_dma_state,
+        eth_dma_state=snapshot.eth_dma_state,
+        current_asset_allocation=snapshot.current_asset_allocation,
+        spy_days_since_cross_down=snapshot.spy_days_since_cross_down,
+        btc_days_since_cross_down=snapshot.btc_days_since_cross_down,
+        eth_days_since_cross_down=snapshot.eth_days_since_cross_down,
     )
+
+
+def _days_since(*, current_date: date, event_date: date | None) -> int | None:
+    if event_date is None:
+        return None
+    return max(0, (current_date - event_date).days)
 
 
 def _observe_optional_dma_state(
@@ -1148,39 +1268,244 @@ def _compose_hierarchical_target(
     *,
     outer_target: Mapping[str, float],
     inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
     spy_latch_active: bool,
     pre_existing_stable_share: float,
 ) -> dict[str, float]:
     outer = normalize_target_allocation(outer_target)
     inner = normalize_target_allocation(inner_target)
-    crypto_share = max(0.0, float(outer.get("btc", 0.0))) + max(
-        0.0,
-        float(outer.get("eth", 0.0)),
+    crypto_share = _crypto_share(outer)
+    crypto_split = _split_crypto_by_inner_target(
+        amount=crypto_share,
+        inner_target=inner,
     )
+    target = {
+        "spy": float(outer.get("spy", 0.0)),
+        "btc": crypto_split["btc"],
+        "eth": crypto_split["eth"],
+        "stable": float(outer.get("stable", 0.0)) + crypto_split["stable"],
+        "alt": 0.0,
+    }
+    return _normalize_composed_target(
+        target=target,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_surgical(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    trigger_asset = _trigger_crypto_delta_asset(outer_intent)
+    if trigger_asset is None:
+        return _compose_hierarchical_target(
+            outer_target=outer_target,
+            inner_target=inner_target,
+            current_allocation=current_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
+            spy_latch_active=spy_latch_active,
+            pre_existing_stable_share=pre_existing_stable_share,
+        )
+    outer = normalize_target_allocation(outer_target)
+    current = target_from_current_allocation(current_allocation)
+    crypto_delta = _positive_crypto_delta(outer=outer, current=current)
+    if crypto_delta <= _COMPOSITION_EPSILON:
+        return _compose_hierarchical_target(
+            outer_target=outer_target,
+            inner_target=inner_target,
+            current_allocation=current_allocation,
+            outer_intent=outer_intent,
+            inner_intent=inner_intent,
+            spy_latch_active=spy_latch_active,
+            pre_existing_stable_share=pre_existing_stable_share,
+        )
+    return _compose_delta_first_target(
+        outer_target=outer,
+        inner_target=inner_target,
+        crypto_delta_by_asset={trigger_asset: crypto_delta},
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_structural(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    current_allocation: Mapping[str, float],
+    outer_intent: AllocationIntent,
+    inner_intent: AllocationIntent,
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    outer = normalize_target_allocation(outer_target)
+    current = target_from_current_allocation(current_allocation)
+    crypto_delta = _positive_crypto_delta(outer=outer, current=current)
+    crypto_delta_by_asset = (
+        _positive_crypto_delta_by_outer_asset(
+            outer=outer,
+            current=current,
+            crypto_delta=crypto_delta,
+        )
+        if crypto_delta > _COMPOSITION_EPSILON
+        else {}
+    )
+    return _compose_delta_first_target(
+        outer_target=outer,
+        inner_target=inner_target,
+        crypto_delta_by_asset=crypto_delta_by_asset,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _compose_delta_first_target(
+    *,
+    outer_target: Mapping[str, float],
+    inner_target: Mapping[str, float],
+    crypto_delta_by_asset: Mapping[str, float],
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    outer = normalize_target_allocation(outer_target)
+    delta_btc = max(0.0, float(crypto_delta_by_asset.get("btc", 0.0)))
+    delta_eth = max(0.0, float(crypto_delta_by_asset.get("eth", 0.0)))
+    delta_crypto = min(_crypto_share(outer), delta_btc + delta_eth)
+    residual_crypto = max(0.0, _crypto_share(outer) - delta_crypto)
+    residual_split = _split_crypto_by_inner_target(
+        amount=residual_crypto,
+        inner_target=inner_target,
+    )
+    target = {
+        "spy": float(outer.get("spy", 0.0)),
+        "btc": residual_split["btc"] + delta_btc,
+        "eth": residual_split["eth"] + delta_eth,
+        "stable": float(outer.get("stable", 0.0)) + residual_split["stable"],
+        "alt": 0.0,
+    }
+    return _normalize_composed_target(
+        target=target,
+        spy_latch_active=spy_latch_active,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
+
+
+def _split_crypto_by_inner_target(
+    *,
+    amount: float,
+    inner_target: Mapping[str, float],
+) -> dict[str, float]:
+    crypto_amount = max(0.0, float(amount))
+    inner = normalize_target_allocation(inner_target)
     inner_btc = max(0.0, float(inner.get("btc", 0.0)))
     inner_eth = max(0.0, float(inner.get("eth", 0.0)))
     inner_risk = inner_btc + inner_eth
     inner_stable = max(0.0, min(1.0, float(inner.get("stable", 0.0))))
     if inner_risk <= 0.0:
-        btc_share = 0.0
-        eth_share = 0.0
-    else:
-        investable_crypto = crypto_share * max(0.0, min(1.0, inner_risk))
-        btc_share = investable_crypto * (inner_btc / inner_risk)
-        eth_share = investable_crypto * (inner_eth / inner_risk)
-    target = {
-        "spy": float(outer.get("spy", 0.0)),
-        "btc": btc_share,
-        "eth": eth_share,
-        "stable": float(outer.get("stable", 0.0)) + crypto_share * inner_stable,
-        "alt": 0.0,
+        return {"btc": 0.0, "eth": 0.0, "stable": crypto_amount}
+    investable_crypto = crypto_amount * max(0.0, min(1.0, inner_risk))
+    return {
+        "btc": investable_crypto * (inner_btc / inner_risk),
+        "eth": investable_crypto * (inner_eth / inner_risk),
+        "stable": crypto_amount * inner_stable,
     }
-    if spy_latch_active:
-        target = _apply_spy_latch_to_target(
-            target_allocation=target,
-            pre_existing_stable_share=pre_existing_stable_share,
-        )
-    return normalize_target_allocation(target)
+
+
+def _positive_crypto_delta(
+    *,
+    outer: Mapping[str, float],
+    current: Mapping[str, float],
+) -> float:
+    return max(0.0, _crypto_share(outer) - _crypto_share(current))
+
+
+def _positive_crypto_delta_by_outer_asset(
+    *,
+    outer: Mapping[str, float],
+    current: Mapping[str, float],
+    crypto_delta: float,
+) -> dict[str, float]:
+    positive_deltas = {
+        asset: max(0.0, float(outer.get(asset, 0.0)) - float(current.get(asset, 0.0)))
+        for asset in ("btc", "eth")
+    }
+    positive_total = sum(positive_deltas.values())
+    if positive_total <= _COMPOSITION_EPSILON:
+        return {}
+    scale = min(1.0, max(0.0, crypto_delta) / positive_total)
+    return {
+        asset: amount * scale
+        for asset, amount in positive_deltas.items()
+        if amount * scale > _COMPOSITION_EPSILON
+    }
+
+
+def _trigger_crypto_delta_asset(intent: AllocationIntent) -> str | None:
+    if intent.action != "buy" or intent.target_allocation is None:
+        return None
+    diagnostics = intent.diagnostics or {}
+    action_unit = diagnostics.get("outer_dma_action_unit") or diagnostics.get(
+        "outer_dma_asset"
+    )
+    action_units = diagnostics.get("outer_dma_assets")
+    if action_unit != SPY_CRYPTO_TEMPLATE.right_unit.symbol and (
+        not isinstance(action_units, list)
+        or SPY_CRYPTO_TEMPLATE.right_unit.symbol not in action_units
+    ):
+        return None
+    if intent.rule_group == "cross":
+        asset_key = _crypto_asset_key(diagnostics.get("cross_up_asset"))
+        if asset_key is not None:
+            return asset_key
+        cross_up_assets = diagnostics.get("cross_up_assets")
+        if isinstance(cross_up_assets, list):
+            for asset in cross_up_assets:
+                asset_key = _crypto_asset_key(asset)
+                if asset_key is not None:
+                    return asset_key
+        return _crypto_asset_key(diagnostics.get("outer_dma_reference_asset"))
+    if "below_extreme_fear_buy" in intent.reason:
+        return _crypto_asset_key(diagnostics.get("outer_dma_reference_asset"))
+    return None
+
+
+def _crypto_asset_key(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.lower()
+    return normalized if normalized in {"btc", "eth"} else None
+
+
+def _crypto_share(allocation: Mapping[str, float]) -> float:
+    return max(0.0, float(allocation.get("btc", 0.0))) + max(
+        0.0,
+        float(allocation.get("eth", 0.0)),
+    )
+
+
+def _normalize_composed_target(
+    *,
+    target: Mapping[str, float],
+    spy_latch_active: bool,
+    pre_existing_stable_share: float,
+) -> dict[str, float]:
+    normalized = normalize_target_allocation(target)
+    if not spy_latch_active:
+        return normalized
+    return _apply_spy_latch_to_target(
+        target_allocation=normalized,
+        pre_existing_stable_share=pre_existing_stable_share,
+    )
 
 
 def _apply_spy_latch_to_target(
@@ -1304,7 +1629,10 @@ __all__ = [
     "HierarchicalPairRotationParams",
     "HierarchicalPairRotationSignalComponent",
     "HierarchicalPairRotationState",
+    "HierarchicalTargetComposer",
     "HierarchicalSpyCryptoRotationStrategy",
     "SPY_CRYPTO_TEMPLATE",
+    "_compose_structural",
+    "_compose_surgical",
     "default_hierarchical_pair_rotation_params",
 ]

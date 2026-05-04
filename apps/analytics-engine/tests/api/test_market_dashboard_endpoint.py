@@ -48,6 +48,10 @@ def _build_dashboard_response(
                         value=95000.0,
                         indicators={"dma_200": Indicator(value=85000.0, is_above=True)},
                     ),
+                    "eth": SeriesPoint(
+                        value=3100.0,
+                        indicators={"dma_200": Indicator(value=2900.0, is_above=True)},
+                    ),
                     "spy": SeriesPoint(
                         value=600.0,
                         indicators={"dma_200": Indicator(value=580.0, is_above=True)},
@@ -67,6 +71,13 @@ def _build_dashboard_response(
             label="BTC",
             frequency=SeriesFrequency.daily,
             color_hint="#FFFFFF",
+        ),
+        "eth": SeriesDescriptor(
+            kind=SeriesKind.asset,
+            unit="usd",
+            label="ETH",
+            frequency=SeriesFrequency.daily,
+            color_hint="#627EEA",
         ),
         "spy": SeriesDescriptor(
             kind=SeriesKind.asset,
@@ -201,7 +212,7 @@ class TestMarketDashboardResponseStructure:
             assert response.status_code == 200
             series = response.json()["series"]
 
-            for sid in ("btc", "spy", "eth_btc", "fgi"):
+            for sid in ("btc", "eth", "spy", "eth_btc", "fgi"):
                 assert sid in series
                 assert "kind" in series[sid]
                 assert "unit" in series[sid]
