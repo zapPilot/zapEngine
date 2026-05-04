@@ -1,4 +1,4 @@
-"""Portfolio rule 2: DCA buy below-DMA assets during extreme fear."""
+"""Portfolio rule 2: DCA buy assets during extreme fear regardless of DMA zone."""
 
 from __future__ import annotations
 
@@ -22,9 +22,7 @@ class ExtremeFearDcaBuyRule:
     name: str = "extreme_fear_dca_buy"
     priority: int = 30
     rule_group: RuleGroup = "dma_fgi"
-    description: str = (
-        "DCA buy below-DMA assets when their relevant FGI is extreme fear."
-    )
+    description: str = "DCA buy assets when their relevant FGI is extreme fear."
 
     def matches(
         self,
@@ -70,8 +68,7 @@ def _matching_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
-        if snapshot.assets[symbol].zone == "below"
-        and current_fgi_regime_for_symbol(snapshot, symbol) == "extreme_fear"
+        if current_fgi_regime_for_symbol(snapshot, symbol) == "extreme_fear"
     ]
 
 

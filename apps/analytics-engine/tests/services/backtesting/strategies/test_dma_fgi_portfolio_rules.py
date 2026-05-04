@@ -192,3 +192,53 @@ def _flat_state(
         eth_dma_state=state(symbol="ETH"),
         current_asset_allocation=current,
     )
+
+
+def test_strategy_cooldown_cross_up_falls_through_to_extreme_fear_dca() -> None:
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
+        prices,
+    )
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    warmup_context = _context(
+        context_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
+    )
+    cross_down_context = _context(
+        context_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 110.0, "eth": 110.0, "spy": 110.0},
+    )
+    stable_portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+        prices,
+    )
+    extreme_fear_fgi: dict[str, object] = {"label": "extreme_fear", "value": 15}
+    extreme_fear_context = _context(
+        context_date=date(2025, 1, 3),
+        portfolio=stable_portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
+        sentiment=extreme_fear_fgi,
+        macro_fgi=extreme_fear_fgi,
+    )
+
+    strategy.initialize(portfolio, None, warmup_context)
+    strategy.warmup_day(warmup_context)
+    cross_down = strategy.on_day(cross_down_context)
+    extreme_fear_dca = strategy.on_day(extreme_fear_context)
+
+    assert cross_down.snapshot.decision.reason == "portfolio_cross_down_exit"
+    assert cross_down.snapshot.signal.dma is not None
+    assert cross_down.snapshot.signal.dma.cooldown_blocked_zone == "above"
+    assert extreme_fear_dca.snapshot.decision.reason == "portfolio_extreme_fear_dca_buy"
+    assert extreme_fear_dca.snapshot.decision.diagnostics is not None
+    assert (
+        "BTC" in extreme_fear_dca.snapshot.decision.diagnostics["portfolio_rule_assets"]
+    )

@@ -82,3 +82,50 @@ def test_extreme_fear_buy_caps_by_available_stable() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.50, "eth": 0.50, "spy": 0.0, "stable": 0.0, "alt": 0.0}
     )
+
+
+def test_extreme_fear_buy_includes_above_dma_assets() -> None:
+    rule = ExtremeFearDcaBuyRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                zone="above",
+                dma_distance=0.05,
+                fgi_regime="neutral",
+                macro_fear_greed_regime="extreme_fear",
+            ),
+            "BTC": state(symbol="BTC", zone="above", dma_distance=0.05),
+            "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+        macro_regime="extreme_fear",
+        crypto_regime="neutral",
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert intent.action == "buy"
+    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY"]}
+
+
+def test_extreme_fear_buy_excludes_non_extreme_fear_assets() -> None:
+    rule = ExtremeFearDcaBuyRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                zone="below",
+                dma_distance=-0.05,
+                macro_fear_greed_regime="neutral",
+            ),
+            "BTC": state(symbol="BTC", zone="below", dma_distance=-0.05),
+            "ETH": state(symbol="ETH", zone="above", dma_distance=0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+        macro_regime="neutral",
+        crypto_regime="neutral",
+    )
+
+    assert not rule.matches(rule_snapshot, config=PortfolioRuleConfig())
