@@ -59,6 +59,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
     disabled_rules: frozenset[str] = frozenset()
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
+    _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         invalid_rules = sorted(self.disabled_rules - RULE_NAMES)
@@ -68,11 +69,13 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
 
     def reset(self) -> None:
         self._previous_fgi_regime = {}
+        self._cycle_open_per_symbol = {}
 
     def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
         portfolio_snapshot = build_portfolio_snapshot(
             snapshot,
             previous_fgi_regime=self._previous_fgi_regime,
+            cycle_open_per_symbol=self._cycle_open_per_symbol,
         )
         intent = resolve_portfolio_rules_intent(
             portfolio_snapshot,
@@ -81,6 +84,10 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             disabled_rules=self.disabled_rules,
         )
         self._previous_fgi_regime = _current_fgi_regime_by_symbol(portfolio_snapshot)
+        self._cycle_open_per_symbol = _update_cycle_state(
+            self._cycle_open_per_symbol,
+            portfolio_snapshot,
+        )
         return intent
 
 
@@ -191,12 +198,14 @@ def build_portfolio_snapshot(
     snapshot: FlatMinimumState,
     *,
     previous_fgi_regime: Mapping[str, str],
+    cycle_open_per_symbol: Mapping[str, bool] | None = None,
 ) -> PortfolioSnapshot:
     assets = _assets_from_flat_state(snapshot)
     return PortfolioSnapshot(
         assets=assets,
         current_asset_allocation=snapshot.current_asset_allocation,
         previous_fgi_regime=dict(previous_fgi_regime),
+        cycle_open_per_symbol=dict(cycle_open_per_symbol or {}),
         macro_fgi_regime=_macro_regime(assets),
         crypto_fgi_regime=_crypto_regime(assets),
         macro_fgi_value=_macro_value(assets),
@@ -250,6 +259,20 @@ def _current_fgi_regime_by_symbol(snapshot: PortfolioSnapshot) -> dict[str, str]
         if regime is not None:
             regimes[symbol] = regime
     return regimes
+
+
+def _update_cycle_state(
+    previous: dict[str, bool],
+    snapshot: PortfolioSnapshot,
+) -> dict[str, bool]:
+    updated = dict(previous)
+    for symbol, state in snapshot.assets.items():
+        event = state.actionable_cross_event
+        if event == "cross_down":
+            updated[symbol] = True
+        elif event == "cross_up":
+            updated[symbol] = False
+    return updated
 
 
 def _macro_regime(assets: Mapping[str, DmaMarketState]) -> str | None:

@@ -181,6 +181,77 @@ def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> N
     )
 
 
+def test_extreme_fear_gated_by_cross_down_cycle() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
+
+    pre_cycle = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+    cross_down = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+    open_cycle_dca = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+    cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+    closed_cycle = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+
+    assert pre_cycle.reason == "regime_no_signal"
+    assert cross_down.reason == "portfolio_cross_down_exit"
+    assert open_cycle_dca.reason == "portfolio_extreme_fear_dca_buy"
+    assert cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert closed_cycle.reason == "regime_no_signal"
+
+
 def _flat_state(
     *,
     btc: DmaMarketState,

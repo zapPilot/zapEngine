@@ -58,6 +58,7 @@ def snapshot(
     previous: dict[str, str] | None = None,
     macro_regime: str | None = None,
     crypto_regime: str | None = None,
+    cycle_open: dict[str, bool] | None = None,
 ) -> PortfolioSnapshot:
     resolved_assets = assets or {
         "SPY": state(symbol="SPY"),
@@ -71,4 +72,5 @@ def snapshot(
         previous_fgi_regime=previous or {},
         macro_fgi_regime=macro_regime,
         crypto_fgi_regime=crypto_regime,
+        cycle_open_per_symbol=cycle_open or {},
     )

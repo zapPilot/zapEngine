@@ -56,6 +56,7 @@ class PortfolioSnapshot:
     crypto_fgi_regime: str | None = None
     macro_fgi_value: float | None = None
     crypto_fgi_value: float | None = None
+    cycle_open_per_symbol: Mapping[str, bool] = field(default_factory=dict)
 
 
 class PortfolioRule(Protocol):

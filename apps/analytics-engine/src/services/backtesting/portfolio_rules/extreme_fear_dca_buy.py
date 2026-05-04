@@ -69,6 +69,7 @@ def _matching_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if current_fgi_regime_for_symbol(snapshot, symbol) == "extreme_fear"
+        and snapshot.cycle_open_per_symbol.get(symbol, False)
     ]
 
 

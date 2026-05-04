@@ -26,6 +26,7 @@ def test_extreme_fear_buy_uses_macro_fgi_for_spy() -> None:
         current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
         macro_regime="extreme_fear",
         crypto_regime="neutral",
+        cycle_open={"SPY": True},
     )
 
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
@@ -55,6 +56,7 @@ def test_extreme_fear_buy_uses_crypto_fgi_for_btc_and_eth() -> None:
         current={"btc": 0.10, "eth": 0.20, "spy": 0.0, "stable": 0.70, "alt": 0.0},
         macro_regime="neutral",
         crypto_regime="extreme_fear",
+        cycle_open={"BTC": True, "ETH": True},
     )
 
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
@@ -75,6 +77,7 @@ def test_extreme_fear_buy_caps_by_available_stable() -> None:
         },
         current={"btc": 0.48, "eth": 0.48, "spy": 0.0, "stable": 0.04, "alt": 0.0},
         crypto_regime="extreme_fear",
+        cycle_open={"BTC": True, "ETH": True},
     )
 
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
@@ -101,6 +104,7 @@ def test_extreme_fear_buy_includes_above_dma_assets() -> None:
         current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
         macro_regime="extreme_fear",
         crypto_regime="neutral",
+        cycle_open={"SPY": True},
     )
 
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
@@ -126,6 +130,65 @@ def test_extreme_fear_buy_excludes_non_extreme_fear_assets() -> None:
         current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
         macro_regime="neutral",
         crypto_regime="neutral",
+        cycle_open={"BTC": True, "ETH": True, "SPY": True},
     )
 
     assert not rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+
+
+def test_extreme_fear_buy_blocked_when_cycle_closed() -> None:
+    rule = ExtremeFearDcaBuyRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(symbol="BTC", fgi_regime="extreme_fear"),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.10, "eth": 0.0, "spy": 0.0, "stable": 0.90, "alt": 0.0},
+        crypto_regime="extreme_fear",
+        cycle_open={"BTC": False},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False
+
+
+def test_extreme_fear_buy_fires_when_cycle_open() -> None:
+    rule = ExtremeFearDcaBuyRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(symbol="BTC", fgi_regime="extreme_fear"),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.10, "eth": 0.0, "spy": 0.0, "stable": 0.90, "alt": 0.0},
+        crypto_regime="extreme_fear",
+        cycle_open={"BTC": True},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is True
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+    assert (
+        intent.target_allocation["btc"]
+        > rule_snapshot.current_asset_allocation["btc"]
+    )
+
+
+def test_extreme_fear_buy_per_asset_gate() -> None:
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(symbol="BTC", fgi_regime="extreme_fear"),
+            "ETH": state(symbol="ETH", fgi_regime="extreme_fear"),
+        },
+        current={"btc": 0.10, "eth": 0.10, "spy": 0.0, "stable": 0.80, "alt": 0.0},
+        crypto_regime="extreme_fear",
+        cycle_open={"BTC": True, "ETH": False},
+    )
+
+    intent = ExtremeFearDcaBuyRule().build_intent(
+        rule_snapshot,
+        config=PortfolioRuleConfig(),
+    )
+    diagnostics_assets = intent.diagnostics["portfolio_rule_assets"]
+    assert "BTC" in diagnostics_assets
+    assert "ETH" not in diagnostics_assets
