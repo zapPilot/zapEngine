@@ -168,8 +168,7 @@ def test_extreme_fear_buy_fires_when_cycle_open() -> None:
     assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is True
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
     assert (
-        intent.target_allocation["btc"]
-        > rule_snapshot.current_asset_allocation["btc"]
+        intent.target_allocation["btc"] > rule_snapshot.current_asset_allocation["btc"]
     )
 
 

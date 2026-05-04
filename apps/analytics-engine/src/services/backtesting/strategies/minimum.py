@@ -787,9 +787,8 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
 
 def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
     allocation_name = intent.allocation_name
-    return (
-        isinstance(allocation_name, str)
-        and allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX)
+    return isinstance(allocation_name, str) and allocation_name.startswith(
+        _RATIO_ROTATION_ALLOCATION_PREFIX
     )
 
 
@@ -837,8 +836,7 @@ def _convert_ratio_to_diagnostics(
     distance = (
         None
         if ratio_state.ratio_dma_200 <= 0.0
-        else (ratio_state.ratio - ratio_state.ratio_dma_200)
-        / ratio_state.ratio_dma_200
+        else (ratio_state.ratio - ratio_state.ratio_dma_200) / ratio_state.ratio_dma_200
     )
     return RatioSignalDiagnostics(
         ratio=ratio_state.ratio,

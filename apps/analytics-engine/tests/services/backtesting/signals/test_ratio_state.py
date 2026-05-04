@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 from src.services.backtesting.signals.ratio_state import (
     EthBtcRatioState,
     classify_ratio_zone,
     detect_ratio_cross,
 )
-from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 
 
 def test_classify_zone_above() -> None:

@@ -19,9 +19,7 @@ class EthBtcRatioRotationRule:
     name: str = "eth_btc_ratio_rotation"
     priority: int = 15
     rule_group: RuleGroup = "cross"
-    description: str = (
-        "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
-    )
+    description: str = "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
 
     def matches(
         self,
@@ -31,7 +29,9 @@ class EthBtcRatioRotationRule:
     ) -> bool:
         del config
         ratio_state = snapshot.eth_btc_ratio_state
-        return ratio_state is not None and ratio_state.actionable_cross_event is not None
+        return (
+            ratio_state is not None and ratio_state.actionable_cross_event is not None
+        )
 
     def build_intent(
         self,
@@ -44,10 +44,7 @@ class EthBtcRatioRotationRule:
         target = current_target(snapshot)
         btc = float(target.get("btc", 0.0))
         eth = float(target.get("eth", 0.0))
-        if (
-            ratio_state is not None
-            and ratio_state.actionable_cross_event == "cross_up"
-        ):
+        if ratio_state is not None and ratio_state.actionable_cross_event == "cross_up":
             target["eth"] = eth + btc
             target["btc"] = 0.0
             allocation_name = "portfolio_eth_btc_ratio_rotation_to_eth"
