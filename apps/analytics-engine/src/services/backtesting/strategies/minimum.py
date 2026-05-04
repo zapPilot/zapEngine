@@ -141,6 +141,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         )
     )
     warmup_lookback_days: int = 14
+    cross_down_cooldown_days_by_symbol: Mapping[str, int] | None = None
     _spy_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _btc_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _eth_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
@@ -153,9 +154,9 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
     )
 
     def __post_init__(self) -> None:
-        self._spy_dma_signal = self._build_dma_signal()
-        self._btc_dma_signal = self._build_dma_signal()
-        self._eth_dma_signal = self._build_dma_signal()
+        self._spy_dma_signal = self._build_dma_signal("SPY")
+        self._btc_dma_signal = self._build_dma_signal("BTC")
+        self._eth_dma_signal = self._build_dma_signal("ETH")
 
     def reset(self) -> None:
         self._spy_dma_signal.reset()
@@ -289,15 +290,23 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             reset_buy_gate=intent.rule_group == "cross",
         )
 
-    def _build_dma_signal(self) -> DmaGatedFgiSignalComponent:
+    def _build_dma_signal(self, symbol: str) -> DmaGatedFgiSignalComponent:
         return DmaGatedFgiSignalComponent(
-            config=self.config,
+            config=self._config_for_symbol(symbol),
             market_data_requirements=MarketDataRequirements(
                 requires_sentiment=True,
                 required_price_features=frozenset({DMA_200_FEATURE}),
             ),
             warmup_lookback_days=self.warmup_lookback_days,
         )
+
+    def _config_for_symbol(self, symbol: str) -> DmaGatedFgiConfig:
+        if self.cross_down_cooldown_days_by_symbol is None:
+            return self.config
+        days = self.cross_down_cooldown_days_by_symbol.get(symbol)
+        if days is None:
+            return self.config
+        return replace(self.config, cross_cooldown_days=int(days))
 
     def _observe_ratio_state(
         self,

@@ -29,9 +29,11 @@ from src.services.backtesting.portfolio_rules import (
     RULE_NAMES,
 )
 from src.services.backtesting.portfolio_rules.base import (
+    PORTFOLIO_RULE_SYMBOLS,
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     current_target,
     symbols_for_snapshot,
@@ -127,12 +129,19 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             raise ValueError(f"Unsupported portfolio rule names: {joined}")
 
         self.params = resolved_params
+        self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
+            disabled_rules=self.disabled_rules
+        )
         self.signal_component = FlatMinimumSignalComponent(
             config=resolved_params.build_signal_config(),
             signal_id=self.signal_id,
-        )
-        self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
-            disabled_rules=self.disabled_rules
+            cross_down_cooldown_days_by_symbol={
+                symbol: cross_down_cooldown_days_for(
+                    symbol,
+                    config=self.decision_policy.config,
+                )
+                for symbol in PORTFOLIO_RULE_SYMBOLS
+            },
         )
         self.execution_engine = AllocationIntentExecutor(
             pacing_policy=resolved_params.build_pacing_policy(),

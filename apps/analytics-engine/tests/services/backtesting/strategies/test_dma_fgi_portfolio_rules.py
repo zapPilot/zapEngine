@@ -169,6 +169,46 @@ def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
     )
 
 
+def test_per_symbol_cross_down_cooldown_rearms_spy_before_btc() -> None:
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.40, "eth": 0.0, "spy": 0.40, "stable": 0.20},
+        prices,
+    )
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    warmup_context = _context(
+        context_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 110.0, "spy": 90.0},
+    )
+
+    strategy.initialize(portfolio, None, warmup_context)
+    strategy.warmup_day(warmup_context)
+    first_cross_down = _step_signal(strategy, _portfolio_rules_context(warmup_context, 1, 110.0))
+
+    for offset in range(2, 8):
+        _step_signal(strategy, _portfolio_rules_context(warmup_context, offset, 110.0))
+    _step_signal(strategy, _portfolio_rules_context(warmup_context, 8, 90.0))
+    _step_signal(strategy, _portfolio_rules_context(warmup_context, 9, 90.0))
+    second_cross_down = _step_signal(
+        strategy,
+        _portfolio_rules_context(warmup_context, 10, 110.0),
+    )
+
+    assert first_cross_down.spy_dma_state is not None
+    assert first_cross_down.btc_dma_state is not None
+    assert first_cross_down.spy_dma_state.actionable_cross_event == "cross_down"
+    assert first_cross_down.btc_dma_state.actionable_cross_event == "cross_down"
+    assert second_cross_down.spy_dma_state is not None
+    assert second_cross_down.btc_dma_state is not None
+    assert second_cross_down.spy_dma_state.cross_event == "cross_down"
+    assert second_cross_down.btc_dma_state.cross_event == "cross_down"
+    assert second_cross_down.spy_dma_state.actionable_cross_event == "cross_down"
+    assert second_cross_down.btc_dma_state.actionable_cross_event is None
+
+
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     first_snapshot = _flat_state(
@@ -416,6 +456,34 @@ def _flat_state(
         eth_dma_state=state(symbol="ETH"),
         current_asset_allocation=current,
     )
+
+
+def _portfolio_rules_context(
+    base_context: StrategyContext,
+    offset_days: int,
+    dma_value: float,
+) -> StrategyContext:
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    return _context(
+        context_date=base_context.date + timedelta(days=offset_days),
+        portfolio=base_context.portfolio,
+        prices=prices,
+        dma={"btc": dma_value, "eth": 110.0, "spy": dma_value},
+    )
+
+
+def _step_signal(
+    strategy: DmaFgiPortfolioRulesStrategy,
+    context: StrategyContext,
+) -> FlatMinimumState:
+    snapshot = strategy.signal_component.observe(context)
+    intent = strategy.decision_policy.decide(snapshot)
+    strategy.signal_component.apply_intent(
+        current_date=context.date,
+        snapshot=snapshot,
+        intent=intent,
+    )
+    return snapshot
 
 
 def test_strategy_cooldown_cross_up_falls_through_to_extreme_fear_dca() -> None:
