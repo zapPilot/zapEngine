@@ -26,6 +26,14 @@ import {
 
 type RegimeKey = keyof typeof REGIME_COLORS;
 
+function getBaseAssets(d: MarketDashboardPoint) {
+  return {
+    btc: d.values['btc'],
+    eth: d.values['eth'],
+    spy: d.values['spy'],
+  };
+}
+
 /**
  * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
  * self-describing snapshot whose `values` map keys series ids (`btc`, `eth`,
@@ -174,9 +182,7 @@ export function MarketOverviewChart({
     const sp500Values: number[] = [];
 
     for (const d of data) {
-      const btc = d.values['btc'];
-      const eth = d.values['eth'];
-      const spy = d.values['spy'];
+      const { btc, eth, spy } = getBaseAssets(d);
       if (btc?.value != null) btcValues.push(btc.value);
       const btcDma = btc?.indicators?.['dma_200']?.value;
       if (btcDma != null) btcValues.push(btcDma);
@@ -193,9 +199,7 @@ export function MarketOverviewChart({
     const sp500MinMax = getMinMax(sp500Values);
 
     return data.map((d) => {
-      const btc = d.values['btc'];
-      const eth = d.values['eth'];
-      const spy = d.values['spy'];
+      const { btc, eth, spy } = getBaseAssets(d);
       const ethBtc = d.values['eth_btc'];
       const fgi = d.values['fgi'];
       const macroFearGreed = d.values['macro_fear_greed'];
