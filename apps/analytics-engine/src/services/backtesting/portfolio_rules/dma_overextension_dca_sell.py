@@ -8,7 +8,7 @@ from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    add_stable,
+    add_split_proceeds,
     allocation_key_for_symbol,
     current_target,
     normalize_symbol,
@@ -46,7 +46,11 @@ class DmaOverextensionDcaSellRule:
             key = allocation_key_for_symbol(symbol)
             sold = min(sell_step, max(0.0, float(target.get(key, 0.0))))
             target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
-            add_stable(target, sold)
+            add_split_proceeds(
+                target,
+                sold,
+                spy_share=config.overextension_sell_spy_share,
+            )
         return portfolio_target_intent(
             action="sell",
             target=normalize_target_allocation(target),

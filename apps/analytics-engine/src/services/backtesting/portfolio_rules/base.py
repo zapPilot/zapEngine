@@ -37,6 +37,8 @@ class PortfolioRuleConfig:
     extreme_fear_buy_step: float = 0.05
     overextension_sell_step: float = 0.05
     fgi_downshift_sell_step: float = 0.05
+    ratio_cross_cooldown_days: int = 30
+    overextension_sell_spy_share: float = 0.5
     default_dma_overextension_threshold: float = 0.30
     dma_overextension_thresholds: dict[str, float] = field(
         default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
@@ -182,6 +184,21 @@ def add_stable(target: dict[str, float], amount: float) -> None:
     target["stable"] = max(0.0, float(target.get("stable", 0.0))) + amount
 
 
+def add_split_proceeds(
+    target: dict[str, float],
+    amount: float,
+    *,
+    spy_share: float = 0.5,
+) -> None:
+    """Split sell proceeds between SPY and stable."""
+    if amount <= _EPSILON:
+        return
+    spy_amount = amount * spy_share
+    stable_amount = amount - spy_amount
+    target["spy"] = max(0.0, float(target.get("spy", 0.0))) + spy_amount
+    target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
+
+
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
     "PORTFOLIO_RULE_SYMBOLS",
@@ -189,6 +206,7 @@ __all__ = [
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
+    "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",
     "current_fgi_regime_for_symbol",
