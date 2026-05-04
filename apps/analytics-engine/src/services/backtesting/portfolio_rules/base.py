@@ -39,7 +39,11 @@ class PortfolioRuleConfig:
     overextension_sell_step: float = 0.05
     fgi_downshift_sell_step: float = 0.05
     ratio_cross_cooldown_days: int = 30
+    default_cross_down_cooldown_days: int = 30
     overextension_sell_spy_share: float = 0.5
+    cross_down_cooldown_days_per_symbol: dict[str, int] = field(
+        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 7}
+    )
     default_dma_overextension_threshold: float = 0.30
     dma_overextension_thresholds: dict[str, float] = field(
         default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
@@ -108,6 +112,19 @@ def symbols_for_snapshot(snapshot: PortfolioSnapshot) -> list[str]:
 
 def current_target(snapshot: PortfolioSnapshot) -> dict[str, float]:
     return target_from_current_allocation(snapshot.current_asset_allocation)
+
+
+def cross_down_cooldown_days_for(
+    symbol: str,
+    *,
+    config: PortfolioRuleConfig,
+) -> int:
+    return int(
+        config.cross_down_cooldown_days_per_symbol.get(
+            normalize_symbol(symbol),
+            config.default_cross_down_cooldown_days,
+        )
+    )
 
 
 def normalize_regime(regime: str | None) -> str | None:
@@ -215,6 +232,7 @@ __all__ = [
     "current_fgi_regime_for_symbol",
     "current_fgi_value_for_symbol",
     "current_target",
+    "cross_down_cooldown_days_for",
     "normalize_regime",
     "normalize_symbol",
     "portfolio_target_intent",
