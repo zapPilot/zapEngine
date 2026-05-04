@@ -45,6 +45,22 @@ STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD = (
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED = (
     "dma_fgi_hierarchical_minimum_dma_disciplined"
 )
+STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT = (
+    "dma_fgi_portfolio_rules_minus_cross_down_exit"
+)
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT = (
+    "dma_fgi_portfolio_rules_minus_cross_up_eq_weight"
+)
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY = (
+    "dma_fgi_portfolio_rules_minus_extreme_fear_buy"
+)
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL = (
+    "dma_fgi_portfolio_rules_minus_overextension_sell"
+)
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL = (
+    "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+)
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
@@ -81,6 +97,22 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED: (
         "[RESEARCH] Hierarchical Minimum - DMA Disciplined"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: (
+        "[RESEARCH] Portfolio Rules - Cross-Down Exit"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT: (
+        "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY: (
+        "[RESEARCH] Portfolio Rules - Extreme-Fear Buy"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL: (
+        "[RESEARCH] Portfolio Rules - Overextension Sell"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL: (
+        "[RESEARCH] Portfolio Rules - FGI Downshift Sell"
     ),
 }
 

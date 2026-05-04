@@ -7,6 +7,13 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-04 — Flat portfolio-rule engine
+- **Commit**: this commit (`dma_fgi_portfolio_rules` research baseline + attribution variants)
+- **Finding**: Added a portfolio-level rule layer parallel to asset-local tactics. The canonical strategy evaluates the five flat rules first-match-wins: cross-down exits, cross-up equal-weight, extreme-fear DCA buy, DMA-overextension DCA sell, and FGI-downshift DCA sell. Each rule has its own file and a leave-one-out strategy id for snapshot attribution.
+- **Result**: `dma_fgi_portfolio_rules` ROI = 9.37%, Calmar 0.29, MaxDD -22.83%, 102 trades.
+- **Attribution sanity**: leave-one-out ROI deltas vs canonical are cross-down exit -0.70pp, cross-up equal-weight -0.51pp, extreme-fear buy -0.39pp, overextension sell +1.91pp, and FGI-downshift sell -0.05pp. The v1 goal is traceability, not beating `dma_fgi_hierarchical_minimum`.
+- **Comparison**: vs `dma_fgi_hierarchical_minimum` (121.30% ROI), -111.93pp ROI; vs `dma_fgi_eth_btc_minimum` (145.28% ROI), -135.91pp ROI.
+
 ### 2026-05-04 — SPY macro extreme fear + persistent SPY latch
 - **Commit**: this commit (`dma_fgi_hierarchical_minimum` production behavior re-anchor)
 - **Finding**: Added fixture-backed crypto extreme-fear DCA dates, introduced a SPY-side macro extreme-fear DCA rule using CNN macro F&G plus SPY DMA, and promoted the SPY latch from same-tick-only behavior to persistent fresh-stable absorption while the latch remains active. The 500-day minimum baseline stays inside the ROI noise band while improving risk-adjusted metrics, so the snapshot was re-anchored.

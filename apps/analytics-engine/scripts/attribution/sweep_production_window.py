@@ -27,6 +27,9 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
 )
+from src.services.backtesting.strategies.portfolio_rules_attribution import (
+    PORTFOLIO_RULES_ATTRIBUTION_VARIANTS,
+)
 from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 APP_ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +100,7 @@ def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]
     for strategy_id in (
         *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
         *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
+        *PORTFOLIO_RULES_ATTRIBUTION_VARIANTS.keys(),
         STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
         STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
         STRATEGY_DMA_FGI_FLAT_MINIMUM,

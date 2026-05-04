@@ -108,6 +108,54 @@
       "roi_percent": 44.7907,
       "trade_count": 76
     },
+    "dma_fgi_portfolio_rules": {
+      "display_name": "[RESEARCH] Portfolio Rules",
+      "calmar_ratio": 0.2947,
+      "sharpe_ratio": 0.4,
+      "max_drawdown_percent": -22.8337,
+      "roi_percent": 9.3701,
+      "trade_count": 102
+    },
+    "dma_fgi_portfolio_rules_minus_cross_down_exit": {
+      "display_name": "[RESEARCH] Portfolio Rules - Cross-Down Exit",
+      "calmar_ratio": 0.2086,
+      "sharpe_ratio": 0.3779,
+      "max_drawdown_percent": -34.6493,
+      "roi_percent": 10.0713,
+      "trade_count": 81
+    },
+    "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
+      "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
+      "calmar_ratio": 1.0013,
+      "sharpe_ratio": 1.0975,
+      "max_drawdown_percent": -7.0833,
+      "roi_percent": 9.8817,
+      "trade_count": 70
+    },
+    "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
+      "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
+      "calmar_ratio": 0.3073,
+      "sharpe_ratio": 0.4117,
+      "max_drawdown_percent": -22.8108,
+      "roi_percent": 9.7642,
+      "trade_count": 98
+    },
+    "dma_fgi_portfolio_rules_minus_overextension_sell": {
+      "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
+      "calmar_ratio": 0.2289,
+      "sharpe_ratio": 0.3396,
+      "max_drawdown_percent": -23.4174,
+      "roi_percent": 7.457,
+      "trade_count": 64
+    },
+    "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
+      "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
+      "calmar_ratio": 0.2951,
+      "sharpe_ratio": 0.4006,
+      "max_drawdown_percent": -22.911,
+      "roi_percent": 9.4165,
+      "trade_count": 98
+    },
     "dma_fgi_adaptive_binary_eth_btc": {
       "display_name": "126% DMA FGI Adaptive Binary ETH/BTC",
       "calmar_ratio": 4.6689,

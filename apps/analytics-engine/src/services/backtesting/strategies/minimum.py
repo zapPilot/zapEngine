@@ -638,10 +638,11 @@ def _asset_dma_allocation_name(
 
 def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
-    assets = diagnostics.get("flat_dma_assets")
-    if not isinstance(assets, list):
-        return frozenset()
-    return frozenset(asset for asset in assets if isinstance(asset, str))
+    for key in ("flat_dma_assets", "portfolio_rule_assets"):
+        assets = diagnostics.get(key)
+        if isinstance(assets, list):
+            return frozenset(asset for asset in assets if isinstance(asset, str))
+    return frozenset()
 
 
 def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
