@@ -161,13 +161,14 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             "active_features": [
                 "portfolio_level_rules",
                 "cross_down_asset_exit",
+                "eth_btc_ratio_rotation",
                 "cross_up_equal_weight",
                 "extreme_fear_dca_buy",
                 "dma_overextension_dca_sell",
                 "fgi_downshift_dca_sell",
             ],
             "hierarchical_layers": False,
-            "ratio_rotation": False,
+            "ratio_rotation": True,
             "research_only": True,
         }
 
@@ -206,6 +207,7 @@ def build_portfolio_snapshot(
         current_asset_allocation=snapshot.current_asset_allocation,
         previous_fgi_regime=dict(previous_fgi_regime),
         cycle_open_per_symbol=dict(cycle_open_per_symbol or {}),
+        eth_btc_ratio_state=snapshot.eth_btc_ratio_state,
         macro_fgi_regime=_macro_regime(assets),
         crypto_fgi_regime=_crypto_regime(assets),
         macro_fgi_value=_macro_value(assets),
