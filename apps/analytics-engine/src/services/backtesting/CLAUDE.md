@@ -41,7 +41,7 @@ Source files:
 | `dma_fgi_eth_btc_minimum` | 145.28% | Research only — no SPY, 2-asset |
 | `dma_fgi_adaptive_binary_eth_btc` | 141.21% | Production champion (no SPY) |
 | `dma_fgi_hierarchical_full_minus_adaptive_dma` | 110.88% | Attribution reference |
-| `dma_fgi_portfolio_rules` | 9.37% | Research only — flat portfolio-level rules |
+| `dma_fgi_portfolio_rules` | 37.03% | Research only — flat portfolio-level rules |
 | `dma_gated_fgi` | 25.75% | Basic DMA-gated FGI baseline |
 | `dca_classic` | -14.36% | Negative baseline |
 
@@ -50,9 +50,11 @@ Source files:
 `dma_fgi_portfolio_rules` is the canonical flat rule-engine baseline. It keeps
 the five user-facing rules in `portfolio_rules/` as portfolio-snapshot rules,
 uses first-match-wins priority, and registers five leave-one-out variants in
-`PORTFOLIO_RULES_ATTRIBUTION_VARIANTS`. The 500-day fixture baseline is 9.37%
-ROI, 0.29 Calmar, -22.83% MaxDD, and 102 trades. It is a traceability baseline,
-not a performance target; compare rule attribution against the canonical entry.
+`PORTFOLIO_RULES_ATTRIBUTION_VARIANTS`. Cross-down cooldown is per symbol:
+BTC/ETH use 30 days, while SPY uses 7 days to avoid over-blackouting shallow
+equity breakdowns. The 500-day fixture baseline is 37.03% ROI, 1.18 Calmar,
+-21.85% MaxDD, and 78 trades. It is a traceability baseline, not a performance
+target; compare rule attribution against the canonical entry.
 
 ## What works (do not regress)
 

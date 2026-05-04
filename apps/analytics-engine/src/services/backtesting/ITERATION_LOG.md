@@ -7,6 +7,12 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-04 — Per-symbol portfolio cross-down cooldown
+- **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs commit.
+- **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines: BTC 30d, ETH 30d, SPY 7d, with `PortfolioRuleConfig.default_cross_down_cooldown_days` as fallback. This keeps crypto majors on the longer whipsaw guard while allowing SPY to re-arm sooner after shallow breakdowns.
+- **Snapshot delta vs prior cooldown-gated `dma_fgi_portfolio_rules` baseline**: ROI 29.73% → 37.03% (+7.30pp), Calmar 1.33 → 1.18 (-0.15), Sharpe 0.99 → 0.91 (-0.08), MaxDD -15.73% → -21.85% (-6.12pp), trades 82 → 78 (-4).
+- **Regression pins**: unit coverage locks the cooldown lookup defaults and custom fallback; strategy coverage verifies SPY can emit a second actionable cross-down while BTC remains cooldown-blocked. A synthetic 2025-07-15 ETH/BTC ratio cross-up test pins the complete BTC→ETH rotation behavior. The 500-day snapshot fixture is summary-only today, so a fixture-level per-day `matched_rule_name`/pre-target/post-target assertion was not added in this scope.
+
 ### 2026-05-04 — Portfolio cross-down cooldown gating
 - **Commit**: pending local change on `57be82e` (`dma_fgi_portfolio_rules` cross-down cooldown)
 - **Finding**: Portfolio cross rules now consume `actionable_cross_event`, and the DMA signal engine now suppresses actionable crosses whose target zone is still cooldown-blocked. This makes the existing 30-day cross cooldown effective for `dma_fgi_portfolio_rules`: after a cross-down commits, raw cross-up observations can still appear, but they are not actionable until the blocked-side cooldown has cleared.

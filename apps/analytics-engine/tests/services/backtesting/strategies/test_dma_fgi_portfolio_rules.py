@@ -190,7 +190,9 @@ def test_per_symbol_cross_down_cooldown_rearms_spy_before_btc() -> None:
 
     strategy.initialize(portfolio, None, warmup_context)
     strategy.warmup_day(warmup_context)
-    first_cross_down = _step_signal(strategy, _portfolio_rules_context(warmup_context, 1, 110.0))
+    first_cross_down = _step_signal(
+        strategy, _portfolio_rules_context(warmup_context, 1, 110.0)
+    )
 
     for offset in range(2, 8):
         _step_signal(strategy, _portfolio_rules_context(warmup_context, offset, 110.0))
