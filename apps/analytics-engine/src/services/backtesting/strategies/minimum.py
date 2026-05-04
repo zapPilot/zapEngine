@@ -19,7 +19,11 @@ from src.services.backtesting.decision import (
     AllocationIntent,
     RuleGroup,
 )
-from src.services.backtesting.domain import DmaSignalDiagnostics, SignalObservation
+from src.services.backtesting.domain import (
+    DmaSignalDiagnostics,
+    RatioSignalDiagnostics,
+    SignalObservation,
+)
 from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
 )
@@ -28,13 +32,25 @@ from src.services.backtesting.execution.pacing.base import compute_dma_buy_stren
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     DMA_ASSET_FEATURE,
+    ETH_BTC_RATIO_DMA_200_FEATURE,
+    ETH_BTC_RATIO_FEATURE,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
-from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.dma_gated_fgi.types import (
+    BlockedZone,
+    DmaCooldownState,
+    DmaMarketState,
+    Zone,
+)
+from src.services.backtesting.signals.ratio_state import (
+    EthBtcRatioState,
+    classify_ratio_zone,
+    detect_ratio_cross,
+)
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
@@ -51,6 +67,7 @@ FLAT_MINIMUM_SIGNAL_ID = "dma_fgi_flat_minimum_signal"
 _MINIMUM_DISABLED_RULES = frozenset({"above_greed_sell", "below_fear_recovering_buy"})
 _DMA_SELL_RULE_GROUPS: frozenset[RuleGroup] = frozenset({"cross", "dma_fgi", "ath"})
 _DMA_BUY_RULE_GROUPS: frozenset[RuleGroup] = frozenset({"cross", "dma_fgi"})
+_RATIO_ROTATION_ALLOCATION_PREFIX = "portfolio_eth_btc_ratio_rotation_"
 _EPSILON = 1e-9
 
 
@@ -90,6 +107,7 @@ class FlatMinimumState:
     btc_dma_state: DmaMarketState | None
     eth_dma_state: DmaMarketState | None
     current_asset_allocation: dict[str, float]
+    eth_btc_ratio_state: EthBtcRatioState | None = None
 
     def dma_state_for(self, allocation_key: str) -> DmaMarketState | None:
         if allocation_key == "spy":
@@ -106,12 +124,19 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
     """Three independent DMA signals for the flat minimum baseline."""
 
     config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
+    ratio_cross_cooldown_days: int = 30
     signal_id: str = FLAT_MINIMUM_SIGNAL_ID
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
             requires_sentiment=True,
             required_price_features=frozenset(
-                {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+                {
+                    DMA_200_FEATURE,
+                    ETH_BTC_RATIO_DMA_200_FEATURE,
+                    ETH_BTC_RATIO_FEATURE,
+                    ETH_DMA_200_FEATURE,
+                    SPY_DMA_200_FEATURE,
+                }
             ),
         )
     )
@@ -119,6 +144,13 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
     _spy_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _btc_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
     _eth_dma_signal: DmaGatedFgiSignalComponent = field(init=False, repr=False)
+    _last_ratio_zone: Zone | None = field(default=None, init=False, repr=False)
+    _ratio_cooldown_remaining: int = field(default=0, init=False, repr=False)
+    _ratio_cooldown_blocked_zone: BlockedZone | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         self._spy_dma_signal = self._build_dma_signal()
@@ -129,28 +161,37 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         self._spy_dma_signal.reset()
         self._btc_dma_signal.reset()
         self._eth_dma_signal.reset()
+        self._last_ratio_zone = None
+        self._ratio_cooldown_remaining = 0
+        self._ratio_cooldown_blocked_zone = None
 
     def initialize(self, context: StrategyContext) -> None:
         for spec in _ASSET_SPECS:
             asset_context = _build_asset_dma_context(context, spec)
             if asset_context is not None:
                 self._signal_for(spec.allocation_key).initialize(asset_context)
+        self._last_ratio_zone = _ratio_zone_from_context(context)
 
     def warmup(self, context: StrategyContext) -> None:
         for spec in _ASSET_SPECS:
             asset_context = _build_asset_dma_context(context, spec)
             if asset_context is not None:
                 self._signal_for(spec.allocation_key).warmup(asset_context)
+        self._last_ratio_zone = _ratio_zone_from_context(context)
 
     def observe(self, context: StrategyContext) -> FlatMinimumState:
-        return FlatMinimumState(
+        ratio_state = self._observe_ratio_state(context)
+        snapshot = FlatMinimumState(
             spy_dma_state=self._observe_asset(context, _ASSET_SPECS[0]),
             btc_dma_state=self._observe_asset(context, _ASSET_SPECS[1]),
             eth_dma_state=self._observe_asset(context, _ASSET_SPECS[2]),
             current_asset_allocation=target_from_current_allocation(
                 context.portfolio.asset_allocation_percentages(context.portfolio_price)
             ),
+            eth_btc_ratio_state=ratio_state,
         )
+        self._decrement_ratio_cooldown()
+        return snapshot
 
     def apply_intent(
         self,
@@ -178,12 +219,25 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                 snapshot=state,
                 intent=commit_intent,
             )
-        return replace(
+        ratio_state = snapshot.eth_btc_ratio_state
+        if ratio_state is not None:
+            self._last_ratio_zone = ratio_state.zone
+        updated_snapshot = replace(
             snapshot,
             spy_dma_state=committed["spy"],
             btc_dma_state=committed["btc"],
             eth_dma_state=committed["eth"],
         )
+        if _is_ratio_rotation_intent(intent) and ratio_state is not None:
+            self._start_ratio_cooldown(ratio_state.cross_event)
+            updated_snapshot = replace(
+                updated_snapshot,
+                eth_btc_ratio_state=replace(
+                    ratio_state,
+                    cooldown_state=self._ratio_cooldown_state(),
+                ),
+            )
+        return updated_snapshot
 
     def build_signal_observation(
         self,
@@ -201,6 +255,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             ath_event=None if selected_state is None else selected_state.ath_event,
             dma=_convert_dma_to_diagnostics(selected_state, selected[0]),
             spy_dma=_convert_dma_to_diagnostics(snapshot.spy_dma_state, "SPY"),
+            ratio=_convert_ratio_to_diagnostics(snapshot.eth_btc_ratio_state),
         )
 
     def build_execution_hints(
@@ -242,6 +297,57 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                 required_price_features=frozenset({DMA_200_FEATURE}),
             ),
             warmup_lookback_days=self.warmup_lookback_days,
+        )
+
+    def _observe_ratio_state(
+        self,
+        context: StrategyContext,
+    ) -> EthBtcRatioState | None:
+        ratio, ratio_dma_200 = _ratio_values_from_context(context)
+        ratio_zone = classify_ratio_zone(ratio=ratio, ratio_dma=ratio_dma_200)
+        if ratio is None or ratio_dma_200 is None or ratio_zone is None:
+            return None
+        cross_event = detect_ratio_cross(
+            prev_zone=self._last_ratio_zone,
+            current_zone=ratio_zone,
+            cross_on_touch=self.config.cross_on_touch,
+        )
+        cooldown_state = self._ratio_cooldown_state()
+        return EthBtcRatioState(
+            ratio=ratio,
+            ratio_dma_200=ratio_dma_200,
+            zone=ratio_zone,
+            cross_event=cross_event,
+            actionable_cross_event=None if cooldown_state.active else cross_event,
+            cooldown_state=cooldown_state,
+        )
+
+    def _ratio_cooldown_state(self) -> DmaCooldownState:
+        active = (
+            self._ratio_cooldown_remaining > 0
+            and self._ratio_cooldown_blocked_zone is not None
+        )
+        return DmaCooldownState(
+            active=active,
+            remaining_days=self._ratio_cooldown_remaining if active else 0,
+            blocked_zone=self._ratio_cooldown_blocked_zone if active else None,
+        )
+
+    def _decrement_ratio_cooldown(self) -> None:
+        if self._ratio_cooldown_remaining <= 0:
+            self._ratio_cooldown_remaining = 0
+            self._ratio_cooldown_blocked_zone = None
+            return
+        self._ratio_cooldown_remaining -= 1
+        if self._ratio_cooldown_remaining <= 0:
+            self._ratio_cooldown_blocked_zone = None
+
+    def _start_ratio_cooldown(self, cross_event: str | None) -> None:
+        if cross_event is None:
+            return
+        self._ratio_cooldown_remaining = max(0, int(self.ratio_cross_cooldown_days))
+        self._ratio_cooldown_blocked_zone = (
+            "above" if cross_event == "cross_up" else "below"
         )
 
     def _signal_for(self, allocation_key: str) -> DmaGatedFgiSignalComponent:
@@ -478,6 +584,28 @@ def _price_above_dma(
     )
 
 
+def _ratio_values_from_context(
+    context: StrategyContext,
+) -> tuple[float | None, float | None]:
+    return (
+        _coerce_optional_float(context.extra_data.get(ETH_BTC_RATIO_FEATURE)),
+        _coerce_optional_float(context.extra_data.get(ETH_BTC_RATIO_DMA_200_FEATURE)),
+    )
+
+
+def _ratio_zone_from_context(context: StrategyContext) -> Zone | None:
+    ratio, ratio_dma_200 = _ratio_values_from_context(context)
+    return classify_ratio_zone(ratio=ratio, ratio_dma=ratio_dma_200)
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
 def _resolve_asset_dma_intents(
     *,
     snapshot: FlatMinimumState,
@@ -657,6 +785,14 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
     )
 
 
+def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
+    allocation_name = intent.allocation_name
+    return (
+        isinstance(allocation_name, str)
+        and allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX)
+    )
+
+
 def _select_observation_state(
     snapshot: FlatMinimumState,
     intent: AllocationIntent,
@@ -690,6 +826,29 @@ def _convert_dma_to_diagnostics(
         outer_dma_asset=symbol,
         outer_dma_action_unit=symbol,
         outer_dma_reference_asset=symbol,
+    )
+
+
+def _convert_ratio_to_diagnostics(
+    ratio_state: EthBtcRatioState | None,
+) -> RatioSignalDiagnostics | None:
+    if ratio_state is None:
+        return None
+    distance = (
+        None
+        if ratio_state.ratio_dma_200 <= 0.0
+        else (ratio_state.ratio - ratio_state.ratio_dma_200)
+        / ratio_state.ratio_dma_200
+    )
+    return RatioSignalDiagnostics(
+        ratio=ratio_state.ratio,
+        ratio_dma_200=ratio_state.ratio_dma_200,
+        distance=distance,
+        zone=ratio_state.zone,
+        cross_event=ratio_state.cross_event,
+        cooldown_active=ratio_state.cooldown_state.active,
+        cooldown_remaining_days=ratio_state.cooldown_state.remaining_days,
+        cooldown_blocked_zone=ratio_state.cooldown_state.blocked_zone,
     )
 
 
