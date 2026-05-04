@@ -64,6 +64,80 @@
       }
     ]
   },
+  "2025-03-11": {
+    "events": [
+      {
+        "id": "extreme_fear_dca_2025_03_11",
+        "event_type": "extreme_fear_below_crypto_dma",
+        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+        "assertions": [
+          {
+            "type": "target_crypto_increased_from_previous"
+          },
+          {
+            "type": "target_stable_decreased_from_previous"
+          }
+        ],
+        "rationale": "SQL-resolved replacement for 2025-03-09, which is fear rather than extreme_fear in the current sentiment feed."
+      }
+    ]
+  },
+  "2025-03-13": {
+    "events": [
+      {
+        "id": "spy_extreme_fear_dca_2025_03_13",
+        "event_type": "extreme_fear_below_spy_dma",
+        "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
+        "assertions": [
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "spy"
+          },
+          {
+            "type": "target_stable_decreased_from_previous"
+          }
+        ],
+        "rationale": "SQL-resolved replacement for 2025-03-03, where SPY is still above DMA."
+      }
+    ]
+  },
+  "2025-04-07": {
+    "events": [
+      {
+        "id": "extreme_fear_dca_2025_04_07",
+        "event_type": "extreme_fear_below_crypto_dma",
+        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+        "assertions": [
+          {
+            "type": "target_crypto_increased_from_previous"
+          },
+          {
+            "type": "target_stable_decreased_from_previous"
+          }
+        ],
+        "rationale": "Shared below_extreme_fear_buy rule remains active across validation strategies."
+      }
+    ]
+  },
+  "2025-04-08": {
+    "events": [
+      {
+        "id": "spy_extreme_fear_dca_2025_04_08",
+        "event_type": "extreme_fear_below_spy_dma",
+        "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
+        "assertions": [
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "spy"
+          },
+          {
+            "type": "target_stable_decreased_from_previous"
+          }
+        ],
+        "rationale": "SPY below_extreme_fear_buy rule should fire on SPY-bearing hierarchical strategies."
+      }
+    ]
+  },
   "2025-04-22": {
     "events": [
       {
@@ -108,6 +182,32 @@
           }
         ],
         "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
+      }
+    ]
+  },
+  "2025-05-24": {
+    "events": [
+      {
+        "id": "spy_latch_absorbs_crypto_sale_2025_05_24",
+        "event_type": "crypto_dma_fgi_sell",
+        "description": "A crypto DMA/FGI sell generates stable; persistent SPY latch still active from 2025-05-12 cross_up should redirect that fresh stable into SPY.",
+        "assertions": [
+          {
+            "type": "target_asset_equals",
+            "asset": "btc",
+            "value": 0
+          },
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "spy"
+          },
+          {
+            "type": "decision_detail_equals",
+            "key": "spy_latch_active",
+            "value": true
+          }
+        ],
+        "rationale": "Persistent SPY latch absorbs freshly-created stable from a crypto risk-off sell while the latch is still active."
       }
     ]
   },

@@ -354,6 +354,7 @@ def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
         warmup_lookback_days=14,
         market_data_requirements=MarketDataRequirements(
             requires_sentiment=True,
+            requires_macro_fear_greed=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset(
                 {
@@ -415,6 +416,7 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
         warmup_lookback_days=14,
         market_data_requirements=MarketDataRequirements(
             requires_sentiment=True,
+            requires_macro_fear_greed=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset(
                 {
@@ -573,6 +575,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         warmup_lookback_days=14,
         market_data_requirements=MarketDataRequirements(
             requires_sentiment=True,
+            requires_macro_fear_greed=True,
             required_price_features=frozenset({DMA_200_FEATURE}),
             required_aux_series=frozenset(
                 {

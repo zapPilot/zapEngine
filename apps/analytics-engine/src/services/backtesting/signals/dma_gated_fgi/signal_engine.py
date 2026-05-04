@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
-from typing import cast
+from typing import Any, cast
 
 from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.features import (
+    DMA_ASSET_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
+)
 from src.services.backtesting.signals.contracts import SignalContext
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.constants import VALID_ATH_EVENTS
@@ -90,7 +95,18 @@ class DmaSignalEngine:
         context: SignalContext,
         *,
         require_dma: bool,
-    ) -> tuple[float | None, float | None, str, RegimeSource, AthEvent | None, float]:
+    ) -> tuple[
+        float | None,
+        float | None,
+        str,
+        RegimeSource,
+        AthEvent | None,
+        float,
+        str | None,
+        float | None,
+        str | None,
+        RegimeSource | None,
+    ]:
         dma_200 = context.features.indicators.dma_200
         if dma_200 is None:
             dma_200 = extract_non_negative_numeric(context.extra_data, "dma_200")
@@ -105,13 +121,52 @@ class DmaSignalEngine:
         )
         ath_event = _normalize_ath_event(context.ath_event)
         fgi_slope = self._update_fgi_slope(fgi_value)
-        return dma_200, fgi_value, regime, regime_source, ath_event, fgi_slope
+        macro_value, macro_regime, macro_regime_source = (
+            self._extract_macro_fear_greed(context.extra_data)
+        )
+        return (
+            dma_200,
+            fgi_value,
+            regime,
+            regime_source,
+            ath_event,
+            fgi_slope,
+            _normalize_asset_symbol(context.extra_data.get(DMA_ASSET_FEATURE)),
+            macro_value,
+            macro_regime,
+            macro_regime_source,
+        )
+
+    def _extract_macro_fear_greed(
+        self,
+        extra_data: Mapping[str, Any],
+    ) -> tuple[float | None, str | None, RegimeSource | None]:
+        raw_macro = extra_data.get(MACRO_FEAR_GREED_FEATURE)
+        if not isinstance(raw_macro, Mapping):
+            return None, None, None
+        sentiment = dict(raw_macro)
+        if "value" not in sentiment and "score" in sentiment:
+            sentiment["value"] = sentiment["score"]
+        value = extract_fgi_value(sentiment)
+        regime, regime_source = (
+            self._regime_classifier.classify_from_sentiment_with_source(sentiment)
+        )
+        return value, regime, regime_source
 
     def warmup(self, context: SignalContext) -> None:
         """Warm runtime state without emitting a decision."""
-        dma_200, _fgi_value, _regime, _regime_source, _ath_event, _fgi_slope = (
-            self._extract_state_inputs(context, require_dma=False)
-        )
+        (
+            dma_200,
+            _fgi_value,
+            _regime,
+            _regime_source,
+            _ath_event,
+            _fgi_slope,
+            _asset_symbol,
+            _macro_value,
+            _macro_regime,
+            _macro_regime_source,
+        ) = self._extract_state_inputs(context, require_dma=False)
         if dma_200 is None or dma_200 == 0.0:
             return
         zone = self._classify_zone(context.price, dma_200)
@@ -119,9 +174,18 @@ class DmaSignalEngine:
         self._last_actionable_zone = zone
 
     def build_market_state(self, context: SignalContext) -> DmaMarketState:
-        dma_200, fgi_value, regime, regime_source, ath_event, fgi_slope = (
-            self._extract_state_inputs(context, require_dma=True)
-        )
+        (
+            dma_200,
+            fgi_value,
+            regime,
+            regime_source,
+            ath_event,
+            fgi_slope,
+            asset_symbol,
+            macro_value,
+            macro_regime,
+            macro_regime_source,
+        ) = self._extract_state_inputs(context, require_dma=True)
         assert dma_200 is not None
 
         zone = self._classify_zone(context.price, dma_200)
@@ -144,6 +208,10 @@ class DmaSignalEngine:
             fgi_regime=regime,
             regime_source=regime_source,
             ath_event=ath_event,
+            asset_symbol=asset_symbol,
+            macro_fear_greed_value=macro_value,
+            macro_fear_greed_regime=macro_regime,
+            macro_fear_greed_regime_source=macro_regime_source,
         )
 
     def apply_intent(
@@ -271,6 +339,13 @@ def _normalize_ath_event(raw_value: object) -> AthEvent | None:
     if isinstance(raw_value, str) and raw_value in VALID_ATH_EVENTS:
         return cast(AthEvent, raw_value)
     return None
+
+
+def _normalize_asset_symbol(raw_value: object) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    normalized = raw_value.strip().upper()
+    return normalized or None
 
 
 __all__ = ["DmaSignalEngine"]

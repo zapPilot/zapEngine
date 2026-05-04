@@ -67,12 +67,16 @@ def test_minimum_strategy_uses_minimum_outer_policy() -> None:
 
     assert isinstance(strategy.outer_policy, MinimumHierarchicalOuterPolicy)
     assert strategy.adaptive_crypto_dma_reference is False
-    assert strategy.spy_cross_up_latch is False
+    assert strategy.spy_cross_up_latch is True
     assert strategy.dma_buy_strength_floor == LEGACY_DMA_BUY_STRENGTH_FLOOR
     assert strategy.execution_engine.rotation_cooldown_days == 7
     assert strategy.parameters()["feature_summary"] == {
         "policy": "MinimumHierarchicalOuterPolicy",
-        "active_features": ["dma_stable_gating", "greed_sell_suppression"],
+        "active_features": [
+            "dma_stable_gating",
+            "greed_sell_suppression",
+            "persistent_spy_latch",
+        ],
     }
 
 

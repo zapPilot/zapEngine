@@ -27,6 +27,7 @@ from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
+    DMA_ASSET_FEATURE,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
@@ -436,7 +437,11 @@ def _build_asset_dma_context(
     return replace(
         context,
         price=float(price),
-        extra_data={**context.extra_data, DMA_200_FEATURE: float(dma_value)},
+        extra_data={
+            **context.extra_data,
+            DMA_200_FEATURE: float(dma_value),
+            DMA_ASSET_FEATURE: spec.symbol,
+        },
     )
 
 

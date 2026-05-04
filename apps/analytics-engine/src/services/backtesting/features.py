@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 DMA_200_FEATURE = "dma_200"
+DMA_ASSET_FEATURE = "dma_asset"
 ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES = "eth_btc_relative_strength"
 ETH_BTC_RATIO_FEATURE = "eth_btc_ratio"
 ETH_BTC_RATIO_DMA_200_FEATURE = "eth_btc_ratio_dma_200"

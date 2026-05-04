@@ -44,7 +44,7 @@ class HierarchicalMinimumStrategy(HierarchicalSpyCryptoRotationStrategy):
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM]
     canonical_strategy_id: str = STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
     adaptive_crypto_dma_reference: bool = field(default=False, init=False)
-    spy_cross_up_latch: bool = field(default=False, init=False)
+    spy_cross_up_latch: bool = field(default=True, init=False)
     outer_disabled_rules: frozenset[str] = field(default_factory=frozenset, init=False)
     dma_buy_strength_floor: float = field(
         default=LEGACY_DMA_BUY_STRENGTH_FLOOR,

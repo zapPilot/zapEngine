@@ -47,6 +47,7 @@ class HierarchicalOuterSnapshot:
     crypto_dma_reference_asset: str
     spy_latch_active: bool
     pre_existing_stable_share: float
+    spy_latch_target_share: float | None = None
     btc_dma_state: DmaMarketState | None = None
     eth_dma_state: DmaMarketState | None = None
     current_asset_allocation: dict[str, float] = field(default_factory=dict)
@@ -159,12 +160,18 @@ class MinimumHierarchicalOuterPolicy:
         intent: AllocationIntent,
         snapshot: HierarchicalOuterSnapshot,
     ) -> AllocationIntent:
-        return intent
+        if not snapshot.spy_latch_active or intent.target_allocation is None:
+            return intent
+        return _apply_spy_latch_to_intent(intent=intent, snapshot=snapshot)
 
     def feature_summary(self) -> dict[str, Any]:
         return {
             "policy": "MinimumHierarchicalOuterPolicy",
-            "active_features": ["dma_stable_gating", "greed_sell_suppression"],
+            "active_features": [
+                "dma_stable_gating",
+                "greed_sell_suppression",
+                "persistent_spy_latch",
+            ],
         }
 
     def _dma_policy(self) -> DmaGatedFgiDecisionPolicy:
@@ -192,6 +199,7 @@ class MinimumHierarchicalOuterPolicyWithBuffer(MinimumHierarchicalOuterPolicy):
             "active_features": [
                 "dma_stable_gating",
                 "greed_sell_suppression",
+                "persistent_spy_latch",
                 f"dma_entry_buffer={self.dma_entry_buffer:g}",
             ],
         }
@@ -229,6 +237,7 @@ class MinimumHierarchicalOuterPolicyDualAboveHold(MinimumHierarchicalOuterPolicy
             "active_features": [
                 "dma_stable_gating",
                 "greed_sell_suppression",
+                "persistent_spy_latch",
                 "dual_above_hold",
             ],
         }
@@ -266,6 +275,7 @@ class MinimumHierarchicalOuterPolicyCrossCooldown(MinimumHierarchicalOuterPolicy
             "active_features": [
                 "dma_stable_gating",
                 "greed_sell_suppression",
+                "persistent_spy_latch",
                 f"cross_down_cooldown={self.cooldown_days}d",
             ],
         }
@@ -297,6 +307,7 @@ class MinimumHierarchicalOuterPolicyBelowDmaHold(MinimumHierarchicalOuterPolicy)
             "active_features": [
                 "dma_stable_gating",
                 "greed_sell_suppression",
+                "persistent_spy_latch",
                 "below_dma_hold",
                 "extreme_fear_dca_carve_out",
             ],
@@ -336,6 +347,7 @@ class MinimumHierarchicalOuterPolicyDmaDisciplined(MinimumHierarchicalOuterPolic
             "active_features": [
                 "dma_stable_gating",
                 "greed_sell_suppression",
+                "persistent_spy_latch",
                 f"cross_down_cooldown={self.cooldown_days}d",
                 "below_dma_hold",
                 "extreme_fear_dca_carve_out",
@@ -458,11 +470,10 @@ def _resolve_dual_dma_outer_decision(
         target = normalize_target_allocation(
             snapshot.outer_state.current_asset_allocation
         )
-        for unit, _intent in buy_specs:
-            target = _raise_outer_unit_from_stable(
-                target_allocation=target,
-                unit=unit,
-            )
+        target = _raise_outer_units_from_stable(
+            target_allocation=target,
+            specs=buy_specs,
+        )
         return _build_outer_dma_intent(specs=buy_specs, target_allocation=target)
 
     target = _resolve_outer_ratio_target(
@@ -653,7 +664,11 @@ def _apply_below_dma_hold(
     intent: AllocationIntent,
     snapshot: HierarchicalOuterSnapshot,
 ) -> AllocationIntent:
-    if intent.target_allocation is None or _is_extreme_fear_dca_intent(intent):
+    if (
+        intent.target_allocation is None
+        or _is_extreme_fear_dca_intent(intent)
+        or _is_spy_extreme_fear_dca_intent(intent)
+    ):
         return intent
     current = _current_asset_allocation(snapshot)
     target = normalize_target_allocation(intent.target_allocation)
@@ -793,6 +808,10 @@ def _cap_inner_asset_increase(
 
 def _is_extreme_fear_dca_intent(intent: AllocationIntent) -> bool:
     return _reason_mentions(intent, "below_extreme_fear_buy")
+
+
+def _is_spy_extreme_fear_dca_intent(intent: AllocationIntent) -> bool:
+    return _reason_mentions(intent, "spy_below_extreme_fear_buy")
 
 
 def _reason_mentions(intent: AllocationIntent, expected_reason: str) -> bool:
@@ -996,20 +1015,48 @@ def _asset_dma_allocation_name(
     return f"{unit.symbol.lower()}_{allocation_name}"
 
 
-def _raise_outer_unit_from_stable(
+def _raise_outer_units_from_stable(
     *,
     target_allocation: Mapping[str, float],
-    unit: PairRotationUnit,
+    specs: list[tuple[PairRotationUnit, AllocationIntent]],
 ) -> dict[str, float]:
     target = normalize_target_allocation(target_allocation)
     stable_share = max(0.0, float(target.get("stable", 0.0)))
-    unit_share = _outer_unit_share(target, unit)
-    increase = min(stable_share, max(0.0, 1.0 - unit_share))
-    if increase <= 0.0:
+    if stable_share <= 0.0 or not specs:
         return target
-    _add_outer_unit_share(target=target, unit=unit, amount=increase)
-    target["stable"] = stable_share - increase
+
+    weights = [
+        (unit, _outer_unit_buy_weight(unit=unit, intent=intent))
+        for unit, intent in specs
+    ]
+    total_weight = sum(weight for _unit, weight in weights)
+    if total_weight <= 0.0:
+        return target
+    scale = 1.0 / max(1.0, total_weight)
+    deployed = 0.0
+    for unit, weight in weights:
+        amount = stable_share * weight * scale
+        unit_room = max(0.0, 1.0 - _outer_unit_share(target, unit))
+        increase = min(amount, unit_room, stable_share - deployed)
+        if increase <= 0.0:
+            continue
+        _add_outer_unit_share(target=target, unit=unit, amount=increase)
+        deployed += increase
+    target["stable"] = stable_share - deployed
     return normalize_target_allocation(target)
+
+
+def _outer_unit_buy_weight(
+    *,
+    unit: PairRotationUnit,
+    intent: AllocationIntent,
+) -> float:
+    if intent.target_allocation is None:
+        return 0.0
+    unit_target_share = _outer_unit_share(intent.target_allocation, unit)
+    if unit_target_share > 0.0:
+        return min(1.0, unit_target_share)
+    return 1.0 if intent.action == "buy" else 0.0
 
 
 def _outer_unit_share(
@@ -1039,21 +1086,59 @@ def _apply_spy_latch_to_target(
     *,
     target_allocation: Mapping[str, float],
     pre_existing_stable_share: float,
+    desired_spy_share: float = 1.0,
 ) -> dict[str, float]:
     target = normalize_target_allocation(target_allocation)
     stable_target = max(0.0, float(target.get("stable", 0.0)))
     stable_before_tick = max(0.0, min(1.0, pre_existing_stable_share))
     freshly_created_stable_today = max(0.0, stable_target - stable_before_tick)
-    effective_stable_target = max(
-        stable_target - stable_before_tick,
-        freshly_created_stable_today,
-    )
-    redeploy_to_spy = max(0.0, stable_target - effective_stable_target)
+    spy_target = max(0.0, float(target.get("spy", 0.0)))
+    spy_deficit = max(0.0, min(1.0, desired_spy_share) - spy_target)
+    redeploy_to_spy = min(freshly_created_stable_today, spy_deficit)
     if redeploy_to_spy <= 0.0:
         return target
-    target["stable"] = effective_stable_target
-    target["spy"] = max(0.0, float(target.get("spy", 0.0))) + redeploy_to_spy
+    target["stable"] = stable_target - redeploy_to_spy
+    target["spy"] = spy_target + redeploy_to_spy
     return normalize_target_allocation(target)
+
+
+def _apply_spy_latch_to_intent(
+    *,
+    intent: AllocationIntent,
+    snapshot: HierarchicalOuterSnapshot,
+) -> AllocationIntent:
+    assert intent.target_allocation is not None
+    target_before = normalize_target_allocation(intent.target_allocation)
+    desired_spy_share = (
+        snapshot.spy_latch_target_share
+        if snapshot.spy_latch_target_share is not None
+        else 1.0
+    )
+    target_after = _apply_spy_latch_to_target(
+        target_allocation=target_before,
+        pre_existing_stable_share=snapshot.pre_existing_stable_share,
+        desired_spy_share=desired_spy_share,
+    )
+    redeployed = max(
+        0.0,
+        float(target_after.get("spy", 0.0)) - float(target_before.get("spy", 0.0)),
+    )
+    if redeployed <= 1e-9:
+        return intent
+    diagnostics = dict(intent.diagnostics or {})
+    existing = diagnostics.get("post_intent_adjustments")
+    existing_adjustments = existing if isinstance(existing, list) else []
+    diagnostics["post_intent_adjustments"] = [
+        *existing_adjustments,
+        "spy_latch_absorb_fresh_stable",
+    ]
+    diagnostics["spy_latch_redeployed_stable"] = redeployed
+    diagnostics["spy_latch_target_share"] = desired_spy_share
+    return replace(
+        intent,
+        target_allocation=target_after,
+        diagnostics=diagnostics,
+    )
 
 
 def _zero_outer_unit_share(

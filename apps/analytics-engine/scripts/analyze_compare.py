@@ -992,6 +992,24 @@ def _constraint_event_trigger_failure(
             "expected extreme_fear sentiment with crypto DMA zone below; "
             f"observed sentiment={label!r}, dma_zone={dma.get('zone')!r}",
         )
+    if event_type == "extreme_fear_below_spy_dma":
+        label = _constraint_macro_sentiment_label(point)
+        spy_dma = _constraint_dma(point, key="spy_dma")
+        if label == "extreme_fear" and spy_dma.get("zone") == "below":
+            return None
+        return _constraint_failure(
+            point,
+            "expected SPY extreme fear below DMA; "
+            f"observed label={label!r}, zone={spy_dma.get('zone')!r}",
+        )
+    if event_type == "crypto_dma_fgi_sell":
+        reason = _constraint_decision(point).get("reason")
+        if isinstance(reason, str) and "crypto_" in reason and "sell" in reason:
+            return None
+        return _constraint_failure(
+            point,
+            f"expected crypto DMA/FGI sell; observed reason={reason!r}",
+        )
     if event_type == "eth_btc_ratio_cross_up":
         return _inner_ratio_cross_trigger_failure(
             points=points,
@@ -1566,10 +1584,29 @@ def _constraint_sentiment_label(point: dict[str, Any]) -> str | None:
     market = _safe_mapping(point.get("market"))
     label = market.get("sentiment_label")
     if label is not None:
-        return str(label).lower()
+        return _normalize_constraint_label(label)
     signal = _constraint_signal(point)
     regime = signal.get("regime")
-    return str(regime).lower() if regime is not None else None
+    return _normalize_constraint_label(regime) if regime is not None else None
+
+
+def _constraint_macro_sentiment_label(point: dict[str, Any]) -> str | None:
+    market = _safe_mapping(point.get("market"))
+    macro = _safe_mapping(market.get("macro_fear_greed"))
+    label = macro.get("label")
+    if label is not None:
+        return _normalize_constraint_label(label)
+    raw_rating = macro.get("raw_rating")
+    if raw_rating is not None:
+        return _normalize_constraint_label(raw_rating)
+    return None
+
+
+def _normalize_constraint_label(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+    return normalized or None
 
 
 def _point_for_date(

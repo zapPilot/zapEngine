@@ -7,7 +7,7 @@ If you are NOT working on strategy iteration, you can skip this file.
 
 ## Current template baseline
 
-**`dma_fgi_hierarchical_minimum`** — 121.44% ROI, 4.50 Calmar, 500d window.
+**`dma_fgi_hierarchical_minimum`** — 121.30% ROI, 4.63 Calmar, 500d window.
 
 ### Composition
 
@@ -18,8 +18,12 @@ Outer layer (SPY / crypto):  SPY_CRYPTO_TEMPLATE with DMA gating
 Outer policy: MinimumHierarchicalOuterPolicy (zero tunable fields)
   ├── Feature 1: DMA stable gating
   │   └── When crypto < CRYPTO_DMA in fear regime → lift to stable
-  └── Feature 2: Greed Sell Suppression
-      └── When extreme greed + PLAIN_GREED_SELL_RULE not disabled → suppress sell-to-stable
+  ├── Feature 2: Greed Sell Suppression
+  │   └── When extreme greed + PLAIN_GREED_SELL_RULE not disabled → suppress sell-to-stable
+  ├── Feature 3: SPY macro extreme-fear DCA
+  │   └── When CNN macro F&G is extreme fear and SPY < SPY_DMA → buy SPY from stable
+  └── Feature 4: Persistent SPY latch
+      └── After SPY cross_up, redirect fresh stable from later sells into SPY while latch is active
 ```
 
 Source files:
@@ -33,7 +37,7 @@ Source files:
 
 | Strategy | ROI (500d) | Notes |
 |---|---|---|
-| `dma_fgi_hierarchical_minimum` | 121.44% | Current target |
+| `dma_fgi_hierarchical_minimum` | 121.30% | Current target |
 | `dma_fgi_eth_btc_minimum` | 145.28% | Research only — no SPY, 2-asset |
 | `dma_fgi_adaptive_binary_eth_btc` | 141.21% | Production champion (no SPY) |
 | `dma_fgi_hierarchical_full_minus_adaptive_dma` | 110.88% | Attribution reference |
@@ -42,13 +46,15 @@ Source files:
 
 ## What works (do not regress)
 
-Each finding is established by ROI delta from leave-one-out variants in the snapshot fixture.
+Each finding is established by ROI delta from leave-one-out variants in the snapshot fixture unless explicitly marked as fixture-validated.
 
 | Feature | Δ when removed | Established |
 |---|---|---|
 | DMA stable gating | **-96.96pp** ROI | `fe8db22` |
 | Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
 | Inner ETH/BTC ratio rotation | (isolated in `dma_fgi_adaptive_binary_eth_btc` = 141.21%) | pre-existing |
+| SPY macro extreme-fear DCA | Fixture-validated; included in 2026-05-04 re-anchor: ROI -0.14pp, Calmar +0.12 | 2026-05-04 |
+| Persistent SPY latch | Fixture-validated fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
 
 ## What doesn't work (do not re-introduce without new evidence)
 
@@ -56,7 +62,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 |---|---|---|
 | Adaptive DMA Reference | +74.26pp Δ when removed from full | Harmful; excluded at type level |
 | Fear Recovery Buy | `_only` = 14.28% ROI, Calmar 0.67 | Worst non-DCA strategy |
-| SPY Cross-Up Latch | -0.69pp in full; +3.86pp in NoDMA full | Noise; removed |
+| Single-tick SPY Cross-Up Latch | -0.69pp in full; +3.86pp in NoDMA full | Old same-tick-only latch was noise; persistent fresh-stable latch is separate and active |
 | Buy Floor | +0.28pp Δ when removed (below noise) | Noise; removed at type level |
 | Cross-Down Cooldown | `_cross_cooldown` = 115.35% ROI (-6.09pp), 73 trades | Harmful as a broad outer/inner constraint |
 | Below-DMA Hold | `_below_dma_hold` = 20.65% ROI; `_dma_disciplined` = 19.03% ROI | Too blunt; confirmed the 2025-04-22 inner ETH allocation bug but destroyed profitable risk exposure |

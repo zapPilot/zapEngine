@@ -84,6 +84,7 @@ def test_minimum_policy_feature_summary() -> None:
     assert MinimumHierarchicalOuterPolicy().feature_summary()["active_features"] == [
         "dma_stable_gating",
         "greed_sell_suppression",
+        "persistent_spy_latch",
     ]
 
 

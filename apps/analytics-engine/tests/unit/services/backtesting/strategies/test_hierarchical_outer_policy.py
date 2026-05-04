@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
 
+from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
     SPY_CRYPTO_RATIO_DMA_200_FEATURE,
     SPY_CRYPTO_RATIO_FEATURE,
     SPY_DMA_200_FEATURE,
@@ -24,6 +27,9 @@ from src.services.backtesting.strategies.hierarchical_outer_policy import (
     HierarchicalOuterDecisionPolicy,
     HierarchicalOuterSnapshot,
     MinimumHierarchicalOuterPolicy,
+    MinimumHierarchicalOuterPolicyBelowDmaHold,
+    MinimumHierarchicalOuterPolicyCrossCooldown,
+    MinimumHierarchicalOuterPolicyDmaDisciplined,
     MinimumHierarchicalOuterPolicyDualAboveHold,
     MinimumHierarchicalOuterPolicyWithBuffer,
 )
@@ -53,8 +59,20 @@ def _context(
     eth_dma_200: float = 4_500.0,
     spy_dma_200: float = 580.0,
     fgi_value: float = 50.0,
+    macro_fear_greed: dict[str, object] | None = None,
     snapshot_date: date = date(2026, 4, 27),
 ) -> StrategyContext:
+    extra_data = {
+        "dma_200": dma_200,
+        "eth_dma_200": eth_dma_200,
+        SPY_DMA_200_FEATURE: spy_dma_200,
+        ETH_BTC_RATIO_FEATURE: 0.05,
+        ETH_BTC_RATIO_DMA_200_FEATURE: 0.05,
+        SPY_CRYPTO_RATIO_FEATURE: 0.006,
+        SPY_CRYPTO_RATIO_DMA_200_FEATURE: 0.006,
+    }
+    if macro_fear_greed is not None:
+        extra_data[MACRO_FEAR_GREED_FEATURE] = macro_fear_greed
     return StrategyContext(
         date=snapshot_date,
         price=btc_price,
@@ -62,15 +80,7 @@ def _context(
         price_history=[btc_price],
         portfolio=portfolio,
         price_map={"btc": btc_price, "eth": eth_price, "spy": spy_price},
-        extra_data={
-            "dma_200": dma_200,
-            "eth_dma_200": eth_dma_200,
-            SPY_DMA_200_FEATURE: spy_dma_200,
-            ETH_BTC_RATIO_FEATURE: 0.05,
-            ETH_BTC_RATIO_DMA_200_FEATURE: 0.05,
-            SPY_CRYPTO_RATIO_FEATURE: 0.006,
-            SPY_CRYPTO_RATIO_DMA_200_FEATURE: 0.006,
-        },
+        extra_data=extra_data,
     )
 
 
@@ -244,11 +254,267 @@ def test_minimum_policy_does_not_fire_fear_recovery_buy() -> None:
     )
 
 
+def test_minimum_policy_buys_spy_on_macro_extreme_fear_below_dma() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 0.0, "eth": 0.0, "stable": 1.0})
+    policy = MinimumHierarchicalOuterPolicy()
+    snapshot, _component = _outer_snapshot(
+        policy=policy,
+        contexts=[
+            _context(
+                portfolio=portfolio,
+                spy_price=500.0,
+                spy_dma_200=580.0,
+                macro_fear_greed={"score": 4.0, "label": "Extreme Fear"},
+            )
+        ],
+    )
+
+    intent = policy.decide(snapshot)
+
+    assert intent.reason == "spy_below_extreme_fear_buy"
+    assert intent.target_allocation is not None
+    assert intent.target_allocation["spy"] == pytest.approx(0.2)
+    assert intent.target_allocation["stable"] == pytest.approx(0.8)
+
+
+def test_minimum_policy_latch_absorbs_freshly_created_stable() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 1.0, "eth": 0.0, "stable": 0.0})
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[_context(portfolio=portfolio)],
+    )
+    latched_snapshot = replace(
+        snapshot,
+        spy_latch_active=True,
+        spy_latch_target_share=1.0,
+        pre_existing_stable_share=0.0,
+    )
+    intent = AllocationIntent(
+        action="sell",
+        target_allocation={
+            "btc": 0.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 1.0,
+            "alt": 0.0,
+        },
+        allocation_name="test_crypto_sale",
+        immediate=False,
+        reason="crypto_test_sell",
+        rule_group="dma_fgi",
+        decision_score=-1.0,
+    )
+
+    adjusted = MinimumHierarchicalOuterPolicy().apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=latched_snapshot,
+    )
+
+    assert adjusted.target_allocation is not None
+    assert adjusted.target_allocation["spy"] == pytest.approx(1.0)
+    assert adjusted.target_allocation["stable"] == pytest.approx(0.0)
+    assert adjusted.diagnostics is not None
+    assert adjusted.diagnostics["post_intent_adjustments"] == [
+        "spy_latch_absorb_fresh_stable"
+    ]
+
+
+def test_minimum_policy_post_adjustment_noops_without_active_latch() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 1.0, "eth": 0.0, "stable": 0.0})
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[_context(portfolio=portfolio)],
+    )
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation={
+            "btc": 0.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 1.0,
+            "alt": 0.0,
+        },
+        allocation_name="test",
+        immediate=False,
+        reason="test",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    adjusted = MinimumHierarchicalOuterPolicy().apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=snapshot,
+    )
+
+    assert adjusted is intent
+
+
+def test_minimum_policy_latch_uses_default_target_share_and_appends_diagnostics() -> None:
+    portfolio = _portfolio({"spy": 0.0, "btc": 1.0, "eth": 0.0, "stable": 0.0})
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[_context(portfolio=portfolio)],
+    )
+    latched_snapshot = replace(
+        snapshot,
+        spy_latch_active=True,
+        spy_latch_target_share=None,
+        pre_existing_stable_share=0.0,
+    )
+    intent = AllocationIntent(
+        action="sell",
+        target_allocation={
+            "btc": 0.0,
+            "eth": 0.0,
+            "spy": 0.25,
+            "stable": 0.75,
+            "alt": 0.0,
+        },
+        allocation_name="test_crypto_sale",
+        immediate=False,
+        reason="crypto_test_sell",
+        rule_group="dma_fgi",
+        decision_score=-1.0,
+        diagnostics={"post_intent_adjustments": ["existing_adjustment"]},
+    )
+
+    adjusted = MinimumHierarchicalOuterPolicy().apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=latched_snapshot,
+    )
+
+    assert adjusted.target_allocation is not None
+    assert adjusted.target_allocation["spy"] == pytest.approx(1.0)
+    assert adjusted.target_allocation["stable"] == pytest.approx(0.0)
+    assert adjusted.diagnostics is not None
+    assert adjusted.diagnostics["post_intent_adjustments"] == [
+        "existing_adjustment",
+        "spy_latch_absorb_fresh_stable",
+    ]
+    assert adjusted.diagnostics["spy_latch_target_share"] == pytest.approx(1.0)
+
+
 def test_minimum_policy_feature_summary() -> None:
     assert MinimumHierarchicalOuterPolicy().feature_summary() == {
         "policy": "MinimumHierarchicalOuterPolicy",
-        "active_features": ["dma_stable_gating", "greed_sell_suppression"],
+        "active_features": [
+            "dma_stable_gating",
+            "greed_sell_suppression",
+            "persistent_spy_latch",
+        ],
     }
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected"),
+    [
+        (
+            MinimumHierarchicalOuterPolicyWithBuffer(dma_entry_buffer=0.03),
+            {
+                "policy": "MinimumHierarchicalOuterPolicyWithBuffer",
+                "active_features": [
+                    "dma_stable_gating",
+                    "greed_sell_suppression",
+                    "persistent_spy_latch",
+                    "dma_entry_buffer=0.03",
+                ],
+            },
+        ),
+        (
+            MinimumHierarchicalOuterPolicyDualAboveHold(),
+            {
+                "policy": "MinimumHierarchicalOuterPolicyDualAboveHold",
+                "active_features": [
+                    "dma_stable_gating",
+                    "greed_sell_suppression",
+                    "persistent_spy_latch",
+                    "dual_above_hold",
+                ],
+            },
+        ),
+        (
+            MinimumHierarchicalOuterPolicyCrossCooldown(cooldown_days=30),
+            {
+                "policy": "MinimumHierarchicalOuterPolicyCrossCooldown",
+                "active_features": [
+                    "dma_stable_gating",
+                    "greed_sell_suppression",
+                    "persistent_spy_latch",
+                    "cross_down_cooldown=30d",
+                ],
+            },
+        ),
+        (
+            MinimumHierarchicalOuterPolicyBelowDmaHold(),
+            {
+                "policy": "MinimumHierarchicalOuterPolicyBelowDmaHold",
+                "active_features": [
+                    "dma_stable_gating",
+                    "greed_sell_suppression",
+                    "persistent_spy_latch",
+                    "below_dma_hold",
+                    "extreme_fear_dca_carve_out",
+                ],
+            },
+        ),
+        (
+            MinimumHierarchicalOuterPolicyDmaDisciplined(cooldown_days=30),
+            {
+                "policy": "MinimumHierarchicalOuterPolicyDmaDisciplined",
+                "active_features": [
+                    "dma_stable_gating",
+                    "greed_sell_suppression",
+                    "persistent_spy_latch",
+                    "cross_down_cooldown=30d",
+                    "below_dma_hold",
+                    "extreme_fear_dca_carve_out",
+                ],
+            },
+        ),
+    ],
+)
+def test_minimum_variant_feature_summaries(
+    policy: MinimumHierarchicalOuterPolicy,
+    expected: dict[str, object],
+) -> None:
+    assert policy.feature_summary() == expected
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        MinimumHierarchicalOuterPolicyCrossCooldown(cooldown_days=30),
+        MinimumHierarchicalOuterPolicyBelowDmaHold(),
+        MinimumHierarchicalOuterPolicyDmaDisciplined(cooldown_days=30),
+    ],
+)
+def test_minimum_variant_post_adjustment_noops_on_aligned_above_dma_target(
+    policy: MinimumHierarchicalOuterPolicy,
+) -> None:
+    portfolio = _portfolio({"spy": 0.4, "btc": 0.6, "eth": 0.0, "stable": 0.0})
+    snapshot, _component = _outer_snapshot(
+        policy=policy,
+        contexts=[_context(portfolio=portfolio)],
+    )
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation={
+            "btc": 0.6,
+            "eth": 0.0,
+            "spy": 0.4,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
+        allocation_name="test",
+        immediate=False,
+        reason="test",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    adjusted = policy.apply_post_intent_adjustments(intent=intent, snapshot=snapshot)
+
+    assert adjusted.target_allocation == pytest.approx(intent.target_allocation)
 
 
 def test_minimum_buffer_policy_requires_dma_distance_for_entry() -> None:
