@@ -25,7 +25,7 @@ _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
 @dataclass(frozen=True)
 class FgiDownshiftDcaSellRule:
     name: str = "fgi_downshift_dca_sell"
-    priority: int = 50
+    priority: int = 6
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
 

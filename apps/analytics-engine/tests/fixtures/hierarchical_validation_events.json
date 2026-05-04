@@ -241,8 +241,13 @@
         "description": "ETH/BTC ratio crosses up; strategies should surface the above-ratio transition in the inner ratio zone.",
         "assertions": [
           {
-            "type": "ratio_zone_equals",
-            "zone": "above"
+            "type": "target_asset_equals",
+            "asset": "btc",
+            "value": 0
+          },
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "eth"
           }
         ],
         "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
@@ -274,7 +279,7 @@
           },
           {
             "type": "target_spy_not_greater_than_current",
-            "tolerance": 1e-05
+            "tolerance": 1e-5
           },
           {
             "type": "target_stable_increased_from_previous"

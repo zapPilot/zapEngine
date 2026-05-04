@@ -20,7 +20,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class CrossDownExitRule:
     name: str = "cross_down_exit"
-    priority: int = 10
+    priority: int = 1
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
 
