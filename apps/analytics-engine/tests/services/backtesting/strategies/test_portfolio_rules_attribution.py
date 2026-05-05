@@ -10,6 +10,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL,
 )
+from src.services.backtesting.features import ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
 )
@@ -57,3 +58,6 @@ def test_portfolio_rules_recipes_build_strategies_with_variant_disabled_rules() 
         assert strategy.strategy_id == strategy_id
         assert strategy.disabled_rules == variant.disabled_rules
         assert recipe.runtime_portfolio_mode == "asset"
+        assert recipe.market_data_requirements.required_aux_series == frozenset(
+            {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}
+        )

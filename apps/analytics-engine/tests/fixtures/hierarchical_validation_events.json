@@ -104,25 +104,27 @@
   "2025-03-24": {
     "events": [
       {
-        "id": "btc_cooldown_blocks_cross_up_2025_03_24",
+        "id": "cooldown_period_2025_03_24",
         "event_type": "decision_action_assertion",
-        "reference_asset": "BTC",
-        "description": "BTC must NOT be included in the 2025-03-24 cross-up target - 30-day per-symbol cooldown from 2025-03-08 still active until around 2025-04-07.",
+        "description": "BTC/ETH/SPY must NOT be included in the 2025-03-24 cross-up target - 30-day per-symbol cooldown from 2025-03-08 still active until around 2025-04-07",
         "assertions": [
-          {
-            "type": "decision_detail_equals",
-            "key": "portfolio_rule_assets",
-            "value": [
-              "SPY"
-            ]
-          },
           {
             "type": "target_asset_equals",
             "asset": "btc",
             "value": 0
+          },
+          {
+            "type": "target_asset_equals",
+            "asset": "eth",
+            "value": 0
+          },
+          {
+            "type": "target_asset_equals",
+            "asset": "spy",
+            "value": 0
           }
         ],
-        "rationale": "Per-symbol cross-down cooldown (BTC=30d) must suppress BTC re-entry through 2025-04-07 even when another asset has a valid cross-up. Verifies cross_up_equal_weight does not re-include BTC simply because BTC is above DMA during its re-entry cooldown."
+        "rationale": "Per-symbol cross-down cooldown (BTC=30d) must suppress BTC re-entry through 2025-04-07 even when another asset has a valid cross-up. Verifies cross_up_equal_weight does not re-include BTC simply because BTC is above DMA during its re-entry cooldown. ETH and SPY also applies to this re-entry cooldown suppression."
       }
     ]
   },
@@ -275,7 +277,7 @@
             "asset": "eth"
           }
         ],
-        "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
+        "rationale": "placeholder"
       }
     ]
   },

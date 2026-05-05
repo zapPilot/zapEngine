@@ -5,6 +5,7 @@ from datetime import date
 from src.services.backtesting.constants import STRATEGY_DMA_FGI_FLAT_MINIMUM
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
+    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
@@ -53,7 +54,7 @@ def test_strategy_registry_exposes_eth_btc_rotation_recipe_with_aux_series() -> 
     )
 
 
-def test_strategy_registry_exposes_flat_minimum_recipe_without_ratio_aux() -> None:
+def test_strategy_registry_exposes_flat_minimum_recipe_with_ratio_aux() -> None:
     recipe = get_strategy_recipe(STRATEGY_DMA_FGI_FLAT_MINIMUM)
 
     assert recipe.supports_daily_suggestion is False
@@ -63,7 +64,9 @@ def test_strategy_registry_exposes_flat_minimum_recipe_without_ratio_aux() -> No
     assert recipe.market_data_requirements.required_price_features == frozenset(
         {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
     )
-    assert recipe.market_data_requirements.required_aux_series == frozenset()
+    assert recipe.market_data_requirements.required_aux_series == frozenset(
+        {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}
+    )
 
 
 def test_catalog_is_derived_from_strategy_registry() -> None:

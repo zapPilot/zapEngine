@@ -504,6 +504,7 @@ def _build_flat_minimum_recipe() -> StrategyRecipe:
             required_price_features=frozenset(
                 {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
             ),
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
             max_lag_days=7,
         ),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
@@ -529,6 +530,7 @@ def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
             required_price_features=frozenset(
                 {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
             ),
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
             max_lag_days=7,
         ),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,

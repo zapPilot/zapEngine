@@ -34,6 +34,7 @@ from src.services.backtesting.features import (
     DMA_ASSET_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
+    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
@@ -133,12 +134,11 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             required_price_features=frozenset(
                 {
                     DMA_200_FEATURE,
-                    ETH_BTC_RATIO_DMA_200_FEATURE,
-                    ETH_BTC_RATIO_FEATURE,
                     ETH_DMA_200_FEATURE,
                     SPY_DMA_200_FEATURE,
                 }
             ),
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
         )
     )
     warmup_lookback_days: int = 14

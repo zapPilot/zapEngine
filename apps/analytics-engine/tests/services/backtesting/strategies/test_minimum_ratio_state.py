@@ -7,6 +7,7 @@ from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
+    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
@@ -72,5 +73,6 @@ def test_signal_component_emits_ratio_state_with_cross_up() -> None:
 def test_signal_component_declares_ratio_price_features() -> None:
     requirements = FlatMinimumSignalComponent().market_data_requirements
 
-    assert ETH_BTC_RATIO_FEATURE in requirements.required_price_features
-    assert ETH_BTC_RATIO_DMA_200_FEATURE in requirements.required_price_features
+    assert ETH_BTC_RATIO_FEATURE not in requirements.required_price_features
+    assert ETH_BTC_RATIO_DMA_200_FEATURE not in requirements.required_price_features
+    assert ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES in requirements.required_aux_series

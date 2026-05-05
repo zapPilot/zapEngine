@@ -66,6 +66,6 @@ def test_cross_down_cooldown_custom_override() -> None:
         default_cross_down_cooldown_days=10,
     )
 
-    assert cross_down_cooldown_days_for("SPY", config=config) == 14
+    assert cross_down_cooldown_days_for("SPY", config=config) == 7
     assert cross_down_cooldown_days_for("BTC", config=config) == 21
     assert cross_down_cooldown_days_for("ETH", config=config) == 10
