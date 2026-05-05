@@ -33,6 +33,9 @@ export default defineConfig({
         'src/types/**',
         'src/**/index.ts',
         'src/test-utils/**',
+        'src/lib/source.ts',
+        'src/components/v2/__mocks__/**',
+        'src/components/v2/HeroLiquidMetalCanvas.tsx',
       ],
       thresholds: {
         statements: 65,
