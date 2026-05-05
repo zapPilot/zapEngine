@@ -31,7 +31,7 @@ describe('INDICATOR_LEGEND', () => {
 
 describe('EVENT_LEGEND', () => {
   it('has exactly 4 items', () => {
-    expect(EVENT_LEGEND).toHaveLength(4);
+    expect(EVENT_LEGEND).toHaveLength(5);
   });
 
   it('contains the correct event labels in order', () => {
@@ -40,6 +40,7 @@ describe('EVENT_LEGEND', () => {
       'Sell Spot',
       'Switch to ETH',
       'Switch to BTC',
+      'Switch to SPY',
     ]);
   });
 

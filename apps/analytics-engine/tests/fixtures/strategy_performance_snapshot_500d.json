@@ -110,51 +110,51 @@
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "[RESEARCH] Portfolio Rules",
-      "calmar_ratio": 1.1819,
-      "sharpe_ratio": 0.9089,
-      "max_drawdown_percent": -21.8478,
-      "roi_percent": 37.0307,
-      "trade_count": 78
+      "calmar_ratio": 1.0237,
+      "sharpe_ratio": 0.8716,
+      "max_drawdown_percent": -22.63,
+      "roi_percent": 33.0845,
+      "trade_count": 51
     },
     "dma_fgi_portfolio_rules_minus_cross_down_exit": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Down Exit",
-      "calmar_ratio": 0.4522,
-      "sharpe_ratio": 0.586,
-      "max_drawdown_percent": -33.893,
-      "roi_percent": 21.6184,
-      "trade_count": 76
+      "calmar_ratio": 0.4366,
+      "sharpe_ratio": 0.5737,
+      "max_drawdown_percent": -34.2804,
+      "roi_percent": 21.0978,
+      "trade_count": 48
     },
     "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
-      "calmar_ratio": 1.0047,
-      "sharpe_ratio": 1.143,
-      "max_drawdown_percent": -7.4478,
-      "roi_percent": 10.4317,
-      "trade_count": 77
+      "calmar_ratio": 0.769,
+      "sharpe_ratio": 0.914,
+      "max_drawdown_percent": -7.9515,
+      "roi_percent": 8.5113,
+      "trade_count": 36
     },
     "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
       "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
-      "calmar_ratio": 1.1741,
-      "sharpe_ratio": 0.9045,
-      "max_drawdown_percent": -21.8478,
-      "roi_percent": 36.7773,
-      "trade_count": 75
+      "calmar_ratio": 1.03,
+      "sharpe_ratio": 0.8752,
+      "max_drawdown_percent": -22.6151,
+      "roi_percent": 33.2716,
+      "trade_count": 46
     },
     "dma_fgi_portfolio_rules_minus_overextension_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
-      "calmar_ratio": 1.0135,
-      "sharpe_ratio": 0.8309,
-      "max_drawdown_percent": -23.1296,
-      "roi_percent": 33.4925,
-      "trade_count": 40
+      "calmar_ratio": 0.9657,
+      "sharpe_ratio": 0.8424,
+      "max_drawdown_percent": -23.2986,
+      "roi_percent": 32.1006,
+      "trade_count": 29
     },
     "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
-      "calmar_ratio": 1.1774,
-      "sharpe_ratio": 0.9082,
-      "max_drawdown_percent": -22.0276,
-      "roi_percent": 37.1992,
-      "trade_count": 75
+      "calmar_ratio": 1.0245,
+      "sharpe_ratio": 0.872,
+      "max_drawdown_percent": -22.6302,
+      "roi_percent": 33.1116,
+      "trade_count": 49
     },
     "dma_fgi_adaptive_binary_eth_btc": {
       "display_name": "126% DMA FGI Adaptive Binary ETH/BTC",

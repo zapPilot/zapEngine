@@ -123,12 +123,9 @@ def cross_down_cooldown_days_for(
     *,
     config: PortfolioRuleConfig,
 ) -> int:
-    normalized = normalize_symbol(symbol)
-    if normalized == "SPY":
-        return config.global_cooldown_days
     return int(
         config.cross_down_cooldown_days_per_symbol.get(
-            normalized,
+            normalize_symbol(symbol),
             config.default_cross_down_cooldown_days,
         )
     )

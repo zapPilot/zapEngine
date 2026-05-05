@@ -7,11 +7,11 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
-### 2026-05-04 — Per-symbol portfolio cross-down cooldown
-- **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs commit.
-- **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines: BTC 30d, ETH 30d, SPY 7d, with `PortfolioRuleConfig.default_cross_down_cooldown_days` as fallback. This keeps crypto majors on the longer whipsaw guard while allowing SPY to re-arm sooner after shallow breakdowns.
-- **Snapshot delta vs prior cooldown-gated `dma_fgi_portfolio_rules` baseline**: ROI 29.73% → 37.03% (+7.30pp), Calmar 1.33 → 1.18 (-0.15), Sharpe 0.99 → 0.91 (-0.08), MaxDD -15.73% → -21.85% (-6.12pp), trades 82 → 78 (-4).
-- **Regression pins**: unit coverage locks the cooldown lookup defaults and custom fallback; strategy coverage verifies SPY can emit a second actionable cross-down while BTC remains cooldown-blocked. A synthetic 2025-07-15 ETH/BTC ratio cross-up test pins the complete BTC→ETH rotation behavior. The 500-day snapshot fixture is summary-only today, so a fixture-level per-day `matched_rule_name`/pre-target/post-target assertion was not added in this scope.
+### 2026-05-05 — SPY portfolio cross-down cooldown aligned to 30d
+- **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs update.
+- **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. `global_cooldown_days` remains 7d for the separate post-trade DCA gate.
+- **Snapshot delta vs SPY-7 `dma_fgi_portfolio_rules` baseline**: ROI 37.03% → 33.08% (-3.95pp), Calmar 1.18 → 1.02 (-0.16), Sharpe 0.91 → 0.87 (-0.04), MaxDD -21.85% → -22.63% (-0.78pp), trades 78 → 51 (-27).
+- **Regression pins**: unit coverage locks the cooldown lookup defaults and custom fallback; strategy coverage verifies SPY and BTC remain cooldown-blocked across the default window. The 2025-03-24 validation event now checks that cooldown-blocked cross-up equal-weight re-entry does not match while allowing hold targets to preserve existing SPY exposure from prior validated DCA. A synthetic 2025-07-15 ETH/BTC ratio cross-up test pins the complete BTC→ETH rotation behavior.
 
 ### 2026-05-04 — Portfolio cross-down cooldown gating
 - **Commit**: pending local change on `57be82e` (`dma_fgi_portfolio_rules` cross-down cooldown)

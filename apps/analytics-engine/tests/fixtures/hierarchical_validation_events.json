@@ -106,7 +106,7 @@
       {
         "id": "cooldown_period_2025_03_24",
         "event_type": "decision_action_assertion",
-        "description": "BTC/ETH/SPY must NOT be included in the 2025-03-24 cross-up target - 30-day per-symbol cooldown from 2025-03-08 still active until around 2025-04-07",
+        "description": "BTC/ETH must NOT be included in the 2025-03-24 cross-up target, and SPY must not be increased while its 30-day re-entry cooldown remains active.",
         "assertions": [
           {
             "type": "target_asset_equals",
@@ -119,12 +119,15 @@
             "value": 0
           },
           {
-            "type": "target_asset_equals",
-            "asset": "spy",
-            "value": 0
+            "type": "target_spy_not_greater_than_current",
+            "tolerance": 0.00001
+          },
+          {
+            "type": "matched_rule_name_not_equals",
+            "value": "cross_up_equal_weight"
           }
         ],
-        "rationale": "Per-symbol cross-down cooldown (BTC=30d) must suppress BTC re-entry through 2025-04-07 even when another asset has a valid cross-up. Verifies cross_up_equal_weight does not re-include BTC simply because BTC is above DMA during its re-entry cooldown. ETH and SPY also applies to this re-entry cooldown suppression."
+        "rationale": "Per-symbol cross-down cooldown (BTC=30d, SPY=30d) must suppress re-entry through early April even when another asset has a valid cross-up. This verifies cross_up_equal_weight does not re-include cooldown-blocked assets while allowing a hold target to preserve existing SPY exposure from prior validated DCA."
       }
     ]
   },

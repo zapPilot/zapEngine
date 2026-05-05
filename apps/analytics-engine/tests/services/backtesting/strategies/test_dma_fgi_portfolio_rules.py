@@ -175,7 +175,7 @@ def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
     )
 
 
-def test_per_symbol_cross_down_cooldown_rearms_spy_before_btc() -> None:
+def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,
@@ -213,8 +213,12 @@ def test_per_symbol_cross_down_cooldown_rearms_spy_before_btc() -> None:
     assert second_cross_down.btc_dma_state is not None
     assert second_cross_down.spy_dma_state.cross_event == "cross_down"
     assert second_cross_down.btc_dma_state.cross_event == "cross_down"
-    assert second_cross_down.spy_dma_state.actionable_cross_event == "cross_down"
+    assert second_cross_down.spy_dma_state.actionable_cross_event is None
     assert second_cross_down.btc_dma_state.actionable_cross_event is None
+    assert second_cross_down.spy_dma_state.cooldown_state.active is True
+    assert second_cross_down.btc_dma_state.cooldown_state.active is True
+    assert second_cross_down.spy_dma_state.cooldown_state.remaining_days == 21
+    assert second_cross_down.btc_dma_state.cooldown_state.remaining_days == 21
 
 
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
