@@ -31,7 +31,7 @@ class ExtremeFearDcaBuyRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return bool(_matching_symbols(snapshot))
+        return bool(_extreme_fear_symbols(snapshot))
 
     def build_intent(
         self,
@@ -39,7 +39,7 @@ class ExtremeFearDcaBuyRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _matching_symbols(snapshot)
+        matching_symbols = _extreme_fear_symbols(snapshot)
         target = current_target(snapshot)
         stable_available = max(0.0, float(target.get("stable", 0.0)))
         if matching_symbols and stable_available > 0.0:
@@ -64,7 +64,7 @@ class ExtremeFearDcaBuyRule:
         )
 
 
-def _matching_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _extreme_fear_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)

@@ -36,7 +36,7 @@ class FgiDownshiftDcaSellRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return bool(_matching_symbols(snapshot))
+        return bool(_downshifted_symbols(snapshot))
 
     def build_intent(
         self,
@@ -44,7 +44,7 @@ class FgiDownshiftDcaSellRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _matching_symbols(snapshot)
+        matching_symbols = _downshifted_symbols(snapshot)
         target = current_target(snapshot)
         sell_step = max(0.0, float(config.fgi_downshift_sell_step))
         for symbol in matching_symbols:
@@ -62,7 +62,7 @@ class FgiDownshiftDcaSellRule:
         )
 
 
-def _matching_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _downshifted_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
