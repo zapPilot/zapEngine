@@ -6,6 +6,7 @@ from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
 from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
 )
+from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
 
@@ -136,6 +137,40 @@ def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
     )
 
     assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False
+
+
+def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
+    rule = CrossUpEqualWeightRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                zone="above",
+                dma_distance=0.02,
+                actionable_cross_event="cross_up",
+            ),
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cooldown_state=DmaCooldownState(
+                    active=True,
+                    remaining_days=14,
+                    blocked_zone="above",
+                ),
+            ),
+            "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0}
+    )
+    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY"]}
 
 
 def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:

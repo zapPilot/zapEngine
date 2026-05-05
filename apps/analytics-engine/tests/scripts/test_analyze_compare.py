@@ -502,6 +502,50 @@ def test_constraint_validation_passes_and_uses_full_history(
     assert validation["results"][0]["id"] == "cross_up_stable_deploy"
 
 
+def test_constraint_validation_supports_negative_decision_assertions(
+    tmp_path: Any,
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    payload = deepcopy(_payload())
+    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy["decision"]["details"] = {"matched_rule_name": "regime_no_signal_hold"}
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-23": {
+                    "events": [
+                        {
+                            "id": "cross_up_absent",
+                            "event_type": "decision_action_assertion",
+                            "assertions": [
+                                {"type": "decision_action_equals", "value": "hold"},
+                                {
+                                    "type": "matched_rule_name_not_equals",
+                                    "value": "cross_up_equal_weight",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        payload,
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-23",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    assert data["constraint_validation"]["passed"] is True
+
+
 def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(

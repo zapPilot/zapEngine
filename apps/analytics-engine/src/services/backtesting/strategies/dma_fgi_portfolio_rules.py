@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from datetime import date
 from typing import Any
 
 from pydantic import JsonValue
@@ -62,6 +63,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     disabled_rules: frozenset[str] = frozenset()
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
+    _last_trade_date: date | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         invalid_rules = sorted(self.disabled_rules - RULE_NAMES)
@@ -72,12 +74,14 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     def reset(self) -> None:
         self._previous_fgi_regime = {}
         self._cycle_open_per_symbol = {}
+        self._last_trade_date = None
 
     def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
         portfolio_snapshot = build_portfolio_snapshot(
             snapshot,
             previous_fgi_regime=self._previous_fgi_regime,
             cycle_open_per_symbol=self._cycle_open_per_symbol,
+            last_trade_date=self._last_trade_date,
         )
         intent = resolve_portfolio_rules_intent(
             portfolio_snapshot,
@@ -90,6 +94,8 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             self._cycle_open_per_symbol,
             portfolio_snapshot,
         )
+        if intent.action != "hold":
+            self._last_trade_date = snapshot.current_date
         return intent
 
 
@@ -209,6 +215,7 @@ def build_portfolio_snapshot(
     *,
     previous_fgi_regime: Mapping[str, str],
     cycle_open_per_symbol: Mapping[str, bool] | None = None,
+    last_trade_date: date | None = None,
 ) -> PortfolioSnapshot:
     assets = _assets_from_flat_state(snapshot)
     return PortfolioSnapshot(
@@ -221,6 +228,8 @@ def build_portfolio_snapshot(
         crypto_fgi_regime=_crypto_regime(assets),
         macro_fgi_value=_macro_value(assets),
         crypto_fgi_value=_crypto_value(assets),
+        last_trade_date=last_trade_date,
+        current_date=snapshot.current_date,
     )
 
 

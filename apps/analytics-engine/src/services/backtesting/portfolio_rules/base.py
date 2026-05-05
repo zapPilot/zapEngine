@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from datetime import date
 from typing import Protocol
 
 from src.services.backtesting.decision import (
@@ -40,9 +41,10 @@ class PortfolioRuleConfig:
     fgi_downshift_sell_step: float = 0.05
     ratio_cross_cooldown_days: int = 30
     default_cross_down_cooldown_days: int = 30
+    global_cooldown_days: int = 7
     overextension_sell_spy_share: float = 0.5
     cross_down_cooldown_days_per_symbol: dict[str, int] = field(
-        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 7}
+        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 15}
     )
     default_dma_overextension_threshold: float = 0.30
     dma_overextension_thresholds: dict[str, float] = field(
@@ -63,6 +65,8 @@ class PortfolioSnapshot:
     crypto_fgi_value: float | None = None
     cycle_open_per_symbol: Mapping[str, bool] = field(default_factory=dict)
     eth_btc_ratio_state: EthBtcRatioState | None = None
+    last_trade_date: date | None = None
+    current_date: date | None = None
 
 
 class PortfolioRule(Protocol):

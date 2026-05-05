@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import cast
 
 from src.services.backtesting.portfolio_rules.base import PortfolioSnapshot
@@ -25,6 +26,7 @@ def state(
     macro_fear_greed_regime: str | None = None,
     fgi_value: float | None = 50.0,
     macro_fear_greed_value: float | None = None,
+    cooldown_state: DmaCooldownState | None = None,
 ) -> DmaMarketState:
     return DmaMarketState(
         signal_id="dma_gated_fgi",
@@ -33,7 +35,8 @@ def state(
         zone=cast(Zone, zone),
         cross_event=cast(CrossEvent | None, cross_event),
         actionable_cross_event=cast(CrossEvent | None, actionable_cross_event),
-        cooldown_state=DmaCooldownState(
+        cooldown_state=cooldown_state
+        or DmaCooldownState(
             active=False,
             remaining_days=0,
             blocked_zone=cast(BlockedZone | None, None),
@@ -61,6 +64,8 @@ def snapshot(
     crypto_regime: str | None = None,
     cycle_open: dict[str, bool] | None = None,
     eth_btc_ratio_state: EthBtcRatioState | None = None,
+    last_trade_date: date | None = None,
+    current_date: date | None = None,
 ) -> PortfolioSnapshot:
     resolved_assets = assets or {
         "SPY": state(symbol="SPY"),
@@ -76,4 +81,6 @@ def snapshot(
         crypto_fgi_regime=crypto_regime,
         cycle_open_per_symbol=cycle_open or {},
         eth_btc_ratio_state=eth_btc_ratio_state,
+        last_trade_date=last_trade_date,
+        current_date=current_date,
     )

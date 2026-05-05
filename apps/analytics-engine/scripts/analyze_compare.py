@@ -1024,6 +1024,8 @@ def _constraint_event_trigger_failure(
             from_zone="above",
             to_zone="below",
         )
+    if event_type == "decision_action_assertion":
+        return None
     return _constraint_failure(
         point, f"Unsupported constraint event type: {event_type!r}"
     )
@@ -1225,6 +1227,16 @@ def _evaluate_constraint_assertion(
         )
     if assertion_type == "decision_action_in":
         return _constraint_decision_action_in(assertion=assertion, point=event_point)
+    if assertion_type == "decision_action_equals":
+        return _constraint_decision_action_equals(
+            assertion=assertion,
+            point=event_point,
+        )
+    if assertion_type == "matched_rule_name_not_equals":
+        return _constraint_matched_rule_name_not_equals(
+            assertion=assertion,
+            point=event_point,
+        )
     if assertion_type == "decision_reason_in":
         return _constraint_decision_reason_in(assertion=assertion, point=event_point)
     if assertion_type == "decision_detail_equals":
@@ -1400,6 +1412,37 @@ def _constraint_decision_action_in(
         return _constraint_failure(
             point,
             f"decision action={action!r}; expected one of {expected!r}",
+        )
+    return None
+
+
+def _constraint_decision_action_equals(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    expected = assertion.get("value")
+    action = _constraint_decision(point).get("action")
+    if action != expected:
+        return _constraint_failure(
+            point,
+            f"decision action={action!r}; expected {expected!r}",
+        )
+    return None
+
+
+def _constraint_matched_rule_name_not_equals(
+    *,
+    assertion: dict[str, Any],
+    point: dict[str, Any],
+) -> str | None:
+    expected_absent = assertion.get("value")
+    details = _safe_mapping(_constraint_decision(point).get("details"))
+    actual = details.get("matched_rule_name")
+    if actual == expected_absent:
+        return _constraint_failure(
+            point,
+            f"matched_rule_name={actual!r}; expected value other than {expected_absent!r}",
         )
     return None
 

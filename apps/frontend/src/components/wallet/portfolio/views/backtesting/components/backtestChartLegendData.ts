@@ -20,6 +20,7 @@ const EVENT_LEGEND_KEYS: SignalKey[] = [
   'sell_spot',
   'switch_to_eth',
   'switch_to_btc',
+  'switch_to_spy',
 ];
 
 export const INDICATOR_LEGEND: IndicatorLegendItem[] = [

@@ -108,6 +108,7 @@ class FlatMinimumState:
     eth_dma_state: DmaMarketState | None
     current_asset_allocation: dict[str, float]
     eth_btc_ratio_state: EthBtcRatioState | None = None
+    current_date: date | None = None
 
     def dma_state_for(self, allocation_key: str) -> DmaMarketState | None:
         if allocation_key == "spy":
@@ -190,6 +191,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                 context.portfolio.asset_allocation_percentages(context.portfolio_price)
             ),
             eth_btc_ratio_state=ratio_state,
+            current_date=context.date,
         )
         self._decrement_ratio_cooldown()
         return snapshot

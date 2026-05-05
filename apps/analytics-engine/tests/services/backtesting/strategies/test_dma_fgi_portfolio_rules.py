@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 
 import pytest
@@ -135,6 +136,7 @@ def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
         prices,
     )
     strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    _disable_global_cooldown(strategy)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -329,6 +331,7 @@ def test_strategy_ratio_rotation_cooldown_blocks_second_cross() -> None:
         prices,
     )
     strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    _disable_global_cooldown(strategy)
     dma = {"btc": 99.0, "eth": 99.0, "spy": 99.0}
     warmup_context = _context(
         context_date=date(2025, 1, 1),
@@ -467,16 +470,63 @@ def test_extreme_fear_gated_by_cross_down_cycle() -> None:
     assert closed_cycle.reason == "regime_no_signal"
 
 
+def test_global_cooldown_blocks_dca_tier_after_cross_trade() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
+
+    cross_down = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+            current_date=date(2025, 3, 8),
+        )
+    )
+    cooldown_dca = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+            current_date=date(2025, 3, 11),
+        )
+    )
+
+    assert cross_down.reason == "portfolio_cross_down_exit"
+    assert cooldown_dca.reason == "global_cooldown_active"
+    assert cooldown_dca.target_allocation == pytest.approx(current)
+    assert cooldown_dca.diagnostics is not None
+    assert cooldown_dca.diagnostics["matched_rule_name"] == "global_cooldown_gate"
+
+
 def _flat_state(
     *,
     btc: DmaMarketState,
     current: dict[str, float],
+    current_date: date | None = None,
 ) -> FlatMinimumState:
     return FlatMinimumState(
         spy_dma_state=state(symbol="SPY"),
         btc_dma_state=btc,
         eth_dma_state=state(symbol="ETH"),
         current_asset_allocation=current,
+        current_date=current_date,
+    )
+
+
+def _disable_global_cooldown(strategy: DmaFgiPortfolioRulesStrategy) -> None:
+    strategy.decision_policy.config = replace(
+        strategy.decision_policy.config,
+        global_cooldown_days=0,
     )
 
 
@@ -540,6 +590,7 @@ def test_strategy_cooldown_cross_up_falls_through_to_extreme_fear_dca() -> None:
         prices,
     )
     strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    _disable_global_cooldown(strategy)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,

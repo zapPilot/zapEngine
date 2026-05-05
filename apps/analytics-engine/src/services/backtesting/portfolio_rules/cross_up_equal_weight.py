@@ -58,7 +58,7 @@ class CrossUpEqualWeightRule:
 def _has_cross_up(snapshot: PortfolioSnapshot) -> bool:
     return any(
         snapshot.assets[symbol].actionable_cross_event == "cross_up"
-        for symbol in symbols_for_snapshot(snapshot)
+        for symbol in _eligible_symbols(snapshot)
     )
 
 
@@ -68,7 +68,13 @@ def _eligible_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
         and symbol in ALLOCATION_KEY_BY_SYMBOL
+        and not _is_reentry_cooldown_active(snapshot, symbol)
     ]
+
+
+def _is_reentry_cooldown_active(snapshot: PortfolioSnapshot, symbol: str) -> bool:
+    cooldown = snapshot.assets[symbol].cooldown_state
+    return cooldown.active and cooldown.blocked_zone == "above"
 
 
 __all__ = ["CrossUpEqualWeightRule"]

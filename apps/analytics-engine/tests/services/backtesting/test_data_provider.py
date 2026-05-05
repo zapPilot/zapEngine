@@ -18,6 +18,7 @@ from src.services.backtesting.features import (
     SPY_CRYPTO_RATIO_DMA_200_FEATURE,
     SPY_CRYPTO_RATIO_FEATURE,
     SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+    SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
 
@@ -266,6 +267,61 @@ async def test_fetch_token_prices_injects_spy_crypto_relative_strength_aux_serie
     assert rows[1]["extra_data"][SPY_CRYPTO_RATIO_DMA_200_FEATURE] == pytest.approx(
         0.005
     )
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_seeds_spy_forward_fill_before_weekend_start() -> None:
+    token_price_service = SimpleNamespace(
+        get_price_history=lambda **kwargs: [
+            SimpleNamespace(date=date(2025, 1, 4), price_usd=100_000.0),
+            SimpleNamespace(date=date(2025, 1, 5), price_usd=101_000.0),
+            SimpleNamespace(date=date(2025, 1, 6), price_usd=102_000.0),
+        ],
+        get_dma_history=lambda **kwargs: {},
+    )
+    spy_rows = {
+        date(2025, 1, 3): {"price_usd": 500.0, "dma_200": 490.0},
+        date(2025, 1, 6): {"price_usd": 510.0, "dma_200": 495.0},
+    }
+    stock_price_calls: list[dict[str, object]] = []
+
+    def _get_spy_dma_history(**kwargs):
+        stock_price_calls.append(dict(kwargs))
+        start_date = kwargs["start_date"]
+        end_date = kwargs["end_date"]
+        return {
+            snapshot_date: point
+            for snapshot_date, point in spy_rows.items()
+            if start_date <= snapshot_date <= end_date
+        }
+
+    provider = BacktestDataProvider(
+        token_price_service=token_price_service,
+        sentiment_service=SimpleNamespace(),
+        stock_price_service=SimpleNamespace(get_dma_history=_get_spy_dma_history),
+    )
+
+    rows = await provider.fetch_token_prices(
+        token_symbol="BTC",
+        start_date=date(2025, 1, 4),
+        end_date=date(2025, 1, 6),
+        market_data_requirements=MarketDataRequirements(
+            required_price_features=frozenset({SPY_DMA_200_FEATURE})
+        ),
+    )
+
+    assert stock_price_calls[0]["start_date"] == date(2024, 12, 28)
+    assert [row["date"] for row in rows] == [
+        date(2025, 1, 4),
+        date(2025, 1, 5),
+        date(2025, 1, 6),
+    ]
+    assert rows[0]["prices"]["spy"] == pytest.approx(500.0)
+    assert rows[1]["prices"]["spy"] == pytest.approx(500.0)
+    assert rows[2]["prices"]["spy"] == pytest.approx(510.0)
+    assert rows[0]["extra_data"][SPY_DMA_200_FEATURE] == pytest.approx(490.0)
+    assert rows[1]["extra_data"][SPY_DMA_200_FEATURE] == pytest.approx(490.0)
+    assert rows[2]["extra_data"][SPY_DMA_200_FEATURE] == pytest.approx(495.0)
 
 
 @pytest.mark.asyncio
