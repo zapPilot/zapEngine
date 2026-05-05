@@ -354,10 +354,18 @@ def _build_execution_hints(
     buy_strength = (
         compute_dma_buy_strength(snapshot.dma_distance) if enable_buy_gate else None
     )
+    current_regime = snapshot.fgi_regime
+    signal_value = snapshot.fgi_value
+    if (
+        "spy_below_extreme_fear_buy" in intent.reason
+        and snapshot.macro_fear_greed_regime is not None
+    ):
+        current_regime = snapshot.macro_fear_greed_regime
+        signal_value = snapshot.macro_fear_greed_value
     return ExecutionHints(
         signal_id=snapshot.signal_id,
-        current_regime=snapshot.fgi_regime,
-        signal_value=snapshot.fgi_value,
+        current_regime=current_regime,
+        signal_value=signal_value,
         signal_confidence=float(signal_confidence),
         decision_score=intent.decision_score,
         decision_action=intent.action,

@@ -26,8 +26,11 @@ def _context(
     sentiment: dict[str, object] | None = None,
     dma_200: float | None = 50_000.0,
     ath_event: str | None = None,
+    extra_data: dict[str, object] | None = None,
 ) -> SignalContext:
-    extra_data = {} if dma_200 is None else {"dma_200": dma_200}
+    resolved_extra_data = dict(extra_data or {})
+    if dma_200 is not None:
+        resolved_extra_data["dma_200"] = dma_200
     return SignalContext(
         date=date(2025, 1, day),
         price=price,
@@ -35,7 +38,7 @@ def _context(
         price_history=[50_000.0, price],
         portfolio_value=10_000.0,
         ath_event=ath_event,
-        extra_data=extra_data,
+        extra_data=resolved_extra_data,
     )
 
 
@@ -86,6 +89,29 @@ def test_signal_engine_builds_actionable_cross_after_dma_warmup() -> None:
     assert market_state.zone == "above"
     assert market_state.cross_event == "cross_up"
     assert market_state.actionable_cross_event == "cross_up"
+
+
+def test_signal_engine_extracts_macro_fear_greed_state() -> None:
+    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+
+    market_state = engine.build_market_state(
+        _context(
+            day=2,
+            price=45_000.0,
+            sentiment={"label": "neutral", "value": 50},
+            extra_data={
+                "dma_asset": "SPY",
+                "macro_fear_greed": {
+                    "score": 4.0,
+                    "label": "Extreme Fear",
+                },
+            },
+        )
+    )
+
+    assert market_state.asset_symbol == "SPY"
+    assert market_state.macro_fear_greed_value == pytest.approx(4.0)
+    assert market_state.macro_fear_greed_regime == "extreme_fear"
 
 
 def test_decision_resolver_prioritizes_dma_fgi_over_ath_fallback() -> None:
@@ -276,7 +302,7 @@ def test_signal_engine_releases_cooldown_without_retroactive_cross() -> None:
         )
     )
     assert blocked_state.cross_event == "cross_up"
-    assert blocked_state.actionable_cross_event == "cross_up"
+    assert blocked_state.actionable_cross_event is None
     engine.apply_intent(
         current_date=date(2025, 1, 3),
         market_state=blocked_state,

@@ -6,10 +6,13 @@ import { z } from 'zod';
  * declares the equivalent Pydantic models; CI parity runs through
  * `scripts/contracts/check_pydantic_parity.py` to catch drift.
  *
- * Shape is self-describing on purpose — adding a new data source (gold, NDX,
- * 10Y yield, ...) is server-side-only: register a `SeriesDescriptor` and
- * populate `values[<series_id>]` per snapshot. Indicator ids (e.g. `dma_200`)
- * and tag ids (e.g. `regime`) are the only out-of-band naming conventions.
+ * Shape is self-describing on purpose: the wire contract accepts new series ids
+ * once the backend registers a `SeriesDescriptor` and populates
+ * `values[<series_id>]` per snapshot. The current frontend Market Overview
+ * chart is still statically registered, so visible chart lines also require
+ * frontend line descriptors, flattening, normalization, tooltip formatting,
+ * and tests. Indicator ids (e.g. `dma_200`) and tag ids (e.g. `regime`) are
+ * the only out-of-band naming conventions.
  */
 
 const indicatorSchema = z.object({

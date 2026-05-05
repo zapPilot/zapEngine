@@ -1,13 +1,18 @@
+import type { BacktestBucket } from '@/types/backtesting';
 import { formatCurrency } from '@/utils';
 
 import {
+  getBacktestTransferDirection,
   hasBacktestAllocation,
+  isBacktestTransfer,
   resolveBacktestDisplayAllocation,
 } from '../backtestBuckets';
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import type {
   AllocationBlock,
   BacktestTooltipPayloadEntry,
-  DetailItem,
+  DecisionAssetChangeItem,
+  DecisionSummary,
   EventItem,
   EventStrategiesRecord,
   SignalItem,
@@ -16,10 +21,7 @@ import type {
   TooltipSections,
 } from './backtestTooltipDataTypes';
 import { CHART_SIGNALS } from './chartHelpers';
-import {
-  getBacktestSpotAssetColor,
-  resolveBacktestSpotAsset,
-} from './spotAssetDisplay';
+import { resolveBacktestSpotAsset } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
 
 const SIGNAL_EVENT_KEYS = new Set<string>([
@@ -34,6 +36,16 @@ const SIGNAL_TO_EVENT_KEY: Record<string, string> = Object.fromEntries(
     (signal) => [signal.name, signal.key],
   ),
 );
+
+const ACTION_COLORS = {
+  buy: '#86efac',
+  sell: '#fca5a5',
+  hold: '#cbd5e1',
+} as const;
+
+const ROTATION_COLOR = '#c4b5fd';
+const NOTE_COLOR = '#cbd5e1';
+const BLOCKED_COLOR = '#fda4af';
 
 function buildAllocationBlock(
   strategyId: string,
@@ -107,57 +119,140 @@ export function buildAllocations(
     .filter((allocation): allocation is AllocationBlock => allocation !== null);
 }
 
-function getStrategyDetailItems(
+function formatActionLabel(
+  action: StrategiesRecord[string]['decision']['action'],
+) {
+  return action.charAt(0).toUpperCase() + action.slice(1);
+}
+
+function formatBucketLabel(
+  bucket: BacktestBucket,
   strategy: StrategiesRecord[string],
-  strategyId: string,
-): DetailItem[] {
-  const displayName = getStrategyDisplayName(strategyId);
-  const items: DetailItem[] = [
-    {
-      name: `${displayName} decision`,
-      value: `${strategy.decision.action} · ${strategy.decision.reason}`,
-      color: '#cbd5e1',
+): string {
+  if (bucket === 'stable') {
+    return 'Stable';
+  }
+
+  if (bucket === 'spot') {
+    return resolveBacktestSpotAsset(strategy) ?? 'Spot';
+  }
+
+  return bucket.toUpperCase();
+}
+
+function getAssetChangeColor(
+  fromBucket: BacktestBucket,
+  toBucket: BacktestBucket,
+): string {
+  const direction = getBacktestTransferDirection(fromBucket, toBucket);
+  if (direction === 'stable_to_spot') {
+    return ACTION_COLORS.buy;
+  }
+
+  if (direction === 'spot_to_stable') {
+    return ACTION_COLORS.sell;
+  }
+
+  if (fromBucket !== 'stable' && toBucket !== 'stable') {
+    return ROTATION_COLOR;
+  }
+
+  return NOTE_COLOR;
+}
+
+function buildAssetChanges(
+  strategy: StrategiesRecord[string],
+): DecisionAssetChangeItem[] {
+  const transfers = Array.isArray(strategy.execution.transfers)
+    ? strategy.execution.transfers
+    : [];
+
+  return transfers.filter(isBacktestTransfer).map((transfer) => ({
+    label: `${formatBucketLabel(transfer.from_bucket, strategy)} -> ${formatBucketLabel(
+      transfer.to_bucket,
+      strategy,
+    )}`,
+    value: formatCurrency(transfer.amount_usd, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }),
+    color: getAssetChangeColor(transfer.from_bucket, transfer.to_bucket),
+  }));
+}
+
+function getActiveDecisionStrategyId(
+  strategies: StrategiesRecord | undefined,
+  orderedIds: string[],
+): string | null {
+  const activeComparisonId = orderedIds.find(
+    (strategyId) =>
+      strategyId !== DCA_CLASSIC_STRATEGY_ID && strategies?.[strategyId],
+  );
+  if (activeComparisonId) {
+    return activeComparisonId;
+  }
+
+  const signaledEntry = Object.entries(strategies ?? {}).find(
+    ([, strategy]) => strategy.signal != null,
+  );
+  return signaledEntry?.[0] ?? null;
+}
+
+function getDecisionRule(strategy: StrategiesRecord[string]) {
+  const allocationName = strategy.decision.details?.allocation_name;
+  return {
+    label:
+      typeof allocationName === 'string' && allocationName.trim()
+        ? allocationName
+        : strategy.decision.reason,
+    group: strategy.decision.rule_group,
+  };
+}
+
+function buildDecisionSummary(
+  strategies: StrategiesRecord | undefined,
+  orderedIds: string[],
+): DecisionSummary | null {
+  const strategyId = getActiveDecisionStrategyId(strategies, orderedIds);
+  const strategy = strategyId ? strategies?.[strategyId] : undefined;
+  if (!strategy || !strategyId) {
+    return null;
+  }
+
+  const assetChanges = buildAssetChanges(strategy);
+  const blockedReason =
+    strategy.execution.blocked_reason ?? getBuyGateBlockReason(strategy);
+
+  return {
+    strategyId,
+    displayName: getStrategyDisplayName(strategyId),
+    rule: getDecisionRule(strategy),
+    action: {
+      label: formatActionLabel(strategy.decision.action),
+      color: ACTION_COLORS[strategy.decision.action],
     },
-  ];
-
-  const targetSpotAsset = resolveBacktestSpotAsset(strategy);
-  if (targetSpotAsset) {
-    items.push({
-      name: `${displayName} spot asset`,
-      value: targetSpotAsset,
-      color: getBacktestSpotAssetColor(targetSpotAsset),
-    });
-  }
-
-  if (strategy.execution.blocked_reason) {
-    items.push({
-      name: `${displayName} blocked`,
-      value: strategy.execution.blocked_reason,
-      color: '#fda4af',
-    });
-  }
-
-  const buyGateBlockReason = getBuyGateBlockReason(strategy);
-  if (buyGateBlockReason) {
-    items.push({
-      name: `${displayName} buy gate`,
-      value: buyGateBlockReason,
-      color: '#fcd34d',
-    });
-  }
-
-  return items;
+    assetChanges,
+    assetChangeNote:
+      assetChanges.length > 0
+        ? null
+        : {
+            label: blockedReason
+              ? `No asset changes - blocked by ${blockedReason}`
+              : 'No asset changes - held position',
+            color: blockedReason ? BLOCKED_COLOR : NOTE_COLOR,
+          },
+  };
 }
 
 /**
- * Build strategy, event, signal, and detail sections for a tooltip.
+ * Build strategy, event, signal, and decision sections for a tooltip.
  *
  * @param payload - Recharts tooltip payload
  * @param eventStrategies - Strategy names keyed by signal event
  * @param sentiment - Sentiment label for the current point
  * @param macroFearGreedLabel - Macro FGI label for the current point
  * @param strategies - Strategy data keyed by strategy ID
- * @param orderedIds - Ordered strategy IDs for detail rendering
+ * @param orderedIds - Ordered strategy IDs for decision rendering
  * @returns Tooltip sections without allocations
  */
 export function buildTooltipSections(
@@ -171,7 +266,6 @@ export function buildTooltipSections(
   const strategyItems: TooltipItem[] = [];
   const eventItems: EventItem[] = [];
   const signalItems: SignalItem[] = [];
-  const detailItems: DetailItem[] = [];
 
   for (const entry of payload) {
     if (!entry) {
@@ -210,19 +304,11 @@ export function buildTooltipSections(
     }
   }
 
-  for (const strategyId of orderedIds) {
-    const strategy = strategies?.[strategyId];
-    if (strategy?.signal == null) {
-      continue;
-    }
-    detailItems.push(...getStrategyDetailItems(strategy, strategyId));
-  }
-
   return {
     strategies: strategyItems,
     events: eventItems,
     signals: signalItems,
-    details: detailItems,
+    decision: buildDecisionSummary(strategies, orderedIds),
   };
 }
 

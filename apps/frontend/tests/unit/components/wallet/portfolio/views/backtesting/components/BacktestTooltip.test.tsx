@@ -35,7 +35,7 @@ function createTooltipData(overrides: Record<string, unknown> = {}) {
       strategies: [],
       events: [],
       signals: [],
-      details: [],
+      decision: null,
       allocations: [],
     },
     ...overrides,
@@ -72,7 +72,7 @@ describe('BacktestTooltip', () => {
             },
           ],
           signals: [],
-          details: [],
+          decision: null,
           allocations: [],
         },
       }) as ReturnType<typeof buildBacktestTooltipData>,
@@ -85,20 +85,33 @@ describe('BacktestTooltip', () => {
     expect(screen.getByText('Buy Spot (AWP)')).toBeInTheDocument();
   });
 
-  it('renders signals and decision details sections when present', () => {
+  it('renders signals and the structured decision section when present', () => {
     mockedBuildBacktestTooltipData.mockReturnValue(
       createTooltipData({
         sections: {
           strategies: [],
           events: [],
           signals: [{ name: 'Trend', value: 'UP', color: '#10b981' }],
-          details: [
-            {
-              name: 'DMA Gated FGI Default decision',
-              value: 'buy · below_extreme_fear_buy',
-              color: '#cbd5e1',
+          decision: {
+            strategyId: 'dma_gated_fgi_default',
+            displayName: 'DMA Gated FGI Default',
+            rule: {
+              label: 'dma_below_extreme_fear_buy',
+              group: 'dma_fgi',
             },
-          ],
+            action: {
+              label: 'Buy',
+              color: '#86efac',
+            },
+            assetChanges: [
+              {
+                label: 'Stable -> ETH',
+                value: '$240',
+                color: '#86efac',
+              },
+            ],
+            assetChangeNote: null,
+          },
           allocations: [],
         },
       }) as ReturnType<typeof buildBacktestTooltipData>,
@@ -110,9 +123,15 @@ describe('BacktestTooltip', () => {
     expect(screen.getByText('Trend')).toBeInTheDocument();
     expect(screen.getByText('UP')).toBeInTheDocument();
     expect(screen.getByText('Decision')).toBeInTheDocument();
-    expect(
-      screen.getByText('DMA Gated FGI Default decision'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('DMA Gated FGI Default')).toBeInTheDocument();
+    expect(screen.getByText('Rule')).toBeInTheDocument();
+    expect(screen.getByText('dma_below_extreme_fear_buy')).toBeInTheDocument();
+    expect(screen.getByText('dma_fgi')).toBeInTheDocument();
+    expect(screen.getByText('Action')).toBeInTheDocument();
+    expect(screen.getByText('Buy')).toBeInTheDocument();
+    expect(screen.getByText('Asset changes')).toBeInTheDocument();
+    expect(screen.getByText('Stable -> ETH')).toBeInTheDocument();
+    expect(screen.getByText('$240')).toBeInTheDocument();
   });
 
   it('renders allocation blocks when present', () => {
@@ -122,7 +141,7 @@ describe('BacktestTooltip', () => {
           strategies: [],
           events: [],
           signals: [],
-          details: [],
+          decision: null,
           allocations: [
             {
               id: 'dca_classic',
@@ -149,7 +168,7 @@ describe('BacktestTooltip', () => {
     expect(
       screen.getByTestId('allocation-dma_gated_fgi_default'),
     ).toBeInTheDocument();
-    expect(container.firstChild).toHaveClass('min-w-[200px]');
+    expect(container.firstChild).toHaveClass('min-w-[260px]');
     expect(container.firstChild).not.toHaveClass('overflow-y-auto');
   });
 });

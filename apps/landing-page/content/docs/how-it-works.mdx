@@ -1,0 +1,74 @@
+---
+title: How it works
+description: Sense the regime, decide the allocation, sign one bundle from your own wallet.
+---
+
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Every regime shift becomes one signed bundle in your own EOA. The flow has three parts:
+
+<Steps>
+
+<Step>
+
+### Sense
+
+Three signal _categories_ are evaluated continuously:
+
+- **200-Day Moving Average** — long-term trend filter.
+- **Fear & Greed Index** — sentiment filter (CNN macro plus crypto-native sources).
+- **ETH / BTC relative strength** — in-crypto rotation overlay.
+
+The signal categories are stable. The exact thresholds, weights, and cooldowns are tuned in `apps/analytics-engine` and may change between releases — they live in code, not in this page.
+
+</Step>
+
+<Step>
+
+### Decide
+
+When the regime shifts, the rules engine produces a target allocation across the three pillars. Idle capital between rebalances is parked in baseline-yield venues so the portfolio is never doing nothing — but yield is the icing, not the strategy. Approximately 90% of the return comes from regime trading itself, not from yield.
+
+</Step>
+
+<Step>
+
+### Sign
+
+A pre-built transaction bundle is delivered to you (today: via Telegram). You review it, sign it once from your own wallet, and the rebalance is done. Two execution paths exist; the right one is selected automatically based on what your wallet supports:
+
+<Tabs items={['EIP-7702 (preferred)', 'Multicall3 (fallback)']}>
+
+<Tab>
+
+Wallets that advertise the EIP-5792 atomic capability (`wallet_getCapabilities` returns `atomic.status: "supported"`) get a true atomic batch via viem's `sendCalls`. All legs of the rebalance succeed together or revert together — no half-applied state.
+
+Implementation: `packages/intent-engine/src/execution/eip7702.executor.ts`.
+
+</Tab>
+
+<Tab>
+
+Wallets without atomic capability fall back to a single transaction whose calldata is `aggregate3` (or `aggregate3Value` when ETH value is involved) against the standard Multicall3 contract. Still one signature, still one transaction — atomicity comes from Multicall3's own revert semantics.
+
+Implementation: `packages/intent-engine/src/execution/multicall3.executor.ts`.
+
+</Tab>
+
+</Tabs>
+
+Capability detection — and the EIP-7702 → Multicall3 fallback decision — is handled by `packages/intent-engine/src/execution/capability.detector.ts`.
+
+</Step>
+
+</Steps>
+
+<Callout type="warn" title="What changes vs. what stays">
+  Strategy parameters — thresholds, target weights, cooldown lengths, and the
+  specific yield venues used between trades — are tuned in
+  `apps/analytics-engine` and change between releases. The execution model (one
+  signature, EIP-7702 first with Multicall3 fallback) and the signal categories
+  (200MA, Fear & Greed, ETH/BTC RS) are stable.
+</Callout>

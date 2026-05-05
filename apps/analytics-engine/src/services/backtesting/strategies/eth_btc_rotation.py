@@ -39,6 +39,10 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaMarketState,
     Zone,
 )
+from src.services.backtesting.signals.ratio_state import (
+    classify_ratio_zone,
+    detect_ratio_cross,
+)
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
@@ -157,41 +161,6 @@ def _rotation_distance(
     return ratio, dma_200, (ratio - dma_200) / dma_200
 
 
-def _classify_ratio_zone(
-    *,
-    ratio: float | None,
-    ratio_dma_200: float | None,
-) -> Zone | None:
-    if ratio is None or ratio_dma_200 is None or ratio_dma_200 <= 0.0:
-        return None
-    if ratio > ratio_dma_200:
-        return "above"
-    if ratio < ratio_dma_200:
-        return "below"
-    return "at"
-
-
-def _detect_ratio_cross(
-    *,
-    previous_zone: Zone | None,
-    current_zone: Zone | None,
-    cross_on_touch: bool,
-) -> CrossEvent | None:
-    if previous_zone is None or current_zone is None:
-        return None
-    if previous_zone == "above":
-        if cross_on_touch and current_zone in {"at", "below"}:
-            return "cross_down"
-        if not cross_on_touch and current_zone == "below":
-            return "cross_down"
-    if previous_zone == "below":
-        if cross_on_touch and current_zone in {"at", "above"}:
-            return "cross_up"
-        if not cross_on_touch and current_zone == "above":
-            return "cross_up"
-    return None
-
-
 def _build_outer_dma_context(context: StrategyContext) -> StrategyContext:
     """Build context for the outer DMA gate using the majority spot asset."""
     alloc = context.portfolio.asset_allocation_percentages(context.price_map)
@@ -248,7 +217,7 @@ def build_initial_eth_btc_asset_allocation(
     ratio, ratio_dma_200, _distance = _rotation_distance(
         {} if extra_data is None else extra_data
     )
-    ratio_zone = _classify_ratio_zone(ratio=ratio, ratio_dma_200=ratio_dma_200)
+    ratio_zone = classify_ratio_zone(ratio=ratio, ratio_dma=ratio_dma_200)
     eth_share = 1.0 if ratio_zone == "below" else 0.0
     return _compose_asset_target(
         stable_share=normalized["stable"],
@@ -366,26 +335,26 @@ class EthBtcRelativeStrengthSignalComponent(StatefulSignalComponent):
     def initialize(self, context: StrategyContext) -> None:
         self._dma_signal.initialize(_build_outer_dma_context(context))
         ratio, ratio_dma_200, _distance = _rotation_distance(context.extra_data)
-        self._last_ratio_zone = _classify_ratio_zone(
+        self._last_ratio_zone = classify_ratio_zone(
             ratio=ratio,
-            ratio_dma_200=ratio_dma_200,
+            ratio_dma=ratio_dma_200,
         )
 
     def warmup(self, context: StrategyContext) -> None:
         self._dma_signal.warmup(_build_outer_dma_context(context))
         ratio, ratio_dma_200, _distance = _rotation_distance(context.extra_data)
-        self._last_ratio_zone = _classify_ratio_zone(
+        self._last_ratio_zone = classify_ratio_zone(
             ratio=ratio,
-            ratio_dma_200=ratio_dma_200,
+            ratio_dma=ratio_dma_200,
         )
 
     def observe(self, context: StrategyContext) -> EthBtcRotationState:
         self._release_ratio_cooldown_if_expired(context.date)
         dma_state = self._dma_signal.observe(_build_outer_dma_context(context))
         ratio, ratio_dma_200, ratio_distance = _rotation_distance(context.extra_data)
-        ratio_zone = _classify_ratio_zone(ratio=ratio, ratio_dma_200=ratio_dma_200)
-        ratio_cross_event = _detect_ratio_cross(
-            previous_zone=self._last_ratio_zone,
+        ratio_zone = classify_ratio_zone(ratio=ratio, ratio_dma=ratio_dma_200)
+        ratio_cross_event = detect_ratio_cross(
+            prev_zone=self._last_ratio_zone,
             current_zone=ratio_zone,
             cross_on_touch=self.config.cross_on_touch,
         )

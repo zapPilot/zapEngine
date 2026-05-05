@@ -33,6 +33,22 @@ IGNORE_PATTERNS = [
     "backtesting/execution/pacing/",  # Pacing policies with similar imports (refactored to base class)
     "backtesting/tactics/rules/",  # Explicit Rule protocol implementations share the same class shape
 ]
+PORTFOLIO_RULES_PATTERN = "backtesting/portfolio_rules/"
+PORTFOLIO_RULE_PROTOCOL_METHODS = ("def matches(", "def build_intent(")
+RULE_PROTOCOL_BASE_FILES = (
+    "backtesting/portfolio_rules/base.py",
+    "backtesting/tactics/base.py",
+)
+RULE_PROTOCOL_METADATA_LINES = (
+    "@property",
+    "def name(self) -> str: ...",
+    "@property",
+    "def priority(self) -> int: ...",
+    "@property",
+    "def rule_group(self) -> RuleGroup: ...",
+    "@property",
+    "def description(self) -> str: ...",
+)
 
 
 def get_code_lines(filepath):
@@ -119,7 +135,42 @@ def should_ignore_duplicate(dup):
     for pattern in IGNORE_PATTERNS:
         if pattern in dup["file1"] or pattern in dup["file2"]:
             return True
-    return False
+    return (
+        is_portfolio_rule_protocol_duplicate(dup)
+        or is_rule_protocol_metadata_duplicate(dup)
+    )
+
+
+def is_portfolio_rule_protocol_duplicate(dup):
+    """Allow repeated portfolio rule protocol method shells.
+
+    Portfolio rule implementations intentionally expose matching method
+    signatures. Keep the directory otherwise actionable so duplicated rule
+    logic is still reported.
+    """
+    if (
+        PORTFOLIO_RULES_PATTERN not in dup["file1"]
+        or PORTFOLIO_RULES_PATTERN not in dup["file2"]
+    ):
+        return False
+
+    code = dup.get("code") or []
+    return bool(code) and code[0] in PORTFOLIO_RULE_PROTOCOL_METHODS
+
+
+def is_rule_protocol_metadata_duplicate(dup):
+    """Allow shared rule metadata properties on Protocol contracts."""
+    if not all(
+        any(path.endswith(pattern) for pattern in RULE_PROTOCOL_BASE_FILES)
+        for path in (dup["file1"], dup["file2"])
+    ):
+        return False
+
+    code = tuple(dup.get("code") or [])
+    return any(
+        code == RULE_PROTOCOL_METADATA_LINES[start : start + len(code)]
+        for start in range(len(RULE_PROTOCOL_METADATA_LINES) - len(code) + 1)
+    )
 
 
 def collect_target_files() -> list[Path]:

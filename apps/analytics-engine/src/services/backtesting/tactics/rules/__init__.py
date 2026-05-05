@@ -32,6 +32,9 @@ from src.services.backtesting.tactics.rules.below_fear_recovering_buy import (
 from src.services.backtesting.tactics.rules.regime_no_signal_hold import (
     RegimeNoSignalHoldRule,
 )
+from src.services.backtesting.tactics.rules.spy_below_extreme_fear_buy import (
+    SpyBelowExtremeFearBuyRule,
+)
 from src.services.backtesting.tactics.rules.zone_cooldown_hold import (
     ZoneCooldownHoldRule,
 )
@@ -45,6 +48,7 @@ _UNSORTED_DEFAULT_RULES: tuple[Rule, ...] = (
     AboveExtremeGreedSellRule(),
     AboveGreedFadingSellRule(),
     AboveGreedSellRule(),
+    SpyBelowExtremeFearBuyRule(),
     BelowExtremeFearBuyRule(),
     BelowFearRecoveringBuyRule(),
     AboveAthSellRule(),

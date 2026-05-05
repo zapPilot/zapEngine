@@ -1,6 +1,5 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
-import { createFramerMotionMock } from './src/test-utils/mocks/framer-motion';
 import { nextImageMock } from './src/test-utils/mocks/next-image';
 
 Object.defineProperty(window, 'matchMedia', {
@@ -38,4 +37,3 @@ class MockIntersectionObserver {
   MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 vi.mock('next/image', () => nextImageMock);
-vi.mock('framer-motion', () => createFramerMotionMock());

@@ -19,9 +19,14 @@ let capturedTooltipFormatter:
           macro_fear_greed?: number | null;
           regime?: string | null;
           macro_fear_greed_label?: string | null;
+          price_usd?: number | null;
           btc_dma_200?: number | null;
+          eth_price_usd?: number | null;
+          eth_dma_200?: number | null;
           eth_btc_ratio?: number | null;
           eth_btc_dma_200?: number | null;
+          sp500_price_usd?: number | null;
+          sp500_dma_200?: number | null;
         };
       },
     ) => [string | number, string | number])
@@ -73,9 +78,14 @@ vi.mock('recharts', async () => {
           macro_fear_greed?: number | null;
           regime?: string | null;
           macro_fear_greed_label?: string | null;
+          price_usd?: number | null;
           btc_dma_200?: number | null;
+          eth_price_usd?: number | null;
+          eth_dma_200?: number | null;
           eth_btc_ratio?: number | null;
           eth_btc_dma_200?: number | null;
+          sp500_price_usd?: number | null;
+          sp500_dma_200?: number | null;
         };
       },
     ) => [string | number, string | number];
@@ -126,6 +136,8 @@ interface SnapshotOpts {
   date: string;
   btcPrice?: number;
   btcDma?: number | null;
+  ethPrice?: number;
+  ethDma?: number | null;
   sentiment?: number | null;
   regime?: string | null;
   ethBtcRatio?: number | null;
@@ -159,6 +171,24 @@ function makeSnapshot(opts: SnapshotOpts) {
     values['btc'] = {
       value: opts.btcPrice,
       indicators: btcIndicators,
+      tags: {},
+    };
+  }
+
+  if (opts.ethPrice != null) {
+    const ethIndicators: Record<
+      string,
+      { value: number; is_above: boolean | null }
+    > = {};
+    if (opts.ethDma != null) {
+      ethIndicators['dma_200'] = {
+        value: opts.ethDma,
+        is_above: opts.ethPrice > opts.ethDma,
+      };
+    }
+    values['eth'] = {
+      value: opts.ethPrice,
+      indicators: ethIndicators,
       tags: {},
     };
   }
@@ -218,6 +248,8 @@ const mockData = makeResponse([
     date: '2025-01-01',
     btcPrice: 42000,
     btcDma: 38000,
+    ethPrice: 3200,
+    ethDma: 3000,
     sentiment: 65,
     regime: 'g',
     macroFearGreed: 55,
@@ -230,6 +262,8 @@ const mockData = makeResponse([
     date: '2025-01-02',
     btcPrice: 43000,
     btcDma: 38500,
+    ethPrice: 3300,
+    ethDma: 3050,
     sentiment: 70,
     regime: 'eg',
     macroFearGreed: 61,
@@ -332,6 +366,8 @@ describe('MarketDashboardView', () => {
     await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
     expect(screen.getByTestId('line-toggle-btcPrice')).toBeDefined();
     expect(screen.getByTestId('line-toggle-btcDma200')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-ethPrice')).toBeDefined();
+    expect(screen.getByTestId('line-toggle-ethDma200')).toBeDefined();
     expect(screen.getByTestId('line-toggle-ethBtcRatio')).toBeDefined();
     expect(screen.getByTestId('line-toggle-ethBtcDma200')).toBeDefined();
     expect(screen.getByTestId('line-toggle-fgi')).toBeDefined();
@@ -342,12 +378,18 @@ describe('MarketDashboardView', () => {
     mockGetMarketDashboardData.mockResolvedValue(mockData);
     render(<MarketDashboardView />, { wrapper: createWrapper() });
     await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
-    // Default-on: BTC price + BTC DMA + FGI + Macro FGI
+    // Default-on: BTC/ETH price + DMA, FGI, and Macro FGI
     expect(
       screen.getByTestId('line-toggle-btcPrice').getAttribute('aria-pressed'),
     ).toBe('true');
     expect(
       screen.getByTestId('line-toggle-btcDma200').getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('line-toggle-ethPrice').getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('line-toggle-ethDma200').getAttribute('aria-pressed'),
     ).toBe('true');
     expect(
       screen.getByTestId('line-toggle-fgi').getAttribute('aria-pressed'),
@@ -536,6 +578,20 @@ describe('MarketDashboardView', () => {
       const [formattedValue, label] = fmt(38500, 'BTC 200 DMA', {});
       expect(String(formattedValue)).toContain('38,500');
       expect(label).toBe('BTC 200 DMA');
+    });
+
+    it('formats ETH Price with dollar sign and locale number', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue, label] = fmt(3200, 'ETH Price', {});
+      expect(String(formattedValue)).toContain('3,200');
+      expect(label).toBe('ETH Price');
+    });
+
+    it('formats ETH 200 DMA with dollar sign and locale number', async () => {
+      const fmt = await renderAndGetFormatter();
+      const [formattedValue, label] = fmt(3050, 'ETH 200 DMA', {});
+      expect(String(formattedValue)).toContain('3,050');
+      expect(label).toBe('ETH 200 DMA');
     });
 
     it('formats ETH/BTC Ratio with fixed decimals', async () => {

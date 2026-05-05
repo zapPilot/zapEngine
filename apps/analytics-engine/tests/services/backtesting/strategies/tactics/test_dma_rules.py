@@ -31,6 +31,8 @@ def _state(
     fgi_regime: str = "neutral",
     fgi_slope: float = 0.0,
     ath_event: str | None = None,
+    asset_symbol: str | None = None,
+    macro_fear_greed_regime: str | None = None,
 ) -> DmaMarketState:
     return DmaMarketState(
         signal_id="dma_gated_fgi",
@@ -49,6 +51,8 @@ def _state(
         fgi_regime=fgi_regime,
         regime_source="value",
         ath_event=cast(AthEvent | None, ath_event),
+        asset_symbol=asset_symbol,
+        macro_fear_greed_regime=macro_fear_greed_regime,
     )
 
 
@@ -106,6 +110,16 @@ RULE_CASES: dict[str, tuple[DmaMarketState, str, str]] = {
         _state(zone="below", dma_distance=-0.05, fgi_regime="extreme_fear"),
         "buy",
         "below_extreme_fear_buy",
+    ),
+    "spy_below_extreme_fear_buy": (
+        _state(
+            zone="below",
+            dma_distance=-0.05,
+            asset_symbol="SPY",
+            macro_fear_greed_regime="extreme_fear",
+        ),
+        "buy",
+        "spy_below_extreme_fear_buy",
     ),
     "below_fear_recovering_buy": (
         _state(

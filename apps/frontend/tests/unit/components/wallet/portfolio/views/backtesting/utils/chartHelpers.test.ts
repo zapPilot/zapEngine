@@ -807,6 +807,33 @@ describe('buildChartPoint', () => {
     expect(result.switchToBtcSignal).toBeNull();
   });
 
+  it('creates a switchToSpy marker from a btc → spy transfer', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules: createStrategyPoint({
+            execution: {
+              event: 'rebalance',
+              transfers: [
+                { from_bucket: 'btc', to_bucket: 'spy', amount_usd: 500 },
+              ],
+              blocked_reason: null,
+              step_count: 1,
+              steps_remaining: 0,
+              interval_days: 3,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules'],
+    );
+
+    expect(result.switchToSpySignal).toBe(10000);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_spy,
+    ).toEqual(['dma fgi portfolio rules']);
+  });
+
   it('does not emit signals from a second strategy excluded from strategyIds', () => {
     const point = createTimelinePoint({
       strategies: {

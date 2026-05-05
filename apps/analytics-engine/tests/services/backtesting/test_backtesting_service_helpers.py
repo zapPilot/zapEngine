@@ -7,6 +7,12 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_FLAT_MINIMUM
+from src.services.backtesting.features import (
+    DMA_200_FEATURE,
+    ETH_DMA_200_FEATURE,
+    SPY_DMA_200_FEATURE,
+)
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.backtesting_service import (
     BacktestingService,
@@ -396,6 +402,71 @@ async def test_run_compare_v3_only_auto_injects_dca_baseline_for_saved_configs(
         config.request_config_id != "dma_gated_fgi_default"
         for config in resolved_configs
     )
+
+
+@pytest.mark.asyncio
+async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = BacktestingService(
+        db=MagicMock(),
+        token_price_service=MagicMock(),
+        sentiment_service=MagicMock(),
+        strategy_config_store=MagicMock(
+            get_config=lambda _config_id: None,
+            list_configs=lambda: [resolve_seed_strategy_config("dca_classic")],
+        ),
+    )
+    service.data_provider.fetch_token_prices = AsyncMock(
+        return_value=[
+            {
+                **price_row(date(2025, 1, 1), price=100.0, dma_200=95.0),
+                "prices": {"btc": 100.0, "eth": 110.0, "spy": 500.0},
+                "extra_data": {
+                    DMA_200_FEATURE: 95.0,
+                    ETH_DMA_200_FEATURE: 105.0,
+                    SPY_DMA_200_FEATURE: 450.0,
+                },
+            },
+            {
+                **price_row(date(2025, 1, 2), price=101.0, dma_200=95.0),
+                "prices": {"btc": 101.0, "eth": 111.0, "spy": 501.0},
+                "extra_data": {
+                    DMA_200_FEATURE: 95.0,
+                    ETH_DMA_200_FEATURE: 105.0,
+                    SPY_DMA_200_FEATURE: 450.0,
+                },
+            },
+        ]
+    )
+    service.data_provider.fetch_sentiments = AsyncMock(
+        return_value=sentiment_map(days=2)
+    )
+    mock_runner = _patch_compare_runner(monkeypatch)
+
+    await service.run_compare_v3(
+        compare_request(
+            end_date=date(2025, 1, 2),
+            configs=[
+                BacktestCompareConfigV3(
+                    config_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
+                    saved_config_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
+                )
+            ],
+        )
+    )
+
+    requirements = service.data_provider.fetch_token_prices.call_args.kwargs[
+        "market_data_requirements"
+    ]
+    assert requirements.required_price_features == frozenset(
+        {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+    )
+    resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
+    assert [config.strategy_id for config in resolved_configs] == [
+        "dca_classic",
+        STRATEGY_DMA_FGI_FLAT_MINIMUM,
+    ]
 
 
 def test_has_composition_path_returns_false_for_none_strategy_id() -> None:

@@ -1,85 +1,64 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import HomePage from '../page';
-import { MESSAGES } from '@/config/messages';
+import LandingPageV2 from '../page';
 
-vi.mock('@/components/AnimatedBackground', () => ({
-  AnimatedBackground: () => <div data-testid="animated-background" />,
-}));
-
-describe('HomePage', () => {
+describe('LandingPageV2', () => {
   describe('section rendering', () => {
     it('should render all major sections', () => {
-      const { container } = render(<HomePage />);
+      const { container } = render(<LandingPageV2 />);
       const content = container.textContent || '';
 
-      expect(content).toMatch(/Connect Telegram Bot/);
-      expect(content).toMatch(/Three Pillars/);
-      expect(content).toMatch(/Self-Custody/);
-      expect(content).toMatch(/Execute/);
-      expect(content).toMatch(/BlackRock/);
+      expect(content).toMatch(/Trade with discipline/);
+      expect(content).toMatch(/Three steps/);
+      expect(content).toMatch(/What the engine trades into/);
+      expect(content).toMatch(/Trades drove the return/);
+      expect(content).toMatch(/Before you connect a wallet/);
+      expect(content).toMatch(/Where idle capital parks/);
+      expect(content).toMatch(/100% Self-Custody/);
     });
 
     it('should render navigation links', () => {
-      render(<HomePage />);
+      render(<LandingPageV2 />);
 
       expect(
-        screen.getAllByRole('link', { name: 'Features' }).length,
+        screen.getAllByRole('link', { name: 'Strategy' }).length,
       ).toBeGreaterThan(0);
       expect(
-        screen.getAllByRole('link', { name: 'How It Works' }).length,
+        screen.getAllByRole('link', { name: 'Performance' }).length,
       ).toBeGreaterThan(0);
       expect(
         screen.getAllByRole('link', { name: 'Docs' }).length,
       ).toBeGreaterThan(0);
     });
-
-    it('should render AnimatedBackground', () => {
-      render(<HomePage />);
-
-      expect(screen.getByTestId('animated-background')).toBeInTheDocument();
-    });
   });
 
   describe('layout structure', () => {
-    it('should have dark background theme', () => {
-      const { container } = render(<HomePage />);
-
+    it('should have v2-root class on main container', () => {
+      const { container } = render(<LandingPageV2 />);
       const mainDiv = container.firstChild as HTMLElement;
-      expect(mainDiv).toHaveClass('bg-gray-950');
-      expect(mainDiv).toHaveClass('text-white');
-    });
-
-    it('should have min-height screen', () => {
-      const { container } = render(<HomePage />);
-
-      const mainDiv = container.firstChild as HTMLElement;
-      expect(mainDiv).toHaveClass('min-h-screen');
-    });
-
-    it('should have overflow-x-hidden to prevent horizontal scroll', () => {
-      const { container } = render(<HomePage />);
-
-      const mainDiv = container.firstChild as HTMLElement;
-      expect(mainDiv).toHaveClass('overflow-x-hidden');
+      expect(mainDiv).toHaveClass('v2-root');
     });
   });
 
   describe('section order', () => {
     it('should render sections in correct visual order', () => {
-      const { container } = render(<HomePage />);
-
+      const { container } = render(<LandingPageV2 />);
       const content = container.textContent || '';
 
-      const heroIndex = content.indexOf('Connect Telegram Bot');
-      const featuresIndex = content.indexOf(MESSAGES.features.items[0]!.title);
-      expect(heroIndex).toBeLessThan(featuresIndex);
+      const heroIndex = content.indexOf('Trade with discipline');
+      const howItWorksIndex = content.indexOf('Three steps');
+      const faqIndex = content.indexOf('Before you connect a wallet');
+      const protocolsIndex = content.indexOf('Where idle capital parks');
+      expect(heroIndex).toBeLessThan(howItWorksIndex);
+      expect(faqIndex).toBeLessThan(protocolsIndex);
+      expect(heroIndex).toBeGreaterThan(-1);
+      expect(faqIndex).toBeGreaterThan(-1);
     });
   });
 
   describe('accessibility', () => {
     it('should have proper heading hierarchy', () => {
-      render(<HomePage />);
+      render(<LandingPageV2 />);
 
       const h1Elements = screen.getAllByRole('heading', { level: 1 });
       expect(h1Elements.length).toBeGreaterThan(0);
@@ -89,24 +68,35 @@ describe('HomePage', () => {
     });
 
     it('should have navigation landmark', () => {
-      const { container } = render(<HomePage />);
-
+      const { container } = render(<LandingPageV2 />);
       expect(container.querySelector('nav')).toBeInTheDocument();
     });
 
-    it('should have footer landmark', () => {
-      const { container } = render(<HomePage />);
+    it('should have main landmark', () => {
+      const { container } = render(<LandingPageV2 />);
+      expect(container.querySelector('main')).toBeInTheDocument();
+    });
 
+    it('should have footer landmark', () => {
+      const { container } = render(<LandingPageV2 />);
       expect(container.querySelector('footer')).toBeInTheDocument();
     });
   });
 
   describe('interactive elements', () => {
-    it('should render CTA buttons', () => {
-      render(<HomePage />);
+    it('should render CTA links', () => {
+      render(<LandingPageV2 />);
 
-      const ctaButtons = screen.getAllByRole('button');
-      expect(ctaButtons.length).toBeGreaterThan(1);
+      const ctaLinks = screen.getAllByRole('link');
+      const hasLaunchApp = ctaLinks.some((link) =>
+        link.textContent?.includes('Launch App'),
+      );
+      const hasTelegramBot = ctaLinks.some((link) =>
+        link.textContent?.includes('Connect Telegram Bot'),
+      );
+
+      expect(hasLaunchApp).toBe(true);
+      expect(hasTelegramBot).toBe(true);
     });
   });
 });

@@ -139,7 +139,7 @@ export function MarketDashboardView(): JSX.Element {
           <div>
             <h2 className="text-xl font-bold text-white">Market Overview</h2>
             <p className="text-sm text-gray-400">
-              BTC Price, ETH/BTC Ratio, and Fear &amp; Greed Index
+              BTC/ETH Price, ETH/BTC Ratio, and Fear &amp; Greed Index
             </p>
           </div>
           <div className="flex items-center gap-4">

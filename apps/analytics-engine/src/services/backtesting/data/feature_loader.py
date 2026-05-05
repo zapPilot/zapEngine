@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from datetime import date
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.data.forward_fill import forward_fill_daily
@@ -31,7 +31,9 @@ if TYPE_CHECKING:  # pragma: no cover
         TokenPriceServiceProtocol,
     )
 
-SUPPORTED_PRICE_FEATURES = frozenset({DMA_200_FEATURE})
+SUPPORTED_PRICE_FEATURES = frozenset(
+    {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+)
 SUPPORTED_AUX_SERIES = frozenset(
     {
         ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
@@ -39,6 +41,7 @@ SUPPORTED_AUX_SERIES = frozenset(
         SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     }
 )
+SPY_FORWARD_FILL_SEED_DAYS = 7
 
 
 def resolve_price_feature_history(
@@ -74,6 +77,30 @@ def resolve_price_feature_history(
             start_date=start_date,
             end_date=end_date,
             token_symbol=token_symbol,
+        )
+    if (
+        ETH_DMA_200_FEATURE in requested_features
+        and ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES
+        not in declared_requirements.required_aux_series
+    ):
+        days = max((end_date - start_date).days + 7, 1)
+        eth_price_history = token_price_service.get_price_history(
+            days=days,
+            token_symbol="ETH",
+            start_date=start_date,
+            end_date=end_date,
+        )
+        feature_history[ETH_USD_PRICE_FEATURE] = {
+            snapshot_date: float(price_value)
+            for snapshot in eth_price_history
+            if (snapshot_date := coerce_to_date(getattr(snapshot, "date", None)))
+            is not None
+            and (price_value := getattr(snapshot, "price_usd", None)) is not None
+        }
+        feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
+            start_date=start_date,
+            end_date=end_date,
+            token_symbol="ETH",
         )
     if (
         ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES
@@ -116,13 +143,17 @@ def resolve_price_feature_history(
             end_date=end_date,
             token_symbol="ETH",
         )
-    if SPY_AUX_SERIES in declared_requirements.required_aux_series:
+    if (
+        SPY_AUX_SERIES in declared_requirements.required_aux_series
+        or SPY_DMA_200_FEATURE in requested_features
+    ):
         if stock_price_service is None:
             raise ValueError(
-                "stock_price_service is required when SPY_AUX_SERIES is requested"
+                "stock_price_service is required when SPY market data is requested"
             )
+        spy_seed_start_date = start_date - timedelta(days=SPY_FORWARD_FILL_SEED_DAYS)
         spy_history = stock_price_service.get_dma_history(
-            start_date=start_date,
+            start_date=spy_seed_start_date,
             end_date=end_date,
             symbol="SPY",
         )
@@ -136,22 +167,32 @@ def resolve_price_feature_history(
         # price → portfolio.rotate_spot_asset / total_value blow up with
         # "Missing price for spot asset 'SPY'" once any SPY balance exists.
         # Real-world equivalent: weekend SPY value = previous Friday close.
-        spy_price_filled = forward_fill_daily(
+        spy_price_seeded = forward_fill_daily(
             spy_price_raw,
-            start_date=start_date,
+            start_date=spy_seed_start_date,
             end_date=end_date,
         )
+        spy_price_filled = {
+            snapshot_date: value
+            for snapshot_date, value in spy_price_seeded.items()
+            if start_date <= snapshot_date <= end_date
+        }
         feature_history[SPY_PRICE_FEATURE] = spy_price_filled
         spy_dma_200_raw: dict[date, float] = {}
         for snapshot_date, point in spy_history.items():
             dma_value = point.get("dma_200")
             if dma_value is not None:
                 spy_dma_200_raw[snapshot_date] = float(dma_value)
-        feature_history[SPY_DMA_200_FEATURE] = forward_fill_daily(
+        spy_dma_200_seeded = forward_fill_daily(
             spy_dma_200_raw,
-            start_date=start_date,
+            start_date=spy_seed_start_date,
             end_date=end_date,
         )
+        feature_history[SPY_DMA_200_FEATURE] = {
+            snapshot_date: value
+            for snapshot_date, value in spy_dma_200_seeded.items()
+            if start_date <= snapshot_date <= end_date
+        }
     if (
         SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES
         in declared_requirements.required_aux_series
@@ -161,19 +202,27 @@ def resolve_price_feature_history(
                 "stock_price_service is required when SPY/crypto relative strength is requested"
             )
         if spy_price_filled is None:
+            spy_seed_start_date = start_date - timedelta(
+                days=SPY_FORWARD_FILL_SEED_DAYS
+            )
             spy_history = stock_price_service.get_dma_history(
-                start_date=start_date,
+                start_date=spy_seed_start_date,
                 end_date=end_date,
                 symbol="SPY",
             )
-            spy_price_filled = forward_fill_daily(
+            spy_price_seeded = forward_fill_daily(
                 {
                     snapshot_date: float(point["price_usd"])
                     for snapshot_date, point in spy_history.items()
                 },
-                start_date=start_date,
+                start_date=spy_seed_start_date,
                 end_date=end_date,
             )
+            spy_price_filled = {
+                snapshot_date: value
+                for snapshot_date, value in spy_price_seeded.items()
+                if start_date <= snapshot_date <= end_date
+            }
         days = max((end_date - start_date).days + 7, 1)
         btc_price_history = token_price_service.get_price_history(
             days=days,

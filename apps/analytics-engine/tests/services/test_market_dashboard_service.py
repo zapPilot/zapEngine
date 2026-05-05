@@ -20,18 +20,22 @@ from src.models.token_price import TokenPriceSnapshot
 from src.services.market.market_dashboard_service import MarketDashboardService
 
 
-def _make_price_snapshot(d: date, price: float) -> TokenPriceSnapshot:
+def _make_price_snapshot(
+    d: date, price: float, token_symbol: str = "BTC"
+) -> TokenPriceSnapshot:
     """Create a minimal TokenPriceSnapshot for a given date and price."""
     return TokenPriceSnapshot(
         date=d.isoformat(),
         price_usd=price,
-        token_symbol="BTC",
+        token_symbol=token_symbol,
     )
 
 
 def _make_service(
     prices: list[TokenPriceSnapshot] | None = None,
+    eth_prices: list[TokenPriceSnapshot] | None = None,
     btc_dma_map: dict[date, float] | None = None,
+    eth_dma_map: dict[date, float] | None = None,
     eth_btc_ratio_map: dict[date, dict[str, Any]] | None = None,
     sentiment_rows: list[dict[str, Any]] | None = None,
     spy_dma_rows: dict[date, dict[str, Any]] | None = None,
@@ -40,8 +44,21 @@ def _make_service(
 ) -> MarketDashboardService:
     """Construct MarketDashboardService with mocked sub-services."""
     mock_price_service = Mock()
-    mock_price_service.get_price_history.return_value = prices or []
-    mock_price_service.get_dma_history.return_value = btc_dma_map or {}
+
+    def get_price_history_side_effect(*_args: Any, **kwargs: Any):
+        token_symbol = str(kwargs.get("token_symbol", "BTC")).upper()
+        if token_symbol == "ETH":
+            return eth_prices or []
+        return prices or []
+
+    def get_dma_history_side_effect(*_args: Any, **kwargs: Any):
+        token_symbol = str(kwargs.get("token_symbol", "BTC")).upper()
+        if token_symbol == "ETH":
+            return eth_dma_map or {}
+        return btc_dma_map or {}
+
+    mock_price_service.get_price_history.side_effect = get_price_history_side_effect
+    mock_price_service.get_dma_history.side_effect = get_dma_history_side_effect
     mock_price_service.get_pair_ratio_dma_history.return_value = eth_btc_ratio_map or {}
 
     mock_sentiment_service = Mock()
@@ -113,6 +130,7 @@ class TestSeriesRegistry:
 
         assert set(result.series.keys()) == {
             "btc",
+            "eth",
             "spy",
             "eth_btc",
             "fgi",
@@ -128,6 +146,12 @@ class TestSeriesRegistry:
         assert btc.unit == "usd"
         assert btc.label == "BTC"
         assert btc.frequency == SeriesFrequency.daily
+
+        eth = result.series["eth"]
+        assert eth.kind == SeriesKind.asset
+        assert eth.unit == "usd"
+        assert eth.label == "ETH"
+        assert eth.frequency == SeriesFrequency.daily
 
         spy = result.series["spy"]
         assert spy.frequency == SeriesFrequency.weekdays
@@ -181,6 +205,36 @@ class TestGetMarketDashboard:
         btc = result.snapshots[0].values["btc"]
         assert btc.value == 92000.0
         assert "dma_200" not in btc.indicators
+
+    def test_eth_value_and_dma_indicator(self):
+        d = date(2025, 1, 15)
+        prices = [_make_price_snapshot(d, 95000.0)]
+        eth_prices = [_make_price_snapshot(d, 3100.0, token_symbol="ETH")]
+        eth_dma_map = {d: 2900.0}
+
+        service = _make_service(
+            prices=prices,
+            eth_prices=eth_prices,
+            eth_dma_map=eth_dma_map,
+        )
+        result = service.get_market_dashboard(days=30)
+
+        eth = result.snapshots[0].values["eth"]
+        assert eth.value == 3100.0
+        assert eth.indicators["dma_200"].value == 2900.0
+        assert eth.indicators["dma_200"].is_above is True
+
+    def test_eth_value_present_but_dma_none(self):
+        d = date(2025, 1, 15)
+        prices = [_make_price_snapshot(d, 95000.0)]
+        eth_prices = [_make_price_snapshot(d, 2800.0, token_symbol="ETH")]
+
+        service = _make_service(prices=prices, eth_prices=eth_prices)
+        result = service.get_market_dashboard(days=30)
+
+        eth = result.snapshots[0].values["eth"]
+        assert eth.value == 2800.0
+        assert "dma_200" not in eth.indicators
 
     def test_spy_populated_when_data_present(self):
         d = date(2025, 1, 15)

@@ -12,7 +12,8 @@ export type SignalKey =
   | 'buy_spot'
   | 'sell_spot'
   | 'switch_to_eth'
-  | 'switch_to_btc';
+  | 'switch_to_btc'
+  | 'switch_to_spy';
 
 export interface SignalConfig {
   key: SignalKey;
@@ -59,6 +60,13 @@ export const CHART_SIGNALS: SignalConfig[] = [
     color: getBacktestSpotAssetColor('BTC'),
     shape: 'diamond',
   },
+  {
+    key: 'switch_to_spy',
+    field: 'switchToSpySignal',
+    name: 'Switch to SPY',
+    color: getBacktestSpotAssetColor('SPY'),
+    shape: 'diamond',
+  },
 ];
 
 const SIGNAL_FIELDS = CHART_SIGNALS.map((s) => s.field);
@@ -102,6 +110,18 @@ function classifyTransfer(
 
   if (from === 'eth' && to === 'btc') {
     return 'switch_to_btc';
+  }
+
+  if ((from === 'btc' || from === 'eth') && to === 'spy') {
+    return 'switch_to_spy';
+  }
+
+  if (from === 'spy' && to === 'btc') {
+    return 'switch_to_btc';
+  }
+
+  if (from === 'spy' && to === 'eth') {
+    return 'switch_to_eth';
   }
 
   return null;

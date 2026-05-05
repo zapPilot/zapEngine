@@ -29,4 +29,4 @@ import { ErrorCode, ErrorContext, DataSource } from '@zapengine/types/api';
 pnpm build
 ```
 
-See [CLAUDE.md](../../../CLAUDE.md) for monorepo development guidelines.
+See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.

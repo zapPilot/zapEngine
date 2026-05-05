@@ -65,54 +65,10 @@ pnpm dev:all
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform.
 
-## Common Tasks
-
-```bash
-# Build all packages (required before type-check)
-pnpm build
-
-# Type check all apps
-pnpm type-check
-
-# Lint
-pnpm lint
-
-# Test all (JS/TS + Python)
-pnpm test
-
-# Run the full CI-equivalent suite
-pnpm test:ci
-
-# Test just analytics-engine
-pnpm --filter @zapengine/analytics-engine test
-
-# Format
-pnpm format
-
-# Security audit (Node workspace + Python pip-audit)
-pnpm security:audit
-```
-
-## Testing
-
-| App | Framework | Run |
-|---|---|---|
-| account-engine | Vitest 4 | `pnpm test` (from app dir) |
-| alpha-etl | Vitest 4 | `pnpm test` |
-| analytics-engine | pytest 8 | `pnpm --filter @zapengine/analytics-engine test` (local) / `… test:ci` (CI-equivalent) |
-| frontend | Vitest 4 + Playwright | `pnpm test:unit` / `pnpm test:e2e` / `pnpm test:ci` |
-| landing-page | Vitest 4 | `pnpm test` |
+For build, test, lint, and type-check commands see [CLAUDE.md](./CLAUDE.md#per-app-tooling).
 
 ## Deployment
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
 - **Frontend / Landing** → Vercel
 - CI triggers on push to `main` and PRs; deploys only on `main`
-
-## AI Assistant Documentation
-
-This repository uses `CLAUDE.md` as the canonical documentation for AI assistants. See [CLAUDE.md](./CLAUDE.md) for development constraints, gotchas, and mental models.
-
-## Database
-
-All backend services connect to a Supabase PostgreSQL database. analytics-engine uses a dedicated read-only connection. account-engine uses dual clients: anon (RLS-enforced) + service-role (admin operations).
