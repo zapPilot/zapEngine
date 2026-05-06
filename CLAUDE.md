@@ -68,3 +68,7 @@ This repository uses **CLAUDE.md** as the single source of truth for AI assistan
 | `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
 
 **Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
+
+Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
+
+
