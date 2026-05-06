@@ -430,12 +430,16 @@
         "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch. SQL-resolved event date is 2026-04-08.",
         "assertions": [
           {
-            "type": "decision_detail_equals",
-            "key": "spy_latch_active",
-            "value": true
+            "type": "target_asset_equals",
+            "asset": "stable",
+            "value": 0
+          },
+          {
+            "type": "target_asset_increased_from_previous",
+            "asset": "spy"
           }
         ],
-        "rationale": "SPY cross-up latch diagnostics should be present only on latch-bearing hierarchical strategies."
+        "rationale": "Should turn all stables into SPY"
       }
     ]
   }
