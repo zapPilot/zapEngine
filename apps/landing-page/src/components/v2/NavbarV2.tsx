@@ -30,7 +30,7 @@ export function NavbarV2() {
       <div className="nav-actions">
         <a
           className="version-toggle"
-          href="https://app.zap-pilot.org/"
+          href={LINKS.app}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -38,7 +38,7 @@ export function NavbarV2() {
         </a>
         <a
           className="nav-cta"
-          href={LINKS.app}
+          href={LINKS.v2}
           target="_blank"
           rel="noopener noreferrer"
         >

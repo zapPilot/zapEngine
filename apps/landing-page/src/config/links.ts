@@ -2,6 +2,7 @@
 export const LINKS = {
   // Main application
   app: process.env['NEXT_PUBLIC_APP_URL'] || 'https://app.zap-pilot.org',
+  v2: 'https://v2.zap-pilot.org',
   // Telegram bot is not live yet. CTA labels say "(Coming Soon)" so users know.
   // Once the bot ships, replace this handle and drop the "(Coming Soon)" suffix in messages.ts.
   telegramBot: 'https://t.me/zap_pilot_bot',

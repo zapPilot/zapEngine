@@ -67,7 +67,17 @@ export default function RootLayout({
       <body
         className={`${instrumentSerif.variable} ${jetBrainsMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <RootProvider>
+        <RootProvider
+          search={{
+            options: {
+              // Static search: read prebuilt index from /api/search/static.json
+              // (generated at build time by app/api/search/route.ts). Compatible
+              // with `output: 'export'` — no runtime API call is made.
+              type: 'static',
+              api: '/api/search',
+            },
+          }}
+        >
           <ErrorBoundary>{children}</ErrorBoundary>
         </RootProvider>
         {process.env['NEXT_PUBLIC_GA_ID'] && (

@@ -46,7 +46,6 @@ export interface ErrorContext {
 }
 
 export const DATA_SOURCES = [
-  'defillama',
   'debank',
   'hyperliquid',
   'feargreed',
