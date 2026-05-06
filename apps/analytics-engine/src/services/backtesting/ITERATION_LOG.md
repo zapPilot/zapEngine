@@ -7,6 +7,13 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-05 — Portfolio rules atomic execution
+- **Commit**: pending local change (`dma_fgi_portfolio_rules` rule-based executor)
+- **Finding**: `dma_fgi_portfolio_rules` now uses `RuleBasedAllocationExecutor`, so each matched portfolio rule executes the full target-allocation delta on the same bar instead of routing through `FgiExponentialPacingPolicy` and multi-step ramps. The legacy allocation executor, pacing policy, and execution plugins remain untouched for the other strategies.
+- **Rule migration**: DMA buy-side sideways confirmation and trade quotas moved into portfolio-rule hold guards for this strategy only. The executor owns `last_trade_date`/`trade_dates`, and the decision policy reads them through `PortfolioSnapshot`.
+- **Snapshot delta vs previous `dma_fgi_portfolio_rules` baseline**: ROI 33.08% → 55.02% (+21.94pp), Calmar 1.02 → 3.20 (+2.17), Sharpe 0.87 → 1.63 (+0.75), MaxDD -22.63% → -11.80% (+10.83pp), trades 51 → 47 (-4).
+- **Regression pins**: unit coverage verifies atomic full-delta transfers, cost-model handoff, buy-gate holds, trade-quota holds, and strategy wiring. The 2025-03-24 validation event passes, and the research-inclusive 500-day snapshot re-anchor shows drift only in the portfolio-rules family before update.
+
 ### 2026-05-05 — SPY portfolio cross-down cooldown aligned to 30d
 - **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs update.
 - **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. `global_cooldown_days` remains 7d for the separate post-trade DCA gate.

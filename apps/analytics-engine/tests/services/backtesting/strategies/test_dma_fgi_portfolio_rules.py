@@ -6,6 +6,9 @@ from datetime import date, timedelta
 import pytest
 
 from src.services.backtesting.execution.portfolio import Portfolio
+from src.services.backtesting.execution.rule_based.allocation_executor import (
+    RuleBasedAllocationExecutor,
+)
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
@@ -23,6 +26,7 @@ from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesDecisionPolicy,
     DmaFgiPortfolioRulesStrategy,
 )
+from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.minimum import FlatMinimumState
 from tests.services.backtesting.portfolio_rules.helpers import state
 
@@ -92,6 +96,14 @@ def test_strategy_cross_down_exits_only_crossed_asset_to_stable() -> None:
     assert action.transfers is not None
     assert action.transfers[0].from_bucket == "btc"
     assert action.transfers[0].to_bucket == "stable"
+
+
+def test_strategy_uses_rule_based_executor_without_legacy_pacing() -> None:
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+
+    assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
+    assert not hasattr(strategy.execution_engine, "pacing_policy")
+    assert not hasattr(strategy.execution_engine, "plugins")
 
 
 def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:
@@ -512,6 +524,42 @@ def test_global_cooldown_blocks_dca_tier_after_cross_trade() -> None:
     assert cooldown_dca.diagnostics["matched_rule_name"] == "global_cooldown_gate"
 
 
+def test_strategy_wires_trade_quota_rule_from_params() -> None:
+    strategy = DmaFgiPortfolioRulesStrategy(
+        total_capital=10_000.0,
+        params=DmaGatedFgiParams(min_trade_interval_days=3),
+    )
+
+    assert [rule.name for rule in strategy.decision_policy.rules][:2] == [
+        "trade_quota",
+        "cross_down_exit",
+    ]
+
+
+def test_policy_receives_executor_trade_dates_for_quota_rules() -> None:
+    strategy = DmaFgiPortfolioRulesStrategy(
+        total_capital=10_000.0,
+        params=DmaGatedFgiParams(min_trade_interval_days=3),
+    )
+    strategy.execution_engine.trade_dates.append(date(2025, 1, 1))
+    strategy.execution_engine.last_trade_date = date(2025, 1, 1)
+
+    intent = strategy.decision_policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+            current_date=date(2025, 1, 2),
+        )
+    )
+
+    assert intent.reason == "trade_quota_min_interval_active"
+
+
 def _flat_state(
     *,
     btc: DmaMarketState,
@@ -586,7 +634,7 @@ def _step_signal(
     return snapshot
 
 
-def test_strategy_cooldown_cross_up_falls_through_to_extreme_fear_dca() -> None:
+def test_strategy_buy_gate_blocks_extreme_fear_dca_after_cross_until_sideways() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,
@@ -630,8 +678,9 @@ def test_strategy_cooldown_cross_up_falls_through_to_extreme_fear_dca() -> None:
     assert cross_down.snapshot.decision.reason == "portfolio_cross_down_exit"
     assert cross_down.snapshot.signal.dma is not None
     assert cross_down.snapshot.signal.dma.cooldown_blocked_zone == "above"
-    assert extreme_fear_dca.snapshot.decision.reason == "portfolio_extreme_fear_dca_buy"
+    assert extreme_fear_dca.snapshot.decision.reason == "dma_buy_gate_blocked"
     assert extreme_fear_dca.snapshot.decision.diagnostics is not None
     assert (
-        "BTC" in extreme_fear_dca.snapshot.decision.diagnostics["portfolio_rule_assets"]
+        extreme_fear_dca.snapshot.decision.diagnostics["matched_rule_name"]
+        == "dma_buy_gate"
     )

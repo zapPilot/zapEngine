@@ -67,6 +67,7 @@ class PortfolioSnapshot:
     eth_btc_ratio_state: EthBtcRatioState | None = None
     last_trade_date: date | None = None
     current_date: date | None = None
+    trade_dates: tuple[date, ...] = ()
 
 
 class PortfolioRule(Protocol):

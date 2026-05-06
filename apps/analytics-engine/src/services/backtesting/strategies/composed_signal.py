@@ -7,15 +7,12 @@ from datetime import date
 from typing import Any
 
 from src.services.backtesting.composition_types import (
+    AllocationExecutor,
     DecisionPolicy,
     StatefulSignalComponent,
 )
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationExecutionResult,
-    AllocationIntentExecutor,
-)
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.strategies.base import (
@@ -86,7 +83,7 @@ class ComposedSignalStrategy(BaseStrategy):
     total_capital: float
     signal_component: StatefulSignalComponent
     decision_policy: DecisionPolicy
-    execution_engine: AllocationIntentExecutor
+    execution_engine: AllocationExecutor
     public_params: dict[str, Any] = field(default_factory=dict)
     signal_id: str = ""
     summary_signal_id: str | None = None
@@ -345,16 +342,18 @@ class ComposedSignalStrategy(BaseStrategy):
 
     @staticmethod
     def _to_execution_outcome(
-        execution: AllocationExecutionResult,
+        execution: Any,
     ) -> ExecutionOutcome:
         return ExecutionOutcome(
             event=execution.event,
             transfers=[] if execution.transfers is None else list(execution.transfers),
             blocked_reason=execution.block_reason,
-            step_count=execution.step_count,
-            steps_remaining=execution.steps_remaining,
-            interval_days=execution.interval_days,
-            plugin_diagnostics=execution.plugin_diagnostics,
+            step_count=int(getattr(execution, "step_count", 0)),
+            steps_remaining=int(getattr(execution, "steps_remaining", 0)),
+            interval_days=int(getattr(execution, "interval_days", 0)),
+            plugin_diagnostics=tuple(
+                getattr(execution, "plugin_diagnostics", ()),
+            ),
         )
 
 

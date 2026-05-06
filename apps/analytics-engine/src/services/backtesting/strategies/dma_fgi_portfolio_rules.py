@@ -9,7 +9,7 @@ rebalance can be reconsidered on the next eligible day.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
@@ -22,12 +22,14 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.backtesting.decision import AllocationIntent
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationIntentExecutor,
+from src.services.backtesting.execution.rule_based.allocation_executor import (
+    RuleBasedAllocationExecutor,
 )
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULES,
     RULE_NAMES,
+    DmaBuyGateRule,
+    TradeQuotaRule,
 )
 from src.services.backtesting.portfolio_rules.base import (
     PORTFOLIO_RULE_SYMBOLS,
@@ -53,6 +55,12 @@ from src.services.backtesting.strategies.minimum import (
 PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 
 
+@dataclass(frozen=True)
+class RuleExecutionState:
+    last_trade_date: date | None = None
+    trade_dates: tuple[date, ...] = ()
+
+
 @dataclass
 class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     """Decision policy that evaluates whole-portfolio rules."""
@@ -61,9 +69,11 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
     disabled_rules: frozenset[str] = frozenset()
+    execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
     _last_trade_date: date | None = field(default=None, init=False)
+    _trade_dates: list[date] = field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:
         invalid_rules = sorted(self.disabled_rules - RULE_NAMES)
@@ -75,14 +85,22 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
         self._previous_fgi_regime = {}
         self._cycle_open_per_symbol = {}
         self._last_trade_date = None
+        self._trade_dates = []
+        for rule in self.rules:
+            reset = getattr(rule, "reset", None)
+            if callable(reset):
+                reset()
 
     def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
+        execution_state = self._resolve_execution_state()
         portfolio_snapshot = build_portfolio_snapshot(
             snapshot,
             previous_fgi_regime=self._previous_fgi_regime,
             cycle_open_per_symbol=self._cycle_open_per_symbol,
-            last_trade_date=self._last_trade_date,
+            last_trade_date=execution_state.last_trade_date,
+            trade_dates=execution_state.trade_dates,
         )
+        self._observe_rules(portfolio_snapshot)
         intent = resolve_portfolio_rules_intent(
             portfolio_snapshot,
             rules=self.rules,
@@ -94,9 +112,32 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             self._cycle_open_per_symbol,
             portfolio_snapshot,
         )
-        if intent.action != "hold":
+        self._record_rule_intent(intent)
+        if self.execution_state_provider is None and intent.action != "hold":
             self._last_trade_date = snapshot.current_date
+            if snapshot.current_date is not None:
+                self._trade_dates.append(snapshot.current_date)
         return intent
+
+    def _resolve_execution_state(self) -> RuleExecutionState:
+        if self.execution_state_provider is not None:
+            return self.execution_state_provider()
+        return RuleExecutionState(
+            last_trade_date=self._last_trade_date,
+            trade_dates=tuple(self._trade_dates),
+        )
+
+    def _observe_rules(self, snapshot: PortfolioSnapshot) -> None:
+        for rule in self.rules:
+            observe = getattr(rule, "observe", None)
+            if callable(observe):
+                observe(snapshot, config=self.config)
+
+    def _record_rule_intent(self, intent: AllocationIntent) -> None:
+        for rule in self.rules:
+            record_intent = getattr(rule, "record_intent", None)
+            if callable(record_intent):
+                record_intent(intent)
 
 
 @dataclass
@@ -114,7 +155,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         init=False,
         repr=False,
     )
-    execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
+    execution_engine: RuleBasedAllocationExecutor = field(init=False, repr=False)
     public_params: dict[str, Any] = field(default_factory=dict)
     strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_PORTFOLIO_RULES]
@@ -135,8 +176,14 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             raise ValueError(f"Unsupported portfolio rule names: {joined}")
 
         self.params = resolved_params
+        self.execution_engine = RuleBasedAllocationExecutor()
         self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
-            disabled_rules=self.disabled_rules
+            disabled_rules=self.disabled_rules,
+            rules=build_portfolio_rules_for_params(resolved_params),
+            execution_state_provider=lambda: RuleExecutionState(
+                last_trade_date=self.execution_engine.last_trade_date,
+                trade_dates=tuple(self.execution_engine.trade_dates),
+            ),
         )
         self.signal_component = FlatMinimumSignalComponent(
             config=resolved_params.build_signal_config(),
@@ -148,10 +195,6 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
                 )
                 for symbol in PORTFOLIO_RULE_SYMBOLS
             },
-        )
-        self.execution_engine = AllocationIntentExecutor(
-            pacing_policy=resolved_params.build_pacing_policy(),
-            plugins=resolved_params.build_execution_plugins(),
         )
         self.public_params = {
             "signal_id": self.signal_id,
@@ -216,6 +259,7 @@ def build_portfolio_snapshot(
     previous_fgi_regime: Mapping[str, str],
     cycle_open_per_symbol: Mapping[str, bool] | None = None,
     last_trade_date: date | None = None,
+    trade_dates: tuple[date, ...] = (),
 ) -> PortfolioSnapshot:
     assets = _assets_from_flat_state(snapshot)
     return PortfolioSnapshot(
@@ -230,7 +274,34 @@ def build_portfolio_snapshot(
         crypto_fgi_value=_crypto_value(assets),
         last_trade_date=last_trade_date,
         current_date=snapshot.current_date,
+        trade_dates=trade_dates,
     )
+
+
+def build_portfolio_rules_for_params(
+    params: DmaGatedFgiParams,
+) -> tuple[PortfolioRule, ...]:
+    rules: list[PortfolioRule] = list(DEFAULT_PORTFOLIO_RULES)
+    rules.append(
+        DmaBuyGateRule(
+            window_days=params.buy_sideways_window_days,
+            sideways_max_range=params.buy_sideways_max_range,
+            leg_caps=tuple(params.buy_leg_caps),
+        )
+    )
+    if (
+        params.min_trade_interval_days is not None
+        or params.max_trades_7d is not None
+        or params.max_trades_30d is not None
+    ):
+        rules.append(
+            TradeQuotaRule(
+                min_trade_interval_days=params.min_trade_interval_days,
+                max_trades_7d=params.max_trades_7d,
+                max_trades_30d=params.max_trades_30d,
+            )
+        )
+    return tuple(sorted(rules, key=lambda rule: rule.priority))
 
 
 def resolve_portfolio_rules_intent(
@@ -333,8 +404,10 @@ __all__ = [
     "PORTFOLIO_RULES_SIGNAL_ID",
     "DmaFgiPortfolioRulesDecisionPolicy",
     "DmaFgiPortfolioRulesStrategy",
+    "RuleExecutionState",
     "build_initial_portfolio_rules_asset_allocation",
     "build_portfolio_snapshot",
+    "build_portfolio_rules_for_params",
     "default_dma_fgi_portfolio_rules_params",
     "resolve_portfolio_rules_intent",
 ]

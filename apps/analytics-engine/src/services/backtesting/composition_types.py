@@ -60,6 +60,22 @@ class DecisionPolicy(Protocol):
     def decide(self, snapshot: Any) -> AllocationIntent: ...
 
 
+class AllocationExecutor(Protocol):
+    """Execution component for allocation intents."""
+
+    def reset(self) -> None: ...
+
+    def observe(self, hints: ExecutionHints) -> None: ...
+
+    def execute(
+        self,
+        *,
+        context: StrategyContext,
+        intent: AllocationIntent,
+        hints: ExecutionHints,
+    ) -> Any: ...
+
+
 @dataclass(frozen=True)
 class ResolvedComposedComponents:
     signal_component: StatefulSignalComponent
@@ -69,6 +85,7 @@ class ResolvedComposedComponents:
 
 
 __all__ = [
+    "AllocationExecutor",
     "DecisionPolicy",
     "ResolvedComposedComponents",
     "StatefulSignalComponent",

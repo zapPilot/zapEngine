@@ -66,6 +66,7 @@ def snapshot(
     eth_btc_ratio_state: EthBtcRatioState | None = None,
     last_trade_date: date | None = None,
     current_date: date | None = None,
+    trade_dates: tuple[date, ...] = (),
 ) -> PortfolioSnapshot:
     resolved_assets = assets or {
         "SPY": state(symbol="SPY"),
@@ -83,4 +84,5 @@ def snapshot(
         eth_btc_ratio_state=eth_btc_ratio_state,
         last_trade_date=last_trade_date,
         current_date=current_date,
+        trade_dates=trade_dates,
     )
