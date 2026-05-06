@@ -1,10 +1,9 @@
 {
-  "format": [
-    "python"
-  ],
+  "format": ["python"],
   "ignore": [
     "src/tests/**",
-    "**/__pycache__/**"
+    "**/__pycache__/**",
+    "src/services/backtesting/strategies/**"
   ],
   "ignorePattern": [
     "from\\s+[^\\n]+\\s+import\\s+\\([\\s\\S]*?\\)",

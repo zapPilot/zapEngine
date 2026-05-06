@@ -11,7 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const cwd = process.cwd();
 
-const LOCAL_ONLY_KEYS = new Set(['$schema', 'format', 'ignore', 'ignorePattern']);
+const LOCAL_ONLY_KEYS = new Set([
+  '$schema',
+  'format',
+  'ignore',
+  'ignorePattern',
+]);
 const FLAG_BY_ROOT_KEY = new Map([
   ['threshold', '--threshold'],
   ['exitCode', '--exitCode'],
@@ -32,12 +37,14 @@ function readLocalConfig() {
   }
 
   const config = readJson(configPath);
-  const disallowed = Object.keys(config).filter((key) => !LOCAL_ONLY_KEYS.has(key));
+  const disallowed = Object.keys(config).filter(
+    (key) => !LOCAL_ONLY_KEYS.has(key),
+  );
   if (disallowed.length > 0) {
     console.error(
-      `[run-jscpd] Local .jscpd.json may only define ${[...LOCAL_ONLY_KEYS].join(
-        ', ',
-      )}. Found: ${disallowed.join(', ')}`,
+      `[run-jscpd] Local .jscpd.json may only define ${[
+        ...LOCAL_ONLY_KEYS,
+      ].join(', ')}. Found: ${disallowed.join(', ')}`,
     );
     process.exit(1);
   }
@@ -82,6 +89,39 @@ function isWithinThreshold() {
   );
 }
 
+function runLocalPostChecks() {
+  const workspacePath = path.relative(repoRoot, cwd).replaceAll(path.sep, '/');
+  if (workspacePath !== 'apps/analytics-engine') {
+    return 0;
+  }
+
+  const strategyDebtCheck = path.join(
+    cwd,
+    'scripts',
+    'quality',
+    'check-strategy-dup-debt.mjs',
+  );
+  if (!existsSync(strategyDebtCheck)) {
+    return 0;
+  }
+
+  const result = spawnSync(process.execPath, [strategyDebtCheck], {
+    cwd,
+    stdio: 'inherit',
+  });
+
+  if (result.error) {
+    console.error(result.error);
+    return 1;
+  }
+
+  if (typeof result.status === 'number') {
+    return result.status;
+  }
+
+  return result.signal ? 1 : 0;
+}
+
 const rootConfig = readJson(path.join(repoRoot, '.jscpd.json'));
 const localConfig = readLocalConfig();
 const scanPaths = process.argv.slice(2);
@@ -118,10 +158,14 @@ if (result.error) {
 }
 
 if (typeof result.status === 'number') {
+  let exitStatus = result.status;
   if (result.status !== 0 && isWithinThreshold()) {
-    process.exit(0);
+    exitStatus = 0;
   }
-  process.exit(result.status);
+  if (exitStatus !== 0) {
+    process.exit(exitStatus);
+  }
+  process.exit(runLocalPostChecks());
 }
 
 if (result.signal) {
