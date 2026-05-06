@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 from src.services.backtesting.data.feature_loader import resolve_price_feature_history
 from src.services.backtesting.data.forward_fill import forward_fill_daily
 from src.services.backtesting.features import (
-    ETH_BTC_RATIO_FEATURE,
     ETH_USD_PRICE_FEATURE,
     MACRO_FEAR_GREED_FEATURE,
     SPY_PRICE_FEATURE,
@@ -101,6 +100,7 @@ class BacktestDataProvider:
         start_date: date,
         end_date: date,
         price_feature_history: dict[str, dict[date, Any]],
+        required_spot_assets: frozenset[str],
     ) -> dict[str, Any] | None:
         """Normalize one snapshot row into a standard price entry."""
         snapshot_date = cls._extract_snapshot_date(snapshot)
@@ -128,6 +128,15 @@ class BacktestDataProvider:
             primary_price=float(price_value),
             extra_data=extra_data,
         )
+        missing_required_assets = {
+            asset_symbol.lower()
+            for asset_symbol in required_spot_assets
+            if asset_symbol.lower() not in prices
+        }
+        if missing_required_assets:
+            # Drop this date so _prepare_market_data naturally truncates the
+            # effective window to the spot-price availability intersection.
+            return None
         if prices:
             entry["prices"] = prices
         return entry
@@ -138,20 +147,10 @@ class BacktestDataProvider:
         primary_price: float,
         extra_data: dict[str, Any],
     ) -> dict[str, float]:
-        prices: dict[str, float] = {}
+        prices: dict[str, float] = {"btc": primary_price}
         eth_price_value = extra_data.get(ETH_USD_PRICE_FEATURE)
         if isinstance(eth_price_value, int | float) and float(eth_price_value) > 0:
-            prices = {
-                "btc": primary_price,
-                "eth": float(eth_price_value),
-            }
-        else:
-            ratio_value = extra_data.get(ETH_BTC_RATIO_FEATURE)
-            if isinstance(ratio_value, int | float) and float(ratio_value) > 0:
-                prices = {
-                    "btc": primary_price,
-                    "eth": primary_price * float(ratio_value),
-                }
+            prices["eth"] = float(eth_price_value)
         spy_price_value = extra_data.get(SPY_PRICE_FEATURE)
         if isinstance(spy_price_value, int | float) and float(spy_price_value) > 0:
             prices["spy"] = float(spy_price_value)
@@ -261,6 +260,11 @@ class BacktestDataProvider:
             end_date=end_date,
             token_symbol=token_symbol,
         )
+        required_spot_assets = (
+            market_data_requirements.required_spot_assets
+            if market_data_requirements is not None
+            else frozenset({"BTC"})
+        )
         try:
             # Calculate days between start and end (add buffer for safety)
             days_diff = (end_date - start_date).days + 7  # Add buffer
@@ -279,6 +283,7 @@ class BacktestDataProvider:
                     start_date=start_date,
                     end_date=end_date,
                     price_feature_history=feature_history,
+                    required_spot_assets=required_spot_assets,
                 )
                 if entry is not None:
                     price_entries.append(entry)

@@ -223,6 +223,7 @@ def resolve_price_feature_history(
                 for snapshot_date, value in spy_price_seeded.items()
                 if start_date <= snapshot_date <= end_date
             }
+            feature_history[SPY_PRICE_FEATURE] = spy_price_filled
         days = max((end_date - start_date).days + 7, 1)
         btc_price_history = token_price_service.get_price_history(
             days=days,

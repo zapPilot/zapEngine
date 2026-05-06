@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,7 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
 )
+from src.services.strategy.backtesting_service import BacktestingService
 from tests.services.backtesting.support import register_mock_recipe
 
 
@@ -785,6 +787,114 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
         eth_rotation_points[2].decision.target_allocation.btc
         > eth_rotation_points[2].decision.target_allocation.eth
     )
+
+
+@pytest.mark.asyncio
+async def test_run_compare_v3_truncates_eth_rotation_to_eth_price_intersection() -> (
+    None
+):
+    start = date(2025, 1, 1)
+    end = start + timedelta(days=9)
+    eth_start = start + timedelta(days=2)
+    eth_end = start + timedelta(days=6)
+
+    def _date_range(range_start: date, range_end: date) -> list[date]:
+        if range_start > range_end:
+            return []
+        return [
+            range_start + timedelta(days=offset)
+            for offset in range((range_end - range_start).days + 1)
+        ]
+
+    def _get_price_history(**kwargs):
+        token_symbol = kwargs["token_symbol"]
+        request_start = kwargs["start_date"]
+        request_end = kwargs["end_date"]
+        if token_symbol == "ETH":
+            return [
+                SimpleNamespace(date=snapshot_date, price_usd=5_000.0)
+                for snapshot_date in _date_range(
+                    max(request_start, eth_start),
+                    min(request_end, eth_end),
+                )
+            ]
+        return [
+            SimpleNamespace(date=snapshot_date, price_usd=100_000.0)
+            for snapshot_date in _date_range(request_start, request_end)
+        ]
+
+    def _get_dma_history(**kwargs):
+        request_start = kwargs["start_date"]
+        request_end = kwargs["end_date"]
+        token_symbol = kwargs.get("token_symbol")
+        if token_symbol == "ETH":
+            return dict.fromkeys(
+                _date_range(
+                    max(request_start, eth_start),
+                    min(request_end, eth_end),
+                ),
+                4_800.0,
+            )
+        return dict.fromkeys(_date_range(request_start, request_end), 99_000.0)
+
+    def _get_pair_ratio_dma_history(**kwargs):
+        return {
+            snapshot_date: {
+                "ratio": 0.05,
+                "dma_200": 0.04,
+                "is_above_dma": True,
+            }
+            for snapshot_date in _date_range(kwargs["start_date"], kwargs["end_date"])
+        }
+
+    async def _get_sentiment_history(**kwargs):
+        return [
+            SimpleNamespace(
+                timestamp=datetime(
+                    snapshot_date.year,
+                    snapshot_date.month,
+                    snapshot_date.day,
+                    12,
+                    tzinfo=UTC,
+                ),
+                value=50,
+                status="Neutral",
+            )
+            for snapshot_date in _date_range(kwargs["start_time"], kwargs["end_time"])
+        ]
+
+    service = BacktestingService(
+        db=None,
+        token_price_service=SimpleNamespace(
+            get_price_history=_get_price_history,
+            get_dma_history=_get_dma_history,
+            get_pair_ratio_dma_history=_get_pair_ratio_dma_history,
+        ),
+        sentiment_service=SimpleNamespace(get_sentiment_history=_get_sentiment_history),
+    )
+
+    result = await service.run_compare_v3(
+        BacktestCompareRequestV3(
+            token_symbol="BTC",
+            start_date=start,
+            end_date=end,
+            total_capital=10_000.0,
+            configs=[
+                BacktestCompareConfigV3(
+                    config_id="eth_btc_rotation_default",
+                    saved_config_id="eth_btc_rotation_default",
+                )
+            ],
+        )
+    )
+
+    assert result.window is not None
+    assert result.window.effective.start_date == eth_start
+    assert result.window.effective.end_date == eth_end
+    assert result.window.effective.days == (eth_end - eth_start).days
+    assert len(result.timeline) == 5
+    assert result.data_freshness is not None
+    assert result.data_freshness.stale_features
 
 
 def test_run_compare_v3_on_data_caps_non_cross_eth_btc_stable_buy() -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -13,12 +13,15 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_BTC_RATIO_IS_ABOVE_DMA_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+    ETH_DMA_200_FEATURE,
     ETH_USD_PRICE_FEATURE,
     MACRO_FEAR_GREED_FEATURE,
+    SPY_AUX_SERIES,
     SPY_CRYPTO_RATIO_DMA_200_FEATURE,
     SPY_CRYPTO_RATIO_FEATURE,
     SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     SPY_DMA_200_FEATURE,
+    SPY_PRICE_FEATURE,
     MarketDataRequirements,
 )
 
@@ -53,8 +56,18 @@ async def test_fetch_token_prices_normalizes_filters_and_injects_dma() -> None:
     )
 
     assert rows == [
-        {"date": date(2025, 1, 1), "price": 100.0, "extra_data": {"dma_200": 95.0}},
-        {"date": date(2025, 1, 2), "price": 101.0, "extra_data": {"dma_200": 96.0}},
+        {
+            "date": date(2025, 1, 1),
+            "price": 100.0,
+            "extra_data": {"dma_200": 95.0},
+            "prices": {"btc": 100.0},
+        },
+        {
+            "date": date(2025, 1, 2),
+            "price": 101.0,
+            "extra_data": {"dma_200": 96.0},
+            "prices": {"btc": 101.0},
+        },
     ]
 
 
@@ -84,7 +97,9 @@ async def test_fetch_token_prices_without_dma_skips_dma_lookup() -> None:
         end_date=date(2025, 1, 1),
     )
 
-    assert rows == [{"date": date(2025, 1, 1), "price": 100.0}]
+    assert rows == [
+        {"date": date(2025, 1, 1), "price": 100.0, "prices": {"btc": 100.0}}
+    ]
     assert calls == ["prices"]
 
 
@@ -150,7 +165,9 @@ async def test_fetch_token_prices_omits_optional_macro_when_service_missing() ->
         end_date=date(2025, 1, 1),
     )
 
-    assert rows == [{"date": date(2025, 1, 1), "price": 100.0}]
+    assert rows == [
+        {"date": date(2025, 1, 1), "price": 100.0, "prices": {"btc": 100.0}}
+    ]
 
 
 @pytest.mark.asyncio
@@ -225,6 +242,59 @@ async def test_fetch_token_prices_injects_eth_btc_relative_strength_aux_series()
     assert rows[0]["extra_data"][ETH_USD_PRICE_FEATURE] == pytest.approx(5_000.0)
     assert rows[1]["extra_data"][ETH_USD_PRICE_FEATURE] == pytest.approx(5_100.0)
     assert rows[0]["prices"] == {"btc": 100_000.0, "eth": 5_000.0}
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_prices_drops_entries_when_required_eth_missing() -> None:
+    start = date(2025, 1, 1)
+
+    def _get_price_history(**kwargs):
+        token_symbol = kwargs["token_symbol"]
+        if token_symbol == "ETH":
+            return [
+                SimpleNamespace(date=start + timedelta(days=offset), price_usd=5_000.0)
+                for offset in range(2, 5)
+            ]
+        return [
+            SimpleNamespace(
+                date=start + timedelta(days=offset),
+                price_usd=100_000.0 + offset,
+            )
+            for offset in range(5)
+        ]
+
+    token_price_service = SimpleNamespace(
+        get_price_history=_get_price_history,
+        get_dma_history=lambda **kwargs: {},
+        get_pair_ratio_dma_history=lambda **kwargs: {
+            start + timedelta(days=offset): {
+                "ratio": 0.05,
+                "dma_200": 0.04,
+                "is_above_dma": True,
+            }
+            for offset in range(5)
+        },
+    )
+    provider = BacktestDataProvider(
+        token_price_service=token_price_service,
+        sentiment_service=SimpleNamespace(),
+    )
+
+    rows = await provider.fetch_token_prices(
+        token_symbol="BTC",
+        start_date=start,
+        end_date=start + timedelta(days=4),
+        market_data_requirements=MarketDataRequirements(
+            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES})
+        ),
+    )
+
+    assert [row["date"] for row in rows] == [
+        start + timedelta(days=2),
+        start + timedelta(days=3),
+        start + timedelta(days=4),
+    ]
+    assert all(row["prices"]["eth"] == pytest.approx(5_000.0) for row in rows)
 
 
 @pytest.mark.asyncio
@@ -466,17 +536,55 @@ def test_build_price_entry_returns_none_when_price_is_none() -> None:
         start_date=date(2025, 1, 1),
         end_date=date(2025, 1, 1),
         price_feature_history={},
+        required_spot_assets=frozenset({"BTC"}),
     )
     assert result is None
 
 
-def test_build_price_map_uses_ratio_branch_when_no_eth_usd_price() -> None:
-    """Line 135: _build_price_map uses eth_btc_ratio when eth_price_usd absent."""
+def test_build_price_map_ignores_ratio_when_eth_usd_price_missing() -> None:
     prices = BacktestDataProvider._build_price_map(
         primary_price=100_000.0,
         extra_data={ETH_BTC_RATIO_FEATURE: 0.05},
     )
-    assert prices == {"btc": 100_000.0, "eth": pytest.approx(5_000.0)}
+    assert prices == {"btc": 100_000.0}
+
+
+def test_market_data_requirements_derives_required_spot_assets() -> None:
+    requirements = MarketDataRequirements(
+        required_price_features=frozenset({ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}),
+        required_aux_series=frozenset(
+            {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES, SPY_AUX_SERIES}
+        ),
+    )
+
+    assert requirements.required_spot_assets == frozenset({"BTC", "ETH", "SPY"})
+
+
+def test_build_price_map_includes_btc_when_extra_data_is_empty() -> None:
+    prices = BacktestDataProvider._build_price_map(
+        primary_price=100_000.0,
+        extra_data={},
+    )
+
+    assert prices == {"btc": 100_000.0}
+
+
+def test_build_price_map_includes_btc_with_spy_price_only() -> None:
+    prices = BacktestDataProvider._build_price_map(
+        primary_price=100_000.0,
+        extra_data={SPY_PRICE_FEATURE: 500.0},
+    )
+
+    assert prices == {"btc": 100_000.0, "spy": 500.0}
+
+
+def test_build_price_map_includes_btc_with_eth_usd_price() -> None:
+    prices = BacktestDataProvider._build_price_map(
+        primary_price=100_000.0,
+        extra_data={ETH_USD_PRICE_FEATURE: 5_000.0},
+    )
+
+    assert prices == {"btc": 100_000.0, "eth": 5_000.0}
 
 
 @pytest.mark.asyncio

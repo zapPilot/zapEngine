@@ -98,5 +98,22 @@ class MarketDataRequirements:
         return feature_name in self.required_price_features
 
     @property
+    def required_spot_assets(self) -> frozenset[str]:
+        """Spot assets whose USD price must exist on every effective date."""
+        assets = {"BTC"}
+        if (
+            ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES in self.required_aux_series
+            or ETH_DMA_200_FEATURE in self.required_price_features
+        ):
+            assets.add("ETH")
+        if (
+            SPY_AUX_SERIES in self.required_aux_series
+            or SPY_DMA_200_FEATURE in self.required_price_features
+            or SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES in self.required_aux_series
+        ):
+            assets.add("SPY")
+        return frozenset(assets)
+
+    @property
     def require_dma_200(self) -> bool:
         return self.requires_price_feature(DMA_200_FEATURE)
