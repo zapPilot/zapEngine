@@ -155,10 +155,8 @@ ignore-imports = true
 # Signatures are removed from the similarity computation
 ignore-signatures = true
 #
-# NOTE: Pylint 4.0.2 has a known bug where duplicate-code (R0801) detection
-# doesn't produce output even with correct configuration. This affects both
-# parallel (jobs=0) and single-threaded (jobs=1) modes. Use check_duplicates.py
-# as a workaround until this is resolved. See: https://github.com/pylint-dev/pylint/issues/3314
+# JSCPD is the primary duplicate-code gate; pylint remains as an additional
+# Python-only similarity check.
 
 [tool.pylint.reports]
 # Set to yes to activate formatted output reports

@@ -84,19 +84,13 @@ def resolve_price_feature_history(
         not in declared_requirements.required_aux_series
     ):
         days = max((end_date - start_date).days + 7, 1)
-        eth_price_history = token_price_service.get_price_history(
-            days=days,
+        feature_history[ETH_USD_PRICE_FEATURE] = _load_token_price_history(
+            token_price_service=token_price_service,
             token_symbol="ETH",
+            days=days,
             start_date=start_date,
             end_date=end_date,
         )
-        feature_history[ETH_USD_PRICE_FEATURE] = {
-            snapshot_date: float(price_value)
-            for snapshot in eth_price_history
-            if (snapshot_date := coerce_to_date(getattr(snapshot, "date", None)))
-            is not None
-            and (price_value := getattr(snapshot, "price_usd", None)) is not None
-        }
         feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
             start_date=start_date,
             end_date=end_date,
@@ -125,19 +119,13 @@ def resolve_price_feature_history(
             snapshot_date: payload["is_above_dma"]
             for snapshot_date, payload in ratio_history.items()
         }
-        eth_price_history = token_price_service.get_price_history(
-            days=days,
+        feature_history[ETH_USD_PRICE_FEATURE] = _load_token_price_history(
+            token_price_service=token_price_service,
             token_symbol="ETH",
+            days=days,
             start_date=start_date,
             end_date=end_date,
         )
-        feature_history[ETH_USD_PRICE_FEATURE] = {
-            snapshot_date: float(price_value)
-            for snapshot in eth_price_history
-            if (snapshot_date := coerce_to_date(getattr(snapshot, "date", None)))
-            is not None
-            and (price_value := getattr(snapshot, "price_usd", None)) is not None
-        }
         feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
             start_date=start_date,
             end_date=end_date,
@@ -225,24 +213,13 @@ def resolve_price_feature_history(
             }
             feature_history[SPY_PRICE_FEATURE] = spy_price_filled
         days = max((end_date - start_date).days + 7, 1)
-        btc_price_history = token_price_service.get_price_history(
-            days=days,
+        btc_price_raw = _load_token_price_history(
+            token_price_service=token_price_service,
             token_symbol="BTC",
+            days=days,
             start_date=start_date,
             end_date=end_date,
         )
-        btc_price_raw = {
-            snapshot_date: float(price_value)
-            for snapshot in btc_price_history
-            if (
-                snapshot_date := coerce_to_date(
-                    getattr(snapshot, "date", None)
-                    or getattr(snapshot, "snapshot_date", None)
-                )
-            )
-            is not None
-            and (price_value := getattr(snapshot, "price_usd", None)) is not None
-        }
         btc_price_filled = forward_fill_daily(
             btc_price_raw,
             start_date=start_date,
@@ -258,6 +235,34 @@ def resolve_price_feature_history(
             "dma_200"
         ]
     return feature_history
+
+
+def _load_token_price_history(
+    *,
+    token_price_service: TokenPriceServiceProtocol,
+    token_symbol: str,
+    days: int,
+    start_date: date,
+    end_date: date,
+) -> dict[date, float]:
+    price_history = token_price_service.get_price_history(
+        days=days,
+        token_symbol=token_symbol,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return {
+        snapshot_date: float(price_value)
+        for snapshot in price_history
+        if (
+            snapshot_date := coerce_to_date(
+                getattr(snapshot, "date", None)
+                or getattr(snapshot, "snapshot_date", None)
+            )
+        )
+        is not None
+        and (price_value := getattr(snapshot, "price_usd", None)) is not None
+    }
 
 
 def _compute_pair_ratio_with_dma(

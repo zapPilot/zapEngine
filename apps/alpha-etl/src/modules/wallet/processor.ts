@@ -2,9 +2,9 @@ import {
   type BaseETLProcessor,
   type ETLProcessResult,
   executeETLFlow,
-  type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
+import { buildRequestStats } from '../../modules/core/processorStats.js';
 import {
   fetchWalletDataFromDeBank,
   mapTokenBalancesToSnapshots,
@@ -38,7 +38,7 @@ import type {
   VipUserWithActivity,
 } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
-import { wrapCompositeHealthCheck } from '../../utils/healthCheck.js';
+import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 
@@ -78,18 +78,16 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     });
   }
 
-  async healthCheck(): Promise<HealthCheckResult> {
-    return wrapCompositeHealthCheck([
-      { label: 'DeBank', check: () => this.debankFetcher.healthCheck() },
-      { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
-    ]);
-  }
+  healthCheck = createCompositeHealthCheck(() => [
+    { label: 'DeBank', check: () => this.debankFetcher.healthCheck() },
+    { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
+  ]);
 
   getStats(): Record<string, unknown> {
-    return {
-      debank: this.debankFetcher.getRequestStats(),
-      supabase: this.supabaseFetcher.getRequestStats(),
-    };
+    return buildRequestStats({
+      debank: this.debankFetcher,
+      supabase: this.supabaseFetcher,
+    });
   }
 
   getSourceType(): string {

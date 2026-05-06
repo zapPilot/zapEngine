@@ -5,6 +5,7 @@ import {
   type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
+import { buildRequestStats } from '../../modules/core/processorStats.js';
 import type { MacroFearGreedSnapshotInsert } from '../../types/database.js';
 import type { ETLJob } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
@@ -100,17 +101,15 @@ export class MacroFearGreedETLProcessor implements BaseETLProcessor {
     }
   }
 
-  async healthCheck(): Promise<HealthCheckResult> {
-    return wrapHealthCheck(() => this.fetcher.healthCheck());
-  }
-
   getStats(): Record<string, unknown> {
-    return {
-      macroFearGreed: this.fetcher.getRequestStats(),
-    };
+    return buildRequestStats({ macroFearGreed: this.fetcher });
   }
 
   getSourceType(): string {
     return 'macro-fear-greed';
+  }
+
+  async healthCheck(): Promise<HealthCheckResult> {
+    return wrapHealthCheck(() => this.fetcher.healthCheck());
   }
 }

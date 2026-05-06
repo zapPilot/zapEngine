@@ -68,21 +68,18 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
       );
 
       logger.info('Successfully fetched current token price', {
-        tokenId,
-        tokenSymbol,
-        price: priceData.priceUsd,
-        marketCap: priceData.marketCapUsd,
+        ...this.buildSuccessLogContext(tokenId, tokenSymbol, priceData),
         volume: priceData.volume24hUsd,
       });
 
       return priceData;
     } catch (error) {
-      return this.handleFetchError(error, {
+      return this.handleCurrentFetchError(
+        error,
         tokenId,
         tokenSymbol,
         endpoint,
-        operation: 'current',
-      });
+      );
     }
   }
 
@@ -112,21 +109,18 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
 
       logger.info('Successfully fetched historical token price', {
         date,
-        tokenId,
-        tokenSymbol,
-        price: priceData.priceUsd,
-        marketCap: priceData.marketCapUsd,
+        ...this.buildSuccessLogContext(tokenId, tokenSymbol, priceData),
       });
 
       return priceData;
     } catch (error) {
-      return this.handleFetchError(error, {
+      return this.handleHistoricalFetchError(
+        error,
         tokenId,
         tokenSymbol,
         endpoint,
         date,
-        operation: 'historical',
-      });
+      );
     }
   }
 
@@ -136,6 +130,49 @@ export class CoinGeckoFetcher extends BaseApiFetcher {
 
   private buildHistoricalPriceEndpoint(tokenId: string, date: string): string {
     return `${this.baseUrl}/coins/${tokenId}/history?date=${date}`;
+  }
+
+  private buildSuccessLogContext(
+    tokenId: string,
+    tokenSymbol: string,
+    priceData: TokenPriceData,
+  ): Record<string, unknown> {
+    return {
+      tokenId,
+      tokenSymbol,
+      price: priceData.priceUsd,
+      marketCap: priceData.marketCapUsd,
+    };
+  }
+
+  private handleCurrentFetchError(
+    error: unknown,
+    tokenId: string,
+    tokenSymbol: string,
+    endpoint: string,
+  ): never {
+    return this.handleFetchError(error, {
+      tokenId,
+      tokenSymbol,
+      endpoint,
+      operation: 'current',
+    });
+  }
+
+  private handleHistoricalFetchError(
+    error: unknown,
+    tokenId: string,
+    tokenSymbol: string,
+    endpoint: string,
+    date: string,
+  ): never {
+    return this.handleFetchError(error, {
+      tokenId,
+      tokenSymbol,
+      endpoint,
+      date,
+      operation: 'historical',
+    });
   }
 
   private async fetchCoinGecko<T>(endpoint: string): Promise<T> {

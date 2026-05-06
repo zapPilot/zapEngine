@@ -22,6 +22,7 @@ from src.services.backtesting.execution.plugins import (
 )
 from src.services.backtesting.execution.rebalance_calculator import RebalanceCalculator
 from src.services.backtesting.execution.step_plan_executor import StepPlanExecutor
+from src.services.backtesting.execution.transfer_netting import build_bucket_transfers
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 
 
@@ -38,12 +39,6 @@ class AllocationExecutionResult:
     step_count: int = 0
     interval_days: int = 0
     plugin_diagnostics: tuple[ExecutionPluginDiagnostic, ...] = ()
-
-
-@dataclass
-class _BucketAmount:
-    bucket: str
-    amount: float
 
 
 @dataclass
@@ -613,47 +608,7 @@ class AllocationIntentExecutor:
         deltas: dict[str, float],
         step_plan: dict[str, float],
     ) -> list[TransferIntent]:
-        eps = 1e-6
-        demand = [
-            _BucketAmount(
-                bucket=bucket,
-                amount=min(float(delta), float(step_plan.get(bucket, 0.0))),
-            )
-            for bucket, delta in sorted(deltas.items())
-            if float(delta) > eps
-        ]
-        supply = [
-            _BucketAmount(
-                bucket=bucket,
-                amount=min(float(-delta), float(step_plan.get(bucket, 0.0))),
-            )
-            for bucket, delta in sorted(deltas.items())
-            if float(delta) < -eps
-        ]
-        demand = [entry for entry in demand if entry.amount > eps]
-        supply = [entry for entry in supply if entry.amount > eps]
-        transfers: list[TransferIntent] = []
-        demand_idx = 0
-        supply_idx = 0
-        while demand_idx < len(demand) and supply_idx < len(supply):
-            demand_entry = demand[demand_idx]
-            supply_entry = supply[supply_idx]
-            amount = min(demand_entry.amount, supply_entry.amount)
-            if amount > eps:
-                transfers.append(
-                    TransferIntent(
-                        from_bucket=supply_entry.bucket,
-                        to_bucket=demand_entry.bucket,
-                        amount_usd=amount,
-                    )
-                )
-            demand_entry.amount -= amount
-            supply_entry.amount -= amount
-            if demand_entry.amount <= eps:
-                demand_idx += 1
-            if supply_entry.amount <= eps:
-                supply_idx += 1
-        return transfers
+        return build_bucket_transfers(deltas=deltas, step_plan=step_plan)
 
     @staticmethod
     def _is_effectively_at_target(

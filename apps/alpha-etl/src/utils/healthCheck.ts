@@ -36,6 +36,21 @@ export async function wrapHealthCheck(
   }
 }
 
+export function createWrappedHealthCheck(
+  healthCheckFn: () => Promise<HealthCheckResult>,
+): () => Promise<HealthCheckResult> {
+  return () => wrapHealthCheck(healthCheckFn);
+}
+
+export function createCompositeHealthCheck(
+  checksFactory: () => {
+    label: string;
+    check: () => Promise<HealthCheckResult>;
+  }[],
+): () => Promise<HealthCheckResult> {
+  return () => wrapCompositeHealthCheck(checksFactory());
+}
+
 export function formatHealthComponent(
   label: string,
   status: string,

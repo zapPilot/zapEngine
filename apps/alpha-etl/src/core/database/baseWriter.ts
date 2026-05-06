@@ -1,4 +1,7 @@
+import type { QueryResultRow } from 'pg';
+
 import type { BaseBatchResult } from '../../types/index.js';
+import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { BaseDatabaseClient } from './baseDatabaseClient.js';
@@ -103,6 +106,289 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     result.recordsInserted += affectedRows;
     result.duplicatesSkipped =
       (result.duplicatesSkipped ?? 0) + Math.max(0, batchSize - affectedRows);
+  }
+
+  protected assertWriteSuccess(
+    result: WriteResult,
+    fallbackMessage: string,
+  ): void {
+    if (!result.success) {
+      throw new Error(result.errors[0] ?? fallbackMessage);
+    }
+  }
+
+  protected logWriteFailureAndRethrow(
+    message: string,
+    context: Record<string, unknown>,
+    error: unknown,
+  ): never {
+    logger.error(message, {
+      error: toErrorMessage(error),
+      ...context,
+    });
+    throw error;
+  }
+
+  protected prepareValidBatch<TRecord>(
+    batch: TRecord[],
+    filterValidRecords: (batch: TRecord[], result: WriteResult) => TRecord[],
+  ): { result: WriteResult; validRecords: TRecord[] } {
+    const result = createEmptyWriteResult();
+    return {
+      result,
+      validRecords: filterValidRecords(batch, result),
+    };
+  }
+
+  protected async executePreparedBatchWrite<TRecord>(
+    result: WriteResult,
+    validRecords: TRecord[],
+    batchNumber: number,
+    logContext: string,
+    buildQuery: () => { query: string; values: unknown[] },
+  ): Promise<WriteResult> {
+    const batchResult = await this.executeBatchWrite({
+      batchNumber,
+      logContext,
+      recordCount: validRecords.length,
+      buildQuery,
+    });
+
+    this.mergeBatchResult(result, batchResult);
+    return result;
+  }
+
+  protected async writeValidatedBatch<TRecord>(
+    batch: TRecord[],
+    batchNumber: number,
+    filterValidRecords: (batch: TRecord[], result: WriteResult) => TRecord[],
+    config: {
+      logContext: string;
+      onEmpty?: () => void;
+      buildQuery: (validRecords: TRecord[]) => {
+        query: string;
+        values: unknown[];
+      };
+    },
+  ): Promise<WriteResult> {
+    const { result, validRecords } = this.prepareValidBatch(
+      batch,
+      filterValidRecords,
+    );
+
+    if (validRecords.length === 0) {
+      config.onEmpty?.();
+      return result;
+    }
+
+    return this.executePreparedBatchWrite(
+      result,
+      validRecords,
+      batchNumber,
+      config.logContext,
+      () => config.buildQuery(validRecords),
+    );
+  }
+
+  protected async executeCountedQuery(config: {
+    query: string;
+    values: unknown[];
+    totalRecords: number;
+    successMessage: string;
+    successContext: Record<string, unknown>;
+    failureMessage: string;
+    failureContext: Record<string, unknown>;
+  }): Promise<number> {
+    try {
+      const queryResult = await this.withDatabaseClient((client) =>
+        client.query(config.query, config.values),
+      );
+      const countedResult = queryResult as {
+        rowCount?: number | null;
+        rows?: unknown[];
+      };
+      const inserted =
+        countedResult.rowCount ?? countedResult.rows?.length ?? 0;
+      const successRate = `${((inserted / config.totalRecords) * 100).toFixed(1)}%`;
+      logger.info(config.successMessage, {
+        ...config.successContext,
+        inserted,
+        failed: config.totalRecords - inserted,
+        successRate,
+      });
+      return inserted;
+    } catch (error) {
+      const { failureMessage, failureContext } = config;
+      this.throwConfiguredError(failureMessage, failureContext, error);
+    }
+  }
+
+  protected async executeStandardBatchInsert(
+    query: string,
+    values: unknown[],
+    totalRecords: number,
+    context: Record<string, unknown>,
+  ): Promise<number> {
+    return this.executeCountedQuery({
+      query,
+      values,
+      totalRecords,
+      successMessage: 'Batch insert completed',
+      successContext: { total: totalRecords, ...context },
+      failureMessage: 'Batch insert failed',
+      failureContext: { ...context, total: totalRecords },
+    });
+  }
+
+  protected async queryCountOrZero(config: {
+    query: string;
+    values: unknown[];
+    failureMessage: string;
+    failureContext: Record<string, unknown>;
+  }): Promise<number> {
+    try {
+      const result = await this.withDatabaseClient((client) =>
+        client.query<{ count: string }>(config.query, config.values),
+      );
+      return Number.parseInt(result.rows[0]?.count ?? '0', 10);
+    } catch (error) {
+      this.logConfiguredError(
+        config.failureMessage,
+        config.failureContext,
+        error,
+      );
+      return 0;
+    }
+  }
+
+  protected async queryOptionalRow<Row extends QueryResultRow>(config: {
+    query: string;
+    values: unknown[];
+    failureMessage: string;
+    failureContext: Record<string, unknown>;
+  }): Promise<Row | null> {
+    try {
+      const result = await this.withDatabaseClient((client) =>
+        client.query<Row>(config.query, config.values),
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      this.throwConfiguredError(
+        config.failureMessage,
+        config.failureContext,
+        error,
+      );
+    }
+  }
+
+  protected async querySnapshotDatesInRange(config: {
+    tableName: string;
+    source: string;
+    entityColumn: string;
+    entityValue: string;
+    startDate: string;
+    endDate: string;
+    successContext: Record<string, unknown>;
+    failureMessage: string;
+    failureContext: Record<string, unknown>;
+  }): Promise<string[]> {
+    const query = `
+      SELECT to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date
+      FROM ${config.tableName}
+      WHERE source = $1
+        AND ${config.entityColumn} = $2
+        AND snapshot_date >= $3
+        AND snapshot_date <= $4
+      ORDER BY snapshot_date ASC
+    `;
+
+    try {
+      const result = await this.withDatabaseClient((client) =>
+        client.query(query, [
+          config.source,
+          config.entityValue,
+          config.startDate,
+          config.endDate,
+        ]),
+      );
+      const dates = result.rows.map(
+        (row: { snapshot_date: string }) => row.snapshot_date,
+      );
+      logger.info('Retrieved existing snapshots in range', {
+        ...config.successContext,
+        count: dates.length,
+      });
+      return dates;
+    } catch (error) {
+      this.logConfiguredError(
+        config.failureMessage,
+        config.failureContext,
+        error,
+      );
+      return [];
+    }
+  }
+
+  protected async queryEntitySnapshotDatesInRange(
+    tableName: string,
+    entityColumn: string,
+    entityValue: string,
+    source: string,
+    startDate: string,
+    endDate: string,
+    context: Record<string, unknown>,
+  ): Promise<string[]> {
+    return this.querySnapshotDatesInRange({
+      tableName,
+      source,
+      entityColumn,
+      entityValue,
+      startDate,
+      endDate,
+      successContext: { ...context, source, startDate, endDate },
+      failureMessage: 'Failed to get existing dates in range',
+      failureContext: { ...context, source },
+    });
+  }
+
+  protected async queryEntitySnapshotDatesForDates(
+    tableName: string,
+    entityColumn: string,
+    entityValue: string,
+    source: string,
+    startDate: Date,
+    endDate: Date,
+    context: Record<string, unknown>,
+  ): Promise<string[]> {
+    return this.queryEntitySnapshotDatesInRange(
+      tableName,
+      entityColumn,
+      entityValue,
+      source,
+      formatDateToYYYYMMDD(startDate),
+      formatDateToYYYYMMDD(endDate),
+      context,
+    );
+  }
+
+  private logConfiguredError(
+    message: string,
+    context: Record<string, unknown>,
+    error: unknown,
+  ): void {
+    logger.error(message, {
+      ...context,
+      error: toErrorMessage(error),
+    });
+  }
+
+  private throwConfiguredError(
+    message: string,
+    context: Record<string, unknown>,
+    error: unknown,
+  ): never {
+    this.logConfiguredError(message, context, error);
+    throw error;
   }
 
   /**

@@ -43,7 +43,8 @@ export interface ChartHoverConfig<T> {
   ) => ChartHoverState;
 }
 
-interface UseTestAutoHoverEffectParams<T> extends ChartHoverConfig<T> {
+interface UseTestAutoHoverEffectParams<T> {
+  config: ChartHoverConfig<T>;
   enabled: boolean;
   testAutoPopulate: boolean;
   data: T[];
@@ -62,6 +63,9 @@ export function useTestAutoHoverEffect<T>(
     hoveredPoint,
     setHoveredPoint,
     isAutoHoverActiveRef,
+    config,
+  } = params;
+  const {
     chartWidth,
     chartHeight,
     chartPadding,
@@ -69,7 +73,7 @@ export function useTestAutoHoverEffect<T>(
     maxValue,
     getYValue,
     buildHoverData,
-  } = params;
+  } = config;
 
   const hasTestAutoPopulatedRef = useRef(false);
   const testAutoHideTimerRef = useRef<number | null>(null);

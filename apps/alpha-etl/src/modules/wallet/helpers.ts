@@ -3,9 +3,11 @@ import type {
   WalletBalanceSnapshotInsert,
 } from '../../types/database.js';
 import { logger } from '../../utils/logger.js';
-import type { WalletBalanceTransformer } from './balanceTransformer.js';
-import type { WalletBalanceWriter } from './balanceWriter.js';
-import type { PortfolioItemWriter } from './portfolioWriter.js';
+import { WalletBalanceTransformer } from './balanceTransformer.js';
+import { WalletBalanceWriter } from './balanceWriter.js';
+import { DeBankFetcher } from './fetcher.js';
+import { DeBankPortfolioTransformer } from './portfolioTransformer.js';
+import { PortfolioItemWriter } from './portfolioWriter.js';
 
 /**
  * Merged record type for wallet and portfolio data in ETL pipeline
@@ -161,4 +163,14 @@ export function createMergedFetchResult(
   portfolioItems: PortfolioItemSnapshotInsert[],
 ): WalletETLRecord[] {
   return mergeWalletETLRecords(walletBalances, portfolioItems);
+}
+
+export function createWalletPipelineClients() {
+  return {
+    debankFetcher: new DeBankFetcher(),
+    transformer: new WalletBalanceTransformer(),
+    writer: new WalletBalanceWriter(),
+    portfolioTransformer: new DeBankPortfolioTransformer(),
+    portfolioWriter: new PortfolioItemWriter(),
+  };
 }

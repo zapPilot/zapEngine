@@ -14,7 +14,10 @@ import {
   type SentimentData,
 } from '../../modules/sentiment/schema.js';
 import { APIError } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import {
+  type HealthCheckResult,
+  wrapHealthCheck,
+} from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { serializeError } from './errorSerializer.js';
 import {
@@ -99,35 +102,34 @@ export class FearGreedFetcher extends BaseApiFetcher {
     }
   }
 
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'unhealthy';
-    details?: string;
-  }> {
-    return wrapHealthCheck(async () => {
-      if (!this.apiKey) {
-        return {
-          status: 'unhealthy',
-          details: 'CoinMarketCap API key not configured',
-        };
-      }
+  async healthCheck(): Promise<HealthCheckResult> {
+    return wrapHealthCheck(() => this.checkHealth());
+  }
 
-      const sentimentData = await this.fetchCurrentSentiment();
-      const now = Math.floor(Date.now() / 1000);
-      const dataAge = now - sentimentData.timestamp;
-      const maxAge = 24 * 60 * 60;
-
-      if (dataAge > maxAge) {
-        return {
-          status: 'unhealthy',
-          details: `Sentiment data is stale (${Math.floor(dataAge / 3600)} hours old)`,
-        };
-      }
-
+  private async checkHealth(): Promise<HealthCheckResult> {
+    if (!this.apiKey) {
       return {
-        status: 'healthy',
-        details: `Current sentiment: ${sentimentData.value} (${sentimentData.classification}) - Source: CoinMarketCap`,
+        status: 'unhealthy',
+        details: 'CoinMarketCap API key not configured',
       };
-    });
+    }
+
+    const sentimentData = await this.fetchCurrentSentiment();
+    const now = Math.floor(Date.now() / 1000);
+    const dataAge = now - sentimentData.timestamp;
+    const maxAge = 24 * 60 * 60;
+
+    if (dataAge > maxAge) {
+      return {
+        status: 'unhealthy',
+        details: `Sentiment data is stale (${Math.floor(dataAge / 3600)} hours old)`,
+      };
+    }
+
+    return {
+      status: 'healthy',
+      details: `Current sentiment: ${sentimentData.value} (${sentimentData.classification}) - Source: CoinMarketCap`,
+    };
   }
 
   async fetchRawResponse(): Promise<CoinMarketCapFearGreedResponse> {

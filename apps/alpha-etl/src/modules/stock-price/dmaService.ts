@@ -14,6 +14,10 @@
 import type { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
+import {
+  type LatestDmaSnapshot,
+  mapLatestDmaSnapshotRow,
+} from '../../modules/core/dmaSnapshot.js';
 import { logger } from '../../utils/logger.js';
 
 export interface StockPriceDmaSnapshotInsert {
@@ -86,12 +90,7 @@ export class StockPriceDmaService {
 
   async getLatestDmaSnapshot(
     symbol: string = StockPriceDmaService.DEFAULT_SYMBOL,
-  ): Promise<{
-    date: string;
-    price: number;
-    dma200: number | null;
-    isAboveDma: boolean | null;
-  } | null> {
+  ): Promise<LatestDmaSnapshot | null> {
     const tableName = getTableName('STOCK_PRICE_DMA_SNAPSHOTS');
     const query = `
       SELECT snapshot_date, price_usd, dma_200, is_above_dma
@@ -113,13 +112,7 @@ export class StockPriceDmaService {
         return null;
       }
 
-      const row = result.rows[0]!;
-      return {
-        date: row.snapshot_date,
-        price: Number.parseFloat(row.price_usd),
-        dma200: row.dma_200 !== null ? Number.parseFloat(row.dma_200) : null,
-        isAboveDma: row.is_above_dma,
-      };
+      return mapLatestDmaSnapshotRow(result.rows[0]!);
     } catch (error) {
       logger.error('Failed to get latest DMA snapshot', {
         symbol,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
@@ -15,30 +15,19 @@ from src.services.backtesting.portfolio_rules.base import (
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.strategies.dma_buy_sideways_gate import (
+    DmaBuyGateConfigMixin,
     DmaBuyGateSnapshot,
-    DmaBuySidewaysGate,
 )
 
 _EPSILON = 1e-9
 
 
 @dataclass
-class DmaBuyGateRule:
+class DmaBuyGateRule(DmaBuyGateConfigMixin):
     name: str = "dma_buy_gate"
     priority: int = 4
     rule_group: RuleGroup = "none"
     description: str = "Block stable-to-risk DCA buys until DMA sideways confirmation."
-    window_days: int = 5
-    sideways_max_range: float = 0.04
-    leg_caps: tuple[float, ...] = (0.05, 0.10, 0.20)
-    _gate: DmaBuySidewaysGate = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self._gate = DmaBuySidewaysGate(
-            window_days=self.window_days,
-            sideways_range_threshold=self.sideways_max_range,
-            leg_cap_pcts=tuple(float(value) for value in self.leg_caps),
-        )
 
     def reset(self) -> None:
         self._gate.reset()

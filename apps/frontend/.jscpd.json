@@ -1,6 +1,4 @@
 {
-  "threshold": 2.5,
-  "reporters": ["html", "console", "json"],
   "format": ["typescript", "javascript", "tsx", "jsx"],
   "ignore": [
     "**/node_modules/**",
@@ -33,7 +31,9 @@
     "src/components/PoolAnalytics/PoolPerformanceTable.tsx",
     "src/app/bundle/BundlePageClient.tsx"
   ],
-  "minLines": 5,
-  "minTokens": 30,
-  "output": ".jscpd"
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s+type\\s*\\{[\\s\\S]*?\\}\\s*from\\s*['\"][^'\"]+['\"];?",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*['\"][^'\"]+['\"];?"
+  ]
 }

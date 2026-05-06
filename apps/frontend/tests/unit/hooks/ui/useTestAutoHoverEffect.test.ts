@@ -106,7 +106,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -145,7 +145,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: false,
           testAutoPopulate: true,
           data: testData,
@@ -164,7 +164,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: false,
           data: testData,
@@ -183,7 +183,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: [],
@@ -209,7 +209,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -229,7 +229,7 @@ describe('useTestAutoHoverEffect', () => {
       const { rerender } = renderHook(
         (props: { hoveredPoint: ChartHoverState | null }) =>
           useTestAutoHoverEffect({
-            ...baseConfig,
+            config: baseConfig,
             enabled: true,
             testAutoPopulate: true,
             data: testData,
@@ -259,7 +259,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: singleDataPoint,
@@ -287,7 +287,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -314,7 +314,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -348,7 +348,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -386,7 +386,7 @@ describe('useTestAutoHoverEffect', () => {
       const { rerender } = renderHook(
         (props: { hoveredPoint: ChartHoverState | null }) =>
           useTestAutoHoverEffect({
-            ...baseConfig,
+            config: baseConfig,
             enabled: true,
             testAutoPopulate: true,
             data: testData,
@@ -435,7 +435,7 @@ describe('useTestAutoHoverEffect', () => {
 
       const { unmount } = renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -469,7 +469,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: false,
           data: testData,
@@ -499,7 +499,7 @@ describe('useTestAutoHoverEffect', () => {
 
       renderHook(() =>
         useTestAutoHoverEffect({
-          ...baseConfig,
+          config: baseConfig,
           enabled: true,
           testAutoPopulate: true,
           data: testData,
@@ -529,7 +529,7 @@ describe('useTestAutoHoverEffect', () => {
       const { rerender } = renderHook(
         (props: { hoveredPoint: ChartHoverState | null }) =>
           useTestAutoHoverEffect({
-            ...baseConfig,
+            config: baseConfig,
             enabled: true,
             testAutoPopulate: false, // Disable auto-populate to avoid interference
             data: testData,
@@ -569,7 +569,7 @@ describe('useTestAutoHoverEffect', () => {
       const { rerender } = renderHook(
         (props: { hoveredPoint: ChartHoverState | null }) =>
           useTestAutoHoverEffect({
-            ...baseConfig,
+            config: baseConfig,
             enabled: true,
             testAutoPopulate: true,
             data: testData,

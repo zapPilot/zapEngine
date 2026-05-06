@@ -69,10 +69,7 @@ export function computeDma(
       snapshot_date: row.snapshot_date,
       price_usd: row.price_usd,
       /* v8 ignore start -- metrics array always matches input length from computeRollingDmaMetrics */
-      dma_200: metric?.dma200 ?? null,
-      price_vs_dma_ratio: metric?.ratioVsDma ?? null,
-      is_above_dma: metric?.isAboveDma ?? null,
-      days_available: metric?.daysAvailable ?? 0,
+      ...mapRollingMetric(metric, 'price_vs_dma_ratio'),
       /* v8 ignore stop */
       source: DMA_SOURCE,
       snapshot_time: now,
@@ -132,15 +129,34 @@ export function computeTokenPairRatioDma(
       snapshot_date: row.snapshot_date,
       ratio_value: row.ratio_value,
       /* v8 ignore start -- metrics array always matches input length from computeRollingDmaMetrics */
-      dma_200: metric?.dma200 ?? null,
-      ratio_vs_dma_ratio: metric?.ratioVsDma ?? null,
-      is_above_dma: metric?.isAboveDma ?? null,
-      days_available: metric?.daysAvailable ?? 0,
+      ...mapRollingMetric(metric, 'ratio_vs_dma_ratio'),
       /* v8 ignore stop */
       source: DMA_SOURCE,
       snapshot_time: now,
     };
   });
+}
+
+function mapRollingMetric<
+  RatioKey extends 'price_vs_dma_ratio' | 'ratio_vs_dma_ratio',
+>(
+  metric: RollingDmaMetric | undefined,
+  ratioKey: RatioKey,
+): {
+  dma_200: number | null;
+  is_above_dma: boolean | null;
+  days_available: number;
+} & Record<RatioKey, number | null> {
+  return {
+    dma_200: metric?.dma200 ?? null,
+    [ratioKey]: metric?.ratioVsDma ?? null,
+    is_above_dma: metric?.isAboveDma ?? null,
+    days_available: metric?.daysAvailable ?? 0,
+  } as {
+    dma_200: number | null;
+    is_above_dma: boolean | null;
+    days_available: number;
+  } & Record<RatioKey, number | null>;
 }
 
 function computeRollingDmaMetrics(

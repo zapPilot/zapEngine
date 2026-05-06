@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { RATE_LIMITS } from '../../config/database.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { toErrorMessage } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import {
+  createWrappedHealthCheck,
+  type HealthCheckResult,
+} from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 
@@ -135,18 +138,9 @@ export class DeBankFetcher extends BaseApiFetcher {
         walletAddress: maskWalletAddress(walletAddress),
       });
 
-      const url = `${this.baseUrl}/v1/user/all_token_list`;
-      const params = new URLSearchParams({
-        id: walletAddress.toLowerCase(),
-      });
-
-      const data = await this.fetchWithRetry<unknown>(
-        `${url}?${params}`,
-        {
-          headers: this.buildHeaders(),
-        },
-        3,
-        1000,
+      const data = await this.fetchWalletEndpoint(
+        '/v1/user/all_token_list',
+        walletAddress,
       );
       return this.validateTokenResponse(data, walletAddress);
     } catch (error) {
@@ -189,18 +183,9 @@ export class DeBankFetcher extends BaseApiFetcher {
         walletAddress: maskWalletAddress(walletAddress),
       });
 
-      const url = `${this.baseUrl}/v1/user/all_complex_protocol_list`;
-      const params = new URLSearchParams({
-        id: walletAddress.toLowerCase(),
-      });
-
-      const data = await this.fetchWithRetry<unknown>(
-        `${url}?${params}`,
-        {
-          headers: this.buildHeaders(),
-        },
-        3,
-        1000,
+      const data = await this.fetchWalletEndpoint(
+        '/v1/user/all_complex_protocol_list',
+        walletAddress,
       );
       return this.validateProtocolResponse(data, walletAddress);
     } catch (error) {
@@ -219,6 +204,23 @@ export class DeBankFetcher extends BaseApiFetcher {
       headers['AccessKey'] = this.apiKey;
     }
     return headers;
+  }
+
+  private async fetchWalletEndpoint(
+    endpointPath: string,
+    walletAddress: string,
+  ): Promise<unknown> {
+    const url = `${this.baseUrl}${endpointPath}`;
+    const params = new URLSearchParams({
+      id: walletAddress.toLowerCase(),
+    });
+
+    return this.fetchWithRetry<unknown>(
+      `${url}?${params}`,
+      { headers: this.buildHeaders() },
+      3,
+      1000,
+    );
   }
 
   private validateProtocolResponse(
@@ -276,43 +278,40 @@ export class DeBankFetcher extends BaseApiFetcher {
     return [];
   }
 
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'unhealthy';
-    details?: string;
-  }> {
-    return wrapHealthCheck(async () => {
-      // Test with a well-known address (Ethereum Foundation)
-      const testAddress = '0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae';
-      const url = `${this.baseUrl}/v1/user/total_balance`;
-      const params = new URLSearchParams({
-        id: testAddress,
-      });
+  healthCheck = createWrappedHealthCheck(() => this.checkHealth());
 
-      const headers: Record<string, string> = {
-        Accept: 'application/json',
-        'User-Agent': this.userAgent,
-      };
-
-      Object.assign(headers, this.buildHeaders());
-
-      const response = await fetch(`${url}?${params}`, {
-        headers,
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
-
-      if (response.ok) {
-        return { status: 'healthy' };
-      } else if (response.status === 429) {
-        return {
-          status: 'unhealthy',
-          details: 'Rate limited - consider adding API key',
-        };
-      } else {
-        return {
-          status: 'unhealthy',
-          details: `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
+  private async checkHealth(): Promise<HealthCheckResult> {
+    // Test with a well-known address (Ethereum Foundation)
+    const testAddress = '0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae';
+    const url = `${this.baseUrl}/v1/user/total_balance`;
+    const params = new URLSearchParams({
+      id: testAddress,
     });
+
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': this.userAgent,
+    };
+
+    Object.assign(headers, this.buildHeaders());
+
+    const response = await fetch(`${url}?${params}`, {
+      headers,
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+
+    if (response.ok) {
+      return { status: 'healthy' };
+    } else if (response.status === 429) {
+      return {
+        status: 'unhealthy',
+        details: 'Rate limited - consider adding API key',
+      };
+    } else {
+      return {
+        status: 'unhealthy',
+        details: `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
   }
 }

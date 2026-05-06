@@ -18,14 +18,21 @@ interface PageDataWithMDX {
   toc: TOCItemType[];
 }
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>;
-}) {
-  const { slug } = await params;
+type DocsRouteParams = Promise<{ slug?: string[] }>;
+type DocsRouteProps = { params: DocsRouteParams };
+
+function getDocsPage(slug: string[] | undefined) {
   const page = source.getPage(slug);
   if (!page) notFound();
+  return page;
+}
+
+async function resolveDocsPage(params: DocsRouteParams) {
+  return getDocsPage((await params).slug);
+}
+
+export default async function Page(props: DocsRouteProps) {
+  const page = await resolveDocsPage(props.params);
 
   const data = page.data as PageDataWithMDX;
   const MDX = data.body;
@@ -45,14 +52,8 @@ export function generateStaticParams() {
   return source.generateParams();
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>;
-}) {
-  const { slug } = await params;
-  const page = source.getPage(slug);
-  if (!page) notFound();
+export async function generateMetadata({ params }: DocsRouteProps) {
+  const page = await resolveDocsPage(params);
 
   return {
     title: page.data.title,

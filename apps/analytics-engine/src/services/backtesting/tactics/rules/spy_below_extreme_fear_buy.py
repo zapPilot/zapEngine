@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.services.backtesting.decision import AllocationIntent, RuleGroup
+from src.services.backtesting.decision import RuleGroup
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
-from src.services.backtesting.tactics.base import RuleConfig, target_intent
+from src.services.backtesting.tactics.base import RuleConfig, target_intent_builder
 
 SPY_BUY_TARGET: dict[str, float] = {
     "btc": 0.0,
@@ -31,16 +31,9 @@ class SpyBelowExtremeFearBuyRule:
             and snapshot.macro_fear_greed_regime == "extreme_fear"
         )
 
-    def build_intent(
-        self,
-        snapshot: DmaMarketState,
-        *,
-        config: RuleConfig,
-    ) -> AllocationIntent:
-        return target_intent(
-            action="buy",
-            target=SPY_BUY_TARGET,
-            allocation_name="spy_dma_below_extreme_fear_buy",
-            reason="spy_below_extreme_fear_buy",
-            rule_group=self.rule_group,
-        )
+    build_intent = target_intent_builder(
+        action="buy",
+        target=SPY_BUY_TARGET,
+        allocation_name="spy_dma_below_extreme_fear_buy",
+        reason="spy_below_extreme_fear_buy",
+    )

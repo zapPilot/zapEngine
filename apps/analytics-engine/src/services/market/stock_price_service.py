@@ -9,9 +9,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, TypedDict, cast
 
-from sqlalchemy.orm import Session
-
-from src.services.interfaces import QueryServiceProtocol
+from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -25,7 +23,7 @@ class StockPriceDmaPoint(TypedDict):
     is_above_dma: bool | None
 
 
-class StockPriceService:
+class StockPriceService(QueryBackedMarketService):
     """
     Service for querying S&P500 (SPY) historical price data from the database.
 
@@ -35,24 +33,6 @@ class StockPriceService:
     """
 
     DEFAULT_SYMBOL: str = "SPY"
-
-    def __init__(
-        self, db: Session, query_service: QueryServiceProtocol | None = None
-    ) -> None:
-        """
-        Initialize the service with database session and query service.
-
-        Args:
-            db: SQLAlchemy Session instance for database operations
-            query_service: Service for executing named SQL queries
-        """
-        self.db = db
-        if query_service is None:
-            from src.services.dependencies import get_query_service
-
-            self.query_service = get_query_service()
-        else:
-            self.query_service = query_service
 
     @staticmethod
     def _coerce_dma_snapshot_date(raw_date: object) -> date:

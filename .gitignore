@@ -44,6 +44,7 @@ pnpm-debug.log*
 
 # Test
 coverage/
+.jscpd/
 
 # claude
 .claude/scheduled_tasks.lock

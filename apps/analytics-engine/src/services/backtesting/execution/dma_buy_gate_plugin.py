@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionPluginDiagnostic
@@ -16,8 +16,8 @@ from src.services.backtesting.execution.rebalance_calculator import (
 )
 from src.services.backtesting.strategies.base import TransferIntent
 from src.services.backtesting.strategies.dma_buy_sideways_gate import (
+    DmaBuyGateConfigMixin,
     DmaBuyGateSnapshot,
-    DmaBuySidewaysGate,
 )
 
 _PLUGIN_ID = "dma_buy_gate"
@@ -25,20 +25,8 @@ _EPSILON = 1e-6
 
 
 @dataclass
-class DmaBuyGateExecutionPlugin:
+class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
     """Execution plugin that applies the DMA sideways confirmation gate."""
-
-    window_days: int = 5
-    sideways_max_range: float = 0.04
-    leg_caps: tuple[float, ...] = (0.05, 0.10, 0.20)
-    _gate: DmaBuySidewaysGate = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self._gate = DmaBuySidewaysGate(
-            window_days=self.window_days,
-            sideways_range_threshold=self.sideways_max_range,
-            leg_cap_pcts=tuple(float(value) for value in self.leg_caps),
-        )
 
     def reset(self) -> None:
         self._gate.reset()

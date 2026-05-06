@@ -6,9 +6,7 @@ import logging
 from datetime import UTC, date, datetime
 from typing import Any, TypedDict, cast
 
-from sqlalchemy.orm import Session
-
-from src.services.interfaces import QueryServiceProtocol
+from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -22,19 +20,8 @@ class MacroFearGreedPoint(TypedDict):
     raw_rating: str | None
 
 
-class MacroFearGreedDatabaseService:
+class MacroFearGreedDatabaseService(QueryBackedMarketService):
     """Read CNN US equity Fear & Greed data collected by alpha-etl."""
-
-    def __init__(
-        self, db: Session, query_service: QueryServiceProtocol | None = None
-    ) -> None:
-        self.db = db
-        if query_service is None:
-            from src.services.dependencies import get_query_service
-
-            self.query_service = get_query_service()
-        else:
-            self.query_service = query_service
 
     @staticmethod
     def _coerce_snapshot_date(raw_date: object) -> date:

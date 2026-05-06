@@ -21,9 +21,12 @@ import {
 } from '../../modules/token-price/fetcher.js';
 import {
   buildHealthCheckDetails,
-  calculateSuccessRate,
+  buildProcessorStats,
+  createProcessorStats,
   getOptionalDmaHealthInfo,
+  logProcessorFailureAndRethrow,
   resolveHealthStatus,
+  runDmaPostStep,
   updateStatsAfterProcess,
   writeSnapshotData,
 } from '../../modules/token-price/processor.helpers.js';
@@ -45,11 +48,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
   private fetcher: CoinGeckoFetcher;
   private writer: TokenPriceWriter;
   private dmaService: TokenPriceDmaService;
-  private stats = {
-    totalProcessed: 0,
-    totalErrors: 0,
-    lastProcessedAt: null as Date | null,
-  };
+  private stats = createProcessorStats();
 
   constructor(pool?: Pool) {
     this.fetcher = new CoinGeckoFetcher();
@@ -86,22 +85,13 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    * DMA is a derived metric — failure here does not invalidate the primary price data.
    */
   private async updateDmaAfterPriceWrite(jobId: string): Promise<void> {
-    try {
-      const dmaResult = await this.updateDmaForToken(
+    await runDmaPostStep(jobId, () =>
+      this.updateDmaForToken(
         TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
         TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
         jobId,
-      );
-      logger.info('DMA post-step completed', {
-        jobId,
-        dmaRecordsInserted: dmaResult.recordsInserted,
-      });
-    } catch (error) {
-      logger.warn('DMA post-step failed (non-fatal)', {
-        jobId,
-        error: toErrorMessage(error),
-      });
-    }
+      ),
+    );
   }
 
   /**
@@ -135,13 +125,11 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
         date: formatDateToYYYYMMDD(priceData.timestamp),
       });
     } catch (error) {
-      logger.error('Token price ETL failed', {
-        tokenId,
-        tokenSymbol,
-        error: toErrorMessage(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw error;
+      logProcessorFailureAndRethrow(
+        'Token price ETL failed',
+        { tokenId, tokenSymbol },
+        error,
+      );
     }
   }
 
@@ -289,12 +277,7 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    * Get processing statistics
    */
   getStats(): Record<string, unknown> {
-    return {
-      totalProcessed: this.stats.totalProcessed,
-      totalErrors: this.stats.totalErrors,
-      lastProcessedAt: this.stats.lastProcessedAt?.toISOString() ?? null,
-      successRate: calculateSuccessRate(this.stats),
-    };
+    return buildProcessorStats(this.stats, true);
   }
 
   /**

@@ -17,11 +17,11 @@ import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import {
   accumulateSourceResult,
-  buildJobSummary,
   createProcessingResult,
   createSingleSourceFailureResult,
   createSingleSourceSuccessResult,
   type ETLJobProcessingResult,
+  logJobProcessingCompleted,
   type ProcessorHealthSummary,
 } from './pipelineFactory.helpers.js';
 import {
@@ -251,52 +251,43 @@ export class ETLPipelineFactory {
     job: ETLJob,
     result: ETLJobProcessingResult,
   ): Promise<ETLJobProcessingResult> {
-    const startTime = Date.now();
-
-    try {
-      await this.processSourcesForJob(job, result);
-
-      const duration = Date.now() - startTime;
-      logger.info('ETL job processing completed', {
-        jobId: job.jobId,
-        success: result.success,
-        recordsProcessed: result.recordsProcessed,
-        recordsInserted: result.recordsInserted,
-        errorCount: result.errors.length,
-        duration,
-        sourceResults: buildJobSummary(result.sourceResults),
-      });
-
-      return result;
-    } catch (error) {
-      this.applyProcessJobFailure(job, result, error);
-      return result;
-    }
+    return this.processTimedJob(
+      job,
+      result,
+      'ETL job processing completed',
+      () => this.processSourcesForJob(job, result),
+    );
   }
 
   private async processTasksForJob(
     job: ETLJob,
     result: ETLJobProcessingResult,
   ): Promise<ETLJobProcessingResult> {
+    return this.processTimedJob(
+      job,
+      result,
+      'ETL task job processing completed',
+      async () => {
+        for (const task of job.tasks ?? []) {
+          const sourceResult = await this.processTask(task, job);
+          accumulateSourceResult(result, task.source, sourceResult);
+        }
+      },
+    );
+  }
+
+  private async processTimedJob(
+    job: ETLJob,
+    result: ETLJobProcessingResult,
+    completedMessage: string,
+    processJob: () => Promise<void>,
+  ): Promise<ETLJobProcessingResult> {
     const startTime = Date.now();
 
     try {
-      for (const task of job.tasks ?? []) {
-        const sourceResult = await this.processTask(task, job);
-        accumulateSourceResult(result, task.source, sourceResult);
-      }
-
+      await processJob();
       const duration = Date.now() - startTime;
-      logger.info('ETL task job processing completed', {
-        jobId: job.jobId,
-        success: result.success,
-        recordsProcessed: result.recordsProcessed,
-        recordsInserted: result.recordsInserted,
-        errorCount: result.errors.length,
-        duration,
-        sourceResults: buildJobSummary(result.sourceResults),
-      });
-
+      logJobProcessingCompleted(completedMessage, job.jobId, result, duration);
       return result;
     } catch (error) {
       this.applyProcessJobFailure(job, result, error);

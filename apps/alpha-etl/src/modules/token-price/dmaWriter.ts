@@ -13,17 +13,14 @@ import {
   type WriteResult,
 } from '../../core/database/baseWriter.js';
 import { buildTokenPriceDmaInsertValues } from '../../core/database/columnDefinitions.js';
+import {
+  type LatestDmaSnapshot,
+  type LatestDmaSnapshotRow,
+  mapLatestDmaSnapshotRow,
+} from '../../modules/core/dmaSnapshot.js';
 import type { TokenPriceDmaSnapshotInsert } from '../../types/database.js';
-import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-
-interface LatestDmaSnapshotRow {
-  snapshot_date: Date | string;
-  price_usd: string | number;
-  dma_200: string | number | null | undefined;
-  is_above_dma: boolean | null;
-}
 
 /**
  * Token Price DMA Writer
@@ -58,12 +55,9 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
    * @param tokenSymbol - Token symbol to look up (e.g., 'BTC')
    * @returns Latest DMA snapshot summary, or null if none exists
    */
-  async getLatestDmaSnapshot(tokenSymbol: string): Promise<{
-    date: string;
-    price: number;
-    dma200: number | null;
-    isAboveDma: boolean | null;
-  } | null> {
+  async getLatestDmaSnapshot(
+    tokenSymbol: string,
+  ): Promise<LatestDmaSnapshot | null> {
     const query = `
       SELECT snapshot_date, price_usd, dma_200, is_above_dma
       FROM ${getTableName('TOKEN_PRICE_DMA_SNAPSHOTS')}
@@ -82,19 +76,7 @@ export class TokenPriceDmaWriter extends BaseWriter<TokenPriceDmaSnapshotInsert>
         return null;
       }
 
-      const row = result.rows[0] as LatestDmaSnapshotRow;
-      return {
-        date:
-          row.snapshot_date instanceof Date
-            ? formatDateToYYYYMMDD(row.snapshot_date)
-            : String(row.snapshot_date),
-        price: parseFloat(String(row.price_usd)),
-        dma200:
-          row.dma_200 === null || row.dma_200 === undefined
-            ? null
-            : parseFloat(String(row.dma_200)),
-        isAboveDma: row.is_above_dma,
-      };
+      return mapLatestDmaSnapshotRow(result.rows[0] as LatestDmaSnapshotRow);
     } catch (error) {
       logger.error('Failed to get latest DMA snapshot', {
         tokenSymbol,

@@ -20,7 +20,7 @@
     "test:ci": "vitest run --coverage",
     "deadcode": "knip --exports --dependencies",
     "deadcode:fix": "knip --exports --dependencies --fix",
-    "dup:check": "jscpd src --gitignore --min-lines 5 --threshold 12",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "clean": "rm -rf .next out coverage"
   },
   "dependencies": {
@@ -50,7 +50,6 @@
     "@zapengine/tsconfig": "workspace:*",
     "eslint": "catalog:",
     "eslint-config-next": "catalog:",
-    "jscpd": "catalog:",
     "jsdom": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",

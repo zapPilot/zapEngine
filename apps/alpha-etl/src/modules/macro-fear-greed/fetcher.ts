@@ -1,6 +1,9 @@
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { APIError } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import {
+  type HealthCheckResult,
+  wrapHealthCheck,
+} from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import {
   type CnnFearGreedPayload,
@@ -24,6 +27,10 @@ export class MacroFearGreedFetcher extends BaseApiFetcher {
       config?.apiUrl ?? MacroFearGreedFetcher.BASE_URL,
       MacroFearGreedFetcher.RATE_LIMIT_MS,
     );
+  }
+
+  async healthCheck(): Promise<HealthCheckResult> {
+    return wrapHealthCheck(() => this.checkHealth());
   }
 
   async fetchCurrent(): Promise<MacroFearGreedData> {
@@ -70,24 +77,19 @@ export class MacroFearGreedFetcher extends BaseApiFetcher {
     }
   }
 
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'unhealthy';
-    details?: string;
-  }> {
-    return wrapHealthCheck(async () => {
-      const data = await this.fetchCurrent();
-      const updatedAt = new Date(data.updatedAt).getTime();
-      const ageHours = Math.floor((Date.now() - updatedAt) / (60 * 60 * 1000));
-      if (ageHours > 72) {
-        return {
-          status: 'unhealthy',
-          details: `CNN macro Fear & Greed data is stale (${ageHours} hours old)`,
-        };
-      }
+  private async checkHealth(): Promise<HealthCheckResult> {
+    const data = await this.fetchCurrent();
+    const updatedAt = new Date(data.updatedAt).getTime();
+    const ageHours = Math.floor((Date.now() - updatedAt) / (60 * 60 * 1000));
+    if (ageHours > 72) {
       return {
-        status: 'healthy',
-        details: `CNN macro Fear & Greed: ${data.score} (${data.label})`,
+        status: 'unhealthy',
+        details: `CNN macro Fear & Greed data is stale (${ageHours} hours old)`,
       };
-    });
+    }
+    return {
+      status: 'healthy',
+      details: `CNN macro Fear & Greed: ${data.score} (${data.label})`,
+    };
   }
 }

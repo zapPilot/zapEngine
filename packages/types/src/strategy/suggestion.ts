@@ -1,30 +1,21 @@
 import { z } from 'zod';
 
 import { MarketDataFreshnessSchema } from '../shared/market-freshness.js';
-import {
-  AssetAllocationSchema,
-  PortfolioAllocationSchema,
-  TargetAllocationSchema,
-} from './allocation.js';
+import { TargetAllocationSchema } from './allocation.js';
 import { BucketTransferSchema } from './bucket.js';
 import {
   BacktestDecisionDetailsSchema,
   BacktestMarketPointSchema,
   BacktestSignalSchema,
-  BacktestSpotAssetSymbolSchema,
+  BacktestStrategyPortfolioSchema,
 } from './backtesting.js';
 
-export const DailySuggestionPortfolioSchema = z.object({
-  spot_usd: z.number().nonnegative(),
-  stable_usd: z.number().nonnegative(),
-  total_value: z.number().nonnegative(),
-  allocation: PortfolioAllocationSchema,
-  asset_allocation: AssetAllocationSchema,
-  spot_asset: BacktestSpotAssetSymbolSchema.nullable().optional(),
-  total_assets_usd: z.number().nonnegative().optional(),
-  total_debt_usd: z.number().nonnegative().optional(),
-  total_net_usd: z.number().optional(),
-});
+export const DailySuggestionPortfolioSchema =
+  BacktestStrategyPortfolioSchema.extend({
+    total_assets_usd: z.number().nonnegative().optional(),
+    total_debt_usd: z.number().nonnegative().optional(),
+    total_net_usd: z.number().optional(),
+  });
 
 export const DailySuggestionActionStatusSchema = z.enum([
   'action_required',

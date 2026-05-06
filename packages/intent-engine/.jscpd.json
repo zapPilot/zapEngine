@@ -1,6 +1,4 @@
 {
-  "threshold": 6,
-  "reporters": ["console"],
   "ignore": [
     "**/*.spec.ts",
     "**/*.test.ts",
@@ -16,10 +14,5 @@
     "import\\s.*from\\s.*",
     "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
   ],
-  "absolute": true,
-  "gitignore": true,
-  "mode": "strict",
-  "format": ["typescript"],
-  "minLines": 5,
-  "minTokens": 50
+  "format": ["typescript"]
 }

@@ -7,7 +7,10 @@ import {
   type FetchOptions,
 } from '../../core/fetchers/baseApiFetcher.js';
 import { APIError, toErrorMessage } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import {
+  createWrappedHealthCheck,
+  type HealthCheckResult,
+} from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retry.js';
 import {
@@ -276,15 +279,12 @@ export class HyperliquidFetcher extends BaseApiFetcher {
     });
   }
 
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'unhealthy';
-    details?: string;
-  }> {
-    return wrapHealthCheck(async () => {
-      const testWallet = '0x0000000000000000000000000000000000000001';
-      await this.getVaultDetails(testWallet, this.defaultVaultAddress);
-      return { status: 'healthy' };
-    });
+  healthCheck = createWrappedHealthCheck(() => this.checkHealth());
+
+  private async checkHealth(): Promise<HealthCheckResult> {
+    const testWallet = '0x0000000000000000000000000000000000000001';
+    await this.getVaultDetails(testWallet, this.defaultVaultAddress);
+    return { status: 'healthy' };
   }
 
   getDefaultVaultAddress(): string {

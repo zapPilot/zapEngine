@@ -19,17 +19,13 @@ import { toErrorMessage } from '../../utils/errors.js';
 import { wrapHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
-import { WalletBalanceTransformer } from './balanceTransformer.js';
-import { WalletBalanceWriter } from './balanceWriter.js';
-import { DeBankFetcher } from './fetcher.js';
 import {
   createMergedFetchResult,
   createWalletLoadCallback,
+  createWalletPipelineClients,
   createWalletTransformCallback,
   type WalletETLRecord,
 } from './helpers.js';
-import { DeBankPortfolioTransformer } from './portfolioTransformer.js';
-import { PortfolioItemWriter } from './portfolioWriter.js';
 
 /**
  * ETL processor for single-wallet fetch requests from account-engine webhooks
@@ -41,19 +37,13 @@ import { PortfolioItemWriter } from './portfolioWriter.js';
  * - Used for on-demand wallet onboarding and refresh
  */
 export class WalletFetchETLProcessor implements BaseETLProcessor {
-  private debankFetcher: DeBankFetcher;
-  private transformer: WalletBalanceTransformer;
-  private writer: WalletBalanceWriter;
-  private portfolioTransformer: DeBankPortfolioTransformer;
-  private portfolioWriter: PortfolioItemWriter;
-
-  constructor() {
-    this.debankFetcher = new DeBankFetcher();
-    this.transformer = new WalletBalanceTransformer();
-    this.writer = new WalletBalanceWriter();
-    this.portfolioTransformer = new DeBankPortfolioTransformer();
-    this.portfolioWriter = new PortfolioItemWriter();
-  }
+  private readonly walletClients = createWalletPipelineClients();
+  private readonly debankFetcher = this.walletClients.debankFetcher;
+  private readonly transformer = this.walletClients.transformer;
+  private readonly writer = this.walletClients.writer;
+  private readonly portfolioTransformer =
+    this.walletClients.portfolioTransformer;
+  private readonly portfolioWriter = this.walletClients.portfolioWriter;
 
   async process(job: ETLJob): Promise<ETLProcessResult> {
     try {

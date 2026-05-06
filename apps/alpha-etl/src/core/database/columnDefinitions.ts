@@ -1,3 +1,7 @@
+import type {
+  DailyStockPrice,
+  StockPriceData,
+} from '../../modules/stock-price/schema.js';
 import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
@@ -33,6 +37,14 @@ interface TokenPriceInsertRecord {
   snapshot_date: string;
   snapshot_time: Date;
   raw_data: string;
+}
+
+interface StockPriceInsertRecord {
+  symbol: string;
+  snapshot_date: string;
+  price_usd: number;
+  source: string;
+  created_at: string;
 }
 
 function toNullishSqlValue(value: unknown): unknown {
@@ -71,6 +83,19 @@ function mapTokenPriceRecord(record: TokenPriceData): TokenPriceInsertRecord {
     snapshot_date: formatDateToYYYYMMDD(record.timestamp),
     snapshot_time: record.timestamp,
     raw_data: JSON.stringify(record),
+  };
+}
+
+function mapStockPriceRecord(
+  record: DailyStockPrice | StockPriceData,
+): StockPriceInsertRecord {
+  return {
+    symbol: record.symbol,
+    snapshot_date:
+      'date' in record ? record.date : formatDateToYYYYMMDD(record.timestamp),
+    price_usd: record.priceUsd,
+    source: record.source,
+    created_at: new Date().toISOString(),
   };
 }
 
@@ -284,4 +309,21 @@ export function buildTokenPriceInsertValues(
 ): InsertValuesResult<TokenPriceColumn> {
   const mappedRecords = records.map(mapTokenPriceRecord);
   return buildInsertValuesFor(mappedRecords, TOKEN_PRICE_COLUMNS);
+}
+
+export const STOCK_PRICE_COLUMNS = [
+  'symbol',
+  'snapshot_date',
+  'price_usd',
+  'source',
+  'created_at',
+] as const;
+
+export type StockPriceColumn = (typeof STOCK_PRICE_COLUMNS)[number];
+
+export function buildStockPriceInsertValues(
+  records: (DailyStockPrice | StockPriceData)[],
+): InsertValuesResult<StockPriceColumn> {
+  const mappedRecords = records.map(mapStockPriceRecord);
+  return buildInsertValuesFor(mappedRecords, STOCK_PRICE_COLUMNS);
 }

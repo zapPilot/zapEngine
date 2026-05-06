@@ -75,11 +75,7 @@ export class YahooFinanceFetcher {
         timestamp: new Date(),
       };
     } catch (error) {
-      logger.error('Failed to fetch latest stock price', {
-        symbol,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+      this.logAndRethrow('Failed to fetch latest stock price', symbol, error);
     }
   }
 
@@ -138,11 +134,7 @@ export class YahooFinanceFetcher {
 
       return prices;
     } catch (error) {
-      logger.error('Failed to fetch full stock history', {
-        symbol,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+      this.logAndRethrow('Failed to fetch full stock history', symbol, error);
     }
   }
 
@@ -164,5 +156,17 @@ export class YahooFinanceFetcher {
   private async rateLimitCall<T>(fn: () => Promise<T>): Promise<T> {
     await new Promise((resolve) => setTimeout(resolve, this.rateLimitMs));
     return fn();
+  }
+
+  private logAndRethrow(
+    message: string,
+    symbol: string,
+    error: unknown,
+  ): never {
+    logger.error(message, {
+      symbol,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
 }

@@ -7,8 +7,7 @@
 
 import { getTableName } from '../../config/database.js';
 import { BaseWriter } from '../../core/database/baseWriter.js';
-import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
-import { toErrorMessage } from '../../utils/errors.js';
+import { buildStockPriceInsertValues } from '../../core/database/columnDefinitions.js';
 import { logger } from '../../utils/logger.js';
 import type { DailyStockPrice, StockPriceData } from './schema.js';
 
@@ -26,25 +25,13 @@ export class StockPriceWriter extends BaseWriter<
         logContext: 'stock price snapshot',
         recordCount: 1,
         buildQuery: () => {
-          const columns = [
-            'symbol',
-            'snapshot_date',
-            'price_usd',
-            'source',
-            'created_at',
-          ];
-          const placeholders = ['$1', '$2', '$3', '$4', '$5'];
-          const values = [
-            data.symbol,
-            snapshotDate,
-            data.priceUsd,
-            data.source,
-            new Date().toISOString(),
-          ];
+          const { columns, placeholders, values } = buildStockPriceInsertValues(
+            [data],
+          );
 
           const query = `
             INSERT INTO ${this.getSnapshotsTableName()} (${columns.join(', ')})
-            VALUES (${placeholders.join(', ')})
+            VALUES ${placeholders}
             ON CONFLICT (source, symbol, snapshot_date)
             DO UPDATE SET price_usd = EXCLUDED.price_usd
             RETURNING id, snapshot_date
@@ -54,9 +41,7 @@ export class StockPriceWriter extends BaseWriter<
         },
       });
 
-      if (!result.success) {
-        throw new Error(result.errors[0] ?? 'Unknown insert error');
-      }
+      this.assertWriteSuccess(result, 'Unknown insert error');
 
       logger.info('Stock price snapshot saved', {
         symbol: data.symbol,
@@ -65,13 +50,15 @@ export class StockPriceWriter extends BaseWriter<
         date: snapshotDate,
       });
     } catch (error) {
-      logger.error('Failed to save stock price snapshot', {
-        error: toErrorMessage(error),
-        date: snapshotDate,
-        symbol: data.symbol,
-        price: data.priceUsd,
-      });
-      throw error;
+      this.logWriteFailureAndRethrow(
+        'Failed to save stock price snapshot',
+        {
+          date: snapshotDate,
+          symbol: data.symbol,
+          price: data.priceUsd,
+        },
+        error,
+      );
     }
   }
 
@@ -86,64 +73,19 @@ export class StockPriceWriter extends BaseWriter<
       symbol,
     });
 
-    const columns = [
-      'symbol',
-      'snapshot_date',
-      'price_usd',
-      'source',
-      'created_at',
-    ];
-    const placeholders: string[] = [];
-    const values: unknown[] = [];
-
-    snapshots.forEach((snapshot, index) => {
-      const offset = index * 5;
-      placeholders.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`,
-      );
-      values.push(
-        snapshot.symbol,
-        formatDateToYYYYMMDD(snapshot.timestamp),
-        snapshot.priceUsd,
-        snapshot.source,
-        new Date().toISOString(),
-      );
-    });
+    const { columns, placeholders, values } =
+      buildStockPriceInsertValues(snapshots);
 
     const query = `
       INSERT INTO ${this.getSnapshotsTableName()} (${columns.join(', ')})
-      VALUES ${placeholders.join(', ')}
+      VALUES ${placeholders}
       ON CONFLICT (source, symbol, snapshot_date) DO NOTHING
       RETURNING id;
     `;
 
-    try {
-      const queryResult = await this.withDatabaseClient((client) =>
-        client.query(query, values),
-      );
-      const runtimeResult = queryResult as {
-        rowCount?: number | null;
-        rows?: unknown[];
-      };
-      const inserted =
-        runtimeResult.rowCount ?? runtimeResult.rows?.length ?? 0;
-      const successRate = `${((inserted / snapshots.length) * 100).toFixed(1)}%`;
-      logger.info('Batch insert completed', {
-        total: snapshots.length,
-        symbol,
-        inserted,
-        failed: snapshots.length - inserted,
-        successRate,
-      });
-      return inserted;
-    } catch (error) {
-      logger.error('Batch insert failed', {
-        symbol,
-        total: snapshots.length,
-        error: toErrorMessage(error),
-      });
-      throw error;
-    }
+    return this.executeStandardBatchInsert(query, values, snapshots.length, {
+      symbol,
+    });
   }
 
   async getLatestSnapshot(
@@ -158,34 +100,29 @@ export class StockPriceWriter extends BaseWriter<
       LIMIT 1
     `;
 
+    const row = await this.queryOptionalRow<{
+      snapshot_date: string;
+      price_usd: string;
+      symbol: string;
+    }>({
+      query,
+      values: [symbol],
+      failureMessage: 'Failed to get latest snapshot',
+      failureContext: { symbol },
+    });
+
+    if (!row) {
+      return null;
+    }
+
     try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query<{
-          snapshot_date: string;
-          price_usd: string;
-          symbol: string;
-        }>(query, [symbol]),
-      );
-
-      if (result.rows.length === 0) {
-        return null;
-      }
-
-      const row = result.rows[0];
-      if (!row) {
-        return null;
-      }
-
       return {
         date: row.snapshot_date,
         price: Number.parseFloat(row.price_usd),
         symbol: row.symbol,
       };
     } catch (error) {
-      logger.error('Failed to get latest snapshot', {
-        symbol,
-        error: toErrorMessage(error),
-      });
+      logger.error('Failed to map latest stock snapshot', { symbol, error });
       throw error;
     }
   }
@@ -200,18 +137,14 @@ export class StockPriceWriter extends BaseWriter<
       WHERE source = 'yahoo-finance' AND symbol = $1
     `;
 
-    try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query<{ count: string }>(query, [symbol]),
-      );
-      return Number.parseInt(result.rows[0]?.count ?? '0', 10);
-    } catch (error) {
-      logger.error('Failed to get snapshot count', {
+    return this.queryCountOrZero({
+      query,
+      values: [symbol],
+      failureMessage: 'Failed to get snapshot count',
+      failureContext: {
         symbol,
-        error: toErrorMessage(error),
-      });
-      return 0;
-    }
+      },
+    });
   }
 
   async getExistingDatesInRange(
@@ -220,46 +153,26 @@ export class StockPriceWriter extends BaseWriter<
     symbol: string = StockPriceWriter.DEFAULT_SYMBOL,
     source = 'yahoo-finance',
   ): Promise<string[]> {
-    const tableName = this.getSnapshotsTableName();
-    const query = `
-      SELECT to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date
-      FROM ${tableName}
-      WHERE source = $1
-        AND symbol = $2
-        AND snapshot_date >= $3
-        AND snapshot_date <= $4
-      ORDER BY snapshot_date ASC
-    `;
+    return this.queryStockDatesInRange(startDate, endDate, symbol, source);
+  }
 
-    const startDateStr = formatDateToYYYYMMDD(startDate);
-    const endDateStr = formatDateToYYYYMMDD(endDate);
-
-    try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query(query, [source, symbol, startDateStr, endDateStr]),
-      );
-
-      const dates = result.rows.map(
-        (row: { snapshot_date: string }) => row.snapshot_date,
-      );
-
-      logger.info('Retrieved existing snapshots in range', {
+  private queryStockDatesInRange(
+    startDate: Date,
+    endDate: Date,
+    symbol: string,
+    source: string,
+  ): Promise<string[]> {
+    return this.queryEntitySnapshotDatesForDates(
+      this.getSnapshotsTableName(),
+      'symbol',
+      symbol,
+      source,
+      startDate,
+      endDate,
+      {
         symbol,
-        source,
-        startDate: startDateStr,
-        endDate: endDateStr,
-        count: dates.length,
-      });
-
-      return dates;
-    } catch (error) {
-      logger.error('Failed to get existing dates in range', {
-        symbol,
-        source,
-        error: toErrorMessage(error),
-      });
-      return [];
-    }
+      },
+    );
   }
 
   private getSnapshotsTableName(): string {

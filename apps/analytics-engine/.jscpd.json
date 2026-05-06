@@ -1,14 +1,14 @@
 {
-    "threshold": 3,
-    "reporters": [
-        "console"
-    ],
-    "ignore": [
-        "src/services/interfaces.py",
-        "src/tests/**",
-        "**/__pycache__/**"
-    ],
-    "format": [
-        "python"
-    ]
+  "format": [
+    "python"
+  ],
+  "ignore": [
+    "src/tests/**",
+    "**/__pycache__/**"
+  ],
+  "ignorePattern": [
+    "from\\s+[^\\n]+\\s+import\\s+\\([\\s\\S]*?\\)",
+    "from\\s+[^\\n]+\\s+import\\s+[^\\n]+",
+    "import\\s+[^\\n]+"
+  ]
 }

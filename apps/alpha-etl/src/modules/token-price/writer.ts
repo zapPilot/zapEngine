@@ -3,7 +3,6 @@ import { BaseWriter } from '../../core/database/baseWriter.js';
 import { buildTokenPriceInsertValues } from '../../core/database/columnDefinitions.js';
 import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
-import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 
 function normalizeSnapshotDateValue(snapshotDate: Date | string): Date {
@@ -47,9 +46,7 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
         },
       });
 
-      if (!result.success) {
-        throw new Error(result.errors[0] ?? 'Unknown insert error');
-      }
+      this.assertWriteSuccess(result, 'Unknown insert error');
 
       logger.info('Token price snapshot saved', {
         tokenSymbol: data.tokenSymbol,
@@ -59,14 +56,16 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
         date: snapshotDate,
       });
     } catch (error) {
-      logger.error('Failed to save token price snapshot', {
-        error: toErrorMessage(error),
-        date: snapshotDate,
-        tokenSymbol: data.tokenSymbol,
-        tokenId: data.tokenId,
-        price: data.priceUsd,
-      });
-      throw error;
+      this.logWriteFailureAndRethrow(
+        'Failed to save token price snapshot',
+        {
+          date: snapshotDate,
+          tokenSymbol: data.tokenSymbol,
+          tokenId: data.tokenId,
+          price: data.priceUsd,
+        },
+        error,
+      );
     }
   }
 
@@ -97,33 +96,9 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
       RETURNING id;
     `;
 
-    try {
-      const queryResult = await this.withDatabaseClient((client) =>
-        client.query(query, values),
-      );
-      const runtimeResult = queryResult as {
-        rowCount?: number | null;
-        rows?: unknown[];
-      };
-      const inserted =
-        runtimeResult.rowCount ?? runtimeResult.rows?.length ?? 0;
-      const successRate = `${((inserted / snapshots.length) * 100).toFixed(1)}%`;
-      logger.info('Batch insert completed', {
-        total: snapshots.length,
-        tokenSymbol,
-        inserted,
-        failed: snapshots.length - inserted,
-        successRate,
-      });
-      return inserted;
-    } catch (error) {
-      logger.error('Batch insert failed', {
-        tokenSymbol,
-        total: snapshots.length,
-        error: toErrorMessage(error),
-      });
-      throw error;
-    }
+    return this.executeStandardBatchInsert(query, values, snapshots.length, {
+      tokenSymbol,
+    });
   }
 
   /**
@@ -140,21 +115,22 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
       ORDER BY snapshot_date DESC
       LIMIT 1
     `;
+    const row = await this.queryOptionalRow<{
+      snapshot_date: string;
+      price_usd: string;
+      token_symbol: string;
+    }>({
+      query,
+      values: [tokenSymbol],
+      failureMessage: 'Failed to get latest snapshot',
+      failureContext: { tokenSymbol },
+    });
+
+    if (!row) {
+      return null;
+    }
+
     try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query<{
-          snapshot_date: string;
-          price_usd: string;
-          token_symbol: string;
-        }>(query, [tokenSymbol]),
-      );
-      if (result.rows.length === 0) {
-        return null;
-      }
-      const row = result.rows[0];
-      if (!row) {
-        return null;
-      }
       return {
         date: formatDateToYYYYMMDD(
           normalizeSnapshotDateValue(row.snapshot_date),
@@ -163,9 +139,9 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
         tokenSymbol: row.token_symbol,
       };
     } catch (error) {
-      logger.error('Failed to get latest snapshot', {
+      logger.error('Failed to map latest token snapshot', {
         tokenSymbol,
-        error: toErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -183,18 +159,14 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
       FROM ${tableName}
       WHERE source = 'coingecko' AND token_symbol = $1
     `;
-    try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query<{ count: string }>(query, [tokenSymbol]),
-      );
-      return Number.parseInt(result.rows[0]?.count ?? '0', 10);
-    } catch (error) {
-      logger.error('Failed to get snapshot count', {
+    return this.queryCountOrZero({
+      query,
+      values: [tokenSymbol],
+      failureMessage: 'Failed to get snapshot count',
+      failureContext: {
         tokenSymbol,
-        error: toErrorMessage(error),
-      });
-      return 0;
-    }
+      },
+    });
   }
 
   /**
@@ -207,42 +179,17 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
     tokenSymbol: string = TokenPriceWriter.DEFAULT_TOKEN_SYMBOL,
     source = 'coingecko',
   ): Promise<string[]> {
-    const tableName = this.getSnapshotsTableName();
-    const query = `
-      SELECT to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date
-      FROM ${tableName}
-      WHERE source = $1
-        AND token_symbol = $2
-        AND snapshot_date >= $3
-        AND snapshot_date <= $4
-      ORDER BY snapshot_date ASC
-    `;
-    const startDateStr = formatDateToYYYYMMDD(startDate);
-    const endDateStr = formatDateToYYYYMMDD(endDate);
-    try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query(query, [source, tokenSymbol, startDateStr, endDateStr]),
-      );
-      // PostgreSQL to_char() returns strings in YYYY-MM-DD format.
-      const dates = result.rows.map(
-        (row: { snapshot_date: string }) => row.snapshot_date,
-      );
-      logger.info('Retrieved existing snapshots in range', {
+    return this.queryEntitySnapshotDatesForDates(
+      this.getSnapshotsTableName(),
+      'token_symbol',
+      tokenSymbol,
+      source,
+      startDate,
+      endDate,
+      {
         tokenSymbol,
-        source,
-        startDate: startDateStr,
-        endDate: endDateStr,
-        count: dates.length,
-      });
-      return dates;
-    } catch (error) {
-      logger.error('Failed to get existing dates in range', {
-        tokenSymbol,
-        source,
-        error: toErrorMessage(error),
-      });
-      return []; // Fallback to full fetch on error
-    }
+      },
+    );
   }
 
   private getSnapshotsTableName(): string {

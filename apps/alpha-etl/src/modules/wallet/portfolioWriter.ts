@@ -24,36 +24,26 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
     batch: PortfolioItemSnapshotInsert[],
     batchNumber: number,
   ): Promise<WriteResult> {
-    const result: WriteResult = {
-      success: true,
-      recordsInserted: 0,
-      errors: [],
-      duplicatesSkipped: 0,
-    };
-    const validRecords = this.filterValidRecords(batch, result);
-
-    if (validRecords.length === 0) {
-      return result;
-    }
-
-    const batchResult = await this.executeBatchWrite({
-      batchNumber,
-      logContext: 'DeBank portfolio',
-      recordCount: validRecords.length,
-      buildQuery: () => {
-        const { columns, placeholders, values } =
-          buildPortfolioInsertValues(validRecords);
-        const query = `
+    const buildQuery = (validRecords: PortfolioItemSnapshotInsert[]) => {
+      const { columns, placeholders, values } =
+        buildPortfolioInsertValues(validRecords);
+      const query = `
           INSERT INTO ${getTableName('PORTFOLIO_ITEM_SNAPSHOTS')} (${columns.join(', ')})
           VALUES ${placeholders}
           RETURNING 1;
         `;
-        return { query, values };
-      },
-    });
+      return { query, values };
+    };
 
-    this.mergeBatchResult(result, batchResult);
-    return result;
+    return this.writeValidatedBatch(
+      batch,
+      batchNumber,
+      this.filterValidRecords.bind(this),
+      {
+        logContext: 'DeBank portfolio',
+        buildQuery,
+      },
+    );
   }
 
   private filterValidRecords(

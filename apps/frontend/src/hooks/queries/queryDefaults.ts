@@ -114,6 +114,26 @@ export function logQueryError(context: string, error: unknown): void {
   });
 }
 
+export function createLoggedQueryFn<T>(
+  context: string,
+  fetchData: () => Promise<T>,
+  ...fallbackValue: [] | [T]
+): () => Promise<T> {
+  const hasFallback = fallbackValue.length === 1;
+
+  return async () => {
+    try {
+      return await fetchData();
+    } catch (error) {
+      logQueryError(context, error);
+      if (hasFallback) {
+        return fallbackValue[0] as T;
+      }
+      throw error;
+    }
+  };
+}
+
 /**
  * Create standardized React Query configuration
  *

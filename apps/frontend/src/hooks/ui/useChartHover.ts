@@ -246,20 +246,13 @@ export function useChartHover<T>(
   }, []);
 
   useTestAutoHoverEffect({
-    chartType,
     enabled,
     testAutoPopulate,
     data,
     hoveredPoint,
     setHoveredPoint,
     isAutoHoverActiveRef,
-    chartWidth,
-    chartHeight,
-    chartPadding,
-    minValue,
-    maxValue,
-    getYValue,
-    buildHoverData,
+    config: options,
   });
 
   return {

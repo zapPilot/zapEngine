@@ -20,6 +20,7 @@ const TEST_SCRIPTS = [
   'test:e2e',
   'test:e2e:safe',
 ];
+const EXPECTED_DUP_CHECK = 'node ../../scripts/lint/run-jscpd.mjs src';
 
 function findPackageJson(dir: string): string[] {
   const results: string[] = [];
@@ -106,6 +107,15 @@ function main() {
           severity: 'LOW',
         });
       }
+    }
+
+    if ('dup:check' in scripts && scripts['dup:check'] !== EXPECTED_DUP_CHECK) {
+      issues.push({
+        type: 'jscpd_script_drift',
+        file: rel,
+        issue: `dup:check is "${scripts['dup:check']}" (expected "${EXPECTED_DUP_CHECK}")`,
+        severity: 'HIGH',
+      });
     }
   }
 

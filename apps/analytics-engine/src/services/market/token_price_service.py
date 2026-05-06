@@ -10,10 +10,8 @@ import math
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypedDict, cast
 
-from sqlalchemy.orm import Session
-
 from src.models.token_price import TokenPriceSnapshot
-from src.services.interfaces import QueryServiceProtocol
+from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -27,7 +25,7 @@ class PairRatioDmaPoint(TypedDict):
     is_above_dma: bool | None
 
 
-class TokenPriceService:
+class TokenPriceService(QueryBackedMarketService):
     """
     Service for querying token historical price data from the database.
 
@@ -35,25 +33,6 @@ class TokenPriceService:
     alpha_raw.token_price_snapshots table for portfolio benchmarking.
     Supports multiple tokens (BTC, ETH, SOL, etc.) with backward compatibility.
     """
-
-    def __init__(
-        self, db: Session, query_service: QueryServiceProtocol | None = None
-    ) -> None:
-        """
-        Initialize the service with database session and query service.
-
-        Args:
-            db: SQLAlchemy Session instance for database operations
-            query_service: Service for executing named SQL queries (optional for backward compat)
-        """
-        self.db = db
-        # Handle optional query_service for backward compatibility or test ease
-        if query_service is None:
-            from src.services.dependencies import get_query_service
-
-            self.query_service = get_query_service()
-        else:
-            self.query_service = query_service
 
     @staticmethod
     def _coerce_dma_snapshot_date(raw_date: object) -> date:

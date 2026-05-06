@@ -1,8 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/jscpd.json",
-  "threshold": 3.0,
-  "reporters": [
-    "console"
+  "format": [
+    "typescript"
   ],
   "ignore": [
     "**/node_modules/**",
@@ -11,10 +10,8 @@
     "**/__tests__/**",
     "**/coverage/**"
   ],
-  "gitignore": true,
-  "minLines": 5,
-  "minTokens": 120,
-  "exitCode": 1,
-  "absolute": false,
-  "skipComments": true
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
+  ]
 }

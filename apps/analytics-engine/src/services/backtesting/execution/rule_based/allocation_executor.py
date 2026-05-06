@@ -8,6 +8,7 @@ from datetime import date
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.rebalance_calculator import RebalanceCalculator
+from src.services.backtesting.execution.transfer_netting import build_bucket_transfers
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 
 
@@ -20,12 +21,6 @@ class AllocationExecutionResult:
     drift: float
     immediate_execution: bool = True
     block_reason: str | None = None
-
-
-@dataclass
-class _BucketAmount:
-    bucket: str
-    amount: float
 
 
 @dataclass
@@ -96,39 +91,7 @@ class RuleBasedAllocationExecutor:
         *,
         deltas: dict[str, float],
     ) -> list[TransferIntent]:
-        eps = 1e-6
-        demand = [
-            _BucketAmount(bucket=bucket, amount=float(delta))
-            for bucket, delta in sorted(deltas.items())
-            if float(delta) > eps
-        ]
-        supply = [
-            _BucketAmount(bucket=bucket, amount=float(-delta))
-            for bucket, delta in sorted(deltas.items())
-            if float(delta) < -eps
-        ]
-        transfers: list[TransferIntent] = []
-        demand_idx = 0
-        supply_idx = 0
-        while demand_idx < len(demand) and supply_idx < len(supply):
-            demand_entry = demand[demand_idx]
-            supply_entry = supply[supply_idx]
-            amount = min(demand_entry.amount, supply_entry.amount)
-            if amount > eps:
-                transfers.append(
-                    TransferIntent(
-                        from_bucket=supply_entry.bucket,
-                        to_bucket=demand_entry.bucket,
-                        amount_usd=amount,
-                    )
-                )
-            demand_entry.amount -= amount
-            supply_entry.amount -= amount
-            if demand_entry.amount <= eps:
-                demand_idx += 1
-            if supply_entry.amount <= eps:
-                supply_idx += 1
-        return transfers
+        return build_bucket_transfers(deltas=deltas)
 
     @staticmethod
     def _is_effectively_at_target(

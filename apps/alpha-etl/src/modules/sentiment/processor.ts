@@ -5,6 +5,7 @@ import {
   type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
+import { buildRequestStats } from '../../modules/core/processorStats.js';
 import type { SentimentSnapshotInsert } from '../../types/database.js';
 import type { ETLJob } from '../../types/index.js';
 import { wrapHealthCheck } from '../../utils/healthCheck.js';
@@ -99,9 +100,7 @@ export class SentimentETLProcessor implements BaseETLProcessor {
   }
 
   getStats(): Record<string, unknown> {
-    return {
-      feargreed: this.fetcher.getRequestStats(),
-    };
+    return buildRequestStats({ feargreed: this.fetcher });
   }
 
   getSourceType(): string {

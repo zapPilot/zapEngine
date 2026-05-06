@@ -1,0 +1,10 @@
+{
+  "threshold": 3,
+  "exitCode": 1,
+  "minTokens": 50,
+  "minLines": 5,
+  "reporters": ["console", "json"],
+  "mode": "strict",
+  "gitignore": true,
+  "output": ".jscpd"
+}

@@ -16,14 +16,12 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypeVar, cast
 
-from sqlalchemy.orm import Session
-
 from src.exceptions.market_sentiment import (
     InternalError,
     MarketSentimentError,
 )
 from src.models.market_sentiment import MarketSentimentResponse
-from src.services.interfaces import QueryServiceProtocol
+from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -43,7 +41,7 @@ def _coerce_history_bound(value: datetime | date, *, end_of_day: bool) -> dateti
     return datetime(value.year, value.month, value.day, tzinfo=UTC)
 
 
-class SentimentDatabaseService:
+class SentimentDatabaseService(QueryBackedMarketService):
     """
     Service for querying market sentiment data from the database.
 
@@ -52,25 +50,6 @@ class SentimentDatabaseService:
 
     All responses have cached=True since data always comes from database.
     """
-
-    def __init__(
-        self, db: Session, query_service: QueryServiceProtocol | None = None
-    ) -> None:
-        """
-        Initialize the service with database session and query service.
-
-        Args:
-            db: SQLAlchemy Session instance for database operations
-            query_service: Service for executing named SQL queries (optional for backward compat)
-        """
-        self.db = db
-        # Handle optional query_service for backward compatibility or test ease
-        if query_service is None:
-            from src.services.dependencies import get_query_service
-
-            self.query_service = get_query_service()
-        else:
-            self.query_service = query_service
 
     def _handle_query_error(self, error: Exception, context: str) -> InternalError:
         """

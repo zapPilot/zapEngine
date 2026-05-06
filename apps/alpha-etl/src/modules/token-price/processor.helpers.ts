@@ -1,14 +1,15 @@
 import type { WriteResult } from '../../core/database/baseWriter.js';
-import type { TokenPriceData } from '../../modules/token-price/fetcher.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 
-interface ProcessorStats {
+export interface ProcessorStats {
   totalProcessed: number;
   totalErrors: number;
   lastProcessedAt: Date | null;
 }
 
-interface SnapshotWriter {
-  insertSnapshot(data: TokenPriceData): Promise<void>;
+interface SnapshotWriter<T> {
+  insertSnapshot(data: T): Promise<void>;
 }
 
 interface DmaHealthService {
@@ -19,9 +20,9 @@ interface DmaHealthService {
   } | null>;
 }
 
-export async function writeSnapshotData(
-  data: TokenPriceData[],
-  writer: SnapshotWriter,
+export async function writeSnapshotData<T>(
+  data: T[],
+  writer: SnapshotWriter<T>,
 ): Promise<WriteResult> {
   const snapshot = data[0]!;
   await writer.insertSnapshot(snapshot);
@@ -30,6 +31,45 @@ export async function writeSnapshotData(
     recordsInserted: 1,
     errors: [],
     duplicatesSkipped: 0,
+  };
+}
+
+export async function runDmaPostStep(
+  jobId: string,
+  updateDma: () => Promise<{ recordsInserted: number }>,
+): Promise<void> {
+  try {
+    const dmaResult = await updateDma();
+    logger.info('DMA post-step completed', {
+      jobId,
+      dmaRecordsInserted: dmaResult.recordsInserted,
+    });
+  } catch (error) {
+    logger.warn('DMA post-step failed (non-fatal)', {
+      jobId,
+      error: toErrorMessage(error),
+    });
+  }
+}
+
+export function logProcessorFailureAndRethrow(
+  message: string,
+  context: Record<string, unknown>,
+  error: unknown,
+): never {
+  logger.error(message, {
+    ...context,
+    error: toErrorMessage(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  });
+  throw error;
+}
+
+export function createProcessorStats(): ProcessorStats {
+  return {
+    totalProcessed: 0,
+    totalErrors: 0,
+    lastProcessedAt: null,
   };
 }
 
@@ -100,6 +140,23 @@ export function calculateSuccessRate(stats: ProcessorStats): string {
   const successfulCount = stats.totalProcessed - stats.totalErrors;
   const successRate = (successfulCount / stats.totalProcessed) * 100;
   return `${successRate.toFixed(2)}%`;
+}
+
+export function buildProcessorStats(
+  stats: ProcessorStats,
+  includeSuccessRate = false,
+): Record<string, unknown> {
+  const summary: Record<string, unknown> = {
+    totalProcessed: stats.totalProcessed,
+    totalErrors: stats.totalErrors,
+    lastProcessedAt: stats.lastProcessedAt?.toISOString() ?? null,
+  };
+
+  if (includeSuccessRate) {
+    summary['successRate'] = calculateSuccessRate(stats);
+  }
+
+  return summary;
 }
 
 export async function getOptionalDmaHealthInfo(

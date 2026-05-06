@@ -7,8 +7,8 @@
 import { useQuery } from '@tanstack/react-query';
 
 import {
+  createLoggedQueryFn,
   createQueryConfig,
-  logQueryError,
 } from '@/hooks/queries/queryDefaults';
 import { queryKeys } from '@/lib/state/queryClient';
 import { DEFAULT_REGIME_HISTORY, fetchRegimeHistory } from '@/services';
@@ -42,17 +42,11 @@ export function useRegimeHistory() {
   return useQuery({
     ...createQueryConfig(),
     queryKey: queryKeys.sentiment.regimeHistory(),
-    queryFn: async () => {
-      try {
-        return await fetchRegimeHistory(2);
-      } catch (error) {
-        // Log error for debugging but don't throw
-        logQueryError('Failed to fetch regime history, using defaults', error);
-
-        // Return default data instead of throwing
-        return DEFAULT_REGIME_HISTORY;
-      }
-    },
+    queryFn: createLoggedQueryFn(
+      'Failed to fetch regime history, using defaults',
+      () => fetchRegimeHistory(2),
+      DEFAULT_REGIME_HISTORY,
+    ),
     staleTime: REGIME_HISTORY_CACHE_MS,
     gcTime: REGIME_HISTORY_CACHE_MS * 3,
     refetchInterval: REGIME_HISTORY_CACHE_MS,

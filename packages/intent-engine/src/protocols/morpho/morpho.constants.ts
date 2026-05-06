@@ -1,6 +1,32 @@
 import type { Address } from 'viem';
 import { CHAIN_IDS } from '../../types/chain.types.js';
 
+const UINT256 = 'uint256';
+const ADDRESS = 'address';
+
+function input(name: string, type: typeof UINT256 | typeof ADDRESS) {
+  return { name, type };
+}
+
+function output(name: string, type: typeof UINT256 | typeof ADDRESS) {
+  return { name, type };
+}
+
+function vaultFunction(
+  name: string,
+  stateMutability: 'nonpayable' | 'view',
+  inputs: ReturnType<typeof input>[],
+  outputs: ReturnType<typeof output>[],
+) {
+  return {
+    name,
+    type: 'function',
+    stateMutability,
+    inputs,
+    outputs,
+  };
+}
+
 /**
  * Morpho vault addresses for POC
  * These are MetaMorpho vaults (ERC-4626 compliant)
@@ -28,128 +54,92 @@ export const MORPHO_VAULTS = {
  */
 export const MORPHO_VAULT_ABI = [
   // ERC-4626 core functions
-  {
-    name: 'deposit',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'assets', type: 'uint256' },
-      { name: 'receiver', type: 'address' },
+  vaultFunction(
+    'deposit',
+    'nonpayable',
+    [input('assets', UINT256), input('receiver', ADDRESS)],
+    [output('shares', UINT256)],
+  ),
+  vaultFunction(
+    'mint',
+    'nonpayable',
+    [input('shares', UINT256), input('receiver', ADDRESS)],
+    [output('assets', UINT256)],
+  ),
+  vaultFunction(
+    'withdraw',
+    'nonpayable',
+    [
+      input('assets', UINT256),
+      input('receiver', ADDRESS),
+      input('owner', ADDRESS),
     ],
-    outputs: [{ name: 'shares', type: 'uint256' }],
-  },
-  {
-    name: 'mint',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'shares', type: 'uint256' },
-      { name: 'receiver', type: 'address' },
+    [output('shares', UINT256)],
+  ),
+  vaultFunction(
+    'redeem',
+    'nonpayable',
+    [
+      input('shares', UINT256),
+      input('receiver', ADDRESS),
+      input('owner', ADDRESS),
     ],
-    outputs: [{ name: 'assets', type: 'uint256' }],
-  },
-  {
-    name: 'withdraw',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'assets', type: 'uint256' },
-      { name: 'receiver', type: 'address' },
-      { name: 'owner', type: 'address' },
-    ],
-    outputs: [{ name: 'shares', type: 'uint256' }],
-  },
-  {
-    name: 'redeem',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'shares', type: 'uint256' },
-      { name: 'receiver', type: 'address' },
-      { name: 'owner', type: 'address' },
-    ],
-    outputs: [{ name: 'assets', type: 'uint256' }],
-  },
+    [output('assets', UINT256)],
+  ),
   // Preview functions (read-only)
-  {
-    name: 'previewDeposit',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'assets', type: 'uint256' }],
-    outputs: [{ name: 'shares', type: 'uint256' }],
-  },
-  {
-    name: 'previewMint',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'shares', type: 'uint256' }],
-    outputs: [{ name: 'assets', type: 'uint256' }],
-  },
-  {
-    name: 'previewWithdraw',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'assets', type: 'uint256' }],
-    outputs: [{ name: 'shares', type: 'uint256' }],
-  },
-  {
-    name: 'previewRedeem',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'shares', type: 'uint256' }],
-    outputs: [{ name: 'assets', type: 'uint256' }],
-  },
+  vaultFunction(
+    'previewDeposit',
+    'view',
+    [input('assets', UINT256)],
+    [output('shares', UINT256)],
+  ),
+  vaultFunction(
+    'previewMint',
+    'view',
+    [input('shares', UINT256)],
+    [output('assets', UINT256)],
+  ),
+  vaultFunction(
+    'previewWithdraw',
+    'view',
+    [input('assets', UINT256)],
+    [output('shares', UINT256)],
+  ),
+  vaultFunction(
+    'previewRedeem',
+    'view',
+    [input('shares', UINT256)],
+    [output('assets', UINT256)],
+  ),
   // Asset and share info
-  {
-    name: 'asset',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: '', type: 'address' }],
-  },
-  {
-    name: 'totalAssets',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'totalSupply',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'balanceOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
+  vaultFunction('asset', 'view', [], [output('', ADDRESS)]),
+  vaultFunction('totalAssets', 'view', [], [output('', UINT256)]),
+  vaultFunction('totalSupply', 'view', [], [output('', UINT256)]),
+  vaultFunction(
+    'balanceOf',
+    'view',
+    [input('account', ADDRESS)],
+    [output('', UINT256)],
+  ),
   // Max functions (for checking limits)
-  {
-    name: 'maxDeposit',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'receiver', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'maxWithdraw',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'owner', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'maxRedeem',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'owner', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
+  vaultFunction(
+    'maxDeposit',
+    'view',
+    [input('receiver', ADDRESS)],
+    [output('', UINT256)],
+  ),
+  vaultFunction(
+    'maxWithdraw',
+    'view',
+    [input('owner', ADDRESS)],
+    [output('', UINT256)],
+  ),
+  vaultFunction(
+    'maxRedeem',
+    'view',
+    [input('owner', ADDRESS)],
+    [output('', UINT256)],
+  ),
 ] as const;
 
 /**

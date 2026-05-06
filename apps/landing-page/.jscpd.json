@@ -1,10 +1,5 @@
 {
-  "threshold": 12,
-  "reporters": ["html", "console", "json"],
   "format": ["typescript", "javascript", "tsx", "jsx"],
-  "minLines": 5,
-  "minTokens": 30,
-  "output": ".jscpd/",
   "ignore": [
     "**/node_modules/**",
     "**/*.test.*",

@@ -41,27 +41,18 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
     batch: SentimentSnapshotInsert[],
     batchNumber: number,
   ): Promise<WriteResult> {
-    const result: WriteResult = {
-      success: true,
-      recordsInserted: 0,
-      errors: [],
-      duplicatesSkipped: 0,
-    };
-    const validRecords = this.filterValidRecords(batch, result);
-
-    if (validRecords.length === 0) {
-      logger.warn('No valid records in batch', { batchNumber });
-      return result;
-    }
-
-    const batchResult = await this.executeBatchWrite({
+    return this.writeValidatedBatch(
+      batch,
       batchNumber,
-      logContext: 'sentiment snapshots',
-      recordCount: validRecords.length,
-      buildQuery: () => {
-        const { columns, placeholders, values } =
-          buildSentimentInsertValues(validRecords);
-        const query = `
+      this.filterValidRecords.bind(this),
+      {
+        logContext: 'sentiment snapshots',
+        onEmpty: () =>
+          logger.warn('No valid records in batch', { batchNumber }),
+        buildQuery: (validRecords) => {
+          const { columns, placeholders, values } =
+            buildSentimentInsertValues(validRecords);
+          const query = `
           INSERT INTO ${getTableName('SENTIMENT_SNAPSHOTS')} (${columns.join(', ')})
           VALUES ${placeholders}
           ON CONFLICT (source, snapshot_time)
@@ -71,21 +62,17 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
             raw_data = EXCLUDED.raw_data
           RETURNING id;
         `;
-        return { query, values };
+          return { query, values };
+        },
       },
-    });
-
-    this.mergeBatchResult(result, batchResult);
-    return result;
+    );
   }
 
   private filterValidRecords(
     batch: SentimentSnapshotInsert[],
     result: WriteResult,
   ): SentimentSnapshotInsert[] {
-    const validRecords: SentimentSnapshotInsert[] = [];
-
-    for (const record of batch) {
+    return batch.filter((record) => {
       const candidate = record as Partial<
         Omit<SentimentSnapshotInsert, 'sentiment_value'>
       > & {
@@ -101,12 +88,10 @@ export class SentimentWriter extends BaseWriter<SentimentSnapshotInsert> {
             `classification: ${record.classification}, ` +
             `sentiment_value: ${record.sentiment_value})`,
         );
-        continue;
+        return false;
       }
 
-      validRecords.push(record);
-    }
-
-    return validRecords;
+      return true;
+    });
   }
 }

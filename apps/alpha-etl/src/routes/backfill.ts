@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { type Request, type Response, Router } from 'express';
 import { z } from 'zod';
 
 import { etlJobQueue } from '../modules/core/jobQueueSingleton.js';
@@ -44,19 +44,18 @@ async function enqueueBackfillTask(
   return job.jobId;
 }
 
-router.post('/', async (req, res) => {
+async function handleBackfillRequest<TPayload>(
+  req: Request,
+  res: Response,
+  schema: z.ZodType<TPayload>,
+  buildTask: (payload: TPayload) => ETLJobTask,
+  failureMessage: string,
+) {
   const requestId = getRequestId(req.headers as Record<string, unknown>);
 
   try {
-    const payload = backfillPayloadSchema.parse(req.body);
-    const jobId = await enqueueBackfillTask(
-      {
-        source: 'token-price',
-        operation: 'backfill',
-        tokens: payload.tokens,
-      },
-      requestId,
-    );
+    const payload = schema.parse(req.body);
+    const jobId = await enqueueBackfillTask(buildTask(payload), requestId);
 
     return res.status(202).json(buildSuccessApiResponse({ jobId }));
   } catch (error) {
@@ -64,41 +63,39 @@ router.post('/', async (req, res) => {
       return res.status(400).json(buildValidationErrorApiResponse(error));
     }
 
-    logger.error('Backfill request failed:', { error, requestId });
+    logger.error(failureMessage, { error, requestId });
     return res
       .status(500)
       .json(buildSystemErrorApiResponse(toErrorMessage(error)));
   }
+}
+
+router.post('/', async (req, res) => {
+  return handleBackfillRequest(
+    req,
+    res,
+    backfillPayloadSchema,
+    (payload) => ({
+      source: 'token-price',
+      operation: 'backfill',
+      tokens: payload.tokens,
+    }),
+    'Backfill request failed:',
+  );
 });
 
 router.post('/macro-fear-greed', async (req, res) => {
-  const requestId = getRequestId(req.headers as Record<string, unknown>);
-
-  try {
-    const payload = macroFearGreedBackfillPayloadSchema.parse(req.body);
-    const jobId = await enqueueBackfillTask(
-      {
-        source: 'macro-fear-greed',
-        operation: 'backfill',
-        startDate: payload.startDate,
-      },
-      requestId,
-    );
-
-    return res.status(202).json(buildSuccessApiResponse({ jobId }));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json(buildValidationErrorApiResponse(error));
-    }
-
-    logger.error('Macro Fear & Greed backfill request failed:', {
-      error,
-      requestId,
-    });
-    return res
-      .status(500)
-      .json(buildSystemErrorApiResponse(toErrorMessage(error)));
-  }
+  return handleBackfillRequest(
+    req,
+    res,
+    macroFearGreedBackfillPayloadSchema,
+    (payload) => ({
+      source: 'macro-fear-greed',
+      operation: 'backfill',
+      startDate: payload.startDate,
+    }),
+    'Macro Fear & Greed backfill request failed:',
+  );
 });
 
 export { router as backfillRouter };

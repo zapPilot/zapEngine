@@ -4,6 +4,7 @@
     ".nvmrc",
     ".env",
     ".env.example",
+    ".jscpd.json",
     "pnpm-lock.yaml",
     "package.json",
     "pnpm-workspace.yaml"

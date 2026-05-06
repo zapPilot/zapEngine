@@ -24,7 +24,7 @@
     "test:e2e:safe": "cross-env PLAYWRIGHT_PORT=3099 node scripts/run-e2e-safe.js",
     "deadcode": "node scripts/run-deadcode.js default",
     "deadcode:fix": "node scripts/run-deadcode.js default --fix",
-    "dup:check": "node scripts/run-dup-check.js",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "test:safeall": "cross-env NODE_OPTIONS=--max-old-space-size=1024 pnpm run test:coverage && pnpm run test:e2e:safe",
     "clean": "rm -rf dist coverage .vitest-reports"
   },
@@ -65,7 +65,6 @@
     "@vitest/coverage-v8": "catalog:",
     "cross-env": "^10.0.0",
     "eslint": "catalog:",
-    "jscpd": "catalog:",
     "jsdom": "catalog:",
     "knip": "catalog:",
     "postcss": "^8.4.47",

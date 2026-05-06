@@ -63,6 +63,9 @@ importers:
       husky:
         specifier: ^9.0.0
         version: 9.1.7
+      jscpd:
+        specifier: 'catalog:'
+        version: 4.0.9
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
@@ -127,9 +130,6 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.6.1)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
@@ -206,9 +206,6 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.6.1)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
@@ -338,9 +335,6 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.6.1)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       jsdom:
         specifier: 'catalog:'
         version: 25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -441,9 +435,6 @@ importers:
       eslint-config-next:
         specifier: 'catalog:'
         version: 15.3.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       jsdom:
         specifier: 'catalog:'
         version: 25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -556,9 +547,6 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.6.1)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)
@@ -594,9 +582,6 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@2.6.1)
-      jscpd:
-        specifier: 'catalog:'
-        version: 4.0.9
       knip:
         specifier: 'catalog:'
         version: 5.88.1(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@22.19.17)(typescript@5.9.3)

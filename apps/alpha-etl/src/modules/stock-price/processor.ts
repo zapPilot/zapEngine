@@ -22,6 +22,13 @@ import { StockPriceDmaService } from '../../modules/stock-price/dmaService.js';
 import type { DailyStockPrice } from '../../modules/stock-price/schema.js';
 import { StockPriceWriter } from '../../modules/stock-price/writer.js';
 import { YahooFinanceFetcher } from '../../modules/stock-price/yahooFetcher.js';
+import {
+  buildProcessorStats,
+  createProcessorStats,
+  logProcessorFailureAndRethrow,
+  runDmaPostStep,
+  writeSnapshotData,
+} from '../../modules/token-price/processor.helpers.js';
 import type { ETLJob } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -32,11 +39,7 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
   private fetcher: YahooFinanceFetcher;
   private writer: StockPriceWriter;
   private dmaService: StockPriceDmaService;
-  private stats = {
-    totalProcessed: 0,
-    totalErrors: 0,
-    lastProcessedAt: null as Date | null,
-  };
+  private stats = createProcessorStats();
 
   constructor(pool?: Pool) {
     this.fetcher = new YahooFinanceFetcher();
@@ -64,21 +67,12 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
   }
 
   private async updateDmaAfterPriceWrite(jobId: string): Promise<void> {
-    try {
-      const dmaResult = await this.dmaService.updateDmaForSymbol(
+    await runDmaPostStep(jobId, () =>
+      this.dmaService.updateDmaForSymbol(
         StockPriceETLProcessor.DEFAULT_SYMBOL,
         jobId,
-      );
-      logger.info('DMA post-step completed', {
-        jobId,
-        dmaRecordsInserted: dmaResult.recordsInserted,
-      });
-    } catch (error) {
-      logger.warn('DMA post-step failed (non-fatal)', {
-        jobId,
-        error: toErrorMessage(error),
-      });
-    }
+      ),
+    );
   }
 
   async processCurrentPrice(
@@ -96,12 +90,11 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
         date: priceData.date,
       });
     } catch (error) {
-      logger.error('Stock price ETL failed', {
-        symbol,
-        error: toErrorMessage(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw error;
+      logProcessorFailureAndRethrow(
+        'Stock price ETL failed',
+        { symbol },
+        error,
+      );
     }
   }
 
@@ -137,12 +130,11 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
       });
       return result;
     } catch (error) {
-      logger.error('Stock price backfill failed', {
-        symbol,
-        error: toErrorMessage(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw error;
+      logProcessorFailureAndRethrow(
+        'Stock price backfill failed',
+        { symbol },
+        error,
+      );
     }
   }
 
@@ -196,11 +188,7 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
   }
 
   getStats(): Record<string, unknown> {
-    return {
-      totalProcessed: this.stats.totalProcessed,
-      totalErrors: this.stats.totalErrors,
-      lastProcessedAt: this.stats.lastProcessedAt?.toISOString() ?? null,
-    };
+    return buildProcessorStats(this.stats);
   }
 
   getSourceType(): string {
@@ -217,10 +205,7 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
         ),
       ],
       async (rawData) => rawData,
-      async (priceData) => {
-        await this.writer.insertSnapshot(priceData[0]!);
-        return { recordsInserted: 1, success: true, errors: [] };
-      },
+      async (priceData) => writeSnapshotData(priceData, this.writer),
     );
   }
 

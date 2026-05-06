@@ -14,10 +14,13 @@ interface TsConfig {
   exclude?: string[];
 }
 
+type JsonObject = Record<string, unknown>;
+
 
 const ROOT = process.cwd();
 const APPS_DIR = join(ROOT, 'apps');
 const PACKAGES_DIR = join(ROOT, 'packages');
+const LOCAL_JSCPD_KEYS = new Set(['$schema', 'format', 'ignore', 'ignorePattern']);
 
 function findTsConfigs(dir: string): string[] {
   const results: string[] = [];
@@ -42,9 +45,40 @@ function findTsConfigs(dir: string): string[] {
   return results;
 }
 
+function findPackageJson(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    const entries = readdirSync(dir);
+    for (const entry of entries) {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+      if (stat.isDirectory()) {
+        const pkgPath = join(fullPath, 'package.json');
+        try {
+          readFileSync(pkgPath);
+          results.push(pkgPath);
+        } catch {
+          // not a package
+        }
+      }
+    }
+  } catch {
+    // dir doesn't exist
+  }
+  return results;
+}
+
 function loadTsConfig(path: string): TsConfig {
   try {
     return JSON.parse(readFileSync(path, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
+function loadJsonObject(path: string): JsonObject {
+  try {
+    return JSON.parse(readFileSync(path, 'utf-8')) as JsonObject;
   } catch {
     return {};
   }
@@ -105,6 +139,35 @@ function main() {
         file: rel,
         issue: 'includes test/**/* inline (consider tsconfig.test.json like frontend)',
         severity: 'LOW',
+      });
+    }
+  }
+
+  for (const pkgPath of [
+    ...findPackageJson(APPS_DIR),
+    ...findPackageJson(PACKAGES_DIR),
+  ]) {
+    const dir = join(pkgPath, '..');
+    const rel = relative(ROOT, dir);
+    const jscpdPath = join(dir, '.jscpd.json');
+
+    try {
+      readFileSync(jscpdPath);
+    } catch {
+      continue;
+    }
+
+    const cfg = loadJsonObject(jscpdPath);
+    const rootOwnedKeys = Object.keys(cfg).filter(
+      (key) => !LOCAL_JSCPD_KEYS.has(key),
+    );
+
+    if (rootOwnedKeys.length > 0) {
+      issues.push({
+        type: 'jscpd_local_root_owned_keys',
+        file: rel,
+        issue: `Local .jscpd.json owns root config keys: ${rootOwnedKeys.join(', ')}`,
+        severity: 'HIGH',
       });
     }
   }

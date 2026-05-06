@@ -80,6 +80,7 @@ from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
 PublicParamNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
 StrategyBuilder = Callable[["StrategyBuildRequest"], BaseStrategy]
+InitialAllocationBuilder = Callable[..., dict[str, float]]
 
 
 @dataclass(frozen=True)
@@ -196,23 +197,51 @@ def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrat
     )
 
 
+def _build_compare_pair_initial_asset_allocation(
+    request: StrategyBuildRequest,
+) -> dict[str, float] | None:
+    if request.mode != "compare" or request.initial_allocation is None:
+        return None
+    return build_initial_pair_asset_allocation(
+        aggregate_allocation=request.initial_allocation,
+        template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
+    )
+
+
+def _first_price_row(request: StrategyBuildRequest) -> dict[str, Any]:
+    return request.user_prices[0] if request.user_prices else {}
+
+
+def _build_compare_price_row_initial_asset_allocation(
+    request: StrategyBuildRequest,
+    builder: InitialAllocationBuilder,
+) -> dict[str, float] | None:
+    if request.mode != "compare" or request.initial_allocation is None:
+        return None
+    first_price_row = _first_price_row(request)
+    return builder(
+        aggregate_allocation=request.initial_allocation,
+        extra_data=cast(Mapping[str, Any] | None, first_price_row.get("extra_data")),
+        price_map=cast(Mapping[str, float] | None, first_price_row.get("prices")),
+        primary_price=(
+            float(first_price_row["price"])
+            if isinstance(first_price_row.get("price"), int | float)
+            else None
+        ),
+    )
+
+
 def _build_adaptive_binary_eth_btc_strategy(
     request: StrategyBuildRequest,
 ) -> BaseStrategy:
     params = EthBtcRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC
-    initial_asset_allocation = None
-    if request.mode == "compare" and request.initial_allocation is not None:
-        initial_asset_allocation = build_initial_pair_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
-        )
     return DmaFgiAdaptiveBinaryEthBtcStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
-        initial_asset_allocation=initial_asset_allocation,
+        initial_asset_allocation=_build_compare_pair_initial_asset_allocation(request),
     )
 
 
@@ -221,46 +250,27 @@ def _build_eth_btc_minimum_strategy(request: StrategyBuildRequest) -> BaseStrate
         update={"disabled_rules": frozenset({PLAIN_GREED_SELL_RULE})}
     )
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ETH_BTC_MINIMUM
-    initial_asset_allocation = None
-    if request.mode == "compare" and request.initial_allocation is not None:
-        initial_asset_allocation = build_initial_pair_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
-        )
     return DmaFgiEthBtcMinimumStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
-        initial_asset_allocation=initial_asset_allocation,
+        initial_asset_allocation=_build_compare_pair_initial_asset_allocation(request),
     )
 
 
 def _build_flat_minimum_strategy(request: StrategyBuildRequest) -> BaseStrategy:
     params = DmaGatedFgiParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_FLAT_MINIMUM
-    initial_asset_allocation = None
-    if request.mode == "compare" and request.initial_allocation is not None:
-        first_price_row = request.user_prices[0] if request.user_prices else {}
-        initial_asset_allocation = build_initial_flat_minimum_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            extra_data=cast(
-                Mapping[str, Any] | None,
-                first_price_row.get("extra_data"),
-            ),
-            price_map=cast(Mapping[str, float] | None, first_price_row.get("prices")),
-            primary_price=(
-                float(first_price_row["price"])
-                if isinstance(first_price_row.get("price"), int | float)
-                else None
-            ),
-        )
     return FlatMinimumStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
-        initial_asset_allocation=initial_asset_allocation,
+        initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
+            request,
+            build_initial_flat_minimum_asset_allocation,
+        ),
     )
 
 
@@ -272,22 +282,6 @@ def _build_portfolio_rules_strategy(
     params = DmaGatedFgiParams.from_public_params(request.params)
     variant = PORTFOLIO_RULES_ATTRIBUTION_VARIANTS[variant_id]
     strategy_id = request.resolved_config_id or variant_id
-    initial_asset_allocation = None
-    if request.mode == "compare" and request.initial_allocation is not None:
-        first_price_row = request.user_prices[0] if request.user_prices else {}
-        initial_asset_allocation = build_initial_portfolio_rules_asset_allocation(
-            aggregate_allocation=request.initial_allocation,
-            extra_data=cast(
-                Mapping[str, Any] | None,
-                first_price_row.get("extra_data"),
-            ),
-            price_map=cast(Mapping[str, float] | None, first_price_row.get("prices")),
-            primary_price=(
-                float(first_price_row["price"])
-                if isinstance(first_price_row.get("price"), int | float)
-                else None
-            ),
-        )
     return DmaFgiPortfolioRulesStrategy(
         total_capital=request.total_capital,
         params=params,
@@ -295,7 +289,10 @@ def _build_portfolio_rules_strategy(
         display_name=strategy_id,
         canonical_strategy_id=variant_id,
         disabled_rules=variant.disabled_rules,
-        initial_asset_allocation=initial_asset_allocation,
+        initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
+            request,
+            build_initial_portfolio_rules_asset_allocation,
+        ),
     )
 
 
@@ -395,6 +392,46 @@ def _make_hierarchical_attribution_builder(variant_id: str) -> StrategyBuilder:
     return _builder
 
 
+def _eth_btc_relative_strength_requirements() -> MarketDataRequirements:
+    return MarketDataRequirements(
+        requires_sentiment=True,
+        required_price_features=frozenset({DMA_200_FEATURE}),
+        required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+        max_lag_days=7,
+    )
+
+
+def _spy_eth_btc_asset_requirements(
+    *,
+    requires_macro_fear_greed: bool,
+) -> MarketDataRequirements:
+    return MarketDataRequirements(
+        requires_sentiment=True,
+        requires_macro_fear_greed=requires_macro_fear_greed,
+        required_price_features=frozenset(
+            {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+        ),
+        required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+        max_lag_days=7,
+    )
+
+
+def _hierarchical_pair_requirements() -> MarketDataRequirements:
+    return MarketDataRequirements(
+        requires_sentiment=True,
+        requires_macro_fear_greed=True,
+        required_price_features=frozenset({DMA_200_FEATURE}),
+        required_aux_series=frozenset(
+            {
+                ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+                SPY_AUX_SERIES,
+                SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
+            }
+        ),
+        max_lag_days=7,
+    )
+
+
 def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
     variant = HIERARCHICAL_ATTRIBUTION_VARIANTS[strategy_id]
     return StrategyRecipe(
@@ -404,19 +441,7 @@ def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
         signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            requires_macro_fear_greed=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset(
-                {
-                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
-                    SPY_AUX_SERIES,
-                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
-                }
-            ),
-            max_lag_days=7,
-        ),
+        market_data_requirements=_hierarchical_pair_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
@@ -466,19 +491,7 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
         signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            requires_macro_fear_greed=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset(
-                {
-                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
-                    SPY_AUX_SERIES,
-                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
-                }
-            ),
-            max_lag_days=7,
-        ),
+        market_data_requirements=_hierarchical_pair_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
@@ -499,13 +512,8 @@ def _build_flat_minimum_recipe() -> StrategyRecipe:
         signal_id="dma_fgi_flat_minimum_signal",
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            required_price_features=frozenset(
-                {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
-            ),
-            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
-            max_lag_days=7,
+        market_data_requirements=_spy_eth_btc_asset_requirements(
+            requires_macro_fear_greed=False,
         ),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
@@ -524,14 +532,8 @@ def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
         signal_id="dma_fgi_portfolio_rules_signal",
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
+        market_data_requirements=_spy_eth_btc_asset_requirements(
             requires_macro_fear_greed=True,
-            required_price_features=frozenset(
-                {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
-            ),
-            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
-            max_lag_days=7,
         ),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
@@ -585,14 +587,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         signal_id="eth_btc_rs_signal",
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
-            # DMA-200 is a long-term smoothing indicator — week-level lag barely
-            # moves the signal, so we tolerate a full week of forward-fill.
-            max_lag_days=7,
-        ),
+        market_data_requirements=_eth_btc_relative_strength_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
@@ -606,12 +601,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
-            max_lag_days=7,
-        ),
+        market_data_requirements=_eth_btc_relative_strength_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
@@ -628,12 +618,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
-            max_lag_days=7,
-        ),
+        market_data_requirements=_eth_btc_relative_strength_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
@@ -656,19 +641,7 @@ _RECIPES: dict[str, StrategyRecipe] = {
         signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
         primary_asset="BTC",
         warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            requires_macro_fear_greed=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            required_aux_series=frozenset(
-                {
-                    ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
-                    SPY_AUX_SERIES,
-                    SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
-                }
-            ),
-            max_lag_days=7,
-        ),
+        market_data_requirements=_hierarchical_pair_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,

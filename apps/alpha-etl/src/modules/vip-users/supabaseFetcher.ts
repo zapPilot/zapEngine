@@ -1,7 +1,10 @@
 import { BaseDatabaseClient } from '../../core/database/baseDatabaseClient.js';
 import type { VipUser, VipUserWithActivity } from '../../types/index.js';
 import { APIError, toErrorMessage } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import {
+  createWrappedHealthCheck,
+  type HealthCheckResult,
+} from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -180,36 +183,33 @@ export class SupabaseFetcher extends BaseDatabaseClient {
     }
   }
 
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'unhealthy';
-    details?: string;
-  }> {
-    return wrapHealthCheck(async () => {
-      const result = await this.withDatabaseClient(async (client) => {
-        // Check DB connectivity and whether expected function exists
-        const ping = await client.query('select 1 as ok');
-        const fn = await client.query<{ exists: boolean }>(
-          "select exists (select 1 from pg_proc where proname = 'get_users_wallets_by_plan') as exists",
-        );
-        return {
-          ok: ping.rows[0]?.ok === 1,
-          hasFn: fn.rows[0]?.exists === true,
-        };
-      });
+  healthCheck = createWrappedHealthCheck(() => this.checkHealth());
 
-      if (!result.ok) {
-        return { status: 'unhealthy', details: 'DB ping failed' };
-      }
-
-      if (!result.hasFn) {
-        return {
-          status: 'unhealthy',
-          details: 'Function get_users_wallets_by_plan not found',
-        };
-      }
-
-      return { status: 'healthy' };
+  private async checkHealth(): Promise<HealthCheckResult> {
+    const result = await this.withDatabaseClient(async (client) => {
+      // Check DB connectivity and whether expected function exists
+      const ping = await client.query('select 1 as ok');
+      const fn = await client.query<{ exists: boolean }>(
+        "select exists (select 1 from pg_proc where proname = 'get_users_wallets_by_plan') as exists",
+      );
+      return {
+        ok: ping.rows[0]?.ok === 1,
+        hasFn: fn.rows[0]?.exists === true,
+      };
     });
+
+    if (!result.ok) {
+      return { status: 'unhealthy', details: 'DB ping failed' };
+    }
+
+    if (!result.hasFn) {
+      return {
+        status: 'unhealthy',
+        details: 'Function get_users_wallets_by_plan not found',
+      };
+    }
+
+    return { status: 'healthy' };
   }
 
   private isValidVipUser(row: unknown): row is VipUser {

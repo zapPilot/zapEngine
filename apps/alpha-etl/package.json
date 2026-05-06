@@ -24,7 +24,7 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "deadcode": "knip --exports --dependencies",
     "deadcode:fix": "knip --exports --dependencies --fix",
-    "dup:check": "jscpd src --config .jscpd.json",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "clean": "rm -rf dist coverage",
     "backfill:sp500": "tsx scripts/backfill-sp500.ts"
   },
@@ -57,7 +57,6 @@
     "@types/supertest": "^2.0.16",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
-    "jscpd": "catalog:",
     "knip": "catalog:",
     "supertest": "^6.3.3",
     "tsx": "catalog:",

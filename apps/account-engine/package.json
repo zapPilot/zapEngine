@@ -24,7 +24,7 @@
     "test:coverage": "vitest run --coverage",
     "deadcode": "knip --exports --dependencies",
     "deadcode:fix": "knip --exports --dependencies --fix",
-    "dup:check": "jscpd src --config .jscpd.json",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
@@ -46,7 +46,6 @@
     "@types/nodemailer": "^7.0.1",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
-    "jscpd": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",
     "tsx": "catalog:",

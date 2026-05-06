@@ -3,63 +3,47 @@ import { encodeFunctionData, type Address } from 'viem';
 import { MULTICALL3_ADDRESS } from '../types/chain.types.js';
 import type { PreparedTransaction } from '../types/transaction.types.js';
 
+const CALL_RESULT_OUTPUT = {
+  name: 'returnData',
+  type: 'tuple[]',
+  components: [
+    { name: 'success', type: 'bool' },
+    { name: 'returnData', type: 'bytes' },
+  ],
+} as const;
+
+const CALL_COMPONENTS = [
+  { name: 'target', type: 'address' },
+  { name: 'allowFailure', type: 'bool' },
+  { name: 'callData', type: 'bytes' },
+] as const;
+
+const VALUE_CALL_COMPONENTS = [
+  { name: 'target', type: 'address' },
+  { name: 'allowFailure', type: 'bool' },
+  { name: 'value', type: 'uint256' },
+  { name: 'callData', type: 'bytes' },
+] as const;
+
+function multicallAbiEntry(
+  name: 'aggregate3' | 'aggregate3Value',
+  components: typeof CALL_COMPONENTS | typeof VALUE_CALL_COMPONENTS,
+) {
+  return {
+    name,
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [{ name: 'calls', type: 'tuple[]', components }],
+    outputs: [CALL_RESULT_OUTPUT],
+  } as const;
+}
+
 /**
  * Multicall3 aggregate3 ABI
  */
 const MULTICALL3_ABI = [
-  {
-    name: 'aggregate3',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      {
-        name: 'calls',
-        type: 'tuple[]',
-        components: [
-          { name: 'target', type: 'address' },
-          { name: 'allowFailure', type: 'bool' },
-          { name: 'callData', type: 'bytes' },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        name: 'returnData',
-        type: 'tuple[]',
-        components: [
-          { name: 'success', type: 'bool' },
-          { name: 'returnData', type: 'bytes' },
-        ],
-      },
-    ],
-  },
-  {
-    name: 'aggregate3Value',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      {
-        name: 'calls',
-        type: 'tuple[]',
-        components: [
-          { name: 'target', type: 'address' },
-          { name: 'allowFailure', type: 'bool' },
-          { name: 'value', type: 'uint256' },
-          { name: 'callData', type: 'bytes' },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        name: 'returnData',
-        type: 'tuple[]',
-        components: [
-          { name: 'success', type: 'bool' },
-          { name: 'returnData', type: 'bytes' },
-        ],
-      },
-    ],
-  },
+  multicallAbiEntry('aggregate3', CALL_COMPONENTS),
+  multicallAbiEntry('aggregate3Value', VALUE_CALL_COMPONENTS),
 ] as const;
 
 /**
@@ -85,6 +69,25 @@ function calculateTotalGas(txs: PreparedTransaction[]): bigint {
     (sum, tx) => sum + BigInt(tx.gasLimit ?? '100000'),
     MULTICALL3_OVERHEAD,
   );
+}
+
+function createBatchTransaction(
+  txs: PreparedTransaction[],
+  calldata: `0x${string}`,
+  value: string,
+  totalGas: bigint,
+): PreparedTransaction {
+  return {
+    to: MULTICALL3_ADDRESS,
+    data: calldata,
+    value,
+    chainId: txs[0]!.chainId,
+    gasLimit: totalGas.toString(),
+    meta: {
+      intentType: 'MULTICALL3_BATCH',
+      estimatedGas: totalGas.toString(),
+    },
+  };
 }
 
 /**
@@ -122,17 +125,7 @@ export function encodeMulticall3(
 
   const totalGas = calculateTotalGas(txs);
 
-  return {
-    to: MULTICALL3_ADDRESS,
-    data: calldata,
-    value: '0',
-    chainId: txs[0]!.chainId,
-    gasLimit: totalGas.toString(),
-    meta: {
-      intentType: 'MULTICALL3_BATCH',
-      estimatedGas: totalGas.toString(),
-    },
-  };
+  return createBatchTransaction(txs, calldata, '0', totalGas);
 }
 
 /**
@@ -157,15 +150,5 @@ function encodeMulticall3WithValue(
   const totalValue = txs.reduce((sum, tx) => sum + BigInt(tx.value), 0n);
   const totalGas = calculateTotalGas(txs);
 
-  return {
-    to: MULTICALL3_ADDRESS,
-    data: calldata,
-    value: totalValue.toString(),
-    chainId: txs[0]!.chainId,
-    gasLimit: totalGas.toString(),
-    meta: {
-      intentType: 'MULTICALL3_BATCH',
-      estimatedGas: totalGas.toString(),
-    },
-  };
+  return createBatchTransaction(txs, calldata, totalValue.toString(), totalGas);
 }

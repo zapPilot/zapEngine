@@ -63,13 +63,30 @@ vi.mock('@/utils/logger', () => ({
 }));
 
 // Mock query defaults
-vi.mock('@/hooks/queries/queryDefaults', () => ({
-  createQueryConfig: vi.fn(() => ({
-    refetchOnWindowFocus: false,
-    staleTime: 600000,
-  })),
-  logQueryError: vi.fn(),
-}));
+const queryDefaultsMock = vi.hoisted(() => {
+  const logQueryError = vi.fn();
+
+  return {
+    createQueryConfig: vi.fn(() => ({
+      refetchOnWindowFocus: false,
+      staleTime: 600000,
+    })),
+    createLoggedQueryFn: vi.fn(
+      (message: string, queryFn: () => Promise<unknown>) =>
+        async (): Promise<unknown> => {
+          try {
+            return await queryFn();
+          } catch (error) {
+            logQueryError(message, error);
+            throw error;
+          }
+        },
+    ),
+    logQueryError,
+  };
+});
+
+vi.mock('@/hooks/queries/queryDefaults', () => queryDefaultsMock);
 
 // Mock query keys
 vi.mock('@/lib/state/queryClient', () => ({

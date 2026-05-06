@@ -12,12 +12,8 @@ class BorrowingServiceProtocol(Protocol):
     """Unified interface for all borrowing analytics services."""
 
     def get_borrowing_positions(
-        self,
-        user_id: UUID,
-        snapshot_date: date | None = None,
-    ) -> BorrowingPositionsResponse:
-        """Get all borrowing positions for a user with per-position risk metrics."""
-        ...
+        self, user_id: UUID, snapshot_date: date | None = None
+    ) -> BorrowingPositionsResponse: ...
 
     def calculate_borrowing_risk(
         self,
@@ -25,9 +21,7 @@ class BorrowingServiceProtocol(Protocol):
         total_assets_usd: float,
         total_debt_usd: float,
         total_net_usd: float,
-    ) -> BorrowingRiskMetrics | None:
-        """Calculate aggregated borrowing risk metrics."""
-        ...
+    ) -> BorrowingRiskMetrics | None: ...
 
     def get_borrowing_summary(
         self,
@@ -35,6 +29,4 @@ class BorrowingServiceProtocol(Protocol):
         total_assets_usd: float,
         total_debt_usd: float,
         total_net_usd: float,
-    ) -> BorrowingSummary:
-        """Get borrowing summary for landing page."""
-        ...
+    ) -> BorrowingSummary: ...

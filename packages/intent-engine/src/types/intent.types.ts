@@ -16,11 +16,25 @@ export const IntentTypeSchema = z.enum([
 ]);
 // Base intent schema (common fields)
 const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+const weiStringRegex = /^\d+$/;
+
+function addressField(message?: string) {
+  return message
+    ? z.string().regex(addressRegex, message)
+    : z.string().regex(addressRegex);
+}
+
+function positiveWeiString(message: string) {
+  return z
+    .string()
+    .regex(weiStringRegex, message)
+    .refine((val) => BigInt(val) > 0n, 'Amount must be positive');
+}
 
 // Base intent schema (common fields)
 export const BaseIntentSchema = z.object({
   id: z.string().uuid().optional(),
-  fromAddress: z.string().regex(addressRegex, 'Invalid Ethereum address'),
+  fromAddress: addressField('Invalid Ethereum address'),
   chainId: z
     .number()
     .refine(
@@ -37,23 +51,17 @@ export const BaseIntentSchema = z.object({
 // Swap intent - simple token swap on same chain
 export const SwapIntentSchema = BaseIntentSchema.extend({
   type: z.literal('SWAP'),
-  fromToken: z.string().regex(addressRegex, 'Invalid fromToken address'),
-  toToken: z.string().regex(addressRegex, 'Invalid toToken address'),
-  fromAmount: z
-    .string()
-    .regex(/^\d+$/, 'Amount must be a wei string')
-    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
+  fromToken: addressField('Invalid fromToken address'),
+  toToken: addressField('Invalid toToken address'),
+  fromAmount: positiveWeiString('Amount must be a wei string'),
 });
 
 // Supply intent - deposit to Morpho vault
 export const SupplyIntentSchema = BaseIntentSchema.extend({
   type: z.literal('SUPPLY'),
-  fromToken: z.string().regex(addressRegex, 'Invalid fromToken address'),
-  fromAmount: z
-    .string()
-    .regex(/^\d+$/, 'Amount must be a wei string')
-    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
-  vaultAddress: z.string().regex(addressRegex, 'Invalid vault address'),
+  fromToken: addressField('Invalid fromToken address'),
+  fromAmount: positiveWeiString('Amount must be a wei string'),
+  vaultAddress: addressField('Invalid vault address'),
   protocol: z.literal('morpho'),
 });
 
@@ -62,39 +70,27 @@ export const SupplyIntentSchema = BaseIntentSchema.extend({
 // For a different output token, compose WITHDRAW + SWAP or use ROTATE.
 export const WithdrawIntentSchema = BaseIntentSchema.extend({
   type: z.literal('WITHDRAW'),
-  vaultAddress: z.string().regex(addressRegex, 'Invalid vault address'),
-  shareAmount: z
-    .string()
-    .regex(/^\d+$/, 'Share amount must be a wei string')
-    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
+  vaultAddress: addressField('Invalid vault address'),
+  shareAmount: positiveWeiString('Share amount must be a wei string'),
   protocol: z.literal('morpho'),
 });
 
 // Rotate intent - withdraw from one vault, swap, deposit to another
 export const RotateIntentSchema = BaseIntentSchema.extend({
   type: z.literal('ROTATE'),
-  fromVault: z.string().regex(addressRegex, 'Invalid fromVault address'),
-  toVault: z.string().regex(addressRegex, 'Invalid toVault address'),
-  shareAmount: z
-    .string()
-    .regex(/^\d+$/, 'Share amount must be a wei string')
-    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
-  intermediateToken: z.string().regex(addressRegex).optional(),
+  fromVault: addressField('Invalid fromVault address'),
+  toVault: addressField('Invalid toVault address'),
+  shareAmount: positiveWeiString('Share amount must be a wei string'),
+  intermediateToken: addressField().optional(),
   protocol: z.literal('morpho'),
 });
 
 export const RebalanceLegSchema = z.object({
   protocol: ProtocolIdSchema,
   action: z.enum(['supply', 'withdraw', 'swap']),
-  token: z.string().regex(addressRegex, 'Invalid token address'),
-  amountWei: z
-    .string()
-    .regex(/^\d+$/, 'Amount must be a wei string')
-    .refine((val) => BigInt(val) > 0n, 'Amount must be positive'),
-  vaultAddress: z
-    .string()
-    .regex(addressRegex, 'Invalid vault address')
-    .optional(),
+  token: addressField('Invalid token address'),
+  amountWei: positiveWeiString('Amount must be a wei string'),
+  vaultAddress: addressField('Invalid vault address').optional(),
 });
 
 export const RebalanceIntentSchema = BaseIntentSchema.extend({

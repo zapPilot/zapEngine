@@ -36,6 +36,23 @@ class DmaBuyGateDecision:
 
 
 @dataclass
+class DmaBuyGateConfigMixin:
+    """Shared constructor fields for buy-gate wrappers."""
+
+    window_days: int = 5
+    sideways_max_range: float = 0.04
+    leg_caps: tuple[float, ...] = _DEFAULT_LEG_CAP_PCTS
+    _gate: DmaBuySidewaysGate = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._gate = DmaBuySidewaysGate(
+            window_days=self.window_days,
+            sideways_range_threshold=self.sideways_max_range,
+            leg_cap_pcts=tuple(float(value) for value in self.leg_caps),
+        )
+
+
+@dataclass
 class DmaBuySidewaysGate:
     """Stateful sideways confirmation gate for DMA buy execution.
 
@@ -190,6 +207,7 @@ class DmaBuySidewaysGate:
 
 
 __all__ = [
+    "DmaBuyGateConfigMixin",
     "DmaBuyGateDecision",
     "DmaBuyGateSnapshot",
     "DmaBuySidewaysGate",

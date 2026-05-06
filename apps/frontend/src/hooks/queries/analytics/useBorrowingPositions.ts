@@ -7,8 +7,8 @@
 import { useQuery } from '@tanstack/react-query';
 
 import {
+  createLoggedQueryFn,
   createQueryConfig,
-  logQueryError,
 } from '@/hooks/queries/queryDefaults';
 import { queryKeys } from '@/lib/state/queryClient';
 import { getBorrowingPositions } from '@/services';
@@ -36,18 +36,16 @@ export function useBorrowingPositions(
   return useQuery({
     ...createQueryConfig(), // Uses 12hr cache (overridden below)
     queryKey: userId ? queryKeys.portfolio.borrowingPositions(userId) : [],
-    queryFn: async () => {
-      if (!userId) {
-        throw new Error('userId is required to fetch borrowing positions');
-      }
+    queryFn: createLoggedQueryFn(
+      'Failed to fetch borrowing positions',
+      async () => {
+        if (!userId) {
+          throw new Error('userId is required to fetch borrowing positions');
+        }
 
-      try {
-        return await getBorrowingPositions(userId);
-      } catch (error) {
-        logQueryError('Failed to fetch borrowing positions', error);
-        throw error;
-      }
-    },
+        return getBorrowingPositions(userId);
+      },
+    ),
     enabled: enabled && !!userId,
     staleTime: BORROWING_POSITIONS_CACHE_MS,
     gcTime: BORROWING_POSITIONS_CACHE_MS * 2,

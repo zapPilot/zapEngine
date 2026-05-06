@@ -6,9 +6,9 @@ import {
   type BaseETLProcessor,
   type ETLProcessResult,
   executeETLFlow,
-  type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
+import { buildRequestStats } from '../../modules/core/processorStats.js';
 import { HyperliquidFetcher } from '../../modules/hyperliquid/fetcher.js';
 import {
   collectUserTransformResult,
@@ -30,7 +30,7 @@ import type {
 } from '../../types/database.js';
 import type { ETLJob, VipUserWithActivity } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
-import { wrapCompositeHealthCheck } from '../../utils/healthCheck.js';
+import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 import { HyperliquidVaultAprWriter } from './aprWriter.js';
@@ -249,20 +249,18 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     return this.aprWriter.writeSnapshots(records);
   }
 
-  async healthCheck(): Promise<HealthCheckResult> {
-    return wrapCompositeHealthCheck([
-      {
-        label: 'Hyperliquid',
-        check: () => this.hyperliquidFetcher.healthCheck(),
-      },
-      { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
-    ]);
+  getStats(): Record<string, unknown> {
+    return buildRequestStats({
+      hyperliquid: this.hyperliquidFetcher,
+      supabase: this.supabaseFetcher,
+    });
   }
 
-  getStats(): Record<string, unknown> {
-    return {
-      hyperliquid: this.hyperliquidFetcher.getRequestStats(),
-      supabase: this.supabaseFetcher.getRequestStats(),
-    };
-  }
+  healthCheck = createCompositeHealthCheck(() => [
+    {
+      label: 'Hyperliquid',
+      check: () => this.hyperliquidFetcher.healthCheck(),
+    },
+    { label: 'Supabase', check: () => this.supabaseFetcher.healthCheck() },
+  ]);
 }

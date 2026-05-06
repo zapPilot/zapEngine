@@ -1,5 +1,6 @@
 import type { ETLProcessResult } from '../../core/processors/baseETLProcessor.js';
 import type { BaseBatchResult, DataSource } from '../../types/index.js';
+import { logger } from '../../utils/logger.js';
 
 export interface ETLJobProcessingResult extends BaseBatchResult {
   recordsProcessed: number;
@@ -91,4 +92,21 @@ export function buildJobSummary(
       },
     ]),
   );
+}
+
+export function logJobProcessingCompleted(
+  message: string,
+  jobId: string,
+  result: ETLJobProcessingResult,
+  duration: number,
+): void {
+  logger.info(message, {
+    jobId,
+    success: result.success,
+    recordsProcessed: result.recordsProcessed,
+    recordsInserted: result.recordsInserted,
+    errorCount: result.errors.length,
+    duration,
+    sourceResults: buildJobSummary(result.sourceResults),
+  });
 }

@@ -21,9 +21,7 @@ class StrategyDailySuggestionServiceProtocol(Protocol):
         config_id: str | None = None,
         drift_threshold: float | None = None,
         regime_history_days: int | None = None,
-    ) -> DailySuggestionResponse:
-        """Get the current DMA-first daily suggestion."""
-        ...  # pragma: no cover
+    ) -> DailySuggestionResponse: ...  # pragma: no cover
 
 
 class StrategyTradeHistoryStoreProtocol(Protocol):
@@ -35,9 +33,7 @@ class StrategyTradeHistoryStoreProtocol(Protocol):
         *,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> list[date]:
-        """Return executed trade dates for one user, ordered ascending."""
-        ...  # pragma: no cover
+    ) -> list[date]: ...  # pragma: no cover
 
 
 class StrategyConfigManagementServiceProtocol(Protocol):
