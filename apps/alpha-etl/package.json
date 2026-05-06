@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "DeFi APR data ETL pipeline",
+  "description": "Alpha data ETL pipeline",
   "main": "dist/app.js",
   "files": [
     "dist"
@@ -29,9 +29,8 @@
     "backfill:sp500": "tsx scripts/backfill-sp500.ts"
   },
   "keywords": [
-    "defi",
     "etl",
-    "apr",
+    "alpha",
     "postgres"
   ],
   "author": "",
@@ -58,7 +57,6 @@
     "@types/supertest": "^2.0.16",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
-    "fast-check": "^4.4.0",
     "jscpd": "catalog:",
     "knip": "catalog:",
     "supertest": "^6.3.3",

@@ -42,7 +42,9 @@ function createCurrentProcessor(
   };
 }
 
-function createRegistry(calls: string[]): Record<DataSource, ProcessorConstructor> {
+function createRegistry(
+  calls: string[],
+): Record<DataSource, ProcessorConstructor> {
   class TokenPriceProcessor implements BaseETLProcessor {
     async process(): Promise<ETLProcessResult> {
       calls.push('current:token-price');
@@ -84,7 +86,6 @@ function createRegistry(calls: string[]): Record<DataSource, ProcessorConstructo
   }
 
   return {
-    defillama: createCurrentProcessor('defillama', calls),
     debank: createCurrentProcessor('debank', calls),
     hyperliquid: createCurrentProcessor('hyperliquid', calls),
     feargreed: createCurrentProcessor('feargreed', calls),
@@ -97,7 +98,7 @@ function createRegistry(calls: string[]): Record<DataSource, ProcessorConstructo
 function createJob(overrides: Partial<ETLJob>): ETLJob {
   return {
     jobId: 'job-123',
-    sources: ['defillama'],
+    sources: ['hyperliquid'],
     createdAt: new Date('2024-01-01T00:00:00Z'),
     status: 'pending',
     ...overrides,
@@ -142,9 +143,13 @@ describe('ETLPipelineFactory task jobs', () => {
       }),
     );
 
-    expect(calls).toEqual(['backfill:BTC', 'dma:BTC', 'backfill:ETH', 'dma:ETH']);
+    expect(calls).toEqual([
+      'backfill:BTC',
+      'dma:BTC',
+      'backfill:ETH',
+      'dma:ETH',
+    ]);
     expect(result.recordsProcessed).toBe(6);
     expect(result.recordsInserted).toBe(2);
   });
 });
-

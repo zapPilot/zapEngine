@@ -1,26 +1,5 @@
 import type { Nullable } from './index.js';
 
-export interface PoolAprSnapshotInsert {
-  pool_address: Nullable<string>;
-  protocol_address: Nullable<string>;
-  chain: string;
-  protocol: string;
-  symbol: string;
-  symbols: Nullable<string[]>;
-  underlying_tokens: Nullable<string[]>;
-  tvl_usd: Nullable<number>;
-  apr: number;
-  apr_base: Nullable<number>;
-  apr_reward: Nullable<number>;
-  volume_usd_1d: Nullable<number>;
-  exposure: Nullable<string>; // single, multi, stable - standardized
-  reward_tokens: Nullable<string[]>;
-  pool_meta: Nullable<Record<string, unknown>>;
-  raw_data: Nullable<Record<string, unknown>>;
-  source: string;
-  snapshot_time: Nullable<string>;
-}
-
 /**
  * Relaxed insert shape aligned to alpha_raw.wallet_token_snapshots.
  * Keep most fields optional to avoid strict typecheck friction.

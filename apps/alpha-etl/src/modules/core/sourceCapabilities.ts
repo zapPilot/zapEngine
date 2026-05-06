@@ -6,7 +6,6 @@ export interface SourceCapability {
 }
 
 const sourceCapabilities = {
-  defillama: { current: true, backfill: false },
   debank: { current: true, backfill: false },
   hyperliquid: { current: true, backfill: false },
   feargreed: { current: true, backfill: false },

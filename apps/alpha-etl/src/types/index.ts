@@ -158,22 +158,3 @@ export type HealthCheckResponse = ApiResponse<{
   message?: string;
   sources?: Record<DataSource, SourceHealth>;
 }>;
-
-export interface PoolData {
-  pool_address: Nullable<string>;
-  protocol_address: Nullable<string>;
-  chain: string;
-  protocol: string;
-  symbol: string;
-  underlying_tokens: Nullable<string[]>;
-  tvl_usd: Nullable<number>;
-  apy: number;
-  apy_base: Nullable<number>;
-  apy_reward: Nullable<number>;
-  volume_usd_1d: Nullable<number>;
-  exposure: Nullable<string>;
-  reward_tokens: Nullable<string[]>;
-  pool_meta: Nullable<Record<string, unknown>>;
-  source: string;
-  raw_data: Nullable<Record<string, unknown>>;
-}

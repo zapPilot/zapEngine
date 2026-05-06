@@ -21,7 +21,6 @@ export {
  * Centralized database table name definitions to avoid scattered schema references
  */
 export const TABLES = {
-  POOL_APR_SNAPSHOTS: `${env.DB_SCHEMA}.pool_apr_snapshots`,
   WALLET_TOKEN_SNAPSHOTS: `${env.DB_SCHEMA}.wallet_token_snapshots`,
   HYPERLIQUID_VAULT_APR_SNAPSHOTS: `${env.DB_SCHEMA}.hyperliquid_vault_apr_snapshots`,
   PORTFOLIO_ITEM_SNAPSHOTS: 'public.portfolio_item_snapshots',
@@ -238,9 +237,7 @@ export async function testDatabaseConnection(): Promise<boolean> {
   let client: PoolClient | null = null;
   try {
     client = await getDbClient();
-    const result = await client.query(
-      `SELECT COUNT(*) FROM ${getTableName('POOL_APR_SNAPSHOTS')}`,
-    );
+    const result = await client.query('SELECT 1 AS ok');
 
     logger.info('Database connection test successful', {
       schema: env.DB_SCHEMA,

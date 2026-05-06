@@ -25,7 +25,7 @@ describe('webhookPayloadSchema', () => {
 
   it('rejects payloads with both source and sources', () => {
     const result = webhookPayloadSchema.safeParse({
-      source: 'defillama',
+      source: 'hyperliquid',
       sources: ['debank'],
     });
 

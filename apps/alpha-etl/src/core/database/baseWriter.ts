@@ -21,7 +21,7 @@ export function createEmptyWriteResult(): WriteResult {
 
 /**
  * Abstract base writer with shared batch processing logic
- * Eliminates duplication across PoolWriter, WalletBalanceWriter, SentimentWriter, etc.
+ * Eliminates duplication across WalletBalanceWriter, SentimentWriter, etc.
  */
 export abstract class BaseWriter<T> extends BaseDatabaseClient {
   protected batchSize = 500;
@@ -49,7 +49,7 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
    *
    * @param records - All records to process
    * @param writeBatch - Function to write a single batch
-   * @param logContext - Context string for logging (e.g., 'pool snapshots', 'wallet balances')
+   * @param logContext - Context string for logging (e.g., 'wallet balances')
    * @returns Combined write result from all batches
    */
   protected async processBatches(

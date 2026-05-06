@@ -7,7 +7,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { HealthCheckResponse } from '../../../src/types/index.js';
-import { setHealthState, resetHealthState } from '../../../src/modules/core/healthStatus.js';
+import {
+  setHealthState,
+  resetHealthState,
+} from '../../../src/modules/core/healthStatus.js';
 
 // Mock the logger to prevent console output during tests
 vi.mock('../../../src/utils/logger.js', async () => {
@@ -46,7 +49,7 @@ describe('Health Router', () => {
     setHealthState({
       status: 'healthy',
       lastCheckedAt,
-      message: undefined
+      message: undefined,
     });
   }
 
@@ -58,9 +61,7 @@ describe('Health Router', () => {
 
   describe('Express Integration Tests', () => {
     it('should return initialization status when no health check has run', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(503);
+      const response = await request(app).get('/health').expect(503);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -73,9 +74,9 @@ describe('Health Router', () => {
           database: false,
           uptime: 123.45,
           cached: false,
-          lastCheckedAt: null
+          lastCheckedAt: null,
         },
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -85,12 +86,10 @@ describe('Health Router', () => {
         status: 'unhealthy',
         lastCheckedAt,
         message: 'Missing details',
-        details: null as unknown as Record<string, unknown>
+        details: null as unknown as Record<string, unknown>,
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(503);
+      const response = await request(app).get('/health').expect(503);
 
       expect(response.body.data.database).toBe(false);
       expect(response.body.data.sources).toEqual({});
@@ -104,13 +103,11 @@ describe('Health Router', () => {
         status: 'healthy',
         lastCheckedAt,
         details: {
-          database: { status: 'healthy' } as unknown
-        }
+          database: { status: 'healthy' } as unknown,
+        },
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -120,15 +117,17 @@ describe('Health Router', () => {
           database: true,
           uptime: 123.45,
           cached: true,
-          lastCheckedAt
+          lastCheckedAt,
         },
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
-      expect(response.body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(response.body.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Health check served healthy state from cache',
-        { responseTime: expect.any(Number), lastCheckedAt }
+        { responseTime: expect.any(Number), lastCheckedAt },
       );
     });
 
@@ -137,12 +136,10 @@ describe('Health Router', () => {
       setHealthState({
         status: 'unhealthy',
         lastCheckedAt,
-        message: 'Database ping failed'
+        message: 'Database ping failed',
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(503);
+      const response = await request(app).get('/health').expect(503);
 
       expect(response.body).toMatchObject({
         success: true,
@@ -153,14 +150,18 @@ describe('Health Router', () => {
           uptime: 123.45,
           cached: true,
           lastCheckedAt,
-          message: 'Database ping failed'
+          message: 'Database ping failed',
         },
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Health check served unhealthy state from cache',
-        { responseTime: expect.any(Number), lastCheckedAt, message: 'Database ping failed' }
+        {
+          responseTime: expect.any(Number),
+          lastCheckedAt,
+          message: 'Database ping failed',
+        },
       );
     });
 
@@ -168,7 +169,7 @@ describe('Health Router', () => {
       setHealthyState(new Date().toISOString());
 
       const requests = Array.from({ length: 5 }, () =>
-        request(app).get('/health').expect(200)
+        request(app).get('/health').expect(200),
       );
 
       const responses = await Promise.all(requests);
@@ -197,9 +198,7 @@ describe('Health Router', () => {
     it('should maintain proper typing for HealthCheckResponse', async () => {
       setHealthyState(new Date().toISOString());
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       const healthResponse: HealthCheckResponse = response.body;
       // We need to type guard or assume success for test
@@ -219,15 +218,15 @@ describe('Health Router', () => {
       setHealthState({
         status: 'healthy',
         lastCheckedAt: new Date().toISOString(),
-        message: undefined
+        message: undefined,
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body.data.message).toBeUndefined();
-      expect(Object.prototype.hasOwnProperty.call(response.body.data, 'message')).toBe(false);
+      expect(
+        Object.prototype.hasOwnProperty.call(response.body.data, 'message'),
+      ).toBe(false);
     });
 
     it('should handle sources with undefined health details', async () => {
@@ -237,17 +236,16 @@ describe('Health Router', () => {
         lastCheckedAt,
         details: {
           database: { status: 'healthy' },
-          defillama: undefined,
           debank: undefined,
           hyperliquid: undefined,
           feargreed: undefined,
+          'macro-fear-greed': undefined,
           'token-price': undefined,
-        }
+          'stock-price': undefined,
+        },
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body.data.status).toBe('healthy');
       expect(response.body.data.sources).toBeDefined();
@@ -260,17 +258,19 @@ describe('Health Router', () => {
         lastCheckedAt,
         details: {
           database: { status: 'healthy' },
-          defillama: { status: 'healthy', details: 'OK', lastCheck: new Date().toISOString() },
-        }
+          hyperliquid: {
+            status: 'healthy',
+            details: 'OK',
+            lastCheck: new Date().toISOString(),
+          },
+        },
       });
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body.data.sources).toBeDefined();
-      expect(response.body.data.sources.defillama).toBeDefined();
-      expect(response.body.data.sources.defillama.status).toBe('healthy');
+      expect(response.body.data.sources.hyperliquid).toBeDefined();
+      expect(response.body.data.sources.hyperliquid.status).toBe('healthy');
     });
   });
 });

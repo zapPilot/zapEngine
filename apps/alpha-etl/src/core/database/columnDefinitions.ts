@@ -2,7 +2,6 @@ import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   MacroFearGreedSnapshotInsert,
-  PoolAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
   SentimentSnapshotInsert,
   TokenPairRatioDmaSnapshotInsert,
@@ -78,38 +77,6 @@ function mapTokenPriceRecord(record: TokenPriceData): TokenPriceInsertRecord {
 /**
  * Centralized column definitions and insert helpers for database writers.
  */
-export const POOL_APR_COLUMNS: readonly (keyof PoolAprSnapshotInsert)[] = [
-  'pool_address',
-  'protocol_address',
-  'chain',
-  'protocol',
-  'symbol',
-  'symbols',
-  'underlying_tokens',
-  'tvl_usd',
-  'apr',
-  'apr_base',
-  'apr_reward',
-  'volume_usd_1d',
-  'exposure',
-  'reward_tokens',
-  'pool_meta',
-  'raw_data',
-  'source',
-  'snapshot_time',
-] as const;
-
-export function buildPoolInsertValues(
-  records: PoolAprSnapshotInsert[],
-): InsertValuesResult<keyof PoolAprSnapshotInsert & string> {
-  return buildInsertValuesFor(records, POOL_APR_COLUMNS, (column, value) => {
-    if (column === 'snapshot_time' && value == null) {
-      return new Date().toISOString();
-    }
-    return toNullishSqlValue(value);
-  });
-}
-
 export const WALLET_BALANCE_COLUMNS = [
   'user_wallet_address',
   'token_address',

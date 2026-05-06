@@ -86,15 +86,13 @@ describe('Database Configuration', () => {
         await import('../../../src/config/database.js');
 
       mockClient.query.mockResolvedValue({
-        rows: [{ count: '5' }],
+        rows: [{ ok: 1 }],
       });
 
       const result = await testDatabaseConnection();
 
       expect(result).toBe(true);
-      expect(mockClient.query).toHaveBeenCalledWith(
-        'SELECT COUNT(*) FROM public.pool_apr_snapshots',
-      );
+      expect(mockClient.query).toHaveBeenCalledWith('SELECT 1 AS ok');
       expect(mockClient.release).toHaveBeenCalled();
     });
 

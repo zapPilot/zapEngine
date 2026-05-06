@@ -65,7 +65,6 @@ const envSchema = z.object({
   WEBHOOK_SECRET: parseOptionalNonEmptyString(),
 
   // API Endpoints
-  DEFILLAMA_API_URL: z.string().url().default('https://api.llama.fi'),
   HYPERLIQUID_API_URL: z
     .string()
     .url()

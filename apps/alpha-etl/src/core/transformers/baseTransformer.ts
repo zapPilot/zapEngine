@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger.js';
  *
  * @param items - Array of items to transform
  * @param transform - Transform function for a single item
- * @param context - Context string for logging (e.g., 'pool data', 'wallet balance')
+ * @param context - Context string for logging (e.g., 'wallet balance', 'vault APR')
  * @returns Array of successfully transformed items (nulls filtered out)
  */
 export function transformBatchWithLogging<TIn, TOut>(

@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
-import { errorHandler, notFoundHandler } from '../../../src/middleware/errorHandler.js';
+import {
+  errorHandler,
+  notFoundHandler,
+} from '../../../src/middleware/errorHandler.js';
 import {
   APIError,
   DatabaseError,
   ETLError,
   TransformError,
-  ValidationError
+  ValidationError,
 } from '../../../src/utils/errors.js';
 import { logger } from '../../../src/utils/logger.js';
 
@@ -27,12 +30,12 @@ describe('errorHandler middleware', () => {
     mockReq = {
       headers: { 'x-request-id': 'test-req-123' },
       method: 'POST',
-      path: '/webhooks/pipedream'
+      path: '/webhooks/pipedream',
     };
 
     mockRes = {
       status: vi.fn().mockReturnThis(),
-      json: vi.fn().mockReturnThis()
+      json: vi.fn().mockReturnThis(),
     };
 
     mockNext = vi.fn();
@@ -46,8 +49,8 @@ describe('errorHandler middleware', () => {
           expected: 'string',
           received: 'number',
           path: ['source'],
-          message: 'Expected string, received number'
-        }
+          message: 'Expected string, received number',
+        },
       ]);
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
@@ -62,21 +65,21 @@ describe('errorHandler middleware', () => {
             source: 'system',
             context: expect.objectContaining({
               issues: expect.arrayContaining([
-                expect.objectContaining({ path: ['source'] })
-              ])
-            })
+                expect.objectContaining({ path: ['source'] }),
+              ]),
+            }),
           }),
-          timestamp: expect.any(String)
-        })
+          timestamp: expect.any(String),
+        }),
       );
     });
 
     it('handles APIError with explicit status code and valid source', () => {
       const error = new APIError(
-        'DeFiLlama API rate limit exceeded',
+        'Hyperliquid API rate limit exceeded',
         429,
-        'https://api.llama.fi/pools',
-        'defillama'
+        'https://api.hyperliquid.xyz/info',
+        'hyperliquid',
       );
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
@@ -86,14 +89,14 @@ describe('errorHandler middleware', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             code: 'API_ERROR',
-            message: 'DeFiLlama API rate limit exceeded',
-            source: 'defillama',
+            message: 'Hyperliquid API rate limit exceeded',
+            source: 'hyperliquid',
             context: expect.objectContaining({
-              url: 'https://api.llama.fi/pools',
-              requestId: 'test-req-123'
-            })
-          })
-        })
+              url: 'https://api.hyperliquid.xyz/info',
+              requestId: 'test-req-123',
+            }),
+          }),
+        }),
       );
     });
 
@@ -102,7 +105,7 @@ describe('errorHandler middleware', () => {
         'Database proxy request failed',
         502,
         'postgres://proxy.internal',
-        'database'
+        'database',
       );
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
@@ -115,15 +118,20 @@ describe('errorHandler middleware', () => {
             source: 'database',
             context: expect.objectContaining({
               url: 'postgres://proxy.internal',
-              requestId: 'test-req-123'
-            })
-          })
-        })
+              requestId: 'test-req-123',
+            }),
+          }),
+        }),
       );
     });
 
     it('defaults invalid APIError sources to system', () => {
-      const error = new APIError('Unknown API error', 500, 'https://api.example.com', 'external-api');
+      const error = new APIError(
+        'Unknown API error',
+        500,
+        'https://api.example.com',
+        'external-api',
+      );
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
 
@@ -135,15 +143,19 @@ describe('errorHandler middleware', () => {
             source: 'system',
             context: expect.objectContaining({
               url: 'https://api.example.com',
-              requestId: 'test-req-123'
-            })
-          })
-        })
+              requestId: 'test-req-123',
+            }),
+          }),
+        }),
       );
     });
 
     it('handles ValidationError with field metadata', () => {
-      const error = new ValidationError('Invalid chain parameter', 'chain', 'invalid-chain');
+      const error = new ValidationError(
+        'Invalid chain parameter',
+        'chain',
+        'invalid-chain',
+      );
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
 
@@ -155,17 +167,17 @@ describe('errorHandler middleware', () => {
             context: expect.objectContaining({
               field: 'chain',
               value: 'invalid-chain',
-              requestId: 'test-req-123'
-            })
-          })
-        })
+              requestId: 'test-req-123',
+            }),
+          }),
+        }),
       );
     });
 
     it('handles DatabaseError and logs full details', () => {
       const error = new DatabaseError(
-        'INSERT INTO pool_apr_snapshots failed: duplicate key',
-        'INSERT INTO pool_apr_snapshots'
+        'INSERT INTO hyperliquid_vault_apr_snapshots failed: duplicate key',
+        'INSERT INTO hyperliquid_vault_apr_snapshots',
       );
 
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
@@ -178,29 +190,34 @@ describe('errorHandler middleware', () => {
             message: 'Database operation failed',
             source: 'database',
             context: expect.objectContaining({
-              requestId: 'test-req-123'
-            })
-          })
-        })
+              requestId: 'test-req-123',
+            }),
+          }),
+        }),
       );
       expect(logger.error).toHaveBeenCalledWith(
         'Database Error:',
         expect.objectContaining({
           error,
-          requestId: 'test-req-123'
-        })
+          requestId: 'test-req-123',
+        }),
       );
     });
 
     it('handles TransformError and ETLError as internal errors', () => {
       const transformError = new TransformError(
-        'Failed to transform pool data',
-        { poolId: 'abc-123' },
-        'defillama'
+        'Failed to transform vault APR data',
+        { vaultAddress: '0xabc123' },
+        'hyperliquid',
       );
       const etlError = new ETLError('ETL pipeline failed', 'hyperliquid');
 
-      errorHandler(transformError, mockReq as Request, mockRes as Response, mockNext);
+      errorHandler(
+        transformError,
+        mockReq as Request,
+        mockRes as Response,
+        mockNext,
+      );
       errorHandler(etlError, mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.status).toHaveBeenNthCalledWith(1, 500);
@@ -210,10 +227,10 @@ describe('errorHandler middleware', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             code: 'INTERNAL_ERROR',
-            message: 'Failed to transform pool data',
-            source: 'defillama'
-          })
-        })
+            message: 'Failed to transform vault APR data',
+            source: 'hyperliquid',
+          }),
+        }),
       );
       expect(mockRes.json).toHaveBeenNthCalledWith(
         2,
@@ -221,9 +238,9 @@ describe('errorHandler middleware', () => {
           error: expect.objectContaining({
             code: 'INTERNAL_ERROR',
             message: 'ETL pipeline failed',
-            source: 'hyperliquid'
-          })
-        })
+            source: 'hyperliquid',
+          }),
+        }),
       );
     });
 
@@ -231,8 +248,18 @@ describe('errorHandler middleware', () => {
       const genericError = new Error('Unexpected error occurred');
       const stringError = 'Something went wrong!';
 
-      errorHandler(genericError, mockReq as Request, mockRes as Response, mockNext);
-      errorHandler(stringError, mockReq as Request, mockRes as Response, mockNext);
+      errorHandler(
+        genericError,
+        mockReq as Request,
+        mockRes as Response,
+        mockNext,
+      );
+      errorHandler(
+        stringError,
+        mockReq as Request,
+        mockRes as Response,
+        mockNext,
+      );
 
       expect(mockRes.status).toHaveBeenNthCalledWith(1, 500);
       expect(mockRes.status).toHaveBeenNthCalledWith(2, 500);
@@ -243,9 +270,9 @@ describe('errorHandler middleware', () => {
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',
             source: 'system',
-            context: expect.objectContaining({ requestId: 'test-req-123' })
-          })
-        })
+            context: expect.objectContaining({ requestId: 'test-req-123' }),
+          }),
+        }),
       );
       expect(mockRes.json).toHaveBeenNthCalledWith(
         2,
@@ -254,9 +281,9 @@ describe('errorHandler middleware', () => {
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',
             source: 'system',
-            context: expect.objectContaining({ requestId: 'test-req-123' })
-          })
-        })
+            context: expect.objectContaining({ requestId: 'test-req-123' }),
+          }),
+        }),
       );
       expect(logger.error).toHaveBeenNthCalledWith(
         1,
@@ -264,8 +291,8 @@ describe('errorHandler middleware', () => {
         expect.objectContaining({
           error: genericError,
           requestId: 'test-req-123',
-          stack: expect.any(String)
-        })
+          stack: expect.any(String),
+        }),
       );
       expect(logger.error).toHaveBeenNthCalledWith(
         2,
@@ -273,8 +300,8 @@ describe('errorHandler middleware', () => {
         expect.objectContaining({
           error: stringError,
           requestId: 'test-req-123',
-          stack: undefined
-        })
+          stack: undefined,
+        }),
       );
     });
   });
@@ -288,19 +315,30 @@ describe('errorHandler middleware', () => {
         }
       }
 
-      const errorWithoutContext = new CustomErrorNoContext('Custom error without context');
-      const apiError = new APIError('API error with partial context', 500, 'https://api.example.com');
+      const errorWithoutContext = new CustomErrorNoContext(
+        'Custom error without context',
+      );
+      const apiError = new APIError(
+        'API error with partial context',
+        500,
+        'https://api.example.com',
+      );
 
-      errorHandler(errorWithoutContext, mockReq as Request, mockRes as Response, mockNext);
+      errorHandler(
+        errorWithoutContext,
+        mockReq as Request,
+        mockRes as Response,
+        mockNext,
+      );
       errorHandler(apiError, mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.json).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
           error: expect.objectContaining({
-            context: expect.objectContaining({ requestId: 'test-req-123' })
-          })
-        })
+            context: expect.objectContaining({ requestId: 'test-req-123' }),
+          }),
+        }),
       );
       expect(mockRes.json).toHaveBeenNthCalledWith(
         2,
@@ -308,10 +346,10 @@ describe('errorHandler middleware', () => {
           error: expect.objectContaining({
             context: expect.objectContaining({
               requestId: 'test-req-123',
-              url: 'https://api.example.com'
-            })
-          })
-        })
+              url: 'https://api.example.com',
+            }),
+          }),
+        }),
       );
     });
   });
@@ -329,11 +367,11 @@ describe('errorHandler middleware', () => {
             message: 'Route not found: POST /webhooks/pipedream',
             source: 'system',
             context: expect.objectContaining({
-              requestId: 'test-req-123'
-            })
+              requestId: 'test-req-123',
+            }),
           }),
-          timestamp: expect.any(String)
-        })
+          timestamp: expect.any(String),
+        }),
       );
     });
 
@@ -346,10 +384,10 @@ describe('errorHandler middleware', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             context: expect.objectContaining({
-              requestId: 'unknown'
-            })
-          })
-        })
+              requestId: 'unknown',
+            }),
+          }),
+        }),
       );
     });
   });
@@ -362,14 +400,15 @@ describe('errorHandler middleware', () => {
       new DatabaseError('DB error', 'operation'),
       new TransformError('Transform error', {}),
       new ETLError('ETL error'),
-      new Error('Generic error')
+      new Error('Generic error'),
     ];
 
     for (const error of errors) {
       vi.clearAllMocks();
       errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
 
-      const response = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const response = (mockRes.json as ReturnType<typeof vi.fn>).mock
+        .calls[0][0];
       expect(response).toHaveProperty('success', false);
       expect(response).toHaveProperty('error');
       expect(response.error).toHaveProperty('code');

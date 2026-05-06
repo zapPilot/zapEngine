@@ -10,9 +10,7 @@ pnpm test tests/unit/services/database/
 
 ## Test Coverage
 
-- `poolWriter.test.ts` — 99% coverage
-- Batch upsert, validation, connection pooling
-- Query methods: `getPoolsByIds`, `getPoolById`, `getTableStats`
+- Writer batch upsert, validation, connection pooling
 - Error handling, data integrity
 
 ## Mock Strategy

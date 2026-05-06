@@ -3,10 +3,6 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 
 /** Rate Limiting Configuration */
 export const RATE_LIMITS = {
-  /** Default rate limit for API requests per minute */
-  DEFILLAMA_RPM: 60,
-  /** Delay between DeFiLlama API requests in milliseconds */
-  DEFILLAMA_DELAY_MS: 1000,
   /** Delay between DeBank API requests in milliseconds */
   DEBANK_DELAY_MS: 1000,
   /** Hyperliquid API rate limit (requests per minute) */

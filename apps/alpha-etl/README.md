@@ -1,9 +1,8 @@
 # Alpha ETL
 
-HTTP-triggered ETL service that collects DeFi, wallet, sentiment, token, and market data and writes to PostgreSQL.
+HTTP-triggered ETL service that collects wallet, vault, sentiment, token, and market data and writes to PostgreSQL.
 
 **Pipelines:**
-- **Pool APR** — DeFiLlama → `pool_apr_snapshots`
 - **Wallet Balance** — DeBank → `wallet_token_snapshots` (VIP users)
 - **Hyperliquid Vault** — Hyperliquid UI API → `portfolio_item_snapshots` + `hyperliquid_vault_apr_snapshots`
 - **Fear & Greed** — CoinMarketCap → sentiment snapshots
@@ -23,17 +22,32 @@ Each pipeline follows `BaseETLProcessor`: `fetcher.ts` → `transformer.ts` → 
 
 `POST /webhooks/jobs` is the canonical queued endpoint for Pipedream and manual operations.
 
+### Most common: trigger all sources (no sources specified)
+
 ```json
 {}
 ```
 
-Runs all current sources sequentially.
+Runs all 6 sources sequentially: `debank`, `hyperliquid`, `feargreed`, `macro-fear-greed`, `token-price`, `stock-price`
+
+```bash
+curl -X POST /webhooks/jobs -H "Content-Type: application/json" -d '{}'
+```
+
+### Specific sources only
 
 ```json
 { "sources": ["hyperliquid", "debank"] }
 ```
 
 Runs only the requested current sources sequentially.
+
+```bash
+curl -X POST /webhooks/jobs -H "Content-Type: application/json" \
+  -d '{"sources": ["debank", "hyperliquid"]}'
+```
+
+### Backfill tasks
 
 ```json
 {

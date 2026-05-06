@@ -6,7 +6,6 @@ const baseEnv: Record<string, string | undefined> = {
   PORT: '8001',
   NODE_ENV: 'test',
   WEBHOOK_SECRET: 'secret',
-  DEFILLAMA_API_URL: 'https://api.llama.fi',
   DEFI_API_URL: 'https://api.de.fi',
   HYPERLIQUID_API_URL: 'https://api-ui.hyperliquid.xyz',
   HYPERLIQUID_RATE_LIMIT_RPM: '120',

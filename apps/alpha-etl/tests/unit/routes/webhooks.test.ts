@@ -25,7 +25,6 @@ vi.mock('../../../src/modules/core/jobQueueSingleton.js', () => ({
 }));
 
 const allSources = [
-  'defillama',
   'debank',
   'hyperliquid',
   'feargreed',
@@ -52,7 +51,7 @@ describe('Webhooks Router', () => {
 
   const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
     jobId: 'job-123',
-    sources: ['defillama'],
+    sources: ['hyperliquid'],
     createdAt: new Date('2024-01-01T00:00:00Z'),
     status: 'pending',
     ...overrides,
@@ -128,6 +127,17 @@ describe('Webhooks Router', () => {
 
       expect(response.body.success).toBe(false);
       expect(response.body.error.message).toContain('tasks');
+      expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('rejects removed defillama source requests', async () => {
+      const response = await request(app)
+        .post('/webhooks/jobs')
+        .send({ sources: ['defillama'] })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
       expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
     });
 
@@ -385,12 +395,12 @@ describe('Webhooks Router', () => {
           recordsProcessed: 5,
           recordsInserted: 5,
           sourceResults: {
-            defillama: {
+            hyperliquid: {
               success: false,
               recordsProcessed: 0,
               recordsInserted: 0,
               errors: ['rate-limited'],
-              source: 'defillama',
+              source: 'hyperliquid',
             },
           },
           duration: 100,
