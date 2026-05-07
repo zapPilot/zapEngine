@@ -44,7 +44,7 @@ class PortfolioRuleConfig:
     global_cooldown_days: int = 7
     overextension_sell_spy_share: float = 0.5
     cross_down_cooldown_days_per_symbol: dict[str, int] = field(
-        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 30}
+        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
     )
     default_dma_overextension_threshold: float = 0.30
     dma_overextension_thresholds: dict[str, float] = field(
