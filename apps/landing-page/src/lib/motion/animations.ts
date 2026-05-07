@@ -1,5 +1,5 @@
 /**
- * Reusable Framer Motion animation presets
+ * Reusable animation prop presets
  * Eliminates duplication of motion props across components
  */
 

@@ -26,10 +26,11 @@ describe('FooterV2', () => {
   });
 
   describe('links', () => {
-    it('renders back to v1 link', () => {
+    it('does not render stale back to v1 link', () => {
       render(<FooterV2 />);
-      const backLink = screen.getByRole('link', { name: '← back to v1' });
-      expect(backLink).toHaveAttribute('href', '/');
+      expect(
+        screen.queryByRole('link', { name: '← back to v1' }),
+      ).not.toBeInTheDocument();
     });
   });
 

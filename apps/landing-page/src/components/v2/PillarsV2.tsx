@@ -1,3 +1,5 @@
+import { Section } from './primitives/Section';
+
 const PILLARS = [
   {
     color: 'spy',
@@ -24,25 +26,23 @@ const PILLARS = [
 
 export function PillarsV2() {
   return (
-    <section
-      className="v2-section pillars-deep"
-      aria-labelledby="pillars-title"
+    <Section
+      className="pillars-deep"
+      ariaLabelledBy="pillars-title"
+      kicker="Three-pillar allocator"
     >
-      <div className="section-inner">
-        <div className="section-kicker">Three-pillar allocator</div>
-        <h2 id="pillars-title">What the engine trades into.</h2>
-        <div className="pillar-card-grid">
-          {PILLARS.map((pillar) => (
-            <article className="pillar-card" key={pillar.name}>
-              <div className={`pillar-dot ${pillar.color}`} aria-hidden />
-              <p className="pillar-tag">{pillar.tag}</p>
-              <h3>{pillar.name}</h3>
-              <div className="brushed-stat">{pillar.stat}</div>
-              <p>{pillar.body}</p>
-            </article>
-          ))}
-        </div>
+      <h2 id="pillars-title">What the engine trades into.</h2>
+      <div className="pillar-card-grid">
+        {PILLARS.map((pillar) => (
+          <article className="pillar-card" key={pillar.name}>
+            <div className={`pillar-dot ${pillar.color}`} aria-hidden />
+            <p className="pillar-tag">{pillar.tag}</p>
+            <h3>{pillar.name}</h3>
+            <div className="brushed-stat">{pillar.stat}</div>
+            <p>{pillar.body}</p>
+          </article>
+        ))}
       </div>
-    </section>
+    </Section>
   );
 }

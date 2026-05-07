@@ -211,32 +211,6 @@
       }
     ]
   },
-  "2025-05-24": {
-    "events": [
-      {
-        "id": "spy_latch_absorbs_crypto_sale_2025_05_24",
-        "event_type": "crypto_dma_fgi_sell",
-        "description": "A crypto DMA/FGI sell generates stable; persistent SPY latch still active from 2025-05-12 cross_up should redirect that fresh stable into SPY.",
-        "assertions": [
-          {
-            "type": "target_asset_equals",
-            "asset": "btc",
-            "value": 0
-          },
-          {
-            "type": "target_asset_increased_from_previous",
-            "asset": "spy"
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "spy_latch_active",
-            "value": true
-          }
-        ],
-        "rationale": "Persistent SPY latch absorbs freshly-created stable from a crypto risk-off sell while the latch is still active."
-      }
-    ]
-  },
   "2025-06-09": {
     "events": [
       {

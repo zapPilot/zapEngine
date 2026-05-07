@@ -71,10 +71,10 @@ export default function RootLayout({
           search={{
             options: {
               // Static search: read prebuilt index from /api/search/static.json
-              // (generated at build time by app/api/search/route.ts). Compatible
-              // with `output: 'export'` — no runtime API call is made.
+              // (generated at build time by app/api/search/static.json/route.ts).
+              // Compatible with `output: 'export'` — no runtime API call is made.
               type: 'static',
-              api: '/api/search',
+              api: '/api/search/static.json',
             },
           }}
         >

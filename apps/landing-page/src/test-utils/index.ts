@@ -12,5 +12,5 @@ export * from './mocks/window';
 // Re-export common testing utilities
 export { waitFor, within, screen, act } from '@testing-library/react';
 
-// Note: Framer Motion and next/image are mocked globally in vitest.setup.ts
+// Note: next/image is mocked globally in vitest.setup.ts
 // No need to import them in individual test files

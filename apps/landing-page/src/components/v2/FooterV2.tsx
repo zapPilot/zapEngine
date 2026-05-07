@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-html-link-for-pages -- v1/v2 toggles intentionally use hard reloads so WebGL contexts fully tear down. */
 import { MESSAGES } from '@/config/messages';
 
 export function FooterV2() {
@@ -10,7 +9,6 @@ export function FooterV2() {
         <span aria-hidden />
         mainnet status
       </span>
-      <a href="/">← back to v1</a>
     </footer>
   );
 }

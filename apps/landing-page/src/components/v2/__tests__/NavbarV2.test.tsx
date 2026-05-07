@@ -13,7 +13,7 @@ describe('NavbarV2', () => {
     it('renders brand link', () => {
       const { container } = render(<NavbarV2 />);
       const brand = container.querySelector('.brand');
-      expect(brand).toHaveAttribute('href', '/v2/');
+      expect(brand).toHaveAttribute('href', '/');
       expect(brand).toHaveAttribute('aria-label', 'Zap Pilot v2 home');
     });
 
@@ -47,11 +47,11 @@ describe('NavbarV2', () => {
   });
 
   describe('action links', () => {
-    it('renders v1 toggle link', () => {
+    it('does not render stale v1 toggle link', () => {
       render(<NavbarV2 />);
-      const v1Link = screen.getByRole('link', { name: '← v1' });
-      expect(v1Link).toHaveAttribute('target', '_blank');
-      expect(v1Link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(
+        screen.queryByRole('link', { name: '← v1' }),
+      ).not.toBeInTheDocument();
     });
 
     it('renders Launch App CTA', () => {

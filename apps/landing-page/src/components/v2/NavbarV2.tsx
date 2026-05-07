@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import { LINKS } from '@/config/links';
-import { MESSAGES } from '@/config/messages';
+import { BrandMark } from './BrandMark';
 
 const NAV_ITEMS = [
   { href: '#strategy', label: 'Strategy' },
@@ -11,13 +12,9 @@ const NAV_ITEMS = [
 export function NavbarV2() {
   return (
     <nav className="nav" aria-label="Zap Pilot v2 navigation">
-      <a className="brand" href="/v2/" aria-label="Zap Pilot v2 home">
-        <span className="brand-mark" aria-hidden />
-        <span className="brand-name">
-          {MESSAGES.common.brandName}
-          <em>— rules engine</em>
-        </span>
-      </a>
+      <Link className="brand" href="/" aria-label="Zap Pilot v2 home">
+        <BrandMark />
+      </Link>
 
       <div className="nav-links" aria-label="Page sections">
         {NAV_ITEMS.map((item) => (
@@ -28,14 +25,6 @@ export function NavbarV2() {
       </div>
 
       <div className="nav-actions">
-        <a
-          className="version-toggle"
-          href={LINKS.app}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          ← v1
-        </a>
         <a
           className="nav-cta"
           href={LINKS.v2}
