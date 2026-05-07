@@ -1,4 +1,4 @@
-"""Portfolio rule 4: DCA sell when FGI downshifts from greed."""
+"""Portfolio rule 50: DCA sell when FGI downshifts from greed."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from src.services.backtesting.portfolio_rules.base import (
     current_target,
     normalize_regime,
     portfolio_target_intent,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -25,7 +26,7 @@ _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
 @dataclass(frozen=True)
 class FgiDownshiftDcaSellRule:
     name: str = "fgi_downshift_dca_sell"
-    priority: int = 6
+    priority: int = 50
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
 
@@ -59,6 +60,12 @@ class FgiDownshiftDcaSellRule:
             reason="portfolio_fgi_downshift_dca_sell",
             rule_group=self.rule_group,
             assets=matching_symbols,
+            signals_consulted=signals_consulted_for_symbols(
+                snapshot,
+                tuple(matching_symbols),
+            )
+            if config.emit_signals_consulted
+            else None,
         )
 
 

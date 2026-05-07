@@ -84,9 +84,9 @@ def compare_request(
         "configs": configs
         or [
             BacktestCompareConfigV3(
-                config_id="dma_runtime",
-                strategy_id="dma_gated_fgi",
-                params=dma_public_params(),
+                config_id="eth_rotation_runtime",
+                strategy_id="eth_btc_rotation",
+                params={},
             )
         ],
     }

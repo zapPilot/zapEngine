@@ -36,7 +36,7 @@ export interface BacktestCommandBarProps {
  *   days={500}
  *   onDaysChange={handleDaysChange}
  *   strategyOptions={options}
- *   selectedStrategyId="dma_gated_fgi"
+ *   selectedStrategyId="dma_fgi_hierarchical_minimum"
  *   onStrategyChange={handleStrategyChange}
  *   pacingEngineId="fgi_exponential"
  *   isPending={false}

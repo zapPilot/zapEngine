@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from src.models.backtesting import (
     BacktestCompareRequestV3,
@@ -62,7 +62,7 @@ async def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
         "- configs: [{config_id, saved_config_id?} | {config_id, strategy_id, params}, ...]\n\n"
         "Behavior:\n"
         "- Canonical path is `saved_config_id`; legacy `strategy_id + params` remains supported as an adapter.\n"
-        "- If no `dca_classic` config is provided, the service auto-adds it as the baseline.\n\n"
+        "- The service compares exactly the configs provided in the request.\n\n"
         "Response shape:\n"
         "- BacktestResponse where `strategies` and `timeline[].strategies` are keyed by config_id."
     ),
@@ -70,8 +70,14 @@ async def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
 async def compare_backtesting_configs_v3(
     request: BacktestCompareRequestV3,
     service: BacktestingServiceDep,
+    emit_decision_log: bool = Query(
+        default=False,
+        description="Write a compact decisions.jsonl artifact and return its path.",
+    ),
 ) -> BacktestResponse:
     try:
+        if emit_decision_log:
+            request = request.model_copy(update={"emit_decision_log": True})
         return await service.run_compare_v3(request)
     except Exception as e:
         raise _build_backtest_http_error(e) from e

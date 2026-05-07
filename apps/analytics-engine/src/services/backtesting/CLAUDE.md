@@ -37,13 +37,16 @@ Source files:
 
 | Strategy | ROI (500d) | Notes |
 |---|---|---|
-| `dma_fgi_hierarchical_minimum` | 121.30% | Current target |
-| `dma_fgi_eth_btc_minimum` | 145.28% | Research only — no SPY, 2-asset |
-| `dma_fgi_adaptive_binary_eth_btc` | 141.21% | Production champion (no SPY) |
-| `dma_fgi_hierarchical_full_minus_adaptive_dma` | 110.88% | Attribution reference |
-| `dma_fgi_portfolio_rules` | 64.31% | Research only — flat portfolio-level rules |
-| `dma_gated_fgi` | 25.75% | Basic DMA-gated FGI baseline |
-| `dca_classic` | -14.36% | Negative baseline |
+| `dma_fgi_portfolio_rules` | 64.31% | Flat rule-engine baseline |
+| `dma_fgi_portfolio_rules_minus_cross_down_exit` | 27.79% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_cross_up_eq_weight` | 21.80% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_extreme_fear_buy` | 60.61% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_overextension_sell` | 52.81% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_fgi_downshift_sell` | 64.83% | Portfolio rules leave-one-out |
+| `eth_btc_rotation` | 126.26% | Saved-config live default |
+| `dma_fgi_hierarchical_control` | 88.64% | Attribution baseline |
+| `dma_fgi_hierarchical_minimum` | 121.30% | Current production target |
+| `dma_fgi_eth_btc_minimum_surgical` | 48.97% | Surgical composer research line |
 
 ### Portfolio rules family
 
@@ -58,6 +61,25 @@ default. The 500-day fixture baseline is 64.31% ROI, 4.28 Calmar, -10.20%
 MaxDD, and 47 trades. It is a traceability baseline, not a performance target;
 compare rule attribution against the canonical entry.
 
+## Iteration discipline
+
+Before claiming a strategy change is done:
+
+1. **Run the validation suite for the strategy you changed**:
+   ```bash
+   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
+     --saved-config-id <strategy_id> --from-date 2025-01-01 --to-date 2026-04-10 --summary
+   ```
+   Validation events must all pass. Non-zero exit blocks the change.
+
+2. **Add a validation event for the new behavior**: any new feature, rule, or signal must add ≥1 entry to `tests/fixtures/hierarchical_validation_events.json` exercising the new behavior on a real historical date with `applicable_strategies` listing the strategies the new feature applies to.
+
+3. **Run the snapshot regenerate** if the change is meant to shift performance: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` and inspect the diff.
+
+4. **Append an ITERATION_LOG.md entry** with the commit hash + ROI/Calmar/trades delta + which validation events were added.
+
+The pytest gate (`pnpm test`) runs `tests/test_validation_events.py` against all 10 kept strategies on every commit. If a validation event regresses, the commit fails CI before snapshot or ROI checks even run.
+
 ## What works (do not regress)
 
 Each finding is established by ROI delta from leave-one-out variants in the snapshot fixture unless explicitly marked as fixture-validated.
@@ -66,7 +88,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 |---|---|---|
 | DMA stable gating | **-96.96pp** ROI | `fe8db22` |
 | Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
-| Inner ETH/BTC ratio rotation | (isolated in `dma_fgi_adaptive_binary_eth_btc` = 141.21%) | pre-existing |
+| Inner ETH/BTC ratio rotation | `eth_btc_rotation` = 126.26% ROI | pre-existing |
 | SPY macro extreme-fear DCA | Fixture-validated; included in 2026-05-04 re-anchor: ROI -0.14pp, Calmar +0.12 | 2026-05-04 |
 | Persistent SPY latch | Fixture-validated fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
 
@@ -74,12 +96,12 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 
 | Feature | Evidence | Verdict |
 |---|---|---|
-| Adaptive DMA Reference | +74.26pp Δ when removed from full | Harmful; excluded at type level |
-| Fear Recovery Buy | `_only` = 14.28% ROI, Calmar 0.67 | Worst non-DCA strategy |
-| Single-tick SPY Cross-Up Latch | -0.69pp in full; +3.86pp in NoDMA full | Old same-tick-only latch was noise; persistent fresh-stable latch is separate and active |
-| Buy Floor | +0.28pp Δ when removed (below noise) | Noise; removed at type level |
-| Cross-Down Cooldown | `_cross_cooldown` = 115.35% ROI (-6.09pp), 73 trades | Harmful as a broad outer/inner constraint |
-| Below-DMA Hold | `_below_dma_hold` = 20.65% ROI; `_dma_disciplined` = 19.03% ROI | Too blunt; confirmed the 2025-04-22 inner ETH allocation bug but destroyed profitable risk exposure |
+| Adaptive DMA Reference | Removed from the kept minimum target | Re-introduce only through a new measured variant |
+| Fear Recovery Buy | Removed from the kept minimum target | Re-introduce only through a new measured variant |
+| Single-tick SPY Cross-Up Latch | Superseded by persistent fresh-stable latch | Old same-tick-only behavior stays out |
+| Buy Floor | Removed from the kept minimum target | Re-introduce only through a new measured variant |
+| Broad Cross-Down Cooldown | Removed with the minimum research variants | Too blunt without new evidence |
+| Broad Below-DMA Hold | Removed with the minimum research variants | Too blunt without new evidence |
 
 Signal/noise threshold: **|Δ| < 0.5pp** = noise; **0.5pp ≤ |Δ| < 2pp** = weak signal; **|Δ| ≥ 2pp** = actionable.
 

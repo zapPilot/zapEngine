@@ -194,7 +194,7 @@ def _spy_payload() -> dict[str, Any]:
                     "sentiment_label": "neutral",
                 },
                 "strategies": {
-                    "dma_fgi_hierarchical_spy_crypto": {
+                    "dma_fgi_hierarchical_minimum": {
                         "portfolio": {
                             "spot_usd": 4_000.0,
                             "stable_usd": 6_000.0,
@@ -352,8 +352,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
 
     analyzer.analyze_payload(
         endpoint="http://testserver",
-        saved_config_id="dma_fgi_hierarchical_spy_crypto",
-        config_id="dma_fgi_hierarchical_spy_crypto",
+        saved_config_id="dma_fgi_hierarchical_minimum",
+        config_id="dma_fgi_hierarchical_minimum",
         date_filter="2026-04-27",
         history_start_date="2024-11-01",
         output_format="json",
@@ -364,8 +364,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
     assert captured["request"]["end_date"] == "2026-04-27"
     assert captured["request"]["configs"] == [
         {
-            "config_id": "dma_fgi_hierarchical_spy_crypto",
-            "saved_config_id": "dma_fgi_hierarchical_spy_crypto",
+            "config_id": "dma_fgi_hierarchical_minimum",
+            "saved_config_id": "dma_fgi_hierarchical_minimum",
         }
     ]
 
@@ -395,7 +395,7 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
 def test_default_sections_include_spy_dma_and_asset_class_summary() -> None:
     rendered = analyzer.analyze_response_payload(
         _spy_payload(),
-        strategy_id="dma_fgi_hierarchical_spy_crypto",
+        strategy_id="dma_fgi_hierarchical_minimum",
         output_format="json",
         enrich_db="never",
         source_label="fixture",
@@ -447,11 +447,11 @@ def test_analyze_compare_renders_active_tactics_section() -> None:
     payload = deepcopy(_payload())
     for point in payload["timeline"]:
         state = point["strategies"].pop("eth_btc_rotation_default")
-        point["strategies"]["dma_fgi_hierarchical_full"] = state
+        point["strategies"]["dma_fgi_hierarchical_control"] = state
 
     rendered = analyzer.analyze_response_payload(
         payload,
-        strategy_id="dma_fgi_hierarchical_full",
+        strategy_id="dma_fgi_hierarchical_control",
         date_filter="2025-04-22",
         output_format="markdown",
         enrich_db="never",
@@ -461,7 +461,7 @@ def test_analyze_compare_renders_active_tactics_section() -> None:
     )
 
     assert "### Active Tactics" in rendered
-    assert "Adaptive crypto DMA reference: `True`" in rendered
+    assert "Adaptive crypto DMA reference: `False`" in rendered
 
 
 def test_constraint_validation_passes_and_uses_full_history(
@@ -971,6 +971,52 @@ def test_main_exits_nonzero_after_printing_constraint_report(
     assert exit_code == 1
     assert data["constraint_validation"]["passed"] is False
     assert data["constraint_validation"]["violations"][0]["id"] == "bad_reference"
+
+
+def test_main_summary_outputs_compact_rollup(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
+        payload = _payload()
+        payload["strategies"] = {
+            "eth_btc_rotation_default": {
+                "roi_percent": 12.34,
+                "calmar_ratio": 1.23,
+                "max_drawdown_percent": -5.67,
+                "trade_count": 4,
+            }
+        }
+        payload["window"] = {
+            "effective": {
+                "start_date": "2025-04-21",
+                "end_date": "2025-04-23",
+                "days": 2,
+            }
+        }
+        return payload
+
+    monkeypatch.setattr(analyzer, "_fetch_from_api", _fake_fetch)
+
+    exit_code = analyzer.main(
+        [
+            "--endpoint",
+            "http://testserver",
+            "--summary",
+            "--date",
+            "2025-04-22",
+            "--enrich-db",
+            "never",
+            "--no-constraints",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "strategy: eth_btc_rotation_default" in output
+    assert "ROI: +12.34%" in output
+    assert "rules fired:" in output
+    assert len(output.splitlines()) <= 80
 
 
 def test_analyze_payload_surfaces_api_errors(monkeypatch: pytest.MonkeyPatch) -> None:

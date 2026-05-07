@@ -67,8 +67,8 @@ def test_compare_config_rejects_saved_config_id_combined_with_strategy_id() -> N
     ):
         BacktestCompareConfigV3(
             config_id="combo",
-            saved_config_id="dma_gated_fgi_default",
-            strategy_id="dca_classic",
+            saved_config_id="eth_btc_rotation_default",
+            strategy_id="eth_btc_rotation",
         )
 
 
@@ -79,7 +79,7 @@ def test_compare_config_rejects_saved_config_id_combined_with_params() -> None:
     ):
         BacktestCompareConfigV3(
             config_id="combo_params",
-            saved_config_id="dma_gated_fgi_default",
+            saved_config_id="eth_btc_rotation_default",
             params=_dma_public_params(),
         )
 
@@ -98,11 +98,11 @@ def test_allocation_rejects_invalid_sum() -> None:
         Allocation(spot=0.6, stable=0.3)
 
 
-def test_compare_config_rejects_dca_params() -> None:
-    with pytest.raises(ValidationError, match="dca_classic does not accept params"):
+def test_compare_config_rejects_unknown_strategy_id() -> None:
+    with pytest.raises(ValidationError, match="Unknown strategy_id 'unknown_strategy'"):
         BacktestCompareConfigV3(
-            config_id="dca_with_params",
-            strategy_id="dca_classic",
+            config_id="unknown_with_params",
+            strategy_id="unknown_strategy",
             params=_dma_public_params(),
         )
 
@@ -111,7 +111,7 @@ def test_compare_config_rejects_legacy_simple_regime_params() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         BacktestCompareConfigV3(
             config_id="legacy",
-            strategy_id="dma_gated_fgi",
+            strategy_id="dma_fgi_portfolio_rules",
             params={"pacing_policy": "fgi_exponential"},
         )
 
@@ -120,7 +120,7 @@ def test_compare_config_rejects_unknown_dma_param() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         BacktestCompareConfigV3(
             config_id="bad_param",
-            strategy_id="dma_gated_fgi",
+            strategy_id="dma_fgi_portfolio_rules",
             params={"signal_id": "mayer"},
         )
 
@@ -132,10 +132,10 @@ def test_compare_request_requires_unique_config_ids() -> None:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dup", strategy_id="dca_classic", params={}
+                    config_id="dup", strategy_id="eth_btc_rotation", params={}
                 ),
                 BacktestCompareConfigV3(
-                    config_id="dup", strategy_id="dca_classic", params={}
+                    config_id="dup", strategy_id="eth_btc_rotation", params={}
                 ),
             ],
         )
@@ -145,7 +145,7 @@ def test_compare_config_rejects_invalid_scalar_types() -> None:
     with pytest.raises(ValidationError, match="Input should be a valid integer"):
         BacktestCompareConfigV3(
             config_id="bad_scalar",
-            strategy_id="dma_gated_fgi",
+            strategy_id="dma_fgi_portfolio_rules",
             params={"signal": {"cross_cooldown_days": True}},
         )
 
@@ -154,7 +154,7 @@ def test_compare_config_rejects_invalid_array_types() -> None:
     with pytest.raises(ValidationError, match="Input should be a valid list"):
         BacktestCompareConfigV3(
             config_id="bad_array",
-            strategy_id="dma_gated_fgi",
+            strategy_id="dma_fgi_portfolio_rules",
             params={"buy_gate": {"leg_caps": 123}},
         )
 
@@ -163,7 +163,7 @@ def test_compare_config_rejects_flat_dma_params() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         BacktestCompareConfigV3(
             config_id="dma_flat",
-            strategy_id="dma_gated_fgi",
+            strategy_id="dma_fgi_portfolio_rules",
             params={
                 "cross_cooldown_days": 30,
                 "cross_on_touch": True,
@@ -181,7 +181,7 @@ def test_compare_config_rejects_flat_dma_params() -> None:
 def test_compare_config_accepts_nested_dma_params() -> None:
     config = BacktestCompareConfigV3(
         config_id="dma_nested",
-        strategy_id="dma_gated_fgi",
+        strategy_id="dma_fgi_portfolio_rules",
         params=_dma_public_params(),
     )
     assert config.params["cross_cooldown_days"] == 30
@@ -191,7 +191,7 @@ def test_compare_config_accepts_nested_dma_params() -> None:
 def test_compare_config_accepts_trade_quota_params() -> None:
     config = BacktestCompareConfigV3(
         config_id="dma_quota",
-        strategy_id="dma_gated_fgi",
+        strategy_id="dma_fgi_portfolio_rules",
         params=_dma_public_params(
             trade_quota={
                 "min_trade_interval_days": 3,
@@ -263,8 +263,8 @@ def test_compare_request_rejects_invalid_date_range() -> None:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dca_classic",
-                    strategy_id="dca_classic",
+                    config_id="eth_rotation",
+                    strategy_id="eth_btc_rotation",
                     params={},
                 )
             ],
@@ -282,17 +282,17 @@ def test_compare_request_requires_non_empty_configs() -> None:
         )
 
 
-def test_compare_request_accepts_dma_and_baseline_configs() -> None:
+def test_compare_request_accepts_portfolio_rules_and_eth_rotation_configs() -> None:
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="dca_classic", strategy_id="dca_classic", params={}
+                config_id="eth_rotation", strategy_id="eth_btc_rotation", params={}
             ),
             BacktestCompareConfigV3(
-                config_id="dma_gated_fgi_default",
-                strategy_id="dma_gated_fgi",
+                config_id="portfolio_rules_runtime",
+                strategy_id="dma_fgi_portfolio_rules",
                 params=_dma_public_params(),
             ),
         ],

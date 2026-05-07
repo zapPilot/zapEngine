@@ -1,10 +1,11 @@
 """Flat portfolio-level DMA/FGI rule strategy.
 
 Rules are evaluated first-match-wins by explicit priority:
-cross-down exit, cross-up equal-weight, extreme-fear DCA buy, DMA
-overextension DCA sell, then FGI downshift DCA sell. If different assets emit
-cross-up and cross-down on the same day, cross-down exits win and the cross-up
-rebalance can be reconsidered on the next eligible day.
+cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation, global cooldown,
+DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
+If different assets emit cross-up and cross-down on the same day, cross-down
+exits win and the cross-up rebalance can be reconsidered on the next eligible
+day.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ from src.services.backtesting.portfolio_rules.base import (
     cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     current_target,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.public_params import runtime_params_to_public_params
@@ -180,6 +182,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
             disabled_rules=self.disabled_rules,
             rules=build_portfolio_rules_for_params(resolved_params),
+            config=PortfolioRuleConfig(emit_signals_consulted=True),
             execution_state_provider=lambda: RuleExecutionState(
                 last_trade_date=self.execution_engine.last_trade_date,
                 trade_dates=tuple(self.execution_engine.trade_dates),
@@ -328,7 +331,19 @@ def resolve_portfolio_rules_intent(
         reason="regime_no_signal",
         rule_group="none",
         decision_score=0.0,
-        diagnostics={"matched_rule_name": "regime_no_signal_hold"},
+        diagnostics={
+            "matched_rule_name": "regime_no_signal_hold",
+            **(
+                {
+                    "signals_consulted": signals_consulted_for_symbols(
+                        snapshot,
+                        tuple(symbols_for_snapshot(snapshot)),
+                    )
+                }
+                if resolved_config.emit_signals_consulted
+                else {}
+            ),
+        },
     )
 
 

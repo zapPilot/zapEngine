@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { Area, Line, Scatter } from 'recharts';
 
-import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import { CHART_SIGNALS } from '../utils/chartHelpers';
 import {
   getStrategyColor,
@@ -138,8 +137,7 @@ export function StrategyArea({
 }: StrategyAreaProps): ReactElement {
   const color = getStrategyColor(strategyId, index);
   const displayName = getStrategyDisplayName(strategyId);
-  const isDcaClassic = strategyId === DCA_CLASSIC_STRATEGY_ID;
-  const strokeDasharrayProps = getStrokeDasharrayProps(isDcaClassic);
+  const strokeDasharrayProps = getStrokeDasharrayProps(false);
   const { strokeWidth, strokeOpacity } = getStrategyVisualTier(index);
 
   return (

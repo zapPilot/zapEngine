@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
+import { LINKS } from '@/config/links';
 import { NavbarV2 } from '../NavbarV2';
 
 describe('NavbarV2', () => {
@@ -47,11 +48,12 @@ describe('NavbarV2', () => {
   });
 
   describe('action links', () => {
-    it('does not render stale v1 toggle link', () => {
+    it('renders v1 toggle link', () => {
       render(<NavbarV2 />);
-      expect(
-        screen.queryByRole('link', { name: '← v1' }),
-      ).not.toBeInTheDocument();
+      const v1Link = screen.getByRole('link', { name: '← v1' });
+      expect(v1Link).toHaveAttribute('href', LINKS.app);
+      expect(v1Link).toHaveAttribute('target', '_blank');
+      expect(v1Link).toHaveAttribute('rel', 'noopener noreferrer');
     });
 
     it('renders Launch App CTA', () => {

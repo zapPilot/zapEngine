@@ -1,5 +1,4 @@
 import {
-  DCA_CLASSIC_STRATEGY_ID,
   isBacktestTransfer,
   resolveBacktestSpotAsset,
 } from '@/components/wallet/portfolio/views/backtesting';
@@ -79,7 +78,6 @@ function collectCriticalIndices(
     const previousPoint = index > 0 ? timeline[index - 1] : undefined;
     const hasCriticalEvent = Object.entries(point.strategies).some(
       ([strategyId, strategy]) =>
-        strategyId !== DCA_CLASSIC_STRATEGY_ID &&
         hasCriticalStrategyEvent(
           strategy,
           previousPoint?.strategies[strategyId],
@@ -132,8 +130,8 @@ function collectNonCriticalIndices(
  *
  * Always preserves:
  * - First and last points
- * - Points where any non-dca_classic strategy executes spot/stable transfers
- * - Points where any non-dca_classic strategy changes its current `spot_asset`
+ * - Points where any strategy executes spot/stable transfers
+ * - Points where any strategy changes its current `spot_asset`
  *
  * Dynamically expands the point limit to fit all strategy events, then samples
  * non-critical points evenly to fill remaining slots.

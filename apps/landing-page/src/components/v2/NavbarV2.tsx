@@ -26,6 +26,14 @@ export function NavbarV2() {
 
       <div className="nav-actions">
         <a
+          className="version-toggle"
+          href={LINKS.app}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          ← v1
+        </a>
+        <a
           className="nav-cta"
           href={LINKS.v2}
           target="_blank"

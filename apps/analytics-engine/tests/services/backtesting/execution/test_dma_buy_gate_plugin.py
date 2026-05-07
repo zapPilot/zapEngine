@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.execution.dma_buy_gate import DmaBuyGateSnapshot
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
     DmaBuyGateExecutionPlugin,
 )
@@ -120,10 +121,6 @@ def test_resolve_deltas_with_none_target_allocation() -> None:
 
 def test_resolve_capped_stable_buy_zero_supply() -> None:
     """Line 190: stable_supply <= 0.0 returns 0.0."""
-    from src.services.backtesting.strategies.dma_buy_sideways_gate import (
-        DmaBuyGateSnapshot,
-    )
-
     plugin = DmaBuyGateExecutionPlugin()
     snapshot = DmaBuyGateSnapshot(
         buy_strength=0.5,
@@ -145,10 +142,6 @@ def test_resolve_capped_stable_buy_zero_supply() -> None:
 
 def test_resolve_capped_stable_buy_not_confirmed() -> None:
     """buy_sideways_confirmed=False returns 0.0."""
-    from src.services.backtesting.strategies.dma_buy_sideways_gate import (
-        DmaBuyGateSnapshot,
-    )
-
     plugin = DmaBuyGateExecutionPlugin()
     snapshot = DmaBuyGateSnapshot(
         buy_strength=0.5,

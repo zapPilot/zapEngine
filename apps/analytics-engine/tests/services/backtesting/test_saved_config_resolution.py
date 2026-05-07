@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from src.config.strategy_presets import (
@@ -21,7 +19,6 @@ from src.services.backtesting.composition_catalog import (
     StrategyFamilySpec,
     build_default_composition_catalog,
 )
-from src.services.backtesting.constants import STRATEGY_DCA_CLASSIC
 from src.services.backtesting.features import DMA_200_FEATURE
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from tests.services.backtesting.support import (
@@ -31,43 +28,17 @@ from tests.services.backtesting.support import (
 )
 
 
-def test_resolve_seed_saved_config_builds_composed_dma_runtime() -> None:
+def test_resolve_seed_saved_config_builds_composed_eth_rotation_runtime() -> None:
     resolved = resolve_saved_strategy_config(
-        resolve_seed_strategy_config("dma_gated_fgi_default")
+        resolve_seed_strategy_config(ETH_BTC_ROTATION_CONFIG_ID)
     )
 
-    assert resolved.saved_config_id == "dma_gated_fgi_default"
-    assert resolved.strategy_id == "dma_gated_fgi"
-    assert resolved.summary_signal_id == "dma_gated_fgi"
+    assert resolved.saved_config_id == ETH_BTC_ROTATION_CONFIG_ID
+    assert resolved.strategy_id == "eth_btc_rotation"
+    assert resolved.summary_signal_id == "eth_btc_rs_signal"
     assert resolved.primary_asset == "BTC"
     assert resolved.market_data_requirements.requires_sentiment is True
     assert DMA_200_FEATURE in resolved.market_data_requirements.required_price_features
-
-
-def test_legacy_dma_compare_config_is_converted_to_saved_config_shape() -> None:
-    saved_config = build_saved_config_from_legacy(
-        strategy_id="dma_gated_fgi",
-        params={
-            "cross_cooldown_days": 12,
-            "cross_on_touch": False,
-            "pacing_k": 4.0,
-            "pacing_r_max": 1.5,
-            "buy_sideways_window_days": 7,
-            "buy_sideways_max_range": 0.02,
-            "buy_leg_caps": [0.1, 0.2],
-        },
-        config_id="dma_legacy",
-    )
-
-    assert saved_config.params["signal"]["cross_cooldown_days"] == 12
-    assert saved_config.params["pacing"]["k"] == 4.0
-    assert saved_config.composition.signal is not None
-    assert saved_config.composition.signal.params["cross_cooldown_days"] == 12
-    assert saved_config.composition.pacing_policy is not None
-    assert saved_config.composition.pacing_policy.params["k"] == 4.0
-    assert saved_config.composition.plugins[0].params["window_days"] == 7
-    assert saved_config.composition.plugins[1].component_id == "trade_quota_guard"
-    assert saved_config.composition.plugins[1].params == {}
 
 
 def test_legacy_eth_btc_rotation_config_uses_dma_component_shape() -> None:
@@ -144,40 +115,6 @@ def test_resolved_legacy_eth_btc_rotation_strategy_uses_custom_rotation_cooldown
     assert strategy.signal_component.ratio_cross_cooldown_days == 9
 
 
-def test_legacy_dma_compare_config_maps_trade_quota_params_to_plugin() -> None:
-    saved_config = build_saved_config_from_legacy(
-        strategy_id="dma_gated_fgi",
-        params={
-            "min_trade_interval_days": 3,
-            "max_trades_7d": 2,
-            "max_trades_30d": 6,
-        },
-        config_id="dma_quota_legacy",
-    )
-
-    assert saved_config.params["trade_quota"]["min_trade_interval_days"] == 3
-    assert saved_config.params["trade_quota"]["max_trades_7d"] == 2
-    assert saved_config.params["trade_quota"]["max_trades_30d"] == 6
-    assert saved_config.composition.plugins[1].component_id == "trade_quota_guard"
-    assert saved_config.composition.plugins[1].params == {
-        "min_trade_interval_days": 3,
-        "max_trades_7d": 2,
-        "max_trades_30d": 6,
-    }
-
-
-def test_composed_saved_config_rejects_strategy_family_mismatch() -> None:
-    with pytest.raises(
-        ValueError,
-        match="Strategy family 'dca_classic' must use composition.kind='benchmark'",
-    ):
-        resolve_saved_strategy_config(
-            resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-                update={"strategy_id": "dca_classic"}
-            )
-        )
-
-
 def test_registered_mock_family_resolves_with_injected_catalog() -> None:
     resolved = resolve_saved_strategy_config(
         build_mock_saved_config(),
@@ -242,61 +179,6 @@ def test_build_two_bucket_execution_profile_with_params_raises() -> None:
     factory = catalog.resolve_execution_profile_factory("two_bucket_rebalance")
     with pytest.raises(ValueError, match="does not accept params"):
         factory({"unexpected": "param"})
-
-
-def test_build_dca_saved_config_from_legacy_with_params_raises() -> None:
-    with pytest.raises(ValueError, match="dca_classic does not accept params"):
-        build_saved_config_from_legacy(
-            strategy_id=STRATEGY_DCA_CLASSIC,
-            params={"unexpected": "param"},
-            config_id="dca_test",
-        )
-
-
-def _make_dca_saved_config() -> SavedStrategyConfig:
-    return SavedStrategyConfig(
-        config_id="dca_test",
-        display_name="DCA Test",
-        strategy_id=STRATEGY_DCA_CLASSIC,
-        primary_asset="BTC",
-        params={},
-        composition=StrategyComposition(
-            kind="benchmark",
-            bucket_mapper_id="two_bucket_spot_stable",
-        ),
-        supports_daily_suggestion=False,
-        is_default=False,
-        is_benchmark=True,
-    )
-
-
-def test_dca_strategy_builder_rejects_non_compare_mode() -> None:
-    catalog = build_default_composition_catalog()
-    family = catalog.resolve_family(STRATEGY_DCA_CLASSIC)
-    assert family.benchmark_strategy_builder_factory is not None
-    builder = family.benchmark_strategy_builder_factory(_make_dca_saved_config())
-    with pytest.raises(ValueError, match="does not support daily suggestion"):
-        builder(
-            StrategyBuildRequest(
-                mode="daily_suggestion",
-                total_capital=10_000.0,
-            )
-        )
-
-
-def test_dca_strategy_builder_rejects_missing_initial_allocation() -> None:
-    catalog = build_default_composition_catalog()
-    family = catalog.resolve_family(STRATEGY_DCA_CLASSIC)
-    assert family.benchmark_strategy_builder_factory is not None
-    builder = family.benchmark_strategy_builder_factory(_make_dca_saved_config())
-    with pytest.raises(ValueError, match="requires initial allocation"):
-        builder(
-            StrategyBuildRequest(
-                mode="compare",
-                total_capital=10_000.0,
-                user_prices=[{"date": date(2025, 1, 1), "price": 100.0}],
-            )
-        )
 
 
 def test_resolve_bucket_mapper_raises_for_unknown_id() -> None:

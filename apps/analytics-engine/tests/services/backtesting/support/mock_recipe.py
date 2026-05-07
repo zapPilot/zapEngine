@@ -5,12 +5,22 @@ from typing import Any
 from src.services.backtesting import strategy_registry as strategy_registry_module
 from src.services.backtesting.capabilities import map_portfolio_to_two_buckets
 from src.services.backtesting.features import MarketDataRequirements
-from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
+from src.services.backtesting.strategies.base import BaseStrategy, StrategyAction
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
     StrategyRecipe,
 )
+from tests.services.backtesting.support.snapshots import make_strategy_snapshot
+
+
+class MockRecipeStrategy(BaseStrategy):
+    def __init__(self, *, strategy_id: str, display_name: str) -> None:
+        self.strategy_id = strategy_id
+        self.display_name = display_name
+        self.canonical_strategy_id = strategy_id
+
+    def on_day(self, _context: Any) -> StrategyAction:
+        return StrategyAction(snapshot=make_strategy_snapshot(reason="mock_hold"))
 
 
 def make_mock_recipe(
@@ -18,6 +28,7 @@ def make_mock_recipe(
     strategy_id: str,
     primary_asset: str = "BTC",
     requires_sentiment: bool = False,
+    required_price_features: frozenset[str] = frozenset(),
 ) -> StrategyRecipe:
     def _normalize_params(params: dict[str, Any]) -> dict[str, Any]:
         if params:
@@ -31,11 +42,7 @@ def make_mock_recipe(
             raise ValueError(
                 f"{strategy_id} compare strategy build requires initial allocation and start date"
             )
-        return DcaClassicStrategy(
-            total_days=len(request.user_prices),
-            total_capital=request.total_capital,
-            initial_allocation=request.initial_allocation,
-            user_start_date=request.user_start_date,
+        return MockRecipeStrategy(
             strategy_id=request.resolved_config_id or strategy_id,
             display_name=request.resolved_config_id or strategy_id,
         )
@@ -48,7 +55,8 @@ def make_mock_recipe(
         primary_asset=primary_asset,
         warmup_lookback_days=0,
         market_data_requirements=MarketDataRequirements(
-            requires_sentiment=requires_sentiment
+            requires_sentiment=requires_sentiment,
+            required_price_features=required_price_features,
         ),
         portfolio_bucket_mapper=map_portfolio_to_two_buckets,
         normalize_public_params=_normalize_params,
@@ -63,11 +71,13 @@ def register_mock_recipe(
     strategy_id: str,
     primary_asset: str = "BTC",
     requires_sentiment: bool = False,
+    required_price_features: frozenset[str] = frozenset(),
 ) -> StrategyRecipe:
     recipe = make_mock_recipe(
         strategy_id=strategy_id,
         primary_asset=primary_asset,
         requires_sentiment=requires_sentiment,
+        required_price_features=required_price_features,
     )
     monkeypatch.setitem(strategy_registry_module._RECIPES, strategy_id, recipe)
     return recipe

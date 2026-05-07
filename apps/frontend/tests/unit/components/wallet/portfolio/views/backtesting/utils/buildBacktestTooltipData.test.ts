@@ -95,7 +95,7 @@ function makeStrategyPoint(overrides: {
     signal:
       overrides.signal !== undefined
         ? overrides.signal
-        : { id: 'dma_gated_fgi' },
+        : { id: 'eth_btc_rs_signal' },
     decision: {
       action: overrides.decision?.action ?? 'hold',
       reason: overrides.decision?.reason ?? 'baseline',
@@ -163,26 +163,26 @@ function transfer(
 function createTooltipPayload() {
   return [
     {
-      name: 'DMA Gated FGI Default',
+      name: 'ETH/BTC Rotation Default',
       value: 12000,
       color: '#3b82f6',
       payload: {
         market: makeMarket(),
         eventStrategies: {
-          buy_spot: ['DMA Gated FGI Default'],
+          buy_spot: ['ETH/BTC Rotation Default'],
           sell_spot: [],
         },
         strategies: {
-          dca_classic: makeStrategyPoint({
+          dma_fgi_portfolio_rules: makeStrategyPoint({
             spot: 5000,
             stable: 5000,
             signal: null,
           }),
-          dma_gated_fgi_default: makeStrategyPoint({
+          eth_btc_rotation_default: makeStrategyPoint({
             spot: 9600,
             stable: 2400,
             spotAsset: 'ETH',
-            signal: { id: 'dma_gated_fgi' },
+            signal: { id: 'eth_btc_rs_signal' },
             decision: {
               action: 'buy',
               reason: 'below_extreme_fear_buy',
@@ -768,10 +768,10 @@ describe('buildBacktestTooltipData', () => {
   // ------------------------------------------------------------------
 
   describe('decision summary', () => {
-    it('uses the active non-DCA comparison strategy only', () => {
+    it('uses the active primary comparison strategy only', () => {
       const strategies = {
-        dca_classic: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+        dma_fgi_portfolio_rules: makeStrategyPoint({
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'buy',
             reason: 'daily_buy',
@@ -780,7 +780,7 @@ describe('buildBacktestTooltipData', () => {
           transfers: [transfer('stable', 'btc', 100)],
         }),
         primary_strategy: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'buy',
             reason: 'below_extreme_fear_buy',
@@ -792,7 +792,7 @@ describe('buildBacktestTooltipData', () => {
           transfers: [transfer('stable', 'eth', 200)],
         }),
         secondary_strategy: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'sell',
             reason: 'above_greed_sell',
@@ -803,11 +803,7 @@ describe('buildBacktestTooltipData', () => {
       };
       const result = buildBacktestTooltipData({
         payload: minimalPayload(makeMarket(), strategies),
-        sortedStrategyIds: [
-          'dca_classic',
-          'primary_strategy',
-          'secondary_strategy',
-        ],
+        sortedStrategyIds: ['primary_strategy', 'secondary_strategy'],
       });
 
       expect(result?.sections.decision?.strategyId).toBe('primary_strategy');
@@ -829,7 +825,7 @@ describe('buildBacktestTooltipData', () => {
     it('falls back to the decision reason when allocation_name is missing', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'hold',
             reason: 'regime_no_signal',
@@ -851,7 +847,7 @@ describe('buildBacktestTooltipData', () => {
     it('formats buy, sell, and rotation asset changes from transfers', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'buy',
             reason: 'mixed_rebalance',
@@ -879,7 +875,7 @@ describe('buildBacktestTooltipData', () => {
     it('uses a blocked no-change note when there are no transfers', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'buy',
             reason: 'below_extreme_fear_buy',
@@ -903,7 +899,7 @@ describe('buildBacktestTooltipData', () => {
     it('uses a held-position no-change note when there are no transfers and no block', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'dma_gated_fgi' },
+          signal: { id: 'eth_btc_rs_signal' },
           decision: {
             action: 'hold',
             reason: 'waiting',
@@ -1053,11 +1049,14 @@ describe('buildBacktestTooltipData', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
         label: '2026-01-01',
-        sortedStrategyIds: ['dca_classic', 'dma_gated_fgi_default'],
+        sortedStrategyIds: [
+          'eth_btc_rotation_default',
+          'dma_fgi_portfolio_rules',
+        ],
       });
 
       expect(result?.sections.strategies).toEqual([
-        { name: 'DMA Gated FGI Default', value: 12000, color: '#3b82f6' },
+        { name: 'ETH/BTC Rotation Default', value: 12000, color: '#3b82f6' },
       ]);
       expect(result?.sections.signals).toEqual(
         expect.arrayContaining([
@@ -1070,13 +1069,13 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.events).toEqual([
         {
           name: 'Buy Spot',
-          strategies: ['DMA Gated FGI Default'],
+          strategies: ['ETH/BTC Rotation Default'],
           color: '#22c55e',
         },
       ]);
       expect(result?.sections.allocations.map((a) => a.id)).toEqual([
-        'dca_classic',
-        'dma_gated_fgi_default',
+        'eth_btc_rotation_default',
+        'dma_fgi_portfolio_rules',
       ]);
     });
 
@@ -1084,12 +1083,15 @@ describe('buildBacktestTooltipData', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
         label: '2026-01-01',
-        sortedStrategyIds: ['dca_classic', 'dma_gated_fgi_default'],
+        sortedStrategyIds: [
+          'eth_btc_rotation_default',
+          'dma_fgi_portfolio_rules',
+        ],
       });
 
       expect(result?.sections.decision).toEqual({
-        strategyId: 'dma_gated_fgi_default',
-        displayName: 'DMA Gated FGI Default',
+        strategyId: 'eth_btc_rotation_default',
+        displayName: 'ETH/BTC Rotation Default',
         rule: {
           label: 'dma_below_extreme_fear_buy',
           group: 'dma_fgi',

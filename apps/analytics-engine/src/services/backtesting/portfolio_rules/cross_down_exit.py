@@ -1,4 +1,4 @@
-"""Portfolio rule 1: exit assets that cross down through DMA."""
+"""Portfolio rule 10: exit assets that cross down through DMA."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from src.services.backtesting.portfolio_rules.base import (
     allocation_key_for_symbol,
     current_target,
     portfolio_target_intent,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -26,7 +27,7 @@ _ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
 @dataclass(frozen=True)
 class CrossDownExitRule:
     name: str = "cross_down_exit"
-    priority: int = 1
+    priority: int = 10
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
 
@@ -45,7 +46,6 @@ class CrossDownExitRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         matching_symbols = _cross_down_symbols(snapshot)
         exit_symbols = _exit_symbols_for_cross_down(matching_symbols)
         target = current_target(snapshot)
@@ -65,6 +65,12 @@ class CrossDownExitRule:
             rule_group=self.rule_group,
             assets=liquidated_symbols,
             immediate=True,
+            signals_consulted=signals_consulted_for_symbols(
+                snapshot,
+                tuple(matching_symbols),
+            )
+            if config.emit_signals_consulted
+            else None,
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics["portfolio_rule_trigger_assets"] = matching_symbols

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -50,6 +50,7 @@ class PortfolioRuleConfig:
     dma_overextension_thresholds: dict[str, float] = field(
         default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
     )
+    emit_signals_consulted: bool = False
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,7 @@ def portfolio_target_intent(
     rule_group: RuleGroup,
     assets: list[str],
     immediate: bool = False,
+    signals_consulted: Mapping[str, Any] | None = None,
 ) -> AllocationIntent:
     intent = target_intent(
         action=action,
@@ -195,12 +197,53 @@ def portfolio_target_intent(
         rule_group=rule_group,
         immediate=immediate,
     )
-    return replace(
-        intent,
-        diagnostics={
-            "portfolio_rule_assets": [normalize_symbol(asset) for asset in assets]
-        },
-    )
+    diagnostics: dict[str, Any] = {
+        "portfolio_rule_assets": [normalize_symbol(asset) for asset in assets]
+    }
+    if signals_consulted:
+        diagnostics["signals_consulted"] = dict(signals_consulted)
+    return replace(intent, diagnostics=diagnostics)
+
+
+def signals_consulted_for_symbols(
+    snapshot: PortfolioSnapshot,
+    symbols: list[str] | tuple[str, ...],
+) -> dict[str, Any]:
+    signals: dict[str, Any] = {}
+    for symbol in symbols:
+        normalized = normalize_symbol(symbol)
+        state = snapshot.assets.get(normalized)
+        if state is None:
+            continue
+        key = normalized.lower()
+        signals[f"{key}.zone"] = state.zone
+        signals[f"{key}.cross"] = state.actionable_cross_event or state.cross_event
+        signals[f"{key}.dma_distance"] = state.dma_distance
+        regime = current_fgi_regime_for_symbol(snapshot, normalized)
+        if regime is not None:
+            signals[f"{key}.fgi"] = regime
+        signals[f"{key}.cycle_open"] = snapshot.cycle_open_per_symbol.get(
+            normalized,
+            False,
+        )
+        cooldown = state.cooldown_state
+        signals[f"{key}.cooldown_active"] = cooldown.active
+    return signals
+
+
+def ratio_signals_consulted(snapshot: PortfolioSnapshot) -> dict[str, Any]:
+    ratio = snapshot.eth_btc_ratio_state
+    if ratio is None:
+        return {}
+    return {
+        "eth_btc_ratio.zone": ratio.zone,
+        "eth_btc_ratio.cross": ratio.actionable_cross_event or ratio.cross_event,
+        "eth_btc_ratio.distance": (ratio.ratio - ratio.ratio_dma_200)
+        / ratio.ratio_dma_200
+        if ratio.ratio_dma_200 > 0.0
+        else None,
+        "eth_btc_ratio.cooldown_active": ratio.cooldown_state.active,
+    }
 
 
 def add_stable(target: dict[str, float], amount: float) -> None:
@@ -241,5 +284,7 @@ __all__ = [
     "normalize_regime",
     "normalize_symbol",
     "portfolio_target_intent",
+    "ratio_signals_consulted",
+    "signals_consulted_for_symbols",
     "symbols_for_snapshot",
 ]

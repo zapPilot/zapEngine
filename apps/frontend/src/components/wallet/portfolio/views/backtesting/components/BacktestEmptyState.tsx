@@ -11,8 +11,8 @@ export function BacktestEmptyState() {
         Ready to Compare Strategies
       </h3>
       <p className="text-sm text-gray-500 max-w-md mx-auto">
-        Click &quot;Run Backtest&quot; to see how the Zap Pilot regime-based
-        strategy compares to normal DCA.
+        Click &quot;Run Backtest&quot; to compare the registered Zap Pilot
+        regime strategies.
       </p>
     </div>
   );

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_FLAT_MINIMUM
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     CrossEvent,
     DmaCooldownState,
@@ -12,7 +11,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
 from src.services.backtesting.strategies.minimum import (
     FlatMinimumDecisionPolicy,
     FlatMinimumState,
-    FlatMinimumStrategy,
 )
 
 
@@ -71,13 +69,6 @@ def _fgi_value_for_regime(regime: str) -> float:
     if regime == "extreme_greed":
         return 90.0
     return 50.0
-
-
-def test_strategy_instantiates_with_research_identity() -> None:
-    strategy = FlatMinimumStrategy(total_capital=10_000.0)
-
-    assert strategy.strategy_id == STRATEGY_DMA_FGI_FLAT_MINIMUM
-    assert strategy.feature_summary()["research_only"] is True
 
 
 def test_all_above_dma_preserves_current_allocation_on_no_signal_day() -> None:

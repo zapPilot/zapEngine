@@ -109,10 +109,10 @@ describe('updateConfigStrategy', () => {
       ],
     });
 
-    const result = JSON.parse(updateConfigStrategy(json, 'dma_gated_fgi'));
+    const result = JSON.parse(updateConfigStrategy(json, 'eth_btc_rotation'));
 
-    expect(result.configs[0].config_id).toBe('dma_gated_fgi_default');
-    expect(result.configs[0].strategy_id).toBe('dma_gated_fgi');
+    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
   });
 
   it('replaces params with empty object when defaultParams is {}', () => {

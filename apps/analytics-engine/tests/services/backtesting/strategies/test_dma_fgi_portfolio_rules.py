@@ -229,7 +229,7 @@ def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> N
     assert second_cross_down.btc_dma_state.actionable_cross_event is None
     assert second_cross_down.spy_dma_state.cooldown_state.active is True
     assert second_cross_down.btc_dma_state.cooldown_state.active is True
-    assert second_cross_down.spy_dma_state.cooldown_state.remaining_days == 21
+    assert second_cross_down.spy_dma_state.cooldown_state.remaining_days == 5
     assert second_cross_down.btc_dma_state.cooldown_state.remaining_days == 21
 
 

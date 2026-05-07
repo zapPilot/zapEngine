@@ -26,8 +26,6 @@ from src.services.backtesting.composition_types import (
     StatefulSignalComponent,
 )
 from src.services.backtesting.constants import (
-    STRATEGY_DCA_CLASSIC,
-    STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
@@ -39,7 +37,6 @@ from src.services.backtesting.execution.trade_quota_guard_plugin import (
 )
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiDecisionPolicy,
     DmaGatedFgiParams,
@@ -176,50 +173,6 @@ def _build_trade_quota_guard_plugin(
     return TradeQuotaGuardExecutionPlugin(**normalized)
 
 
-def _build_dca_strategy(
-    saved_config: SavedStrategyConfig,
-) -> Callable[[StrategyBuildRequest], BaseStrategy]:
-    def _builder(request: StrategyBuildRequest) -> BaseStrategy:
-        if request.mode != "compare":
-            raise ValueError("dca_classic does not support daily suggestion")
-        if request.initial_allocation is None or request.user_start_date is None:
-            raise ValueError(
-                "Compare strategy build requires initial allocation and start date"
-            )
-        return DcaClassicStrategy(
-            total_days=len(request.user_prices),
-            total_capital=request.total_capital,
-            initial_allocation=request.initial_allocation,
-            user_start_date=request.user_start_date,
-            strategy_id=request.resolved_config_id or saved_config.config_id,
-            display_name=request.resolved_config_id or saved_config.display_name,
-        )
-
-    return _builder
-
-
-def _build_dca_saved_config_from_legacy(
-    config_id: str,
-    params: Mapping[str, Any],
-) -> SavedStrategyConfig:
-    if params:
-        raise ValueError("dca_classic does not accept params")
-    return SavedStrategyConfig(
-        config_id=config_id,
-        display_name=config_id,
-        strategy_id=STRATEGY_DCA_CLASSIC,
-        primary_asset="BTC",
-        params={},
-        composition=StrategyComposition(
-            kind="benchmark",
-            bucket_mapper_id="two_bucket_spot_stable",
-        ),
-        supports_daily_suggestion=False,
-        is_default=False,
-        is_benchmark=True,
-    )
-
-
 def _build_composed_saved_config_from_legacy(
     config_id: str,
     params: Mapping[str, Any],
@@ -295,23 +248,6 @@ def _build_composed_saved_config_from_legacy(
         supports_daily_suggestion=True,
         is_default=False,
         is_benchmark=False,
-    )
-
-
-def _build_dma_saved_config_from_legacy(
-    config_id: str,
-    params: Mapping[str, Any],
-) -> SavedStrategyConfig:
-    return _build_composed_saved_config_from_legacy(
-        config_id,
-        params,
-        strategy_id=STRATEGY_DMA_GATED_FGI,
-        params_class=DmaGatedFgiParams,
-        signal_component_id="dma_gated_fgi_signal",
-        decision_component_id="dma_fgi_policy",
-        default_runtime_params=resolve_strategy_default_runtime_params(
-            STRATEGY_DMA_GATED_FGI
-        ),
     )
 
 
@@ -520,24 +456,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
             "eth_btc_stable": map_portfolio_to_eth_btc_stable_buckets,
         },
         strategy_families={
-            STRATEGY_DCA_CLASSIC: StrategyFamilySpec(
-                strategy_id=STRATEGY_DCA_CLASSIC,
-                composition_kind="benchmark",
-                mutable_via_admin=False,
-                runtime_portfolio_mode="aggregate",
-                legacy_saved_config_builder=_build_dca_saved_config_from_legacy,
-                benchmark_strategy_builder_factory=_build_dca_strategy,
-            ),
-            STRATEGY_DMA_GATED_FGI: StrategyFamilySpec(
-                strategy_id=STRATEGY_DMA_GATED_FGI,
-                composition_kind="composed",
-                mutable_via_admin=True,
-                runtime_portfolio_mode="aggregate",
-                required_slots=frozenset(
-                    {"signal", "decision_policy", "pacing_policy", "execution_profile"}
-                ),
-                legacy_saved_config_builder=_build_dma_saved_config_from_legacy,
-            ),
             STRATEGY_ETH_BTC_ROTATION: StrategyFamilySpec(
                 strategy_id=STRATEGY_ETH_BTC_ROTATION,
                 composition_kind="composed",

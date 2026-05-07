@@ -14,11 +14,7 @@ from src.models.strategy_config import (
     StrategyComposition,
     StrategyPreset,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DCA_CLASSIC,
-    STRATEGY_DMA_GATED_FGI,
-    STRATEGY_ETH_BTC_ROTATION,
-)
+from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
 from src.services.backtesting.public_params import (
     get_default_public_params,
     normalize_nested_public_params,
@@ -48,13 +44,6 @@ class _ComposedPresetDefinition:
 # Central point for tuning strategy defaults.
 # Edit values here using the nested public params contract.
 STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {
-    STRATEGY_DMA_GATED_FGI: {
-        "trade_quota": {
-            "min_trade_interval_days": None,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-    },
     STRATEGY_ETH_BTC_ROTATION: {
         "trade_quota": {
             "min_trade_interval_days": 1,
@@ -68,7 +57,6 @@ STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {
 }
 # ─────────────────────────────────────────────────────────────────────────────
 
-DMA_DEFAULT_CONFIG_ID: Final[str] = "dma_gated_fgi_default"
 ETH_BTC_ROTATION_CONFIG_ID: Final[str] = "eth_btc_rotation_default"
 
 _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
@@ -76,19 +64,9 @@ _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
     "cross_on_touch",
 )
 _PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[DmaGatedFgiParams]]] = {
-    STRATEGY_DMA_GATED_FGI: DmaGatedFgiParams,
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationParams,
 }
 _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
-    _ComposedPresetDefinition(
-        config_id=DMA_DEFAULT_CONFIG_ID,
-        display_name="DMA Gated FGI Default",
-        description="Curated live/backtest preset for the DMA recipe.",
-        strategy_id=STRATEGY_DMA_GATED_FGI,
-        signal_component_id="dma_gated_fgi_signal",
-        decision_component_id="dma_fgi_policy",
-        signal_param_fields=_DEFAULT_SIGNAL_PARAM_FIELDS,
-    ),
     _ComposedPresetDefinition(
         config_id=ETH_BTC_ROTATION_CONFIG_ID,
         display_name="ETH/BTC RS Rotation",
@@ -246,18 +224,6 @@ SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
         _build_composed_seed_config(definition)
         for definition in _COMPOSED_PRESET_DEFINITIONS
     ),
-    SavedStrategyConfig(
-        config_id=STRATEGY_DCA_CLASSIC,
-        display_name="Classic DCA",
-        description="Simple dollar-cost averaging baseline.",
-        strategy_id=STRATEGY_DCA_CLASSIC,
-        primary_asset="BTC",
-        params={},
-        composition=StrategyComposition(kind="benchmark"),
-        supports_daily_suggestion=False,
-        is_default=False,
-        is_benchmark=True,
-    ),
 ]
 
 BACKTEST_DEFAULTS: Final[BacktestDefaults] = BacktestDefaults(
@@ -337,6 +303,4 @@ def resolve_strategy_preset(config_id: str | None) -> StrategyPreset:
     return resolve_seed_strategy_config(config_id).to_public_preset()
 
 
-STRATEGY_PRESETS: Final[list[StrategyPreset]] = list_strategy_presets() + [
-    get_benchmark_strategy_preset()
-]
+STRATEGY_PRESETS: Final[list[StrategyPreset]] = list_strategy_presets()

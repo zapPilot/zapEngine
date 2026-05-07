@@ -120,7 +120,8 @@
   gap: 32px;
 }
 
-.v2-root .nav-links a {
+.v2-root .nav-links a,
+.v2-root .version-toggle {
   color: var(--ink-dim);
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
@@ -132,8 +133,24 @@
     background-color 0.2s;
 }
 
-.v2-root .nav-links a:hover {
+.v2-root .nav-links a:hover,
+.v2-root .version-toggle:hover {
   color: var(--ink);
+}
+
+.v2-root .version-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.v2-root .version-toggle:hover {
+  border-color: rgba(212, 197, 163, 0.55);
+  background: rgba(212, 197, 163, 0.08);
 }
 
 .v2-root .nav-cta {

@@ -1,19 +1,17 @@
 import {
-  DCA_CLASSIC_STRATEGY_ID,
-  DMA_FGI_HIERARCHICAL_SPY_CRYPTO_STRATEGY_ID,
-  DMA_GATED_FGI_DEFAULT_CONFIG_ID,
-  DMA_GATED_FGI_STRATEGY_ID,
+  DMA_FGI_HIERARCHICAL_MINIMUM_STRATEGY_ID,
+  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+  ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
+  ETH_BTC_ROTATION_STRATEGY_ID,
 } from '../constants';
 
 const STRATEGY_DISPLAY_NAMES: Record<string, string> = {
-  [DCA_CLASSIC_STRATEGY_ID]: 'DCA Classic',
-  [DMA_GATED_FGI_STRATEGY_ID]: 'DMA Gated FGI',
-  [DMA_GATED_FGI_DEFAULT_CONFIG_ID]: 'DMA Gated FGI Default',
-  [DMA_FGI_HIERARCHICAL_SPY_CRYPTO_STRATEGY_ID]:
-    'DMA FGI Hierarchical SPY/Crypto',
+  [ETH_BTC_ROTATION_STRATEGY_ID]: 'ETH/BTC Rotation',
+  [ETH_BTC_ROTATION_DEFAULT_CONFIG_ID]: 'ETH/BTC Rotation Default',
+  [DMA_FGI_HIERARCHICAL_MINIMUM_STRATEGY_ID]: 'Hierarchical Minimum',
+  [DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID]: 'Portfolio Rules',
 };
 
-const DCA_CLASSIC_COLOR = '#4b5563';
 const DEFAULT_COLOR = '#3b82f6';
 
 const STRATEGY_PALETTE = [
@@ -37,13 +35,6 @@ export function getStrategyDisplayName(strategyId: string): string {
 }
 
 export function getStrategyColor(strategyId: string, index?: number): string {
-  if (
-    strategyId === DCA_CLASSIC_STRATEGY_ID ||
-    strategyId.includes(DCA_CLASSIC_STRATEGY_ID)
-  ) {
-    return DCA_CLASSIC_COLOR;
-  }
-
   if (typeof index === 'number') {
     return STRATEGY_PALETTE[index % STRATEGY_PALETTE.length] ?? DEFAULT_COLOR;
   }

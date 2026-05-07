@@ -1,4 +1,4 @@
-"""Portfolio rule 5: equal-weight eligible assets on DMA cross-up."""
+"""Portfolio rule 20: equal-weight eligible assets on DMA cross-up."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     allocation_key_for_symbol,
     portfolio_target_intent,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -19,7 +20,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class CrossUpEqualWeightRule:
     name: str = "cross_up_equal_weight"
-    priority: int = 1
+    priority: int = 20
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
 
@@ -38,7 +39,6 @@ class CrossUpEqualWeightRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         eligible_symbols = _eligible_symbols(snapshot)
         trigger_symbols = [
             symbol
@@ -57,6 +57,12 @@ class CrossUpEqualWeightRule:
             rule_group=self.rule_group,
             assets=eligible_symbols,
             immediate=True,
+            signals_consulted=signals_consulted_for_symbols(
+                snapshot,
+                tuple(eligible_symbols),
+            )
+            if config.emit_signals_consulted
+            else None,
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics["portfolio_rule_trigger_assets"] = trigger_symbols

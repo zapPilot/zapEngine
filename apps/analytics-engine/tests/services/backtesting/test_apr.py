@@ -7,7 +7,7 @@ from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.execution.portfolio import Portfolio
 
 # NOTE: simulate_regime_strategy_pool was removed with Smart DCA strategy.
-# Tests using it are skipped pending refactor to use Simple Regime or DCA Classic.
+# Tests using it are skipped pending refactor to a registered regime strategy.
 
 
 class TestAPRByRegimeConstants:

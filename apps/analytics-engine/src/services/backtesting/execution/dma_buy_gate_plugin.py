@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionPluginDiagnostic
 from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.execution.dma_buy_gate import (
+    DmaBuyGateConfigMixin,
+    DmaBuyGateSnapshot,
+)
 from src.services.backtesting.execution.plugins import (
     ExecutionPluginResult,
     PluginInvocation,
@@ -15,10 +19,6 @@ from src.services.backtesting.execution.rebalance_calculator import (
     RebalanceCalculator,
 )
 from src.services.backtesting.strategies.base import TransferIntent
-from src.services.backtesting.strategies.dma_buy_sideways_gate import (
-    DmaBuyGateConfigMixin,
-    DmaBuyGateSnapshot,
-)
 
 _PLUGIN_ID = "dma_buy_gate"
 _EPSILON = 1e-6

@@ -10,6 +10,7 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     current_target,
     portfolio_target_intent,
+    ratio_signals_consulted,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
 
@@ -17,7 +18,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class EthBtcRatioRotationRule:
     name: str = "eth_btc_ratio_rotation"
-    priority: int = 2
+    priority: int = 21
     rule_group: RuleGroup = "cross"
     description: str = "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
 
@@ -39,7 +40,6 @@ class EthBtcRatioRotationRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         ratio_state = snapshot.eth_btc_ratio_state
         target = current_target(snapshot)
         btc = float(target.get("btc", 0.0))
@@ -60,6 +60,9 @@ class EthBtcRatioRotationRule:
             rule_group=self.rule_group,
             assets=["BTC", "ETH"],
             immediate=True,
+            signals_consulted=ratio_signals_consulted(snapshot)
+            if config.emit_signals_consulted
+            else None,
         )
 
 

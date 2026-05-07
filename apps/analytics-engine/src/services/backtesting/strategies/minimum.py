@@ -11,10 +11,6 @@ from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_FLAT_MINIMUM,
-)
 from src.services.backtesting.decision import (
     AllocationIntent,
     RuleGroup,
@@ -23,9 +19,6 @@ from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
     RatioSignalDiagnostics,
     SignalObservation,
-)
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationIntentExecutor,
 )
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
@@ -39,7 +32,6 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
-from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     BlockedZone,
@@ -53,10 +45,8 @@ from src.services.backtesting.signals.ratio_state import (
     detect_ratio_cross,
 )
 from src.services.backtesting.strategies.base import StrategyContext
-from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiDecisionPolicy,
-    DmaGatedFgiParams,
     DmaGatedFgiSignalComponent,
 )
 from src.services.backtesting.target_allocation import (
@@ -438,71 +428,6 @@ class FlatMinimumDecisionPolicy(DecisionPolicy):
         )
 
 
-@dataclass
-class FlatMinimumStrategy(ComposedSignalStrategy):
-    """Flat event-driven DMA baseline across SPY, BTC, ETH, and stable."""
-
-    total_capital: float
-    signal_id: str = FLAT_MINIMUM_SIGNAL_ID
-    summary_signal_id: str | None = FLAT_MINIMUM_SIGNAL_ID
-    params: DmaGatedFgiParams | dict[str, Any] = field(
-        default_factory=DmaGatedFgiParams
-    )
-    signal_component: StatefulSignalComponent = field(init=False, repr=False)
-    decision_policy: DecisionPolicy = field(init=False, repr=False)
-    execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
-    public_params: dict[str, Any] = field(default_factory=dict)
-    strategy_id: str = STRATEGY_DMA_FGI_FLAT_MINIMUM
-    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_FLAT_MINIMUM]
-    canonical_strategy_id: str = STRATEGY_DMA_FGI_FLAT_MINIMUM
-    initial_spot_asset: str = "BTC"
-    initial_asset_allocation: dict[str, float] | None = None
-
-    def __post_init__(self) -> None:
-        if self.signal_id != FLAT_MINIMUM_SIGNAL_ID:
-            raise ValueError(f"signal_id must be '{FLAT_MINIMUM_SIGNAL_ID}'")
-        resolved_params = (
-            self.params
-            if isinstance(self.params, DmaGatedFgiParams)
-            else DmaGatedFgiParams.from_public_params(self.params)
-        )
-        self.params = resolved_params
-        self.signal_component = FlatMinimumSignalComponent(
-            config=resolved_params.build_signal_config()
-        )
-        self.decision_policy = FlatMinimumDecisionPolicy()
-        self.execution_engine = AllocationIntentExecutor(
-            pacing_policy=resolved_params.build_pacing_policy(),
-            plugins=resolved_params.build_execution_plugins(),
-        )
-        self.public_params = {
-            "signal_id": self.signal_id,
-            **runtime_params_to_public_params(
-                STRATEGY_DMA_FGI_FLAT_MINIMUM,
-                resolved_params.to_public_params(),
-            ),
-        }
-
-    def feature_summary(self) -> dict[str, Any]:
-        return {
-            "policy": "FlatMinimumStrategy",
-            "active_features": [
-                "per_asset_dma_stable_gating",
-                "greed_sell_suppression",
-                "extreme_fear_stable_redeployment",
-            ],
-            "hierarchical_layers": False,
-            "ratio_rotation": False,
-            "research_only": True,
-        }
-
-    def parameters(self) -> dict[str, Any]:
-        return {
-            **self.public_params,
-            "feature_summary": self.feature_summary(),
-        }
-
-
 def build_initial_flat_minimum_asset_allocation(
     *,
     aggregate_allocation: Mapping[str, float],
@@ -870,6 +795,5 @@ __all__ = [
     "FlatMinimumDecisionPolicy",
     "FlatMinimumSignalComponent",
     "FlatMinimumState",
-    "FlatMinimumStrategy",
     "build_initial_flat_minimum_asset_allocation",
 ]

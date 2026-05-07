@@ -7,6 +7,12 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-07 — Portfolio rules hierarchical-feature port stopped at DMA stable gating
+- **Commit**: pending local change (`dma_fgi_portfolio_rules` priority-spacing setup)
+- **Finding**: Phase 0 priority spacing was behavior-neutral after preserving the existing optional `dma_buy_gate` order after overextension sells. Phase 1's direct flat translation of DMA stable gating (`BTC/ETH below DMA` + crypto FGI in `fear/extreme_fear` -> route to stable) had the wrong sign and was reverted per the stop condition. The ablation proved isolation, but the trigger was too broad in the flat rule layer and blocked profitable extreme-fear DCA exposure.
+- **Snapshot result**: Phase 0 baseline remained `dma_fgi_portfolio_rules` ROI 64.10%, Calmar 4.27, 48 trades. The reverted Phase 1 candidate fell to ROI 21.76%, Calmar 1.51, 33 trades, while `_minus_dma_stable_gating` returned to ROI 64.10%, Calmar 4.27, 48 trades.
+- **Next**: Reassess the source behavior before trying another port. The profitable hierarchical "DMA stable gating" appears tied to outer DMA intent composition, not the broad below-DMA fear/extreme-fear crypto blocker tested here.
+
 ### 2026-05-07 — Cross-up cooldown restored and validation trigger assets
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` cooldown validation follow-up)
 - **Finding**: Reverted the raw `cross_event` re-entry bypass introduced in the 2026-05-06 iteration: `cross_up_equal_weight` now requires `actionable_cross_event == "cross_up"` and emits `portfolio_rule_trigger_assets` so hierarchical observation diagnostics select the actual cross-triggering asset. `analyze_compare.py` now marks cross-down validation events as `SKIPPED` when the reference asset was already at zero in the previous explicit target allocation.

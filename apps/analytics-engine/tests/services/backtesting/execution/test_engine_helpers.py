@@ -6,7 +6,6 @@ import pytest
 
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
 from src.services.backtesting.execution.compare import (
-    find_unused_config_id,
     materialize_compare_request,
 )
 from src.services.backtesting.execution.engine import (
@@ -36,13 +35,12 @@ from src.services.backtesting.utils.two_bucket import (
     sanitize_runtime_allocation,
 )
 from tests.services.backtesting.support import make_strategy_snapshot
-from tests.services.backtesting.support.scenarios import dma_public_params
 
 
 class WarmupAwareStrategy(BaseStrategy):
     strategy_id = "warmup_aware"
     display_name = "Warmup Aware"
-    canonical_strategy_id = "dca_classic"
+    canonical_strategy_id = "eth_btc_rotation"
 
     def __init__(self) -> None:
         self.warmup_calls = 0
@@ -59,7 +57,7 @@ class WarmupAwareStrategy(BaseStrategy):
 class ExplicitSignalSummaryStrategy(BaseStrategy):
     strategy_id = "summary_signal"
     display_name = "Summary Signal"
-    canonical_strategy_id = "dma_gated_fgi"
+    canonical_strategy_id = "eth_btc_rotation"
     summary_signal_id = "explicit_signal"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
@@ -232,14 +230,6 @@ def test_allocation_helpers_and_coercion_fallbacks() -> None:
 
 def test_misc_engine_helpers_cover_edge_cases() -> None:
     assert calculate_roi_percent(100.0, 0.0) == 0.0
-    assert find_unused_config_id("dca_classic", {"dca_classic", "dca_classic-2"}) == (
-        "dca_classic-3"
-    )
-    with pytest.raises(ValueError, match="Could not generate unique config_id"):
-        find_unused_config_id(
-            "dca_classic",
-            {"dca_classic", *{f"dca_classic-{idx}" for idx in range(2, 1000)}},
-        )
 
 
 def test_build_strategy_summaries_uses_explicit_summary_signal_id() -> None:
@@ -259,7 +249,7 @@ def test_build_strategy_summaries_uses_explicit_summary_signal_id() -> None:
     assert summary.parameters == {"lookback_days": 30}
 
 
-def test_materialize_compare_request_passes_through_existing_baseline() -> None:
+def test_materialize_compare_request_passes_through_request() -> None:
     from src.models.backtesting import BacktestCompareRequestV3
 
     request = BacktestCompareRequestV3(
@@ -267,14 +257,9 @@ def test_materialize_compare_request_passes_through_existing_baseline() -> None:
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="dca_classic",
-                strategy_id="dca_classic",
+                config_id="eth_rotation_runtime",
+                strategy_id="eth_btc_rotation",
                 params={},
-            ),
-            BacktestCompareConfigV3(
-                config_id="dma_runtime",
-                strategy_id="dma_gated_fgi",
-                params=dma_public_params(),
             ),
         ],
     )
@@ -319,7 +304,7 @@ def test_resolve_price_map_skips_non_positive_value() -> None:
 class _SimpleHoldStrategy(BaseStrategy):
     strategy_id = "simple_hold"
     display_name = "Simple Hold"
-    canonical_strategy_id = "dca_classic"
+    canonical_strategy_id = "eth_btc_rotation"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         return StrategyAction(snapshot=make_strategy_snapshot(reason="hold"))

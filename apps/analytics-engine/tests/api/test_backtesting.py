@@ -150,10 +150,9 @@ def _compare_payload(**overrides: object) -> dict[str, object]:
         "total_capital": 10_000,
         "days": 30,
         "configs": [
-            {"config_id": "dca_classic", "strategy_id": "dca_classic", "params": {}},
             {
-                "config_id": "dma_gated_fgi_default",
-                "strategy_id": "dma_gated_fgi",
+                "config_id": "portfolio_rules_runtime",
+                "strategy_id": "dma_fgi_portfolio_rules",
                 "params": _dma_params(),
             },
         ],
@@ -179,30 +178,10 @@ async def _post_compare(
 def _response() -> BacktestResponse:
     return BacktestResponse(
         strategies={
-            "dca_classic": StrategySummary(
-                strategy_id="dca_classic",
-                display_name="dca_classic",
-                signal_id=None,
-                total_invested=10_000.0,
-                final_value=10_250.0,
-                roi_percent=2.5,
-                trade_count=10,
-                calmar_ratio=0.31,
-                max_drawdown_percent=-4.2,
-                final_allocation=Allocation(spot=0.5, stable=0.5),
-                final_asset_allocation=AssetAllocation(
-                    btc=0.5,
-                    eth=0.0,
-                    spy=0.0,
-                    stable=0.5,
-                    alt=0.0,
-                ),
-                parameters={},
-            ),
-            "dma_gated_fgi_default": StrategySummary(
-                strategy_id="dma_gated_fgi",
-                display_name="dma_gated_fgi_default",
-                signal_id="dma_gated_fgi",
+            "portfolio_rules_runtime": StrategySummary(
+                strategy_id="dma_fgi_portfolio_rules",
+                display_name="portfolio_rules_runtime",
+                signal_id="dma_fgi_portfolio_rules_signal",
                 total_invested=10_000.0,
                 final_value=10_500.0,
                 roi_percent=5.0,
@@ -229,52 +208,7 @@ def _response() -> BacktestResponse:
                     sentiment_label="greed",
                 ),
                 strategies={
-                    "dca_classic": StrategyState(
-                        portfolio=PortfolioState(
-                            spot_usd=5_000.0,
-                            stable_usd=5_000.0,
-                            total_value=10_000.0,
-                            allocation=Allocation(spot=0.5, stable=0.5),
-                            asset_allocation=AssetAllocation(
-                                btc=0.5,
-                                eth=0.0,
-                                spy=0.0,
-                                stable=0.5,
-                                alt=0.0,
-                            ),
-                            spot_asset="BTC",
-                        ),
-                        signal=None,
-                        decision=DecisionState(
-                            action="buy",
-                            reason="daily_buy",
-                            rule_group="none",
-                            target_allocation=TargetAllocation(
-                                btc=1.0,
-                                eth=0.0,
-                                spy=0.0,
-                                stable=0.0,
-                                alt=0.0,
-                            ),
-                            immediate=False,
-                        ),
-                        execution=ExecutionState(
-                            event="buy",
-                            transfers=[
-                                TransferRecord(
-                                    from_bucket="stable",
-                                    to_bucket="spot",
-                                    amount_usd=500.0,
-                                )
-                            ],
-                            blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(),
-                        ),
-                    ),
-                    "dma_gated_fgi_default": StrategyState(
+                    "portfolio_rules_runtime": StrategyState(
                         portfolio=PortfolioState(
                             spot_usd=0.0,
                             stable_usd=10_000.0,
@@ -290,7 +224,7 @@ def _response() -> BacktestResponse:
                             spot_asset=None,
                         ),
                         signal=SignalState(
-                            id="dma_gated_fgi",
+                            id="dma_fgi_portfolio_rules_signal",
                             regime="greed",
                             raw_value=72.0,
                             confidence=1.0,
@@ -354,52 +288,7 @@ def _response() -> BacktestResponse:
                     sentiment_label="extreme_fear",
                 ),
                 strategies={
-                    "dca_classic": StrategyState(
-                        portfolio=PortfolioState(
-                            spot_usd=5_200.0,
-                            stable_usd=5_000.0,
-                            total_value=10_200.0,
-                            allocation=Allocation(spot=0.51, stable=0.49),
-                            asset_allocation=AssetAllocation(
-                                btc=0.51,
-                                eth=0.0,
-                                spy=0.0,
-                                stable=0.49,
-                                alt=0.0,
-                            ),
-                            spot_asset="BTC",
-                        ),
-                        signal=None,
-                        decision=DecisionState(
-                            action="buy",
-                            reason="daily_buy",
-                            rule_group="none",
-                            target_allocation=TargetAllocation(
-                                btc=1.0,
-                                eth=0.0,
-                                spy=0.0,
-                                stable=0.0,
-                                alt=0.0,
-                            ),
-                            immediate=False,
-                        ),
-                        execution=ExecutionState(
-                            event="buy",
-                            transfers=[
-                                TransferRecord(
-                                    from_bucket="stable",
-                                    to_bucket="spot",
-                                    amount_usd=500.0,
-                                )
-                            ],
-                            blocked_reason=None,
-                            step_count=1,
-                            steps_remaining=0,
-                            interval_days=1,
-                            diagnostics=ExecutionDiagnostics(),
-                        ),
-                    ),
-                    "dma_gated_fgi_default": StrategyState(
+                    "portfolio_rules_runtime": StrategyState(
                         portfolio=PortfolioState(
                             spot_usd=6_000.0,
                             stable_usd=4_000.0,
@@ -415,7 +304,7 @@ def _response() -> BacktestResponse:
                             spot_asset="ETH",
                         ),
                         signal=SignalState(
-                            id="dma_gated_fgi",
+                            id="dma_fgi_portfolio_rules_signal",
                             regime="extreme_fear",
                             raw_value=15.0,
                             confidence=1.0,
@@ -498,10 +387,13 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
     strategy_ids = [entry.strategy_id for entry in catalog.strategies]
     expected_strategy_ids = [recipe.strategy_id for recipe in list_strategy_recipes()]
     assert strategy_ids == expected_strategy_ids
+    assert len(strategy_ids) == 10
     assert "dma_gated_fgi_btc_asset_control" not in strategy_ids
     assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
     dma_entry = next(
-        entry for entry in catalog.strategies if entry.strategy_id == "dma_gated_fgi"
+        entry
+        for entry in catalog.strategies
+        if entry.strategy_id == "dma_fgi_portfolio_rules"
     )
     assert (
         cast(dict[str, object], dma_entry.default_params["signal"])[
@@ -510,7 +402,7 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         == 30
     )
     assert "signal" in dma_entry.param_schema["properties"]
-    assert dma_entry.supports_daily_suggestion is True
+    assert dma_entry.supports_daily_suggestion is False
 
     configs_response = await client.get("/api/v3/strategy/configs")
     assert configs_response.status_code == 200
@@ -532,45 +424,35 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
     assert response.status_code == 200
     assert service.call_count == 1
     assert service.last_request is not None
-    assert service.last_request.configs[1].params == _dma_runtime_params()
+    assert service.last_request.configs[0].params == _dma_runtime_params()
 
     parsed = BacktestResponse.model_validate(response.json())
-    assert set(parsed.strategies) == {"dca_classic", "dma_gated_fgi_default"}
-    assert parsed.strategies["dca_classic"].sharpe_ratio == pytest.approx(0.0)
-    assert parsed.strategies["dca_classic"].calmar_ratio == pytest.approx(0.31)
-    assert parsed.strategies["dca_classic"].max_drawdown_percent == pytest.approx(-4.2)
-    assert parsed.strategies["dma_gated_fgi_default"].calmar_ratio == pytest.approx(
+    assert set(parsed.strategies) == {"portfolio_rules_runtime"}
+    assert parsed.strategies["portfolio_rules_runtime"].calmar_ratio == pytest.approx(
         0.78
     )
     assert parsed.strategies[
-        "dma_gated_fgi_default"
+        "portfolio_rules_runtime"
     ].max_drawdown_percent == pytest.approx(-2.5)
     assert parsed.window is not None
     assert parsed.window.truncated is True
     assert parsed.window.requested.days == 30
     assert parsed.window.effective.start_date == date(2024, 1, 10)
     assert len(parsed.timeline) == 2
-    dma_point = parsed.timeline[0].strategies["dma_gated_fgi_default"]
-    dma_eth_point = parsed.timeline[1].strategies["dma_gated_fgi_default"]
+    dma_point = parsed.timeline[0].strategies["portfolio_rules_runtime"]
+    dma_eth_point = parsed.timeline[1].strategies["portfolio_rules_runtime"]
     assert dma_point.signal is not None
-    assert dma_point.signal.id == "dma_gated_fgi"
-    assert parsed.timeline[0].strategies["dca_classic"].portfolio.spot_asset == "BTC"
+    assert dma_point.signal.id == "dma_fgi_portfolio_rules_signal"
     assert dma_point.portfolio.spot_asset is None
     assert dma_eth_point.portfolio.spot_asset == "ETH"
     assert (
-        response.json()["timeline"][0]["strategies"]["dca_classic"]["portfolio"][
-            "spot_asset"
-        ]
-        == "BTC"
-    )
-    assert (
-        response.json()["timeline"][0]["strategies"]["dma_gated_fgi_default"][
+        response.json()["timeline"][0]["strategies"]["portfolio_rules_runtime"][
             "portfolio"
         ]["spot_asset"]
         is None
     )
     assert (
-        response.json()["timeline"][1]["strategies"]["dma_gated_fgi_default"][
+        response.json()["timeline"][1]["strategies"]["portfolio_rules_runtime"][
             "portfolio"
         ]["spot_asset"]
         == "ETH"
@@ -669,8 +551,8 @@ async def test_backtesting_compare_v3_maps_value_error_to_400(
         payload=_compare_payload(
             configs=[
                 {
-                    "config_id": "dca_classic",
-                    "strategy_id": "dca_classic",
+                    "config_id": "eth_rotation",
+                    "strategy_id": "eth_btc_rotation",
                     "params": {},
                 }
             ]
@@ -699,8 +581,8 @@ async def test_backtesting_compare_v3_returns_400_for_unusable_window(
             end_date="2024-01-31",
             configs=[
                 {
-                    "config_id": "dma_runtime",
-                    "strategy_id": "dma_gated_fgi",
+                    "config_id": "portfolio_rules_runtime",
+                    "strategy_id": "dma_fgi_portfolio_rules",
                     "params": {"signal": {"cross_cooldown_days": 30}},
                 }
             ],

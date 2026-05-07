@@ -13,10 +13,6 @@ from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
-)
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.domain import DmaSignalDiagnostics, SignalObservation
 from src.services.backtesting.execution.allocation_intent_executor import (
@@ -73,7 +69,7 @@ from src.services.backtesting.target_allocation import (
 )
 
 SPY_CRYPTO_TEMPLATE = PairRotationTemplateSpec(
-    template_id=STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
+    template_id="hierarchical_spy_crypto_template",
     signal_id="hierarchical_spy_crypto_signal",
     left_unit=PairRotationUnit(
         symbol="SPY",
@@ -693,9 +689,9 @@ class HierarchicalSpyCryptoRotationStrategy(ComposedSignalStrategy):
     decision_policy: DecisionPolicy = field(init=False, repr=False)
     execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
     public_params: dict[str, Any] = field(default_factory=dict)
-    strategy_id: str = STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
-    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO]
-    canonical_strategy_id: str = STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
+    strategy_id: str = "hierarchical_spy_crypto_rotation"
+    display_name: str = "Hierarchical SPY/Crypto Rotation"
+    canonical_strategy_id: str = "hierarchical_spy_crypto_rotation"
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
     adaptive_crypto_dma_reference: bool = True
@@ -1338,37 +1334,6 @@ def _compose_surgical(
     )
 
 
-def _compose_structural(
-    *,
-    outer_target: Mapping[str, float],
-    inner_target: Mapping[str, float],
-    current_allocation: Mapping[str, float],
-    outer_intent: AllocationIntent,
-    inner_intent: AllocationIntent,
-    spy_latch_active: bool,
-    pre_existing_stable_share: float,
-) -> dict[str, float]:
-    outer = normalize_target_allocation(outer_target)
-    current = target_from_current_allocation(current_allocation)
-    crypto_delta = _positive_crypto_delta(outer=outer, current=current)
-    crypto_delta_by_asset = (
-        _positive_crypto_delta_by_outer_asset(
-            outer=outer,
-            current=current,
-            crypto_delta=crypto_delta,
-        )
-        if crypto_delta > _COMPOSITION_EPSILON
-        else {}
-    )
-    return _compose_delta_first_target(
-        outer_target=outer,
-        inner_target=inner_target,
-        crypto_delta_by_asset=crypto_delta_by_asset,
-        spy_latch_active=spy_latch_active,
-        pre_existing_stable_share=pre_existing_stable_share,
-    )
-
-
 def _compose_delta_first_target(
     *,
     outer_target: Mapping[str, float],
@@ -1427,27 +1392,6 @@ def _positive_crypto_delta(
     current: Mapping[str, float],
 ) -> float:
     return max(0.0, _crypto_share(outer) - _crypto_share(current))
-
-
-def _positive_crypto_delta_by_outer_asset(
-    *,
-    outer: Mapping[str, float],
-    current: Mapping[str, float],
-    crypto_delta: float,
-) -> dict[str, float]:
-    positive_deltas = {
-        asset: max(0.0, float(outer.get(asset, 0.0)) - float(current.get(asset, 0.0)))
-        for asset in ("btc", "eth")
-    }
-    positive_total = sum(positive_deltas.values())
-    if positive_total <= _COMPOSITION_EPSILON:
-        return {}
-    scale = min(1.0, max(0.0, crypto_delta) / positive_total)
-    return {
-        asset: amount * scale
-        for asset, amount in positive_deltas.items()
-        if amount * scale > _COMPOSITION_EPSILON
-    }
 
 
 def _trigger_crypto_delta_asset(intent: AllocationIntent) -> str | None:
@@ -1632,7 +1576,6 @@ __all__ = [
     "HierarchicalTargetComposer",
     "HierarchicalSpyCryptoRotationStrategy",
     "SPY_CRYPTO_TEMPLATE",
-    "_compose_structural",
     "_compose_surgical",
     "default_hierarchical_pair_rotation_params",
 ]

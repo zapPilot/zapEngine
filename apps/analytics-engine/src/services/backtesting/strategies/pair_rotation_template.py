@@ -13,15 +13,8 @@ from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-)
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import RatioSignalDiagnostics, SignalObservation
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationIntentExecutor,
-)
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -39,7 +32,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     Zone,
 )
 from src.services.backtesting.strategies.base import StrategyContext
-from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiDecisionPolicy,
     DmaGatedFgiSignalComponent,
@@ -93,7 +85,7 @@ class PairRotationTemplateSpec:
 
 
 ADAPTIVE_BINARY_ETH_BTC_TEMPLATE = PairRotationTemplateSpec(
-    template_id=STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
+    template_id="adaptive_binary_eth_btc_template",
     signal_id="adaptive_binary_eth_btc_signal",
     left_unit=PairRotationUnit(
         symbol="ETH",
@@ -599,67 +591,8 @@ def _requires_pair_rotation(
     )
 
 
-@dataclass
-class DmaFgiAdaptiveBinaryEthBtcStrategy(ComposedSignalStrategy):
-    """Clean ETH/BTC template: adaptive DMA reference plus binary ratio-zone split."""
-
-    total_capital: float
-    signal_id: str = ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id
-    summary_signal_id: str = ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id
-    params: EthBtcRotationParams | dict[str, Any] = field(
-        default_factory=EthBtcRotationParams
-    )
-    signal_component: StatefulSignalComponent = field(init=False, repr=False)
-    decision_policy: DecisionPolicy = field(init=False, repr=False)
-    execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
-    public_params: dict[str, Any] = field(default_factory=dict)
-    strategy_id: str = STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC
-    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC]
-    canonical_strategy_id: str = STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC
-    initial_spot_asset: str = "BTC"
-    initial_asset_allocation: dict[str, float] | None = None
-    template: PairRotationTemplateSpec = ADAPTIVE_BINARY_ETH_BTC_TEMPLATE
-
-    def __post_init__(self) -> None:
-        resolved_params = (
-            self.params
-            if isinstance(self.params, EthBtcRotationParams)
-            else EthBtcRotationParams.from_public_params(self.params)
-        )
-        self.params = resolved_params
-        self.signal_id = self.template.signal_id
-        self.summary_signal_id = self.template.signal_id
-        self.signal_component = PairRotationTemplateSignalComponent(
-            config=resolved_params.build_signal_config(),
-            template=self.template,
-        )
-        self.decision_policy = PairRotationTemplateDecisionPolicy(
-            template=self.template,
-            rotation_drift_threshold=resolved_params.rotation_drift_threshold,
-            _dma_policy=DmaGatedFgiDecisionPolicy(
-                dma_overextension_threshold=resolved_params.dma_overextension_threshold,
-                fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
-                fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
-                disabled_rules=resolved_params.disabled_rules,
-            ),
-        )
-        self.execution_engine = AllocationIntentExecutor(
-            pacing_policy=resolved_params.build_pacing_policy(),
-            plugins=resolved_params.build_execution_plugins(),
-            rotation_cooldown_days=resolved_params.rotation_cooldown_days,
-        )
-        self.public_params = {
-            "signal_id": self.signal_id,
-            **resolved_params.to_public_params(),
-        }
-
-    def parameters(self) -> dict[str, Any]:
-        return dict(self.public_params)
-
-
 __all__ = [
     "ADAPTIVE_BINARY_ETH_BTC_TEMPLATE",
-    "DmaFgiAdaptiveBinaryEthBtcStrategy",
     "PairRotationTemplateDecisionPolicy",
     "PairRotationTemplateSignalComponent",
     "PairRotationTemplateSpec",
