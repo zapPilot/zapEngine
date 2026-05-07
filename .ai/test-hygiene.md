@@ -9,34 +9,33 @@ DO NOT modify any files.
 
 ## STEP 1 — Identify Files
 
-Test files:
-- *.test.ts
-- *.spec.ts
+Test files (any of these extensions):
+- *.test.{ts,tsx,mts,cts,js,jsx,mjs,cjs}
+- *.spec.{ts,tsx,mts,cts,js,jsx,mjs,cjs}
 
 Source files:
-- all .ts files EXCEPT:
-  - *.test.ts
-  - *.spec.ts
+- All .{ts,tsx,mts,cts,js,jsx,mjs,cjs} files EXCEPT:
+  - the test/spec patterns above
   - /node_modules/
+  - build output (dist/, build/, .next/, out/)
 
 ---
 
 ## STEP 2 — Match Source ↔ Test
 
-Matching rules:
+A source file `<dir>/<base>.<ext>` matches if ANY of these is true:
 
-A source file:
-- foo.ts
+(a) **Co-located**: `<dir>/<base>.test.<ext>` or `<dir>/<base>.spec.<ext>` exists, with `<ext>` from the test extension list above (extensions may differ, e.g. `.ts` source ↔ `.tsx` test).
 
-Matches test file if ANY of:
-- foo.test.ts (same folder)
-- foo.spec.ts (same folder)
-- __tests__/foo.test.ts
-- __tests__/foo.spec.ts
+(b) **`__tests__/` subfolder**: `<dir>/__tests__/<base>.test.*` or `<dir>/__tests__/<base>.spec.*` exists.
 
-If none found → missing_test
+(c) **Mirrored test root**: a file matching `**/tests/**/<base>.test.*`, `**/tests/**/<base>.spec.*`, `**/test/**/<base>.test.*`, or `**/test/**/<base>.spec.*` exists where the path under `tests/` (or `test/`) ends with the same trailing path segments as `<dir>` after stripping the source root (`src/`, `lib/`, `app/`). Basename match is case-insensitive (`walletService.ts` ↔ `WalletService.test.ts`).
 
-DO NOT guess beyond these rules
+(d) **Import-graph fallback**: any test file (matching the test patterns above) contains an import statement whose specifier resolves to the source file. Resolution uses (i) relative paths and (ii) tsconfig `paths` aliases declared in the nearest `tsconfig.json`. If you cannot resolve aliases reliably, treat any `from "@/..."` whose suffix matches `<dir>/<base>` (after stripping `src/`) as a hit.
+
+If NONE of (a)-(d) match → emit `missing_test`.
+
+DO NOT extend matching beyond these four rules. DO NOT guess from filename similarity, comments, or naming conventions outside those listed.
 
 ---
 
@@ -52,13 +51,11 @@ Source file has no matching test file
 
 ### 2. Empty or Trivial Tests
 
-Test file contains:
-- no "expect("
-- OR empty test blocks:
-  test(...) { }
-  it(...) { }
+A test file is `trivial_test` ONLY IF, after parsing/reading its full contents:
+- it contains zero `expect(` calls, OR
+- every `test(`/`it(` block has an empty body (`{}` or whitespace only).
 
-→ type: trivial_test
+DO NOT infer triviality from the filename, the path, or the presence of words like "test", "util", "helper" in the name. The filename is never evidence.
 
 ---
 
@@ -74,16 +71,20 @@ If unsure → SKIP
 
 ### 4. Risk Patterns
 
-Detect presence of:
+For each test file, look for these symbols:
+- `setTimeout` / `setInterval`
+- `Math.random`
+- `fetch(` / `axios.`
 
-- setTimeout
-- Math.random
-- fetch
-- axios
+Flag as `risk_pattern` ONLY IF the same test file does NOT also contain a corresponding mitigation:
 
-If found → type: risk_pattern
+| Symbol | Mitigation that suppresses the flag |
+|---|---|
+| setTimeout / setInterval | `vi.useFakeTimers(`, `jest.useFakeTimers(`, `sinon.useFakeTimers(` |
+| Math.random | `vi.spyOn(Math` (with `mockReturnValue`/`mockImplementation`), `jest.spyOn(Math` likewise, or seeded RNG import |
+| fetch / axios | `vi.mock(`, `jest.mock(`, `msw` import, `nock` import, or `setupServer` reference |
 
-DO NOT judge correctness
+If a mitigation exists in the same file, the symbol is considered properly controlled — do NOT flag.
 
 ---
 
@@ -92,6 +93,22 @@ DO NOT judge correctness
 - Clear → 0.9
 - Likely → 0.7
 - Unclear → 0.5 + "REQUIRES REVIEW"
+
+---
+
+## STEP 5 — Severity
+
+Default severity is `MEDIUM`.
+
+Override only when one of these explicit rules applies:
+
+- `broken_import` with confirmed missing target → `CRITICAL`
+- `missing_test` for a source file with > 100 LOC AND ≥ 2 exported functions → `HIGH`
+- `missing_test` for a source file with ≤ 25 LOC OR ≤ 1 exported function → `LOW`
+- `risk_pattern` after the Step 3.4 mitigation check → `MEDIUM`
+- `trivial_test` → `LOW`
+
+DO NOT assign severity based on file path keywords (e.g., "service" → CRITICAL). The rules above are exhaustive.
 
 ---
 
@@ -112,7 +129,7 @@ DO NOT judge correctness
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "confidence": number,
       "description": "string",
-      "suggested_action": "string"
+      "suggested_action": "string — one of: 'verify coverage exists; add test if confirmed missing', 'remove or fill empty test', 'add mock or fake timer for the flagged symbol', 'fix the broken import path'. Do NOT invent a specific test file path."
     }
   ]
 }
@@ -126,6 +143,8 @@ DO NOT judge correctness
 - DO NOT check test quality
 - Only use defined matching rules
 - If unsure → SKIP or mark "REQUIRES REVIEW"
+- DO NOT invent file paths in suggested_action. The scanner does not know the project's test-path convention.
+- DO NOT infer anything from filenames beyond the explicit matching rules in Step 2.
 - Output MUST be valid JSON
 - No extra text
 
