@@ -64,7 +64,7 @@ def _context(
     )
 
 
-def test_strategy_cross_down_exits_only_crossed_asset_to_stable() -> None:
+def test_strategy_cross_down_exits_crypto_peers_to_stable() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,

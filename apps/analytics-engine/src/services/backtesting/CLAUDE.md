@@ -41,7 +41,7 @@ Source files:
 | `dma_fgi_eth_btc_minimum` | 145.28% | Research only — no SPY, 2-asset |
 | `dma_fgi_adaptive_binary_eth_btc` | 141.21% | Production champion (no SPY) |
 | `dma_fgi_hierarchical_full_minus_adaptive_dma` | 110.88% | Attribution reference |
-| `dma_fgi_portfolio_rules` | 55.02% | Research only — flat portfolio-level rules |
+| `dma_fgi_portfolio_rules` | 64.31% | Research only — flat portfolio-level rules |
 | `dma_gated_fgi` | 25.75% | Basic DMA-gated FGI baseline |
 | `dca_classic` | -14.36% | Negative baseline |
 
@@ -54,7 +54,7 @@ atomically through `RuleBasedAllocationExecutor` instead of the shared pacing
 executor. The DMA buy gate and trade quota guard are modeled as rule-layer hold
 guards for this strategy only; legacy pacing/plugins remain available to other
 strategies. Cross-down cooldown is per symbol: BTC/ETH/SPY use 30 days by
-default. The 500-day fixture baseline is 55.02% ROI, 3.20 Calmar, -11.80%
+default. The 500-day fixture baseline is 64.31% ROI, 4.28 Calmar, -10.20%
 MaxDD, and 47 trades. It is a traceability baseline, not a performance target;
 compare rule attribution against the canonical entry.
 

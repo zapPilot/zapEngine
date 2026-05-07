@@ -358,7 +358,6 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
         history_start_date="2024-11-01",
         output_format="json",
         enrich_db="never",
-        profile="spy-eth-btc-rotation",
     )
 
     assert captured["request"]["start_date"] == "2024-11-01"
@@ -389,15 +388,16 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
     )
     assert data["records"][0]["rule"]["classification"] == "intended_rule"
     assert "full re-entry" in data["records"][0]["rule"]["summary"]
+    assert data["sections"] == list(analyzer.SECTION_ORDER)
+    assert "profile" not in data
 
 
-def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None:
+def test_default_sections_include_spy_dma_and_asset_class_summary() -> None:
     rendered = analyzer.analyze_response_payload(
         _spy_payload(),
         strategy_id="dma_fgi_hierarchical_spy_crypto",
         output_format="json",
         enrich_db="never",
-        profile="spy-eth-btc-rotation",
         source_label="fixture",
         request_body={"configs": []},
     )
@@ -414,6 +414,13 @@ def test_spy_rotation_profile_includes_spy_dma_and_asset_class_summary() -> None
     assert "crypto_gate_state" in record["asset_class"]
     assert record["rule"]["classification"] == "intended_rule"
     assert "SPY DMA cross_down" in record["rule"]["summary"]
+
+
+def test_profile_cli_argument_is_removed() -> None:
+    parser = analyzer._build_arg_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--profile", "spy-eth-btc-rotation"])
 
 
 def test_analyze_compare_surfaces_matched_rule_name() -> None:
@@ -590,6 +597,163 @@ def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
         "expected spy_dma cross_event='cross_down'"
         in validation["violations"][0]["message"]
     )
+
+
+def test_cross_down_precondition_skips_when_reference_asset_already_zero() -> None:
+    event = {
+        "id": "btc_cross_down_already_exited",
+        "event_type": "crypto_cross_down",
+        "event_date": "2025-03-08",
+        "reference_asset": "BTC",
+        "assertions": [],
+    }
+    previous_point = {
+        "date": "2025-03-07",
+        "decision": {
+            "target_allocation": {
+                "btc": 0.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 1.0,
+                "alt": 0.0,
+            }
+        },
+    }
+    event_point = {
+        "date": "2025-03-08",
+        "decision": {
+            "target_allocation": {
+                "btc": 0.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 1.0,
+                "alt": 0.0,
+            }
+        },
+    }
+    points = [previous_point, event_point]
+
+    reason = analyzer._maybe_precondition_skip(event, points, event_point)
+    result = analyzer._validate_constraint_case(case=event, points=points)
+
+    assert reason is not None
+    assert result["status"] == "SKIPPED"
+    assert result["passed"] is True
+    assert "reference asset BTC already at 0.0" in result["message"]
+
+    control_points = deepcopy(points)
+    control_points[0]["decision"]["target_allocation"]["btc"] = 0.3
+
+    assert (
+        analyzer._maybe_precondition_skip(
+            event,
+            control_points,
+            control_points[1],
+        )
+        is None
+    )
+
+
+def test_markdown_output_is_saved_before_constraint_failure_raise(
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    out_path = tmp_path / "constraint_failure.md"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "bad_stable_target",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 1.0,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    with pytest.raises(analyzer.ConstraintValidationFailed):
+        analyzer.analyze_response_payload(
+            _payload(),
+            strategy_id="eth_btc_rotation_default",
+            date_filter="2025-04-22",
+            output_format="markdown",
+            enrich_db="never",
+            source_label="fixture",
+            request_body={"configs": []},
+            constraints_fixture=str(fixture),
+            out_path=str(out_path),
+            fail_on_constraint_violation=True,
+        )
+
+    saved = out_path.read_text()
+    assert "| bad_stable_target | 2025-04-22 | crypto_cross_up | FAIL |" in saved
+    assert f"Saved to {out_path.resolve()}" in capsys.readouterr().err
+
+
+def test_markdown_render_failure_writes_fallback_before_reraising(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    out_path = tmp_path / "render_failure.md"
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-22": {
+                    "events": [
+                        {
+                            "id": "bad_stable_target",
+                            "event_type": "crypto_cross_up",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_equals",
+                                    "asset": "stable",
+                                    "value": 1.0,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    def _raise_render_error(*_: Any, **__: Any) -> str:
+        raise RuntimeError("render boom")
+
+    monkeypatch.setattr(analyzer, "_render_markdown", _raise_render_error)
+
+    with pytest.raises(RuntimeError, match="render boom"):
+        analyzer.analyze_response_payload(
+            _payload(),
+            strategy_id="eth_btc_rotation_default",
+            date_filter="2025-04-22",
+            output_format="markdown",
+            enrich_db="never",
+            source_label="fixture",
+            request_body={"configs": []},
+            constraints_fixture=str(fixture),
+            out_path=str(out_path),
+        )
+
+    saved = out_path.read_text()
+    assert "# Compare Analysis Rendering Failed" in saved
+    assert "- Exception: `RuntimeError`" in saved
+    assert "- Message: `render boom`" in saved
+    assert "| bad_stable_target | 2025-04-22 | crypto_cross_up | FAIL |" in saved
+    assert f"Saved fallback to {out_path.resolve()}" in capsys.readouterr().err
 
 
 def test_ratio_cross_constraint_requires_zone_transition(tmp_path: Any) -> None:

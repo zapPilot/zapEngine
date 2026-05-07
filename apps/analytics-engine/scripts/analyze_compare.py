@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from collections import deque
 from datetime import date, timedelta
 from pathlib import Path
@@ -15,9 +16,6 @@ from src.services.backtesting.strategies.hierarchical_attribution import (
 )
 from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
 
-AnalysisProfile = Literal[
-    "eth-btc-rotation", "spy-eth-btc-rotation", "dma-cross", "raw"
-]
 OutputFormat = Literal["text", "json", "markdown"]
 EnrichMode = Literal["auto", "never", "required"]
 
@@ -906,6 +904,7 @@ def _validate_constraint_case(
         "description": description if isinstance(description, str) else "",
         "rationale": rationale if isinstance(rationale, str) else "",
         "passed": False,
+        "status": "FAIL",
         "message": "",
         "assertions_checked": 0,
     }
@@ -913,6 +912,15 @@ def _validate_constraint_case(
         return {
             **base_result,
             "message": f"{event_date}: no compare timeline point found",
+        }
+
+    skip_reason = _maybe_precondition_skip(case, points, event_point)
+    if skip_reason is not None:
+        return {
+            **base_result,
+            "passed": True,
+            "status": "SKIPPED",
+            "message": skip_reason,
         }
 
     trigger_failure = _constraint_event_trigger_failure(
@@ -946,9 +954,42 @@ def _validate_constraint_case(
     return {
         **base_result,
         "passed": True,
+        "status": "PASS",
         "message": "passed",
         "assertions_checked": len(assertions),
     }
+
+
+def _maybe_precondition_skip(
+    event: dict[str, Any],
+    points: list[dict[str, Any]],
+    point: dict[str, Any],
+) -> str | None:
+    event_type = event.get("event_type")
+    if event_type not in {"crypto_cross_down", "spy_cross_down"}:
+        return None
+
+    reference = _optional_upper(event.get("reference_asset"))
+    if reference is None and event_type == "spy_cross_down":
+        reference = "SPY"
+    if reference is None:
+        return None
+
+    previous = _previous_constraint_point(points=points, event_point=point)
+    if previous is None:
+        return None
+
+    target = _safe_mapping(_constraint_decision(previous).get("target_allocation"))
+    reference_key = reference.lower()
+    if reference_key not in target:
+        return None
+    prev_alloc = _constraint_number(target.get(reference_key))
+    if abs(prev_alloc) < 1e-9:
+        return (
+            f"reference asset {reference} already at 0.0 in previous target_allocation; "
+            "peer-group/earlier exit covered this cross_down"
+        )
+    return None
 
 
 def _constraint_event_trigger_failure(
@@ -1707,48 +1748,6 @@ def _build_active_tactics(strategy_id: str) -> dict[str, Any]:
     }
 
 
-def _default_sections(profile: AnalysisProfile) -> tuple[str, ...]:
-    if profile == "raw":
-        return ("market", "decision", "execution", "portfolio")
-    if profile == "dma-cross":
-        return (
-            "market",
-            "outer_dma",
-            "decision",
-            "execution",
-            "portfolio",
-            "consistency",
-            "rule",
-        )
-    if profile == "spy-eth-btc-rotation":
-        return (
-            "market",
-            "outer_dma",
-            "spy_dma",
-            "inner_ratio",
-            "asset_class",
-            "decision",
-            "execution",
-            "portfolio",
-            "rule",
-        )
-    return SECTION_ORDER
-
-
-def _selected_sections(
-    profile: AnalysisProfile,
-    requested_sections: list[str] | None,
-) -> tuple[str, ...]:
-    if not requested_sections:
-        return _default_sections(profile)
-    if profile == "raw":
-        return tuple(
-            section for section in requested_sections if section in SECTION_ORDER
-        )
-    sections = tuple(dict.fromkeys(requested_sections))
-    return sections
-
-
 def _render_text_context(context: dict[str, Any] | None) -> list[str]:
     if not context:
         return []
@@ -2079,7 +2078,9 @@ def _render_markdown_constraints(validation: dict[str, Any] | None) -> list[str]
             ]
         )
         for result in results:
-            status = "PASS" if result.get("passed") else "FAIL"
+            status = str(
+                result.get("status") or ("PASS" if result.get("passed") else "FAIL")
+            )
             message = str(result.get("message") or "").replace("|", "\\|")
             lines.append(
                 "| "
@@ -2095,6 +2096,40 @@ def _render_markdown_constraints(validation: dict[str, Any] | None) -> list[str]
                 + " |"
             )
     return lines
+
+
+def _resolve_out_path(out_path: str | None) -> Path | None:
+    if out_path is None:
+        return None
+    return Path(out_path).expanduser().resolve()
+
+
+def _write_rendered_output(
+    path: Path, rendered: str, *, fallback: bool = False
+) -> None:
+    path.write_text(rendered, encoding="utf-8")
+    label = "Saved fallback to" if fallback else "Saved to"
+    print(f"{label} {path}", file=sys.stderr)
+
+
+def _render_markdown_failure_fallback(
+    *,
+    exc: Exception,
+    source_label: str,
+    request_body: dict[str, Any],
+    constraint_validation: dict[str, Any],
+) -> str:
+    lines = [
+        "# Compare Analysis Rendering Failed",
+        "",
+        f"- Source: `{source_label}`",
+        f"- Exception: `{type(exc).__name__}`",
+        f"- Message: `{str(exc)}`",
+        f"- Request: `{json.dumps(request_body, sort_keys=True, default=str)}`",
+        "",
+    ]
+    lines.extend(_render_markdown_constraints(constraint_validation))
+    return "\n".join(lines).rstrip()
 
 
 def _render_markdown_section(section: str, record: dict[str, Any]) -> list[str]:
@@ -2508,7 +2543,6 @@ def analyze_response_payload(
     date_filter: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
-    profile: AnalysisProfile = "eth-btc-rotation",
     sections: list[str] | None = None,
     output_format: OutputFormat = "json",
     enrich_db: EnrichMode = "auto",
@@ -2520,6 +2554,7 @@ def analyze_response_payload(
     constraint_event_ids: list[str] | None = None,
     fail_on_constraint_violation: bool = False,
 ) -> str:
+    resolved_out_path = _resolve_out_path(out_path)
     payload = load_payload(payload)
     timeline = load_timeline(payload)
     selected_strategy_id = select_strategy_id(timeline, strategy_id)
@@ -2539,29 +2574,7 @@ def analyze_response_payload(
         event_ids=constraint_event_ids,
     )
 
-    if profile == "raw":
-        lookback_context = _build_lookback_context(
-            normalized_points,
-            selected_start=selected_start,
-            ratio_metrics=compare_ratio_metrics,
-            lookback_days=lookback_days,
-        )
-        rendered = json.dumps(
-            {
-                "source": source_label,
-                "request": request_body,
-                "strategy_id": selected_strategy_id,
-                "profile": profile,
-                "window": payload.get("window"),
-                "warnings": warnings,
-                "lookback_context": lookback_context,
-                "constraint_validation": constraint_validation,
-                "records": filtered_points,
-            },
-            indent=2,
-            ensure_ascii=False,
-        )
-    else:
+    try:
         db_ratio_metrics, db_warnings = _load_db_ratio_metrics(
             normalized_points,
             enrich_db=enrich_db,
@@ -2581,7 +2594,9 @@ def analyze_response_payload(
             )
             for point in filtered_points
         ]
-        selected_sections = _selected_sections(profile, sections)
+        selected_sections = (
+            tuple(dict.fromkeys(sections)) if sections else SECTION_ORDER
+        )
         all_warnings = warnings + db_warnings
         if output_format == "json":
             rendered = json.dumps(
@@ -2589,7 +2604,6 @@ def analyze_response_payload(
                     "source": source_label,
                     "request": request_body,
                     "strategy_id": selected_strategy_id,
-                    "profile": profile,
                     "sections": list(selected_sections),
                     "window": payload.get("window"),
                     "warnings": all_warnings,
@@ -2616,9 +2630,19 @@ def analyze_response_payload(
                 lookback_context=lookback_context,
                 constraint_validation=constraint_validation,
             )
+    except Exception as exc:
+        if output_format == "markdown" and resolved_out_path is not None:
+            fallback_rendered = _render_markdown_failure_fallback(
+                exc=exc,
+                source_label=source_label,
+                request_body=request_body,
+                constraint_validation=constraint_validation,
+            )
+            _write_rendered_output(resolved_out_path, fallback_rendered, fallback=True)
+        raise
 
-    if out_path is not None:
-        Path(out_path).write_text(rendered)
+    if resolved_out_path is not None:
+        _write_rendered_output(resolved_out_path, rendered)
     if fail_on_constraint_violation and not constraint_validation.get("passed", True):
         raise ConstraintValidationFailed(rendered, constraint_validation)
     return rendered
@@ -2635,7 +2659,6 @@ def analyze_payload(
     to_date: str | None = None,
     days: int | None = None,
     total_capital: float = 10_000.0,
-    profile: AnalysisProfile = "eth-btc-rotation",
     sections: list[str] | None = None,
     output_format: OutputFormat = "json",
     enrich_db: EnrichMode = "auto",
@@ -2666,7 +2689,6 @@ def analyze_payload(
         date_filter=date_filter,
         from_date=from_date,
         to_date=to_date,
-        profile=profile,
         sections=sections,
         output_format=output_format,
         enrich_db=enrich_db,
@@ -2701,11 +2723,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--to-date", dest="to_date", help="Range end date")
     parser.add_argument("--days", type=int, help="Compare API days window")
     parser.add_argument("--total-capital", type=float, default=10_000.0)
-    parser.add_argument(
-        "--profile",
-        choices=["eth-btc-rotation", "spy-eth-btc-rotation", "dma-cross", "raw"],
-        default="eth-btc-rotation",
-    )
     parser.add_argument(
         "--section",
         dest="sections",
@@ -2767,7 +2784,6 @@ def main(argv: list[str] | None = None) -> int:
             to_date=args.to_date,
             days=args.days,
             total_capital=args.total_capital,
-            profile=args.profile,
             sections=args.sections,
             output_format=args.output_format,
             enrich_db=args.enrich_db,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -40,11 +40,16 @@ class CrossUpEqualWeightRule:
     ) -> AllocationIntent:
         del config
         eligible_symbols = _eligible_symbols(snapshot)
+        trigger_symbols = [
+            symbol
+            for symbol in eligible_symbols
+            if _is_cross_up_signal(snapshot, symbol)
+        ]
         per_asset = 0.0 if not eligible_symbols else 1.0 / len(eligible_symbols)
         target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
         for symbol in eligible_symbols:
             target[allocation_key_for_symbol(symbol)] = per_asset
-        return portfolio_target_intent(
+        intent = portfolio_target_intent(
             action="buy",
             target=normalize_target_allocation(target),
             allocation_name="portfolio_cross_up_equal_weight",
@@ -53,12 +58,14 @@ class CrossUpEqualWeightRule:
             assets=eligible_symbols,
             immediate=True,
         )
+        diagnostics = dict(intent.diagnostics or {})
+        diagnostics["portfolio_rule_trigger_assets"] = trigger_symbols
+        return replace(intent, diagnostics=diagnostics)
 
 
 def _has_cross_up(snapshot: PortfolioSnapshot) -> bool:
     return any(
-        snapshot.assets[symbol].actionable_cross_event == "cross_up"
-        for symbol in _eligible_symbols(snapshot)
+        _is_cross_up_signal(snapshot, symbol) for symbol in _eligible_symbols(snapshot)
     )
 
 
@@ -68,8 +75,15 @@ def _eligible_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
         and symbol in ALLOCATION_KEY_BY_SYMBOL
-        and not _is_reentry_cooldown_active(snapshot, symbol)
+        and (
+            _is_cross_up_signal(snapshot, symbol)
+            or not _is_reentry_cooldown_active(snapshot, symbol)
+        )
     ]
+
+
+def _is_cross_up_signal(snapshot: PortfolioSnapshot, symbol: str) -> bool:
+    return snapshot.assets[symbol].actionable_cross_event == "cross_up"
 
 
 def _is_reentry_cooldown_active(snapshot: PortfolioSnapshot, symbol: str) -> bool:

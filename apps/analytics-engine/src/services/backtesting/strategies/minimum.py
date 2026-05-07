@@ -777,7 +777,11 @@ def _asset_dma_allocation_name(
 
 def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
-    for key in ("flat_dma_assets", "portfolio_rule_assets"):
+    for key in (
+        "flat_dma_assets",
+        "portfolio_rule_trigger_assets",
+        "portfolio_rule_assets",
+    ):
         assets = diagnostics.get(key)
         if isinstance(assets, list):
             return frozenset(asset for asset in assets if isinstance(asset, str))

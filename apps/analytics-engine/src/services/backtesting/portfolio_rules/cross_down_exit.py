@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -15,6 +15,12 @@ from src.services.backtesting.portfolio_rules.base import (
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
+
+_ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
+    "BTC": ("BTC", "ETH"),
+    "ETH": ("BTC", "ETH"),
+    "SPY": ("SPY",),
+}
 
 
 @dataclass(frozen=True)
@@ -41,21 +47,28 @@ class CrossDownExitRule:
     ) -> AllocationIntent:
         del config
         matching_symbols = _cross_down_symbols(snapshot)
+        exit_symbols = _exit_symbols_for_cross_down(matching_symbols)
         target = current_target(snapshot)
-        for symbol in matching_symbols:
+        liquidated_symbols: list[str] = []
+        for symbol in exit_symbols:
             key = allocation_key_for_symbol(symbol)
             released = max(0.0, float(target.get(key, 0.0)))
             target[key] = 0.0
             add_stable(target, released)
-        return portfolio_target_intent(
+            if released > 0.0:
+                liquidated_symbols.append(symbol)
+        intent = portfolio_target_intent(
             action="sell",
             target=normalize_target_allocation(target),
             allocation_name="portfolio_cross_down_exit",
             reason="portfolio_cross_down_exit",
             rule_group=self.rule_group,
-            assets=matching_symbols,
+            assets=liquidated_symbols,
             immediate=True,
         )
+        diagnostics = dict(intent.diagnostics or {})
+        diagnostics["portfolio_rule_trigger_assets"] = matching_symbols
+        return replace(intent, diagnostics=diagnostics)
 
 
 def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:
@@ -64,6 +77,15 @@ def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].actionable_cross_event == "cross_down"
     ]
+
+
+def _exit_symbols_for_cross_down(symbols: list[str]) -> list[str]:
+    exit_symbols: list[str] = []
+    for symbol in symbols:
+        for peer in _ASSET_CLASS_PEERS.get(symbol, (symbol,)):
+            if peer not in exit_symbols:
+                exit_symbols.append(peer)
+    return exit_symbols
 
 
 __all__ = ["CrossDownExitRule"]

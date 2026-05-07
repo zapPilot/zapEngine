@@ -110,10 +110,10 @@
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "[RESEARCH] Portfolio Rules",
-      "calmar_ratio": 3.195,
-      "sharpe_ratio": 1.6251,
-      "max_drawdown_percent": -11.7969,
-      "roi_percent": 55.0236,
+      "calmar_ratio": 4.28,
+      "sharpe_ratio": 1.895,
+      "max_drawdown_percent": -10.2024,
+      "roi_percent": 64.3119,
       "trade_count": 47
     },
     "dma_fgi_portfolio_rules_minus_cross_down_exit": {
@@ -126,34 +126,34 @@
     },
     "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
-      "calmar_ratio": 3.1616,
-      "sharpe_ratio": 1.8527,
+      "calmar_ratio": 3.1375,
+      "sharpe_ratio": 1.8409,
       "max_drawdown_percent": -4.9285,
-      "roi_percent": 21.9737,
-      "trade_count": 36
+      "roi_percent": 21.802,
+      "trade_count": 35
     },
     "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
       "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
-      "calmar_ratio": 3.7043,
-      "sharpe_ratio": 1.7333,
+      "calmar_ratio": 4.0477,
+      "sharpe_ratio": 1.8852,
       "max_drawdown_percent": -10.2024,
-      "roi_percent": 55.1798,
-      "trade_count": 38
+      "roi_percent": 60.6102,
+      "trade_count": 39
     },
     "dma_fgi_portfolio_rules_minus_overextension_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
-      "calmar_ratio": 1.0211,
-      "sharpe_ratio": 1.0158,
-      "max_drawdown_percent": -27.564,
-      "roi_percent": 40.5083,
+      "calmar_ratio": 1.7043,
+      "sharpe_ratio": 1.2641,
+      "max_drawdown_percent": -21.266,
+      "roi_percent": 52.8134,
       "trade_count": 33
     },
     "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
-      "calmar_ratio": 3.2654,
-      "sharpe_ratio": 1.6291,
-      "max_drawdown_percent": -11.6426,
-      "roi_percent": 55.5284,
+      "calmar_ratio": 4.3095,
+      "sharpe_ratio": 1.8973,
+      "max_drawdown_percent": -10.209,
+      "roi_percent": 64.8294,
       "trade_count": 45
     },
     "dma_fgi_adaptive_binary_eth_btc": {

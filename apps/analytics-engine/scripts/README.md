@@ -31,7 +31,6 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_com
   --config-id dma_fgi_hierarchical_prod \
   --from-date 2025-01-01 \
   --to-date 2026-04-10 \
-  --profile spy-eth-btc-rotation \
   --format markdown \
   --out hierarchical_validation_$(date -I).md
 ```

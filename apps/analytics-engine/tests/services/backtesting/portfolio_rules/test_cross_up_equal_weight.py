@@ -36,7 +36,10 @@ def test_first_cross_up_deploys_all_stable_to_the_crossing_asset() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC"],
+        "portfolio_rule_trigger_assets": ["BTC"],
+    }
 
 
 def test_second_cross_up_rebalances_to_equal_weight() -> None:
@@ -61,7 +64,10 @@ def test_second_cross_up_rebalances_to_equal_weight() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.5, "eth": 0.5, "spy": 0.0, "stable": 0.0, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC", "ETH"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC", "ETH"],
+        "portfolio_rule_trigger_assets": ["ETH"],
+    }
 
 
 def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
@@ -92,7 +98,10 @@ def test_third_cross_up_rebalances_all_three_eligible_assets() -> None:
             "alt": 0.0,
         }
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY", "BTC", "ETH"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["SPY", "BTC", "ETH"],
+        "portfolio_rule_trigger_assets": ["SPY"],
+    }
 
 
 def test_cross_up_excludes_assets_not_above_dma() -> None:
@@ -130,6 +139,11 @@ def test_cross_up_equal_weight_does_not_fire_during_cooldown() -> None:
                 dma_distance=0.05,
                 cross_event="cross_up",
                 actionable_cross_event=None,
+                cooldown_state=DmaCooldownState(
+                    active=True,
+                    remaining_days=10,
+                    blocked_zone="above",
+                ),
             ),
             "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
         },
@@ -170,7 +184,44 @@ def test_cross_up_equal_weight_excludes_assets_in_reentry_cooldown() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["SPY"],
+        "portfolio_rule_trigger_assets": ["SPY"],
+    }
+
+
+def test_actionable_cross_up_bypasses_reentry_cooldown() -> None:
+    rule = CrossUpEqualWeightRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(
+                symbol="SPY",
+                zone="above",
+                dma_distance=0.02,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+                cooldown_state=DmaCooldownState(
+                    active=True,
+                    remaining_days=10,
+                    blocked_zone="above",
+                ),
+            ),
+            "BTC": state(symbol="BTC", zone="below", dma_distance=-0.05),
+            "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.25, "stable": 0.75, "alt": 0.0},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0}
+    )
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["SPY"],
+        "portfolio_rule_trigger_assets": ["SPY"],
+    }
 
 
 def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
@@ -199,4 +250,41 @@ def test_cross_up_equal_weight_fires_when_actionable_cross_resumes() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC"]}
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["BTC"],
+        "portfolio_rule_trigger_assets": ["BTC"],
+    }
+
+
+def test_cross_up_equal_weight_emits_trigger_assets_diagnostic() -> None:
+    rule = CrossUpEqualWeightRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="above", dma_distance=0.02),
+            "BTC": state(symbol="BTC", zone="above", dma_distance=0.05),
+            "ETH": state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.03,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+        },
+        current={"btc": 0.5, "eth": 0.0, "spy": 0.5, "stable": 0.0, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {
+            "btc": 1 / 3,
+            "eth": 1 / 3,
+            "spy": 1 / 3,
+            "stable": 0.0,
+            "alt": 0.0,
+        }
+    )
+    assert intent.diagnostics == {
+        "portfolio_rule_assets": ["SPY", "BTC", "ETH"],
+        "portfolio_rule_trigger_assets": ["ETH"],
+    }

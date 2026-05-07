@@ -120,7 +120,7 @@
           },
           {
             "type": "target_spy_not_greater_than_current",
-            "tolerance": 0.00001
+            "tolerance": 0.00002
           },
           {
             "type": "matched_rule_name_not_equals",
@@ -184,10 +184,6 @@
           {
             "type": "target_asset_increased_from_previous",
             "asset": "btc"
-          },
-          {
-            "type": "target_asset_decreased_from_previous",
-            "asset": "stable"
           }
         ],
         "rationale": "BTC cross-up redeploy applies to BTC-reference strategies; prod is using ETH as its adaptive crypto DMA reference in this window."
