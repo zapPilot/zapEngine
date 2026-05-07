@@ -1,0 +1,51 @@
+/* Generated from packages/design-tokens/tokens.json. Do not edit by hand. */
+:root,
+.v2-root {
+  --bg: #0a0a0a;
+  --bg-2: #0e0e10;
+  --surface: #0e0e10;
+  --surface-elevated: #18181b;
+  --ink: #f4f4f5;
+  --ink-dim: #a1a1aa;
+  --ink-faint: #52525b;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-hi: rgba(255, 255, 255, 0.16);
+  --accent: #d4c5a3;
+  --accent-soft: rgba(212, 197, 163, 0.16);
+  --accent-muted: #6a5e44;
+  --error: #ff6f61;
+  --success: #7ad88f;
+  --spy: #d7dde7;
+  --btc: #f7931a;
+  --usd: #2775ca;
+  --pillar-spy: #d7dde7;
+  --pillar-btc: #f7931a;
+  --pillar-usd: #2775ca;
+  --font-serif-token: 'Instrument Serif';
+  --font-mono-token: 'JetBrains Mono';
+  --font-sans-token: 'Geist Sans';
+  --radius-pill: 999px;
+  --radius-subtle: 4px;
+  --radius-control: 12px;
+  --radius-card: 8px;
+  --easing-primary: cubic-bezier(0.2, 0.65, 0.3, 0.99);
+
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --color-fd-background: var(--bg);
+  --color-fd-foreground: var(--ink);
+  --color-fd-muted: var(--bg-2);
+  --color-fd-muted-foreground: var(--ink-dim);
+  --color-fd-popover: var(--bg-2);
+  --color-fd-popover-foreground: var(--ink);
+  --color-fd-card: var(--bg-2);
+  --color-fd-card-foreground: var(--ink);
+  --color-fd-border: var(--line);
+  --color-fd-primary: var(--accent);
+  --color-fd-primary-foreground: var(--bg);
+  --color-fd-secondary: var(--surface-elevated);
+  --color-fd-secondary-foreground: var(--ink);
+  --color-fd-accent: var(--accent-soft);
+  --color-fd-accent-foreground: var(--ink);
+  --color-fd-ring: var(--accent);
+}

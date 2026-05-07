@@ -11,26 +11,30 @@ zapEngine/
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
 │   ├── frontend            # React 19 + Vite — dashboard SPA
-│   └── landing-page        # Next.js 15 — marketing & docs site (port 3000)
+│   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
+│   └── mobile              # Flutter — From Fed to Chain podcast app
 └── packages/
+    ├── design-tokens       # Shared ZapPilot brand tokens for web + Flutter
     ├── intent-engine       # Shared TypeScript library — DeFi routing logic
     ├── types               # Shared TypeScript types & Zod schemas
     └── tsconfig            # Shared TypeScript config presets
 ```
 
-| App | Language | Framework | Deploy |
-|---|---|---|---|
-| account-engine | TypeScript | Hono 4.10 | Fly.io |
-| alpha-etl | TypeScript | Express 4.18 | Fly.io |
-| analytics-engine | Python 3.11+ | FastAPI | Fly.io |
-| frontend | TypeScript | React 19 + Vite 7 | Vercel |
-| landing-page | TypeScript | Next.js 15 | Vercel |
+| App              | Language     | Framework         | Deploy                 |
+| ---------------- | ------------ | ----------------- | ---------------------- |
+| account-engine   | TypeScript   | Hono 4.10         | Fly.io                 |
+| alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
+| analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
+| frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
+| landing-page     | TypeScript   | Next.js 15        | Vercel                 |
+| mobile           | Dart         | Flutter           | App Store / Play Store |
 
 ## Prerequisites
 
 - Node.js >= 22
 - pnpm >= 10 (`npm i -g pnpm`)
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/) (for analytics-engine only)
+- Flutter 3.32+ (for mobile only)
 
 ## Setup
 
@@ -58,6 +62,9 @@ pnpm dev
 
 # Start landing page only
 pnpm dev:landing
+
+# Run the mobile app
+pnpm --filter @zapengine/mobile dev
 
 # Start everything
 pnpm dev:all

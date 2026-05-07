@@ -1,0 +1,28 @@
+{
+  "name": "@zapengine/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@zapengine/design-tokens": "workspace:*"
+  },
+  "scripts": {
+    "build": "pnpm --dir ../../packages/design-tokens codegen:flutter && flutter pub get",
+    "dev": "flutter run",
+    "icons:ios": "swift tool/flatten_ios_app_icons.swift",
+    "test": "flutter test",
+    "test:ci": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",
+    "test:coverage": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",
+    "test:unit": "flutter test",
+    "test:watch": "echo '(@zapengine/mobile has no watch mode)'",
+    "lint": "dart analyze .",
+    "lint:fix": "dart fix --apply",
+    "type-check": "dart analyze .",
+    "format": "dart format .",
+    "format:check": "dart format --output=none --set-exit-if-changed .",
+    "deadcode": "echo '(@zapengine/mobile deadcode check not configured)'",
+    "deadcode:fix": "echo '(@zapengine/mobile deadcode fix not configured)'",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs lib",
+    "security:audit": "flutter pub deps",
+    "clean": "flutter clean && rm -rf coverage"
+  }
+}

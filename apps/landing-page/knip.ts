@@ -4,7 +4,13 @@ export default defineKnipConfig({
   entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx'],
   project: ['src/**/*.{ts,tsx}'],
   ignore: ['**/index.ts'],
-  ignoreDependencies: ['postcss', 'eslint-config-next'],
+  ignoreDependencies: [
+    'postcss',
+    'eslint-config-next',
+    // Used from src/app/globals.css via @import; Knip does not resolve CSS
+    // package imports as dependency usage.
+    '@zapengine/design-tokens',
+  ],
   // eslint-config-next pulls in @rushstack/eslint-patch, which rejects
   // non-ESLint callers (knip). Skip knip's ESLint plugin to avoid the crash.
   eslint: false,

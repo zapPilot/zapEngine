@@ -21,6 +21,10 @@ const TEST_SCRIPTS = [
   'test:e2e:safe',
 ];
 const EXPECTED_DUP_CHECK = 'node ../../scripts/lint/run-jscpd.mjs src';
+const ALLOWED_DUP_CHECKS = new Set([
+  EXPECTED_DUP_CHECK,
+  'node ../../scripts/lint/run-jscpd.mjs lib',
+]);
 
 function findPackageJson(dir: string): string[] {
   const results: string[] = [];
@@ -57,7 +61,12 @@ function loadPackageJson(path: string): PackageJson {
 }
 
 function main() {
-  const issues: Array<{ type: string; file: string; issue: string; severity: string }> = [];
+  const issues: Array<{
+    type: string;
+    file: string;
+    issue: string;
+    severity: string;
+  }> = [];
 
   const appsDir = join(ROOT, 'apps');
   const packagesDir = join(ROOT, 'packages');
@@ -81,7 +90,9 @@ function main() {
       scriptMatrix[name][script] = script in scripts;
     }
 
-    const missingRequired = [...REQUIRED_SCRIPTS].filter((s) => !(s in scripts));
+    const missingRequired = [...REQUIRED_SCRIPTS].filter(
+      (s) => !(s in scripts),
+    );
     if (missingRequired.length > 0) {
       issues.push({
         type: 'missing_required_scripts',
@@ -92,28 +103,34 @@ function main() {
     }
 
     const testScripts = Object.keys(scripts).filter(
-      (s) => s.startsWith('test:') || s === 'test'
+      (s) => s.startsWith('test:') || s === 'test',
     );
 
     if (name.includes('types') && testScripts.length > 0) {
-      const isPlaceholder = testScripts.every(
-        (s) => scripts[s]?.includes('echo')
+      const isPlaceholder = testScripts.every((s) =>
+        scripts[s]?.includes('echo'),
       );
       if (!isPlaceholder) {
         issues.push({
           type: 'unexpected_tests',
           file: rel,
-          issue: 'Types package should not have real tests (only echo placeholders)',
+          issue:
+            'Types package should not have real tests (only echo placeholders)',
           severity: 'LOW',
         });
       }
     }
 
-    if ('dup:check' in scripts && scripts['dup:check'] !== EXPECTED_DUP_CHECK) {
+    if (
+      'dup:check' in scripts &&
+      !ALLOWED_DUP_CHECKS.has(scripts['dup:check'] ?? '')
+    ) {
       issues.push({
         type: 'jscpd_script_drift',
         file: rel,
-        issue: `dup:check is "${scripts['dup:check']}" (expected "${EXPECTED_DUP_CHECK}")`,
+        issue: `dup:check is "${scripts['dup:check']}" (expected one of ${[
+          ...ALLOWED_DUP_CHECKS,
+        ].join(', ')})`,
         severity: 'HIGH',
       });
     }
@@ -122,7 +139,9 @@ function main() {
   // Detect script drift: if >50% have a script, warn on missing
   const allScripts = [...REQUIRED_SCRIPTS, ...TEST_SCRIPTS];
   for (const script of allScripts) {
-    const hasCount = Object.values(scriptMatrix).filter((m) => m[script]).length;
+    const hasCount = Object.values(scriptMatrix).filter(
+      (m) => m[script],
+    ).length;
     const totalCount = Object.keys(scriptMatrix).length;
     const hasMajority = hasCount > totalCount / 2;
 

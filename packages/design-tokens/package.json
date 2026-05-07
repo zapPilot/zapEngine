@@ -1,0 +1,58 @@
+{
+  "name": "@zapengine/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tailwind-preset": {
+      "types": "./dist/tailwind-preset.d.ts",
+      "import": "./dist/tailwind-preset.js"
+    },
+    "./css/variables.css": "./dist/css/variables.css"
+  },
+  "files": [
+    "dist",
+    "lib",
+    "tokens.json"
+  ],
+  "scripts": {
+    "build": "pnpm codegen && tsc",
+    "codegen": "pnpm codegen:css && pnpm codegen:flutter",
+    "codegen:css": "tsx src/css-variables.ts",
+    "codegen:flutter": "tsx src/flutter-codegen.ts",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist lib/design_tokens.dart",
+    "format": "prettier --write \"src/**/*.ts\" \"tokens.json\" \"pubspec.yaml\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tokens.json\" \"pubspec.yaml\"",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "type-check": "tsc --noEmit",
+    "deadcode": "knip",
+    "deadcode:fix": "knip --fix",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "test": "echo '(@zapengine/design-tokens has no tests)'",
+    "test:ci": "echo '(@zapengine/design-tokens has no tests)'",
+    "test:watch": "echo '(@zapengine/design-tokens has no tests)'",
+    "test:coverage": "echo '(@zapengine/design-tokens has no tests)'"
+  },
+  "devDependencies": {
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

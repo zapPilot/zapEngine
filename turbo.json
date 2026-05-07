@@ -21,10 +21,19 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "out/**", "build/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
-      "env": [
-        "NEXT_PUBLIC_*",
-        "VITE_*"
-      ]
+      "env": ["NEXT_PUBLIC_*", "VITE_*"]
+    },
+    "codegen": {
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
+      "outputs": ["dist/**", "lib/design_tokens.dart"]
+    },
+    "codegen:css": {
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
+      "outputs": ["dist/css/variables.css"]
+    },
+    "codegen:flutter": {
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
+      "outputs": ["dist/flutter/design_tokens.dart", "lib/design_tokens.dart"]
     },
     "dev": {
       "cache": false,

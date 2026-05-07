@@ -8,6 +8,8 @@ dist/
 .source/
 build/
 *.tsbuildinfo
+!packages/design-tokens/dist/
+!packages/design-tokens/dist/**
 
 # Turbo
 .turbo/
