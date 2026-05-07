@@ -205,6 +205,19 @@
         }
       ]
     },
+    "decision_log_dir": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "emit_decision_log": {
+      "type": "boolean"
+    },
     "end_date": {
       "anyOf": [
         {

@@ -11,10 +11,18 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
+from scripts._summarize import render_summary
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
 )
 from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
+from src.services.backtesting.validation.event_runner import (
+    ConstraintValidationFailed,
+    ValidationEventError,
+)
+from src.services.backtesting.validation.event_runner import (
+    build_constraint_validation as _run_constraint_validation,
+)
 
 OutputFormat = Literal["text", "json", "markdown"]
 EnrichMode = Literal["auto", "never", "required"]
@@ -48,15 +56,6 @@ SECTION_ORDER = (
 
 class VerificationError(ValueError):
     """Raised when compare-payload tooling encounters invalid data."""
-
-
-class ConstraintValidationFailed(Exception):
-    """Raised after rendering output when selected constraints fail."""
-
-    def __init__(self, rendered: str, validation: dict[str, Any]) -> None:
-        super().__init__("Compare constraints failed.")
-        self.rendered = rendered
-        self.validation = validation
 
 
 def load_payload(source: dict[str, Any]) -> dict[str, Any]:
@@ -846,45 +845,15 @@ def _build_constraint_validation(
     filtered_points: list[dict[str, Any]],
     fixture_path: str | Path | None,
     event_ids: list[str] | None,
+    strategy_id: str | None = None,
 ) -> dict[str, Any]:
-    if fixture_path is None:
-        return {
-            "enabled": False,
-            "fixture": None,
-            "passed": True,
-            "checked": 0,
-            "violations": [],
-            "results": [],
-            "skipped": [],
-        }
-
-    cases = _load_constraint_cases(fixture_path, event_ids=event_ids)
-    selected_dates = _constraint_event_dates(filtered_points=filtered_points)
-    results: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    for case in cases:
-        event_date = str(case["event_date"])
-        if event_date not in selected_dates:
-            skipped.append(
-                {
-                    "id": case["id"],
-                    "event_date": event_date,
-                    "reason": "outside selected analysis window",
-                }
-            )
-            continue
-        results.append(_validate_constraint_case(case=case, points=points))
-
-    violations = [result for result in results if not result["passed"]]
-    return {
-        "enabled": True,
-        "fixture": str(Path(fixture_path)),
-        "passed": not violations,
-        "checked": len(results),
-        "violations": violations,
-        "results": results,
-        "skipped": skipped,
-    }
+    return _run_constraint_validation(
+        points=points,
+        filtered_points=filtered_points,
+        fixture_path=fixture_path,
+        event_ids=event_ids,
+        strategy_id=strategy_id,
+    )
 
 
 def _validate_constraint_case(
@@ -2486,6 +2455,7 @@ def _build_compare_request(
     *,
     saved_config_id: str,
     config_id: str | None,
+    compare_id: str | None,
     token_symbol: str,
     total_capital: float,
     date_filter: str | None,
@@ -2494,17 +2464,31 @@ def _build_compare_request(
     days: int | None,
     lookback_days: int,
     history_start_date: str | None = None,
+    emit_decision_log: bool = False,
+    decision_log_dir: str | None = None,
 ) -> dict[str, Any]:
+    resolved_config_id = _resolve_config_id(saved_config_id, config_id)
     request: dict[str, Any] = {
         "token_symbol": token_symbol,
         "total_capital": total_capital,
         "configs": [
             {
-                "config_id": _resolve_config_id(saved_config_id, config_id),
+                "config_id": resolved_config_id,
                 "saved_config_id": saved_config_id,
             }
         ],
     }
+    if compare_id is not None:
+        request["configs"].append(
+            {
+                "config_id": compare_id,
+                "saved_config_id": compare_id,
+            }
+        )
+    if emit_decision_log:
+        request["emit_decision_log"] = True
+        if decision_log_dir is not None:
+            request["decision_log_dir"] = decision_log_dir
     request.update(
         _build_request_window(
             date_filter=date_filter,
@@ -2540,6 +2524,7 @@ def analyze_response_payload(
     payload: dict[str, Any],
     *,
     strategy_id: str | None = None,
+    compare_strategy_id: str | None = None,
     date_filter: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
@@ -2553,6 +2538,7 @@ def analyze_response_payload(
     constraints_fixture: str | None = str(DEFAULT_CONSTRAINTS_FIXTURE),
     constraint_event_ids: list[str] | None = None,
     fail_on_constraint_violation: bool = False,
+    summary: bool = False,
 ) -> str:
     resolved_out_path = _resolve_out_path(out_path)
     payload = load_payload(payload)
@@ -2572,7 +2558,29 @@ def analyze_response_payload(
         filtered_points=filtered_points,
         fixture_path=constraints_fixture,
         event_ids=constraint_event_ids,
+        strategy_id=selected_strategy_id,
     )
+    if summary:
+        selected_dates = {str(point["date"]) for point in filtered_points}
+        summary_payload = {
+            **payload,
+            "timeline": [
+                point for point in timeline if timeline_date(point) in selected_dates
+            ],
+        }
+        rendered = render_summary(
+            payload=summary_payload,
+            strategy_id=selected_strategy_id,
+            base_strategy_id=compare_strategy_id,
+            constraint_validation=constraint_validation,
+        )
+        if resolved_out_path is not None:
+            _write_rendered_output(resolved_out_path, rendered)
+        if fail_on_constraint_violation and not constraint_validation.get(
+            "passed", True
+        ):
+            raise ConstraintValidationFailed(rendered, constraint_validation)
+        return rendered
 
     try:
         db_ratio_metrics, db_warnings = _load_db_ratio_metrics(
@@ -2609,6 +2617,7 @@ def analyze_response_payload(
                     "warnings": all_warnings,
                     "lookback_context": lookback_context,
                     "constraint_validation": constraint_validation,
+                    "decision_log_path": payload.get("decision_log_path"),
                     "records": records,
                 },
                 indent=2,
@@ -2653,6 +2662,7 @@ def analyze_payload(
     endpoint: str = DEFAULT_ENDPOINT,
     saved_config_id: str = DEFAULT_SAVED_CONFIG_ID,
     config_id: str | None = None,
+    compare_id: str | None = None,
     token_symbol: str = "BTC",
     date_filter: str | None = None,
     from_date: str | None = None,
@@ -2668,10 +2678,14 @@ def analyze_payload(
     constraints_fixture: str | None = str(DEFAULT_CONSTRAINTS_FIXTURE),
     constraint_event_ids: list[str] | None = None,
     fail_on_constraint_violation: bool = False,
+    summary: bool = False,
+    emit_decision_log: bool = False,
+    decision_log_dir: str | None = None,
 ) -> str:
     request_body = _build_compare_request(
         saved_config_id=saved_config_id,
         config_id=config_id,
+        compare_id=compare_id,
         token_symbol=token_symbol,
         total_capital=total_capital,
         date_filter=date_filter,
@@ -2680,12 +2694,15 @@ def analyze_payload(
         days=days,
         lookback_days=lookback_days,
         history_start_date=history_start_date,
+        emit_decision_log=summary or emit_decision_log,
+        decision_log_dir=decision_log_dir,
     )
     payload = _fetch_from_api(endpoint, request_body)
     selected_config_id = _resolve_config_id(saved_config_id, config_id)
     return analyze_response_payload(
         payload,
         strategy_id=selected_config_id,
+        compare_strategy_id=compare_id,
         date_filter=date_filter,
         from_date=from_date,
         to_date=to_date,
@@ -2699,6 +2716,7 @@ def analyze_payload(
         constraints_fixture=constraints_fixture,
         constraint_event_ids=constraint_event_ids,
         fail_on_constraint_violation=fail_on_constraint_violation,
+        summary=summary,
     )
 
 
@@ -2715,6 +2733,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=f"Saved strategy config id (default: {DEFAULT_SAVED_CONFIG_ID})",
     )
     parser.add_argument("--config-id", help="Config id key to use in compare response")
+    parser.add_argument(
+        "--compare",
+        dest="compare_id",
+        help="Second saved config or strategy id to include as the summary diff base.",
+    )
     parser.add_argument("--token-symbol", default="BTC")
     parser.add_argument(
         "--date", dest="date_filter", help="Show only one YYYY-MM-DD date"
@@ -2767,6 +2790,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Validate only the named constraint event; repeatable.",
     )
     parser.add_argument("--out", dest="out_path", help="Write rendered output to file")
+    parser.add_argument(
+        "--emit-decision-log",
+        action="store_true",
+        help="Ask compare-v3 to write a compact decisions.jsonl artifact.",
+    )
+    parser.add_argument(
+        "--decision-log-dir",
+        help="Directory for decisions.jsonl when --emit-decision-log or --summary is used.",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Render a compact plain-text rule-attribution summary.",
+    )
     return parser
 
 
@@ -2778,6 +2815,7 @@ def main(argv: list[str] | None = None) -> int:
             endpoint=args.endpoint,
             saved_config_id=args.saved_config_id,
             config_id=args.config_id,
+            compare_id=args.compare_id,
             token_symbol=args.token_symbol,
             date_filter=args.date_filter,
             from_date=args.from_date,
@@ -2795,11 +2833,14 @@ def main(argv: list[str] | None = None) -> int:
             else str(args.constraints_fixture),
             constraint_event_ids=args.constraint_event_id,
             fail_on_constraint_violation=True,
+            summary=args.summary,
+            emit_decision_log=args.emit_decision_log,
+            decision_log_dir=args.decision_log_dir,
         )
     except ConstraintValidationFailed as exc:
         print(exc.rendered)
         return 1
-    except VerificationError as exc:
+    except (VerificationError, ValidationEventError) as exc:
         print(f"ERROR: {exc}")
         return 1
     print(output)

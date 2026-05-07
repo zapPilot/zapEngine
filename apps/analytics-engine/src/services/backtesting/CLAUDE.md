@@ -61,6 +61,25 @@ default. The 500-day fixture baseline is 64.31% ROI, 4.28 Calmar, -10.20%
 MaxDD, and 47 trades. It is a traceability baseline, not a performance target;
 compare rule attribution against the canonical entry.
 
+## Iteration discipline
+
+Before claiming a strategy change is done:
+
+1. **Run the validation suite for the strategy you changed**:
+   ```bash
+   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
+     --saved-config-id <strategy_id> --from-date 2025-01-01 --to-date 2026-04-10 --summary
+   ```
+   Validation events must all pass. Non-zero exit blocks the change.
+
+2. **Add a validation event for the new behavior**: any new feature, rule, or signal must add ≥1 entry to `tests/fixtures/hierarchical_validation_events.json` exercising the new behavior on a real historical date with `applicable_strategies` listing the strategies the new feature applies to.
+
+3. **Run the snapshot regenerate** if the change is meant to shift performance: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` and inspect the diff.
+
+4. **Append an ITERATION_LOG.md entry** with the commit hash + ROI/Calmar/trades delta + which validation events were added.
+
+The pytest gate (`pnpm test`) runs `tests/test_validation_events.py` against all 10 kept strategies on every commit. If a validation event regresses, the commit fails CI before snapshot or ROI checks even run.
+
 ## What works (do not regress)
 
 Each finding is established by ROI delta from leave-one-out variants in the snapshot fixture unless explicitly marked as fixture-validated.

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -660,6 +662,67 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
         "cross",
         "cooldown",
         "none",
+    }
+
+
+def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
+    request = materialize_compare_request(
+        BacktestCompareRequestV3(
+            token_symbol="BTC",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 2),
+            total_capital=10_000.0,
+            emit_decision_log=True,
+            decision_log_dir=str(tmp_path),
+            configs=[
+                BacktestCompareConfigV3(
+                    config_id="portfolio_rules_runtime",
+                    strategy_id="dma_fgi_portfolio_rules",
+                    params=_dma_public_params(),
+                )
+            ],
+        )
+    )
+
+    result = run_compare_v3_on_data(
+        prices=[
+            {
+                "date": date(2025, 1, 1),
+                "price": 110_000.0,
+                "extra_data": {"dma_200": 100_000.0},
+            },
+            {
+                "date": date(2025, 1, 2),
+                "price": 90_000.0,
+                "extra_data": {"dma_200": 100_000.0},
+            },
+        ],
+        sentiments={
+            date(2025, 1, 1): {"label": "greed", "value": 72},
+            date(2025, 1, 2): {"label": "fear", "value": 25},
+        },
+        request=request,
+        user_start_date=date(2025, 1, 1),
+        config=RegimeConfig.default(),
+    )
+
+    assert result.decision_log_path == f"{tmp_path}/decisions.jsonl"
+    lines = (tmp_path / "decisions.jsonl").read_text().splitlines()
+    assert len(lines) == len(result.timeline)
+    first = json.loads(lines[0])
+    assert first["strategy"] == "portfolio_rules_runtime"
+    assert set(first) == {
+        "date",
+        "strategy",
+        "action",
+        "rule",
+        "group",
+        "reason",
+        "score",
+        "signals",
+        "target_diff",
+        "target",
+        "executed",
     }
 
 

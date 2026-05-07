@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from src.models.backtesting import (
     BacktestCompareRequestV3,
@@ -70,8 +70,14 @@ async def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
 async def compare_backtesting_configs_v3(
     request: BacktestCompareRequestV3,
     service: BacktestingServiceDep,
+    emit_decision_log: bool = Query(
+        default=False,
+        description="Write a compact decisions.jsonl artifact and return its path.",
+    ),
 ) -> BacktestResponse:
     try:
+        if emit_decision_log:
+            request = request.model_copy(update={"emit_decision_log": True})
         return await service.run_compare_v3(request)
     except Exception as e:
         raise _build_backtest_http_error(e) from e

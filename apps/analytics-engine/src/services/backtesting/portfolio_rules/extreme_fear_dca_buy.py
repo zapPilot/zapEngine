@@ -12,6 +12,7 @@ from src.services.backtesting.portfolio_rules.base import (
     current_fgi_regime_for_symbol,
     current_target,
     portfolio_target_intent,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -61,6 +62,12 @@ class ExtremeFearDcaBuyRule:
             reason="portfolio_extreme_fear_dca_buy",
             rule_group=self.rule_group,
             assets=matching_symbols,
+            signals_consulted=signals_consulted_for_symbols(
+                snapshot,
+                tuple(matching_symbols),
+            )
+            if config.emit_signals_consulted
+            else None,
         )
 
 

@@ -973,6 +973,52 @@ def test_main_exits_nonzero_after_printing_constraint_report(
     assert data["constraint_validation"]["violations"][0]["id"] == "bad_reference"
 
 
+def test_main_summary_outputs_compact_rollup(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
+        payload = _payload()
+        payload["strategies"] = {
+            "eth_btc_rotation_default": {
+                "roi_percent": 12.34,
+                "calmar_ratio": 1.23,
+                "max_drawdown_percent": -5.67,
+                "trade_count": 4,
+            }
+        }
+        payload["window"] = {
+            "effective": {
+                "start_date": "2025-04-21",
+                "end_date": "2025-04-23",
+                "days": 2,
+            }
+        }
+        return payload
+
+    monkeypatch.setattr(analyzer, "_fetch_from_api", _fake_fetch)
+
+    exit_code = analyzer.main(
+        [
+            "--endpoint",
+            "http://testserver",
+            "--summary",
+            "--date",
+            "2025-04-22",
+            "--enrich-db",
+            "never",
+            "--no-constraints",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "strategy: eth_btc_rotation_default" in output
+    assert "ROI: +12.34%" in output
+    assert "rules fired:" in output
+    assert len(output.splitlines()) <= 80
+
+
 def test_analyze_payload_surfaces_api_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
         raise analyzer.VerificationError("Compare API request failed: boom")

@@ -10,6 +10,8 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_target,
+    signals_consulted_for_symbols,
+    symbols_for_snapshot,
 )
 from src.services.backtesting.trade_quota import TradeQuotaLimits
 
@@ -64,7 +66,6 @@ class TradeQuotaRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         current_date = snapshot.current_date
         assert current_date is not None
         block_reason, next_trade_date = self._limits.resolve_block_state(
@@ -84,6 +85,12 @@ class TradeQuotaRule:
                 trade_dates=snapshot.trade_dates,
                 block_reason=block_reason,
                 next_trade_date=next_trade_date,
+                signals_consulted=signals_consulted_for_symbols(
+                    snapshot,
+                    tuple(symbols_for_snapshot(snapshot)),
+                )
+                if config.emit_signals_consulted
+                else None,
             ),
         )
 
@@ -94,6 +101,7 @@ class TradeQuotaRule:
         trade_dates: tuple[date, ...],
         block_reason: str | None,
         next_trade_date: date | None,
+        signals_consulted: dict[str, object] | None,
     ) -> dict[str, object]:
         payload = self._limits.diagnostic_payload(
             current_date=current_date,
@@ -101,7 +109,13 @@ class TradeQuotaRule:
             block_reason=block_reason,
             next_trade_date=next_trade_date,
         )
-        return {"matched_rule_name": self.name, **payload}
+        diagnostics: dict[str, object] = {
+            "matched_rule_name": self.name,
+            **payload,
+        }
+        if signals_consulted is not None:
+            diagnostics["signals_consulted"] = signals_consulted
+        return diagnostics
 
 
 __all__ = ["TradeQuotaRule"]

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from src.models.backtesting import (
@@ -10,6 +12,7 @@ from src.models.backtesting import (
     BacktestResponse,
     BacktestWindowInfo,
 )
+from src.services.backtesting.audit import write_decision_log
 from src.services.backtesting.composition import ResolvedSavedStrategyConfig
 from src.services.backtesting.constants import ALLOCATION_STATES
 from src.services.backtesting.execution.config import RegimeConfig
@@ -103,4 +106,17 @@ def run_compare_v3_on_data(
         user_start_date=user_start_date,
     )
     result.window = window
+    if request.emit_decision_log:
+        output_dir = (
+            Path(request.decision_log_dir)
+            if request.decision_log_dir is not None
+            else Path(tempfile.mkdtemp(prefix="zapengine-backtest-"))
+        )
+        timeline = [point.model_dump(mode="json") for point in result.timeline]
+        decision_log_path = write_decision_log(
+            output_dir=output_dir,
+            timeline=timeline,
+            strategy_ids=[config.config_id for config in request.configs],
+        )
+        result = result.model_copy(update={"decision_log_path": str(decision_log_path)})
     return result

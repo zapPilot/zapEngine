@@ -15,6 +15,7 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     current_fgi_regime_for_symbol,
     current_target,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
@@ -72,7 +73,6 @@ class DmaBuyGateRule(DmaBuyGateConfigMixin):
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         gate_snapshot = self._blocking_snapshot(snapshot)
         return AllocationIntent(
             action="hold",
@@ -90,6 +90,19 @@ class DmaBuyGateRule(DmaBuyGateConfigMixin):
                 "buy_sideways_range": gate_snapshot.buy_sideways_range,
                 "buy_episode_state": gate_snapshot.buy_episode_state,
                 "buy_strength": gate_snapshot.buy_strength,
+                **(
+                    {
+                        "signals_consulted": signals_consulted_for_symbols(
+                            snapshot,
+                            tuple(
+                                _dca_buy_symbols(snapshot)
+                                or symbols_for_snapshot(snapshot)
+                            ),
+                        )
+                    }
+                    if config.emit_signals_consulted
+                    else {}
+                ),
             },
         )
 

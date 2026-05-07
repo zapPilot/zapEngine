@@ -12,6 +12,7 @@ from src.services.backtesting.portfolio_rules.base import (
     allocation_key_for_symbol,
     current_target,
     portfolio_target_intent,
+    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -45,7 +46,6 @@ class CrossDownExitRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        del config
         matching_symbols = _cross_down_symbols(snapshot)
         exit_symbols = _exit_symbols_for_cross_down(matching_symbols)
         target = current_target(snapshot)
@@ -65,6 +65,12 @@ class CrossDownExitRule:
             rule_group=self.rule_group,
             assets=liquidated_symbols,
             immediate=True,
+            signals_consulted=signals_consulted_for_symbols(
+                snapshot,
+                tuple(matching_symbols),
+            )
+            if config.emit_signals_consulted
+            else None,
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics["portfolio_rule_trigger_assets"] = matching_symbols

@@ -5,6 +5,17 @@
         "id": "eth_cross_down_2025_02_02",
         "event_type": "crypto_cross_down",
         "reference_asset": "ETH",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "ETH price crosses below ETH DMA; crypto sleeve must clear to stable.",
         "assertions": [
           {
@@ -27,6 +38,17 @@
         "id": "btc_cross_down_2025_03_08",
         "event_type": "crypto_cross_down",
         "reference_asset": "BTC",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "BTC price crosses below BTC DMA; crypto sleeve must clear to stable.",
         "assertions": [
           {
@@ -48,6 +70,16 @@
       {
         "id": "spy_cross_down_2025_03_10",
         "event_type": "spy_cross_down",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
         "assertions": [
           {
@@ -69,6 +101,17 @@
       {
         "id": "extreme_fear_dca_2025_03_11",
         "event_type": "extreme_fear_below_crypto_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -87,6 +130,16 @@
       {
         "id": "spy_extreme_fear_dca_2025_03_13",
         "event_type": "extreme_fear_below_spy_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
         "assertions": [
           {
@@ -106,6 +159,9 @@
       {
         "id": "cooldown_period_2025_03_24",
         "event_type": "decision_action_assertion",
+        "applicable_strategies": [
+          "dma_fgi_portfolio_rules"
+        ],
         "description": "BTC/ETH must NOT be included in the 2025-03-24 cross-up target, and SPY must not be increased while its 30-day re-entry cooldown remains active.",
         "assertions": [
           {
@@ -136,6 +192,17 @@
       {
         "id": "extreme_fear_dca_2025_04_07",
         "event_type": "extreme_fear_below_crypto_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -154,6 +221,16 @@
       {
         "id": "spy_extreme_fear_dca_2025_04_08",
         "event_type": "extreme_fear_below_spy_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
         "assertions": [
           {
@@ -174,6 +251,12 @@
         "id": "btc_cross_up_2025_04_22",
         "event_type": "crypto_cross_up",
         "reference_asset": "BTC",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "eth_btc_rotation"
+        ],
         "description": "BTC price crosses above BTC DMA; crypto risk-on should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -195,6 +278,10 @@
       {
         "id": "spy_cross_up_redeploy_2025_05_12",
         "event_type": "spy_cross_up",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical"
+        ],
         "description": "SPY price crosses above SPY DMA; existing stable should redeploy into SPY on cross-up or latch-follow-through days.",
         "assertions": [
           {
@@ -217,6 +304,13 @@
         "id": "eth_cross_up_2025_06_09",
         "event_type": "crypto_cross_up",
         "reference_asset": "ETH",
+        "applicable_strategies": [
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "ETH has no price-vs-ETH-DMA cross_up near 2025-04-22; SQL resolves the next ETH cross_up to 2025-06-09.",
         "assertions": [
           {
@@ -238,6 +332,13 @@
       {
         "id": "eth_btc_ratio_cross_up_rotate_btc_to_eth_2025_07_15",
         "event_type": "eth_btc_ratio_cross_up",
+        "applicable_strategies": [
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "ETH/BTC ratio crosses up; strategies should surface the above-ratio transition in the inner ratio zone.",
         "assertions": [
           {
@@ -260,6 +361,11 @@
         "id": "btc_cross_down_preserve_spy_2025_10_18",
         "event_type": "crypto_cross_down",
         "reference_asset": "BTC",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical"
+        ],
         "description": "BTC cross_down should liquidate crypto while preserving an existing SPY sleeve. SQL-resolved event date is 2025-10-18.",
         "assertions": [
           {
@@ -295,6 +401,13 @@
         "id": "eth_cross_down_preserve_spy_2025_11_05",
         "event_type": "crypto_cross_down",
         "reference_asset": "ETH",
+        "applicable_strategies": [
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "ETH cross_down should liquidate crypto while preserving an existing SPY sleeve.",
         "assertions": [
           {
@@ -328,6 +441,17 @@
       {
         "id": "extreme_fear_dca_2025_11_21",
         "event_type": "extreme_fear_below_crypto_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -346,6 +470,18 @@
       {
         "id": "eth_btc_ratio_cross_down_rotate_eth_to_btc_2026_01_20",
         "event_type": "eth_btc_ratio_cross_down",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "ETH/BTC ratio has a whipsaw near 2026-01-16; SQL resolves the sustained cross_down to 2026-01-20. Strategies should surface the below-ratio transition in the inner ratio zone.",
         "assertions": [
           {
@@ -362,6 +498,17 @@
       {
         "id": "extreme_fear_dca_2026_02_06",
         "event_type": "extreme_fear_below_crypto_dma",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell",
+          "eth_btc_rotation"
+        ],
         "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -380,6 +527,16 @@
       {
         "id": "spy_cross_down_2026_03_20",
         "event_type": "spy_cross_down",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_up_eq_weight",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "SPY price crosses below SPY DMA; SPY sleeve should risk off to stable if it has exposure.",
         "assertions": [
           {
@@ -397,6 +554,16 @@
       {
         "id": "spy_cross_up_redeploy_2026_04_08",
         "event_type": "spy_cross_up",
+        "applicable_strategies": [
+          "dma_fgi_hierarchical_control",
+          "dma_fgi_hierarchical_minimum",
+          "dma_fgi_eth_btc_minimum_surgical",
+          "dma_fgi_portfolio_rules",
+          "dma_fgi_portfolio_rules_minus_cross_down_exit",
+          "dma_fgi_portfolio_rules_minus_extreme_fear_buy",
+          "dma_fgi_portfolio_rules_minus_overextension_sell",
+          "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+        ],
         "description": "SPY cross_up should redeploy pre-existing stable into SPY through the follow-through latch. SQL-resolved event date is 2026-04-08.",
         "assertions": [
           {
