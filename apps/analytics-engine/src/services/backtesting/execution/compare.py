@@ -6,7 +6,6 @@ from datetime import date
 from typing import Any
 
 from src.models.backtesting import (
-    BacktestCompareConfigV3,
     BacktestCompareRequestV3,
     BacktestResponse,
     BacktestWindowInfo,
@@ -22,32 +21,10 @@ from src.services.backtesting.strategy_registry import (
 )
 
 
-def find_unused_config_id(base: str, taken: set[str]) -> str:
-    if base not in taken:
-        return base
-    for idx in range(2, 1000):
-        candidate = f"{base}-{idx}"
-        if candidate not in taken:
-            return candidate
-    raise ValueError("Could not generate unique config_id for baseline config")
-
-
 def materialize_compare_request(
     request: BacktestCompareRequestV3,
 ) -> BacktestCompareRequestV3:
-    if any(
-        config.strategy_id == "dca_classic" or config.saved_config_id == "dca_classic"
-        for config in request.configs
-    ):
-        return request
-    baseline = BacktestCompareConfigV3(
-        config_id=find_unused_config_id(
-            "dca_classic", {cfg.config_id for cfg in request.configs}
-        ),
-        strategy_id="dca_classic",
-        params={},
-    )
-    return request.model_copy(update={"configs": [baseline, *request.configs]})
+    return request
 
 
 def build_compare_strategies_from_resolved_configs(

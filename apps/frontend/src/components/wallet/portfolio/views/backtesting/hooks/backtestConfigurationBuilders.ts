@@ -65,7 +65,6 @@ export function buildCompareConfigForStrategyId(
 /**
  * Build default backtest payload from curated strategy presets.
  * Sends only the default (first) preset to avoid unnecessary backend computation.
- * The backend compare endpoint auto-injects the DCA baseline when needed.
  */
 export function buildDefaultPayloadFromPresets(
   presets: StrategyPreset[],
@@ -98,7 +97,6 @@ export function buildDefaultPayloadFromPresets(
 
 /**
  * Build a single live-strategy payload from the strategy family catalog.
- * The backend compare endpoint auto-injects the DCA baseline.
  */
 export function buildDefaultPayloadFromStrategies(
   strategies: BacktestStrategyCatalogEntryV3[] | null,

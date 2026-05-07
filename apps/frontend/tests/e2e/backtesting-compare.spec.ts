@@ -14,7 +14,7 @@ const PLAYWRIGHT_TEST_BASE_URL =
   `http://127.0.0.1:${process.env['PLAYWRIGHT_PORT'] ?? '3000'}`;
 const PLAYWRIGHT_TEST_ORIGIN = new URL(PLAYWRIGHT_TEST_BASE_URL).origin;
 const ROTATION_STRATEGY_ID = 'eth_btc_rotation_default';
-const UI_PRIMARY_CONFIG_ID = 'dma_gated_fgi_default';
+const UI_PRIMARY_CONFIG_ID = 'eth_btc_rotation_default';
 const ROTATION_STRATEGY_LABEL = 'ETH/BTC Relative Strength Rotation';
 const ROTATION_SPOT_SEGMENT_TEST_ID = `backtest-${UI_PRIMARY_CONFIG_ID}-btc`;
 const ETH_CHART_COLOR_RGB = '99, 102, 241';
@@ -73,17 +73,17 @@ const STRATEGIES_RESPONSE = {
   catalog_version: '2.0.0',
   strategies: [
     {
-      strategy_id: 'dca_classic',
-      display_name: 'DCA Classic',
+      strategy_id: 'dma_fgi_portfolio_rules',
+      display_name: 'Portfolio Rules',
       description: 'Baseline',
       param_schema: { type: 'object', additionalProperties: false },
       default_params: {},
       supports_daily_suggestion: false,
     },
     {
-      strategy_id: 'dma_gated_fgi',
-      display_name: 'DMA Gated FGI',
-      description: 'DMA-first strategy',
+      strategy_id: 'eth_btc_rotation',
+      display_name: 'ETH/BTC Relative Strength Rotation',
+      description: 'ETH/BTC rotation strategy',
       param_schema: { type: 'object' },
       default_params: {
         signal: {
@@ -102,10 +102,10 @@ const STRATEGIES_RESPONSE = {
 const STRATEGY_CONFIGS_RESPONSE = {
   presets: [
     {
-      config_id: 'dma_gated_fgi_default',
-      display_name: 'DMA Gated FGI Default',
-      description: 'Curated DMA-first preset',
-      strategy_id: 'dma_gated_fgi',
+      config_id: 'eth_btc_rotation_default',
+      display_name: 'ETH/BTC Rotation Default',
+      description: 'Curated ETH/BTC rotation preset',
+      strategy_id: 'eth_btc_rotation',
       params: {
         signal: {
           cross_cooldown_days: 30,
@@ -127,9 +127,9 @@ const STRATEGY_CONFIGS_RESPONSE = {
 
 const COMPARE_RESPONSE = {
   strategies: {
-    dca_classic: {
-      strategy_id: 'dca_classic',
-      display_name: 'DCA Classic',
+    dma_fgi_portfolio_rules: {
+      strategy_id: 'dma_fgi_portfolio_rules',
+      display_name: 'Portfolio Rules',
       total_invested: 10000,
       final_value: 11000,
       roi_percent: 10,
@@ -142,10 +142,10 @@ const COMPARE_RESPONSE = {
         stable: 0.5,
       },
     },
-    dma_gated_fgi_default: {
-      strategy_id: 'dma_gated_fgi',
-      display_name: 'DMA Gated FGI Default',
-      signal_id: 'dma_gated_fgi',
+    eth_btc_rotation_default: {
+      strategy_id: 'eth_btc_rotation',
+      display_name: 'ETH/BTC Rotation Default',
+      signal_id: 'eth_btc_rotation',
       total_invested: 10000,
       final_value: 11200,
       roi_percent: 12,
@@ -168,7 +168,7 @@ const COMPARE_RESPONSE = {
         sentiment_label: 'neutral',
       },
       strategies: {
-        dca_classic: {
+        dma_fgi_portfolio_rules: {
           portfolio: {
             spot_usd: 5000,
             stable_usd: 5000,
@@ -192,7 +192,7 @@ const COMPARE_RESPONSE = {
             interval_days: 0,
           },
         },
-        dma_gated_fgi_default: {
+        eth_btc_rotation_default: {
           portfolio: {
             spot_usd: 5000,
             stable_usd: 5000,
@@ -200,7 +200,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.5, stable: 0.5 },
           },
           signal: {
-            id: 'dma_gated_fgi',
+            id: 'eth_btc_rotation',
             regime: 'fear',
             raw_value: 25,
             confidence: 1,
@@ -243,7 +243,7 @@ const COMPARE_RESPONSE = {
         sentiment_label: 'fear',
       },
       strategies: {
-        dca_classic: {
+        dma_fgi_portfolio_rules: {
           portfolio: {
             spot_usd: 5100,
             stable_usd: 5000,
@@ -267,7 +267,7 @@ const COMPARE_RESPONSE = {
             interval_days: 7,
           },
         },
-        dma_gated_fgi_default: {
+        eth_btc_rotation_default: {
           portfolio: {
             spot_usd: 4800,
             stable_usd: 5200,
@@ -275,7 +275,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.48, stable: 0.52 },
           },
           signal: {
-            id: 'dma_gated_fgi',
+            id: 'eth_btc_rotation',
             regime: 'fear',
             raw_value: 20,
             confidence: 1,
@@ -324,7 +324,7 @@ const COMPARE_RESPONSE = {
         sentiment_label: 'greed',
       },
       strategies: {
-        dca_classic: {
+        dma_fgi_portfolio_rules: {
           portfolio: {
             spot_usd: 5200,
             stable_usd: 5000,
@@ -348,7 +348,7 @@ const COMPARE_RESPONSE = {
             interval_days: 7,
           },
         },
-        dma_gated_fgi_default: {
+        eth_btc_rotation_default: {
           portfolio: {
             spot_usd: 7000,
             stable_usd: 3000,
@@ -356,7 +356,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.7, stable: 0.3 },
           },
           signal: {
-            id: 'dma_gated_fgi',
+            id: 'eth_btc_rotation',
             regime: 'greed',
             raw_value: 70,
             confidence: 1,
@@ -588,7 +588,7 @@ async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
 }
 
 async function switchUiStrategyToRotation(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /DMA Gated FGI/i }).click();
+  await page.getByRole('button', { name: /ETH\/BTC/i }).click();
   await page.getByRole('option', { name: ROTATION_STRATEGY_LABEL }).click();
   await expect(
     page.getByRole('button', {
@@ -618,8 +618,9 @@ test.describe('Backtesting (v3) - Terminal display + two-bucket chart', () => {
     await expect(page.getByText(SELECTORS.calmarLabel)).toBeVisible();
     await expect(page.getByText(SELECTORS.maxDrawdownLabel)).toBeVisible();
 
-    await expect(page.getByText('DCA Classic').first()).toBeVisible();
-    await expect(page.getByText('DMA Gated FGI Default').first()).toBeVisible();
+    await expect(
+      page.getByText('ETH/BTC Rotation Default').first(),
+    ).toBeVisible();
 
     await expect(page.getByText('Sell Spot').first()).toBeVisible();
     await expect(page.getByText('Buy Spot').first()).toBeVisible();

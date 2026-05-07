@@ -12,36 +12,17 @@ from typing import Any, Final, cast
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from src.services.backtesting.constants import (
-    STRATEGY_DCA_CLASSIC,
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-    STRATEGY_DMA_FGI_FLAT_MINIMUM,
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL,
-    STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
 )
-
-
-class _EmptyPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class _SignalPublicParams(BaseModel):
@@ -121,25 +102,10 @@ class EthBtcRotationPublicParams(BaseModel):
 
 
 _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
-    STRATEGY_DCA_CLASSIC: _EmptyPublicParams,
-    STRATEGY_DMA_GATED_FGI: DmaGatedFgiPublicParams,
     STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_FLAT_MINIMUM: DmaGatedFgiPublicParams,
     STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD: EthBtcRotationPublicParams,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD: (EthBtcRotationPublicParams),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN: (EthBtcRotationPublicParams),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD: (EthBtcRotationPublicParams),
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED: (EthBtcRotationPublicParams),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: DmaGatedFgiPublicParams,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: DmaGatedFgiPublicParams,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT: DmaGatedFgiPublicParams,
@@ -150,16 +116,8 @@ _PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
     ),
 }
 
-_ETH_BTC_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
-    {
-        STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-    }
-)
-
 _DMA_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
     {
-        STRATEGY_DMA_FGI_FLAT_MINIMUM,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
@@ -172,17 +130,8 @@ _DMA_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
 _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
     {
         STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-        STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_BUFFER,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DUAL_ABOVE_HOLD,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_CROSS_COOLDOWN,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_BELOW_DMA_HOLD,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM_DMA_DISCIPLINED,
         STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_STRUCTURAL,
     }
 )
 
@@ -196,12 +145,6 @@ def normalize_nested_public_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Validate and canonicalize nested public params for a built-in strategy."""
-    if strategy_id == STRATEGY_DCA_CLASSIC:
-        raw = {} if params is None else dict(params)
-        if raw:
-            raise ValueError("dca_classic does not accept params")
-        return {}
-
     model_type = _PUBLIC_PARAMS_MODEL_BY_STRATEGY.get(strategy_id)
     if model_type is None:
         raw = {} if params is None else dict(params)
@@ -273,21 +216,15 @@ def public_params_to_runtime_params(
 ) -> dict[str, JsonValue]:
     """Translate nested public params into flat runtime params."""
     normalized = normalize_nested_public_params(strategy_id, params)
-    if strategy_id == STRATEGY_DCA_CLASSIC:
-        return {}
 
-    if strategy_id == STRATEGY_DMA_GATED_FGI or (
-        strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS:
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         nested = DmaGatedFgiPublicParams.model_validate(normalized)
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION or (
-        strategy_id in _ETH_BTC_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )
@@ -298,9 +235,7 @@ def public_params_to_runtime_params(
         )
         return EthBtcRotationParams.from_public_params(flat).to_public_params()
 
-    if strategy_id == STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO or (
-        strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS:
         from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
             HierarchicalPairRotationParams,
         )
@@ -322,14 +257,8 @@ def runtime_params_to_public_params(
 ) -> dict[str, JsonValue]:
     """Translate flat runtime params into the nested public contract."""
     raw_params = {} if params is None else dict(params)
-    if strategy_id == STRATEGY_DCA_CLASSIC:
-        if raw_params:
-            raise ValueError("dca_classic does not accept params")
-        return {}
 
-    if strategy_id == STRATEGY_DMA_GATED_FGI or (
-        strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS:
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
@@ -343,9 +272,7 @@ def runtime_params_to_public_params(
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION or (
-        strategy_id in _ETH_BTC_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )
@@ -364,9 +291,7 @@ def runtime_params_to_public_params(
         )
         return cast(dict[str, JsonValue], rotation_model.model_dump(mode="json"))
 
-    if strategy_id == STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO or (
-        strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS
-    ):
+    if strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS:
         from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
             HierarchicalPairRotationParams,
         )
@@ -395,8 +320,6 @@ def runtime_params_to_public_params(
 
 
 def get_nested_public_params_schema(strategy_id: str) -> dict[str, JsonValue]:
-    if strategy_id == STRATEGY_DCA_CLASSIC:
-        return cast(dict[str, JsonValue], _EmptyPublicParams.model_json_schema())
     model_type = _PUBLIC_PARAMS_MODEL_BY_STRATEGY.get(strategy_id)
     if model_type is None:
         raise ValueError(f"Unknown strategy_id '{strategy_id}'")

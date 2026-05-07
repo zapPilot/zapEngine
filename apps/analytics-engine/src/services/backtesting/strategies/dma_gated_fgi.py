@@ -13,10 +13,6 @@ from src.services.backtesting.composition_types import (
     DecisionPolicy,
     StatefulSignalComponent,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_GATED_FGI,
-)
 from src.services.backtesting.decision import (
     AllocationIntent,
     DecisionAction,
@@ -25,9 +21,6 @@ from src.services.backtesting.decision import (
 from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
     SignalObservation,
-)
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationIntentExecutor,
 )
 from src.services.backtesting.execution.ath_tracker import ATHTracker
 from src.services.backtesting.execution.contracts import ExecutionHints
@@ -43,7 +36,6 @@ from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
 from src.services.backtesting.features import DMA_200_FEATURE, MarketDataRequirements
-from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.signals.contracts import SignalContext
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.metadata import build_signal_output
@@ -58,7 +50,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
 from src.services.backtesting.strategies.base import (
     StrategyContext,
 )
-from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.tactics.base import (
     Rule,
     RuleConfig,
@@ -488,59 +479,9 @@ class DmaGatedFgiDecisionPolicy(DecisionPolicy):
         )
 
 
-@dataclass
-class DmaGatedFgiStrategy(ComposedSignalStrategy):
-    """Thin wrapper around the generic composed signal strategy."""
-
-    total_capital: float
-    signal_id: SignalId = "dma_gated_fgi"
-    summary_signal_id: SignalId = "dma_gated_fgi"
-    params: DmaGatedFgiParams | dict[str, Any] = field(
-        default_factory=DmaGatedFgiParams
-    )
-    signal_component: StatefulSignalComponent = field(init=False, repr=False)
-    decision_policy: DecisionPolicy = field(init=False, repr=False)
-    execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
-    public_params: dict[str, Any] = field(default_factory=dict)
-    strategy_id: str = STRATEGY_DMA_GATED_FGI
-    display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_GATED_FGI]
-    canonical_strategy_id: str = STRATEGY_DMA_GATED_FGI
-
-    def __post_init__(self) -> None:
-        if self.signal_id != "dma_gated_fgi":
-            raise ValueError("signal_id must be 'dma_gated_fgi'")
-        resolved_params = (
-            self.params
-            if isinstance(self.params, DmaGatedFgiParams)
-            else DmaGatedFgiParams.from_public_params(self.params)
-        )
-        self.params = resolved_params
-        self.signal_component = DmaGatedFgiSignalComponent(
-            config=resolved_params.build_signal_config()
-        )
-        self.decision_policy = DmaGatedFgiDecisionPolicy(
-            dma_overextension_threshold=resolved_params.dma_overextension_threshold,
-            fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
-            fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
-            disabled_rules=resolved_params.disabled_rules,
-        )
-        self.execution_engine = AllocationIntentExecutor(
-            pacing_policy=resolved_params.build_pacing_policy(),
-            plugins=resolved_params.build_execution_plugins(),
-        )
-        self.public_params = runtime_params_to_public_params(
-            STRATEGY_DMA_GATED_FGI,
-            resolved_params.to_public_params(),
-        )
-
-    def parameters(self) -> dict[str, Any]:
-        return dict(self.public_params)
-
-
 __all__ = [
     "DmaGatedFgiDecisionPolicy",
     "DmaGatedFgiParams",
     "DmaGatedFgiSignalComponent",
-    "DmaGatedFgiStrategy",
     "default_dma_gated_fgi_params",
 ]

@@ -199,18 +199,20 @@ describe('BacktestChart', () => {
     expect(screen.getByTestId('scatter-Buy Signal')).toBeDefined();
   });
 
-  it('applies dashed stroke to dca_classic strategy', () => {
+  it('does not apply dashed stroke to kept strategies', () => {
     const props = {
       ...defaultProps,
-      sortedStrategyIds: ['strat_a', 'dca_classic'],
+      sortedStrategyIds: ['strat_a', 'eth_btc_rotation_default'],
     };
     render(<BacktestChart {...props} />);
 
-    const dcaArea = screen.getByTestId('area-dca_classic_value');
-    expect(dcaArea.getAttribute('data-stroke-dasharray')).toBe('4 4');
+    const rotationArea = screen.getByTestId(
+      'area-eth_btc_rotation_default_value',
+    );
+    expect(rotationArea.getAttribute('data-stroke-dasharray')).toBe('');
   });
 
-  it('does not apply dashed stroke to non-dca_classic strategy', () => {
+  it('does not apply dashed stroke to generic strategy', () => {
     render(<BacktestChart {...defaultProps} />);
 
     const stratArea = screen.getByTestId('area-strat_a_value');

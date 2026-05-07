@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
+from src.services.backtesting.execution.dma_buy_gate import (
+    DmaBuyGateConfigMixin,
+    DmaBuyGateSnapshot,
+)
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
@@ -14,10 +18,6 @@ from src.services.backtesting.portfolio_rules.base import (
     symbols_for_snapshot,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
-from src.services.backtesting.strategies.dma_buy_sideways_gate import (
-    DmaBuyGateConfigMixin,
-    DmaBuyGateSnapshot,
-)
 
 _EPSILON = 1e-9
 
@@ -25,7 +25,7 @@ _EPSILON = 1e-9
 @dataclass
 class DmaBuyGateRule(DmaBuyGateConfigMixin):
     name: str = "dma_buy_gate"
-    priority: int = 4
+    priority: int = 35
     rule_group: RuleGroup = "none"
     description: str = "Block stable-to-risk DCA buys until DMA sideways confirmation."
 

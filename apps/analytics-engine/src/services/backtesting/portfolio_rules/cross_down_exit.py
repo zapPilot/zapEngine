@@ -1,4 +1,4 @@
-"""Portfolio rule 1: exit assets that cross down through DMA."""
+"""Portfolio rule 10: exit assets that cross down through DMA."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ _ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
 @dataclass(frozen=True)
 class CrossDownExitRule:
     name: str = "cross_down_exit"
-    priority: int = 1
+    priority: int = 10
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
 

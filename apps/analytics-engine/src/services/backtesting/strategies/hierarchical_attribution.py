@@ -7,9 +7,6 @@ from dataclasses import dataclass
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
 )
 
 LEGACY_DMA_BUY_STRENGTH_FLOOR = 0.10
@@ -58,30 +55,6 @@ HIERARCHICAL_ATTRIBUTION_VARIANTS: dict[str, HierarchicalAttributionVariant] = {
         spy_cross_up_latch=False,
         disabled_rules=frozenset(),
         dma_buy_strength_floor=LEGACY_DMA_BUY_STRENGTH_FLOOR,
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL: _variant(
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-        description="Attribution full: adaptive crypto-DMA reference, SPY cross-up latch, plain greed sell suppression, and current buy floor.",
-        adaptive_crypto_dma_reference=True,
-        spy_cross_up_latch=True,
-        disabled_rules=FULL_DISABLED_RULES,
-        dma_buy_strength_floor=CURRENT_DMA_BUY_STRENGTH_FLOOR,
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA: _variant(
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-        description="Leave-one-out: full hierarchical stack without adaptive crypto-DMA reference.",
-        adaptive_crypto_dma_reference=False,
-        spy_cross_up_latch=True,
-        disabled_rules=FULL_DISABLED_RULES,
-        dma_buy_strength_floor=CURRENT_DMA_BUY_STRENGTH_FLOOR,
-    ),
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD: _variant(
-        STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
-        description="Stable production alias for the full hierarchical attribution stack.",
-        adaptive_crypto_dma_reference=True,
-        spy_cross_up_latch=True,
-        disabled_rules=FULL_DISABLED_RULES,
-        dma_buy_strength_floor=CURRENT_DMA_BUY_STRENGTH_FLOOR,
     ),
 }
 

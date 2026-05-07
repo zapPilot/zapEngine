@@ -7,9 +7,9 @@ import { renderHook } from '../../../../../../test-utils';
 function createResponse() {
   return {
     strategies: {
-      dca_classic: {
-        strategy_id: 'dca_classic',
-        display_name: 'DCA Classic',
+      dma_fgi_portfolio_rules: {
+        strategy_id: 'dma_fgi_portfolio_rules',
+        display_name: 'Portfolio Rules',
         total_invested: 10000,
         final_value: 10000,
         roi_percent: 0,
@@ -23,10 +23,10 @@ function createResponse() {
         },
         parameters: {},
       },
-      dma_gated_fgi_default: {
-        strategy_id: 'dma_gated_fgi',
-        display_name: 'DMA Gated FGI Default',
-        signal_id: 'dma_gated_fgi' as const,
+      eth_btc_rotation_default: {
+        strategy_id: 'eth_btc_rotation',
+        display_name: 'ETH/BTC Rotation Default',
+        signal_id: 'eth_btc_rs_signal' as const,
         total_invested: 10000,
         final_value: 10500,
         roi_percent: 5,
@@ -50,7 +50,7 @@ function createResponse() {
           sentiment_label: 'neutral',
         },
         strategies: {
-          dca_classic: {
+          dma_fgi_portfolio_rules: {
             portfolio: {
               spot_usd: 5000,
               stable_usd: 5000,
@@ -67,7 +67,7 @@ function createResponse() {
             signal: null,
             decision: {
               action: 'hold' as const,
-              reason: 'baseline_dca',
+              reason: 'portfolio_hold',
               rule_group: 'none' as const,
               target_allocation: {
                 btc: 0.5,
@@ -87,7 +87,7 @@ function createResponse() {
               interval_days: 0,
             },
           },
-          dma_gated_fgi_default: {
+          eth_btc_rotation_default: {
             portfolio: {
               spot_usd: 5000,
               stable_usd: 5000,
@@ -102,7 +102,7 @@ function createResponse() {
               },
             },
             signal: {
-              id: 'dma_gated_fgi' as const,
+              id: 'eth_btc_rs_signal' as const,
               regime: 'fear',
               raw_value: 20,
               confidence: 1,
@@ -157,7 +157,7 @@ function createResponse() {
           sentiment_label: 'greed',
         },
         strategies: {
-          dca_classic: {
+          dma_fgi_portfolio_rules: {
             portfolio: {
               spot_usd: 5100,
               stable_usd: 5100,
@@ -174,7 +174,7 @@ function createResponse() {
             signal: null,
             decision: {
               action: 'hold' as const,
-              reason: 'baseline_dca',
+              reason: 'portfolio_hold',
               rule_group: 'none' as const,
               target_allocation: {
                 btc: 0.5,
@@ -194,7 +194,7 @@ function createResponse() {
               interval_days: 0,
             },
           },
-          dma_gated_fgi_default: {
+          eth_btc_rotation_default: {
             portfolio: {
               spot_usd: 8400,
               stable_usd: 2100,
@@ -209,7 +209,7 @@ function createResponse() {
               },
             },
             signal: {
-              id: 'dma_gated_fgi' as const,
+              id: 'eth_btc_rs_signal' as const,
               regime: 'greed',
               raw_value: 75,
               confidence: 1,
@@ -277,7 +277,9 @@ describe('useBacktestResult', () => {
     expect(point.sellSpotSignal).toBe(10000);
     expect(point.buySpotSignal).toBeNull();
     expect(point.dma_200).toBe(49500);
-    expect(point.eventStrategies.sell_spot).toContain('DMA Gated FGI Default');
+    expect(point.eventStrategies.sell_spot).toContain(
+      'ETH/BTC Rotation Default',
+    );
   });
 
   it('wraps strategies in a summary object', () => {
@@ -287,13 +289,17 @@ describe('useBacktestResult', () => {
     expect(result.current.summary).toEqual({ strategies: response.strategies });
   });
 
-  it('sorts DCA first and keeps the DMA config in the list', () => {
+  it('keeps only the active chart strategy after sorting by display name', () => {
     const { result } = renderHook(() =>
       useBacktestResult(createResponse() as any),
     );
 
-    expect(result.current.sortedStrategyIds[0]).toBe('dca_classic');
-    expect(result.current.sortedStrategyIds).toContain('dma_gated_fgi_default');
+    expect(result.current.sortedStrategyIds[0]).toBe(
+      'eth_btc_rotation_default',
+    );
+    expect(result.current.sortedStrategyIds).toEqual([
+      'eth_btc_rotation_default',
+    ]);
   });
 
   it('derives actual days from market.date', () => {
@@ -318,7 +324,7 @@ describe('useBacktestResult', () => {
     );
 
     const point = result.current.chartData[0] as any;
-    expect(point.strategies.dma_gated_fgi_default.portfolio.spot_asset).toBe(
+    expect(point.strategies.eth_btc_rotation_default.portfolio.spot_asset).toBe(
       'BTC',
     );
   });

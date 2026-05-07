@@ -70,14 +70,14 @@ def _create_strategy_saved_configs_table(session: Session) -> None:
 
 def _create_request(
     *,
-    config_id: str = "dma_custom",
+    config_id: str = "eth_rotation_custom",
     supports_daily_suggestion: bool = True,
 ) -> CreateSavedStrategyConfigRequest:
-    seed = resolve_seed_strategy_config("dma_gated_fgi_default")
+    seed = resolve_seed_strategy_config("eth_btc_rotation_default")
     return CreateSavedStrategyConfigRequest(
         config_id=config_id,
-        display_name="DMA Custom",
-        description="Custom DMA config",
+        display_name="ETH/BTC Custom",
+        description="Custom ETH/BTC rotation config",
         strategy_id=seed.strategy_id,
         primary_asset=seed.primary_asset,
         params=dict(seed.params),
@@ -95,33 +95,10 @@ def test_create_config_persists_new_live_config(
 
     stored = service.create_config(_create_request())
 
-    assert stored.config_id == "dma_custom"
+    assert stored.config_id == "eth_rotation_custom"
     assert stored.is_benchmark is False
     assert stored.is_default is False
-    assert service.get_config("dma_custom").composition.signal is not None
-
-
-def test_create_config_rejects_benchmark_payload(
-    db_session: Session,
-    allow_write_operations: None,
-) -> None:
-    _create_strategy_saved_configs_table(db_session)
-    service = StrategyConfigManagementService(StrategyConfigStore(db_session))
-    benchmark = resolve_seed_strategy_config("dca_classic")
-    request = CreateSavedStrategyConfigRequest(
-        config_id="new_benchmark",
-        display_name="Bad Benchmark",
-        strategy_id=benchmark.strategy_id,
-        primary_asset=benchmark.primary_asset,
-        params=dict(benchmark.params),
-        composition=benchmark.composition.model_copy(deep=True),
-        supports_daily_suggestion=False,
-    )
-
-    with pytest.raises(
-        StrategyConfigConflictError, match="Benchmark configs are read-only"
-    ):
-        service.create_config(request)
+    assert service.get_config("eth_rotation_custom").composition.signal is not None
 
 
 def test_update_config_rejects_default_without_daily_suggestion(
@@ -132,7 +109,7 @@ def test_update_config_rejects_default_without_daily_suggestion(
     store = StrategyConfigStore(db_session)
     service = StrategyConfigManagementService(store)
     store.upsert_config(
-        resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+        resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
             update={"is_default": True}
         )
     )
@@ -142,17 +119,17 @@ def test_update_config_rejects_default_without_daily_suggestion(
         match="Default config must support daily suggestion",
     ):
         service.update_config(
-            "dma_gated_fgi_default",
+            "eth_btc_rotation_default",
             UpdateSavedStrategyConfigRequest(
-                display_name="DMA Default",
+                display_name="ETH/BTC Default",
                 description="Updated",
-                strategy_id="dma_gated_fgi",
+                strategy_id="eth_btc_rotation",
                 primary_asset="BTC",
                 params=dict(
-                    resolve_seed_strategy_config("dma_gated_fgi_default").params
+                    resolve_seed_strategy_config("eth_btc_rotation_default").params
                 ),
                 composition=resolve_seed_strategy_config(
-                    "dma_gated_fgi_default"
+                    "eth_btc_rotation_default"
                 ).composition.model_copy(deep=True),
                 supports_daily_suggestion=False,
             ),
@@ -166,16 +143,16 @@ def test_set_default_overrides_seed_default_and_preserves_single_default(
     _create_strategy_saved_configs_table(db_session)
     store = StrategyConfigStore(db_session)
     service = StrategyConfigManagementService(store)
-    created = service.create_config(_create_request(config_id="dma_alt"))
+    created = service.create_config(_create_request(config_id="eth_rotation_alt"))
 
     promoted = service.set_default(created.config_id)
 
-    assert promoted.config_id == "dma_alt"
+    assert promoted.config_id == "eth_rotation_alt"
     assert promoted.is_default is True
-    assert store.resolve_config(None).config_id == "dma_alt"
+    assert store.resolve_config(None).config_id == "eth_rotation_alt"
     configs = {config.config_id: config for config in store.list_configs()}
-    assert configs["dma_alt"].is_default is True
-    assert configs["dma_gated_fgi_default"].is_default is False
+    assert configs["eth_rotation_alt"].is_default is True
+    assert configs["eth_btc_rotation_default"].is_default is False
 
 
 def test_set_default_rejects_config_without_daily_suggestion(
@@ -186,7 +163,7 @@ def test_set_default_rejects_config_without_daily_suggestion(
     service = StrategyConfigManagementService(StrategyConfigStore(db_session))
     created = service.create_config(
         _create_request(
-            config_id="dma_compare_only",
+            config_id="eth_rotation_compare_only",
             supports_daily_suggestion=False,
         )
     )
@@ -216,12 +193,12 @@ def test_create_config_rejects_duplicate_config_id(
 ) -> None:
     _create_strategy_saved_configs_table(db_session)
     service = StrategyConfigManagementService(StrategyConfigStore(db_session))
-    service.create_config(_create_request(config_id="dma_dup"))
+    service.create_config(_create_request(config_id="eth_rotation_dup"))
 
     with pytest.raises(
-        StrategyConfigConflictError, match="Config 'dma_dup' already exists"
+        StrategyConfigConflictError, match="Config 'eth_rotation_dup' already exists"
     ):
-        service.create_config(_create_request(config_id="dma_dup"))
+        service.create_config(_create_request(config_id="eth_rotation_dup"))
 
 
 def test_set_default_is_noop_when_already_default(
@@ -231,12 +208,12 @@ def test_set_default_is_noop_when_already_default(
     _create_strategy_saved_configs_table(db_session)
     store = StrategyConfigStore(db_session)
     service = StrategyConfigManagementService(store)
-    created = service.create_config(_create_request(config_id="dma_noop"))
+    created = service.create_config(_create_request(config_id="eth_rotation_noop"))
     service.set_default(created.config_id)
 
     result = service.set_default(created.config_id)
 
-    assert result.config_id == "dma_noop"
+    assert result.config_id == "eth_rotation_noop"
     assert result.is_default is True
 
 

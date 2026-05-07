@@ -1,4 +1,4 @@
-"""Portfolio rule 3: DCA sell assets overextended above DMA."""
+"""Portfolio rule 30: DCA sell assets overextended above DMA."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class DmaOverextensionDcaSellRule:
     name: str = "dma_overextension_dca_sell"
-    priority: int = 4
+    priority: int = 30
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets that are above DMA and beyond asset-specific extension thresholds."
 

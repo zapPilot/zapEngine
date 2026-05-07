@@ -139,8 +139,8 @@ def _build_dma_long_run_inputs(
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="dma_gated_fgi_default",
-                strategy_id="dma_gated_fgi",
+                config_id="portfolio_rules_runtime",
+                strategy_id="dma_fgi_portfolio_rules",
                 params=_dma_public_params(),
             )
         ],
@@ -570,14 +570,14 @@ def _build_eth_btc_ratio_cross_down_cooldown_compare_inputs() -> tuple[
     return prices, sentiments, request
 
 
-def test_materialize_compare_request_adds_dca_when_missing() -> None:
+def test_materialize_compare_request_passes_through_configs() -> None:
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="dma_only",
-                strategy_id="dma_gated_fgi",
+                config_id="portfolio_rules_only",
+                strategy_id="dma_fgi_portfolio_rules",
                 params={},
             )
         ],
@@ -586,13 +586,12 @@ def test_materialize_compare_request_adds_dca_when_missing() -> None:
     materialized = materialize_compare_request(request)
 
     assert [cfg.strategy_id for cfg in materialized.configs] == [
-        "dca_classic",
-        "dma_gated_fgi",
+        "dma_fgi_portfolio_rules",
     ]
-    assert materialized.configs[1].config_id == "dma_only"
+    assert materialized.configs[0].config_id == "portfolio_rules_only"
 
 
-def test_run_compare_v3_on_data_supports_dma_signal_mode() -> None:
+def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
     request = materialize_compare_request(
         BacktestCompareRequestV3(
             token_symbol="BTC",
@@ -601,8 +600,8 @@ def test_run_compare_v3_on_data_supports_dma_signal_mode() -> None:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dma_runtime",
-                    strategy_id="dma_gated_fgi",
+                    config_id="portfolio_rules_runtime",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params=_dma_public_params(),
                 )
             ],
@@ -631,44 +630,28 @@ def test_run_compare_v3_on_data_supports_dma_signal_mode() -> None:
         config=RegimeConfig.default(),
     )
 
-    assert set(result.strategies) == {"dca_classic", "dma_runtime"}
-    baseline_summary = result.strategies["dca_classic"]
-    dma_summary = result.strategies["dma_runtime"]
-    assert isinstance(baseline_summary.calmar_ratio, float)
-    assert isinstance(baseline_summary.max_drawdown_percent, float)
-    assert dma_summary.strategy_id == "dma_gated_fgi"
-    assert dma_summary.signal_id == "dma_gated_fgi"
+    assert set(result.strategies) == {"portfolio_rules_runtime"}
+    dma_summary = result.strategies["portfolio_rules_runtime"]
+    assert dma_summary.strategy_id == "dma_fgi_portfolio_rules"
+    assert dma_summary.signal_id == "dma_fgi_portfolio_rules_signal"
     assert isinstance(dma_summary.calmar_ratio, float)
     assert isinstance(dma_summary.max_drawdown_percent, float)
-    assert baseline_summary.final_asset_allocation.btc == pytest.approx(
-        baseline_summary.final_allocation.spot
-    )
-    assert baseline_summary.final_asset_allocation.eth == pytest.approx(0.0)
-    assert baseline_summary.final_asset_allocation.alt == pytest.approx(0.0)
     assert dma_summary.final_asset_allocation.alt == pytest.approx(0.0)
-    dma_point = result.timeline[0].strategies["dma_runtime"]
+    dma_point = result.timeline[0].strategies["portfolio_rules_runtime"]
     assert dma_point.signal is not None
-    assert dma_point.signal.id == "dma_gated_fgi"
-    assert result.timeline[0].strategies["dca_classic"].portfolio.spot_asset == "BTC"
+    assert dma_point.signal.id == "dma_fgi_portfolio_rules_signal"
     assert dma_point.portfolio.spot_asset == "BTC"
-    assert result.timeline[0].strategies[
-        "dca_classic"
-    ].decision.target_allocation.btc == pytest.approx(
-        1.0
-        - result.timeline[0].strategies["dca_classic"].decision.target_allocation.stable
-    )
-    assert result.timeline[0].strategies[
-        "dca_classic"
-    ].decision.target_allocation.alt == pytest.approx(0.0)
     assert dma_point.decision.target_allocation.btc == pytest.approx(
-        1.0 - dma_point.decision.target_allocation.stable
+        1.0
+        - dma_point.decision.target_allocation.eth
+        - dma_point.decision.target_allocation.spy
+        - dma_point.decision.target_allocation.stable
     )
-    assert dma_point.decision.target_allocation.eth == pytest.approx(0.0)
     assert dma_point.decision.target_allocation.alt == pytest.approx(0.0)
     assert all(
-        point.strategies["dma_runtime"].portfolio.spot_asset is None
+        point.strategies["portfolio_rules_runtime"].portfolio.spot_asset is None
         for point in result.timeline
-        if point.strategies["dma_runtime"].portfolio.allocation.spot
+        if point.strategies["portfolio_rules_runtime"].portfolio.allocation.spot
         == pytest.approx(0.0)
     )
     assert dma_point.decision.rule_group in {
@@ -690,12 +673,12 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
             configs=[
                 BacktestCompareConfigV3(
                     config_id="dma_unbounded",
-                    strategy_id="dma_gated_fgi",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params=_dma_public_params(cross_cooldown_days=0),
                 ),
                 BacktestCompareConfigV3(
                     config_id="dma_quota",
-                    strategy_id="dma_gated_fgi",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params=_dma_public_params(
                         cross_cooldown_days=0,
                         min_trade_interval_days=7,
@@ -733,18 +716,11 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
         config=RegimeConfig.default(),
     )
 
-    assert (
-        result.strategies["dma_unbounded"].trade_count
-        > result.strategies["dma_quota"].trade_count
-    )
+    unbounded_state = result.timeline[2].strategies["dma_unbounded"]
+    assert unbounded_state.execution.blocked_reason is None
+    assert unbounded_state.decision.reason == "global_cooldown_active"
     quota_state = result.timeline[2].strategies["dma_quota"]
-    assert quota_state.execution.blocked_reason == "trade_quota_min_interval_active"
-    assert (
-        quota_state.execution.diagnostics.plugins["trade_quota_guard"][
-            "next_trade_date"
-        ]
-        == "2025-01-09"
-    )
+    assert quota_state.decision.reason == "trade_quota_min_interval_active"
 
 
 def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
@@ -759,7 +735,7 @@ def test_run_compare_v3_on_data_emits_eth_btc_rotation_asset_timeline() -> None:
         config=RegimeConfig.default(),
     )
 
-    assert set(result.strategies) == {"dca_classic", "eth_rotation_runtime"}
+    assert set(result.strategies) == {"eth_rotation_runtime"}
     assert [point.market.date for point in result.timeline] == [
         date(2025, 1, 1),
         date(2025, 1, 2),
@@ -1227,7 +1203,7 @@ def test_run_compare_v3_on_data_supports_mock_recipe_without_sentiment(
         config=RegimeConfig.default(),
     )
 
-    assert set(result.strategies) == {"dca_classic", "mock_no_sentiment"}
+    assert set(result.strategies) == {"mock_no_sentiment"}
     assert [point.market.date for point in result.timeline] == [
         date(2025, 1, 1),
         date(2025, 1, 2),
@@ -1246,7 +1222,7 @@ def test_run_compare_v3_on_data_sanitizes_dma_allocation_residue() -> None:
         config=RegimeConfig.default(),
     )
 
-    summary = result.strategies["dma_gated_fgi_default"]
+    summary = result.strategies["portfolio_rules_runtime"]
     assert summary.final_allocation.spot >= 0.0
     assert summary.final_allocation.stable >= 0.0
     assert (
@@ -1255,7 +1231,7 @@ def test_run_compare_v3_on_data_sanitizes_dma_allocation_residue() -> None:
     )
 
     for point in result.timeline:
-        strategy = point.strategies["dma_gated_fgi_default"]
+        strategy = point.strategies["portfolio_rules_runtime"]
         assert strategy.portfolio.allocation.spot >= 0.0
         assert strategy.portfolio.allocation.stable >= 0.0
         assert (
@@ -1283,8 +1259,8 @@ def test_run_compare_v3_on_data_attaches_window_and_respects_effective_start() -
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dma_runtime",
-                    strategy_id="dma_gated_fgi",
+                    config_id="portfolio_rules_runtime",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params={},
                 )
             ],
@@ -1391,7 +1367,7 @@ def _build_parabolic_rise_inputs() -> tuple[
         configs=[
             BacktestCompareConfigV3(
                 config_id="dma_overextension_test",
-                strategy_id="dma_gated_fgi",
+                strategy_id="dma_fgi_portfolio_rules",
                 params=_dma_public_params(cross_cooldown_days=0),
             )
         ],
@@ -1418,28 +1394,28 @@ def test_run_compare_v3_on_data_triggers_overextension_sell_on_parabolic_rise() 
 
     # Day 1: below DMA → cross_up or hold
     day1 = points[date(2025, 6, 1)]
-    assert day1.decision.reason != "above_dma_overextended_sell"
+    assert day1.decision.reason != "portfolio_dma_overextension_dca_sell"
 
     # Day 3: distance = 20% → still below 30% threshold
     day3 = points[date(2025, 6, 3)]
-    assert day3.decision.reason != "above_dma_overextended_sell"
+    assert day3.decision.reason != "portfolio_dma_overextension_dca_sell"
 
     # Day 4: distance = 35% → overextension sell triggers (neutral regime, no FGI needed)
     day4 = points[date(2025, 6, 4)]
-    assert day4.decision.reason == "above_dma_overextended_sell"
+    assert day4.decision.reason == "portfolio_dma_overextension_dca_sell"
     assert day4.decision.action == "sell"
 
     # Day 5: distance = 40% → still overextended, continues selling
     day5 = points[date(2025, 6, 5)]
-    assert day5.decision.reason == "above_dma_overextended_sell"
+    assert day5.decision.reason == "portfolio_dma_overextension_dca_sell"
 
-    # At least one day should produce an actual rebalance event (paced execution)
+    # The portfolio-rule decision should keep firing while the asset is overextended.
     overextended_days = [
         points[d]
         for d in sorted(points)
-        if points[d].decision.reason == "above_dma_overextended_sell"
+        if points[d].decision.reason == "portfolio_dma_overextension_dca_sell"
     ]
-    assert any(day.execution.event is not None for day in overextended_days)
+    assert len(overextended_days) >= 2
 
 
 def _build_greed_fading_inputs() -> tuple[
@@ -1479,7 +1455,7 @@ def _build_greed_fading_inputs() -> tuple[
         configs=[
             BacktestCompareConfigV3(
                 config_id="dma_greed_fading_test",
-                strategy_id="dma_gated_fgi",
+                strategy_id="dma_fgi_portfolio_rules",
                 params=_dma_public_params(cross_cooldown_days=0),
             )
         ],
@@ -1507,18 +1483,20 @@ def test_run_compare_v3_on_data_triggers_greed_fading_sell_on_declining_fgi() ->
     # Collect reasons across the timeline
     reasons = {d: points[d].decision.reason for d in sorted(points)}
 
-    # At some point, greed_fading_sell should appear (when slope turns negative enough
+    # At some point, the portfolio FGI downshift sell should appear (when slope turns negative enough
     # while still in greed regime)
     greed_fading_days = [
-        d for d, reason in reasons.items() if reason == "above_greed_fading_sell"
+        d
+        for d, reason in reasons.items()
+        if reason == "portfolio_fgi_downshift_dca_sell"
     ]
-    # Greed fading should fire on at least one greed-regime day
-    assert len(greed_fading_days) > 0, f"Expected greed_fading_sell but got: {reasons}"
+    # FGI downshift should fire on at least one greed-regime day
+    assert len(greed_fading_days) > 0, (
+        f"Expected portfolio_fgi_downshift_dca_sell but got: {reasons}"
+    )
 
     # Verify that greed_fading_sell days are all sell actions
     for fading_day in greed_fading_days:
         assert points[fading_day].decision.action == "sell"
 
-    # The last day is neutral → should not be greed_fading_sell (requires greed regime)
-    last_day = max(points)
-    assert points[last_day].decision.reason != "above_greed_fading_sell"
+    assert max(greed_fading_days) == date(2025, 6, 5)

@@ -4,11 +4,33 @@ from dataclasses import replace
 
 import pytest
 
+from src.services.backtesting.portfolio_rules import (
+    DEFAULT_PORTFOLIO_RULES,
+    DmaBuyGateRule,
+    TradeQuotaRule,
+)
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     add_split_proceeds,
     cross_down_cooldown_days_for,
 )
+
+
+def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
+    assert [(rule.name, rule.priority) for rule in DEFAULT_PORTFOLIO_RULES] == [
+        ("cross_down_exit", 10),
+        ("cross_up_equal_weight", 20),
+        ("eth_btc_ratio_rotation", 21),
+        ("global_cooldown_gate", 23),
+        ("dma_overextension_dca_sell", 30),
+        ("extreme_fear_dca_buy", 40),
+        ("fgi_downshift_dca_sell", 50),
+    ]
+
+
+def test_optional_rule_priorities_preserve_existing_ordering() -> None:
+    assert TradeQuotaRule().priority == 0
+    assert DmaBuyGateRule().priority == 35
 
 
 def test_add_split_proceeds_default_50_50() -> None:
@@ -43,7 +65,7 @@ def test_cross_down_cooldown_default_map() -> None:
 
     assert cross_down_cooldown_days_for("BTC", config=config) == 30
     assert cross_down_cooldown_days_for("ETH", config=config) == 30
-    assert cross_down_cooldown_days_for("SPY", config=config) == 30
+    assert cross_down_cooldown_days_for("SPY", config=config) == 14
 
 
 def test_cross_down_cooldown_unknown_symbol_falls_back_to_default() -> None:
@@ -55,7 +77,7 @@ def test_cross_down_cooldown_unknown_symbol_falls_back_to_default() -> None:
 def test_cross_down_cooldown_normalizes_symbol_case() -> None:
     config = PortfolioRuleConfig()
 
-    assert cross_down_cooldown_days_for("spy", config=config) == 30
+    assert cross_down_cooldown_days_for("spy", config=config) == 14
     assert cross_down_cooldown_days_for(" btc ", config=config) == 30
 
 

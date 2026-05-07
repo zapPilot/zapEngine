@@ -48,7 +48,7 @@ export async function getStrategyAdminConfigs(): Promise<StrategyAdminConfigsRes
  *
  * @example
  * ```typescript
- * const { config } = await getStrategyAdminConfig("dma_gated_fgi_default");
+ * const { config } = await getStrategyAdminConfig("eth_btc_rotation_default");
  * ```
  */
 export async function getStrategyAdminConfig(
@@ -122,7 +122,7 @@ export async function updateStrategyConfig(
  *
  * @example
  * ```typescript
- * const { config } = await setDefaultStrategyConfig("dma_gated_fgi_aggressive");
+ * const { config } = await setDefaultStrategyConfig("eth_rotation_aggressive");
  * ```
  */
 export async function setDefaultStrategyConfig(

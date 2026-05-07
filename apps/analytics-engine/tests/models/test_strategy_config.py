@@ -27,13 +27,13 @@ def test_backtest_defaults_use_dma_first_defaults() -> None:
 
 def test_strategy_preset_accepts_any_strategy_id() -> None:
     preset = StrategyPreset(
-        config_id="dma_gated_fgi_default",
-        display_name="DMA Gated FGI Default",
-        strategy_id="dma_gated_fgi",
+        config_id="eth_btc_rotation_default",
+        display_name="ETH/BTC Rotation Default",
+        strategy_id="eth_btc_rotation",
         params={"signal": {"cross_cooldown_days": 30}},
         is_default=True,
     )
-    assert preset.strategy_id == "dma_gated_fgi"
+    assert preset.strategy_id == "eth_btc_rotation"
     assert preset.params["signal"]["cross_cooldown_days"] == 30
 
     # strategy_id is str — any valid string is accepted
@@ -50,7 +50,7 @@ def test_strategy_preset_validates_config_id() -> None:
         StrategyPreset(
             config_id="invalid config id",
             display_name="Bad",
-            strategy_id="dca_classic",
+            strategy_id="eth_btc_rotation",
         )
 
 
@@ -58,9 +58,9 @@ def test_strategy_configs_response_round_trips() -> None:
     response = StrategyConfigsResponse(
         strategies=[
             {
-                "strategy_id": "dma_gated_fgi",
-                "display_name": "DMA Gated FGI",
-                "description": "DMA-first strategy",
+                "strategy_id": "eth_btc_rotation",
+                "display_name": "ETH/BTC Rotation",
+                "description": "ETH/BTC relative-strength rotation",
                 "param_schema": {"type": "object"},
                 "default_params": {"signal": {"cross_cooldown_days": 30}},
                 "supports_daily_suggestion": True,
@@ -68,9 +68,9 @@ def test_strategy_configs_response_round_trips() -> None:
         ],
         presets=[
             StrategyPreset(
-                config_id="dma_gated_fgi_default",
-                display_name="DMA Gated FGI Default",
-                strategy_id="dma_gated_fgi",
+                config_id="eth_btc_rotation_default",
+                display_name="ETH/BTC Rotation Default",
+                strategy_id="eth_btc_rotation",
                 params={"signal": {"cross_cooldown_days": 30}},
                 is_default=True,
             )
@@ -79,24 +79,26 @@ def test_strategy_configs_response_round_trips() -> None:
     )
 
     restored = StrategyConfigsResponse.model_validate(response.model_dump())
-    assert restored.strategies[0].strategy_id == "dma_gated_fgi"
-    assert restored.presets[0].config_id == "dma_gated_fgi_default"
+    assert restored.strategies[0].strategy_id == "eth_btc_rotation"
+    assert restored.presets[0].config_id == "eth_btc_rotation_default"
     assert restored.backtest_defaults.days == 365
     assert restored.backtest_defaults.total_capital == 25000.0
 
 
 def test_saved_strategy_config_admin_requests_validate_full_composition() -> None:
     request = CreateSavedStrategyConfigRequest(
-        config_id="dma_custom",
-        display_name="DMA Custom",
-        strategy_id="dma_gated_fgi",
+        config_id="eth_rotation_custom",
+        display_name="ETH Rotation Custom",
+        strategy_id="eth_btc_rotation",
         primary_asset="btc",
         params={"signal": {"cross_cooldown_days": 12}},
         composition=StrategyComposition(
             kind="composed",
-            bucket_mapper_id="two_bucket_spot_stable",
-            signal=StrategyComponentRef(component_id="dma_gated_fgi_signal"),
-            decision_policy=StrategyComponentRef(component_id="dma_fgi_policy"),
+            bucket_mapper_id="eth_btc_stable",
+            signal=StrategyComponentRef(component_id="eth_btc_rs_signal"),
+            decision_policy=StrategyComponentRef(
+                component_id="eth_btc_rotation_policy"
+            ),
             pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
             execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
         ),
@@ -110,20 +112,22 @@ def test_saved_strategy_config_admin_requests_validate_full_composition() -> Non
     update = UpdateSavedStrategyConfigRequest.model_validate(
         request.model_dump(exclude={"config_id"})
     )
-    assert update.strategy_id == "dma_gated_fgi"
+    assert update.strategy_id == "eth_btc_rotation"
 
 
 def test_saved_strategy_config_admin_responses_round_trip() -> None:
     config = CreateSavedStrategyConfigRequest(
-        config_id="dma_custom",
-        display_name="DMA Custom",
-        strategy_id="dma_gated_fgi",
+        config_id="eth_rotation_custom",
+        display_name="ETH Rotation Custom",
+        strategy_id="eth_btc_rotation",
         primary_asset="BTC",
         composition=StrategyComposition(
             kind="composed",
-            bucket_mapper_id="two_bucket_spot_stable",
-            signal=StrategyComponentRef(component_id="dma_gated_fgi_signal"),
-            decision_policy=StrategyComponentRef(component_id="dma_fgi_policy"),
+            bucket_mapper_id="eth_btc_stable",
+            signal=StrategyComponentRef(component_id="eth_btc_rs_signal"),
+            decision_policy=StrategyComponentRef(
+                component_id="eth_btc_rotation_policy"
+            ),
             pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
             execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
         ),
@@ -138,7 +142,7 @@ def test_saved_strategy_config_admin_responses_round_trip() -> None:
     )
     list_response = SavedStrategyConfigListResponse(configs=[response.config])
 
-    assert list_response.configs[0].config_id == "dma_custom"
+    assert list_response.configs[0].config_id == "eth_rotation_custom"
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +177,7 @@ def test_saved_strategy_config_rejects_both_default_and_benchmark() -> None:
         SavedStrategyConfig(
             config_id="both_flags",
             display_name="Both Flags",
-            strategy_id="dca_classic",
+            strategy_id="legacy_benchmark",
             composition=StrategyComposition(
                 kind="benchmark",
                 bucket_mapper_id="two_bucket_spot_stable",

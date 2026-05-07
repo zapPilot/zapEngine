@@ -18,7 +18,7 @@ from tests.services.backtesting.support import make_strategy_snapshot
 class BuySpotStrategy(BaseStrategy):
     strategy_id = "buy_spot"
     display_name = "Buy Spot"
-    canonical_strategy_id = "dca_classic"
+    canonical_strategy_id = "eth_btc_rotation"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context
@@ -37,7 +37,7 @@ class BuySpotStrategy(BaseStrategy):
 class HoldStableStrategy(BaseStrategy):
     strategy_id = "hold_stable"
     display_name = "Hold Stable"
-    canonical_strategy_id = "dca_classic"
+    canonical_strategy_id = "eth_btc_rotation"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context
@@ -74,7 +74,7 @@ class RotateToEthStrategy(BaseStrategy):
 class BuySpyStrategy(BaseStrategy):
     strategy_id = "buy_spy"
     display_name = "Buy SPY"
-    canonical_strategy_id = "dma_fgi_hierarchical_spy_crypto"
+    canonical_strategy_id = "dma_fgi_hierarchical_minimum"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context

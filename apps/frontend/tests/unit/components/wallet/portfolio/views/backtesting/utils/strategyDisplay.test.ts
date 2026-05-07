@@ -8,10 +8,14 @@ import {
 describe('strategyDisplay', () => {
   describe('getStrategyDisplayName', () => {
     it('returns display names for canonical strategies', () => {
-      expect(getStrategyDisplayName('dca_classic')).toBe('DCA Classic');
-      expect(getStrategyDisplayName('dma_gated_fgi')).toBe('DMA Gated FGI');
-      expect(getStrategyDisplayName('dma_gated_fgi_default')).toBe(
-        'DMA Gated FGI Default',
+      expect(getStrategyDisplayName('eth_btc_rotation')).toBe(
+        'ETH/BTC Rotation',
+      );
+      expect(getStrategyDisplayName('eth_btc_rotation_default')).toBe(
+        'ETH/BTC Rotation Default',
+      );
+      expect(getStrategyDisplayName('dma_fgi_hierarchical_minimum')).toBe(
+        'Hierarchical Minimum',
       );
     });
 
@@ -23,11 +27,6 @@ describe('strategyDisplay', () => {
   });
 
   describe('getStrategyColor', () => {
-    it('returns the DCA color for exact or partial dca ids', () => {
-      expect(getStrategyColor('dca_classic')).toBe('#4b5563');
-      expect(getStrategyColor('custom_dca_classic_variant')).toBe('#4b5563');
-    });
-
     it('returns palette colors by index', () => {
       expect(getStrategyColor('any_strategy', 0)).toBe('#3b82f6');
       expect(getStrategyColor('another_strategy', 1)).toBe('#06b6d4');
@@ -39,8 +38,8 @@ describe('strategyDisplay', () => {
     });
 
     it('uses a deterministic hash color without an index', () => {
-      expect(getStrategyColor('dma_gated_fgi_default')).toBe(
-        getStrategyColor('dma_gated_fgi_default'),
+      expect(getStrategyColor('eth_btc_rotation_default')).toBe(
+        getStrategyColor('eth_btc_rotation_default'),
       );
     });
   });

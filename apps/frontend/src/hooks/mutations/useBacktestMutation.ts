@@ -6,7 +6,7 @@ import type { BacktestRequest } from '@/types/backtesting';
 /**
  * React Query mutation hook for running backtests.
  *
- * Executes the full DCA comparison backtest against the analytics-engine API.
+ * Executes a strategy comparison backtest against the analytics-engine API.
  */
 export function useBacktestMutation() {
   return useMutation({

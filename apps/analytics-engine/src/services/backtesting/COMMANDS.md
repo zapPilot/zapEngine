@@ -32,8 +32,8 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
 # Custom baseline + variants + markdown output
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
   --windows 2024,2025,2026,combined \
-  --baseline-strategy dma_fgi_hierarchical_full_minus_adaptive_dma \
-  --variants dma_fgi_hierarchical_full_minus_adaptive_dma,dma_fgi_hierarchical_nodma_full_minus_spy_latch,dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression,dma_fgi_hierarchical_nodma_full_minus_buy_floor,dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy \
+  --baseline-strategy dma_fgi_hierarchical_minimum \
+  --variants dma_fgi_hierarchical_control,dma_fgi_hierarchical_minimum,dma_fgi_eth_btc_minimum_surgical \
   --out attribution_$(date -I).md
 ```
 
@@ -53,8 +53,8 @@ Common `sweep_hierarchical.py` options:
 ```bash
 # Selected strategy over the full validation fixture window
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-  --saved-config-id dma_fgi_hierarchical_prod \
-  --config-id dma_fgi_hierarchical_prod \
+  --saved-config-id dma_fgi_hierarchical_minimum \
+  --config-id dma_fgi_hierarchical_minimum \
   --from-date 2025-01-01 \
   --to-date 2026-04-10 \
   --profile spy-eth-btc-rotation \
@@ -81,7 +81,7 @@ diagnostics that should not gate strategy iteration.
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/diagnose_spy_tax.py \
   --baseline-strategy dma_fgi_hierarchical_minimum \
-  --reference-strategy dma_fgi_eth_btc_minimum \
+  --reference-strategy dma_fgi_eth_btc_minimum_surgical \
   --reference-date 2026-04-15 \
   --window-days 500 \
   --out diagnostic_$(date -I).md

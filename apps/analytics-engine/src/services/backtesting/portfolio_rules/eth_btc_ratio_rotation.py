@@ -17,7 +17,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class EthBtcRatioRotationRule:
     name: str = "eth_btc_ratio_rotation"
-    priority: int = 2
+    priority: int = 21
     rule_group: RuleGroup = "cross"
     description: str = "Rotate BTC <-> ETH when ETH/BTC ratio crosses its 200-day DMA."
 

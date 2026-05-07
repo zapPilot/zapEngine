@@ -27,8 +27,8 @@ Run fixture constraint validation after strategy iterations:
 
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-  --saved-config-id dma_fgi_hierarchical_prod \
-  --config-id dma_fgi_hierarchical_prod \
+  --saved-config-id dma_fgi_hierarchical_minimum \
+  --config-id dma_fgi_hierarchical_minimum \
   --from-date 2025-01-01 \
   --to-date 2026-04-10 \
   --format markdown \

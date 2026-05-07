@@ -31,8 +31,8 @@ export interface TerminalDropdownProps {
  * @example
  * ```tsx
  * <TerminalDropdown
- *   options={[{ value: "dma_gated_fgi", label: "DMA Gated FGI" }]}
- *   value="dma_gated_fgi"
+ *   options={[{ value: "dma_fgi_hierarchical_minimum", label: "Hierarchical Minimum" }]}
+ *   value="dma_fgi_hierarchical_minimum"
  *   onChange={id => console.log(id)}
  * />
  * ```

@@ -63,11 +63,7 @@ def test_list_configs_falls_back_to_seed_configs_when_table_missing(
 
     configs = store.list_configs()
 
-    assert [config.config_id for config in configs] == [
-        "dma_gated_fgi_default",
-        "eth_btc_rotation_default",
-        "dca_classic",
-    ]
+    assert [config.config_id for config in configs] == ["eth_btc_rotation_default"]
     assert store.resolve_config(None).config_id == "eth_btc_rotation_default"
 
 
@@ -81,19 +77,21 @@ def test_upsert_and_resolve_saved_config_round_trip(
         "src.services.strategy.strategy_config_store.validate_write_operation",
         lambda: None,
     )
-    config = resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+    config = resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
         update={
-            "config_id": "dma_gated_fgi_custom",
-            "display_name": "DMA Custom",
+            "config_id": "eth_btc_rotation_custom",
+            "display_name": "ETH/BTC Custom",
             "is_default": False,
         }
     )
 
     stored = store.upsert_config(config)
 
-    assert stored.config_id == "dma_gated_fgi_custom"
-    assert stored.display_name == "DMA Custom"
-    assert store.resolve_config("dma_gated_fgi_custom").composition.signal is not None
+    assert stored.config_id == "eth_btc_rotation_custom"
+    assert stored.display_name == "ETH/BTC Custom"
+    assert (
+        store.resolve_config("eth_btc_rotation_custom").composition.signal is not None
+    )
 
 
 def test_upsert_configs_can_flip_default_without_duplicate_defaults(
@@ -106,11 +104,11 @@ def test_upsert_configs_can_flip_default_without_duplicate_defaults(
         "src.services.strategy.strategy_config_store.validate_write_operation",
         lambda: None,
     )
-    original_default = resolve_seed_strategy_config("dma_gated_fgi_default")
+    original_default = resolve_seed_strategy_config("eth_btc_rotation_default")
     alternate = original_default.model_copy(
         update={
-            "config_id": "dma_alt",
-            "display_name": "DMA Alt",
+            "config_id": "eth_rotation_alt",
+            "display_name": "ETH Rotation Alt",
             "is_default": False,
         }
     )
@@ -121,8 +119,8 @@ def test_upsert_configs_can_flip_default_without_duplicate_defaults(
         ]
     )
 
-    assert store.resolve_config(None).config_id == "dma_alt"
-    assert store.get_config("dma_gated_fgi_default") is not None
+    assert store.resolve_config(None).config_id == "eth_rotation_alt"
+    assert store.get_config("eth_btc_rotation_default") is not None
 
 
 def test_resolve_config_raises_on_unknown_config_id(
@@ -159,8 +157,7 @@ def test_seed_store_list_configs_returns_all_seeds() -> None:
     configs = store.list_configs()
 
     config_ids = [config.config_id for config in configs]
-    assert "dma_gated_fgi_default" in config_ids
-    assert "dca_classic" in config_ids
+    assert config_ids == ["eth_btc_rotation_default"]
 
 
 def test_seed_store_resolve_config_default() -> None:
@@ -171,8 +168,8 @@ def test_seed_store_resolve_config_default() -> None:
 
 def test_seed_store_resolve_config_by_id() -> None:
     store = SeedStrategyConfigStore()
-    config = store.resolve_config("dca_classic")
-    assert config.config_id == "dca_classic"
+    config = store.resolve_config("eth_btc_rotation_default")
+    assert config.config_id == "eth_btc_rotation_default"
 
 
 def test_seed_store_resolve_config_unknown_raises() -> None:
@@ -183,9 +180,9 @@ def test_seed_store_resolve_config_unknown_raises() -> None:
 
 def test_seed_store_get_config_found() -> None:
     store = SeedStrategyConfigStore()
-    config = store.get_config("dma_gated_fgi_default")
+    config = store.get_config("eth_btc_rotation_default")
     assert config is not None
-    assert config.config_id == "dma_gated_fgi_default"
+    assert config.config_id == "eth_btc_rotation_default"
 
 
 def test_seed_store_get_config_missing_returns_none() -> None:
@@ -206,7 +203,7 @@ def test_resolve_config_falls_back_to_seed_default_when_no_db_default(
         lambda: None,
     )
     # Upsert a non-default config only
-    config = resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+    config = resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
         update={
             "config_id": "only_non_default",
             "display_name": "Non-Default",
@@ -231,73 +228,6 @@ def test_resolve_config_falls_back_to_seed_default_when_no_db_default(
     # which still reads from the real SEED_STRATEGY_CONFIGS
     result = store.resolve_config(None)
     assert result.config_id == "eth_btc_rotation_default"
-
-
-def test_stale_db_default_causes_multiple_defaults_regression(
-    db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Regression: DB has stale is_default=true on dma_gated_fgi_default while
-    the seed designates eth_btc_rotation_default as default.  The merge in
-    list_configs lets DB rows override seeds, producing two defaults.
-    This is the scenario that migration 020 fixes."""
-    _create_strategy_saved_configs_table(db_session)
-    store = StrategyConfigStore(db_session)
-    monkeypatch.setattr(
-        "src.services.strategy.strategy_config_store.validate_write_operation",
-        lambda: None,
-    )
-    # Simulate migration-017 state: dma_gated_fgi_default persisted with is_default=True
-    stale_config = resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-        update={"is_default": True},
-    )
-    store.upsert_config(stale_config)
-
-    # Now list_configs merges: DB has dma with is_default=True,
-    # seed has eth_btc_rotation with is_default=True → two defaults
-    configs = store.list_configs()
-    default_ids = [c.config_id for c in configs if c.is_default]
-    assert len(default_ids) == 2, (
-        "Expected two defaults before migration fix (regression baseline)"
-    )
-    assert set(default_ids) == {"dma_gated_fgi_default", "eth_btc_rotation_default"}
-
-
-def test_migration_020_clears_stale_default(
-    db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """After migration 020 clears the stale DB row, only the seed default
-    (eth_btc_rotation_default) remains as the single default."""
-    _create_strategy_saved_configs_table(db_session)
-    store = StrategyConfigStore(db_session)
-    monkeypatch.setattr(
-        "src.services.strategy.strategy_config_store.validate_write_operation",
-        lambda: None,
-    )
-    # Step 1: simulate pre-migration state (stale default in DB)
-    stale_config = resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-        update={"is_default": True},
-    )
-    store.upsert_config(stale_config)
-
-    # Step 2: apply migration 020 logic via raw SQL (matches actual migration)
-    db_session.execute(
-        text(
-            """
-            UPDATE strategy_saved_configs
-            SET is_default = 0
-            WHERE config_id = 'dma_gated_fgi_default' AND is_default
-            """
-        )
-    )
-    db_session.commit()
-
-    # Verify: DB no longer has a stale default, seed default takes over
-    configs = store.list_configs()
-    default_ids = [c.config_id for c in configs if c.is_default]
-    assert default_ids == ["eth_btc_rotation_default"]
-    assert store.resolve_config(None).config_id == "eth_btc_rotation_default"
 
 
 def test_table_exists_returns_false_on_sqlalchemy_error(

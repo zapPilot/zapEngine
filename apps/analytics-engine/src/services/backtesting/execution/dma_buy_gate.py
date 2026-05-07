@@ -1,4 +1,4 @@
-"""Buy-side sideways confirmation gate for the dedicated DMA runtime."""
+"""Shared DMA buy-side sideways confirmation gate."""
 
 from __future__ import annotations
 
@@ -54,12 +54,7 @@ class DmaBuyGateConfigMixin:
 
 @dataclass
 class DmaBuySidewaysGate:
-    """Stateful sideways confirmation gate for DMA buy execution.
-
-    A confirmed sideways episode unlocks exactly one buy execution. After a buy
-    is executed, the gate remains consumed until the rolling DMA-deviation range
-    breaks out above the sideways threshold and later re-confirms.
-    """
+    """Stateful sideways confirmation gate for DMA buy execution."""
 
     window_days: int = 5
     sideways_range_threshold: float = 0.04

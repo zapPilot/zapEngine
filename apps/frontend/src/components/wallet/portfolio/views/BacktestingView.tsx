@@ -70,7 +70,7 @@ export function BacktestingView(): ReactElement {
           Strategy Simulator
         </h2>
         <p className="text-sm text-gray-400 mt-1">
-          Compare Normal DCA vs Regime-Based Strategy performance over time
+          Compare registered regime strategies over time
         </p>
       </div>
 

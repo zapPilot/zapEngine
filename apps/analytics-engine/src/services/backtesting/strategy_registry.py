@@ -12,18 +12,8 @@ from src.services.backtesting.capabilities import (
     RuntimePortfolioMode,
     map_portfolio_to_eth_btc_stable_buckets,
     map_portfolio_to_spy_eth_btc_stable_buckets,
-    map_portfolio_to_two_buckets,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DCA_CLASSIC,
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-    STRATEGY_DMA_FGI_FLAT_MINIMUM,
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
-    STRATEGY_DMA_GATED_FGI,
-    STRATEGY_ETH_BTC_ROTATION,
-)
+from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
@@ -34,18 +24,11 @@ from src.services.backtesting.features import (
     MarketDataRequirements,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
     build_initial_portfolio_rules_asset_allocation,
 )
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiParams,
-    DmaGatedFgiStrategy,
-)
-from src.services.backtesting.strategies.eth_btc_minimum import (
-    DmaFgiEthBtcMinimumStrategy,
-)
+from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRotationParams,
     EthBtcRotationStrategy,
@@ -53,19 +36,13 @@ from src.services.backtesting.strategies.eth_btc_rotation import (
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
-    PLAIN_GREED_SELL_RULE,
 )
 from src.services.backtesting.strategies.hierarchical_minimum import (
     MINIMUM_HIERARCHICAL_VARIANTS,
     HierarchicalMinimumStrategy,
 )
-from src.services.backtesting.strategies.minimum import (
-    FlatMinimumStrategy,
-    build_initial_flat_minimum_asset_allocation,
-)
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
-    DmaFgiAdaptiveBinaryEthBtcStrategy,
     build_initial_pair_asset_allocation,
 )
 from src.services.backtesting.strategies.portfolio_rules_attribution import (
@@ -98,10 +75,17 @@ class StrategyBuildRequest:
         return self.config_id or ""
 
 
-def _normalize_dca_params(params: dict[str, Any]) -> dict[str, Any]:
-    if params:
-        raise ValueError("dca_classic does not accept params")
-    return {}
+def _require_compare_mode(request: StrategyBuildRequest) -> None:
+    if request.mode != "compare":
+        raise ValueError("This strategy does not support daily suggestion mode")
+
+
+def _require_compare_runtime_inputs(request: StrategyBuildRequest) -> None:
+    _require_compare_mode(request)
+    if request.initial_allocation is None or request.user_start_date is None:
+        raise ValueError(
+            "Compare strategy build requires initial allocation and start date"
+        )
 
 
 def _normalize_dma_public_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -136,44 +120,6 @@ class StrategyRecipe:
     deprecation_note: str | None = None
 
 
-def _require_compare_mode(request: StrategyBuildRequest) -> None:
-    if request.mode != "compare":
-        raise ValueError("This strategy does not support daily suggestion")
-
-
-def _require_compare_runtime_inputs(request: StrategyBuildRequest) -> None:
-    if request.initial_allocation is None or request.user_start_date is None:
-        raise ValueError(
-            "Compare strategy build requires initial allocation and start date"
-        )
-
-
-def _build_dca_strategy(request: StrategyBuildRequest) -> BaseStrategy:
-    _require_compare_mode(request)
-    _require_compare_runtime_inputs(request)
-    assert request.initial_allocation is not None
-    assert request.user_start_date is not None
-    return DcaClassicStrategy(
-        total_days=len(request.user_prices),
-        total_capital=request.total_capital,
-        initial_allocation=request.initial_allocation,
-        user_start_date=request.user_start_date,
-        strategy_id=request.resolved_config_id or STRATEGY_DCA_CLASSIC,
-        display_name=request.resolved_config_id or STRATEGY_DCA_CLASSIC,
-    )
-
-
-def _build_dma_strategy(request: StrategyBuildRequest) -> BaseStrategy:
-    params = DmaGatedFgiParams.from_public_params(request.params)
-    strategy_id = request.resolved_config_id or STRATEGY_DMA_GATED_FGI
-    return DmaGatedFgiStrategy(
-        total_capital=request.total_capital,
-        params=params,
-        strategy_id=strategy_id,
-        display_name=strategy_id,
-    )
-
-
 def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrategy:
     params = EthBtcRotationParams.from_public_params(request.params)
     strategy_id = request.resolved_config_id or STRATEGY_ETH_BTC_ROTATION
@@ -197,17 +143,6 @@ def _build_eth_btc_rotation_strategy(request: StrategyBuildRequest) -> BaseStrat
     )
 
 
-def _build_compare_pair_initial_asset_allocation(
-    request: StrategyBuildRequest,
-) -> dict[str, float] | None:
-    if request.mode != "compare" or request.initial_allocation is None:
-        return None
-    return build_initial_pair_asset_allocation(
-        aggregate_allocation=request.initial_allocation,
-        template=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
-    )
-
-
 def _first_price_row(request: StrategyBuildRequest) -> dict[str, Any]:
     return request.user_prices[0] if request.user_prices else {}
 
@@ -216,8 +151,8 @@ def _build_compare_price_row_initial_asset_allocation(
     request: StrategyBuildRequest,
     builder: InitialAllocationBuilder,
 ) -> dict[str, float] | None:
-    if request.mode != "compare" or request.initial_allocation is None:
-        return None
+    _require_compare_runtime_inputs(request)
+    assert request.initial_allocation is not None
     first_price_row = _first_price_row(request)
     return builder(
         aggregate_allocation=request.initial_allocation,
@@ -227,49 +162,6 @@ def _build_compare_price_row_initial_asset_allocation(
             float(first_price_row["price"])
             if isinstance(first_price_row.get("price"), int | float)
             else None
-        ),
-    )
-
-
-def _build_adaptive_binary_eth_btc_strategy(
-    request: StrategyBuildRequest,
-) -> BaseStrategy:
-    params = EthBtcRotationParams.from_public_params(request.params)
-    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC
-    return DmaFgiAdaptiveBinaryEthBtcStrategy(
-        total_capital=request.total_capital,
-        params=params,
-        strategy_id=strategy_id,
-        display_name=strategy_id,
-        initial_asset_allocation=_build_compare_pair_initial_asset_allocation(request),
-    )
-
-
-def _build_eth_btc_minimum_strategy(request: StrategyBuildRequest) -> BaseStrategy:
-    params = EthBtcRotationParams.from_public_params(request.params).model_copy(
-        update={"disabled_rules": frozenset({PLAIN_GREED_SELL_RULE})}
-    )
-    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_ETH_BTC_MINIMUM
-    return DmaFgiEthBtcMinimumStrategy(
-        total_capital=request.total_capital,
-        params=params,
-        strategy_id=strategy_id,
-        display_name=strategy_id,
-        initial_asset_allocation=_build_compare_pair_initial_asset_allocation(request),
-    )
-
-
-def _build_flat_minimum_strategy(request: StrategyBuildRequest) -> BaseStrategy:
-    params = DmaGatedFgiParams.from_public_params(request.params)
-    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_FLAT_MINIMUM
-    return FlatMinimumStrategy(
-        total_capital=request.total_capital,
-        params=params,
-        strategy_id=strategy_id,
-        display_name=strategy_id,
-        initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
-            request,
-            build_initial_flat_minimum_asset_allocation,
         ),
     )
 
@@ -306,33 +198,11 @@ def _make_portfolio_rules_builder(variant_id: str) -> StrategyBuilder:
     return _builder
 
 
-def _build_hierarchical_spy_crypto_strategy(
-    request: StrategyBuildRequest,
-) -> BaseStrategy:
-    params = HierarchicalPairRotationParams.from_public_params(request.params)
-    strategy_id = request.resolved_config_id or STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO
-    initial_asset_allocation = _build_initial_hierarchical_asset_allocation(request)
-    return HierarchicalSpyCryptoRotationStrategy(
-        total_capital=request.total_capital,
-        params=params,
-        strategy_id=strategy_id,
-        display_name=strategy_id,
-        initial_asset_allocation=initial_asset_allocation,
-    )
-
-
 def _build_initial_hierarchical_asset_allocation(
     request: StrategyBuildRequest,
 ) -> dict[str, float]:
-    initial_asset_allocation = {
-        "btc": 0.0,
-        "eth": 0.0,
-        "spy": 0.0,
-        "stable": 1.0,
-        "alt": 0.0,
-    }
-    if request.mode != "compare" or request.initial_allocation is None:
-        return initial_asset_allocation
+    _require_compare_runtime_inputs(request)
+    assert request.initial_allocation is not None
     outer_initial = build_initial_pair_asset_allocation(
         aggregate_allocation=request.initial_allocation,
         template=SPY_CRYPTO_TEMPLATE,
@@ -500,29 +370,6 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
     )
 
 
-def _build_flat_minimum_recipe() -> StrategyRecipe:
-    return StrategyRecipe(
-        strategy_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
-        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_FLAT_MINIMUM],
-        description=(
-            "Research-only flat SPY/BTC/ETH strategy: independent DMA-200 "
-            "gates, equal-weight risk allocation, greed sell suppression, "
-            "and below-DMA extreme-fear DCA."
-        ),
-        signal_id="dma_fgi_flat_minimum_signal",
-        primary_asset="BTC",
-        warmup_lookback_days=14,
-        market_data_requirements=_spy_eth_btc_asset_requirements(
-            requires_macro_fear_greed=False,
-        ),
-        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
-        runtime_portfolio_mode="asset",
-        normalize_public_params=_normalize_dma_public_params,
-        build_strategy=_build_flat_minimum_strategy,
-        supports_daily_suggestion=False,
-    )
-
-
 def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
     variant = PORTFOLIO_RULES_ATTRIBUTION_VARIANTS[strategy_id]
     return StrategyRecipe(
@@ -544,42 +391,6 @@ def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
 
 
 _RECIPES: dict[str, StrategyRecipe] = {
-    STRATEGY_DCA_CLASSIC: StrategyRecipe(
-        strategy_id=STRATEGY_DCA_CLASSIC,
-        display_name="DCA Classic",
-        description="Baseline: deploy stables into spot evenly across the simulation.",
-        signal_id=None,
-        primary_asset="BTC",
-        warmup_lookback_days=0,
-        # DCA decisions are price-only and immediate — tolerate at most 1 day of
-        # staleness so we don't deploy capital based on yesterday's price quote.
-        market_data_requirements=MarketDataRequirements(max_lag_days=1),
-        portfolio_bucket_mapper=map_portfolio_to_two_buckets,
-        runtime_portfolio_mode="aggregate",
-        normalize_public_params=_normalize_dca_params,
-        build_strategy=_build_dca_strategy,
-        supports_daily_suggestion=False,
-    ),
-    STRATEGY_DMA_GATED_FGI: StrategyRecipe(
-        strategy_id=STRATEGY_DMA_GATED_FGI,
-        display_name="DMA Gated FGI",
-        description="DMA-first rebalancing recipe using market-state extraction, allocation policy, and shared execution.",
-        signal_id="dma_gated_fgi",
-        primary_asset="BTC",
-        warmup_lookback_days=14,
-        market_data_requirements=MarketDataRequirements(
-            requires_sentiment=True,
-            required_price_features=frozenset({DMA_200_FEATURE}),
-            # FGI sentiment can shift quickly — cap forward-fill at 2 days so a
-            # stale "Greed" reading doesn't override a fresh "Fear" turn.
-            max_lag_days=2,
-        ),
-        portfolio_bucket_mapper=map_portfolio_to_two_buckets,
-        runtime_portfolio_mode="aggregate",
-        normalize_public_params=_normalize_dma_public_params,
-        build_strategy=_build_dma_strategy,
-        supports_daily_suggestion=True,
-    ),
     STRATEGY_ETH_BTC_ROTATION: StrategyRecipe(
         strategy_id=STRATEGY_ETH_BTC_ROTATION,
         display_name="ETH/BTC Relative Strength Rotation",
@@ -594,60 +405,10 @@ _RECIPES: dict[str, StrategyRecipe] = {
         build_strategy=_build_eth_btc_rotation_strategy,
         supports_daily_suggestion=True,
     ),
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC: StrategyRecipe(
-        strategy_id=STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-        display_name="DMA FGI Adaptive Binary ETH/BTC",
-        description="Clean pair-template strategy: DMA/FGI stable gate with 50/50 ETH/BTC start, dominant-unit DMA reference, and binary ETH/BTC ratio-zone rotation.",
-        signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
-        primary_asset="BTC",
-        warmup_lookback_days=14,
-        market_data_requirements=_eth_btc_relative_strength_requirements(),
-        portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
-        runtime_portfolio_mode="asset",
-        normalize_public_params=_normalize_eth_btc_rotation_public_params,
-        build_strategy=_build_adaptive_binary_eth_btc_strategy,
-        supports_daily_suggestion=False,
-    ),
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM: StrategyRecipe(
-        strategy_id=STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_ETH_BTC_MINIMUM],
-        description=(
-            "Research-only ETH/BTC pair-template strategy: DMA/FGI stable gate "
-            "with plain greed sell suppression and no SPY layer."
-        ),
-        signal_id=ADAPTIVE_BINARY_ETH_BTC_TEMPLATE.signal_id,
-        primary_asset="BTC",
-        warmup_lookback_days=14,
-        market_data_requirements=_eth_btc_relative_strength_requirements(),
-        portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
-        runtime_portfolio_mode="asset",
-        normalize_public_params=_normalize_eth_btc_rotation_public_params,
-        build_strategy=_build_eth_btc_minimum_strategy,
-        supports_daily_suggestion=False,
-    ),
-    STRATEGY_DMA_FGI_FLAT_MINIMUM: _build_flat_minimum_recipe(),
     **{
         strategy_id: _build_portfolio_rules_recipe(strategy_id)
         for strategy_id in PORTFOLIO_RULES_ATTRIBUTION_VARIANTS
     },
-    STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO: StrategyRecipe(
-        strategy_id=STRATEGY_DMA_FGI_HIERARCHICAL_SPY_CRYPTO,
-        display_name="DMA FGI Hierarchical SPY/Crypto",
-        description=(
-            "Two-layer pair-rotation: outer SPY-vs-Crypto sleeve and inner "
-            "BTC-vs-ETH, both running DMA-gated FGI with adaptive-DMA "
-            "reference and binary ratio zones."
-        ),
-        signal_id=SPY_CRYPTO_TEMPLATE.signal_id,
-        primary_asset="BTC",
-        warmup_lookback_days=14,
-        market_data_requirements=_hierarchical_pair_requirements(),
-        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
-        runtime_portfolio_mode="asset",
-        normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
-        build_strategy=_build_hierarchical_spy_crypto_strategy,
-        supports_daily_suggestion=True,
-    ),
     **{
         strategy_id: _build_hierarchical_attribution_recipe(strategy_id)
         for strategy_id in HIERARCHICAL_ATTRIBUTION_VARIANTS

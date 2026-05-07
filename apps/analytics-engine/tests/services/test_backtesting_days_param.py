@@ -12,11 +12,27 @@ from src.models.backtesting import (
     BacktestCompareRequestV3,
     BacktestResponse,
 )
+from src.services.backtesting.features import (
+    ETH_BTC_RATIO_DMA_200_FEATURE,
+    ETH_BTC_RATIO_FEATURE,
+)
 from src.services.backtesting.strategy_registry import get_strategy_recipe
 from src.services.strategy.backtesting_service import BacktestingService
 from tests.services.backtesting.support import compare_request, price_row, price_series
 
-DMA_WARMUP_DAYS = get_strategy_recipe("dma_gated_fgi").warmup_lookback_days
+STRATEGY_WARMUP_DAYS = get_strategy_recipe("eth_btc_rotation").warmup_lookback_days
+
+
+def _eth_rotation_price_series(start: date, days: int) -> list[dict[str, object]]:
+    rows = price_series(start, days)
+    for row in rows:
+        btc_price = float(row["price"])
+        extra_data = dict(row.get("extra_data", {}))
+        extra_data[ETH_BTC_RATIO_FEATURE] = 0.05
+        extra_data[ETH_BTC_RATIO_DMA_200_FEATURE] = 0.05
+        row["prices"] = {"btc": btc_price, "eth": btc_price * 0.05}
+        row["extra_data"] = extra_data
+    return rows
 
 
 @pytest.fixture
@@ -120,7 +136,7 @@ class TestBacktestingDatePriority:
 
         expected_end = date.today()
         user_start = expected_end - timedelta(days=days)
-        expected_fetch_start = user_start - timedelta(days=DMA_WARMUP_DAYS)
+        expected_fetch_start = user_start - timedelta(days=STRATEGY_WARMUP_DAYS)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][0] == "BTC"
@@ -136,8 +152,8 @@ class TestBacktestingDatePriority:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dma_gated_fgi_default",
-                    strategy_id="dma_gated_fgi",
+                    config_id="eth_btc_rotation_default",
+                    strategy_id="eth_btc_rotation",
                     params={},
                 )
             ],
@@ -147,7 +163,7 @@ class TestBacktestingDatePriority:
 
         expected_end = date.today()
         user_start = expected_end - timedelta(days=90)
-        expected_fetch_start = user_start - timedelta(days=DMA_WARMUP_DAYS)
+        expected_fetch_start = user_start - timedelta(days=STRATEGY_WARMUP_DAYS)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][0] == "BTC"
@@ -181,7 +197,7 @@ class TestBacktestingDatePriority:
         await service.run_compare_v3(request)
 
         user_start = date(2024, 12, 31) - timedelta(days=90)
-        expected_fetch_start = user_start - timedelta(days=DMA_WARMUP_DAYS)
+        expected_fetch_start = user_start - timedelta(days=STRATEGY_WARMUP_DAYS)
 
         call_args = service.data_provider.fetch_token_prices.call_args
         assert call_args[0][1] == expected_fetch_start
@@ -265,16 +281,16 @@ class TestBacktestingPrimerDays:
         call_kwargs = mock_runner.call_args.kwargs
         assert call_kwargs["user_start_date"] == user_start
         strategy_ids = [cfg.strategy_id for cfg in call_kwargs["request"].configs]
-        assert strategy_ids == ["dca_classic", "dma_gated_fgi"]
+        assert strategy_ids == ["eth_btc_rotation"]
 
     @pytest.mark.asyncio
     async def test_output_timeline_excludes_primer_days(self, service):
-        primer_days = DMA_WARMUP_DAYS
+        primer_days = STRATEGY_WARMUP_DAYS
         user_start = date(2024, 9, 1)
         user_days = 10
         fetch_start = user_start - timedelta(days=primer_days)
 
-        prices = price_series(fetch_start, primer_days + user_days + 1)
+        prices = _eth_rotation_price_series(fetch_start, primer_days + user_days + 1)
         sentiments = {
             fetch_start + timedelta(days=i): {"value": 50, "label": "neutral"}
             for i in range(primer_days + user_days + 1)

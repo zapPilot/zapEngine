@@ -46,7 +46,7 @@ def _service() -> tuple[StrategyDailySuggestionService, dict[str, object]]:
 
 def _default_signal() -> SignalObservation:
     return SignalObservation(
-        signal_id="dma_gated_fgi",
+        signal_id="eth_btc_rs_signal",
         regime="greed",
         confidence=1.0,
         raw_value=72.0,
@@ -158,12 +158,12 @@ def _hold_rotation_snapshot(
 
 
 def test_map_portfolio_to_buckets_uses_two_bucket_model() -> None:
-    buckets = get_strategy_recipe("dma_gated_fgi").portfolio_bucket_mapper(
+    buckets = get_strategy_recipe("eth_btc_rotation").portfolio_bucket_mapper(
         mock_portfolio(btc=2_000.0, eth=3_000.0, stable=4_000.0, others=1_000.0)
     )
     assert buckets == PortfolioBuckets(
-        spot_value=6_000.0,
-        stable_value=4_000.0,
+        spot_value=5_000.0,
+        stable_value=5_000.0,
         btc_value=2_000.0,
         eth_value=3_000.0,
         stable_category_value=4_000.0,
@@ -176,10 +176,21 @@ def test_get_daily_suggestion_rejects_non_dma_preset(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("dca_classic")
+        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+    )
+    monkeypatch.setattr(
+        "src.services.strategy.strategy_daily_suggestion_service.resolve_saved_strategy_config",
+        lambda _saved_config, **_: SimpleNamespace(
+            strategy_id="dma_fgi_portfolio_rules_minus_cross_down_exit",
+            supports_daily_suggestion=False,
+        ),
     )
     with pytest.raises(
-        ValueError, match="Strategy 'dca_classic' does not support /daily-suggestion"
+        ValueError,
+        match=(
+            "Strategy 'dma_fgi_portfolio_rules_minus_cross_down_exit' "
+            "does not support /daily-suggestion"
+        ),
     ):
         service.get_daily_suggestion(UUID(int=1))
 
@@ -194,7 +205,7 @@ def test_get_daily_suggestion_raises_market_data_unavailable_when_dma_completely
     """
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("dma_gated_fgi_default")
+        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
     )
     mocks["landing_page_service"].get_landing_page_data = (
         lambda _user_id: mock_portfolio(stable=10_000.0)
@@ -206,6 +217,13 @@ def test_get_daily_suggestion_raises_market_data_unavailable_when_dma_completely
         SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
     ]
     mocks["token_price_service"].get_dma_history = lambda **_: {}
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        }
+    }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72
     )
@@ -220,14 +238,16 @@ def test_get_daily_suggestion_builds_recipe_first_response(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("dma_gated_fgi_default")
+        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
     )
 
     def _fake_daily_recommendation(self, input_data):
-        assert input_data.extra_data == {"dma_200": 95_000.0}
-        assert input_data.warmup_extra_data_by_date[date(2025, 1, 10)] == {
-            "dma_200": 95_000.0
-        }
+        assert input_data.extra_data["dma_200"] == 95_000.0
+        assert input_data.extra_data["eth_price_usd"] == 3_000.0
+        assert (
+            input_data.warmup_extra_data_by_date[date(2025, 1, 10)]["dma_200"]
+            == 95_000.0
+        )
         return StrategyAction(snapshot=_sell_snapshot(signal=_default_signal()))
 
     monkeypatch.setattr(
@@ -242,10 +262,19 @@ def test_get_daily_suggestion_builds_recipe_first_response(
         date="2025-01-10", price_usd=100_000.0
     )
     mocks["token_price_service"].get_price_history = lambda **_: [
-        SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
+        SimpleNamespace(date="2025-01-10", price_usd=3_000.0)
+        if _.get("token_symbol") == "ETH"
+        else SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
     ]
-    mocks["token_price_service"].get_dma_history = lambda **_: {
-        date(2025, 1, 10): 95_000.0
+    mocks["token_price_service"].get_dma_history = lambda **kwargs: {
+        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0
+    }
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        }
     }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72
@@ -253,11 +282,11 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(UUID(int=3))
-    assert response.config_id == "dma_gated_fgi_default"
-    assert response.config_display_name == "DMA Gated FGI Default"
-    assert response.strategy_id == "dma_gated_fgi"
+    assert response.config_id == "eth_btc_rotation_default"
+    assert response.config_display_name == "ETH/BTC RS Rotation"
+    assert response.strategy_id == "eth_btc_rotation"
     assert response.context.portfolio.allocation.spot == pytest.approx(0.25)
-    assert response.context.signal.id == "dma_gated_fgi"
+    assert response.context.signal.id == "eth_btc_rs_signal"
     assert response.context.signal.details["ath_event"] == "token_ath"
     assert response.context.strategy.reason_code == "above_greed_sell"
     assert response.context.strategy.stance == "sell"
@@ -266,7 +295,7 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     assert response.action.kind is None
     assert response.action.reason_code == "interval_wait"
     assert response.action.transfers == []
-    assert response.context.market.token_price == {"btc": 100_000.0}
+    assert response.context.market.token_price == {"btc": 100_000.0, "eth": 3_000.0}
     assert response.context.portfolio.asset_allocation is not None
     assert response.context.portfolio.asset_allocation.btc == pytest.approx(0.25)
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.0)
@@ -276,52 +305,6 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     assert response.context.portfolio.total_assets_usd == pytest.approx(10_000.0)
     assert response.context.portfolio.total_debt_usd == pytest.approx(0.0)
     assert response.context.portfolio.total_net_usd == pytest.approx(10_000.0)
-    assert response.context.target.allocation.btc == pytest.approx(0.0)
-    assert response.context.target.allocation.eth == pytest.approx(0.0)
-    assert response.context.target.allocation.stable == pytest.approx(1.0)
-    assert response.context.target.allocation.alt == pytest.approx(0.0)
-
-
-def test_get_daily_suggestion_dma_does_not_require_eth_price_for_eth_holdings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    service, mocks = _service()
-    mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("dma_gated_fgi_default")
-    )
-
-    monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
-        lambda self, input_data: StrategyAction(
-            snapshot=_sell_snapshot(signal=_default_signal())
-        ),
-    )
-
-    mocks["landing_page_service"].get_landing_page_data = (
-        lambda _user_id: mock_portfolio(btc=2_000.0, eth=3_000.0, stable=5_000.0)
-    )
-    mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
-        date="2025-01-10", price_usd=100_000.0
-    )
-    mocks["token_price_service"].get_price_history = lambda **_: [
-        SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
-    ]
-    mocks["token_price_service"].get_dma_history = lambda **_: {
-        date(2025, 1, 10): 95_000.0
-    }
-    mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
-        status="Greed", value=72
-    )
-    mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
-
-    response = service.get_daily_suggestion(UUID(int=8))
-
-    assert response.context.market.token_price == {"btc": 100_000.0}
-    assert response.context.portfolio.asset_allocation is not None
-    assert response.context.portfolio.asset_allocation.btc == pytest.approx(0.2)
-    assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.3)
-    assert response.context.portfolio.asset_allocation.stable == pytest.approx(0.5)
-    assert response.context.portfolio.asset_allocation.alt == pytest.approx(0.0)
     assert response.context.target.allocation.btc == pytest.approx(0.0)
     assert response.context.target.allocation.eth == pytest.approx(0.0)
     assert response.context.target.allocation.stable == pytest.approx(1.0)
@@ -578,9 +561,9 @@ def test_get_daily_suggestion_marks_hold_rotation_cooldown_as_blocked(
 def test_get_daily_suggestion_applies_trade_quota_history() -> None:
     service, mocks = _service()
     quota_config = build_saved_config_from_legacy(
-        strategy_id="dma_gated_fgi",
+        strategy_id="eth_btc_rotation",
         params={"min_trade_interval_days": 3},
-        config_id="dma_quota_live",
+        config_id="eth_rotation_quota_live",
     )
     mocks["strategy_config_store"].resolve_config = lambda _config_id: quota_config
     service.trade_history_store = SimpleNamespace(
@@ -592,13 +575,32 @@ def test_get_daily_suggestion_applies_trade_quota_history() -> None:
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
         date="2025-01-10", price_usd=100_000.0
     )
-    mocks["token_price_service"].get_price_history = lambda **_: [
-        SimpleNamespace(date="2025-01-09", price_usd=99_000.0),
-        SimpleNamespace(date="2025-01-10", price_usd=100_000.0),
-    ]
-    mocks["token_price_service"].get_dma_history = lambda **_: {
-        date(2025, 1, 9): 95_000.0,
-        date(2025, 1, 10): 95_000.0,
+    mocks["token_price_service"].get_price_history = (
+        lambda **kwargs: [
+            SimpleNamespace(date="2025-01-09", price_usd=2_950.0),
+            SimpleNamespace(date="2025-01-10", price_usd=3_000.0),
+        ]
+        if kwargs.get("token_symbol") == "ETH"
+        else [
+            SimpleNamespace(date="2025-01-09", price_usd=99_000.0),
+            SimpleNamespace(date="2025-01-10", price_usd=100_000.0),
+        ]
+    )
+    mocks["token_price_service"].get_dma_history = lambda **kwargs: {
+        date(2025, 1, 9): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0,
+        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0,
+    }
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 9): {
+            "ratio": 0.029,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        },
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        },
     }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72
@@ -608,7 +610,9 @@ def test_get_daily_suggestion_applies_trade_quota_history() -> None:
         {"date": date(2025, 1, 10), "label": "greed", "value": 72},
     ]
 
-    response = service.get_daily_suggestion(UUID(int=7), config_id="dma_quota_live")
+    response = service.get_daily_suggestion(
+        UUID(int=7), config_id="eth_rotation_quota_live"
+    )
 
     assert response.action.status == "blocked"
     assert response.action.required is False
@@ -620,10 +624,12 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, mocks = _service()
-    custom_default = resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+    custom_default = resolve_seed_strategy_config(
+        "eth_btc_rotation_default"
+    ).model_copy(
         update={
-            "config_id": "dma_alt_default",
-            "display_name": "DMA Alt Default",
+            "config_id": "eth_rotation_alt_default",
+            "display_name": "ETH Rotation Alt Default",
             "is_default": True,
         },
         deep=True,
@@ -642,11 +648,20 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
         date="2025-01-10", price_usd=100_000.0
     )
-    mocks["token_price_service"].get_price_history = lambda **_: [
-        SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
+    mocks["token_price_service"].get_price_history = lambda **kwargs: [
+        SimpleNamespace(date="2025-01-10", price_usd=3_000.0)
+        if kwargs.get("token_symbol") == "ETH"
+        else SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
     ]
-    mocks["token_price_service"].get_dma_history = lambda **_: {
-        date(2025, 1, 10): 95_000.0
+    mocks["token_price_service"].get_dma_history = lambda **kwargs: {
+        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0
+    }
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        }
     }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72
@@ -655,7 +670,7 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
 
     response = service.get_daily_suggestion(UUID(int=6))
 
-    assert response.config_id == "dma_alt_default"
+    assert response.config_id == "eth_rotation_alt_default"
 
 
 def test_get_daily_suggestion_uses_recipe_capabilities(
@@ -663,14 +678,14 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
 ) -> None:
     service, mocks = _service()
     recipe = replace(
-        get_strategy_recipe("dma_gated_fgi"),
+        get_strategy_recipe("eth_btc_rotation"),
         primary_asset="ETH",
         portfolio_bucket_mapper=lambda _portfolio: PortfolioBuckets(
             spot_value=1_000.0,
             stable_value=9_000.0,
         ),
     )
-    base_config = resolve_seed_strategy_config("dma_gated_fgi_default")
+    base_config = resolve_seed_strategy_config("eth_btc_rotation_default")
     mocks["strategy_config_store"].resolve_config = (
         lambda _config_id: base_config.model_copy(
             update={"config_id": "eth_dma", "primary_asset": "ETH"}
@@ -718,6 +733,13 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
     mocks["token_price_service"].get_dma_history = lambda **kwargs: (
         {date(2025, 1, 10): 2_900.0} if kwargs["token_symbol"] == "ETH" else {}
     )
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        }
+    }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72
     )
@@ -743,7 +765,7 @@ def test_get_daily_suggestion_requires_serialized_signal(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("dma_gated_fgi_default")
+        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
     )
 
     def _missing_signal(self, _input_data):
@@ -759,11 +781,20 @@ def test_get_daily_suggestion_requires_serialized_signal(
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
         date="2025-01-10", price_usd=100_000.0
     )
-    mocks["token_price_service"].get_price_history = lambda **_: [
-        SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
+    mocks["token_price_service"].get_price_history = lambda **kwargs: [
+        SimpleNamespace(date="2025-01-10", price_usd=3_000.0)
+        if kwargs.get("token_symbol") == "ETH"
+        else SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
     ]
-    mocks["token_price_service"].get_dma_history = lambda **_: {
-        date(2025, 1, 10): 95_000.0
+    mocks["token_price_service"].get_dma_history = lambda **kwargs: {
+        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0
+    }
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {
+            "ratio": 0.03,
+            "dma_200": 0.028,
+            "is_above_dma": True,
+        }
     }
     mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
         status="Greed", value=72

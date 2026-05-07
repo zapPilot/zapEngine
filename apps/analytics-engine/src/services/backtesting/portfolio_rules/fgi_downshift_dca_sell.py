@@ -1,4 +1,4 @@
-"""Portfolio rule 4: DCA sell when FGI downshifts from greed."""
+"""Portfolio rule 50: DCA sell when FGI downshifts from greed."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
 @dataclass(frozen=True)
 class FgiDownshiftDcaSellRule:
     name: str = "fgi_downshift_dca_sell"
-    priority: int = 6
+    priority: int = 50
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
 

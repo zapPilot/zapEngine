@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 from pydantic import ValidationError
 
-from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
 )
-from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiStrategy,
+    DmaGatedFgiParams,
     _resolve_dma_allocation_intent,
 )
 
@@ -248,112 +244,21 @@ def test_greed_fading_takes_priority_over_regular_greed() -> None:
     assert intent.decision_score == pytest.approx(-0.6)
 
 
-# ── Full strategy integration tests ─────────────────────────────────
-
-
-def _make_context(
-    *,
-    snapshot_date: date,
-    price: float,
-    dma_200: float,
-    sentiment_label: str,
-    sentiment_value: int,
-    portfolio: Portfolio,
-) -> StrategyContext:
-    return StrategyContext(
-        date=snapshot_date,
-        price=price,
-        sentiment={"label": sentiment_label, "value": sentiment_value},
-        price_history=[price],
-        portfolio=portfolio,
-        extra_data={"dma_200": dma_200},
-    )
-
-
-def test_overextension_sell_is_paced_not_immediate() -> None:
-    """Overextension sell should be paced (step_count > 1), not immediate."""
-    strategy = DmaGatedFgiStrategy(total_capital=10_000.0)
-    portfolio = Portfolio(spot_balance=10_000.0, stable_balance=0.0)
-
-    warmup_ctx = _make_context(
-        snapshot_date=date(2025, 1, 1),
-        price=105_000.0,
-        dma_200=100_000.0,
-        sentiment_label="neutral",
-        sentiment_value=50,
-        portfolio=portfolio,
-    )
-    strategy.initialize(portfolio, None, warmup_ctx)
-    strategy.warmup_day(warmup_ctx)
-
-    live_ctx = _make_context(
-        snapshot_date=date(2025, 1, 2),
-        price=135_000.0,
-        dma_200=100_000.0,
-        sentiment_label="neutral",
-        sentiment_value=50,
-        portfolio=portfolio,
-    )
-    action = strategy.on_day(live_ctx)
-
-    assert action.snapshot is not None
-    assert action.snapshot.decision.reason == "above_dma_overextended_sell"
-    assert action.snapshot.decision.immediate is False
-    assert action.snapshot.execution.step_count > 1
-
-
 def test_custom_overextension_threshold_via_public_params() -> None:
-    """Strategy should accept custom thresholds via params dict."""
-    strategy = DmaGatedFgiStrategy(
-        total_capital=10_000.0,
-        params={"dma_overextension_threshold": 0.50},
-    )
-    portfolio = Portfolio(spot_balance=10_000.0, stable_balance=0.0)
+    """Threshold params still flow through the DMA/FGI public params model."""
+    params = DmaGatedFgiParams.from_public_params({"dma_overextension_threshold": 0.50})
 
-    warmup_ctx = _make_context(
-        snapshot_date=date(2025, 1, 1),
-        price=105_000.0,
-        dma_200=100_000.0,
-        sentiment_label="neutral",
-        sentiment_value=50,
-        portfolio=portfolio,
+    under = _resolve_dma_allocation_intent(
+        _snapshot(zone="above", dma_distance=0.40),
+        dma_overextension_threshold=params.dma_overextension_threshold,
     )
-    strategy.initialize(portfolio, None, warmup_ctx)
-    strategy.warmup_day(warmup_ctx)
+    over = _resolve_dma_allocation_intent(
+        _snapshot(zone="above", dma_distance=0.55),
+        dma_overextension_threshold=params.dma_overextension_threshold,
+    )
 
-    # Distance = 40% → below custom threshold of 50%
-    ctx_under = _make_context(
-        snapshot_date=date(2025, 1, 2),
-        price=140_000.0,
-        dma_200=100_000.0,
-        sentiment_label="neutral",
-        sentiment_value=50,
-        portfolio=portfolio,
-    )
-    action_under = strategy.on_day(ctx_under)
-    assert action_under.snapshot is not None
-    assert action_under.snapshot.decision.reason != "above_dma_overextended_sell"
-
-    # Reset and test above threshold
-    strategy2 = DmaGatedFgiStrategy(
-        total_capital=10_000.0,
-        params={"dma_overextension_threshold": 0.50},
-    )
-    strategy2.initialize(portfolio, None, warmup_ctx)
-    strategy2.warmup_day(warmup_ctx)
-
-    # Distance = 55% → above custom threshold of 50%
-    ctx_over = _make_context(
-        snapshot_date=date(2025, 1, 2),
-        price=155_000.0,
-        dma_200=100_000.0,
-        sentiment_label="neutral",
-        sentiment_value=50,
-        portfolio=portfolio,
-    )
-    action_over = strategy2.on_day(ctx_over)
-    assert action_over.snapshot is not None
-    assert action_over.snapshot.decision.reason == "above_dma_overextended_sell"
+    assert under.reason != "above_dma_overextended_sell"
+    assert over.reason == "above_dma_overextended_sell"
 
 
 # ── Edge cases: DMA overextension ────────────────────────────────────
@@ -520,16 +425,10 @@ def test_neither_signal_fires_neutral_above_zone() -> None:
 def test_params_reject_negative_overextension_threshold() -> None:
     """dma_overextension_threshold has ge=0.0 constraint."""
     with pytest.raises(ValidationError):
-        DmaGatedFgiStrategy(
-            total_capital=10_000.0,
-            params={"dma_overextension_threshold": -0.1},
-        )
+        DmaGatedFgiParams.from_public_params({"dma_overextension_threshold": -0.1})
 
 
 def test_params_reject_positive_slope_threshold() -> None:
     """fgi_slope_reversal_threshold has le=0.0 constraint."""
     with pytest.raises(ValidationError):
-        DmaGatedFgiStrategy(
-            total_capital=10_000.0,
-            params={"fgi_slope_reversal_threshold": 0.1},
-        )
+        DmaGatedFgiParams.from_public_params({"fgi_slope_reversal_threshold": 0.1})

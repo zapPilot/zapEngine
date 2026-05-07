@@ -7,7 +7,6 @@ import {
   isBacktestTransfer,
   resolveBacktestDisplayAllocation,
 } from '../backtestBuckets';
-import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import type {
   AllocationBlock,
   BacktestTooltipPayloadEntry,
@@ -185,8 +184,7 @@ function getActiveDecisionStrategyId(
   orderedIds: string[],
 ): string | null {
   const activeComparisonId = orderedIds.find(
-    (strategyId) =>
-      strategyId !== DCA_CLASSIC_STRATEGY_ID && strategies?.[strategyId],
+    (strategyId) => strategies?.[strategyId],
   );
   if (activeComparisonId) {
     return activeComparisonId;

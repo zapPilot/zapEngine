@@ -1,4 +1,4 @@
-"""Portfolio rule 3: block DCA-tier rules during the global trade cooldown."""
+"""Portfolio rule 23: block DCA-tier rules during the global trade cooldown."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from src.services.backtesting.portfolio_rules.base import (
 @dataclass(frozen=True)
 class GlobalCooldownGateRule:
     name: str = "global_cooldown_gate"
-    priority: int = 3
+    priority: int = 23
     rule_group: RuleGroup = "none"
     description: str = "Block all DCA-tier rules after any trade."
 

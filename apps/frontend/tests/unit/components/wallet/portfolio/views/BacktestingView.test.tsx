@@ -54,23 +54,10 @@ vi.mock('framer-motion', () => ({
 
 const mockBacktestData = {
   strategies: {
-    dca_classic: {
-      strategy_id: 'dca_classic',
-      display_name: 'DCA Classic',
-      total_invested: 10000,
-      final_value: 10500,
-      roi_percent: 5.2,
-      trade_count: 0,
-      final_allocation: {
-        spot: 0.5,
-        stable: 0.5,
-      },
-      parameters: {},
-    },
-    dma_gated_fgi_default: {
-      strategy_id: 'dma_gated_fgi',
-      display_name: 'DMA Gated FGI Default',
-      signal_id: 'dma_gated_fgi',
+    eth_btc_rotation_default: {
+      strategy_id: 'eth_btc_rotation',
+      display_name: 'ETH/BTC Rotation Default',
+      signal_id: 'eth_btc_rs_signal',
       total_invested: 10000,
       final_value: 12000,
       roi_percent: 15.5,
@@ -93,37 +80,7 @@ const mockBacktestData = {
         sentiment_label: 'neutral',
       },
       strategies: {
-        dca_classic: {
-          portfolio: {
-            spot_usd: 5000,
-            stable_usd: 5000,
-            total_value: 10000,
-            allocation: {
-              spot: 0.5,
-              stable: 0.5,
-            },
-          },
-          signal: null,
-          decision: {
-            action: 'hold',
-            reason: 'baseline_dca',
-            rule_group: 'none',
-            target_allocation: {
-              spot: 0.5,
-              stable: 0.5,
-            },
-            immediate: false,
-          },
-          execution: {
-            event: null,
-            transfers: [],
-            blocked_reason: null,
-            step_count: 0,
-            steps_remaining: 0,
-            interval_days: 0,
-          },
-        },
-        dma_gated_fgi_default: {
+        eth_btc_rotation_default: {
           portfolio: {
             spot_usd: 6000,
             stable_usd: 4000,
@@ -134,7 +91,7 @@ const mockBacktestData = {
             },
           },
           signal: {
-            id: 'dma_gated_fgi',
+            id: 'eth_btc_rs_signal',
             regime: 'neutral',
             raw_value: 50,
             confidence: 1,
@@ -225,9 +182,7 @@ describe('BacktestingView', () => {
 
     expect(screen.getByText('Strategy Simulator')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Compare Normal DCA vs Regime-Based Strategy performance over time/,
-      ),
+      screen.getByText(/Compare registered regime strategies over time/),
     ).toBeInTheDocument();
   });
 
@@ -251,7 +206,7 @@ describe('BacktestingView', () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        /Click "Run Backtest" to see how the Zap Pilot regime-based strategy compares to normal DCA\./,
+        /Click "Run Backtest" to compare the registered Zap Pilot regime strategies\./,
       ),
     ).not.toBeInTheDocument();
     expect(mockMutate).not.toHaveBeenCalled();
@@ -310,7 +265,7 @@ describe('BacktestingView', () => {
     expect(screen.getByText('Failed to run backtest')).toBeInTheDocument();
   });
 
-  it('renders DMA-first result metrics and chart', async () => {
+  it('renders strategy result metrics and chart', async () => {
     vi.mocked(useBacktestMutation).mockReturnValue({
       ...defaultMock,
       data: mockBacktestData,

@@ -1,4 +1,4 @@
-"""Portfolio rule 5: equal-weight eligible assets on DMA cross-up."""
+"""Portfolio rule 20: equal-weight eligible assets on DMA cross-up."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 @dataclass(frozen=True)
 class CrossUpEqualWeightRule:
     name: str = "cross_up_equal_weight"
-    priority: int = 1
+    priority: int = 20
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
 

@@ -20,30 +20,6 @@
       "roi_percent": 88.6384,
       "trade_count": 73
     },
-    "dma_fgi_hierarchical_full": {
-      "display_name": "34% Hierarchical Attribution Full",
-      "calmar_ratio": 3.9632,
-      "sharpe_ratio": 1.9611,
-      "max_drawdown_percent": -7.3998,
-      "roi_percent": 42.2742,
-      "trade_count": 80
-    },
-    "dma_fgi_hierarchical_full_minus_adaptive_dma": {
-      "display_name": "102% Hierarchical Full - Adaptive DMA",
-      "calmar_ratio": 4.4436,
-      "sharpe_ratio": 1.7701,
-      "max_drawdown_percent": -16.4179,
-      "roi_percent": 111.865,
-      "trade_count": 61
-    },
-    "dma_fgi_hierarchical_prod": {
-      "display_name": "34% Hierarchical Production",
-      "calmar_ratio": 3.9632,
-      "sharpe_ratio": 1.9611,
-      "max_drawdown_percent": -7.3998,
-      "roi_percent": 42.2742,
-      "trade_count": 80
-    },
     "dma_fgi_hierarchical_minimum": {
       "display_name": "Hierarchical Minimum",
       "calmar_ratio": 4.6275,
@@ -51,46 +27,6 @@
       "max_drawdown_percent": -16.9734,
       "roi_percent": 121.3018,
       "trade_count": 81
-    },
-    "dma_fgi_hierarchical_minimum_dma_buffer": {
-      "display_name": "[RESEARCH] Hierarchical Minimum - DMA Buffer",
-      "calmar_ratio": 4.6237,
-      "sharpe_ratio": 1.9824,
-      "max_drawdown_percent": -17.0002,
-      "roi_percent": 121.4023,
-      "trade_count": 81
-    },
-    "dma_fgi_hierarchical_minimum_dual_above_hold": {
-      "display_name": "[RESEARCH] Hierarchical Minimum - Dual Above Hold",
-      "calmar_ratio": 3.9527,
-      "sharpe_ratio": 1.79,
-      "max_drawdown_percent": -17.2993,
-      "roi_percent": 104.2332,
-      "trade_count": 68
-    },
-    "dma_fgi_hierarchical_minimum_cross_cooldown": {
-      "display_name": "[RESEARCH] Hierarchical Minimum - Cross Cooldown 30d",
-      "calmar_ratio": 4.5424,
-      "sharpe_ratio": 1.9608,
-      "max_drawdown_percent": -17.063,
-      "roi_percent": 119.5415,
-      "trade_count": 79
-    },
-    "dma_fgi_hierarchical_minimum_below_dma_hold": {
-      "display_name": "[RESEARCH] Hierarchical Minimum - Below-DMA Hold",
-      "calmar_ratio": 4.6023,
-      "sharpe_ratio": 1.972,
-      "max_drawdown_percent": -16.2382,
-      "roi_percent": 114.8554,
-      "trade_count": 81
-    },
-    "dma_fgi_hierarchical_minimum_dma_disciplined": {
-      "display_name": "[RESEARCH] Hierarchical Minimum - DMA Disciplined",
-      "calmar_ratio": 4.5275,
-      "sharpe_ratio": 1.9539,
-      "max_drawdown_percent": -16.4568,
-      "roi_percent": 114.4777,
-      "trade_count": 79
     },
     "dma_fgi_eth_btc_minimum_surgical": {
       "display_name": "[RESEARCH] ETH/BTC Minimum - Surgical Composer",
@@ -100,21 +36,13 @@
       "roi_percent": 48.9699,
       "trade_count": 72
     },
-    "dma_fgi_eth_btc_minimum_structural": {
-      "display_name": "[RESEARCH] ETH/BTC Minimum - Structural Composer",
-      "calmar_ratio": 4.1951,
-      "sharpe_ratio": 1.8237,
-      "max_drawdown_percent": -7.3879,
-      "roi_percent": 44.7907,
-      "trade_count": 76
-    },
     "dma_fgi_portfolio_rules": {
       "display_name": "[RESEARCH] Portfolio Rules",
-      "calmar_ratio": 4.28,
-      "sharpe_ratio": 1.895,
+      "calmar_ratio": 4.2665,
+      "sharpe_ratio": 1.9112,
       "max_drawdown_percent": -10.2024,
-      "roi_percent": 64.3119,
-      "trade_count": 47
+      "roi_percent": 64.0972,
+      "trade_count": 48
     },
     "dma_fgi_portfolio_rules_minus_cross_down_exit": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Down Exit",
@@ -126,59 +54,35 @@
     },
     "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
-      "calmar_ratio": 3.1375,
-      "sharpe_ratio": 1.8409,
-      "max_drawdown_percent": -4.9285,
-      "roi_percent": 21.802,
-      "trade_count": 35
+      "calmar_ratio": 1.0811,
+      "sharpe_ratio": 0.9064,
+      "max_drawdown_percent": -7.1096,
+      "roi_percent": 10.7057,
+      "trade_count": 19
     },
     "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
       "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
-      "calmar_ratio": 4.0477,
-      "sharpe_ratio": 1.8852,
+      "calmar_ratio": 4.3388,
+      "sharpe_ratio": 1.9879,
       "max_drawdown_percent": -10.2024,
-      "roi_percent": 60.6102,
-      "trade_count": 39
+      "roi_percent": 65.2527,
+      "trade_count": 40
     },
     "dma_fgi_portfolio_rules_minus_overextension_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
-      "calmar_ratio": 1.7043,
-      "sharpe_ratio": 1.2641,
+      "calmar_ratio": 1.6659,
+      "sharpe_ratio": 1.2539,
       "max_drawdown_percent": -21.266,
-      "roi_percent": 52.8134,
-      "trade_count": 33
+      "roi_percent": 51.5594,
+      "trade_count": 34
     },
     "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
-      "calmar_ratio": 4.3095,
-      "sharpe_ratio": 1.8973,
+      "calmar_ratio": 4.2959,
+      "sharpe_ratio": 1.9133,
       "max_drawdown_percent": -10.209,
-      "roi_percent": 64.8294,
-      "trade_count": 45
-    },
-    "dma_fgi_adaptive_binary_eth_btc": {
-      "display_name": "126% DMA FGI Adaptive Binary ETH/BTC",
-      "calmar_ratio": 4.6689,
-      "sharpe_ratio": 2.0107,
-      "max_drawdown_percent": -19.304,
-      "roi_percent": 141.2093,
-      "trade_count": 59
-    },
-    "dma_fgi_eth_btc_minimum": {
-      "display_name": "[RESEARCH] ETH/BTC Minimum (no SPY)",
-      "calmar_ratio": 4.4634,
-      "sharpe_ratio": 1.9789,
-      "max_drawdown_percent": -20.7165,
-      "roi_percent": 145.2834,
-      "trade_count": 51
-    },
-    "dma_fgi_flat_minimum": {
-      "display_name": "[RESEARCH] Flat Minimum \u2014 Equal-Weight DMA",
-      "calmar_ratio": 2.0681,
-      "sharpe_ratio": 1.448,
-      "max_drawdown_percent": -10.5931,
-      "roi_percent": 31.2142,
-      "trade_count": 59
+      "roi_percent": 64.6106,
+      "trade_count": 46
     },
     "eth_btc_rotation": {
       "display_name": "ETH/BTC Relative Strength Rotation",
@@ -187,276 +91,6 @@
       "max_drawdown_percent": -18.4141,
       "roi_percent": 126.2611,
       "trade_count": 61
-    },
-    "dca_classic": {
-      "display_name": "DCA Classic",
-      "calmar_ratio": -0.2493,
-      "sharpe_ratio": -0.1696,
-      "max_drawdown_percent": -43.0236,
-      "roi_percent": -14.362,
-      "trade_count": 500
-    },
-    "dma_gated_fgi": {
-      "display_name": "DMA Gated FGI",
-      "calmar_ratio": 1.7206,
-      "sharpe_ratio": 1.3332,
-      "max_drawdown_percent": -10.5667,
-      "roi_percent": 25.7537,
-      "trade_count": 44
-    },
-    "dma_fgi_hierarchical_full_minus_spy_latch": {
-      "display_name": "[DEPRECATED] 33% Hierarchical Full - SPY Latch",
-      "calmar_ratio": 3.5807,
-      "sharpe_ratio": 1.83,
-      "max_drawdown_percent": -7.0068,
-      "roi_percent": 35.926,
-      "trade_count": 83
-    },
-    "dma_fgi_hierarchical_full_minus_greed_sell_suppression": {
-      "display_name": "[DEPRECATED] 33% Hierarchical Full - Greed Sell Suppression",
-      "calmar_ratio": 3.3594,
-      "sharpe_ratio": 1.9762,
-      "max_drawdown_percent": -7.8623,
-      "roi_percent": 37.9003,
-      "trade_count": 80
-    },
-    "dma_fgi_hierarchical_full_minus_buy_floor": {
-      "display_name": "[DEPRECATED] 34% Hierarchical Full - Buy Floor",
-      "calmar_ratio": 3.5864,
-      "sharpe_ratio": 1.831,
-      "max_drawdown_percent": -7.0973,
-      "roi_percent": 36.4694,
-      "trade_count": 82
-    },
-    "dma_fgi_hierarchical_full_minus_fear_recovery_buy": {
-      "display_name": "[DEPRECATED] 32% Hierarchical Full - Fear Recovery Buy",
-      "calmar_ratio": 4.0658,
-      "sharpe_ratio": 1.7648,
-      "max_drawdown_percent": -5.2609,
-      "roi_percent": 30.4498,
-      "trade_count": 81
-    },
-    "dma_fgi_hierarchical_nodma_full_minus_spy_latch": {
-      "display_name": "106% Hierarchical NoDMA Full - SPY Latch",
-      "calmar_ratio": 4.3547,
-      "sharpe_ratio": 1.7513,
-      "max_drawdown_percent": -17.146,
-      "roi_percent": 114.7431,
-      "trade_count": 64
-    },
-    "dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression": {
-      "display_name": "82% Hierarchical NoDMA Full - Greed Sell Suppression",
-      "calmar_ratio": 5.0289,
-      "sharpe_ratio": 1.9014,
-      "max_drawdown_percent": -11.8534,
-      "roi_percent": 89.7962,
-      "trade_count": 74
-    },
-    "dma_fgi_hierarchical_nodma_full_minus_buy_floor": {
-      "display_name": "99% Hierarchical NoDMA Full - Buy Floor",
-      "calmar_ratio": 4.268,
-      "sharpe_ratio": 1.7081,
-      "max_drawdown_percent": -16.5852,
-      "roi_percent": 108.2356,
-      "trade_count": 63
-    },
-    "dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy": {
-      "display_name": "102% Hierarchical NoDMA Full - Fear Recovery Buy",
-      "calmar_ratio": 4.3699,
-      "sharpe_ratio": 1.7404,
-      "max_drawdown_percent": -16.548,
-      "roi_percent": 110.7902,
-      "trade_count": 62
-    },
-    "dma_fgi_hierarchical_adaptive_dma_only": {
-      "display_name": "[DEPRECATED] 32% Hierarchical Adaptive DMA Only",
-      "calmar_ratio": 3.281,
-      "sharpe_ratio": 1.9629,
-      "max_drawdown_percent": -7.9528,
-      "roi_percent": 37.4229,
-      "trade_count": 81
-    },
-    "dma_fgi_hierarchical_spy_latch_only": {
-      "display_name": "81% Hierarchical SPY Latch Only",
-      "calmar_ratio": 4.9716,
-      "sharpe_ratio": 1.8862,
-      "max_drawdown_percent": -11.8873,
-      "roi_percent": 88.9652,
-      "trade_count": 74
-    },
-    "dma_fgi_hierarchical_greed_suppression_only": {
-      "display_name": "105% Hierarchical Greed Suppression Only",
-      "calmar_ratio": 4.3202,
-      "sharpe_ratio": 1.742,
-      "max_drawdown_percent": -17.1914,
-      "roi_percent": 114.0775,
-      "trade_count": 64
-    },
-    "dma_fgi_hierarchical_buy_floor_only": {
-      "display_name": "85% Hierarchical Buy Floor Only",
-      "calmar_ratio": 5.1388,
-      "sharpe_ratio": 1.8915,
-      "max_drawdown_percent": -11.9317,
-      "roi_percent": 92.5798,
-      "trade_count": 75
-    },
-    "dma_fgi_hierarchical_fear_recovery_only": {
-      "display_name": "[DEPRECATED] 13% Hierarchical Fear Recovery Only",
-      "calmar_ratio": 0.6683,
-      "sharpe_ratio": 0.7003,
-      "max_drawdown_percent": -15.2734,
-      "roi_percent": 14.2776,
-      "trade_count": 46
-    },
-    "dma_fgi_hierarchical_minimum_minus_greed_suppression": {
-      "display_name": "Hierarchical Minimum - Greed Sell Suppression",
-      "calmar_ratio": 5.0223,
-      "sharpe_ratio": 1.9621,
-      "max_drawdown_percent": -13.0276,
-      "roi_percent": 99.3395,
-      "trade_count": 91
-    },
-    "dma_fgi_hierarchical_minimum_minus_dma_gating": {
-      "display_name": "Hierarchical Minimum - DMA Gating",
-      "calmar_ratio": 2.0009,
-      "sharpe_ratio": 1.7026,
-      "max_drawdown_percent": -8.6478,
-      "roi_percent": 24.4764,
-      "trade_count": 78
-    },
-    "dma_gated_fgi_adaptive_dma_ref": {
-      "display_name": "(60%) DMA FGI + Adaptive DMA Ref",
-      "calmar_ratio": 3.5299,
-      "sharpe_ratio": 1.7885,
-      "max_drawdown_percent": -14.6669,
-      "roi_percent": 77.1544,
-      "trade_count": 93
-    },
-    "dma_gated_fgi_ratio_zone": {
-      "display_name": "51% DMA FGI + Ratio Zone",
-      "calmar_ratio": 2.0494,
-      "sharpe_ratio": 1.1998,
-      "max_drawdown_percent": -20.7165,
-      "roi_percent": 62.4286,
-      "trade_count": 39
-    },
-    "dma_gated_fgi_ratio_cooldown": {
-      "display_name": "(60%) DMA FGI + Ratio Cooldown",
-      "calmar_ratio": 2.2793,
-      "sharpe_ratio": 1.3024,
-      "max_drawdown_percent": -20.7165,
-      "roi_percent": 69.9136,
-      "trade_count": 44
-    },
-    "dma_gated_fgi_progressive_rotation": {
-      "display_name": "(80%) DMA FGI + Progressive Rotation",
-      "calmar_ratio": 4.1699,
-      "sharpe_ratio": 1.6729,
-      "max_drawdown_percent": -14.8348,
-      "roi_percent": 93.4782,
-      "trade_count": 79
-    },
-    "eth_btc_rotation_attribution_full": {
-      "display_name": "(115%) ETH/BTC Attribution Full",
-      "calmar_ratio": 4.4468,
-      "sharpe_ratio": 1.9367,
-      "max_drawdown_percent": -18.4031,
-      "roi_percent": 126.9138,
-      "trade_count": 65
-    },
-    "eth_btc_full_minus_adaptive_dma": {
-      "display_name": "79% ETH/BTC Full - Adaptive DMA",
-      "calmar_ratio": 4.16,
-      "sharpe_ratio": 1.663,
-      "max_drawdown_percent": -14.6156,
-      "roi_percent": 91.7467,
-      "trade_count": 67
-    },
-    "eth_btc_full_minus_ratio_cross": {
-      "display_name": "118% ETH/BTC Full - Ratio Cross",
-      "calmar_ratio": 4.5719,
-      "sharpe_ratio": 1.9458,
-      "max_drawdown_percent": -18.4031,
-      "roi_percent": 130.86,
-      "trade_count": 77
-    },
-    "eth_btc_full_minus_ratio_cooldown": {
-      "display_name": "116% ETH/BTC Full - Ratio Cooldown",
-      "calmar_ratio": 4.5221,
-      "sharpe_ratio": 1.9445,
-      "max_drawdown_percent": -18.4031,
-      "roi_percent": 129.2876,
-      "trade_count": 79
-    },
-    "eth_btc_full_minus_progressive_rotation": {
-      "display_name": "126% ETH/BTC Full - Progressive Rotation",
-      "calmar_ratio": 4.5811,
-      "sharpe_ratio": 2.0109,
-      "max_drawdown_percent": -19.304,
-      "roi_percent": 138.2691,
-      "trade_count": 50
-    },
-    "eth_btc_progressive_adaptive": {
-      "display_name": "118% ETH/BTC Progressive + Adaptive DMA",
-      "calmar_ratio": 4.5719,
-      "sharpe_ratio": 1.9458,
-      "max_drawdown_percent": -18.4031,
-      "roi_percent": 130.86,
-      "trade_count": 77
-    },
-    "eth_btc_progressive_ratio_cross": {
-      "display_name": "79% ETH/BTC Progressive + Ratio Cross",
-      "calmar_ratio": 4.0453,
-      "sharpe_ratio": 1.6584,
-      "max_drawdown_percent": -15.1213,
-      "roi_percent": 92.3511,
-      "trade_count": 82
-    },
-    "eth_btc_progressive_ratio_cross_cooldown": {
-      "display_name": "79% ETH/BTC Progressive + Ratio Cross Cooldown",
-      "calmar_ratio": 4.16,
-      "sharpe_ratio": 1.663,
-      "max_drawdown_percent": -14.6156,
-      "roi_percent": 91.7467,
-      "trade_count": 67
-    },
-    "spy_eth_btc_rotation": {
-      "display_name": "SPY/ETH/BTC Multi-Asset Rotation",
-      "calmar_ratio": -0.0979,
-      "sharpe_ratio": 0.0183,
-      "max_drawdown_percent": -37.8525,
-      "roi_percent": -5.0111,
-      "trade_count": 48
     }
-  },
-  "deprecated_strategies": [
-    "dma_fgi_hierarchical_adaptive_dma_only",
-    "dma_fgi_hierarchical_buy_floor_only",
-    "dma_fgi_hierarchical_fear_recovery_only",
-    "dma_fgi_hierarchical_full_minus_buy_floor",
-    "dma_fgi_hierarchical_full_minus_fear_recovery_buy",
-    "dma_fgi_hierarchical_full_minus_greed_sell_suppression",
-    "dma_fgi_hierarchical_full_minus_spy_latch",
-    "dma_fgi_hierarchical_greed_suppression_only",
-    "dma_fgi_hierarchical_minimum_minus_dma_gating",
-    "dma_fgi_hierarchical_minimum_minus_greed_suppression",
-    "dma_fgi_hierarchical_nodma_full_minus_buy_floor",
-    "dma_fgi_hierarchical_nodma_full_minus_fear_recovery_buy",
-    "dma_fgi_hierarchical_nodma_full_minus_greed_sell_suppression",
-    "dma_fgi_hierarchical_nodma_full_minus_spy_latch",
-    "dma_fgi_hierarchical_spy_latch_only",
-    "dma_gated_fgi_adaptive_dma_ref",
-    "dma_gated_fgi_progressive_rotation",
-    "dma_gated_fgi_ratio_cooldown",
-    "dma_gated_fgi_ratio_zone",
-    "eth_btc_full_minus_adaptive_dma",
-    "eth_btc_full_minus_progressive_rotation",
-    "eth_btc_full_minus_ratio_cooldown",
-    "eth_btc_full_minus_ratio_cross",
-    "eth_btc_progressive_adaptive",
-    "eth_btc_progressive_ratio_cross",
-    "eth_btc_progressive_ratio_cross_cooldown",
-    "eth_btc_rotation_attribution_full",
-    "spy_eth_btc_rotation"
-  ]
+  }
 }

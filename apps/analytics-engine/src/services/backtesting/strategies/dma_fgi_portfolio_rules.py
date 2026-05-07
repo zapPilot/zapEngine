@@ -1,10 +1,11 @@
 """Flat portfolio-level DMA/FGI rule strategy.
 
 Rules are evaluated first-match-wins by explicit priority:
-cross-down exit, cross-up equal-weight, extreme-fear DCA buy, DMA
-overextension DCA sell, then FGI downshift DCA sell. If different assets emit
-cross-up and cross-down on the same day, cross-down exits win and the cross-up
-rebalance can be reconsidered on the next eligible day.
+cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation, global cooldown,
+DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
+If different assets emit cross-up and cross-down on the same day, cross-down
+exits win and the cross-up rebalance can be reconsidered on the next eligible
+day.
 """
 
 from __future__ import annotations

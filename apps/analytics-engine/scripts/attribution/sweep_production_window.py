@@ -13,12 +13,7 @@ from typing import Any
 import httpx
 
 from src.services.backtesting.constants import (
-    STRATEGY_DCA_CLASSIC,
     STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-    STRATEGY_DMA_FGI_FLAT_MINIMUM,
-    STRATEGY_DMA_GATED_FGI,
     STRATEGY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
@@ -101,12 +96,7 @@ def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]
         *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
         *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
         *PORTFOLIO_RULES_ATTRIBUTION_VARIANTS.keys(),
-        STRATEGY_DMA_FGI_ADAPTIVE_BINARY_ETH_BTC,
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM,
-        STRATEGY_DMA_FGI_FLAT_MINIMUM,
         STRATEGY_ETH_BTC_ROTATION,
-        STRATEGY_DCA_CLASSIC,
-        STRATEGY_DMA_GATED_FGI,
     ):
         if strategy_id in seen:
             continue
@@ -460,49 +450,7 @@ def _merge_preserved_excluded_entries(
     existing: dict[str, Any] | None,
     actual: dict[str, Any],
 ) -> dict[str, Any]:
-    if existing is None:
-        return actual
-    existing_strategies = existing.get("strategies")
-    actual_strategies = actual.get("strategies")
-    if not isinstance(existing_strategies, dict) or not isinstance(
-        actual_strategies, dict
-    ):
-        return actual
-
-    merged_strategies = {
-        strategy_id: dict(entry)
-        for strategy_id, entry in actual_strategies.items()
-        if isinstance(entry, dict)
-    }
-    deprecated_strategies = _snapshot_deprecated_strategies(existing)
-    for strategy_id, entry in existing_strategies.items():
-        if strategy_id in merged_strategies or not isinstance(entry, dict):
-            continue
-        if strategy_id not in deprecated_strategies and not _is_excluded_strategy(
-            strategy_id
-        ):
-            continue
-        preserved_entry = dict(entry)
-        if strategy_id in STRATEGY_DISPLAY_NAMES:
-            preserved_entry["display_name"] = STRATEGY_DISPLAY_NAMES[strategy_id]
-        merged_strategies[strategy_id] = preserved_entry
-
-    active_order = _default_strategy_universe(exclude_deprecated=False)
-    historical_order = [
-        strategy_id
-        for strategy_id in existing_strategies
-        if strategy_id in deprecated_strategies and strategy_id in merged_strategies
-    ]
-    ordered_strategies = {
-        strategy_id: merged_strategies[strategy_id]
-        for strategy_id in (*active_order, *historical_order)
-        if strategy_id in merged_strategies
-    }
-    return {
-        **actual,
-        DEPRECATED_STRATEGIES_FIELD: sorted(deprecated_strategies),
-        "strategies": ordered_strategies,
-    }
+    return actual
 
 
 def main() -> None:

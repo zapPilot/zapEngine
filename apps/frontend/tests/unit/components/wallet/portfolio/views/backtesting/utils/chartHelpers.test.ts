@@ -99,16 +99,19 @@ describe('getPrimaryStrategyId', () => {
     expect(getPrimaryStrategyId([])).toBeNull();
   });
 
-  it('prefers the first non-DCA strategy', () => {
-    expect(getPrimaryStrategyId(['dca_classic', 'dma_gated_fgi_default'])).toBe(
-      'dma_gated_fgi_default',
-    );
+  it('returns the first sorted strategy', () => {
+    expect(
+      getPrimaryStrategyId([
+        'dma_fgi_portfolio_rules',
+        'eth_btc_rotation_default',
+      ]),
+    ).toBe('dma_fgi_portfolio_rules');
   });
 
-  it('falls back to sortedIds[0] when all ids are dca_classic', () => {
-    // Exercises the `?? sortedIds[0]` branch: find() returns undefined
-    // because every id equals DCA_CLASSIC_STRATEGY_ID
-    expect(getPrimaryStrategyId(['dca_classic'])).toBe('dca_classic');
+  it('returns the sole strategy when only one exists', () => {
+    expect(getPrimaryStrategyId(['dma_fgi_portfolio_rules'])).toBe(
+      'dma_fgi_portfolio_rules',
+    );
   });
 });
 
@@ -124,11 +127,10 @@ describe('CHART_SIGNALS', () => {
 });
 
 describe('sortStrategyIds', () => {
-  it('places dca_classic first', () => {
-    expect(sortStrategyIds(['dma_gated_fgi_default', 'dca_classic'])).toEqual([
-      'dca_classic',
-      'dma_gated_fgi_default',
-    ]);
+  it('sorts kept strategies by display name', () => {
+    expect(
+      sortStrategyIds(['eth_btc_rotation_default', 'dma_fgi_portfolio_rules']),
+    ).toEqual(['eth_btc_rotation_default', 'dma_fgi_portfolio_rules']);
   });
 
   it('sorts other strategies by display name', () => {
@@ -187,10 +189,10 @@ describe('calculateYAxisDomain', () => {
   it('includes strategy values and signal markers', () => {
     const [min, max] = calculateYAxisDomain(
       [
-        { dma_gated_fgi_default_value: 1000, buySpotSignal: 500 },
-        { dma_gated_fgi_default_value: 2000, sellSpotSignal: 2200 },
+        { eth_btc_rotation_default_value: 1000, buySpotSignal: 500 },
+        { eth_btc_rotation_default_value: 2000, sellSpotSignal: 2200 },
       ],
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     expect(min).toBe(415);
@@ -202,7 +204,7 @@ describe('buildChartPoint', () => {
   it('copies strategy values from portfolio.total_value', () => {
     const point = createTimelinePoint({
       strategies: {
-        dma_gated_fgi_default: createStrategyPoint({
+        eth_btc_rotation_default: createStrategyPoint({
           portfolio: {
             spot_usd: 8000,
             stable_usd: 2000,
@@ -210,7 +212,7 @@ describe('buildChartPoint', () => {
             allocation: allocation(0.8, 0.2),
           },
         }),
-        dca_classic: createStrategyPoint({
+        dma_fgi_portfolio_rules: createStrategyPoint({
           portfolio: {
             spot_usd: 5250,
             stable_usd: 5250,
@@ -222,12 +224,12 @@ describe('buildChartPoint', () => {
     });
 
     const result = buildChartPoint(point, [
-      'dma_gated_fgi_default',
-      'dca_classic',
+      'eth_btc_rotation_default',
+      'dma_fgi_portfolio_rules',
     ]);
 
-    expect(result.dma_gated_fgi_default_value).toBe(12000);
-    expect(result.dca_classic_value).toBe(10500);
+    expect(result.eth_btc_rotation_default_value).toBe(12000);
+    expect(result.dma_fgi_portfolio_rules_value).toBe(10500);
     expect(result.market).toEqual(point.market);
     expect(result.strategies).toEqual(point.strategies);
   });
@@ -291,9 +293,9 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             signal: {
-              id: 'dma_gated_fgi',
+              id: 'eth_btc_rs_signal',
               regime: 'fear',
               raw_value: 20,
               confidence: 1,
@@ -313,7 +315,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     expect(result.dma_200).toBe(48000);
@@ -323,7 +325,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -341,20 +343,20 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     expect(result.sellSpotSignal).toBe(10000);
     expect(
       (result.eventStrategies as Record<string, string[]>).sell_spot,
-    ).toEqual(['DMA Gated FGI Default']);
+    ).toEqual(['ETH/BTC Rotation Default']);
   });
 
   it('creates a buy spot marker from a stable -> spot transfer', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -378,17 +380,17 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     expect(result.buySpotSignal).toBe(11000);
   });
 
-  it('ignores DCA transfers when computing markers', () => {
+  it('processes active strategy transfers when computing markers', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dca_classic: createStrategyPoint({
+          dma_fgi_portfolio_rules: createStrategyPoint({
             execution: {
               event: 'buy',
               transfers: [
@@ -406,10 +408,10 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dca_classic'],
+      ['dma_fgi_portfolio_rules'],
     );
 
-    expect(result.buySpotSignal).toBeNull();
+    expect(result.buySpotSignal).toBe(10000);
     expect(result.sellSpotSignal).toBeNull();
   });
 
@@ -467,7 +469,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: null as unknown as [],
@@ -479,7 +481,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     // No transfers processed — signals remain null
@@ -493,7 +495,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -516,7 +518,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     // Unrecognised transfer directions produce no signal markers
@@ -529,7 +531,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -550,12 +552,12 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     const eventStrategies = result.eventStrategies as Record<string, string[]>;
     // Strategy name should appear only once despite two matching transfers
-    expect(eventStrategies.buy_spot).toEqual(['DMA Gated FGI Default']);
+    expect(eventStrategies.buy_spot).toEqual(['ETH/BTC Rotation Default']);
   });
 
   it('returns null btc_price when token_price has no btc key', () => {
@@ -578,7 +580,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -624,7 +626,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default', 'alpha_strategy'],
+      ['eth_btc_rotation_default', 'alpha_strategy'],
     );
 
     expect(result.buySpotSignal).toBe(15000);
@@ -634,7 +636,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          dma_gated_fgi_default: createStrategyPoint({
+          eth_btc_rotation_default: createStrategyPoint({
             portfolio: {
               spot_usd: 5000,
               stable_usd: 5000,
@@ -655,7 +657,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['dma_gated_fgi_default'],
+      ['eth_btc_rotation_default'],
     );
 
     expect(result.switchToBtcSignal).toBeNull();
@@ -779,7 +781,7 @@ describe('buildChartPoint', () => {
     expect(result.switchToEthSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).switch_to_btc,
-    ).toEqual(['eth btc rotation default']);
+    ).toEqual(['ETH/BTC Rotation Default']);
   });
 
   it('creates a switchToEth marker from a btc → eth transfer', () => {
@@ -831,13 +833,13 @@ describe('buildChartPoint', () => {
     expect(result.switchToSpySignal).toBe(10000);
     expect(
       (result.eventStrategies as Record<string, string[]>).switch_to_spy,
-    ).toEqual(['dma fgi portfolio rules']);
+    ).toEqual(['Portfolio Rules']);
   });
 
   it('does not emit signals from a second strategy excluded from strategyIds', () => {
     const point = createTimelinePoint({
       strategies: {
-        dma_gated_fgi_default: createStrategyPoint({
+        dma_fgi_portfolio_rules: createStrategyPoint({
           portfolio: {
             spot_usd: 7000,
             stable_usd: 3000,
@@ -876,15 +878,15 @@ describe('buildChartPoint', () => {
       },
     });
 
-    // Only pass dma strategy — rotation signals must NOT bleed through
-    const result = buildChartPoint(point, ['dma_gated_fgi_default']);
+    // Only pass portfolio-rules strategy - rotation signals must NOT bleed through
+    const result = buildChartPoint(point, ['dma_fgi_portfolio_rules']);
 
     expect(result.buySpotSignal).toBe(11000);
     // If rotation signals bled through, sellSpotSignal would be 15000
     expect(result.sellSpotSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).buy_spot,
-    ).toEqual(['DMA Gated FGI Default']);
+    ).toEqual(['Portfolio Rules']);
   });
 });
 
@@ -893,29 +895,35 @@ describe('filterToActiveStrategies', () => {
     expect(filterToActiveStrategies([])).toEqual([]);
   });
 
-  it('returns dca_classic and primary strategy from 3+ strategies', () => {
+  it('returns the primary strategy from 3+ strategies', () => {
     expect(
-      filterToActiveStrategies(['dca_classic', 'dma_gated_fgi', 'extra_strat']),
-    ).toEqual(['dca_classic', 'dma_gated_fgi']);
+      filterToActiveStrategies([
+        'dma_fgi_portfolio_rules',
+        'eth_btc_rotation_default',
+        'extra_strat',
+      ]),
+    ).toEqual(['dma_fgi_portfolio_rules']);
   });
 
-  it('returns only dca_classic when it is the sole strategy', () => {
-    expect(filterToActiveStrategies(['dca_classic'])).toEqual(['dca_classic']);
+  it('returns only dma_fgi_portfolio_rules when it is the sole strategy', () => {
+    expect(filterToActiveStrategies(['dma_fgi_portfolio_rules'])).toEqual([
+      'dma_fgi_portfolio_rules',
+    ]);
   });
 
-  it('returns the single non-DCA strategy when DCA is absent', () => {
+  it('returns the single primary strategy when portfolio rules is absent', () => {
     expect(filterToActiveStrategies(['other_strategy'])).toEqual([
       'other_strategy',
     ]);
   });
-  it('returns at most 2 IDs', () => {
+  it('returns at most 1 ID', () => {
     const result = filterToActiveStrategies([
-      'dca_classic',
+      'dma_fgi_portfolio_rules',
       'alpha',
       'bravo',
       'charlie',
     ]);
-    expect(result.length).toBeLessThanOrEqual(2);
-    expect(result).toEqual(['dca_classic', 'alpha']);
+    expect(result.length).toBeLessThanOrEqual(1);
+    expect(result).toEqual(['dma_fgi_portfolio_rules']);
   });
 });

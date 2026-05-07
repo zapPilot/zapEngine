@@ -119,9 +119,9 @@ def _ensure_strategy_saved_configs_table(session: Session) -> None:
 def _daily_response() -> DailySuggestionResponse:
     return DailySuggestionResponse(
         as_of=datetime.now(UTC),
-        config_id="dma_gated_fgi_default",
-        config_display_name="DMA Gated FGI Default",
-        strategy_id="dma_gated_fgi",
+        config_id="eth_btc_rotation_default",
+        config_display_name="ETH/BTC RS Rotation",
+        strategy_id="eth_btc_rotation",
         action=DailySuggestionActionState(
             status="blocked",
             required=False,
@@ -153,7 +153,7 @@ def _daily_response() -> DailySuggestionResponse:
                 ),
             ),
             signal=SignalState(
-                id="dma_gated_fgi",
+                id="eth_btc_rs_signal",
                 regime="greed",
                 raw_value=72.0,
                 confidence=1.0,
@@ -203,6 +203,56 @@ def _dma_public_params(
     }
 
 
+def _eth_rotation_admin_payload(
+    *,
+    config_id: str = "eth_rotation_custom",
+    display_name: str = "ETH Rotation Custom",
+    cross_cooldown_days: int = 12,
+) -> dict[str, object]:
+    return {
+        "config_id": config_id,
+        "display_name": display_name,
+        "description": "Custom live config",
+        "strategy_id": "eth_btc_rotation",
+        "primary_asset": "BTC",
+        "params": _dma_public_params(cross_cooldown_days=cross_cooldown_days),
+        "composition": {
+            "kind": "composed",
+            "bucket_mapper_id": "eth_btc_stable",
+            "signal": {
+                "component_id": "eth_btc_rs_signal",
+                "params": {
+                    "cross_cooldown_days": cross_cooldown_days,
+                    "cross_on_touch": True,
+                },
+            },
+            "decision_policy": {
+                "component_id": "eth_btc_rotation_policy",
+                "params": {},
+            },
+            "pacing_policy": {
+                "component_id": "fgi_exponential",
+                "params": {"k": 5.0, "r_max": 1.0},
+            },
+            "execution_profile": {
+                "component_id": "two_bucket_rebalance",
+                "params": {},
+            },
+            "plugins": [
+                {
+                    "component_id": "dma_buy_gate",
+                    "params": {
+                        "window_days": 5,
+                        "sideways_max_range": 0.04,
+                        "leg_caps": [0.05, 0.1, 0.2],
+                    },
+                }
+            ],
+        },
+        "supports_daily_suggestion": True,
+    }
+
+
 @pytest.mark.asyncio
 async def test_get_strategy_configs_returns_nested_recipe_presets(
     client: AsyncClient,
@@ -218,13 +268,9 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     assert "dma_gated_fgi_btc_asset_control" not in strategy_ids
     assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
     assert {preset["config_id"] for preset in presets} == {
-        "dma_gated_fgi_default",
         "eth_btc_rotation_default",
     }
     assert sum(bool(preset["is_default"]) for preset in presets) == 1
-    dma_preset = next(
-        preset for preset in presets if preset["config_id"] == "dma_gated_fgi_default"
-    )
     rotation_preset = next(
         preset
         for preset in presets
@@ -232,9 +278,12 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     )
     assert rotation_preset["strategy_id"] == "eth_btc_rotation"
     assert rotation_preset["is_default"] is True
-    assert cast(dict[str, object], dma_preset["params"])["signal"] == {
+    assert cast(dict[str, object], rotation_preset["params"])["signal"] == {
         "cross_cooldown_days": 30,
         "cross_on_touch": True,
+        "ratio_cross_cooldown_days": 30,
+        "rotation_neutral_band": 0.05,
+        "rotation_max_deviation": 0.2,
     }
     assert body["backtest_defaults"] == {"days": 500, "total_capital": 10000}
 
@@ -285,8 +334,8 @@ async def test_get_strategy_configs_surfaces_only_one_default_after_db_override(
                 update={"is_default": False},
                 deep=True,
             ),
-            resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-                update={"is_default": True},
+            resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
+                update={"config_id": "eth_rotation_alt", "is_default": True},
                 deep=True,
             ),
         ]
@@ -298,7 +347,7 @@ async def test_get_strategy_configs_surfaces_only_one_default_after_db_override(
     presets = cast(list[dict[str, object]], response.json()["presets"])
     assert sum(bool(preset["is_default"]) for preset in presets) == 1
     assert next(preset for preset in presets if preset["is_default"])["config_id"] == (
-        "dma_gated_fgi_default"
+        "eth_rotation_alt"
     )
 
 
@@ -307,15 +356,14 @@ async def test_get_strategy_configs_returns_500_for_corrupted_multi_default_stat
     client: AsyncClient,
 ) -> None:
     corrupted_configs = [
-        resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-            update={"is_default": True},
+        resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
+            update={"config_id": "eth_rotation_a", "is_default": True},
             deep=True,
         ),
         resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
-            update={"is_default": True},
+            update={"config_id": "eth_rotation_b", "is_default": True},
             deep=True,
         ),
-        resolve_seed_strategy_config("dca_classic"),
     ]
     _override_strategy_config_store(MockStrategyConfigStore(corrupted_configs))
     try:
@@ -333,12 +381,7 @@ async def test_get_strategy_configs_restores_effective_default_when_none_are_fla
 ) -> None:
     effective_default = resolve_seed_strategy_config("eth_btc_rotation_default")
     public_configs = [
-        resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
-            update={"is_default": False},
-            deep=True,
-        ),
         effective_default.model_copy(update={"is_default": False}, deep=True),
-        resolve_seed_strategy_config("dca_classic"),
     ]
     store = MockStrategyConfigStore(public_configs)
     store.resolve_config = lambda config_id=None: effective_default  # type: ignore[method-assign]
@@ -366,9 +409,7 @@ async def test_admin_strategy_configs_return_full_saved_config_payload(
     body = cast(dict[str, object], response.json())
     configs = cast(list[dict[str, object]], body["configs"])
     assert {config["config_id"] for config in configs} == {
-        "dma_gated_fgi_default",
         "eth_btc_rotation_default",
-        "dca_classic",
     }
     rotation_config = next(
         config
@@ -392,12 +433,14 @@ async def test_admin_strategy_configs_return_full_saved_config_payload(
 async def test_admin_strategy_config_detail_returns_full_composition_payload(
     client: AsyncClient,
 ) -> None:
-    response = await client.get("/api/v3/strategy/admin/configs/dma_gated_fgi_default")
+    response = await client.get(
+        "/api/v3/strategy/admin/configs/eth_btc_rotation_default"
+    )
 
     assert response.status_code == 200
     body = cast(dict[str, object], response.json())
     config = cast(dict[str, object], body["config"])
-    assert config["config_id"] == "dma_gated_fgi_default"
+    assert config["config_id"] == "eth_btc_rotation_default"
     assert cast(dict[str, object], config["composition"])["execution_profile"] == {
         "component_id": "two_bucket_rebalance",
         "params": {},
@@ -412,18 +455,18 @@ async def test_get_daily_suggestion_returns_shared_snapshot_shape(
     response = await _request_daily_suggestion(
         client=client,
         service=service,
-        params={"config_id": "dma_gated_fgi_default"},
+        params={"config_id": "eth_btc_rotation_default"},
     )
 
     assert response.status_code == 200
     assert service.call_count == 1
     assert service.last_user_id == UUID(DEFAULT_TEST_USER_ID)
-    assert service.last_config_id == "dma_gated_fgi_default"
+    assert service.last_config_id == "eth_btc_rotation_default"
 
     parsed = DailySuggestionResponse.model_validate(response.json())
-    assert parsed.strategy_id == "dma_gated_fgi"
-    assert parsed.config_display_name == "DMA Gated FGI Default"
-    assert parsed.context.signal.id == "dma_gated_fgi"
+    assert parsed.strategy_id == "eth_btc_rotation"
+    assert parsed.config_display_name == "ETH/BTC RS Rotation"
+    assert parsed.context.signal.id == "eth_btc_rs_signal"
     assert parsed.context.signal.details["ath_event"] == "token_ath"
     assert parsed.context.strategy.reason_code == "above_greed_sell"
     assert parsed.context.target.allocation.stable == pytest.approx(1.0)
@@ -476,59 +519,17 @@ async def test_admin_create_saved_config_surfaces_in_public_presets(
     )
     response = await client.post(
         "/api/v3/strategy/admin/configs",
-        json={
-            "config_id": "dma_custom",
-            "display_name": "DMA Custom",
-            "description": "Custom live config",
-            "strategy_id": "dma_gated_fgi",
-            "primary_asset": "BTC",
-            "params": _dma_public_params(cross_cooldown_days=12),
-            "composition": {
-                "kind": "composed",
-                "bucket_mapper_id": "two_bucket_spot_stable",
-                "signal": {
-                    "component_id": "dma_gated_fgi_signal",
-                    "params": {
-                        "cross_cooldown_days": 12,
-                        "cross_on_touch": True,
-                    },
-                },
-                "decision_policy": {
-                    "component_id": "dma_fgi_policy",
-                    "params": {},
-                },
-                "pacing_policy": {
-                    "component_id": "fgi_exponential",
-                    "params": {"k": 5.0, "r_max": 1.0},
-                },
-                "execution_profile": {
-                    "component_id": "two_bucket_rebalance",
-                    "params": {},
-                },
-                "plugins": [
-                    {
-                        "component_id": "dma_buy_gate",
-                        "params": {
-                            "window_days": 5,
-                            "sideways_max_range": 0.04,
-                            "leg_caps": [0.05, 0.1, 0.2],
-                        },
-                    }
-                ],
-            },
-            "supports_daily_suggestion": True,
-        },
+        json=_eth_rotation_admin_payload(),
     )
 
     assert response.status_code == 200
     created = cast(dict[str, object], response.json()["config"])
-    assert created["config_id"] == "dma_custom"
+    assert created["config_id"] == "eth_rotation_custom"
     presets_response = await client.get("/api/v3/strategy/configs")
     presets = cast(list[dict[str, object]], presets_response.json()["presets"])
     assert {preset["config_id"] for preset in presets} == {
         "eth_btc_rotation_default",
-        "dma_custom",
-        "dma_gated_fgi_default",
+        "eth_rotation_custom",
     }
 
 
@@ -544,10 +545,10 @@ async def test_admin_update_saved_config_returns_updated_payload(
         lambda: None,
     )
     StrategyConfigStore(db_session).upsert_config(
-        resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+        resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
             update={
-                "config_id": "dma_custom",
-                "display_name": "DMA Custom",
+                "config_id": "eth_rotation_custom",
+                "display_name": "ETH Rotation Custom",
                 "description": "Original",
                 "is_default": False,
             },
@@ -556,11 +557,11 @@ async def test_admin_update_saved_config_returns_updated_payload(
     )
 
     response = await client.put(
-        "/api/v3/strategy/admin/configs/dma_custom",
+        "/api/v3/strategy/admin/configs/eth_rotation_custom",
         json={
-            "display_name": "DMA Custom Updated",
+            "display_name": "ETH Rotation Custom Updated",
             "description": "Updated live config",
-            "strategy_id": "dma_gated_fgi",
+            "strategy_id": "eth_btc_rotation",
             "primary_asset": "BTC",
             "params": _dma_public_params(
                 cross_cooldown_days=9,
@@ -568,16 +569,16 @@ async def test_admin_update_saved_config_returns_updated_payload(
             ),
             "composition": {
                 "kind": "composed",
-                "bucket_mapper_id": "two_bucket_spot_stable",
+                "bucket_mapper_id": "eth_btc_stable",
                 "signal": {
-                    "component_id": "dma_gated_fgi_signal",
+                    "component_id": "eth_btc_rs_signal",
                     "params": {
                         "cross_cooldown_days": 9,
                         "cross_on_touch": False,
                     },
                 },
                 "decision_policy": {
-                    "component_id": "dma_fgi_policy",
+                    "component_id": "eth_btc_rotation_policy",
                     "params": {},
                 },
                 "pacing_policy": {
@@ -596,13 +597,16 @@ async def test_admin_update_saved_config_returns_updated_payload(
 
     assert response.status_code == 200
     config = cast(dict[str, object], response.json()["config"])
-    assert config["display_name"] == "DMA Custom Updated"
+    assert config["display_name"] == "ETH Rotation Custom Updated"
     assert cast(dict[str, object], config["params"])["signal"] == {
         "cross_cooldown_days": 9,
         "cross_on_touch": False,
+        "ratio_cross_cooldown_days": 30,
+        "rotation_max_deviation": 0.2,
+        "rotation_neutral_band": 0.05,
     }
     assert cast(dict[str, object], config["composition"])["signal"] == {
-        "component_id": "dma_gated_fgi_signal",
+        "component_id": "eth_btc_rs_signal",
         "params": {"cross_cooldown_days": 9, "cross_on_touch": False},
     }
 
@@ -619,10 +623,10 @@ async def test_admin_set_default_promotes_saved_config(
         lambda: None,
     )
     StrategyConfigStore(db_session).upsert_config(
-        resolve_seed_strategy_config("dma_gated_fgi_default").model_copy(
+        resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
             update={
-                "config_id": "dma_custom",
-                "display_name": "DMA Custom",
+                "config_id": "eth_rotation_custom",
+                "display_name": "ETH Rotation Custom",
                 "description": "Original",
                 "is_default": False,
             },
@@ -631,50 +635,13 @@ async def test_admin_set_default_promotes_saved_config(
     )
 
     response = await client.post(
-        "/api/v3/strategy/admin/configs/dma_custom/set-default"
+        "/api/v3/strategy/admin/configs/eth_rotation_custom/set-default"
     )
 
     assert response.status_code == 200
     config = cast(dict[str, object], response.json()["config"])
-    assert config["config_id"] == "dma_custom"
+    assert config["config_id"] == "eth_rotation_custom"
     assert config["is_default"] is True
-
-
-@pytest.mark.asyncio
-async def test_admin_update_benchmark_config_is_rejected(
-    client: AsyncClient,
-) -> None:
-    response = await client.put(
-        "/api/v3/strategy/admin/configs/dca_classic",
-        json={
-            "display_name": "Classic DCA Updated",
-            "description": "Nope",
-            "strategy_id": "dca_classic",
-            "primary_asset": "BTC",
-            "params": {},
-            "composition": {
-                "kind": "benchmark",
-                "bucket_mapper_id": "two_bucket_spot_stable",
-                "plugins": [],
-            },
-            "supports_daily_suggestion": False,
-        },
-    )
-
-    assert response.status_code == 409
-    assert "read-only" in response.json()["detail"]
-
-
-@pytest.mark.asyncio
-async def test_admin_set_default_benchmark_config_is_rejected(
-    client: AsyncClient,
-) -> None:
-    response = await client.post(
-        "/api/v3/strategy/admin/configs/dca_classic/set-default"
-    )
-
-    assert response.status_code == 409
-    assert "read-only" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -695,33 +662,7 @@ async def test_admin_write_returns_409_when_store_is_read_only(
 
     response = await client.post(
         "/api/v3/strategy/admin/configs",
-        json={
-            "config_id": "dma_custom",
-            "display_name": "DMA Custom",
-            "description": "Custom live config",
-            "strategy_id": "dma_gated_fgi",
-            "primary_asset": "BTC",
-            "params": _dma_public_params(cross_cooldown_days=12),
-            "composition": {
-                "kind": "composed",
-                "bucket_mapper_id": "two_bucket_spot_stable",
-                "signal": {"component_id": "dma_gated_fgi_signal", "params": {}},
-                "decision_policy": {
-                    "component_id": "dma_fgi_policy",
-                    "params": {},
-                },
-                "pacing_policy": {
-                    "component_id": "fgi_exponential",
-                    "params": {},
-                },
-                "execution_profile": {
-                    "component_id": "two_bucket_rebalance",
-                    "params": {},
-                },
-                "plugins": [],
-            },
-            "supports_daily_suggestion": True,
-        },
+        json=_eth_rotation_admin_payload(),
     )
 
     assert response.status_code == 409
@@ -739,33 +680,7 @@ async def test_admin_write_returns_409_when_strategy_config_table_missing(
     )
     response = await client.post(
         "/api/v3/strategy/admin/configs",
-        json={
-            "config_id": "dma_custom",
-            "display_name": "DMA Custom",
-            "description": "Custom live config",
-            "strategy_id": "dma_gated_fgi",
-            "primary_asset": "BTC",
-            "params": _dma_public_params(cross_cooldown_days=12),
-            "composition": {
-                "kind": "composed",
-                "bucket_mapper_id": "two_bucket_spot_stable",
-                "signal": {"component_id": "dma_gated_fgi_signal", "params": {}},
-                "decision_policy": {
-                    "component_id": "dma_fgi_policy",
-                    "params": {},
-                },
-                "pacing_policy": {
-                    "component_id": "fgi_exponential",
-                    "params": {},
-                },
-                "execution_profile": {
-                    "component_id": "two_bucket_rebalance",
-                    "params": {},
-                },
-                "plugins": [],
-            },
-            "supports_daily_suggestion": True,
-        },
+        json=_eth_rotation_admin_payload(),
     )
 
     assert response.status_code == 409
@@ -847,17 +762,17 @@ async def test_get_saved_strategy_config_returns_404_when_not_found(
 # ---------------------------------------------------------------------------
 
 _MINIMAL_CREATE_PAYLOAD = {
-    "config_id": "dma_test",
-    "display_name": "DMA Test",
+    "config_id": "eth_rotation_test",
+    "display_name": "ETH Rotation Test",
     "description": "Test",
-    "strategy_id": "dma_gated_fgi",
+    "strategy_id": "eth_btc_rotation",
     "primary_asset": "BTC",
     "params": {},
     "composition": {
         "kind": "composed",
-        "bucket_mapper_id": "two_bucket_spot_stable",
-        "signal": {"component_id": "dma_gated_fgi_signal", "params": {}},
-        "decision_policy": {"component_id": "dma_fgi_policy", "params": {}},
+        "bucket_mapper_id": "eth_btc_stable",
+        "signal": {"component_id": "eth_btc_rs_signal", "params": {}},
+        "decision_policy": {"component_id": "eth_btc_rotation_policy", "params": {}},
         "pacing_policy": {"component_id": "fgi_exponential", "params": {}},
         "execution_profile": {"component_id": "two_bucket_rebalance", "params": {}},
         "plugins": [],
@@ -907,14 +822,14 @@ async def test_create_saved_strategy_config_returns_500_on_unexpected_error(
 _MINIMAL_UPDATE_PAYLOAD = {
     "display_name": "Updated",
     "description": "Updated desc",
-    "strategy_id": "dma_gated_fgi",
+    "strategy_id": "eth_btc_rotation",
     "primary_asset": "BTC",
     "params": {},
     "composition": {
         "kind": "composed",
-        "bucket_mapper_id": "two_bucket_spot_stable",
-        "signal": {"component_id": "dma_gated_fgi_signal", "params": {}},
-        "decision_policy": {"component_id": "dma_fgi_policy", "params": {}},
+        "bucket_mapper_id": "eth_btc_stable",
+        "signal": {"component_id": "eth_btc_rs_signal", "params": {}},
+        "decision_policy": {"component_id": "eth_btc_rotation_policy", "params": {}},
         "pacing_policy": {"component_id": "fgi_exponential", "params": {}},
         "execution_profile": {"component_id": "two_bucket_rebalance", "params": {}},
         "plugins": [],

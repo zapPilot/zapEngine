@@ -62,7 +62,7 @@ async def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
         "- configs: [{config_id, saved_config_id?} | {config_id, strategy_id, params}, ...]\n\n"
         "Behavior:\n"
         "- Canonical path is `saved_config_id`; legacy `strategy_id + params` remains supported as an adapter.\n"
-        "- If no `dca_classic` config is provided, the service auto-adds it as the baseline.\n\n"
+        "- The service compares exactly the configs provided in the request.\n\n"
         "Response shape:\n"
         "- BacktestResponse where `strategies` and `timeline[].strategies` are keyed by config_id."
     ),

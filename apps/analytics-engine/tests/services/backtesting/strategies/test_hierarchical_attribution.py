@@ -2,15 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-    STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
-)
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL
 from src.services.backtesting.strategies.hierarchical_attribution import (
-    CURRENT_DMA_BUY_STRENGTH_FLOOR,
-    FULL_DISABLED_RULES,
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
     LEGACY_DMA_BUY_STRENGTH_FLOOR,
 )
@@ -42,9 +35,6 @@ def _build_variant_strategy(strategy_id: str) -> HierarchicalSpyCryptoRotationSt
 def test_variant_registry_complete() -> None:
     assert set(HIERARCHICAL_ATTRIBUTION_VARIANTS) == {
         STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL,
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA,
-        STRATEGY_DMA_FGI_HIERARCHICAL_PROD,
     }
     for strategy_id, variant in HIERARCHICAL_ATTRIBUTION_VARIANTS.items():
         recipe = get_strategy_recipe(strategy_id)
@@ -61,33 +51,3 @@ def test_control_variant_uses_legacy_tactic_surface() -> None:
     assert strategy.outer_disabled_rules == frozenset()
     assert strategy.inner_disabled_rules == frozenset()
     assert strategy.dma_buy_strength_floor == LEGACY_DMA_BUY_STRENGTH_FLOOR
-
-
-def test_full_variant_uses_post_fix_tactic_surface() -> None:
-    strategy = _build_variant_strategy(STRATEGY_DMA_FGI_HIERARCHICAL_FULL)
-
-    assert strategy.adaptive_crypto_dma_reference is True
-    assert strategy.spy_cross_up_latch is True
-    assert strategy.outer_disabled_rules == FULL_DISABLED_RULES
-    assert strategy.inner_disabled_rules == frozenset()
-    assert strategy.dma_buy_strength_floor == CURRENT_DMA_BUY_STRENGTH_FLOOR
-
-
-def test_full_minus_adaptive_dma_keeps_full_surface_without_adaptive_dma() -> None:
-    baseline = _build_variant_strategy(
-        STRATEGY_DMA_FGI_HIERARCHICAL_FULL_MINUS_ADAPTIVE_DMA
-    )
-    assert baseline.adaptive_crypto_dma_reference is False
-    assert baseline.spy_cross_up_latch is True
-    assert baseline.outer_disabled_rules == FULL_DISABLED_RULES
-    assert baseline.dma_buy_strength_floor == CURRENT_DMA_BUY_STRENGTH_FLOOR
-
-
-def test_prod_variant_is_full_alias() -> None:
-    full = HIERARCHICAL_ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_HIERARCHICAL_FULL]
-    prod = HIERARCHICAL_ATTRIBUTION_VARIANTS[STRATEGY_DMA_FGI_HIERARCHICAL_PROD]
-
-    assert prod.adaptive_crypto_dma_reference == full.adaptive_crypto_dma_reference
-    assert prod.spy_cross_up_latch == full.spy_cross_up_latch
-    assert prod.disabled_rules == full.disabled_rules
-    assert prod.dma_buy_strength_floor == full.dma_buy_strength_floor

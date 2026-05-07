@@ -95,7 +95,7 @@ const INDICATOR_KEY_TO_SIGNAL_NAMES: Record<IndicatorKey, string[]> = {
  * const data = buildBacktestTooltipData({
  *   payload: rechartsPayload,
  *   label: "2026-01-15",
- *   sortedStrategyIds: ["dca_classic", "dma_gated_fgi"],
+ *   sortedStrategyIds: ["dma_fgi_hierarchical_minimum", "eth_btc_rotation"],
  *   activeIndicators: new Set(["btcPrice", "sentiment"]),
  * });
  * ```

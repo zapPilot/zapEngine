@@ -4,7 +4,6 @@ import type {
 } from '@/types/backtesting';
 
 import { getBacktestTransferDirection } from '../backtestBuckets';
-import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import { getBacktestSpotAssetColor } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
 
@@ -158,10 +157,6 @@ function forEachActiveStrategy(
   callback: (strategyId: string, strategy: BacktestStrategy) => void,
 ): void {
   for (const strategyId of strategyIds) {
-    if (strategyId === DCA_CLASSIC_STRATEGY_ID) {
-      continue;
-    }
-
     const strategy = point.strategies[strategyId];
     if (!strategy) {
       continue;
@@ -295,53 +290,30 @@ export function calculateActualDays(timeline: BacktestTimelinePoint[]): number {
 }
 
 export function getPrimaryStrategyId(sortedIds: string[]): string | null {
-  return (
-    sortedIds.find((id) => id !== DCA_CLASSIC_STRATEGY_ID) ??
-    sortedIds[0] ??
-    null
-  );
+  return sortedIds[0] ?? null;
 }
 
 /**
- * Filters sorted strategy IDs to only include DCA Classic and the primary test strategy.
+ * Filters sorted strategy IDs to only include the primary displayed strategy.
  * This prevents the chart/tooltip from showing all strategies when the API returns many.
  *
  * @param sortedIds - Strategy IDs already sorted by `sortStrategyIds`
- * @returns Array with at most 2 IDs: [dca_classic, primaryStrategy]
+ * @returns Array with at most 1 ID: [primaryStrategy]
  * @example
  * ```ts
- * filterToActiveStrategies(["dca_classic", "dma_gated_fgi", "eth_btc_rotation"])
- * // => ["dca_classic", "dma_gated_fgi"]
+ * filterToActiveStrategies(["dma_fgi_hierarchical_minimum", "eth_btc_rotation"])
+ * // => ["dma_fgi_hierarchical_minimum"]
  * ```
  */
 export function filterToActiveStrategies(sortedIds: string[]): string[] {
   const primary = getPrimaryStrategyId(sortedIds);
-  if (!primary) return sortedIds;
-
-  const result: string[] = [];
-  if (sortedIds.includes(DCA_CLASSIC_STRATEGY_ID)) {
-    result.push(DCA_CLASSIC_STRATEGY_ID);
-  }
-  if (primary !== DCA_CLASSIC_STRATEGY_ID) {
-    result.push(primary);
-  }
-
-  return result;
+  return primary ? [primary] : sortedIds;
 }
 
 export function sortStrategyIds(ids: string[]): string[] {
-  const dca: string[] = [];
-  if (ids.includes(DCA_CLASSIC_STRATEGY_ID)) {
-    dca.push(DCA_CLASSIC_STRATEGY_ID);
-  }
-
-  const others = ids
-    .filter((id) => id !== DCA_CLASSIC_STRATEGY_ID)
-    .sort((a, b) =>
-      getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b)),
-    );
-
-  return [...dca, ...others];
+  return [...ids].sort((a, b) =>
+    getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b)),
+  );
 }
 
 export function buildChartPoint(

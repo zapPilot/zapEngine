@@ -7,7 +7,7 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_FLAT_MINIMUM
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_DMA_200_FEATURE,
@@ -70,13 +70,10 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
     assert requirements.required_price_features == frozenset({"dma_200"})
     service.data_provider.fetch_sentiments.assert_awaited_once()
     assert request.start_date == date(2025, 1, 1)
-    assert [cfg.strategy_id for cfg in request.configs] == ["dma_gated_fgi"]
+    assert [cfg.strategy_id for cfg in request.configs] == ["eth_btc_rotation"]
     assert [
         cfg.strategy_id for cfg in mock_runner.call_args.kwargs["request"].configs
-    ] == [
-        "dca_classic",
-        "dma_gated_fgi",
-    ]
+    ] == ["eth_btc_rotation"]
     assert mock_runner.call_args.kwargs["user_start_date"] == date(2025, 1, 3)
     window = mock_runner.call_args.kwargs["window"]
     assert window.truncated is True
@@ -87,10 +84,16 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
 
 
 @pytest.mark.asyncio
-async def test_run_compare_v3_baseline_only_skips_dma_fetch(
+async def test_run_compare_v3_no_feature_recipe_skips_dma_fetch(
     service: BacktestingService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    register_mock_recipe(
+        monkeypatch,
+        strategy_id="mock_no_features",
+        requires_sentiment=False,
+        required_price_features=frozenset(),
+    )
     service.data_provider.fetch_token_prices = AsyncMock(
         return_value=[
             price_row(date(2025, 1, 2), price=101.0),
@@ -103,8 +106,8 @@ async def test_run_compare_v3_baseline_only_skips_dma_fetch(
     request = compare_request(
         configs=[
             BacktestCompareConfigV3(
-                config_id="dca_classic",
-                strategy_id="dca_classic",
+                config_id="mock_no_features",
+                strategy_id="mock_no_features",
                 params={},
             )
         ]
@@ -291,13 +294,17 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
     ):
         await service.run_compare_v3(
             compare_request(
-                token_symbol="ETH",
                 configs=[
+                    BacktestCompareConfigV3(
+                        config_id="eth_rotation_runtime",
+                        strategy_id="eth_btc_rotation",
+                        params={},
+                    ),
                     BacktestCompareConfigV3(
                         config_id="mock_eth_signal",
                         strategy_id="mock_eth_signal",
                         params={},
-                    )
+                    ),
                 ],
             )
         )
@@ -347,14 +354,11 @@ async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
     )
     service.data_provider.fetch_sentiments.assert_not_called()
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
-    assert [config.strategy_id for config in resolved_configs] == [
-        "dca_classic",
-        "mock_signal_family",
-    ]
+    assert [config.strategy_id for config in resolved_configs] == ["mock_signal_family"]
 
 
 @pytest.mark.asyncio
-async def test_run_compare_v3_only_auto_injects_dca_baseline_for_saved_configs(
+async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requested_saved = resolve_seed_strategy_config("eth_btc_rotation_default")
@@ -365,9 +369,7 @@ async def test_run_compare_v3_only_auto_injects_dca_baseline_for_saved_configs(
         strategy_config_store=MagicMock(
             resolve_config=lambda _config_id: requested_saved,
             list_configs=lambda: [
-                resolve_seed_strategy_config("dma_gated_fgi_default"),
-                resolve_seed_strategy_config("eth_btc_rotation_default"),
-                resolve_seed_strategy_config("dca_classic"),
+                resolve_seed_strategy_config("eth_btc_rotation_default")
             ],
         ),
     )
@@ -395,13 +397,8 @@ async def test_run_compare_v3_only_auto_injects_dca_baseline_for_saved_configs(
 
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
     assert [config.request_config_id for config in resolved_configs] == [
-        "dca_classic",
-        "rotation_runtime",
+        "rotation_runtime"
     ]
-    assert all(
-        config.request_config_id != "dma_gated_fgi_default"
-        for config in resolved_configs
-    )
 
 
 @pytest.mark.asyncio
@@ -414,7 +411,9 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
         sentiment_service=MagicMock(),
         strategy_config_store=MagicMock(
             get_config=lambda _config_id: None,
-            list_configs=lambda: [resolve_seed_strategy_config("dca_classic")],
+            list_configs=lambda: [
+                resolve_seed_strategy_config("eth_btc_rotation_default")
+            ],
         ),
     )
     service.data_provider.fetch_token_prices = AsyncMock(
@@ -449,8 +448,8 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
             end_date=date(2025, 1, 2),
             configs=[
                 BacktestCompareConfigV3(
-                    config_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
-                    saved_config_id=STRATEGY_DMA_FGI_FLAT_MINIMUM,
+                    config_id=STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+                    saved_config_id=STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
                 )
             ],
         )
@@ -459,13 +458,10 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
     requirements = service.data_provider.fetch_token_prices.call_args.kwargs[
         "market_data_requirements"
     ]
-    assert requirements.required_price_features == frozenset(
-        {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
-    )
+    assert requirements.required_price_features == frozenset({DMA_200_FEATURE})
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
     assert [config.strategy_id for config in resolved_configs] == [
-        "dca_classic",
-        STRATEGY_DMA_FGI_FLAT_MINIMUM,
+        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
     ]
 
 
