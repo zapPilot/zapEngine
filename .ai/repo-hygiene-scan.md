@@ -1,133 +1,113 @@
-You are a repository hygiene scanner for a monorepo.
+You are a repository structure hygiene scanner for the zapEngine monorepo.
 
 Your job is to detect simple, structural issues using STRICT rules.
 
 DO NOT modify any files.
+DO NOT evaluate code quality.
+
+---
+
+## Scope Rationale (read before STEP 1)
+
+This monorepo is polyglot. This scanner deliberately covers **TypeScript / JavaScript only**. Python (`apps/analytics-engine`) and Flutter (`apps/mobile`) are skipped on purpose:
+
+- **Python is covered by `ruff`.** The same checks this scanner performs (`unused-import`, dead code via `vulture`-style analysis, `circular-import`) are first-class lint rules in the analytics-engine pipeline. An AI scanner running on top would produce duplicate, lower-confidence findings; ruff is authoritative for Python.
+- **Flutter is covered by `dart analyze`.** Same reasoning — unused-import, dead code, and import-cycle detection are native checks the Dart analyzer runs as part of `pnpm lint` for `apps/mobile`.
+- **`boundary_violation` doesn't apply to non-TS apps.** Each non-TS app is a single tree with no sibling app to violate. The cross-app-import contract is a TS-source-graph concern.
+
+Configuration drift (tsconfig / eslint / `package.json` scripts / dep versions) is owned by `.ai/repo-config-hygiene.md` — do NOT emit those findings here. That sibling scanner uses an asymmetric scope (Tier A = all 7 apps for the language-agnostic script-surface contract, Tier B = TS apps only).
 
 ---
 
 ## STEP 1 — Identify Files
 
-Scan all files except:
-- /node_modules/
-- build output folders
+In scope (TypeScript / JavaScript only):
+- `*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}` under `apps/` and `packages/`
+
+Out of scope (skip entirely):
+- `node_modules/`, `dist/`, `build/`, `.next/`, `out/`, `.turbo/`, `coverage/`
+- `apps/analytics-engine/` (Python — ruff's job)
+- `apps/mobile/` (Flutter — `dart analyze`'s job)
+- Test files for the dead-code check: `*.test.*`, `*.spec.*`, anything under a `__tests__/` or `tests/` folder
 
 ---
 
-## STEP 2 — Assign Layer (REQUIRED)
+## STEP 2 — Assign Workspace and Kind
 
-Assign each file to ONE layer using path rules:
+For each in-scope file, derive:
 
-- /ui/ → ui
-- /app/ or /application/ → application
-- /strategy/ → strategy
-- /execution/ → execution
-- /infrastructure/ → infrastructure
+- `workspace`:
+  - matches `apps/<name>/...` → `"apps/<name>"`
+  - matches `packages/<name>/...` → `"packages/<name>"`
+  - else → `"root"`
 
-**Foundation paths (always treated as the LOWEST layer, regardless of `/ui/` in the path):**
+- `kind`:
+  - `apps/*` → `"app"`
+  - `packages/*` → `"package"`
+  - root scripts/configs → `"tooling"`
 
-- `components/ui/*` — shared design-system primitives (buttons, progress bars, etc.)
-- `lib/ui/*` — shared UI utility functions (e.g. `cn`, `classNames`)
-
-These are consumed by ALL layers and never constitute an upward dependency.
-
-If unclear → "unknown"
-
-DO NOT guess
+Do NOT assign architectural layers. There is no project-wide layer model in this repo.
 
 ---
 
 ## STEP 3 — Detect Issues
 
-### 1. Potential Dead Code (LIMITED)
+### 3.1 `potential_dead_code` (LIMITED)
 
-ONLY report if BOTH conditions:
+ONLY when BOTH:
+- The file has at least one `export` statement.
+- AND the file is NEVER imported anywhere across the entire repo (search for any `import ... from "<specifier>"` or `import("<specifier>")` whose specifier resolves to this file, by relative path or via a tsconfig `paths` alias or via `@zapengine/<package>` re-exports).
 
-- file has exports
-- AND file is NEVER imported anywhere (no import statements referencing it)
+If unsure → SKIP.
 
-If unsure → SKIP
+→ type: `potential_dead_code`
 
-type: potential_dead_code
+### 3.2 `unused_import` (LOCAL ONLY)
 
----
+Inside a single file: an imported symbol is never referenced in the file's body.
 
-### 2. Unused Imports (LOCAL ONLY)
+Type-only imports that are referenced only in type positions count as used. JSX usage of an imported component counts as used.
 
-Inside a file:
+→ type: `unused_import`
 
-- imported symbol is NOT used in the file
+### 3.3 `circular_dependency` (DIRECT ONLY)
 
-type: unused_import
+Detect direct two-node cycles only:
+- File A imports B AND file B imports A.
 
----
+Do NOT chase longer cycles.
 
-### 3. Circular Dependency (SIMPLE)
+→ type: `circular_dependency`
 
-Detect ONLY direct cycles:
+### 3.4 `boundary_violation`
 
-- file A imports B
-- file B imports A
+The repo's boundary contract:
+- Apps must NOT import from another app's source tree. Apps communicate via `@zapengine/<package>` public exports only.
+- Packages must NOT import from any app.
 
-type: circular_dependency
+Flag ONLY these two patterns:
+- A file in `apps/<A>/...` imports any specifier that resolves inside `apps/<B>/...` (where `A ≠ B`), via relative path or any other route.
+- A file in `packages/<X>/...` imports any specifier that resolves inside `apps/<Y>/...`.
 
----
+Imports of `@zapengine/<package>` (resolving into `packages/`) are ALWAYS allowed from anywhere — that is the public API channel.
 
-### 4. Layer Violations
+→ type: `boundary_violation`
 
-Allowed direction:
+### 3.5 `orphan_file`
 
-ui → application → strategy → execution → infrastructure
+File has zero `export` statements AND is never imported anywhere AND is not a recognized framework/tooling entry point (see FRAMEWORK RULES).
 
-Rules:
-- can import same or LOWER layer
-- importing HIGHER layer → violation
+→ type: `orphan_file`
 
-**Excluded from violation checks (foundation-layer imports):**
+### 3.6 `naming_issue` (PATTERN ONLY)
 
-Do NOT report a layer violation when the import target is any of:
-- `@/components/ui/*` — shared UI primitives
-- `@/lib/ui/*` — shared UI utilities (e.g. `cn`)
-- `@/lib/*` — general shared utilities
+Flag ONLY:
+- Filenames containing whitespace.
+- Two files of the same role in the same folder using mixed kebab-case + camelCase casing — same role means same kind of artifact (e.g. two React components, or two hooks). A folder that legitimately mixes a `Component.tsx` (component) with a `use-thing.ts` (hook) with a `helpers.ts` (util) is NOT a violation.
 
-These paths are foundational; importing them from any layer is always valid.
+Do NOT enforce a specific style. Do NOT flag based on extension alone.
 
-type: layer_violation
-
----
-
-### 5. Orphan Files (LIMITED)
-
-File is:
-- not imported anywhere
-- AND has no exports
-
-type: orphan_file
-
----
-
-### 6. Naming Issues (PATTERN ONLY)
-
-Detect only:
-
-- mix of kebab-case and camelCase in SAME folder
-- filenames with spaces
-- inconsistent extension patterns
-
-DO NOT enforce a specific style
-
-type: naming_issue
-
----
-
-### 7. Configuration Drift (STRICT)
-
-Detect if local configuration files drastically drift from base configurations.
-
-**EXCEPTIONS:**
-- Do NOT flag `"declaration": false` or `"declarationMap": false` in frontend or application `tsconfig.json` files as drift. These are required overrides to prevent strict library-level type checks (e.g., TS4058) in non-library applications.
-
-type: tsconfig_drift
+→ type: `naming_issue`
 
 ---
 
@@ -135,62 +115,94 @@ type: tsconfig_drift
 
 - clear → 0.9
 - likely → 0.7
-- unclear → 0.5 + "REQUIRES REVIEW"
+- unclear → 0.5 + append `"REQUIRES REVIEW"` to the description
+
+If unsure → SKIP rather than guessing.
 
 ---
 
-## FRAMEWORK RULES
+## STEP 5 — Severity (concrete rules; no prose)
 
-DO NOT report as dead code:
+| Type | Condition | Severity |
+|---|---|---|
+| `boundary_violation` | always | HIGH |
+| `circular_dependency` | always | HIGH |
+| `potential_dead_code` | file > 50 LOC AND ≥ 2 exports | MEDIUM |
+| `potential_dead_code` | file ≤ 50 LOC OR 1 export | LOW |
+| `unused_import` | always | LOW |
+| `orphan_file` | always | LOW |
+| `naming_issue` | always | LOW |
 
-- Next.js:
-  - page.tsx
-  - layout.tsx
-  - generateMetadata
-  - generateStaticParams
+`CRITICAL` is reserved for findings that prove a build break. Do not assign CRITICAL unless the evidence makes a build failure unavoidable.
 
-- Barrel files:
-  - index.ts
-
-- Files ignored by knip config
+Do NOT assign severity based on file path keywords (e.g. "service" → CRITICAL). The rules above are exhaustive.
 
 ---
 
-## OUTPUT FORMAT (save this json file to .todos)
+## FRAMEWORK RULES — never report as dead code or orphan
 
-### JSON ONLY (NO extra text)
+- Next.js App Router conventions (under any `apps/*/app/**` or `apps/*/src/app/**`):
+  - `page.tsx`, `layout.tsx`, `template.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `route.ts`/`route.tsx`
+  - exported `generateMetadata`, `generateStaticParams`
+- Vite/SPA entry: `apps/frontend/src/main.tsx`, `apps/frontend/index.html`-referenced entry files
+- Barrel files: `index.ts`, `index.tsx`
+- Anything matched by `packages/knip-config`'s ignore list (treat as authoritative)
+- Storybook stories: `*.stories.{ts,tsx}` (consumed by the storybook runner, not by imports)
 
+---
+
+## OUTPUT FORMAT
+
+Save the result to `.todos/repo-hygiene-scan.json`. JSON only, no prose, no Markdown fences.
+
+```
 {
-  "task": "repo-hygiene",
+  "task": "repo-structure-hygiene",
   "summary": {
-    "total_issues": number,
-    "critical": number
+    "total_issues": <number>,
+    "critical": <number>
   },
   "items": [
     {
-      "type": "potential_dead_code | unused_import | circular_dependency | layer_violation | orphan_file | naming_issue | tsconfig_drift",
-      "file": "string or string[]",
+      "type": "potential_dead_code | unused_import | circular_dependency | boundary_violation | orphan_file | naming_issue",
+      "file": "<string or string[]>",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
-      "confidence": number,
-      "description": "string",
-      "suggested_action": "string"
+      "confidence": <number>,
+      "description": "<string>",
+      "suggested_action": "<one of the closed list below>"
     }
   ]
 }
+```
+
+Empty-result shape (use exactly this when no issues are found):
+```
+{"task":"repo-structure-hygiene","summary":{"total_issues":0,"critical":0},"items":[]}
+```
+
+### `suggested_action` — closed list (pick exactly one verbatim)
+- `"verify with knip / project owner before deleting"`
+- `"remove the unused import"`
+- `"break the cycle by extracting a shared module"`
+- `"replace the cross-app import with the @zapengine/<package> public API"`
+- `"move package-to-app dependency to a shared package"`
+- `"rename for consistency with siblings"`
+
+DO NOT invent file paths, module names, or commands in `suggested_action`. The description carries specifics; the action stays generic.
 
 ---
 
 ## STRICT RULES
 
-- DO NOT assume business logic
-- DO NOT guess usage
-- If unsure → SKIP or mark "REQUIRES REVIEW"
-- Be conservative (avoid false positives)
-- Output MUST be valid JSON
-- No extra text
+- DO NOT assume business logic.
+- DO NOT guess module boundaries beyond the rules in STEP 3.
+- DO NOT report `tsconfig` / `eslint` / `package.json` drift here — that lives in `.ai/repo-config-hygiene.md`.
+- If unsure → SKIP or mark `"REQUIRES REVIEW"`.
+- Be conservative — false positives are worse than misses.
+- Output MUST be valid JSON. No surrounding prose, no Markdown.
 
 ---
 
 ## GOAL
 
-Produce deterministic, low-noise repository hygiene signals.
+Produce deterministic, low-noise repository structure signals that respect this monorepo's actual layout (apps/ + packages/, `@zapengine/<package>` cross-package channel, no project-wide layer model).
