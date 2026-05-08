@@ -18,6 +18,7 @@ on:
           - account-engine
           - alpha-etl
           - analytics-engine
+          - podcast-pipeline
 
 permissions:
   contents: read
@@ -169,6 +170,15 @@ jobs:
             analytics-engine:
               - 'apps/analytics-engine/**'
               - '.dockerignore'
+            podcast-pipeline:
+              - 'apps/podcast-pipeline/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.dockerignore'
+              - '.nvmrc'
 
       - id: resolve
         env:

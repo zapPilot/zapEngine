@@ -10,10 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import {
-  getRegimeFromSentiment,
-  getRegimeLabel,
-} from '@/lib/domain/regime';
+import { getRegimeFromSentiment, getRegimeLabel } from '@/lib/domain/regime';
 import type { MarketDashboardPoint } from '@/services';
 
 import {
@@ -487,15 +484,15 @@ export function MarketOverviewChart({
               : isMacroFgi
                 ? { activeDot: renderMacroFgiActiveDot }
                 : isBtcPrice
-                ? {
-                    activeDot: {
-                      r: 5,
-                      fill: line.color,
-                      strokeWidth: 2,
-                      stroke: '#fff',
-                    },
-                  }
-                : {};
+                  ? {
+                      activeDot: {
+                        r: 5,
+                        fill: line.color,
+                        strokeWidth: 2,
+                        stroke: '#fff',
+                      },
+                    }
+                  : {};
 
             return (
               <Line

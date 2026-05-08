@@ -5,7 +5,7 @@
 # referenced in any app's source code.
 #
 # Supports all apps in this monorepo:
-#   - TypeScript / Node.js  (account-engine, alpha-etl)
+#   - TypeScript / Node.js  (account-engine, alpha-etl, podcast-pipeline)
 #   - Vite / React          (frontend)
 #   - Next.js               (landing-page)
 #   - Python / Pydantic     (analytics-engine)
@@ -67,6 +67,7 @@ check_var_in_apps() {
 declare -a APP_REGISTRY=(
   "account-engine|src|ts"
   "alpha-etl|src|ts"
+  "podcast-pipeline|src|ts"
   "frontend|src|ts tsx"
   "landing-page|src|ts tsx"
   "analytics-engine|src|py"
