@@ -25,6 +25,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 class DmaOverextensionDcaSellRule:
     name: str = "dma_overextension_dca_sell"
     priority: int = 30
+    cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets that are above DMA and beyond asset-specific extension thresholds."
 

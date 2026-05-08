@@ -48,7 +48,6 @@ class PortfolioRuleConfig:
     fgi_downshift_sell_sizing: SizingStrategy = field(default_factory=FlatSizing)
     ratio_cross_cooldown_days: int = 30
     default_cross_down_cooldown_days: int = 30
-    global_cooldown_days: int = 7
     overextension_sell_spy_share: float = 0.5
     cross_down_cooldown_days_per_symbol: dict[str, int] = field(
         default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
@@ -84,6 +83,9 @@ class PortfolioRule(Protocol):
 
     @property
     def priority(self) -> int: ...
+
+    @property
+    def cooldown_days(self) -> int: ...
 
     @property
     def rule_group(self) -> RuleGroup: ...
@@ -138,6 +140,21 @@ def cross_down_cooldown_days_for(
             config.default_cross_down_cooldown_days,
         )
     )
+
+
+def rule_cooldown_remaining_days(
+    *,
+    cooldown_days: int,
+    last_executed_at: date | None,
+    current_date: date | None,
+) -> int:
+    days = max(0, int(cooldown_days))
+    if days <= 0 or last_executed_at is None or current_date is None:
+        return 0
+    elapsed_days = (current_date - last_executed_at).days
+    if elapsed_days < 0:
+        return days
+    return max(0, days - elapsed_days)
 
 
 def normalize_regime(regime: str | None) -> str | None:
@@ -330,6 +347,7 @@ __all__ = [
     "normalize_symbol",
     "portfolio_target_intent",
     "ratio_signals_consulted",
+    "rule_cooldown_remaining_days",
     "signals_consulted_for_symbols",
     "sizing_meta_for_symbol",
     "symbols_for_snapshot",

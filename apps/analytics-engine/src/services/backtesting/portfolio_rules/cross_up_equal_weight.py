@@ -21,6 +21,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 class CrossUpEqualWeightRule:
     name: str = "cross_up_equal_weight"
     priority: int = 20
+    cooldown_days: int = 30
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
 

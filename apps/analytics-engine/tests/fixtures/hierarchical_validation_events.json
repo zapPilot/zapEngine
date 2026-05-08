@@ -117,18 +117,8 @@
       {
         "id": "cooldown_period_2025_03_24",
         "event_type": "decision_action_assertion",
-        "description": "BTC/ETH must NOT be included in the 2025-03-24 cross-up target, and SPY must not be increased while its 30-day re-entry cooldown remains active.",
+        "description": "SPY must not be increased while its 30-day signal re-entry cooldown remains active; existing BTC/ETH exposure from prior DCA can be preserved by a hold.",
         "assertions": [
-          {
-            "type": "target_asset_equals",
-            "asset": "btc",
-            "value": 0
-          },
-          {
-            "type": "target_asset_equals",
-            "asset": "eth",
-            "value": 0
-          },
           {
             "type": "target_spy_not_greater_than_current",
             "tolerance": 0.00002
@@ -138,7 +128,7 @@
             "value": "cross_up_equal_weight"
           }
         ],
-        "rationale": "Per-symbol cross-down cooldown (BTC=30d, SPY=30d) must suppress re-entry through early April even when another asset has a valid cross-up. This verifies cross_up_equal_weight does not re-include cooldown-blocked assets while allowing a hold target to preserve existing SPY exposure from prior validated DCA."
+        "rationale": "Per-symbol cross-down cooldown must suppress SPY re-entry through early April even when SPY has a cross-up. Portfolio-rule cooldown is local to each rule and no longer creates a global hold gate, so this event verifies cross_up_equal_weight is skipped without asserting that prior DCA crypto exposure is liquidated."
       }
     ]
   },
@@ -374,16 +364,20 @@
       {
         "id": "extreme_fear_dca_2026_02_06",
         "event_type": "extreme_fear_below_crypto_dma",
-        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+        "description": "Extreme fear while crypto is below DMA should select the DCA rule; when crypto is already fully allocated, the target cannot increase beyond 100%.",
         "assertions": [
           {
-            "type": "target_crypto_increased_from_previous"
+            "type": "decision_detail_equals",
+            "key": "matched_rule_name",
+            "value": "extreme_fear_dca_buy"
           },
           {
-            "type": "target_stable_decreased_from_previous"
+            "type": "target_asset_gte",
+            "asset": "btc",
+            "value": 0.999
           }
         ],
-        "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
+        "rationale": "This fixture exercises the shared below_extreme_fear_buy rule when the portfolio is already effectively 100% crypto. The correct invariant is that the extreme-fear DCA rule remains selected, not that allocation exceeds the portfolio cap."
       }
     ]
   },

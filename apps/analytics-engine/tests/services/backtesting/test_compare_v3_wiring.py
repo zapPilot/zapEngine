@@ -781,7 +781,7 @@ def test_run_compare_v3_on_data_trade_quota_reduces_trade_count() -> None:
 
     unbounded_state = result.timeline[2].strategies["dma_unbounded"]
     assert unbounded_state.execution.blocked_reason is None
-    assert unbounded_state.decision.reason == "global_cooldown_active"
+    assert unbounded_state.decision.reason == "portfolio_fgi_downshift_dca_sell"
     quota_state = result.timeline[2].strategies["dma_quota"]
     assert quota_state.decision.reason == "trade_quota_min_interval_active"
 

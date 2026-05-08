@@ -24,6 +24,7 @@ from src.services.backtesting.target_allocation import normalize_target_allocati
 class ExtremeFearDcaBuyRule:
     name: str = "extreme_fear_dca_buy"
     priority: int = 40
+    cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA buy assets when their relevant FGI is extreme fear."
 

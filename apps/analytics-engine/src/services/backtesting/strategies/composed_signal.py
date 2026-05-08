@@ -125,6 +125,13 @@ class ComposedSignalStrategy(BaseStrategy):
             intent=decision,
             hints=hints,
         )
+        record_execution = getattr(self.decision_policy, "record_execution", None)
+        if callable(record_execution):
+            record_execution(
+                context=context,
+                intent=decision,
+                execution=execution,
+            )
         snapshot = StrategySnapshot(
             signal=signal_observation,
             decision=AllocationIntent(

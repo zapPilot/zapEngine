@@ -29,6 +29,7 @@ _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
 class FgiDownshiftDcaSellRule:
     name: str = "fgi_downshift_dca_sell"
     priority: int = 50
+    cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
 

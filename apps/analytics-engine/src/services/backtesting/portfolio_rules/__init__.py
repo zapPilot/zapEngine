@@ -19,15 +19,11 @@ from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.global_cooldown_gate import (
-    GlobalCooldownGateRule,
-)
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
-    GlobalCooldownGateRule(),
     ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),

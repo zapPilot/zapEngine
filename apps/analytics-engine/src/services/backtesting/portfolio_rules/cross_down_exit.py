@@ -28,6 +28,7 @@ _ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
 class CrossDownExitRule:
     name: str = "cross_down_exit"
     priority: int = 10
+    cooldown_days: int = 30
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
 

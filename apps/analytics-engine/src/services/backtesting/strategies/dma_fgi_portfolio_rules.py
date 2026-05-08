@@ -1,7 +1,7 @@
 """Flat portfolio-level DMA/FGI rule strategy.
 
 Rules are evaluated first-match-wins by explicit priority:
-cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation, global cooldown,
+cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation,
 DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
 If different assets emit cross-up and cross-down on the same day, cross-down
 exits win and the cross-up rebalance can be reconsidered on the next eligible
@@ -38,12 +38,12 @@ from src.services.backtesting.portfolio_rules.base import (
     cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     current_target,
+    rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.risk import (
-    DmaBuyGateGuard,
     RiskGuard,
     RiskGuardResult,
     TradeQuotaGuard,
@@ -81,6 +81,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
+    _rule_last_executed_at: dict[str, date] = field(default_factory=dict, init=False)
     _last_trade_date: date | None = field(default=None, init=False)
     _trade_dates: list[date] = field(default_factory=list, init=False)
 
@@ -93,6 +94,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     def reset(self) -> None:
         self._previous_fgi_regime = {}
         self._cycle_open_per_symbol = {}
+        self._rule_last_executed_at = {}
         self._last_trade_date = None
         self._trade_dates = []
         for component in (*self.rules, *self.risk_guards):
@@ -115,6 +117,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             rules=self.rules,
             config=self.config,
             disabled_rules=self.disabled_rules,
+            rule_last_executed_at=self._rule_last_executed_at,
         )
         risk_result = _apply_risk_guards(
             intent,
@@ -154,6 +157,22 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             record_intent = getattr(component, "record_intent", None)
             if callable(record_intent):
                 record_intent(intent)
+
+    def record_execution(
+        self,
+        *,
+        context: StrategyContext,
+        intent: AllocationIntent,
+        execution: Any,
+    ) -> None:
+        if not getattr(execution, "transfers", ()):
+            return
+        matched_rule = _matched_rule_name(intent)
+        if matched_rule is None:
+            return
+        if matched_rule not in {rule.name for rule in self.rules}:
+            return
+        self._rule_last_executed_at[matched_rule] = context.date
 
 
 @dataclass
@@ -328,13 +347,6 @@ def build_risk_guards_for_params(
                 max_trades_30d=params.max_trades_30d,
             )
         )
-    guards.append(
-        DmaBuyGateGuard(
-            window_days=params.buy_sideways_window_days,
-            sideways_max_range=params.buy_sideways_max_range,
-            leg_caps=tuple(params.buy_leg_caps),
-        )
-    )
     return tuple(sorted(guards, key=lambda guard: guard.priority))
 
 
@@ -359,11 +371,16 @@ def _apply_risk_guards(
 
 
 def _matched_rule_priority(intent: AllocationIntent) -> int | None:
-    diagnostics = intent.diagnostics or {}
-    matched_rule = diagnostics.get("matched_rule_name")
-    if not isinstance(matched_rule, str):
+    matched_rule = _matched_rule_name(intent)
+    if matched_rule is None:
         return None
     return _RULE_PRIORITY_BY_NAME.get(matched_rule)
+
+
+def _matched_rule_name(intent: AllocationIntent) -> str | None:
+    diagnostics = intent.diagnostics or {}
+    matched_rule = diagnostics.get("matched_rule_name")
+    return matched_rule if isinstance(matched_rule, str) else None
 
 
 def resolve_portfolio_rules_intent(
@@ -372,15 +389,28 @@ def resolve_portfolio_rules_intent(
     rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
     config: PortfolioRuleConfig | None = None,
     disabled_rules: frozenset[str] = frozenset(),
+    rule_last_executed_at: Mapping[str, date] | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
+    last_executed = dict(rule_last_executed_at or {})
+    cooldown_skipped_rules: list[dict[str, object]] = []
     for rule in rules:
         if rule.name in disabled_rules:
             continue
         if rule.matches(snapshot, config=resolved_config):
+            cooldown = _rule_cooldown_diagnostic(
+                rule,
+                snapshot=snapshot,
+                last_executed_at=last_executed.get(rule.name),
+            )
+            if cooldown is not None:
+                cooldown_skipped_rules.append(cooldown)
+                continue
             intent = rule.build_intent(snapshot, config=resolved_config)
             diagnostics = dict(intent.diagnostics or {})
             diagnostics.setdefault("matched_rule_name", rule.name)
+            if cooldown_skipped_rules:
+                diagnostics["cooldown_skipped_rules"] = cooldown_skipped_rules
             return replace(intent, diagnostics=diagnostics)
     return AllocationIntent(
         action="hold",
@@ -393,6 +423,11 @@ def resolve_portfolio_rules_intent(
         diagnostics={
             "matched_rule_name": "regime_no_signal_hold",
             **(
+                {"cooldown_skipped_rules": cooldown_skipped_rules}
+                if cooldown_skipped_rules
+                else {}
+            ),
+            **(
                 {
                     "signals_consulted": signals_consulted_for_symbols(
                         snapshot,
@@ -404,6 +439,27 @@ def resolve_portfolio_rules_intent(
             ),
         },
     )
+
+
+def _rule_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    last_executed_at: date | None,
+) -> dict[str, object] | None:
+    remaining_days = rule_cooldown_remaining_days(
+        cooldown_days=rule.cooldown_days,
+        last_executed_at=last_executed_at,
+        current_date=snapshot.current_date,
+    )
+    if remaining_days <= 0 or last_executed_at is None:
+        return None
+    return {
+        "rule": rule.name,
+        "last_executed_at": last_executed_at.isoformat(),
+        "cooldown_days": max(0, int(rule.cooldown_days)),
+        "remaining_days": remaining_days,
+    }
 
 
 def _assets_from_flat_state(snapshot: FlatMinimumState) -> dict[str, DmaMarketState]:
