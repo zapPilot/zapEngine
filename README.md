@@ -16,9 +16,11 @@ zapEngine/
 │   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
     ├── design-tokens       # Shared ZapPilot brand tokens for web + Flutter
+    ├── eslint-config       # Shared ESLint flat-config presets
     ├── intent-engine       # Shared TypeScript library — DeFi routing logic
-    ├── types               # Shared TypeScript types & Zod schemas
-    └── tsconfig            # Shared TypeScript config presets
+    ├── knip-config         # Shared knip dead-code-detection base config
+    ├── tsconfig            # Shared TypeScript config presets
+    └── types               # Shared TypeScript types & Zod schemas
 ```
 
 | App              | Language     | Framework         | Deploy                 |
