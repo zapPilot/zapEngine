@@ -26,6 +26,13 @@ export type YahooFinanceChartQuote = z.infer<
   typeof YahooFinanceChartQuoteSchema
 >;
 
+export const YahooFinanceQuoteSchema = z.object({
+  regularMarketPrice: z.number(),
+  regularMarketTime: z.union([z.date(), z.number()]).optional(),
+});
+
+export type YahooFinanceQuote = z.infer<typeof YahooFinanceQuoteSchema>;
+
 /**
  * Daily stock price data (single day)
  */

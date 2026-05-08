@@ -35,7 +35,7 @@ describe('stock-price/YahooFinanceFetcher', () => {
   it('fetches the latest price with market time from Yahoo Finance', async () => {
     mockQuote.mockResolvedValue({
       regularMarketPrice: 512.34,
-      regularMarketTime: 1777420800,
+      regularMarketTime: new Date('2026-04-29T00:00:00.000Z'),
     });
     const fetcher = new YahooFinanceFetcher({ rateLimitMs: 0 });
 
@@ -49,6 +49,23 @@ describe('stock-price/YahooFinanceFetcher', () => {
       timestamp: expect.any(Date),
     });
     expect(mockQuote).toHaveBeenCalledWith('SPY');
+  });
+
+  it('fetches the latest price with legacy Unix-seconds market time', async () => {
+    mockQuote.mockResolvedValue({
+      regularMarketPrice: 512.34,
+      regularMarketTime: 1777420800,
+    });
+    const fetcher = new YahooFinanceFetcher({ rateLimitMs: 0 });
+
+    const result = await fetcher.fetchLatestPrice('SPY');
+
+    expect(result).toMatchObject({
+      date: '2026-04-29',
+      priceUsd: 512.34,
+      symbol: 'SPY',
+      source: 'yahoo-finance',
+    });
   });
 
   it('uses the current clock when market time is absent', async () => {
@@ -67,6 +84,15 @@ describe('stock-price/YahooFinanceFetcher', () => {
 
     await expect(fetcher.fetchLatestPrice('QQQ')).rejects.toThrow(
       'No quote data for QQQ',
+    );
+  });
+
+  it('rejects malformed quote responses', async () => {
+    mockQuote.mockResolvedValue({ regularMarketPrice: 'not-a-number' });
+    const fetcher = new YahooFinanceFetcher({ rateLimitMs: 0 });
+
+    await expect(fetcher.fetchLatestPrice('SPY')).rejects.toThrow(
+      /^No quote data for SPY:/,
     );
   });
 
