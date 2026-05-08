@@ -18,7 +18,7 @@ let capturedTooltipFormatter:
           sentiment_value?: number | null;
           macro_fear_greed?: number | null;
           regime?: string | null;
-          macro_fear_greed_label?: string | null;
+          macro_regime?: string | null;
           price_usd?: number | null;
           btc_dma_200?: number | null;
           eth_price_usd?: number | null;
@@ -37,15 +37,33 @@ let capturedFgiActiveDot:
   | ((props: {
       cx?: number;
       cy?: number;
-      payload?: { regime?: string | null };
+      payload?: Record<string, unknown>;
     }) => ReactNode)
   | null = null;
+let capturedMacroFgiActiveDot:
+  | ((props: {
+      cx?: number;
+      cy?: number;
+      payload?: Record<string, unknown>;
+    }) => ReactNode)
+  | null = null;
+let capturedChartData: unknown[] | null = null;
 
 vi.mock('recharts', async () => {
   const { createRechartsChartContainer, createRechartsMockComponent } =
     await import('../../../../../../../utils/rechartsMocks');
   const Box = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
-  const ComposedChart = createRechartsChartContainer();
+  const MockComposedChart = createRechartsChartContainer();
+  const ComposedChart = ({
+    children,
+    data,
+  }: {
+    children?: ReactNode;
+    data?: unknown[];
+  }) => {
+    capturedChartData = data ?? null;
+    return <MockComposedChart>{children}</MockComposedChart>;
+  };
   const XAxis = createRechartsMockComponent<{
     tickFormatter?: (val: string) => string;
   }>(({ tickFormatter }) => {
@@ -77,7 +95,7 @@ vi.mock('recharts', async () => {
           sentiment_value?: number | null;
           macro_fear_greed?: number | null;
           regime?: string | null;
-          macro_fear_greed_label?: string | null;
+          macro_regime?: string | null;
           price_usd?: number | null;
           btc_dma_200?: number | null;
           eth_price_usd?: number | null;
@@ -97,20 +115,36 @@ vi.mock('recharts', async () => {
     return null;
   });
   const Line = createRechartsMockComponent<{
+    name?: string;
+    dataKey?: string;
+    stroke?: string;
+    strokeWidth?: number;
     activeDot?:
       | ((props: {
           cx?: number;
           cy?: number;
-          payload?: { regime?: string | null };
+          payload?: Record<string, unknown>;
         }) => ReactNode)
       | object
       | null;
-  }>(({ activeDot }) => {
+  }>(({ activeDot, dataKey, name, stroke, strokeWidth }) => {
     if (typeof activeDot === 'function') {
-      capturedFgiActiveDot = activeDot;
+      if (dataKey === 'sentiment_value') {
+        capturedFgiActiveDot = activeDot;
+      }
+      if (dataKey === 'macro_fear_greed') {
+        capturedMacroFgiActiveDot = activeDot;
+      }
     }
 
-    return null;
+    return (
+      <div
+        data-testid={`line-${dataKey ?? name ?? 'unknown'}`}
+        data-name={name}
+        data-stroke={stroke ?? ''}
+        data-stroke-width={strokeWidth ?? ''}
+      />
+    );
   });
 
   return {
@@ -144,7 +178,6 @@ interface SnapshotOpts {
   ethBtcDma?: number | null;
   ethBtcIsAbove?: boolean | null;
   macroFearGreed?: number | null;
-  macroFearGreedLabel?: string | null;
 }
 
 function makeSnapshot(opts: SnapshotOpts) {
@@ -223,7 +256,7 @@ function makeSnapshot(opts: SnapshotOpts) {
     values['macro_fear_greed'] = {
       value: opts.macroFearGreed,
       indicators: {},
-      tags: opts.macroFearGreedLabel ? { label: opts.macroFearGreedLabel } : {},
+      tags: {},
     };
   }
 
@@ -252,8 +285,7 @@ const mockData = makeResponse([
     ethDma: 3000,
     sentiment: 65,
     regime: 'g',
-    macroFearGreed: 55,
-    macroFearGreedLabel: 'Neutral',
+    macroFearGreed: 80,
     ethBtcRatio: 0.0532,
     ethBtcDma: 0.0498,
     ethBtcIsAbove: true,
@@ -267,7 +299,6 @@ const mockData = makeResponse([
     sentiment: 70,
     regime: 'eg',
     macroFearGreed: 61,
-    macroFearGreedLabel: 'Greed',
     ethBtcRatio: 0.0541,
     ethBtcDma: 0.05,
     ethBtcIsAbove: true,
@@ -294,6 +325,8 @@ describe('MarketDashboardView', () => {
     capturedXAxisTickFormatter = null;
     capturedPriceTickFormatter = null;
     capturedFgiActiveDot = null;
+    capturedMacroFgiActiveDot = null;
+    capturedChartData = null;
   });
 
   it('shows loading spinner while fetching', () => {
@@ -617,16 +650,29 @@ describe('MarketDashboardView', () => {
       expect(label).toBe('Fear & Greed Index');
     });
 
-    it('formats Macro FGI with raw score and label', async () => {
+    it('formats Macro FGI with raw score and regime label', async () => {
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(61, 'Macro FGI', {
+      const [formattedValue, label] = fmt(80, 'Macro FGI', {
         payload: {
-          macro_fear_greed: 61,
-          macro_fear_greed_label: 'Greed',
+          macro_fear_greed: 80,
+          macro_regime: 'eg',
         },
       });
-      expect(String(formattedValue)).toBe('61 (Greed)');
+      expect(String(formattedValue)).toBe('80 (Extreme Greed)');
       expect(label).toBe('Macro FGI');
+    });
+
+    it('derives Macro FGI regime from the raw score in chart payloads', async () => {
+      mockGetMarketDashboardData.mockResolvedValue(mockData);
+      render(<MarketDashboardView />, { wrapper: createWrapper() });
+      await waitFor(() => expect(capturedChartData).not.toBeNull());
+      expect(capturedChartData?.[0]).toMatchObject({
+        macro_fear_greed: 80,
+        macro_regime: 'eg',
+      });
+      expect(capturedChartData?.[0]).not.toHaveProperty(
+        'macro_fear_greed_label',
+      );
     });
 
     it('formats Fear & Greed Index with empty label when regime is undefined', async () => {
@@ -698,6 +744,35 @@ describe('MarketDashboardView', () => {
     it('uses default cx/cy of 0 when not provided', async () => {
       const renderDot = await renderAndGetActiveDot();
       const result = renderDot({ payload: { regime: 'ef' } });
+      expect(result).not.toBeNull();
+    });
+  });
+
+  describe('market line rendering', () => {
+    it('renders FGI and Macro FGI with separate regime gradient strokes', async () => {
+      mockGetMarketDashboardData.mockResolvedValue(mockData);
+      render(<MarketDashboardView />, { wrapper: createWrapper() });
+      await waitFor(() => screen.getByTestId('line-sentiment_value'));
+      expect(screen.getByTestId('line-sentiment_value')).toHaveAttribute(
+        'data-stroke',
+        'url(#fgiLineGradient)',
+      );
+      expect(screen.getByTestId('line-macro_fear_greed')).toHaveAttribute(
+        'data-stroke',
+        'url(#macroFgiLineGradient)',
+      );
+    });
+
+    it('wires a Macro FGI active dot renderer that reads macro_regime', async () => {
+      mockGetMarketDashboardData.mockResolvedValue(mockData);
+      render(<MarketDashboardView />, { wrapper: createWrapper() });
+      await waitFor(() => expect(capturedMacroFgiActiveDot).not.toBeNull());
+      const result = capturedMacroFgiActiveDot!({
+        cx: 10,
+        cy: 20,
+        payload: { macro_regime: 'eg' },
+      });
+      expect(result).toBeDefined();
       expect(result).not.toBeNull();
     });
   });
