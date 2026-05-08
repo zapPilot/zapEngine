@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import { type ChangeEvent, type ReactElement } from 'react';
 
 import { GradientButton, LoadingSpinner } from '@/components/ui';
-import { ANIMATIONS, GRADIENTS } from '@/constants/design-system';
+import { ANIMATIONS, GRADIENTS } from '@/constants/designSystem';
 import type { NewWallet, WalletOperations } from '@/types';
 
 interface AddWalletFormProps {

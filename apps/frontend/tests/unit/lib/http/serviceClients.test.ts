@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Import after mocking
 import * as methods from '@/lib/http/methods';
-import { httpUtils } from '@/lib/http/service-clients';
+import { httpUtils } from '@/lib/http/serviceClients';
 
 // Mock the methods module
 vi.mock('@/lib/http/methods', () => ({

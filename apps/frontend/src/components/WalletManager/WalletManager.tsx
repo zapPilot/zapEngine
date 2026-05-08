@@ -5,7 +5,7 @@ import { memo, type ReactElement, useCallback } from 'react';
 import { BaseCard } from '@/components/ui';
 import { Skeleton } from '@/components/ui/LoadingSystem';
 import { ModalBackdrop } from '@/components/ui/modal';
-import { GRADIENTS } from '@/constants/design-system';
+import { GRADIENTS } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 import type { WalletManagerProps } from '@/types';

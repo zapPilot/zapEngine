@@ -1,7 +1,7 @@
 import { Plus, Wallet } from 'lucide-react';
 
 import { GradientButton } from '@/components/ui';
-import { GRADIENTS } from '@/constants/design-system';
+import { GRADIENTS } from '@/constants/designSystem';
 import type { WalletData } from '@/lib/validation/walletUtils';
 import type { NewWallet } from '@/types';
 

@@ -11,21 +11,4 @@ export default createBackendVitestConfig({
     'knip.ts',
     'vitest.config.ts',
   ],
-  extraConfigs: [
-    {
-      rules: {
-        '@typescript-eslint/no-unnecessary-condition': 'off',
-        '@typescript-eslint/no-unsafe-argument': 'off',
-        '@typescript-eslint/prefer-nullish-coalescing': 'off',
-        'no-console': 'off',
-        'sonarjs/deprecation': 'off',
-      },
-    },
-    {
-      files: ['**/*.test.ts'],
-      rules: {
-        'sonarjs/no-alphabetical-sort': 'off',
-      },
-    },
-  ],
 });

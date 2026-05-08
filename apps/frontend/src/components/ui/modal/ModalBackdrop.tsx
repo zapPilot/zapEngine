@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import type { PropsWithChildren } from 'react';
 
-import { Z_INDEX } from '@/constants/design-system';
+import { Z_INDEX } from '@/constants/designSystem';
 import { fadeInOut } from '@/lib/ui/animationVariants';
 
 interface ModalBackdropProps {

@@ -27,12 +27,12 @@ const {
 
 vi.stubGlobal('fetch', mockFetch);
 
-vi.mock('@/lib/http/abort-control', () => ({
+vi.mock('@/lib/http/abortControl', () => ({
   createTimeoutController: mockCreateTimeoutController,
   isAbortError: mockIsAbortError,
 }));
 
-vi.mock('@/lib/http/cache-control', () => ({
+vi.mock('@/lib/http/cacheControl', () => ({
   hasHeaders: mockHasHeaders,
   parseCacheControlForHint: mockParseCacheControlForHint,
   syncQueryCacheDefaultsFromHint: mockSyncQueryCacheDefaultsFromHint,

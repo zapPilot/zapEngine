@@ -32,7 +32,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/design-system', () => ({
+vi.mock('@/constants/designSystem', () => ({
   HEADER: { TOP_OFFSET: 'top-16' },
   Z_INDEX: { BANNER: 'z-40' },
 }));

@@ -35,7 +35,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/design-system', () => ({
+vi.mock('@/constants/designSystem', () => ({
   GRADIENTS: {
     DANGER: 'danger-gradient',
   },

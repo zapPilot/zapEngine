@@ -18,7 +18,7 @@ import { StickyBannerShell, GhostModeOverlay } from '@/components/layout';
 - Layout components should have no business logic
 - Use semantic HTML (nav, header, footer, aside)
 - Support responsive layouts via Tailwind
-- Position using design system constants from `@/constants/design-system`
+- Position using design system constants from `@/constants/designSystem`
 
 ## Components
 

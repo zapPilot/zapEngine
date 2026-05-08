@@ -3,12 +3,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createTimeoutController,
-  isAbortError,
-} from '@/lib/http/abort-control';
+import { createTimeoutController, isAbortError } from '@/lib/http/abortControl';
 
-describe('abort-control', () => {
+describe('abortControl', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });

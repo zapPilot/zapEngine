@@ -9,7 +9,7 @@ import {
   type Regime,
 } from '@/components/wallet/regime/regimeData';
 import { UNIFIED_COLORS } from '@/constants/assets';
-import { GRADIENTS } from '@/constants/design-system';
+import { GRADIENTS } from '@/constants/designSystem';
 
 import { PortfolioCompositionSkeleton } from '../../views/DashboardSkeleton';
 import {

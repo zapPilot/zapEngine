@@ -15,10 +15,7 @@ import {
   type RegimeStrategy,
 } from '@/components/wallet/regime/regimeData';
 import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
-import type {
-  SectionState,
-  SentimentData,
-} from '@/types/portfolio-progressive';
+import type { SectionState, SentimentData } from '@/types/portfolioProgressive';
 
 vi.mock('@/components/wallet/regime/regimeData', async () => {
   const actual = await vi.importActual<

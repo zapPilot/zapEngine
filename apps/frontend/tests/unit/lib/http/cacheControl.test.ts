@@ -1,5 +1,5 @@
 /**
- * cache-control - Unit Tests
+ * cacheControl - Unit Tests
  *
  * Tests for Cache-Control header parsing and query cache syncing.
  */
@@ -10,7 +10,7 @@ import {
   hasHeaders,
   parseCacheControlForHint,
   syncQueryCacheDefaultsFromHint,
-} from '@/lib/http/cache-control';
+} from '@/lib/http/cacheControl';
 import { queryClient } from '@/lib/state/queryClient';
 
 // Mock queryClient before importing the module
@@ -28,7 +28,7 @@ vi.mock('@/config/cacheWindow', () => ({
   },
 }));
 
-describe('cache-control', () => {
+describe('cacheControl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -1,10 +1,10 @@
 /**
- * Unit tests for http-error-handler
+ * Unit tests for httpErrorHandler
  */
 import { describe, expect, it } from 'vitest';
 
 import { APIError, NetworkError, TimeoutError } from '@/lib/http/errors';
-import { handleHTTPError } from '@/lib/http/http-error-handler';
+import { handleHTTPError } from '@/lib/http/httpErrorHandler';
 
 describe('handleHTTPError', () => {
   describe('APIError handling', () => {

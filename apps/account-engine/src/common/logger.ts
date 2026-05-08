@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 function formatScope(scope: string): string {

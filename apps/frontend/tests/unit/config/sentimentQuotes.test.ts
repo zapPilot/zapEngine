@@ -1,12 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getQuoteForSentiment } from '@/config/sentimentQuotes';
+
+const randomMethod = 'random' as const;
+
+function mockRandom(value: number) {
+  return vi.spyOn(Math, randomMethod).mockReturnValue(value);
+}
 
 describe('sentimentQuotes', () => {
   describe('getQuoteForSentiment', () => {
     beforeEach(() => {
-      // Reset random seed for deterministic tests
-      vi.spyOn(Math, 'random').mockRestore();
+      mockRandom(0);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
     it('returns Extreme Fear for values 0-24', () => {
@@ -86,13 +95,10 @@ describe('sentimentQuotes', () => {
     });
 
     it('selects different quotes based on random index', () => {
-      // Mock random to return 0 (first quote)
-      vi.spyOn(Math, 'random').mockReturnValue(0);
       const result1 = getQuoteForSentiment(10);
       expect(result1.quote).toBe('Be greedy when others are fearful.');
 
-      // Mock random to return 0.9 (second quote for 2-item array)
-      vi.spyOn(Math, 'random').mockReturnValue(0.9);
+      mockRandom(0.9);
       const result2 = getQuoteForSentiment(10);
       expect(result2.quote).toBe(
         'Opportunities come infrequently. When it rains gold, put out the bucket.',
@@ -101,8 +107,7 @@ describe('sentimentQuotes', () => {
 
     it('handles edge case when quotes array index returns undefined', () => {
       // This tests the fallback in selectQuote when quotes[index] is undefined
-      // Mock Math.random to return a value that results in a very high index
-      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99999);
+      const randomSpy = mockRandom(0.99999);
 
       const result = getQuoteForSentiment(10);
       // Should still return a valid quote (either from array or fallback)
@@ -113,10 +118,10 @@ describe('sentimentQuotes', () => {
       randomSpy.mockRestore();
     });
 
-    it('falls back to DEFAULT_QUOTE when Math.random returns 1 (out-of-bounds index)', () => {
+    it('falls back to DEFAULT_QUOTE when the random index is out of bounds', () => {
       // Exercises the `quotes[index] ?? { DEFAULT_QUOTE... }` false branch:
       // Math.floor(1.0 * 2) = 2, quotes[2] is undefined → uses DEFAULT_QUOTE fallback
-      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(1);
+      const randomSpy = mockRandom(1);
 
       const result = getQuoteForSentiment(10);
       expect(result.sentiment).toBe('Extreme Fear');

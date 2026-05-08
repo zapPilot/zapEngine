@@ -1,0 +1,64 @@
+import { useQuery } from '@tanstack/react-query';
+import { renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useSentimentData } from '@/hooks/queries/market/useSentimentQuery';
+import { fetchMarketSentiment } from '@/services';
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: vi.fn(),
+  };
+});
+
+vi.mock('@/services', () => ({
+  fetchMarketSentiment: vi.fn(),
+}));
+
+describe('useSentimentData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    } as ReturnType<typeof useQuery>);
+  });
+
+  it('configures sentiment query caching and polling', () => {
+    renderHook(() => useSentimentData());
+
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['sentiment', 'market'],
+        staleTime: 10 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+        refetchInterval: 10 * 60 * 1000,
+        retry: 1,
+      }),
+    );
+  });
+
+  it('uses fetchMarketSentiment as the logged query function', async () => {
+    const sentiment = {
+      value: 55,
+      status: 'Neutral',
+      timestamp: '2026-01-01T00:00:00Z',
+      quote: {
+        quote: 'Stay balanced.',
+        author: 'Test Author',
+        sentiment: 'Neutral',
+      },
+    };
+    vi.mocked(fetchMarketSentiment).mockResolvedValue(sentiment);
+
+    renderHook(() => useSentimentData());
+
+    const queryOptions = vi.mocked(useQuery).mock.calls[0][0] as {
+      queryFn: () => Promise<unknown>;
+    };
+    await expect(queryOptions.queryFn()).resolves.toEqual(sentiment);
+    expect(fetchMarketSentiment).toHaveBeenCalledOnce();
+  });
+});

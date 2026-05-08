@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import { Z_INDEX } from '@/constants/design-system';
+import { Z_INDEX } from '@/constants/designSystem';
 import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { type LogEntry, logger, LogLevel } from '@/utils/logger';
 

@@ -5,7 +5,7 @@ Purpose
 - Standardize stacking context across headers, banners, content, overlays, and toasts.
 - Prevent ad-hoc z-index values and overlap bugs.
 
-Tokens (see `src/constants/design-system.ts`)
+Tokens (see `src/constants/designSystem.ts`)
 
 - `Z_INDEX.CONTENT`: base content layer.
 - `Z_INDEX.BANNER`: sticky banners below headers, above content.

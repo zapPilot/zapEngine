@@ -45,7 +45,7 @@
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src"
   },
   "dependencies": {
-    "zod": "^4.1.13"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",

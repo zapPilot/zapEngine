@@ -19,7 +19,7 @@ export * from './analytics';
 export * from './backtesting';
 export * from './export';
 export * from './portfolio';
-export * from './portfolio-progressive';
+export * from './portfolioProgressive';
 export * from './strategy';
 export * from './strategyAdmin';
 export * from './wallet';

@@ -8,13 +8,13 @@ export { API_ENDPOINTS } from './config';
 
 // Errors
 export { APIError, NetworkError, TimeoutError } from './errors';
-export { handleHTTPError } from './http-error-handler';
+export { handleHTTPError } from './httpErrorHandler';
 
 // HTTP methods
 export { httpGet, httpPost } from './methods';
 
 // Service clients
-export { httpUtils } from './service-clients';
+export { httpUtils } from './serviceClients';
 
 // Service utilities
 export {
