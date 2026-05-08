@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from src.services.backtesting.composition_types import (
     DecisionPolicy,
@@ -35,6 +35,7 @@ from src.services.backtesting.features import (
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     BlockedZone,
+    CrossEvent,
     DmaCooldownState,
     DmaMarketState,
     Zone,
@@ -194,6 +195,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         intent: AllocationIntent,
     ) -> FlatMinimumState:
         selected_assets = _selected_dma_assets(intent)
+        forced_cross_events = _forced_cross_events(intent)
         committed: dict[str, DmaMarketState | None] = {}
         for spec in _ASSET_SPECS:
             state = snapshot.dma_state_for(spec.allocation_key)
@@ -211,6 +213,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                 current_date=current_date,
                 snapshot=state,
                 intent=commit_intent,
+                forced_cross_event=forced_cross_events.get(spec.symbol),
             )
         ratio_state = snapshot.eth_btc_ratio_state
         if ratio_state is not None:
@@ -704,6 +707,7 @@ def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
     for key in (
         "flat_dma_assets",
+        "portfolio_rule_cooldown_assets",
         "portfolio_rule_trigger_assets",
         "portfolio_rule_assets",
     ):
@@ -711,6 +715,34 @@ def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
         if isinstance(assets, list):
             return frozenset(asset for asset in assets if isinstance(asset, str))
     return frozenset()
+
+
+def _observation_dma_assets(intent: AllocationIntent) -> frozenset[str]:
+    diagnostics = intent.diagnostics or {}
+    for key in (
+        "flat_dma_assets",
+        "portfolio_rule_trigger_assets",
+        "portfolio_rule_assets",
+        "portfolio_rule_cooldown_assets",
+    ):
+        assets = diagnostics.get(key)
+        if isinstance(assets, list):
+            return frozenset(asset for asset in assets if isinstance(asset, str))
+    return frozenset()
+
+
+def _forced_cross_events(intent: AllocationIntent) -> dict[str, CrossEvent]:
+    raw_events = (intent.diagnostics or {}).get("portfolio_rule_forced_cross_events")
+    if not isinstance(raw_events, Mapping):
+        return {}
+    forced: dict[str, CrossEvent] = {}
+    for raw_symbol, raw_event in raw_events.items():
+        if not isinstance(raw_symbol, str):
+            continue
+        if raw_event != "cross_down" and raw_event != "cross_up":
+            continue
+        forced[raw_symbol] = cast(CrossEvent, raw_event)
+    return forced
 
 
 def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
@@ -736,7 +768,7 @@ def _select_observation_state(
     snapshot: FlatMinimumState,
     intent: AllocationIntent,
 ) -> tuple[str, DmaMarketState | None]:
-    selected_assets = _selected_dma_assets(intent)
+    selected_assets = _observation_dma_assets(intent)
     for spec in _ASSET_SPECS:
         if spec.symbol in selected_assets:
             return spec.symbol, snapshot.dma_state_for(spec.allocation_key)

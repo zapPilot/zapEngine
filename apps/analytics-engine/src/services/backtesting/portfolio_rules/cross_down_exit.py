@@ -87,6 +87,12 @@ class CrossDownExitRule:
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics["portfolio_rule_trigger_assets"] = matching_symbols
+        diagnostics["portfolio_rule_exit_assets"] = exit_symbols
+        diagnostics["portfolio_rule_cooldown_assets"] = exit_symbols
+        diagnostics["portfolio_rule_forced_cross_events"] = dict.fromkeys(
+            exit_symbols,
+            "cross_down",
+        )
         return replace(intent, diagnostics=diagnostics)
 
 

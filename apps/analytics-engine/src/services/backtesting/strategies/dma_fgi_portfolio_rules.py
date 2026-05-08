@@ -67,6 +67,7 @@ from src.services.backtesting.strategies.minimum import (
 
 PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 _RULE_PRIORITY_BY_NAME = {rule.name: rule.priority for rule in DEFAULT_PORTFOLIO_RULES}
+_CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
 _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
 
 
@@ -512,11 +513,29 @@ def _update_cycle_state(
     snapshot: PortfolioSnapshot,
 ) -> dict[str, bool]:
     updated = dict(previous)
+    crypto_crossed_down = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].cross_event == "cross_down"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
+    crypto_crossed_up = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
     for symbol, state in snapshot.assets.items():
         event = state.actionable_cross_event
+        if symbol in _CRYPTO_CYCLE_SYMBOLS:
+            continue
         if event == "cross_down":
             updated[symbol] = True
         elif event == "cross_up":
+            updated[symbol] = False
+    if crypto_crossed_down:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
+            updated[symbol] = True
+    elif crypto_crossed_up:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
             updated[symbol] = False
     return updated
 

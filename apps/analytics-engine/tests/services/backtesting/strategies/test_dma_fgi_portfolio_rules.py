@@ -190,6 +190,89 @@ def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
     )
 
 
+def test_crypto_peer_cross_down_starts_peer_cooldown_for_reentry() -> None:
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.0, "eth": 0.30, "spy": 0.0, "stable": 0.70},
+        prices,
+    )
+    stable_portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
+        prices,
+    )
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    warmup_context = _context(
+        context_date=date(2025, 1, 1),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 90.0, "eth": 90.0, "spy": 90.0},
+    )
+    btc_cross_down_context = _context(
+        context_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        prices=prices,
+        dma={"btc": 110.0, "eth": 90.0, "spy": 90.0},
+    )
+    eth_below_context = _context(
+        context_date=date(2025, 1, 3),
+        portfolio=stable_portfolio,
+        prices=prices,
+        dma={"btc": 110.0, "eth": 110.0, "spy": 90.0},
+    )
+    eth_cross_up_context = _context(
+        context_date=date(2025, 1, 4),
+        portfolio=stable_portfolio,
+        prices=prices,
+        dma={"btc": 110.0, "eth": 90.0, "spy": 90.0},
+    )
+
+    strategy.initialize(portfolio, None, warmup_context)
+    strategy.warmup_day(warmup_context)
+    btc_cross_down = strategy.signal_component.observe(btc_cross_down_context)
+    btc_cross_down_intent = strategy.decision_policy.decide(btc_cross_down)
+    committed_cross_down = strategy.signal_component.apply_intent(
+        current_date=btc_cross_down_context.date,
+        snapshot=btc_cross_down,
+        intent=btc_cross_down_intent,
+    )
+    strategy.decision_policy.record_execution(
+        context=btc_cross_down_context,
+        intent=btc_cross_down_intent,
+        execution=ExecutionOutcome(
+            event="rebalance",
+            transfers=[
+                TransferIntent(
+                    from_bucket="eth",
+                    to_bucket="stable",
+                    amount_usd=3_000.0,
+                )
+            ],
+        ),
+    )
+    eth_below = _step_signal(strategy, eth_below_context)
+    eth_cross_up = _step_signal(strategy, eth_cross_up_context)
+
+    assert btc_cross_down_intent.reason == "portfolio_cross_down_exit"
+    assert btc_cross_down.btc_dma_state is not None
+    assert btc_cross_down.eth_dma_state is not None
+    assert btc_cross_down.btc_dma_state.actionable_cross_event == "cross_down"
+    assert btc_cross_down.eth_dma_state.actionable_cross_event is None
+    assert committed_cross_down.eth_dma_state is not None
+    assert committed_cross_down.eth_dma_state.cross_event is None
+    assert committed_cross_down.eth_dma_state.actionable_cross_event is None
+    assert committed_cross_down.eth_dma_state.cooldown_state.active is True
+    assert committed_cross_down.eth_dma_state.cooldown_state.blocked_zone == "above"
+    assert eth_below.eth_dma_state is not None
+    assert eth_below.eth_dma_state.cross_event == "cross_down"
+    assert eth_cross_up.eth_dma_state is not None
+    assert eth_cross_up.eth_dma_state.cross_event == "cross_up"
+    assert eth_cross_up.eth_dma_state.actionable_cross_event is None
+    assert eth_cross_up.eth_dma_state.cooldown_state.active is True
+    assert eth_cross_up.eth_dma_state.cooldown_state.blocked_zone == "above"
+
+
 def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
@@ -488,6 +571,194 @@ def test_extreme_fear_gated_by_cross_down_cycle() -> None:
     assert closed_cycle.reason == "regime_no_signal"
 
 
+def test_crypto_cross_down_opens_peer_cycle_and_blocked_cross_up_does_not_close() -> (
+    None
+):
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    btc_cross_down = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+                fgi_regime="neutral",
+            ),
+            eth=state(symbol="ETH", zone="above", fgi_regime="neutral"),
+            current=current,
+        )
+    )
+    cooldown_blocked_eth_cross_up = policy.decide(
+        _flat_state(
+            btc=state(symbol="BTC", zone="below", fgi_regime="neutral"),
+            eth=state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event=None,
+                fgi_regime="neutral",
+                cooldown_state=DmaCooldownState(
+                    active=True,
+                    remaining_days=12,
+                    blocked_zone="above",
+                ),
+            ),
+            current=current,
+        )
+    )
+    eth_extreme_fear_dca = policy.decide(
+        _flat_state(
+            btc=state(symbol="BTC", zone="below", fgi_regime="extreme_fear"),
+            eth=state(
+                symbol="ETH",
+                zone="below",
+                dma_distance=-0.20,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+
+    assert btc_cross_down.reason == "portfolio_cross_down_exit"
+    assert cooldown_blocked_eth_cross_up.reason == "regime_no_signal"
+    assert eth_extreme_fear_dca.reason == "portfolio_extreme_fear_dca_buy"
+    assert eth_extreme_fear_dca.diagnostics is not None
+    assert eth_extreme_fear_dca.diagnostics["portfolio_rule_assets"] == ["BTC", "ETH"]
+
+
+def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    current = {"btc": 0.0, "eth": 0.0, "spy": 0.20, "stable": 0.80, "alt": 0.0}
+
+    spy_cross_down = policy.decide(
+        _flat_state(
+            spy=state(
+                symbol="SPY",
+                zone="below",
+                dma_distance=-0.05,
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+                fgi_regime="neutral",
+            ),
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.10,
+                fgi_regime="neutral",
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="below",
+                dma_distance=-0.20,
+                fgi_regime="neutral",
+            ),
+            current=current,
+        )
+    )
+    crypto_extreme_fear = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.10,
+                fgi_regime="extreme_fear",
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="below",
+                dma_distance=-0.20,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+
+    assert spy_cross_down.reason == "portfolio_cross_down_exit"
+    assert crypto_extreme_fear.reason == "regime_no_signal"
+
+
+def test_crypto_cross_up_closes_peer_cycle_for_extreme_fear_dca() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    btc_cross_down = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+                fgi_regime="neutral",
+            ),
+            eth=state(symbol="ETH", zone="below", fgi_regime="neutral"),
+            current=current,
+        )
+    )
+    open_cycle_dca = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="below",
+                dma_distance=-0.20,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+    eth_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="neutral",
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+                fgi_regime="neutral",
+            ),
+            current=current,
+        )
+    )
+    closed_cycle_extreme_fear = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="below",
+                dma_distance=-0.05,
+                fgi_regime="extreme_fear",
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="below",
+                dma_distance=-0.20,
+                fgi_regime="extreme_fear",
+            ),
+            current=current,
+        )
+    )
+
+    assert btc_cross_down.reason == "portfolio_cross_down_exit"
+    assert open_cycle_dca.reason == "portfolio_extreme_fear_dca_buy"
+    assert eth_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert closed_cycle_extreme_fear.reason == "regime_no_signal"
+
+
 def test_cross_trade_does_not_block_next_extreme_fear_dca() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
@@ -722,13 +993,15 @@ def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
 def _flat_state(
     *,
     btc: DmaMarketState,
+    spy: DmaMarketState | None = None,
+    eth: DmaMarketState | None = None,
     current: dict[str, float],
     current_date: date | None = None,
 ) -> FlatMinimumState:
     return FlatMinimumState(
-        spy_dma_state=state(symbol="SPY"),
+        spy_dma_state=spy or state(symbol="SPY"),
         btc_dma_state=btc,
-        eth_dma_state=state(symbol="ETH"),
+        eth_dma_state=eth or state(symbol="ETH"),
         current_asset_allocation=current,
         current_date=current_date,
     )

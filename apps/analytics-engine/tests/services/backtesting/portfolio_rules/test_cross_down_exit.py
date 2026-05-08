@@ -37,6 +37,39 @@ def test_btc_cross_down_liquidates_crypto_peers_to_stable() -> None:
     assert intent.diagnostics["portfolio_rule_trigger_assets"] == ["BTC"]
 
 
+def test_btc_cross_down_marks_crypto_group_for_cooldown_even_without_btc_position() -> (
+    None
+):
+    rule = CrossDownExitRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(
+                symbol="BTC",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+            "ETH": state(symbol="ETH"),
+        },
+        current={"btc": 0.0, "eth": 0.30, "spy": 0.20, "stable": 0.50, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.20, "stable": 0.80, "alt": 0.0}
+    )
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["ETH"]
+    assert intent.diagnostics["portfolio_rule_trigger_assets"] == ["BTC"]
+    assert intent.diagnostics["portfolio_rule_exit_assets"] == ["BTC", "ETH"]
+    assert intent.diagnostics["portfolio_rule_cooldown_assets"] == ["BTC", "ETH"]
+    assert intent.diagnostics["portfolio_rule_forced_cross_events"] == {
+        "BTC": "cross_down",
+        "ETH": "cross_down",
+    }
+
+
 def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
     rule = CrossDownExitRule()
     rule_snapshot = snapshot(
@@ -63,6 +96,39 @@ def test_eth_cross_down_liquidates_crypto_peers_to_stable() -> None:
     assert intent.diagnostics["portfolio_rule_trigger_assets"] == ["ETH"]
 
 
+def test_eth_cross_down_marks_crypto_group_for_cooldown_even_without_eth_position() -> (
+    None
+):
+    rule = CrossDownExitRule()
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY"),
+            "BTC": state(symbol="BTC"),
+            "ETH": state(
+                symbol="ETH",
+                cross_event="cross_down",
+                actionable_cross_event="cross_down",
+            ),
+        },
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.20, "stable": 0.40, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.20, "stable": 0.80, "alt": 0.0}
+    )
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
+    assert intent.diagnostics["portfolio_rule_trigger_assets"] == ["ETH"]
+    assert intent.diagnostics["portfolio_rule_exit_assets"] == ["BTC", "ETH"]
+    assert intent.diagnostics["portfolio_rule_cooldown_assets"] == ["BTC", "ETH"]
+    assert intent.diagnostics["portfolio_rule_forced_cross_events"] == {
+        "BTC": "cross_down",
+        "ETH": "cross_down",
+    }
+
+
 def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
     rule = CrossDownExitRule()
     rule_snapshot = snapshot(
@@ -87,6 +153,11 @@ def test_spy_cross_down_liquidates_only_spy_to_stable() -> None:
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["SPY"]
     assert intent.diagnostics["portfolio_rule_trigger_assets"] == ["SPY"]
+    assert intent.diagnostics["portfolio_rule_exit_assets"] == ["SPY"]
+    assert intent.diagnostics["portfolio_rule_cooldown_assets"] == ["SPY"]
+    assert intent.diagnostics["portfolio_rule_forced_cross_events"] == {
+        "SPY": "cross_down"
+    }
 
 
 def test_cross_down_exit_ignores_non_cross_down_days() -> None:

@@ -43,6 +43,7 @@ from src.services.backtesting.signals.dma_gated_fgi.runtime import (
     DmaGatedFgiSignalRuntime,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import (
+    CrossEvent,
     DmaMarketState,
     SignalId,
     Zone,
@@ -426,11 +427,13 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
         current_date: date,
         snapshot: DmaMarketState,
         intent: AllocationIntent,
+        forced_cross_event: CrossEvent | None = None,
     ) -> DmaMarketState:
         return self._runtime.apply_intent(
             current_date=current_date,
             snapshot=snapshot,
             intent=intent,
+            forced_cross_event=forced_cross_event,
         )
 
     def build_signal_observation(

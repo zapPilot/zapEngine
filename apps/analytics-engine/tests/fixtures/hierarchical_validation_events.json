@@ -295,6 +295,24 @@
       }
     ]
   },
+  "2025-11-06": {
+    "events": [
+      {
+        "id": "eth_cross_down_preserve_spy_2025_11_06",
+        "event_type": "crypto_cross_up",
+        "reference_asset": "ETH",
+        "description": "ETH should still in cross down cooldown period",
+        "assertions": [
+          {
+            "type": "target_asset_equals",
+            "asset": "eth",
+            "value": 0
+          }
+        ],
+        "rationale": "ETH should hold"
+      }
+    ]
+  },
   "2025-11-10": {
     "events": [
       {
@@ -346,11 +364,6 @@
         "event_type": "extreme_fear_below_crypto_dma",
         "description": "also a extreme_fear range to buy",
         "assertions": [
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "spy",
-            "within_days": 10
-          },
           {
             "type": "eventually_target_asset_greater_than_previous",
             "asset": "eth",

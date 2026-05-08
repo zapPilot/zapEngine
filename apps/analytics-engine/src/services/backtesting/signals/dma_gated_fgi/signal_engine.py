@@ -224,15 +224,14 @@ class DmaSignalEngine:
         current_date: date,
         market_state: DmaMarketState,
         intent: AllocationIntent,
+        forced_cross_event: CrossEvent | None = None,
     ) -> DmaMarketState:
         updated_state = market_state
-        if (
-            intent.rule_group == "cross"
-            and market_state.actionable_cross_event is not None
-        ):
+        cooldown_cross_event = forced_cross_event or market_state.actionable_cross_event
+        if intent.rule_group == "cross" and cooldown_cross_event is not None:
             self._start_cooldown(
                 current_date=current_date,
-                cross_event=market_state.actionable_cross_event,
+                cross_event=cooldown_cross_event,
             )
             updated_state = replace(
                 market_state,
