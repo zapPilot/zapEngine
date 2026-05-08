@@ -55,35 +55,26 @@ void main() {
     expect(find.textContaining('permission denied'), findsNothing);
   });
 
-  testWidgets('unplayed episode list play button is disabled', (tester) async {
+  testWidgets('unplayed episode list play button starts playback', (
+    tester,
+  ) async {
     final handler = FakePodcastAudioHandler();
     final service = _FeedEpisodeService();
 
     await _pumpFeed(tester, service, audioHandler: handler);
 
-    final disabledPlayButton = find.descendant(
+    final playButton = find.descendant(
       of: find.byType(EpisodeCard),
-      matching: find.byTooltip('點開 episode 才能開始播放'),
+      matching: find.byTooltip('Play'),
     );
-    expect(disabledPlayButton, findsOneWidget);
+    expect(playButton, findsOneWidget);
 
-    await tester.tap(disabledPlayButton, warnIfMissed: false);
-    await tester.pump();
-
-    expect(handler.loadedEpisodeIds, isEmpty);
-    expect(handler.playCount, 0);
-    expect(find.byType(EpisodeDetailScreen), findsNothing);
-
-    await tester.pump(const Duration(seconds: 2));
-    await tester.tap(
-      find.descendant(
-        of: find.byType(EpisodeCard),
-        matching: find.text('Treasury liquidity watch'),
-      ),
-    );
+    await tester.tap(playButton);
     await tester.pumpAndSettle();
 
-    expect(find.byType(EpisodeDetailScreen), findsOneWidget);
+    expect(handler.loadedEpisodeIds, ['episode-1']);
+    expect(handler.playCount, 1);
+    expect(find.byType(EpisodeDetailScreen), findsNothing);
 
     await handler.dispose();
   });
@@ -112,6 +103,74 @@ void main() {
     expect(handler.loadedEpisodeIds, ['episode-1']);
     expect(handler.seekPositions, [const Duration(seconds: 42)]);
     expect(handler.playCount, 1);
+
+    await handler.dispose();
+  });
+
+  testWidgets(
+    'hero action starts smart playback for an unplayed current episode',
+    (tester) async {
+      final handler = FakePodcastAudioHandler();
+      final episode = _feedEpisode(
+        id: 'episode-1',
+        title: 'Oldest unplayed episode',
+      );
+      final service = _FeedEpisodeService(episodes: [episode]);
+
+      await _pumpFeed(tester, service, audioHandler: handler);
+
+      final playback = Provider.of<PlaybackProvider>(
+        tester.element(find.byType(FeedScreen)),
+        listen: false,
+      );
+      await playback.toggle(episode);
+      await playback.pause();
+      await tester.pumpAndSettle();
+
+      expect(find.text('從最舊未聽開始'), findsOneWidget);
+
+      await tester.tap(find.text('從最舊未聽開始'));
+      await tester.pumpAndSettle();
+
+      expect(handler.loadedEpisodeIds, ['episode-1', 'episode-1']);
+      expect(handler.playCount, 2);
+
+      await handler.dispose();
+    },
+  );
+
+  testWidgets('completed playback updates the local feed hero', (tester) async {
+    final handler = FakePodcastAudioHandler();
+    final newest = _feedEpisode(
+      id: 'episode-new',
+      title: 'Newest liquidity watch',
+      createdAt: DateTime(2026, 5, 4),
+    );
+    final oldest = _feedEpisode(
+      id: 'episode-old',
+      title: 'Oldest liquidity watch',
+      createdAt: DateTime(2026, 5),
+    );
+    final service = _FeedEpisodeService(episodes: [newest, oldest]);
+
+    await _pumpFeed(tester, service, audioHandler: handler);
+
+    expect(find.text('Oldest liquidity watch'), findsWidgets);
+
+    final playback = Provider.of<PlaybackProvider>(
+      tester.element(find.byType(FeedScreen)),
+      listen: false,
+    );
+    await playback.toggle(oldest);
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await tester.pumpAndSettle();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-old', true),
+    ]);
+    expect(find.text('Newest liquidity watch'), findsWidgets);
+    expect(find.text('Oldest liquidity watch'), findsNothing);
 
     await handler.dispose();
   });
@@ -152,10 +211,22 @@ Future<void> _pumpFeed(
 }
 
 class _FeedEpisodeService extends EpisodeService {
-  _FeedEpisodeService({this.states = const {}, this.stateError});
+  _FeedEpisodeService({
+    List<Episode>? episodes,
+    this.states = const {},
+    this.stateError,
+  }) : episodes = episodes ??
+            [
+              _feedEpisode(
+                id: 'episode-1',
+                title: 'Treasury liquidity watch',
+              ),
+            ];
 
+  final List<Episode> episodes;
   final Map<String, UserEpisodeState> states;
   final Object? stateError;
+  final List<_ListenedWrite> listenedWrites = [];
   int userStateRequests = 0;
 
   @override
@@ -165,15 +236,7 @@ class _FeedEpisodeService extends EpisodeService {
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
     return EpisodePage(
-      items: [
-        Episode(
-          id: 'episode-1',
-          title: 'Treasury liquidity watch',
-          hlsUrl: 'https://cdn.example.com/episode-1.m3u8',
-          createdAt: DateTime(2026, 5, 4),
-          listened: false,
-        ),
-      ],
+      items: episodes,
       nextCursor: null,
     );
   }
@@ -196,7 +259,9 @@ class _FeedEpisodeService extends EpisodeService {
     required String userId,
     required String episodeId,
     required bool listened,
-  }) async {}
+  }) async {
+    listenedWrites.add(_ListenedWrite(userId, episodeId, listened));
+  }
 
   @override
   Future<void> setPosition({
@@ -204,6 +269,20 @@ class _FeedEpisodeService extends EpisodeService {
     required String episodeId,
     required int seconds,
   }) async {}
+}
+
+Episode _feedEpisode({
+  required String id,
+  required String title,
+  DateTime? createdAt,
+}) {
+  return Episode(
+    id: id,
+    title: title,
+    hlsUrl: 'https://cdn.example.com/$id.m3u8',
+    createdAt: createdAt ?? DateTime(2026, 5, 4),
+    listened: false,
+  );
 }
 
 class _FakeAuthService extends AuthService {
@@ -223,4 +302,27 @@ class _EmptyLikesService extends LikesService {
   Stream<LikeSnapshot> streamLikeSnapshot(String userId) {
     return const Stream.empty();
   }
+}
+
+class _ListenedWrite {
+  const _ListenedWrite(this.userId, this.episodeId, this.listened);
+
+  final String userId;
+  final String episodeId;
+  final bool listened;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is _ListenedWrite &&
+            other.userId == userId &&
+            other.episodeId == episodeId &&
+            other.listened == listened;
+  }
+
+  @override
+  int get hashCode => Object.hash(userId, episodeId, listened);
+
+  @override
+  String toString() => 'ListenedWrite($userId, $episodeId, $listened)';
 }

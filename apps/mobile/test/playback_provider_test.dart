@@ -282,6 +282,96 @@ void main() {
     },
   );
 
+  test('marks an episode listened when position reaches near the end',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 598));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('near-end completion writes listened only once', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 598));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 600));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('near-end and completed state triggers are idempotent', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.complete();
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('replaying an episode can mark it listened again', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+    final episode = _episode('episode-1');
+
+    await provider.toggle(episode);
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    await provider.toggle(episode.copyWith(listened: true));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   test(
     'position persistence is throttled and flush can write immediately',
     () async {
@@ -309,6 +399,11 @@ void main() {
       await handler.dispose();
     },
   );
+}
+
+Future<void> _flushProviderAsync() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
 }
 
 Episode _episode(String id) {

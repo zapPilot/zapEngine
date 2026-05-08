@@ -93,6 +93,10 @@ class FakePodcastAudioHandler extends BaseAudioHandler
     _positionController.add(position);
   }
 
+  void emitDuration(Duration duration) {
+    _durationController.add(duration);
+  }
+
   void complete() {
     _playerStateController.add(PlayerState(false, ProcessingState.completed));
   }
