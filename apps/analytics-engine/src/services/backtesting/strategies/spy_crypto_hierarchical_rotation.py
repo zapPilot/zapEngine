@@ -157,6 +157,7 @@ class HierarchicalPairRotationState:
     eth_dma_state: DmaMarketState | None
     crypto_dma_state: DmaMarketState | None
     crypto_dma_reference_asset: str
+    current_date: date
     spy_latch_active: bool
     spy_latch_activated_on: date | None
     spy_latch_target_share: float | None
@@ -349,6 +350,7 @@ class HierarchicalPairRotationSignalComponent(StatefulSignalComponent):
             eth_dma_state=eth_dma_state,
             crypto_dma_state=crypto_dma_state,
             crypto_dma_reference_asset=self._crypto_dma_reference_asset,
+            current_date=context.date,
             spy_latch_active=self._spy_latch_active,
             spy_latch_activated_on=self._spy_latch_activated_on,
             spy_latch_target_share=self._spy_latch_target_share,
@@ -798,6 +800,8 @@ def _build_outer_snapshot(
         crypto_dma_state=snapshot.crypto_dma_state,
         crypto_dma_reference_asset=snapshot.crypto_dma_reference_asset,
         spy_latch_active=snapshot.spy_latch_active,
+        current_date=snapshot.current_date,
+        spy_latch_activated_on=snapshot.spy_latch_activated_on,
         spy_latch_target_share=snapshot.spy_latch_target_share,
         pre_existing_stable_share=float(
             snapshot.current_asset_allocation.get("stable", 0.0)

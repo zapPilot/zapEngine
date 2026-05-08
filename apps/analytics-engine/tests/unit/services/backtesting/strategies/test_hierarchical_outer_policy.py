@@ -113,6 +113,8 @@ def _outer_snapshot(
         crypto_dma_state=state.crypto_dma_state,
         crypto_dma_reference_asset=state.crypto_dma_reference_asset,
         spy_latch_active=state.spy_latch_active,
+        current_date=state.current_date,
+        spy_latch_activated_on=state.spy_latch_activated_on,
         pre_existing_stable_share=float(
             state.current_asset_allocation.get("stable", 0.0)
         ),
@@ -312,6 +314,92 @@ def test_minimum_policy_latch_absorbs_freshly_created_stable() -> None:
     assert adjusted.diagnostics["post_intent_adjustments"] == [
         "spy_latch_absorb_fresh_stable"
     ]
+
+
+def test_minimum_policy_latch_redeploys_existing_stable_on_cross_up_day() -> None:
+    portfolio = _portfolio({"spy": 0.2, "btc": 0.4, "eth": 0.0, "stable": 0.4})
+    cross_up_date = date(2025, 5, 12)
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[_context(portfolio=portfolio, snapshot_date=cross_up_date)],
+    )
+    latched_snapshot = replace(
+        snapshot,
+        spy_latch_active=True,
+        spy_latch_activated_on=cross_up_date,
+        current_date=cross_up_date,
+        spy_latch_target_share=1.0,
+        pre_existing_stable_share=0.4,
+    )
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation={
+            "btc": 0.4,
+            "eth": 0.0,
+            "spy": 0.2,
+            "stable": 0.4,
+            "alt": 0.0,
+        },
+        allocation_name="test_no_same_day_sell",
+        immediate=False,
+        reason="test_no_same_day_sell",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    adjusted = MinimumHierarchicalOuterPolicy().apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=latched_snapshot,
+    )
+
+    assert adjusted.target_allocation is not None
+    assert adjusted.target_allocation["spy"] == pytest.approx(0.6)
+    assert adjusted.target_allocation["stable"] == pytest.approx(0.0)
+    assert adjusted.diagnostics is not None
+    assert adjusted.diagnostics["post_intent_adjustments"] == [
+        "spy_latch_redeploy_existing_stable"
+    ]
+
+
+def test_minimum_policy_latch_does_not_redeploy_existing_stable_after_cross_up_day() -> (
+    None
+):
+    portfolio = _portfolio({"spy": 0.2, "btc": 0.4, "eth": 0.0, "stable": 0.4})
+    current_date = date(2025, 5, 13)
+    snapshot, _component = _outer_snapshot(
+        policy=MinimumHierarchicalOuterPolicy(),
+        contexts=[_context(portfolio=portfolio, snapshot_date=current_date)],
+    )
+    latched_snapshot = replace(
+        snapshot,
+        spy_latch_active=True,
+        spy_latch_activated_on=date(2025, 5, 12),
+        current_date=current_date,
+        spy_latch_target_share=1.0,
+        pre_existing_stable_share=0.4,
+    )
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation={
+            "btc": 0.4,
+            "eth": 0.0,
+            "spy": 0.2,
+            "stable": 0.4,
+            "alt": 0.0,
+        },
+        allocation_name="test_next_day_hold",
+        immediate=False,
+        reason="test_next_day_hold",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    adjusted = MinimumHierarchicalOuterPolicy().apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=latched_snapshot,
+    )
+
+    assert adjusted is intent
 
 
 def test_minimum_policy_post_adjustment_noops_without_active_latch() -> None:

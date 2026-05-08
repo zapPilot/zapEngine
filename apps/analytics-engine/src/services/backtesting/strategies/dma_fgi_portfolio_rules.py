@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import JsonValue
 
@@ -35,12 +35,18 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     current_target,
     rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
+)
+from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
+    EthBtcRatioRotationRule,
+)
+from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
+    ExtremeFearDcaBuyRule,
 )
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.risk import (
@@ -61,6 +67,7 @@ from src.services.backtesting.strategies.minimum import (
 
 PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 _RULE_PRIORITY_BY_NAME = {rule.name: rule.priority for rule in DEFAULT_PORTFOLIO_RULES}
+_RuleT = TypeVar("_RuleT", bound=PortfolioRule)
 
 
 @dataclass(frozen=True)
@@ -213,30 +220,27 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
 
         self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
-        rule_config = PortfolioRuleConfig(emit_signals_consulted=True)
+        rules = build_portfolio_rules_for_params(resolved_params)
         if self.use_adaptive_sizing:
-            rule_config = replace(
-                rule_config,
-                extreme_fear_buy_sizing=FgiExponentialSizing(max_multiplier=1.1),
-            )
+            rules = _with_adaptive_extreme_fear_sizing(rules)
         self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
             disabled_rules=self.disabled_rules,
-            rules=build_portfolio_rules_for_params(resolved_params),
+            rules=rules,
             risk_guards=build_risk_guards_for_params(resolved_params),
-            config=rule_config,
+            config=PortfolioRuleConfig(emit_signals_consulted=True),
             execution_state_provider=lambda: RuleExecutionState(
                 last_trade_date=self.execution_engine.last_trade_date,
                 trade_dates=tuple(self.execution_engine.trade_dates),
             ),
         )
+        cross_down_rule = _required_rule(rules, CrossDownExitRule)
+        ratio_rule = _required_rule(rules, EthBtcRatioRotationRule)
         self.signal_component = FlatMinimumSignalComponent(
             config=resolved_params.build_signal_config(),
             signal_id=self.signal_id,
+            ratio_cross_cooldown_days=ratio_rule.cooldown_days,
             cross_down_cooldown_days_by_symbol={
-                symbol: cross_down_cooldown_days_for(
-                    symbol,
-                    config=self.decision_policy.config,
-                )
+                symbol: cross_down_rule.cooldown_days_for(symbol)
                 for symbol in PORTFOLIO_RULE_SYMBOLS
             },
         )
@@ -329,6 +333,27 @@ def build_portfolio_rules_for_params(
     del params
     rules: list[PortfolioRule] = list(DEFAULT_PORTFOLIO_RULES)
     return tuple(sorted(rules, key=lambda rule: rule.priority))
+
+
+def _with_adaptive_extreme_fear_sizing(
+    rules: tuple[PortfolioRule, ...],
+) -> tuple[PortfolioRule, ...]:
+    return tuple(
+        replace(rule, sizing=FgiExponentialSizing(max_multiplier=1.1))
+        if isinstance(rule, ExtremeFearDcaBuyRule)
+        else rule
+        for rule in rules
+    )
+
+
+def _required_rule(
+    rules: tuple[PortfolioRule, ...],
+    rule_type: type[_RuleT],
+) -> _RuleT:
+    for rule in rules:
+        if isinstance(rule, rule_type):
+            return rule
+    raise ValueError(f"Missing required portfolio rule: {rule_type.__name__}")
 
 
 def build_risk_guards_for_params(

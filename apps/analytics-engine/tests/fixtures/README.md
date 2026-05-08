@@ -74,8 +74,8 @@ the fixture claims to exercise before assertion checks run.
 | `crypto_cross_up` | Crypto DMA cross is `cross_up`; `reference_asset` narrows BTC/ETH when provided. |
 | `spy_cross_down` | SPY DMA cross is `cross_down`. |
 | `spy_cross_up` | SPY DMA cross is `cross_up`. |
-| `extreme_fear_below_crypto_dma` | Crypto sentiment is `extreme_fear` and crypto DMA zone is `below`. |
-| `extreme_fear_below_spy_dma` | Macro F&G is `extreme_fear` and SPY DMA zone is `below`. |
+| `extreme_fear_below_crypto_dma` | Assertion window contains a day where crypto sentiment or macro F&G is `extreme_fear` and crypto DMA zone is `below`. |
+| `extreme_fear_below_spy_dma` | Assertion window contains a day where macro F&G is `extreme_fear` and SPY DMA zone is `below`. |
 | `crypto_dma_fgi_sell` | Decision reason contains a crypto sell reason. |
 | `eth_btc_ratio_cross_up` | Inner ETH/BTC ratio zone crosses from `below` to `above`. |
 | `eth_btc_ratio_cross_down` | Inner ETH/BTC ratio zone crosses from `above` to `below`. |

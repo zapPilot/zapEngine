@@ -23,7 +23,7 @@ Outer policy: MinimumHierarchicalOuterPolicy (zero tunable fields)
   ├── Feature 3: SPY macro extreme-fear DCA
   │   └── When CNN macro F&G is extreme fear and SPY < SPY_DMA → buy SPY from stable
   └── Feature 4: Persistent SPY latch
-      └── After SPY cross_up, redirect fresh stable from later sells into SPY while latch is active
+      └── On SPY cross_up, redeploy existing stable to SPY; while latch remains active, redirect fresh stable from later sells into SPY
 ```
 
 Source files:
@@ -91,7 +91,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 | Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
 | Inner ETH/BTC ratio rotation | `eth_btc_rotation` = 126.26% ROI | pre-existing |
 | SPY macro extreme-fear DCA | Fixture-validated; included in 2026-05-04 re-anchor: ROI -0.14pp, Calmar +0.12 | 2026-05-04 |
-| Persistent SPY latch | Fixture-validated fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
+| Persistent SPY latch | Fixture-validated cross-up-day existing stable redeploy plus later fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
 
 ## What doesn't work (do not re-introduce without new evidence)
 
@@ -99,7 +99,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 |---|---|---|
 | Adaptive DMA Reference | Removed from the kept minimum target | Re-introduce only through a new measured variant |
 | Fear Recovery Buy | Removed from the kept minimum target | Re-introduce only through a new measured variant |
-| Single-tick SPY Cross-Up Latch | Superseded by persistent fresh-stable latch | Old same-tick-only behavior stays out |
+| Single-tick SPY Cross-Up Latch | Superseded by persistent latch | Cross-up day same-tick existing stable redeploy is included; later days still only absorb fresh stable |
 | Buy Floor | Removed from the kept minimum target | Re-introduce only through a new measured variant |
 | Broad Cross-Down Cooldown | Removed with the minimum research variants | Too blunt without new evidence |
 | Broad Below-DMA Hold | Removed with the minimum research variants | Too blunt without new evidence |

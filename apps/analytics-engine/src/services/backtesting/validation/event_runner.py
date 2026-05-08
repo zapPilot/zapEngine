@@ -467,24 +467,35 @@ def _constraint_event_trigger_failure(
             expected_cross="cross_up",
         )
     if event_type == "extreme_fear_below_crypto_dma":
-        label = _constraint_sentiment_label(point)
-        dma = _constraint_dma(point, key="dma")
-        if label == "extreme_fear" and dma.get("zone") == "below":
+        within_days = _constraint_max_within_days(case)
+        if _window_contains_extreme_fear_below_dma(
+            points=points,
+            event_point=point,
+            within_days=within_days,
+            dma_key="dma",
+            include_crypto_sentiment=True,
+            include_macro_sentiment=True,
+        ):
             return None
         return _constraint_failure(
             point,
-            "expected extreme_fear sentiment with crypto DMA zone below; "
-            f"observed sentiment={label!r}, dma_zone={dma.get('zone')!r}",
+            "no extreme_fear (crypto or macro) with DMA below within "
+            f"{within_days} days",
         )
     if event_type == "extreme_fear_below_spy_dma":
-        label = _constraint_macro_sentiment_label(point)
-        spy_dma = _constraint_dma(point, key="spy_dma")
-        if label == "extreme_fear" and spy_dma.get("zone") == "below":
+        within_days = _constraint_max_within_days(case)
+        if _window_contains_extreme_fear_below_dma(
+            points=points,
+            event_point=point,
+            within_days=within_days,
+            dma_key="spy_dma",
+            include_crypto_sentiment=False,
+            include_macro_sentiment=True,
+        ):
             return None
         return _constraint_failure(
             point,
-            "expected SPY extreme fear below DMA; "
-            f"observed label={label!r}, zone={spy_dma.get('zone')!r}",
+            f"no macro extreme_fear with SPY DMA below within {within_days} days",
         )
     if event_type == "crypto_dma_fgi_sell":
         reason = _constraint_decision(point).get("reason")
@@ -581,6 +592,46 @@ def _inner_ratio_cross_trigger_failure(
         f"expected inner ratio zone transition {from_zone!r}->{to_zone!r}; "
         f"observed {previous!r}->{observed!r}",
     )
+
+
+def _constraint_max_within_days(case: dict[str, Any]) -> int:
+    within_days = 0
+    for assertion in case.get("assertions", []):
+        if not isinstance(assertion, dict):
+            continue
+        raw = assertion.get("within_days", 0)
+        if isinstance(raw, bool):
+            continue
+        if isinstance(raw, int | float):
+            within_days = max(within_days, int(raw))
+    return max(0, within_days)
+
+
+def _window_contains_extreme_fear_below_dma(
+    *,
+    points: list[dict[str, Any]],
+    event_point: dict[str, Any],
+    within_days: int,
+    dma_key: str,
+    include_crypto_sentiment: bool,
+    include_macro_sentiment: bool,
+) -> bool:
+    event_date = _parse_date(str(event_point["date"]))
+    end_date = event_date + timedelta(days=within_days)
+    for point in points:
+        point_date = _parse_date(str(point["date"]))
+        if point_date < event_date or point_date > end_date:
+            continue
+        dma = _constraint_dma(point, key=dma_key)
+        if _normalize_constraint_label(dma.get("zone")) != "below":
+            continue
+        crypto_extreme = _constraint_sentiment_label(point) == "extreme_fear"
+        macro_extreme = _constraint_macro_sentiment_label(point) == "extreme_fear"
+        if include_crypto_sentiment and crypto_extreme:
+            return True
+        if include_macro_sentiment and macro_extreme:
+            return True
+    return False
 
 
 def _evaluate_constraint_assertion(

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -19,7 +20,11 @@ from src.services.backtesting.portfolio_rules.base import (
     sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
+from src.services.backtesting.sizing.flat import FlatSizing
 from src.services.backtesting.target_allocation import normalize_target_allocation
+
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
 
 _GREED_REGIMES = frozenset({"greed", "extreme_greed"})
 _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
@@ -32,6 +37,8 @@ class FgiDownshiftDcaSellRule:
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
 
     def matches(
         self,
@@ -55,16 +62,16 @@ class FgiDownshiftDcaSellRule:
             sell_step = max(
                 0.0,
                 float(
-                    config.fgi_downshift_sell_sizing.adjust_step(
-                        config.fgi_downshift_sell_step,
+                    self.sizing.adjust_step(
+                        self.sell_step,
                         snapshot=snapshot,
                         asset=symbol,
                     )
                 ),
             )
             sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
-                sizing=config.fgi_downshift_sell_sizing,
-                base_step=config.fgi_downshift_sell_step,
+                sizing=self.sizing,
+                base_step=self.sell_step,
                 adjusted_step=sell_step,
                 snapshot=snapshot,
                 asset=symbol,

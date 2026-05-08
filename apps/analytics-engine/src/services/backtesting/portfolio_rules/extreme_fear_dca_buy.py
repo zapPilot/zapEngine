@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -17,7 +18,11 @@ from src.services.backtesting.portfolio_rules.base import (
     sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
+from src.services.backtesting.sizing.flat import FlatSizing
 from src.services.backtesting.target_allocation import normalize_target_allocation
+
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
 
 
 @dataclass(frozen=True)
@@ -27,6 +32,8 @@ class ExtremeFearDcaBuyRule:
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA buy assets when their relevant FGI is extreme fear."
+    buy_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
 
     def matches(
         self,
@@ -50,15 +57,15 @@ class ExtremeFearDcaBuyRule:
         sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
         if matching_symbols and stable_available > 0.0:
             for symbol in matching_symbols:
-                adjusted_step = config.extreme_fear_buy_sizing.adjust_step(
-                    config.extreme_fear_buy_step,
+                adjusted_step = self.sizing.adjust_step(
+                    self.buy_step,
                     snapshot=snapshot,
                     asset=symbol,
                 )
                 adjusted_step_by_symbol[symbol] = max(0.0, float(adjusted_step))
                 sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
-                    sizing=config.extreme_fear_buy_sizing,
-                    base_step=config.extreme_fear_buy_step,
+                    sizing=self.sizing,
+                    base_step=self.buy_step,
                     adjusted_step=adjusted_step,
                     snapshot=snapshot,
                     asset=symbol,

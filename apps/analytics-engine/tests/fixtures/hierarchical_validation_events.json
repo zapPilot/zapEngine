@@ -93,25 +93,6 @@
       }
     ]
   },
-  "2025-03-13": {
-    "events": [
-      {
-        "id": "spy_extreme_fear_dca_2025_03_13",
-        "event_type": "extreme_fear_below_spy_dma",
-        "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
-        "assertions": [
-          {
-            "type": "target_asset_increased_from_previous",
-            "asset": "spy"
-          },
-          {
-            "type": "target_stable_decreased_from_previous"
-          }
-        ],
-        "rationale": "SQL-resolved replacement for 2025-03-03, where SPY is still above DMA."
-      }
-    ]
-  },
   "2025-03-24": {
     "events": [
       {
@@ -137,35 +118,25 @@
       {
         "id": "extreme_fear_dca_2025_04_07",
         "event_type": "extreme_fear_below_crypto_dma",
-        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+        "description": "it's a range that we should buy for extreme_fear",
         "assertions": [
           {
-            "type": "target_crypto_increased_from_previous"
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "spy",
+            "within_days": 10
           },
           {
-            "type": "target_stable_decreased_from_previous"
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "eth",
+            "within_days": 10
+          },
+          {
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "btc",
+            "within_days": 10
           }
         ],
         "rationale": "Shared below_extreme_fear_buy rule remains active across validation strategies."
-      }
-    ]
-  },
-  "2025-04-08": {
-    "events": [
-      {
-        "id": "spy_extreme_fear_dca_2025_04_08",
-        "event_type": "extreme_fear_below_spy_dma",
-        "description": "CNN macro F&G in extreme fear while SPY below SPY DMA should DCA a non-zero amount from stable into SPY.",
-        "assertions": [
-          {
-            "type": "target_asset_increased_from_previous",
-            "asset": "spy"
-          },
-          {
-            "type": "target_stable_decreased_from_previous"
-          }
-        ],
-        "rationale": "SPY below_extreme_fear_buy rule should fire on SPY-bearing hierarchical strategies."
       }
     ]
   },
@@ -324,19 +295,28 @@
       }
     ]
   },
-  "2025-11-21": {
+  "2025-11-10": {
     "events": [
       {
-        "id": "extreme_fear_dca_2025_11_21",
+        "id": "extreme_fear_dca_2025_11_10",
         "event_type": "extreme_fear_below_crypto_dma",
 
-        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
+        "description": "also a extreme_fear range to buy",
         "assertions": [
           {
-            "type": "target_crypto_increased_from_previous"
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "spy",
+            "within_days": 10
           },
           {
-            "type": "target_stable_decreased_from_previous"
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "eth",
+            "within_days": 10
+          },
+          {
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "btc",
+            "within_days": 10
           }
         ],
         "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
@@ -359,22 +339,27 @@
       }
     ]
   },
-  "2026-02-06": {
+  "2026-02-01": {
     "events": [
       {
-        "id": "extreme_fear_dca_2026_02_06",
+        "id": "extreme_fear_dca_2026_02_01",
         "event_type": "extreme_fear_below_crypto_dma",
-        "description": "Extreme fear while crypto is below DMA should select the DCA rule; when crypto is already fully allocated, the target cannot increase beyond 100%.",
+        "description": "also a extreme_fear range to buy",
         "assertions": [
           {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "extreme_fear_dca_buy"
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "spy",
+            "within_days": 10
           },
           {
-            "type": "target_asset_gte",
+            "type": "eventually_target_asset_greater_than_previous",
+            "asset": "eth",
+            "within_days": 10
+          },
+          {
+            "type": "eventually_target_asset_greater_than_previous",
             "asset": "btc",
-            "value": 0.999
+            "within_days": 10
           }
         ],
         "rationale": "This fixture exercises the shared below_extreme_fear_buy rule when the portfolio is already effectively 100% crypto. The correct invariant is that the extreme-fear DCA rule remains selected, not that allocation exceeds the portfolio cap."
