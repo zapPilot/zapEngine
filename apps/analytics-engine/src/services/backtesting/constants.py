@@ -19,6 +19,9 @@ STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL = "dma_fgi_eth_btc_minimum_surgical"
 STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING = (
+    "dma_fgi_portfolio_rules_minus_adaptive_sizing"
+)
 STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT = (
     "dma_fgi_portfolio_rules_minus_cross_down_exit"
 )
@@ -43,6 +46,9 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING: (
+        "[RESEARCH] Portfolio Rules - Adaptive Sizing"
+    ),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: (
         "[RESEARCH] Portfolio Rules - Cross-Down Exit"
     ),

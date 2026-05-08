@@ -524,19 +524,19 @@ def test_global_cooldown_blocks_dca_tier_after_cross_trade() -> None:
     assert cooldown_dca.diagnostics["matched_rule_name"] == "global_cooldown_gate"
 
 
-def test_strategy_wires_trade_quota_rule_from_params() -> None:
+def test_strategy_wires_trade_quota_guard_from_params() -> None:
     strategy = DmaFgiPortfolioRulesStrategy(
         total_capital=10_000.0,
         params=DmaGatedFgiParams(min_trade_interval_days=3),
     )
 
-    assert [rule.name for rule in strategy.decision_policy.rules][:2] == [
+    assert [guard.name for guard in strategy.decision_policy.risk_guards] == [
         "trade_quota",
-        "cross_down_exit",
+        "dma_buy_gate",
     ]
 
 
-def test_policy_receives_executor_trade_dates_for_quota_rules() -> None:
+def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
     strategy = DmaFgiPortfolioRulesStrategy(
         total_capital=10_000.0,
         params=DmaGatedFgiParams(min_trade_interval_days=3),

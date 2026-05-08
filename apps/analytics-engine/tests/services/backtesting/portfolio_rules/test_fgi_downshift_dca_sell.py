@@ -30,7 +30,9 @@ def test_downshift_sell_matches_greed_to_neutral_transition() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.35, "eth": 0.25, "spy": 0.0, "stable": 0.40, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["BTC", "ETH"]}
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["BTC", "ETH"]
+    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"
 
 
 def test_downshift_sell_uses_macro_fgi_for_spy() -> None:
@@ -56,7 +58,9 @@ def test_downshift_sell_uses_macro_fgi_for_spy() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.20, "eth": 0.20, "spy": 0.15, "stable": 0.45, "alt": 0.0}
     )
-    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY"]}
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["SPY"]
+    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"
 
 
 def test_downshift_sell_ignores_non_transition_days() -> None:

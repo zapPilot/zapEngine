@@ -7,22 +7,12 @@ translates it to the flat runtime params consumed by the strategy classes.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL,
-    STRATEGY_ETH_BTC_ROTATION,
-)
+if TYPE_CHECKING:
+    from src.services.backtesting.strategy_registry import StrategyRecipe
 
 
 class _SignalPublicParams(BaseModel):
@@ -101,43 +91,18 @@ class EthBtcRotationPublicParams(BaseModel):
     rotation: _RotationPublicParams = Field(default_factory=_RotationPublicParams)
 
 
-_PUBLIC_PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[BaseModel]]] = {
-    STRATEGY_ETH_BTC_ROTATION: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: EthBtcRotationPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES: DmaGatedFgiPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: DmaGatedFgiPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT: DmaGatedFgiPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY: DmaGatedFgiPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL: DmaGatedFgiPublicParams,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL: (
-        DmaGatedFgiPublicParams
-    ),
-}
+def _get_recipe(strategy_id: str) -> StrategyRecipe:
+    from src.services.backtesting.strategy_registry import get_strategy_recipe
 
-_DMA_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
-    {
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL,
-    }
-)
-
-_HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS: Final[frozenset[str]] = frozenset(
-    {
-        STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL,
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-    }
-)
+    return get_strategy_recipe(strategy_id)
 
 
 def supports_nested_public_params(strategy_id: str) -> bool:
-    return strategy_id in _PUBLIC_PARAMS_MODEL_BY_STRATEGY
+    try:
+        _get_recipe(strategy_id)
+    except ValueError:
+        return False
+    return True
 
 
 def normalize_nested_public_params(
@@ -145,13 +110,13 @@ def normalize_nested_public_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Validate and canonicalize nested public params for a built-in strategy."""
-    model_type = _PUBLIC_PARAMS_MODEL_BY_STRATEGY.get(strategy_id)
-    if model_type is None:
-        raw = {} if params is None else dict(params)
-        return cast(dict[str, JsonValue], raw)
-
     raw_params = {} if params is None else dict(params)
-    normalized = model_type.model_validate(raw_params)
+    try:
+        recipe = _get_recipe(strategy_id)
+    except ValueError:
+        return cast(dict[str, JsonValue], raw_params)
+
+    normalized = recipe.public_params_model.model_validate(raw_params)
     return cast(dict[str, JsonValue], normalized.model_dump(mode="json"))
 
 
@@ -215,16 +180,26 @@ def public_params_to_runtime_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Translate nested public params into flat runtime params."""
-    normalized = normalize_nested_public_params(strategy_id, params)
+    raw_params = {} if params is None else dict(params)
+    try:
+        recipe = _get_recipe(strategy_id)
+    except ValueError:
+        return cast(dict[str, JsonValue], raw_params)
 
-    if strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS:
+    normalized_model = recipe.public_params_model.model_validate(raw_params)
+    normalized = cast(
+        dict[str, JsonValue],
+        normalized_model.model_dump(mode="json"),
+    )
+
+    if recipe.param_family == "dma":
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         nested = DmaGatedFgiPublicParams.model_validate(normalized)
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
+    if recipe.param_family == "eth_btc_rotation":
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )
@@ -235,7 +210,7 @@ def public_params_to_runtime_params(
         )
         return EthBtcRotationParams.from_public_params(flat).to_public_params()
 
-    if strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS:
+    if recipe.param_family == "hierarchical":
         from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
             HierarchicalPairRotationParams,
         )
@@ -257,8 +232,12 @@ def runtime_params_to_public_params(
 ) -> dict[str, JsonValue]:
     """Translate flat runtime params into the nested public contract."""
     raw_params = {} if params is None else dict(params)
+    try:
+        recipe = _get_recipe(strategy_id)
+    except ValueError:
+        return cast(dict[str, JsonValue], raw_params)
 
-    if strategy_id in _DMA_ATTRIBUTION_STRATEGY_IDS:
+    if recipe.param_family == "dma":
         from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
@@ -272,7 +251,7 @@ def runtime_params_to_public_params(
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
 
-    if strategy_id == STRATEGY_ETH_BTC_ROTATION:
+    if recipe.param_family == "eth_btc_rotation":
         from src.services.backtesting.strategies.eth_btc_rotation import (
             EthBtcRotationParams,
         )
@@ -291,7 +270,7 @@ def runtime_params_to_public_params(
         )
         return cast(dict[str, JsonValue], rotation_model.model_dump(mode="json"))
 
-    if strategy_id in _HIERARCHICAL_ATTRIBUTION_STRATEGY_IDS:
+    if recipe.param_family == "hierarchical":
         from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
             HierarchicalPairRotationParams,
         )
@@ -320,10 +299,8 @@ def runtime_params_to_public_params(
 
 
 def get_nested_public_params_schema(strategy_id: str) -> dict[str, JsonValue]:
-    model_type = _PUBLIC_PARAMS_MODEL_BY_STRATEGY.get(strategy_id)
-    if model_type is None:
-        raise ValueError(f"Unknown strategy_id '{strategy_id}'")
-    return cast(dict[str, JsonValue], model_type.model_json_schema())
+    recipe = _get_recipe(strategy_id)
+    return cast(dict[str, JsonValue], recipe.public_params_model.model_json_schema())
 
 
 def get_default_public_params(strategy_id: str) -> dict[str, JsonValue]:

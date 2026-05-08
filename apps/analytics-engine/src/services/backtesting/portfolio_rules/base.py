@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -14,6 +14,7 @@ from src.services.backtesting.decision import (
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
+from src.services.backtesting.sizing.flat import FlatSizing
 from src.services.backtesting.tactics.base import target_intent
 from src.services.backtesting.target_allocation import (
     normalize_target_allocation,
@@ -31,6 +32,9 @@ SYMBOL_BY_ALLOCATION_KEY: dict[str, str] = {
 }
 _EPSILON = 1e-12
 
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
+
 
 @dataclass(frozen=True)
 class PortfolioRuleConfig:
@@ -39,6 +43,9 @@ class PortfolioRuleConfig:
     extreme_fear_buy_step: float = 0.05
     overextension_sell_step: float = 0.05
     fgi_downshift_sell_step: float = 0.05
+    extreme_fear_buy_sizing: SizingStrategy = field(default_factory=FlatSizing)
+    overextension_sell_sizing: SizingStrategy = field(default_factory=FlatSizing)
+    fgi_downshift_sell_sizing: SizingStrategy = field(default_factory=FlatSizing)
     ratio_cross_cooldown_days: int = 30
     default_cross_down_cooldown_days: int = 30
     global_cooldown_days: int = 7
@@ -188,6 +195,7 @@ def portfolio_target_intent(
     assets: list[str],
     immediate: bool = False,
     signals_consulted: Mapping[str, Any] | None = None,
+    sizing_meta: Mapping[str, Any] | None = None,
 ) -> AllocationIntent:
     intent = target_intent(
         action=action,
@@ -202,7 +210,43 @@ def portfolio_target_intent(
     }
     if signals_consulted:
         diagnostics["signals_consulted"] = dict(signals_consulted)
+    if sizing_meta:
+        diagnostics["sizing_meta"] = dict(sizing_meta)
     return replace(intent, diagnostics=diagnostics)
+
+
+def sizing_meta_for_symbol(
+    *,
+    sizing: SizingStrategy,
+    base_step: float,
+    adjusted_step: float,
+    snapshot: PortfolioSnapshot,
+    asset: str,
+) -> dict[str, Any]:
+    return {
+        "strategy": sizing.name,
+        "base": float(base_step),
+        "adjusted": float(adjusted_step),
+        "fgi": current_fgi_value_for_symbol(snapshot, asset),
+    }
+
+
+def combine_sizing_meta(
+    sizing_meta_by_symbol: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    if len(sizing_meta_by_symbol) == 1:
+        return dict(next(iter(sizing_meta_by_symbol.values())))
+    if not sizing_meta_by_symbol:
+        return {}
+    values = [dict(value) for value in sizing_meta_by_symbol.values()]
+    strategies = {str(value.get("strategy")) for value in values}
+    return {
+        "strategy": values[0].get("strategy") if len(strategies) == 1 else "mixed",
+        "assets": {
+            normalize_symbol(symbol).lower(): dict(meta)
+            for symbol, meta in sizing_meta_by_symbol.items()
+        },
+    }
 
 
 def signals_consulted_for_symbols(
@@ -277,6 +321,7 @@ __all__ = [
     "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",
+    "combine_sizing_meta",
     "current_fgi_regime_for_symbol",
     "current_fgi_value_for_symbol",
     "current_target",
@@ -286,5 +331,6 @@ __all__ = [
     "portfolio_target_intent",
     "ratio_signals_consulted",
     "signals_consulted_for_symbols",
+    "sizing_meta_for_symbol",
     "symbols_for_snapshot",
 ]

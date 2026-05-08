@@ -1,11 +1,11 @@
-"""Portfolio rule that enforces shared trade-frequency quotas."""
+"""Risk guard that enforces shared trade-frequency quotas."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
 
-from src.services.backtesting.decision import AllocationIntent, RuleGroup
+from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
@@ -17,10 +17,9 @@ from src.services.backtesting.trade_quota import TradeQuotaLimits
 
 
 @dataclass
-class TradeQuotaRule:
+class TradeQuotaGuard:
     name: str = "trade_quota"
     priority: int = 0
-    rule_group: RuleGroup = "none"
     description: str = "Enforce min-interval and rolling trade quotas."
     min_trade_interval_days: int | None = None
     max_trades_7d: int | None = None
@@ -44,41 +43,30 @@ class TradeQuotaRule:
     def enabled(self) -> bool:
         return self._limits.enabled
 
-    def matches(
+    def allow(
         self,
+        intent: AllocationIntent,
         snapshot: PortfolioSnapshot,
         *,
         config: PortfolioRuleConfig,
-    ) -> bool:
-        del config
+    ) -> AllocationIntent | None:
         current_date = snapshot.current_date
+        del intent
         if not self.enabled or current_date is None:
-            return False
-        block_reason, _next_trade_date = self._limits.resolve_block_state(
-            current_date,
-            snapshot.trade_dates,
-        )
-        return block_reason is not None
-
-    def build_intent(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> AllocationIntent:
-        current_date = snapshot.current_date
-        assert current_date is not None
+            return None
         block_reason, next_trade_date = self._limits.resolve_block_state(
             current_date,
             snapshot.trade_dates,
         )
+        if block_reason is None:
+            return None
         return AllocationIntent(
             action="hold",
             target_allocation=current_target(snapshot),
             allocation_name=None,
             immediate=False,
-            reason=block_reason or "trade_quota_blocked",
-            rule_group=self.rule_group,
+            reason=block_reason,
+            rule_group="none",
             decision_score=0.0,
             diagnostics=self._build_diagnostic(
                 current_date=current_date,
@@ -118,4 +106,4 @@ class TradeQuotaRule:
         return diagnostics
 
 
-__all__ = ["TradeQuotaRule"]
+__all__ = ["TradeQuotaGuard"]

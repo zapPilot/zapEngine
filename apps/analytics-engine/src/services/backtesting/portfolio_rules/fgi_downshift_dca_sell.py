@@ -10,11 +10,13 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     add_stable,
     allocation_key_for_symbol,
+    combine_sizing_meta,
     current_fgi_regime_for_symbol,
     current_target,
     normalize_regime,
     portfolio_target_intent,
     signals_consulted_for_symbols,
+    sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
 from src.services.backtesting.target_allocation import normalize_target_allocation
@@ -47,8 +49,25 @@ class FgiDownshiftDcaSellRule:
     ) -> AllocationIntent:
         matching_symbols = _downshifted_symbols(snapshot)
         target = current_target(snapshot)
-        sell_step = max(0.0, float(config.fgi_downshift_sell_step))
+        sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
         for symbol in matching_symbols:
+            sell_step = max(
+                0.0,
+                float(
+                    config.fgi_downshift_sell_sizing.adjust_step(
+                        config.fgi_downshift_sell_step,
+                        snapshot=snapshot,
+                        asset=symbol,
+                    )
+                ),
+            )
+            sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
+                sizing=config.fgi_downshift_sell_sizing,
+                base_step=config.fgi_downshift_sell_step,
+                adjusted_step=sell_step,
+                snapshot=snapshot,
+                asset=symbol,
+            )
             key = allocation_key_for_symbol(symbol)
             sold = min(sell_step, max(0.0, float(target.get(key, 0.0))))
             target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
@@ -66,6 +85,7 @@ class FgiDownshiftDcaSellRule:
             )
             if config.emit_signals_consulted
             else None,
+            sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
         )
 
 

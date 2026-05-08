@@ -6,14 +6,13 @@ import pytest
 
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULES,
-    DmaBuyGateRule,
-    TradeQuotaRule,
 )
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     add_split_proceeds,
     cross_down_cooldown_days_for,
 )
+from src.services.backtesting.risk import DmaBuyGateGuard, TradeQuotaGuard
 
 
 def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
@@ -28,9 +27,9 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
     ]
 
 
-def test_optional_rule_priorities_preserve_existing_ordering() -> None:
-    assert TradeQuotaRule().priority == 0
-    assert DmaBuyGateRule().priority == 35
+def test_risk_guard_priorities_preserve_existing_ordering() -> None:
+    assert TradeQuotaGuard().priority == 0
+    assert DmaBuyGateGuard().priority == 35
 
 
 def test_add_split_proceeds_default_50_50() -> None:
