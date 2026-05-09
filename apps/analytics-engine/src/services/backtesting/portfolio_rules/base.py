@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
@@ -312,6 +312,59 @@ def add_split_proceeds(
     target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
 
 
+def build_dca_sell_intent(
+    *,
+    snapshot: PortfolioSnapshot,
+    matching_symbols: list[str],
+    sizing: SizingStrategy,
+    sell_step: float,
+    proceeds_handler: Callable[[dict[str, float], float], None],
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    emit_signals_consulted: bool,
+) -> AllocationIntent:
+    target = current_target(snapshot)
+    sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
+    for symbol in matching_symbols:
+        adjusted_sell_step = max(
+            0.0,
+            float(
+                sizing.adjust_step(
+                    sell_step,
+                    snapshot=snapshot,
+                    asset=symbol,
+                )
+            ),
+        )
+        sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
+            sizing=sizing,
+            base_step=sell_step,
+            adjusted_step=adjusted_sell_step,
+            snapshot=snapshot,
+            asset=symbol,
+        )
+        key = allocation_key_for_symbol(symbol)
+        sold = min(adjusted_sell_step, max(0.0, float(target.get(key, 0.0))))
+        target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
+        proceeds_handler(target, sold)
+    return portfolio_target_intent(
+        action="sell",
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=reason,
+        rule_group=rule_group,
+        assets=matching_symbols,
+        signals_consulted=signals_consulted_for_symbols(
+            snapshot,
+            tuple(matching_symbols),
+        )
+        if emit_signals_consulted
+        else None,
+        sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
+    )
+
+
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
     "PORTFOLIO_RULE_SYMBOLS",
@@ -322,6 +375,7 @@ __all__ = [
     "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",
+    "build_dca_sell_intent",
     "combine_sizing_meta",
     "current_fgi_regime_for_symbol",
     "current_fgi_value_for_symbol",

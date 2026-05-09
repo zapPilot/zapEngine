@@ -10,18 +10,12 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     add_stable,
-    allocation_key_for_symbol,
-    combine_sizing_meta,
+    build_dca_sell_intent,
     current_fgi_regime_for_symbol,
-    current_target,
     normalize_regime,
-    portfolio_target_intent,
-    signals_consulted_for_symbols,
-    sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
 from src.services.backtesting.sizing.flat import FlatSizing
-from src.services.backtesting.target_allocation import normalize_target_allocation
 
 if TYPE_CHECKING:
     from src.services.backtesting.sizing.base import SizingStrategy
@@ -56,44 +50,16 @@ class FgiDownshiftDcaSellRule:
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
         matching_symbols = _downshifted_symbols(snapshot)
-        target = current_target(snapshot)
-        sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
-        for symbol in matching_symbols:
-            sell_step = max(
-                0.0,
-                float(
-                    self.sizing.adjust_step(
-                        self.sell_step,
-                        snapshot=snapshot,
-                        asset=symbol,
-                    )
-                ),
-            )
-            sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
-                sizing=self.sizing,
-                base_step=self.sell_step,
-                adjusted_step=sell_step,
-                snapshot=snapshot,
-                asset=symbol,
-            )
-            key = allocation_key_for_symbol(symbol)
-            sold = min(sell_step, max(0.0, float(target.get(key, 0.0))))
-            target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
-            add_stable(target, sold)
-        return portfolio_target_intent(
-            action="sell",
-            target=normalize_target_allocation(target),
+        return build_dca_sell_intent(
+            snapshot=snapshot,
+            matching_symbols=matching_symbols,
+            sizing=self.sizing,
+            sell_step=self.sell_step,
+            proceeds_handler=add_stable,
             allocation_name="portfolio_fgi_downshift_dca_sell",
             reason="portfolio_fgi_downshift_dca_sell",
             rule_group=self.rule_group,
-            assets=matching_symbols,
-            signals_consulted=signals_consulted_for_symbols(
-                snapshot,
-                tuple(matching_symbols),
-            )
-            if config.emit_signals_consulted
-            else None,
-            sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
+            emit_signals_consulted=config.emit_signals_consulted,
         )
 
 
