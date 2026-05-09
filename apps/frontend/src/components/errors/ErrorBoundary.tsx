@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 
+import { GRADIENTS } from '@/constants/designSystem';
 import { isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { logger } from '@/utils';
 
@@ -223,7 +224,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <GradientButton
                   onClick={this.handleRetry}
-                  gradient="from-blue-500 to-purple-600"
+                  gradient={GRADIENTS.PRIMARY}
                   shadowColor="blue"
                   className="flex-1 sm:flex-none px-6 py-3"
                 >
@@ -231,7 +232,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </GradientButton>
                 <GradientButton
                   onClick={this.handleReload}
-                  gradient="from-gray-500 to-gray-600"
+                  gradient={GRADIENTS.DARK}
                   shadowColor="gray"
                   className="flex-1 sm:flex-none px-6 py-3"
                 >

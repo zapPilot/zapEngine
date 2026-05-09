@@ -30,6 +30,7 @@
     "clean": "rm -rf dist coverage .vitest-reports"
   },
   "dependencies": {
+    "@zapengine/design-tokens": "workspace:*",
     "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",
     "@hookform/resolvers": "^5.2.2",

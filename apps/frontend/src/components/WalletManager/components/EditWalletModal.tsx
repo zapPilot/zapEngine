@@ -8,6 +8,7 @@ import {
 
 import { BaseCard, GradientButton, LoadingSpinner } from '@/components/ui';
 import { ModalBackdrop } from '@/components/ui/modal';
+import { GRADIENTS } from '@/constants/designSystem';
 import type { WalletData } from '@/lib/validation/walletUtils';
 import type { EditingWallet, WalletOperations } from '@/types';
 import { formatAddress } from '@/utils/formatters';
@@ -87,7 +88,7 @@ export function EditWalletModal({
           <div className="flex gap-3">
             <GradientButton
               onClick={handleSave}
-              gradient="from-green-600 to-emerald-600"
+              gradient={GRADIENTS.SUCCESS}
               className="flex-1"
               disabled={!newLabel.trim() || Boolean(isLoading)}
             >

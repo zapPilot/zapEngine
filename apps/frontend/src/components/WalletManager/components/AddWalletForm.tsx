@@ -74,7 +74,7 @@ export function AddWalletForm({
           <div className="flex space-x-2">
             <GradientButton
               onClick={onAddWallet}
-              gradient="from-green-600 to-emerald-600"
+              gradient={GRADIENTS.SUCCESS}
               className="flex-1"
               disabled={operations.adding.isLoading}
             >

@@ -2,6 +2,7 @@ import { ArrowRight } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { GRADIENTS } from '@/constants/designSystem';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { transactionServiceMock } from '@/services';
 import type { RebalanceModalProps } from '@/types/ui/ui.types';
@@ -143,7 +144,7 @@ export function RebalanceModal({
               </div>
 
               <TransactionActionButton
-                gradient="from-indigo-600 to-purple-600"
+                gradient={GRADIENTS.PRIMARY}
                 disabled={!isConnected}
                 onClick={handleSubmit}
                 label={actionLabel}

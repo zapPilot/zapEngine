@@ -215,7 +215,7 @@ exports[`ToastNotification > Snapshot Tests - UI Design Freeze > should match sn
             Test Title
           </h4>
           <button
-            class="mt-2 w-full px-3 py-1.5 text-sm rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition font-medium"
+            class="mt-2 w-full px-3 py-1.5 text-sm rounded-md bg-accent hover:bg-accent/90 text-bg transition font-medium"
           >
             Retry
           </button>

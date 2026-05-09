@@ -14,7 +14,7 @@ export function QuickSwitchFAB({
   return (
     <button
       onClick={onSwitchToMyBundle}
-      className={`fixed bottom-24 right-4 ${Z_INDEX.FAB} w-14 h-14 rounded-full bg-gradient-to-r ${GRADIENTS.PRIMARY} shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group ${className}`}
+      className={`fixed bottom-24 right-4 ${Z_INDEX.FAB} w-14 h-14 rounded-full ${GRADIENTS.PRIMARY} shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group ${className}`}
       title="Go to my bundle"
       data-testid="quick-switch-fab"
     >

@@ -25,7 +25,7 @@ function GradientButtonComponent({
 }: GradientButtonProps): ReactElement {
   const fullClassName = cn(
     'p-4 rounded-2xl text-white font-semibold flex items-center justify-center space-x-2 transition-all duration-300',
-    `bg-gradient-to-r ${gradient}`,
+    gradient,
     shadowColor && `hover:shadow-lg hover:shadow-${shadowColor}/25`,
     disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
     className,

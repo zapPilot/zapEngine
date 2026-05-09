@@ -24,7 +24,7 @@ const MockIcon = vi.fn(() => <span data-testid="mock-icon">Icon</span>);
 
 describe('GradientButton', () => {
   const defaultProps = {
-    gradient: 'from-blue-500 to-purple-500',
+    gradient: 'bg-accent',
   };
 
   it('should render children correctly', () => {
@@ -37,7 +37,7 @@ describe('GradientButton', () => {
     expect(screen.getByText('Click me')).toBeInTheDocument();
   });
 
-  it('should apply gradient classes', () => {
+  it('should apply token background class without gradient wrapper', () => {
     render(
       <GradientButton {...defaultProps} testId="gradient-btn">
         Click me
@@ -45,11 +45,8 @@ describe('GradientButton', () => {
     );
 
     const button = screen.getByTestId('gradient-btn');
-    expect(button).toHaveClass(
-      'bg-gradient-to-r',
-      'from-blue-500',
-      'to-purple-500',
-    );
+    expect(button).toHaveClass('bg-accent');
+    expect(button).not.toHaveClass('bg-gradient-to-r');
   });
 
   it('should call onClick when clicked', () => {
