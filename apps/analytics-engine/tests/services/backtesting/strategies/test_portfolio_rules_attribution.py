@@ -4,7 +4,6 @@ from datetime import date
 
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
@@ -27,7 +26,6 @@ from src.services.backtesting.strategy_registry import (
 def test_portfolio_rules_variant_registry_complete() -> None:
     assert set(PORTFOLIO_RULES_ATTRIBUTION_VARIANTS) == {
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
@@ -59,7 +57,6 @@ def test_portfolio_rules_recipes_build_strategies_with_variant_disabled_rules() 
         assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
         assert strategy.strategy_id == strategy_id
         assert strategy.disabled_rules == variant.disabled_rules
-        assert strategy.use_adaptive_sizing is variant.use_adaptive_sizing
         assert recipe.runtime_portfolio_mode == "asset"
         assert recipe.market_data_requirements.required_aux_series == frozenset(
             {ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}

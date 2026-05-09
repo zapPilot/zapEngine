@@ -19,19 +19,12 @@ class EpisodeService {
     SupabaseService? supabaseService,
     UserEpisodeStateWriter? userEpisodeStateWriter,
     DateTime Function()? now,
-  }) : this._(
-          supabaseService ?? SupabaseService(),
-          userEpisodeStateWriter,
-          now ?? DateTime.now,
-        );
-
-  EpisodeService._(
-    SupabaseService supabaseService,
-    UserEpisodeStateWriter? userEpisodeStateWriter,
-    this._now,
-  )   : _supabaseService = supabaseService,
+  })  : _supabaseService = supabaseService ?? SupabaseService(),
         _userEpisodeStateWriter = userEpisodeStateWriter ??
-            SupabaseUserEpisodeStateWriter(supabaseService);
+            SupabaseUserEpisodeStateWriter(
+              supabaseService ?? SupabaseService(),
+            ),
+        _now = now ?? DateTime.now;
 
   final SupabaseService _supabaseService;
   final UserEpisodeStateWriter _userEpisodeStateWriter;
@@ -96,7 +89,11 @@ class EpisodeService {
       for (final row in rows)
         row['episode_id'] as String: UserEpisodeState(
           listened: row['listened'] as bool? ?? false,
-          lastPositionSeconds: _readStateSeconds(row),
+          lastPositionSeconds: readIntFromJson(
+            row,
+            'lastPositionSeconds',
+            'last_position_seconds',
+          ),
         ),
     };
   }
@@ -149,8 +146,4 @@ class SupabaseUserEpisodeStateWriter implements UserEpisodeStateWriter {
         .from('user_episode_state')
         .upsert(values, onConflict: onConflict);
   }
-}
-
-int _readStateSeconds(Map<String, dynamic> row) {
-  return readIntFromJson(row, 'lastPositionSeconds', 'last_position_seconds');
 }

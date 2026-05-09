@@ -14,15 +14,16 @@ class MiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
     final episode = playback.currentEpisode;
+    final hidden = episode == null;
 
     return AnimatedSlide(
-      offset: episode == null ? const Offset(0, 1.2) : Offset.zero,
+      offset: hidden ? const Offset(0, 1.2) : Offset.zero,
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
       child: AnimatedOpacity(
-        opacity: episode == null ? 0 : 1,
+        opacity: hidden ? 0 : 1,
         duration: const Duration(milliseconds: 180),
-        child: episode == null
+        child: hidden
             ? const SizedBox.shrink()
             : SafeArea(
                 top: false,

@@ -44,7 +44,6 @@ def test_btc_overextension_routes_50_50_spy_stable() -> None:
     )
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
-    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"
 
 
 def test_spy_overextension_self_rebuys_half() -> None:
@@ -73,4 +72,3 @@ def test_spy_overextension_self_rebuys_half() -> None:
     )
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["SPY"]
-    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"

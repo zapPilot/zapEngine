@@ -261,7 +261,6 @@ class PlaybackProvider extends ChangeNotifier {
         _lastPersistedSecond = startAt.inSeconds;
         await _handler.seek(startAt);
         _position = startAt;
-        _lastPersistedSecond = startAt.inSeconds;
       }
     } finally {
       _loadingEpisodeId = null;

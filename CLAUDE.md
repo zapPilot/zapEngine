@@ -2,7 +2,7 @@ See @README.md for project overview and @package.json for root scripts.
 
 # Build order
 
-Internal packages (`packages/*`) are built automatically by `pnpm check:local`, `check:ci`, and `check:ci:core` via the `prebuild:packages` step. When invoking type-check or tests directly:
+Internal packages (`packages/*`) are built automatically by `pnpm check:local`, `check:ci`, and `check:ci:core` via the `prebuild:packages` step. `pnpm contracts:check` also runs that prebuild before exporting schemas. When invoking type-check or tests directly:
 
 - **Prefer**: `pnpm type-check` / `pnpm test` from the root (Turbo handles `^build` upstream deps).
 - **If TS2307 appears** on `@zapengine/*` imports when running `pnpm --filter X type-check` directly: run `pnpm prebuild:packages` first.
@@ -73,4 +73,3 @@ This repository uses **CLAUDE.md** as the single source of truth for AI assistan
 **Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
-

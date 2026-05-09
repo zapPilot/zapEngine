@@ -28,7 +28,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaMarketState,
 )
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
-from src.services.backtesting.sizing import FgiExponentialSizing
+from src.services.backtesting.sizing import FlatSizing
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesDecisionPolicy,
@@ -1176,14 +1176,14 @@ def test_strategy_wires_trade_quota_guard_from_params() -> None:
     ]
 
 
-def test_strategy_adaptive_sizing_customizes_extreme_fear_rule_instance() -> None:
+def test_strategy_keeps_extreme_fear_rule_on_flat_sizing() -> None:
     strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
 
     rules_by_name = {rule.name: rule for rule in strategy.decision_policy.rules}
     extreme_fear_rule = rules_by_name["extreme_fear_dca_buy"]
 
     assert isinstance(extreme_fear_rule, ExtremeFearDcaBuyRule)
-    assert isinstance(extreme_fear_rule.sizing, FgiExponentialSizing)
+    assert isinstance(extreme_fear_rule.sizing, FlatSizing)
     assert strategy.decision_policy.config.emit_signals_consulted is True
 
 

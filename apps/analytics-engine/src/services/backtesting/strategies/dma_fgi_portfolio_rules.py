@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import JsonValue
 
@@ -45,9 +45,6 @@ from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownEx
 from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
     EthBtcRatioRotationRule,
 )
-from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
-    ExtremeFearDcaBuyRule,
-)
 from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.risk import (
     RiskGuard,
@@ -55,7 +52,6 @@ from src.services.backtesting.risk import (
     TradeQuotaGuard,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
-from src.services.backtesting.sizing import FgiExponentialSizing
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
@@ -213,7 +209,6 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_PORTFOLIO_RULES]
     canonical_strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES
     disabled_rules: frozenset[str] = frozenset()
-    use_adaptive_sizing: bool = True
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
 
@@ -231,8 +226,6 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
         rules = build_portfolio_rules_for_params(resolved_params)
-        if self.use_adaptive_sizing:
-            rules = _with_adaptive_extreme_fear_sizing(rules)
         self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
             disabled_rules=self.disabled_rules,
             rules=rules,
@@ -292,7 +285,6 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         return {
             **self.public_params,
             "disabled_rules": sorted(self.disabled_rules),
-            "use_adaptive_sizing": self.use_adaptive_sizing,
             "feature_summary": self.feature_summary(),
         }
 
@@ -341,19 +333,12 @@ def build_portfolio_rules_for_params(
     params: DmaGatedFgiParams,
 ) -> tuple[PortfolioRule, ...]:
     del params
-    rules: list[PortfolioRule] = list(DEFAULT_PORTFOLIO_RULES)
+    rules = [_fresh_portfolio_rule(rule) for rule in DEFAULT_PORTFOLIO_RULES]
     return tuple(sorted(rules, key=lambda rule: rule.priority))
 
 
-def _with_adaptive_extreme_fear_sizing(
-    rules: tuple[PortfolioRule, ...],
-) -> tuple[PortfolioRule, ...]:
-    return tuple(
-        replace(rule, sizing=FgiExponentialSizing(max_multiplier=1.1))
-        if isinstance(rule, ExtremeFearDcaBuyRule)
-        else rule
-        for rule in rules
-    )
+def _fresh_portfolio_rule(rule: PortfolioRule) -> PortfolioRule:
+    return cast(PortfolioRule, replace(rule))
 
 
 def _required_rule(

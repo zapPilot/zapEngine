@@ -16,9 +16,9 @@ Outer layer (SPY / crypto):  SPY_CRYPTO_TEMPLATE with DMA gating
   └── Inner layer (ETH / BTC): ADAPTIVE_BINARY_ETH_BTC_TEMPLATE (ratio rotation)
 
 Outer policy: MinimumHierarchicalOuterPolicy (zero tunable fields)
-  ├── Feature 1: DMA stable gating
+  ├── Feature 1: DMA stable gating  (DmaGatedFgiDecisionPolicy in hierarchical_outer_policy.py)
   │   └── When crypto < CRYPTO_DMA in fear regime → lift to stable
-  ├── Feature 2: Greed Sell Suppression
+  ├── Feature 2: Greed Sell Suppression  (FULL_DISABLED_RULES in hierarchical_attribution.py)
   │   └── When extreme greed + PLAIN_GREED_SELL_RULE not disabled → suppress sell-to-stable
   ├── Feature 3: SPY macro extreme-fear DCA
   │   └── When CNN macro F&G is extreme fear and SPY < SPY_DMA → buy SPY from stable
@@ -37,8 +37,7 @@ Source files:
 
 | Strategy | ROI (500d) | Notes |
 |---|---|---|
-| `dma_fgi_portfolio_rules` | 64.10% | Flat rule-engine + adaptive extreme-fear sizing |
-| `dma_fgi_portfolio_rules_minus_adaptive_sizing` | 64.10% | Flat sizing baseline |
+| `dma_fgi_portfolio_rules` | 64.10% | Flat rule-engine baseline |
 | `dma_fgi_portfolio_rules_minus_cross_down_exit` | 27.80% | Portfolio rules leave-one-out |
 | `dma_fgi_portfolio_rules_minus_cross_up_eq_weight` | 10.69% | Portfolio rules leave-one-out |
 | `dma_fgi_portfolio_rules_minus_extreme_fear_buy` | 65.25% | Portfolio rules leave-one-out |
@@ -53,13 +52,11 @@ Source files:
 `dma_fgi_portfolio_rules` is the canonical flat rule-engine baseline. It keeps
 the seven user-facing strategy rules in `portfolio_rules/` as portfolio-snapshot
 rules, then applies post-decision risk guards from `risk/` before atomic
-execution through `RuleBasedAllocationExecutor`. Extreme-fear buys use
-`FgiExponentialSizing(max_multiplier=1.1)` and emit `sizing_meta` in
-`decisions.jsonl`; `_minus_adaptive_sizing` preserves the flat-sizing baseline.
-Cross-down cooldown is per symbol: BTC/ETH/SPY use 30 days by default. The
-500-day fixture baseline is 64.10% ROI, 4.27 Calmar, -10.20% MaxDD, and 48
-trades. It is a traceability baseline, not a performance target; compare rule
-attribution against the canonical entry.
+execution through `RuleBasedAllocationExecutor`. Cross-down cooldown is per
+symbol: BTC/ETH/SPY use 30 days by default. The 500-day fixture baseline is
+64.10% ROI, 4.27 Calmar, -10.20% MaxDD, and 48 trades. It is a traceability
+baseline, not a performance target; compare rule attribution against the
+canonical entry.
 
 ### Coverage scope
 
@@ -104,7 +101,8 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 |---|---|---|
 | DMA stable gating | **-96.96pp** ROI | `fe8db22` |
 | Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
-| Inner ETH/BTC ratio rotation | `eth_btc_rotation` = 126.26% ROI | pre-existing |
+| Inner `ADAPTIVE_BINARY_ETH_BTC_TEMPLATE` (continuous, sat. at 20% DMA distance) | wired into `dma_fgi_hierarchical_minimum`; contributes to 121.30% ROI | composition-validated |
+| Standalone `eth_btc_rotation` (binary cross on 200d DMA, 30d cooldown) | 126.26% ROI | pre-existing |
 | SPY macro extreme-fear DCA | Fixture-validated; included in 2026-05-04 re-anchor: ROI -0.14pp, Calmar +0.12 | 2026-05-04 |
 | Persistent SPY latch | Fixture-validated cross-up-day existing stable redeploy plus later fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
 
@@ -118,10 +116,15 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 | Buy Floor | Removed from the kept minimum target | Re-introduce only through a new measured variant |
 | Broad Cross-Down Cooldown | Removed with the minimum research variants | Too blunt without new evidence |
 | Broad Below-DMA Hold | Removed with the minimum research variants | Too blunt without new evidence |
+| Adaptive Extreme-Fear Sizing (`FgiExponentialSizing`) | `_minus_adaptive_sizing` snapshot Δ -0.0002pp (noise floor 0.5pp) | Re-introduce only with sizing strategy showing \|Δ\| ≥ 2pp |
 
 Signal/noise threshold: **|Δ| < 0.5pp** = noise; **0.5pp ≤ |Δ| < 2pp** = weak signal; **|Δ| ≥ 2pp** = actionable.
 
 Phase D note: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` is BTC 0.00%, ETH 90.48%, confirming an inner-pair below-DMA allocation bug; the broad below-DMA hold variants were not viable.
+
+## Open gaps
+
+- **Wider ETH/BTC DMA-deviation rotation**: existing `ADAPTIVE_BINARY_ETH_BTC_TEMPLATE` saturates at 20% below DMA. Design intent is DCA at 40% deviation and large-scale rotation at 50% deviation. Around 2025-05-01 the ratio sat ~28% below DMA; capture the inner-allocation snapshot for that date in `decisions.jsonl` before re-tuning, to confirm whether the behavior gap is in the threshold values or in the rotation firing earlier elsewhere in the stack.
 
 ## Adding a new variant
 

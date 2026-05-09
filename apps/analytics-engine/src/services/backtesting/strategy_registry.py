@@ -190,7 +190,6 @@ def _build_portfolio_rules_strategy(
         display_name=strategy_id,
         canonical_strategy_id=variant_id,
         disabled_rules=variant.disabled_rules,
-        use_adaptive_sizing=variant.use_adaptive_sizing,
         initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
             request,
             build_initial_portfolio_rules_asset_allocation,

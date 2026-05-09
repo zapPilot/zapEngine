@@ -30,59 +30,51 @@
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "[RESEARCH] Portfolio Rules",
-      "calmar_ratio": 4.2665,
-      "sharpe_ratio": 1.9069,
-      "max_drawdown_percent": -10.2024,
-      "roi_percent": 64.0974,
-      "trade_count": 48
-    },
-    "dma_fgi_portfolio_rules_minus_adaptive_sizing": {
-      "display_name": "[RESEARCH] Portfolio Rules - Adaptive Sizing",
-      "calmar_ratio": 4.2665,
-      "sharpe_ratio": 1.9112,
-      "max_drawdown_percent": -10.2024,
-      "roi_percent": 64.0972,
-      "trade_count": 48
+      "calmar_ratio": 4.9129,
+      "sharpe_ratio": 2.2334,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 67.6831,
+      "trade_count": 56
     },
     "dma_fgi_portfolio_rules_minus_cross_down_exit": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Down Exit",
-      "calmar_ratio": 0.7182,
-      "sharpe_ratio": 0.765,
-      "max_drawdown_percent": -27.2671,
-      "roi_percent": 27.7958,
-      "trade_count": 41
+      "calmar_ratio": 0.7834,
+      "sharpe_ratio": 0.8364,
+      "max_drawdown_percent": -27.6443,
+      "roi_percent": 30.8415,
+      "trade_count": 59
     },
     "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
       "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
-      "calmar_ratio": 1.0373,
-      "sharpe_ratio": 0.8822,
-      "max_drawdown_percent": -7.3984,
-      "roi_percent": 10.6893,
-      "trade_count": 19
+      "calmar_ratio": 2.7203,
+      "sharpe_ratio": 1.3029,
+      "max_drawdown_percent": -11.1662,
+      "roi_percent": 43.8521,
+      "trade_count": 51
     },
     "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
       "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
-      "calmar_ratio": 4.3388,
-      "sharpe_ratio": 1.9879,
-      "max_drawdown_percent": -10.2024,
-      "roi_percent": 65.2527,
-      "trade_count": 40
+      "calmar_ratio": 5.0001,
+      "sharpe_ratio": 2.2754,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 68.9644,
+      "trade_count": 45
     },
     "dma_fgi_portfolio_rules_minus_overextension_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
-      "calmar_ratio": 1.6295,
-      "sharpe_ratio": 1.2423,
-      "max_drawdown_percent": -21.6134,
-      "roi_percent": 51.2425,
-      "trade_count": 34
+      "calmar_ratio": 3.094,
+      "sharpe_ratio": 1.5416,
+      "max_drawdown_percent": -13.3893,
+      "roi_percent": 60.833,
+      "trade_count": 35
     },
     "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
       "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
-      "calmar_ratio": 4.2959,
-      "sharpe_ratio": 1.9091,
+      "calmar_ratio": 4.3437,
+      "sharpe_ratio": 1.9278,
       "max_drawdown_percent": -10.209,
-      "roi_percent": 64.6108,
-      "trade_count": 46
+      "roi_percent": 65.3773,
+      "trade_count": 49
     },
     "eth_btc_rotation": {
       "display_name": "ETH/BTC Relative Strength Rotation",

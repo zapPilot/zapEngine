@@ -32,9 +32,6 @@ def format_decision_log_line(
         "target": _target_name(details),
         "executed": _executed(point),
     }
-    sizing_meta = _sizing_meta(details)
-    if sizing_meta:
-        payload["sizing_meta"] = sizing_meta
     return json.dumps(payload, sort_keys=False, separators=(",", ":"))
 
 
@@ -150,17 +147,6 @@ def _signals_consulted(details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _sizing_meta(details: dict[str, Any]) -> dict[str, Any]:
-    raw = details.get("sizing_meta")
-    if not isinstance(raw, dict):
-        return {}
-    return {
-        str(key): value
-        for key, value in ((key, _json_value(value)) for key, value in raw.items())
-        if isinstance(key, str) and value is not None
-    }
-
-
 def _executed(point: dict[str, Any]) -> bool:
     execution = _mapping(point.get("execution"))
     transfers = execution.get("transfers")
@@ -173,24 +159,6 @@ def _json_scalar(value: Any) -> Any:
             return _round_number(value, digits=6)
         return value
     return str(value)
-
-
-def _json_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            str(key): nested
-            for key, nested in (
-                (key, _json_value(nested)) for key, nested in value.items()
-            )
-            if isinstance(key, str) and nested is not None
-        }
-    if isinstance(value, list | tuple):
-        return [
-            nested
-            for nested in (_json_value(item) for item in value)
-            if nested is not None
-        ]
-    return _json_scalar(value)
 
 
 def _round_number(value: Any, *, digits: int) -> float:
