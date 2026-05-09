@@ -58,7 +58,8 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
     recipe_ids = {recipe.strategy_id for recipe in list_strategy_recipes()}
 
     assert {entry.strategy_id for entry in catalog.strategies} == recipe_ids
-    assert len(recipe_ids) == 10
+    assert STRATEGY_ETH_BTC_ROTATION in recipe_ids
+    assert STRATEGY_DMA_FGI_PORTFOLIO_RULES in recipe_ids
 
 
 def test_eth_btc_rotation_recipe_builds_compare_strategy() -> None:

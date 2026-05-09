@@ -40,7 +40,7 @@
     "@lifi/sdk": "^3.4.0",
     "@zapengine/types": "workspace:*",
     "viem": "catalog:",
-    "zod": "^4.1.13"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",

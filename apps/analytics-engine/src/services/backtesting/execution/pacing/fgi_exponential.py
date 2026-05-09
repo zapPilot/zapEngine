@@ -6,7 +6,6 @@ and front-loaded geometric weights for the convergence ramp.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from src.services.backtesting.execution.pacing.base import (
@@ -14,6 +13,7 @@ from src.services.backtesting.execution.pacing.base import (
     RebalancePacingInputs,
     _normalized_fgi_distance_from_neutral,
 )
+from src.services.backtesting.sizing.fgi_exponential import fgi_exponential_intensity
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,13 +52,7 @@ class FgiExponentialPacingPolicy(FgiPacingPolicyBase):
         Returns:
             Convex-mapped t in [0, 1]
         """
-        t = _normalized_fgi_distance_from_neutral(fgi_value)
-        if self.k <= 0:
-            return t
-        denom = math.exp(self.k) - 1.0
-        if denom <= 0:
-            return t
-        return (math.exp(self.k * t) - 1.0) / denom
+        return fgi_exponential_intensity(fgi_value, k=self.k)
 
     def step_weights(
         self, inputs: RebalancePacingInputs, step_count: int

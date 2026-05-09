@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-)
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
 from src.services.backtesting.strategies.hierarchical_attribution import (
     LEGACY_DMA_BUY_STRENGTH_FLOOR,
 )
@@ -41,7 +38,6 @@ def _build_strategy(strategy_id: str) -> HierarchicalMinimumStrategy:
 def test_minimum_variant_registry_complete() -> None:
     assert set(MINIMUM_HIERARCHICAL_VARIANTS) == {
         STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
     }
     for strategy_id, variant in MINIMUM_HIERARCHICAL_VARIANTS.items():
         recipe = get_strategy_recipe(strategy_id)

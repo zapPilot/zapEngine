@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY,
@@ -27,6 +28,7 @@ class PortfolioRulesAttributionVariant:
     display_name: str
     description: str
     disabled_rules: frozenset[str]
+    use_adaptive_sizing: bool = True
 
 
 def _variant(
@@ -34,12 +36,14 @@ def _variant(
     *,
     description: str,
     disabled_rules: frozenset[str],
+    use_adaptive_sizing: bool = True,
 ) -> PortfolioRulesAttributionVariant:
     return PortfolioRulesAttributionVariant(
         strategy_id=strategy_id,
         display_name=STRATEGY_DISPLAY_NAMES[strategy_id],
         description=description,
         disabled_rules=disabled_rules,
+        use_adaptive_sizing=use_adaptive_sizing,
     )
 
 
@@ -48,6 +52,12 @@ PORTFOLIO_RULES_ATTRIBUTION_VARIANTS: dict[str, PortfolioRulesAttributionVariant
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         description="Canonical flat portfolio-rule strategy with all five DMA/FGI rules enabled.",
         disabled_rules=frozenset(),
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING: _variant(
+        STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING,
+        description="Leave-one-out: portfolio rules with flat extreme-fear buy sizing.",
+        disabled_rules=frozenset(),
+        use_adaptive_sizing=False,
     ),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: _variant(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT,

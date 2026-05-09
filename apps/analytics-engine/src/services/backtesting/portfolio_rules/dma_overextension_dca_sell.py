@@ -2,29 +2,38 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     add_split_proceeds,
-    allocation_key_for_symbol,
-    current_target,
+    build_dca_sell_intent,
     normalize_symbol,
-    portfolio_target_intent,
-    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
-from src.services.backtesting.target_allocation import normalize_target_allocation
+from src.services.backtesting.sizing.flat import FlatSizing
+
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
 
 
 @dataclass(frozen=True)
 class DmaOverextensionDcaSellRule:
     name: str = "dma_overextension_dca_sell"
     priority: int = 30
+    cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets that are above DMA and beyond asset-specific extension thresholds."
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+    spy_share: float = 0.5
+    default_dma_overextension_threshold: float = 0.30
+    dma_overextension_thresholds: dict[str, float] = field(
+        default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
+    )
 
     def matches(
         self,
@@ -32,7 +41,8 @@ class DmaOverextensionDcaSellRule:
         *,
         config: PortfolioRuleConfig,
     ) -> bool:
-        return bool(_matching_symbols(snapshot, config=config))
+        del config
+        return bool(_matching_symbols(snapshot, rule=self))
 
     def build_intent(
         self,
@@ -40,52 +50,42 @@ class DmaOverextensionDcaSellRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _matching_symbols(snapshot, config=config)
-        target = current_target(snapshot)
-        sell_step = max(0.0, float(config.overextension_sell_step))
-        for symbol in matching_symbols:
-            key = allocation_key_for_symbol(symbol)
-            sold = min(sell_step, max(0.0, float(target.get(key, 0.0))))
-            target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
-            add_split_proceeds(
+        matching_symbols = _matching_symbols(snapshot, rule=self)
+        return build_dca_sell_intent(
+            snapshot=snapshot,
+            matching_symbols=matching_symbols,
+            sizing=self.sizing,
+            sell_step=self.sell_step,
+            proceeds_handler=lambda target, sold: add_split_proceeds(
                 target,
                 sold,
-                spy_share=config.overextension_sell_spy_share,
-            )
-        return portfolio_target_intent(
-            action="sell",
-            target=normalize_target_allocation(target),
+                spy_share=self.spy_share,
+            ),
             allocation_name="portfolio_dma_overextension_dca_sell",
             reason="portfolio_dma_overextension_dca_sell",
             rule_group=self.rule_group,
-            assets=matching_symbols,
-            signals_consulted=signals_consulted_for_symbols(
-                snapshot,
-                tuple(matching_symbols),
-            )
-            if config.emit_signals_consulted
-            else None,
+            emit_signals_consulted=config.emit_signals_consulted,
         )
 
 
 def _matching_symbols(
     snapshot: PortfolioSnapshot,
     *,
-    config: PortfolioRuleConfig,
+    rule: DmaOverextensionDcaSellRule,
 ) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
-        and snapshot.assets[symbol].dma_distance > _threshold(symbol, config=config)
+        and snapshot.assets[symbol].dma_distance > _threshold(symbol, rule=rule)
     ]
 
 
-def _threshold(symbol: str, *, config: PortfolioRuleConfig) -> float:
+def _threshold(symbol: str, *, rule: DmaOverextensionDcaSellRule) -> float:
     return float(
-        config.dma_overextension_thresholds.get(
+        rule.dma_overextension_thresholds.get(
             normalize_symbol(symbol),
-            config.default_dma_overextension_threshold,
+            rule.default_dma_overextension_threshold,
         )
     )
 

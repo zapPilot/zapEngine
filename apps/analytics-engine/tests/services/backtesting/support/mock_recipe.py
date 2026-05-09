@@ -5,6 +5,7 @@ from typing import Any
 from src.services.backtesting import strategy_registry as strategy_registry_module
 from src.services.backtesting.capabilities import map_portfolio_to_two_buckets
 from src.services.backtesting.features import MarketDataRequirements
+from src.services.backtesting.public_params import DmaGatedFgiPublicParams
 from src.services.backtesting.strategies.base import BaseStrategy, StrategyAction
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
@@ -59,6 +60,8 @@ def make_mock_recipe(
             required_price_features=required_price_features,
         ),
         portfolio_bucket_mapper=map_portfolio_to_two_buckets,
+        public_params_model=DmaGatedFgiPublicParams,
+        param_family="dma",
         normalize_public_params=_normalize_params,
         build_strategy=_build_strategy,
         supports_daily_suggestion=False,

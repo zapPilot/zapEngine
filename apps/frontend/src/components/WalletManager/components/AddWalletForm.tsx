@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import { type ChangeEvent, type ReactElement } from 'react';
 
 import { GradientButton, LoadingSpinner } from '@/components/ui';
-import { ANIMATIONS, GRADIENTS } from '@/constants/design-system';
+import { ANIMATIONS, GRADIENTS } from '@/constants/designSystem';
 import type { NewWallet, WalletOperations } from '@/types';
 
 interface AddWalletFormProps {
@@ -74,7 +74,7 @@ export function AddWalletForm({
           <div className="flex space-x-2">
             <GradientButton
               onClick={onAddWallet}
-              gradient="from-green-600 to-emerald-600"
+              gradient={GRADIENTS.SUCCESS}
               className="flex-1"
               disabled={operations.adding.isLoading}
             >

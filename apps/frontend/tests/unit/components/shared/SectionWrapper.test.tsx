@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SectionWrapper } from '@/components/shared/SectionWrapper';
-import type { SectionState } from '@/types/portfolio-progressive';
+import type { SectionState } from '@/types/portfolioProgressive';
 
 vi.mock('framer-motion', async () => {
   const { setupFramerMotionMocks } =

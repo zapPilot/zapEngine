@@ -8,10 +8,7 @@ import {
 import { type StrategyDirection } from '@/components/wallet/regime/strategyLabels';
 import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
 import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
-import type {
-  SectionState,
-  SentimentData,
-} from '@/types/portfolio-progressive';
+import type { SectionState, SentimentData } from '@/types/portfolioProgressive';
 
 export function findRegimeById(
   regimeId: string | null | undefined,

@@ -12,12 +12,15 @@ zapEngine/
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
 │   ├── frontend            # React 19 + Vite — dashboard SPA
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
-│   └── mobile              # Flutter — From Fed to Chain podcast app
+│   ├── mobile              # Flutter — From Fed to Chain podcast app
+│   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
     ├── design-tokens       # Shared ZapPilot brand tokens for web + Flutter
+    ├── eslint-config       # Shared ESLint flat-config presets
     ├── intent-engine       # Shared TypeScript library — DeFi routing logic
-    ├── types               # Shared TypeScript types & Zod schemas
-    └── tsconfig            # Shared TypeScript config presets
+    ├── knip-config         # Shared knip dead-code-detection base config
+    ├── tsconfig            # Shared TypeScript config presets
+    └── types               # Shared TypeScript types & Zod schemas
 ```
 
 | App              | Language     | Framework         | Deploy                 |
@@ -28,6 +31,7 @@ zapEngine/
 | frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
 | landing-page     | TypeScript   | Next.js 15        | Vercel                 |
 | mobile           | Dart         | Flutter           | App Store / Play Store |
+| podcast-pipeline | TypeScript   | Hono 4.10         | Fly.io                 |
 
 ## Prerequisites
 

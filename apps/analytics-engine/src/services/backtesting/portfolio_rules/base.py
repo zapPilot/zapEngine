@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -31,25 +31,14 @@ SYMBOL_BY_ALLOCATION_KEY: dict[str, str] = {
 }
 _EPSILON = 1e-12
 
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
+
 
 @dataclass(frozen=True)
 class PortfolioRuleConfig:
     """Config shared by portfolio-level DMA/FGI rules."""
 
-    extreme_fear_buy_step: float = 0.05
-    overextension_sell_step: float = 0.05
-    fgi_downshift_sell_step: float = 0.05
-    ratio_cross_cooldown_days: int = 30
-    default_cross_down_cooldown_days: int = 30
-    global_cooldown_days: int = 7
-    overextension_sell_spy_share: float = 0.5
-    cross_down_cooldown_days_per_symbol: dict[str, int] = field(
-        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
-    )
-    default_dma_overextension_threshold: float = 0.30
-    dma_overextension_thresholds: dict[str, float] = field(
-        default_factory=lambda: {"BTC": 0.20, "ETH": 0.50, "SPY": 0.10}
-    )
     emit_signals_consulted: bool = False
 
 
@@ -77,6 +66,9 @@ class PortfolioRule(Protocol):
 
     @property
     def priority(self) -> int: ...
+
+    @property
+    def cooldown_days(self) -> int: ...
 
     @property
     def rule_group(self) -> RuleGroup: ...
@@ -123,14 +115,30 @@ def current_target(snapshot: PortfolioSnapshot) -> dict[str, float]:
 def cross_down_cooldown_days_for(
     symbol: str,
     *,
-    config: PortfolioRuleConfig,
+    per_symbol: Mapping[str, int],
+    default: int,
 ) -> int:
     return int(
-        config.cross_down_cooldown_days_per_symbol.get(
+        per_symbol.get(
             normalize_symbol(symbol),
-            config.default_cross_down_cooldown_days,
+            default,
         )
     )
+
+
+def rule_cooldown_remaining_days(
+    *,
+    cooldown_days: int,
+    last_executed_at: date | None,
+    current_date: date | None,
+) -> int:
+    days = max(0, int(cooldown_days))
+    if days <= 0 or last_executed_at is None or current_date is None:
+        return 0
+    elapsed_days = (current_date - last_executed_at).days
+    if elapsed_days < 0:
+        return days
+    return max(0, days - elapsed_days)
 
 
 def normalize_regime(regime: str | None) -> str | None:
@@ -188,6 +196,7 @@ def portfolio_target_intent(
     assets: list[str],
     immediate: bool = False,
     signals_consulted: Mapping[str, Any] | None = None,
+    sizing_meta: Mapping[str, Any] | None = None,
 ) -> AllocationIntent:
     intent = target_intent(
         action=action,
@@ -202,7 +211,43 @@ def portfolio_target_intent(
     }
     if signals_consulted:
         diagnostics["signals_consulted"] = dict(signals_consulted)
+    if sizing_meta:
+        diagnostics["sizing_meta"] = dict(sizing_meta)
     return replace(intent, diagnostics=diagnostics)
+
+
+def sizing_meta_for_symbol(
+    *,
+    sizing: SizingStrategy,
+    base_step: float,
+    adjusted_step: float,
+    snapshot: PortfolioSnapshot,
+    asset: str,
+) -> dict[str, Any]:
+    return {
+        "strategy": sizing.name,
+        "base": float(base_step),
+        "adjusted": float(adjusted_step),
+        "fgi": current_fgi_value_for_symbol(snapshot, asset),
+    }
+
+
+def combine_sizing_meta(
+    sizing_meta_by_symbol: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    if len(sizing_meta_by_symbol) == 1:
+        return dict(next(iter(sizing_meta_by_symbol.values())))
+    if not sizing_meta_by_symbol:
+        return {}
+    values = [dict(value) for value in sizing_meta_by_symbol.values()]
+    strategies = {str(value.get("strategy")) for value in values}
+    return {
+        "strategy": values[0].get("strategy") if len(strategies) == 1 else "mixed",
+        "assets": {
+            normalize_symbol(symbol).lower(): dict(meta)
+            for symbol, meta in sizing_meta_by_symbol.items()
+        },
+    }
 
 
 def signals_consulted_for_symbols(
@@ -267,6 +312,59 @@ def add_split_proceeds(
     target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
 
 
+def build_dca_sell_intent(
+    *,
+    snapshot: PortfolioSnapshot,
+    matching_symbols: list[str],
+    sizing: SizingStrategy,
+    sell_step: float,
+    proceeds_handler: Callable[[dict[str, float], float], None],
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    emit_signals_consulted: bool,
+) -> AllocationIntent:
+    target = current_target(snapshot)
+    sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
+    for symbol in matching_symbols:
+        adjusted_sell_step = max(
+            0.0,
+            float(
+                sizing.adjust_step(
+                    sell_step,
+                    snapshot=snapshot,
+                    asset=symbol,
+                )
+            ),
+        )
+        sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
+            sizing=sizing,
+            base_step=sell_step,
+            adjusted_step=adjusted_sell_step,
+            snapshot=snapshot,
+            asset=symbol,
+        )
+        key = allocation_key_for_symbol(symbol)
+        sold = min(adjusted_sell_step, max(0.0, float(target.get(key, 0.0))))
+        target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
+        proceeds_handler(target, sold)
+    return portfolio_target_intent(
+        action="sell",
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=reason,
+        rule_group=rule_group,
+        assets=matching_symbols,
+        signals_consulted=signals_consulted_for_symbols(
+            snapshot,
+            tuple(matching_symbols),
+        )
+        if emit_signals_consulted
+        else None,
+        sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
+    )
+
+
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
     "PORTFOLIO_RULE_SYMBOLS",
@@ -277,6 +375,8 @@ __all__ = [
     "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",
+    "build_dca_sell_intent",
+    "combine_sizing_meta",
     "current_fgi_regime_for_symbol",
     "current_fgi_value_for_symbol",
     "current_target",
@@ -285,6 +385,8 @@ __all__ = [
     "normalize_symbol",
     "portfolio_target_intent",
     "ratio_signals_consulted",
+    "rule_cooldown_remaining_days",
     "signals_consulted_for_symbols",
+    "sizing_meta_for_symbol",
     "symbols_for_snapshot",
 ]

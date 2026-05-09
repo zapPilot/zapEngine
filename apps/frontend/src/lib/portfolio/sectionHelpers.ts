@@ -1,4 +1,4 @@
-import type { SectionState } from '@/types/portfolio-progressive';
+import type { SectionState } from '@/types/portfolioProgressive';
 
 /**
  * Creates a section state from query results with combined loading/error states

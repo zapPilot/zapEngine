@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
 )
 from src.services.backtesting.strategies.hierarchical_attribution import (
@@ -20,7 +19,6 @@ from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import
     SPY_CRYPTO_TEMPLATE,
     HierarchicalSpyCryptoRotationStrategy,
     HierarchicalTargetComposer,
-    _compose_surgical,
 )
 
 
@@ -83,16 +81,6 @@ MINIMUM_HIERARCHICAL_VARIANTS: dict[str, MinimumHierarchicalVariant] = {
             "greed sell suppression."
         ),
         outer_policy=MinimumHierarchicalOuterPolicy(),
-    ),
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: _variant(
-        STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL,
-        description=(
-            "Research variant for the minimum hierarchical stack: route "
-            "crypto cross-up and extreme-fear outer deltas to the triggering "
-            "BTC/ETH asset while preserving the legacy composer otherwise."
-        ),
-        outer_policy=MinimumHierarchicalOuterPolicy(),
-        composer=_compose_surgical,
     ),
 }
 

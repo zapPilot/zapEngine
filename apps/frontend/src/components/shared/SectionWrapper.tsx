@@ -3,7 +3,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { fadeInOut } from '@/lib/ui/animationVariants';
-import type { SectionState } from '@/types/portfolio-progressive';
+import type { SectionState } from '@/types/portfolioProgressive';
 
 interface SectionWrapperProps<T> {
   state: SectionState<T>;

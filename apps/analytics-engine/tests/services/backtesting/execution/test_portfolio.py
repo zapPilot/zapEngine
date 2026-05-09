@@ -205,3 +205,26 @@ def test_resolve_price_for_asset_raises_for_non_positive_scalar() -> None:
     """Cover line 204: scalar price <= 0 → ValueError."""
     with pytest.raises(ValueError, match="must be positive"):
         Portfolio._resolve_price_for_asset(0.0, "BTC")
+
+
+def test_spy_only_portfolio_exposes_spy_as_active_spot_balance() -> None:
+    portfolio = Portfolio(spy_balance=2.0, stable_balance=0.0)
+
+    assert portfolio.active_spot_asset == "SPY"
+    assert portfolio.spot_asset == "SPY"
+    assert portfolio.spot_balance == pytest.approx(2.0)
+
+
+def test_values_for_allocation_keys_returns_legacy_bucket_values() -> None:
+    portfolio = Portfolio(spot_balance=1.0, stable_balance=250.0)
+
+    assert portfolio.values_for_allocation_keys(100.0, ["spot", "stable"]) == {
+        "spot": pytest.approx(100.0),
+        "stable": pytest.approx(250.0),
+    }
+
+
+def test_asset_balance_returns_spy_balance() -> None:
+    portfolio = Portfolio(spy_balance=3.0)
+
+    assert portfolio._asset_balance("spy") == pytest.approx(3.0)

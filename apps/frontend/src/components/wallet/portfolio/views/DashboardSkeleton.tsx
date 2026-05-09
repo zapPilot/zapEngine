@@ -15,7 +15,7 @@ import {
 
 import { GradientButton } from '@/components/ui';
 import { ASSET_COLORS } from '@/constants/assets';
-import { GRADIENTS } from '@/constants/design-system';
+import { GRADIENTS } from '@/constants/designSystem';
 
 import { AllocationLegend } from '../components/allocation/AllocationLegend';
 

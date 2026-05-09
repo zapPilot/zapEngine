@@ -3,10 +3,12 @@
 .husky
 .idea
 .vscode
+.worktrees
 
 **/.DS_Store
 **/.cache
 **/.claude
+**/.dart_tool
 **/.mypy_cache
 **/.next
 **/.pnpm-store
@@ -15,6 +17,7 @@
 **/.turbo
 **/.venv
 **/coverage
+**/build
 **/dist
 **/htmlcov
 **/node_modules

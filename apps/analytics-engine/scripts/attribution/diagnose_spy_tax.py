@@ -19,7 +19,7 @@ from scripts.attribution.spy_tax_helpers import (
 DEFAULT_ENDPOINT = "http://localhost:8001"
 COMPARE_PATH = "/api/v3/backtesting/compare"
 DEFAULT_BASELINE_STRATEGY = "dma_fgi_hierarchical_minimum"
-DEFAULT_REFERENCE_STRATEGY = "dma_fgi_eth_btc_minimum_surgical"
+DEFAULT_REFERENCE_STRATEGY = "dma_fgi_hierarchical_control"
 DEFAULT_REFERENCE_DATE = "2026-04-15"
 DEFAULT_WINDOW_DAYS = 500
 DEFAULT_TOTAL_CAPITAL = 10_000.0

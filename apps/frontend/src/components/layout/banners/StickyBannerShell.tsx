@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 
 import { BaseCard } from '@/components/ui';
-import { HEADER, Z_INDEX } from '@/constants/design-system';
+import { HEADER, Z_INDEX } from '@/constants/designSystem';
 import { cn } from '@/lib/ui/classNames';
 
 interface StickyBannerShellProps {

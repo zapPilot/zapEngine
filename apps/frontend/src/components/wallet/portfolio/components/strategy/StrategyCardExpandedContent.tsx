@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { type Regime, regimes } from '@/components/wallet/regime/regimeData';
 import type { StrategyDirection } from '@/components/wallet/regime/strategyLabels';
-import { ANIMATIONS } from '@/constants/design-system';
+import { ANIMATIONS } from '@/constants/designSystem';
 
 import { RegimeSelector } from './RegimeSelector';
 import { StrategyAllocationDisplay } from './StrategyAllocationDisplay';

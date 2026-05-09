@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { GradientButton, LoadingSpinner } from '@/components/ui';
+import { GRADIENTS } from '@/constants/designSystem';
 import type { OperationState } from '@/types';
 
 interface EmailSubscriptionProps {
@@ -68,7 +69,7 @@ export function EmailSubscription({
             />
             <GradientButton
               onClick={onSubscribe}
-              gradient="from-blue-600 to-cyan-600"
+              gradient={GRADIENTS.INFO}
               disabled={subscriptionOperation.isLoading}
             >
               {subscriptionOperation.isLoading ? (

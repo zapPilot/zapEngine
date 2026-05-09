@@ -13,7 +13,7 @@ import {
 import type { Regime } from '@/components/wallet/regime/regimeData';
 import { useAppSearchParams } from '@/lib/routing';
 import type { ModalType } from '@/types/portfolio';
-import type { DashboardSections } from '@/types/portfolio-progressive';
+import type { DashboardSections } from '@/types/portfolioProgressive';
 
 /** Layout styling constants */
 const STYLES = {

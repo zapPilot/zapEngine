@@ -33,7 +33,7 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_hierarchical.py \
   --windows 2024,2025,2026,combined \
   --baseline-strategy dma_fgi_hierarchical_minimum \
-  --variants dma_fgi_hierarchical_control,dma_fgi_hierarchical_minimum,dma_fgi_eth_btc_minimum_surgical \
+  --variants dma_fgi_hierarchical_control,dma_fgi_hierarchical_minimum \
   --out attribution_$(date -I).md
 ```
 
@@ -81,7 +81,7 @@ diagnostics that should not gate strategy iteration.
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/diagnose_spy_tax.py \
   --baseline-strategy dma_fgi_hierarchical_minimum \
-  --reference-strategy dma_fgi_eth_btc_minimum_surgical \
+  --reference-strategy dma_fgi_hierarchical_control \
   --reference-date 2026-04-15 \
   --window-days 500 \
   --out diagnostic_$(date -I).md

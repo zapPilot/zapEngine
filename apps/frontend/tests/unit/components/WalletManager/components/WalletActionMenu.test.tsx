@@ -27,7 +27,7 @@ vi.mock('@/components/ui/Portal', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/design-system', () => ({
+vi.mock('@/constants/designSystem', () => ({
   Z_INDEX: {
     TOOLTIP: 'z-[9999]',
   },

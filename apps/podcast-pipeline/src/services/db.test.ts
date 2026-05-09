@@ -1,0 +1,716 @@
+import { createClient } from '@supabase/supabase-js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type {
+  EpisodeListRow,
+  EpisodeLocalizationRow,
+  EpisodeRow,
+} from '../types.js';
+import {
+  decodeCursor,
+  encodeCursor,
+  findEpisodeBySourceUrl,
+  findEpisodeLocalizationByEpisodeId,
+  insertEpisode,
+  insertEpisodeLocalization,
+  listEpisodes,
+  listEpisodesPaged,
+  listLanguageClassroomsByLocalizationId,
+  listLanguageClassroomsByLocalizationIds,
+  markEpisodeListened,
+  toEpisodeResponse,
+  toLanguageClassroomLesson,
+  updateEpisodeLocalizationArticleContent,
+  updateEpisodeLocalizationStatus,
+  upsertLanguageClassrooms,
+} from './db.js';
+
+vi.mock('../lib/env.js', () => ({
+  getRequiredEnv: vi.fn((key: string) => {
+    if (key === 'SUPABASE_URL') return 'https://example.supabase.co';
+    if (key === 'SUPABASE_SERVICE_ROLE_KEY') return 'test-key';
+    throw new Error(`Unknown env: ${key}`);
+  }),
+}));
+
+const { state, mockFrom } = vi.hoisted(() => {
+  const state: { query: ReturnType<typeof makeQuery> | null } = { query: null };
+  const mockFrom = vi.fn(() => state.query);
+  return { state, mockFrom };
+});
+
+function makeQuery() {
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    in: vi.fn(() => query),
+    order: vi.fn(() => query),
+    limit: vi.fn(() => query),
+    or: vi.fn(() => query),
+    insert: vi.fn(() => query),
+    upsert: vi.fn(() => query),
+    update: vi.fn(() => query),
+    single: vi.fn(),
+    maybeSingle: vi.fn(),
+    returns: vi.fn(),
+  };
+  query.returns.mockResolvedValue({ data: [], error: null });
+  query.single.mockResolvedValue({ data: null, error: null });
+  query.maybeSingle.mockResolvedValue({ data: null, error: null });
+  return query;
+}
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    from: mockFrom,
+  })),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  state.query = makeQuery();
+});
+
+describe('toEpisodeResponse', () => {
+  it('maps a localization view row and embedded classroom lessons', () => {
+    const row = listRow({
+      language_classrooms: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は流動性を説明します。',
+          keywords: [
+            {
+              term: '流動性',
+              reading: 'りゅうどうせい',
+              meaning: '資金進出市場的容易程度',
+              note: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    const response = toEpisodeResponse(row);
+
+    expect(response).toEqual({
+      id: row.episode_id,
+      localizationId: row.localization_id,
+      title: row.title,
+      languageCode: 'zh-Hant',
+      hlsUrl: row.hls_url,
+      createdAt: row.created_at,
+      listened: false,
+      script: row.script,
+      llmModel: row.llm_model,
+      llmThinkingModel: row.llm_thinking_model,
+      llmProvider: row.llm_provider,
+      status: row.status,
+      languageClassrooms: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は流動性を説明します。',
+          keywords: [
+            {
+              term: '流動性',
+              reading: 'りゅうどうせい',
+              meaning: '資金進出市場的容易程度',
+              note: null,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('normalizes a camel-case classroom lesson input', () => {
+    expect(
+      toLanguageClassroomLesson({
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'ja',
+        oneLiner: 'この記事は市場流動性を説明します。',
+        keywords: [
+          {
+            term: ' 流動性 ',
+            reading: ' ',
+            meaning: ' 資金流動性 ',
+            note: ' ',
+          },
+          { term: '', reading: null, meaning: 'invalid', note: null },
+        ],
+      }),
+    ).toEqual({
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: 'この記事は市場流動性を説明します。',
+      keywords: [
+        {
+          term: '流動性',
+          reading: null,
+          meaning: '資金流動性',
+          note: null,
+        },
+      ],
+    });
+  });
+});
+
+describe('episode source and localization lookup', () => {
+  it('finds an episode by source URL without language filtering', async () => {
+    const row = episodeRow();
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    const result = await findEpisodeBySourceUrl('https://example.com/article');
+
+    expect(createClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'test-key',
+      expect.objectContaining({
+        db: { schema: 'from_fed_to_chain' },
+      }),
+    );
+    expect(mockFrom).toHaveBeenCalledWith('episodes');
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'source_url',
+      'https://example.com/article',
+    );
+    expect(state.query!.eq).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when source lookup fails', async () => {
+    const error = new Error('lookup failed');
+    state.query!.maybeSingle.mockResolvedValue({ data: null, error });
+
+    await expect(
+      findEpisodeBySourceUrl('https://example.com/article'),
+    ).rejects.toThrow('lookup failed');
+  });
+
+  it('finds an episode localization by episode id and language', async () => {
+    const row = localizationRow();
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    const result = await findEpisodeLocalizationByEpisodeId(
+      row.episode_id,
+      'zh-Hant',
+    );
+
+    expect(mockFrom).toHaveBeenCalledWith('episode_localizations');
+    expect(state.query!.eq).toHaveBeenCalledWith('episode_id', row.episode_id);
+    expect(state.query!.eq).toHaveBeenCalledWith('language_code', 'zh-Hant');
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when localization lookup fails', async () => {
+    state.query!.maybeSingle.mockResolvedValue({
+      data: null,
+      error: new Error('localization lookup failed'),
+    });
+
+    await expect(
+      findEpisodeLocalizationByEpisodeId('episode-1', 'zh-Hant'),
+    ).rejects.toThrow('localization lookup failed');
+  });
+});
+
+describe('cursor helpers', () => {
+  it('round-trips a cursor', () => {
+    const cursor = {
+      t: '2024-01-01T00:00:00.000Z',
+      i: '00000000-0000-4000-8000-000000000001',
+    };
+
+    expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
+  });
+
+  it('rejects invalid cursor payloads', () => {
+    expect(() => decodeCursor('garbage')).toThrow();
+    expect(() =>
+      decodeCursor(
+        encodeCursor({
+          t: 'not-a-date',
+          i: '00000000-0000-4000-8000-000000000001',
+        }),
+      ),
+    ).toThrow('bad cursor ts');
+    expect(() =>
+      decodeCursor(
+        encodeCursor({
+          t: '2024-01-01T00:00:00.000Z',
+          i: 'not-a-uuid',
+        }),
+      ),
+    ).toThrow('bad cursor id');
+  });
+});
+
+describe('listEpisodesPaged', () => {
+  it('returns an empty list when the list view has no rows', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(listEpisodes()).resolves.toEqual([]);
+  });
+
+  it('throws Supabase errors when list view lookup fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('list failed'),
+    });
+
+    await expect(listEpisodes()).rejects.toThrow('list failed');
+  });
+
+  it('queries the localization view by language and returns next cursor', async () => {
+    const rows = [listRow({ id: '00000000-0000-4000-8000-000000000001' })];
+    state.query!.returns.mockResolvedValue({
+      data: [...rows, listRow()],
+      error: null,
+    });
+
+    const result = await listEpisodesPaged(1, null, 'zh-Hant');
+
+    expect(mockFrom).toHaveBeenCalledWith('episodes_with_stats');
+    expect(state.query!.eq).toHaveBeenCalledWith('language_code', 'zh-Hant');
+    expect(state.query!.limit).toHaveBeenCalledWith(2);
+    expect(result.rows).toEqual(rows);
+    expect(result.nextCursor).toBe(
+      encodeCursor({ t: rows[0]!.created_at, i: rows[0]!.id }),
+    );
+  });
+
+  it('returns rows without a cursor when there is no next page', async () => {
+    const rows = [listRow()];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    const result = await listEpisodesPaged(100, null);
+
+    expect(state.query!.eq).not.toHaveBeenCalledWith(
+      'language_code',
+      expect.any(String),
+    );
+    expect(result).toEqual({ rows, nextCursor: null });
+  });
+
+  it('applies cursor filtering on subsequent pages', async () => {
+    const cursor = {
+      t: '2024-01-01T00:00:00.000Z',
+      i: '00000000-0000-4000-8000-000000000001',
+    };
+    state.query!.returns.mockResolvedValue({ data: [], error: null });
+
+    await listEpisodesPaged(20, cursor, 'zh-Hant');
+
+    expect(state.query!.or).toHaveBeenCalledWith(
+      `created_at.lt.${cursor.t},and(created_at.eq.${cursor.t},id.lt.${cursor.i})`,
+    );
+  });
+
+  it('throws Supabase errors from paged list lookup', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('paged list failed'),
+    });
+
+    await expect(listEpisodesPaged(20, null)).rejects.toThrow(
+      'paged list failed',
+    );
+  });
+});
+
+describe('insertEpisode and insertEpisodeLocalization', () => {
+  it('inserts a source episode row', async () => {
+    const row = episodeRow();
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    const result = await insertEpisode({
+      id: row.id,
+      sourceUrl: row.source_url,
+      sourceTitle: row.source_title ?? '',
+    });
+
+    expect(mockFrom).toHaveBeenCalledWith('episodes');
+    expect(state.query!.insert).toHaveBeenCalledWith({
+      id: row.id,
+      source_url: row.source_url,
+      source_title: row.source_title,
+    });
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when source episode insert fails', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: new Error('insert episode failed'),
+    });
+
+    await expect(
+      insertEpisode({
+        id: 'episode-1',
+        sourceUrl: 'https://example.com/article',
+        sourceTitle: 'Article',
+      }),
+    ).rejects.toThrow('insert episode failed');
+  });
+
+  it('inserts a localized episode row', async () => {
+    const row = localizationRow();
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    const result = await insertEpisodeLocalization({
+      id: row.id,
+      episodeId: row.episode_id,
+      languageCode: row.language_code,
+      title: row.title,
+      hlsUrl: row.hls_url,
+      rawText: row.raw_text ?? '',
+      script: row.script ?? '',
+      llmModel: row.llm_model ?? '',
+      llmThinkingModel: row.llm_thinking_model,
+      llmProvider: row.llm_provider ?? '',
+      ttsLanguageCode: null,
+      ttsVoiceName: null,
+      r2Prefix: null,
+      status: row.status,
+    });
+
+    expect(mockFrom).toHaveBeenCalledWith('episode_localizations');
+    expect(state.query!.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        episode_id: row.episode_id,
+        language_code: 'zh-Hant',
+      }),
+    );
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when localized episode insert fails', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: new Error('insert localization failed'),
+    });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toThrow('insert localization failed');
+  });
+});
+
+describe('language classrooms', () => {
+  it('does not query classrooms when no localization ids are provided', async () => {
+    const result = await listLanguageClassroomsByLocalizationIds([]);
+
+    expect(result).toEqual(new Map());
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('lists classrooms for one localization id', async () => {
+    const rows = [classroomRow()];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    await expect(
+      listLanguageClassroomsByLocalizationId('loc-1'),
+    ).resolves.toEqual(rows);
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'episode_localization_id',
+      'loc-1',
+    );
+  });
+
+  it('throws Supabase errors when classroom lookup fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('classroom lookup failed'),
+    });
+
+    await expect(
+      listLanguageClassroomsByLocalizationId('loc-1'),
+    ).rejects.toThrow('classroom lookup failed');
+  });
+
+  it('does not query classrooms when there are no lessons to upsert', async () => {
+    await expect(upsertLanguageClassrooms([])).resolves.toEqual([]);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('groups classrooms by episode localization id', async () => {
+    const rows = [
+      classroomRow({
+        episode_localization_id: 'loc-1',
+        target_language_code: 'ja',
+      }),
+      classroomRow({
+        episode_localization_id: 'loc-2',
+        target_language_code: 'en',
+      }),
+    ];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    const result = await listLanguageClassroomsByLocalizationIds([
+      'loc-1',
+      'loc-2',
+    ]);
+
+    expect(mockFrom).toHaveBeenCalledWith('language_classrooms');
+    expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
+      'loc-1',
+      'loc-2',
+    ]);
+    expect(result.get('loc-1')).toEqual([rows[0]]);
+    expect(result.get('loc-2')).toEqual([rows[1]]);
+  });
+
+  it('throws Supabase errors when grouped classroom lookup fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('grouped classroom lookup failed'),
+    });
+
+    await expect(
+      listLanguageClassroomsByLocalizationIds(['loc-1']),
+    ).rejects.toThrow('grouped classroom lookup failed');
+  });
+
+  it('upserts classrooms keyed by localization and target language', async () => {
+    await upsertLanguageClassrooms([
+      {
+        id: 'ignored',
+        episodeLocalizationId: 'loc-1',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'ja',
+        oneLiner: 'この記事は流動性を説明します。',
+        keywords: [],
+        llmModel: 'model',
+        llmThinkingModel: null,
+        llmProvider: 'provider',
+      },
+    ]);
+
+    expect(state.query!.upsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          episode_localization_id: 'loc-1',
+          source_language_code: 'zh-Hant',
+          target_language_code: 'ja',
+        }),
+      ],
+      { onConflict: 'episode_localization_id,target_language_code' },
+    );
+  });
+
+  it('throws Supabase errors when classroom upsert fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('classroom upsert failed'),
+    });
+
+    await expect(
+      upsertLanguageClassrooms([
+        {
+          id: 'ignored',
+          episodeLocalizationId: 'loc-1',
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は流動性を説明します。',
+          keywords: [],
+          llmModel: 'model',
+          llmThinkingModel: null,
+          llmProvider: 'provider',
+        },
+      ]),
+    ).rejects.toThrow('classroom upsert failed');
+  });
+});
+
+describe('updates', () => {
+  it('marks an episode listened on the source episode row', async () => {
+    const row = episodeRow({ listened: true });
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    const result = await markEpisodeListened(row.id);
+
+    expect(mockFrom).toHaveBeenCalledWith('episodes');
+    expect(state.query!.update).toHaveBeenCalledWith({ listened: true });
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when marking listened fails', async () => {
+    state.query!.maybeSingle.mockResolvedValue({
+      data: null,
+      error: new Error('mark listened failed'),
+    });
+
+    await expect(markEpisodeListened('episode-1')).rejects.toThrow(
+      'mark listened failed',
+    );
+  });
+
+  it('updates localized article content', async () => {
+    const row = localizationRow({ title: '軟體更新', raw_text: '滑鼠' });
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    const result = await updateEpisodeLocalizationArticleContent(row.id, {
+      title: row.title,
+      text: row.raw_text ?? '',
+    });
+
+    expect(mockFrom).toHaveBeenCalledWith('episode_localizations');
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '軟體更新',
+        raw_text: '滑鼠',
+      }),
+    );
+    expect(result).toEqual(row);
+  });
+
+  it('throws Supabase errors when updating localization content fails', async () => {
+    state.query!.maybeSingle.mockResolvedValue({
+      data: null,
+      error: new Error('update localization failed'),
+    });
+
+    await expect(
+      updateEpisodeLocalizationArticleContent('loc-1', {
+        title: 'Title',
+        text: 'Text',
+      }),
+    ).rejects.toThrow('update localization failed');
+  });
+
+  it('updates localized status and generated media fields', async () => {
+    const row = localizationRow({ status: 'completed' });
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    await updateEpisodeLocalizationStatus(row.id, 'completed', {
+      hlsUrl: 'https://cdn.example.com/playlist.m3u8',
+      r2Prefix: 'episodes/e/localizations/zh-Hant',
+      ttsLanguageCode: 'cmn-TW',
+      ttsVoiceName: 'cmn-TW-Wavenet-A',
+    });
+
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+        hls_url: 'https://cdn.example.com/playlist.m3u8',
+        r2_prefix: 'episodes/e/localizations/zh-Hant',
+        tts_language_code: 'cmn-TW',
+        tts_voice_name: 'cmn-TW-Wavenet-A',
+      }),
+    );
+  });
+
+  it('updates localized script metadata fields', async () => {
+    const row = localizationRow({ status: 'script_generated' });
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
+      script: 'Generated script',
+      llmModel: 'model',
+      llmThinkingModel: 'thinking-model',
+      llmProvider: 'provider',
+    });
+
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'script_generated',
+        script: 'Generated script',
+        llm_model: 'model',
+        llm_thinking_model: 'thinking-model',
+        llm_provider: 'provider',
+      }),
+    );
+  });
+});
+
+function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    source_url: 'https://example.com/article',
+    source_title: 'Source title',
+    created_at: '2024-01-01T00:00:00.000Z',
+    listened: false,
+    ...overrides,
+  };
+}
+
+function localizationRow(
+  overrides: Partial<EpisodeLocalizationRow> = {},
+): EpisodeLocalizationRow {
+  return {
+    id: '00000000-0000-4000-8000-000000000101',
+    episode_id: '00000000-0000-4000-8000-000000000001',
+    language_code: 'zh-Hant',
+    title: 'Localization title',
+    hls_url: 'https://cdn.example.com/playlist.m3u8',
+    raw_text: 'Article text',
+    script: 'Script',
+    llm_model: 'model',
+    llm_thinking_model: null,
+    llm_provider: 'provider',
+    tts_language_code: null,
+    tts_voice_name: null,
+    r2_prefix: null,
+    status: 'completed',
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function listRow(overrides: Partial<EpisodeListRow> = {}): EpisodeListRow {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    episode_id: '00000000-0000-4000-8000-000000000001',
+    localization_id: '00000000-0000-4000-8000-000000000101',
+    title: 'Localization title',
+    language_code: 'zh-Hant',
+    hls_url: 'https://cdn.example.com/playlist.m3u8',
+    script: 'Script',
+    llm_model: 'model',
+    llm_thinking_model: null,
+    llm_provider: 'provider',
+    status: 'completed',
+    created_at: '2024-01-01T00:00:00.000Z',
+    listened: false,
+    like_count: 0,
+    language_classrooms: [],
+    ...overrides,
+  };
+}
+
+function classroomRow(
+  overrides: Partial<import('../types.js').LanguageClassroomRow> = {},
+): import('../types.js').LanguageClassroomRow {
+  return {
+    id: 'classroom-1',
+    episode_localization_id: 'loc-1',
+    source_language_code: 'zh-Hant',
+    target_language_code: 'ja',
+    one_liner: 'この記事は流動性を説明します。',
+    keywords: [],
+    llm_model: 'model',
+    llm_thinking_model: null,
+    llm_provider: 'provider',
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}

@@ -1,0 +1,8 @@
+{
+  "ignore": ["**/*.test.ts", "dist/**", "node_modules/**", "coverage/**"],
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
+  ],
+  "format": ["typescript"]
+}

@@ -22,7 +22,7 @@ import type {
   CompositionData,
   SentimentData,
   StrategyData,
-} from '@/types/portfolio-progressive';
+} from '@/types/portfolioProgressive';
 
 /**
  * Extract balance section data from landing response

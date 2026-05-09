@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import Mock
 
 import pytest
@@ -17,7 +17,9 @@ from src.services.backtesting.strategies.base import (
 from src.services.backtesting.utils.coercion import (
     coerce_bool,
     coerce_float,
+    coerce_float_list,
     coerce_int,
+    coerce_to_date,
 )
 
 
@@ -58,6 +60,25 @@ def test_coerce_float_rejects_bool() -> None:
 def test_coerce_bool_rejects_non_bool() -> None:
     with pytest.raises(ValueError, match="must be a boolean"):
         coerce_bool(1, field_name="x")
+
+
+def test_coerce_to_date_returns_none_for_invalid_inputs() -> None:
+    assert coerce_to_date("not-a-date") is None
+    assert coerce_to_date(None) is None
+
+
+def test_coerce_to_date_accepts_datetime() -> None:
+    assert coerce_to_date(datetime(2025, 1, 1, 12, tzinfo=UTC)) == date(2025, 1, 1)
+
+
+def test_coerce_int_rejects_bool() -> None:
+    with pytest.raises(ValueError, match="must be an integer"):
+        coerce_int(True, field_name="x")
+
+
+def test_coerce_float_list_rejects_non_list() -> None:
+    with pytest.raises(ValueError, match="must be an array of numbers"):
+        coerce_float_list((1.0, 2.0), field_name="weights")
 
 
 # --- response_utils.py coverage (lines 13, 19) ---

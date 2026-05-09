@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     add_stable,
-    allocation_key_for_symbol,
+    build_dca_sell_intent,
     current_fgi_regime_for_symbol,
-    current_target,
     normalize_regime,
-    portfolio_target_intent,
-    signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
-from src.services.backtesting.target_allocation import normalize_target_allocation
+from src.services.backtesting.sizing.flat import FlatSizing
+
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
 
 _GREED_REGIMES = frozenset({"greed", "extreme_greed"})
 _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
@@ -27,8 +28,11 @@ _DEFENSIVE_REGIMES = frozenset({"neutral", "fear", "extreme_fear"})
 class FgiDownshiftDcaSellRule:
     name: str = "fgi_downshift_dca_sell"
     priority: int = 50
+    cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA sell assets when relevant FGI transitions out of greed."
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
 
     def matches(
         self,
@@ -46,26 +50,16 @@ class FgiDownshiftDcaSellRule:
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
         matching_symbols = _downshifted_symbols(snapshot)
-        target = current_target(snapshot)
-        sell_step = max(0.0, float(config.fgi_downshift_sell_step))
-        for symbol in matching_symbols:
-            key = allocation_key_for_symbol(symbol)
-            sold = min(sell_step, max(0.0, float(target.get(key, 0.0))))
-            target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
-            add_stable(target, sold)
-        return portfolio_target_intent(
-            action="sell",
-            target=normalize_target_allocation(target),
+        return build_dca_sell_intent(
+            snapshot=snapshot,
+            matching_symbols=matching_symbols,
+            sizing=self.sizing,
+            sell_step=self.sell_step,
+            proceeds_handler=add_stable,
             allocation_name="portfolio_fgi_downshift_dca_sell",
             reason="portfolio_fgi_downshift_dca_sell",
             rule_group=self.rule_group,
-            assets=matching_symbols,
-            signals_consulted=signals_consulted_for_symbols(
-                snapshot,
-                tuple(matching_symbols),
-            )
-            if config.emit_signals_consulted
-            else None,
+            emit_signals_consulted=config.emit_signals_consulted,
         )
 
 

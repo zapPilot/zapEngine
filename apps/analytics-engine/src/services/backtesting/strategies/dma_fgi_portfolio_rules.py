@@ -1,7 +1,7 @@
 """Flat portfolio-level DMA/FGI rule strategy.
 
 Rules are evaluated first-match-wins by explicit priority:
-cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation, global cooldown,
+cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation,
 DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
 If different assets emit cross-up and cross-down on the same day, cross-down
 exits win and the cross-up rebalance can be reconsidered on the next eligible
@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import JsonValue
 
@@ -29,22 +29,33 @@ from src.services.backtesting.execution.rule_based.allocation_executor import (
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULES,
     RULE_NAMES,
-    DmaBuyGateRule,
-    TradeQuotaRule,
 )
 from src.services.backtesting.portfolio_rules.base import (
     PORTFOLIO_RULE_SYMBOLS,
     PortfolioRule,
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    cross_down_cooldown_days_for,
     current_fgi_regime_for_symbol,
     current_target,
+    rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
 )
+from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
+    EthBtcRatioRotationRule,
+)
+from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
+    ExtremeFearDcaBuyRule,
+)
 from src.services.backtesting.public_params import runtime_params_to_public_params
+from src.services.backtesting.risk import (
+    RiskGuard,
+    RiskGuardResult,
+    TradeQuotaGuard,
+)
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.sizing import FgiExponentialSizing
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
@@ -55,6 +66,10 @@ from src.services.backtesting.strategies.minimum import (
 )
 
 PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
+_RULE_PRIORITY_BY_NAME = {rule.name: rule.priority for rule in DEFAULT_PORTFOLIO_RULES}
+_CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
+_RuleT = TypeVar("_RuleT", bound=PortfolioRule)
+RuleCooldownKey = str | tuple[str, str]
 
 
 @dataclass(frozen=True)
@@ -69,11 +84,16 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
 
     decision_policy_id: str = "dma_fgi_portfolio_rules_policy"
     rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES
+    risk_guards: tuple[RiskGuard, ...] = ()
     config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
     disabled_rules: frozenset[str] = frozenset()
     execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
+    _rule_last_executed_at: dict[RuleCooldownKey, date] = field(
+        default_factory=dict,
+        init=False,
+    )
     _last_trade_date: date | None = field(default=None, init=False)
     _trade_dates: list[date] = field(default_factory=list, init=False)
 
@@ -86,10 +106,11 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     def reset(self) -> None:
         self._previous_fgi_regime = {}
         self._cycle_open_per_symbol = {}
+        self._rule_last_executed_at = {}
         self._last_trade_date = None
         self._trade_dates = []
-        for rule in self.rules:
-            reset = getattr(rule, "reset", None)
+        for component in (*self.rules, *self.risk_guards):
+            reset = getattr(component, "reset", None)
             if callable(reset):
                 reset()
 
@@ -102,19 +123,27 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             last_trade_date=execution_state.last_trade_date,
             trade_dates=execution_state.trade_dates,
         )
-        self._observe_rules(portfolio_snapshot)
+        self._observe_components(portfolio_snapshot)
         intent = resolve_portfolio_rules_intent(
             portfolio_snapshot,
             rules=self.rules,
             config=self.config,
             disabled_rules=self.disabled_rules,
+            rule_last_executed_at=self._rule_last_executed_at,
         )
+        risk_result = _apply_risk_guards(
+            intent,
+            portfolio_snapshot,
+            risk_guards=self.risk_guards,
+            config=self.config,
+        )
+        intent = risk_result.intent
         self._previous_fgi_regime = _current_fgi_regime_by_symbol(portfolio_snapshot)
         self._cycle_open_per_symbol = _update_cycle_state(
             self._cycle_open_per_symbol,
             portfolio_snapshot,
         )
-        self._record_rule_intent(intent)
+        self._record_intent(intent)
         if self.execution_state_provider is None and intent.action != "hold":
             self._last_trade_date = snapshot.current_date
             if snapshot.current_date is not None:
@@ -129,17 +158,38 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             trade_dates=tuple(self._trade_dates),
         )
 
-    def _observe_rules(self, snapshot: PortfolioSnapshot) -> None:
-        for rule in self.rules:
-            observe = getattr(rule, "observe", None)
+    def _observe_components(self, snapshot: PortfolioSnapshot) -> None:
+        for component in (*self.rules, *self.risk_guards):
+            observe = getattr(component, "observe", None)
             if callable(observe):
                 observe(snapshot, config=self.config)
 
-    def _record_rule_intent(self, intent: AllocationIntent) -> None:
-        for rule in self.rules:
-            record_intent = getattr(rule, "record_intent", None)
+    def _record_intent(self, intent: AllocationIntent) -> None:
+        for component in (*self.rules, *self.risk_guards):
+            record_intent = getattr(component, "record_intent", None)
             if callable(record_intent):
                 record_intent(intent)
+
+    def record_execution(
+        self,
+        *,
+        context: StrategyContext,
+        intent: AllocationIntent,
+        execution: Any,
+    ) -> None:
+        if not getattr(execution, "transfers", ()):
+            return
+        matched_rule_name = _matched_rule_name(intent)
+        if matched_rule_name is None:
+            return
+        matched_rule = _rule_for_name(self.rules, matched_rule_name)
+        if matched_rule is None:
+            return
+        if _cooldown_keyed_by_trigger_symbol(matched_rule):
+            for symbol in _trigger_symbols_from_intent(intent):
+                self._rule_last_executed_at[(matched_rule.name, symbol)] = context.date
+            return
+        self._rule_last_executed_at[matched_rule.name] = context.date
 
 
 @dataclass
@@ -163,6 +213,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_DMA_FGI_PORTFOLIO_RULES]
     canonical_strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES
     disabled_rules: frozenset[str] = frozenset()
+    use_adaptive_sizing: bool = True
     initial_spot_asset: str = "BTC"
     initial_asset_allocation: dict[str, float] | None = None
 
@@ -179,23 +230,27 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
 
         self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
+        rules = build_portfolio_rules_for_params(resolved_params)
+        if self.use_adaptive_sizing:
+            rules = _with_adaptive_extreme_fear_sizing(rules)
         self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
             disabled_rules=self.disabled_rules,
-            rules=build_portfolio_rules_for_params(resolved_params),
+            rules=rules,
+            risk_guards=build_risk_guards_for_params(resolved_params),
             config=PortfolioRuleConfig(emit_signals_consulted=True),
             execution_state_provider=lambda: RuleExecutionState(
                 last_trade_date=self.execution_engine.last_trade_date,
                 trade_dates=tuple(self.execution_engine.trade_dates),
             ),
         )
+        cross_down_rule = _required_rule(rules, CrossDownExitRule)
+        ratio_rule = _required_rule(rules, EthBtcRatioRotationRule)
         self.signal_component = FlatMinimumSignalComponent(
             config=resolved_params.build_signal_config(),
             signal_id=self.signal_id,
+            ratio_cross_cooldown_days=ratio_rule.cooldown_days,
             cross_down_cooldown_days_by_symbol={
-                symbol: cross_down_cooldown_days_for(
-                    symbol,
-                    config=self.decision_policy.config,
-                )
+                symbol: cross_down_rule.cooldown_days_for(symbol)
                 for symbol in PORTFOLIO_RULE_SYMBOLS
             },
         )
@@ -237,6 +292,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         return {
             **self.public_params,
             "disabled_rules": sorted(self.disabled_rules),
+            "use_adaptive_sizing": self.use_adaptive_sizing,
             "feature_summary": self.feature_summary(),
         }
 
@@ -284,27 +340,118 @@ def build_portfolio_snapshot(
 def build_portfolio_rules_for_params(
     params: DmaGatedFgiParams,
 ) -> tuple[PortfolioRule, ...]:
+    del params
     rules: list[PortfolioRule] = list(DEFAULT_PORTFOLIO_RULES)
-    rules.append(
-        DmaBuyGateRule(
-            window_days=params.buy_sideways_window_days,
-            sideways_max_range=params.buy_sideways_max_range,
-            leg_caps=tuple(params.buy_leg_caps),
-        )
+    return tuple(sorted(rules, key=lambda rule: rule.priority))
+
+
+def _with_adaptive_extreme_fear_sizing(
+    rules: tuple[PortfolioRule, ...],
+) -> tuple[PortfolioRule, ...]:
+    return tuple(
+        replace(rule, sizing=FgiExponentialSizing(max_multiplier=1.1))
+        if isinstance(rule, ExtremeFearDcaBuyRule)
+        else rule
+        for rule in rules
     )
+
+
+def _required_rule(
+    rules: tuple[PortfolioRule, ...],
+    rule_type: type[_RuleT],
+) -> _RuleT:
+    for rule in rules:
+        if isinstance(rule, rule_type):
+            return rule
+    raise ValueError(f"Missing required portfolio rule: {rule_type.__name__}")
+
+
+def build_risk_guards_for_params(
+    params: DmaGatedFgiParams,
+) -> tuple[RiskGuard, ...]:
+    guards: list[RiskGuard] = []
     if (
         params.min_trade_interval_days is not None
         or params.max_trades_7d is not None
         or params.max_trades_30d is not None
     ):
-        rules.append(
-            TradeQuotaRule(
+        guards.append(
+            TradeQuotaGuard(
                 min_trade_interval_days=params.min_trade_interval_days,
                 max_trades_7d=params.max_trades_7d,
                 max_trades_30d=params.max_trades_30d,
             )
         )
-    return tuple(sorted(rules, key=lambda rule: rule.priority))
+    return tuple(sorted(guards, key=lambda guard: guard.priority))
+
+
+def _apply_risk_guards(
+    intent: AllocationIntent,
+    snapshot: PortfolioSnapshot,
+    *,
+    risk_guards: tuple[RiskGuard, ...],
+    config: PortfolioRuleConfig,
+) -> RiskGuardResult:
+    matched_rule_priority = _matched_rule_priority(intent)
+    for guard in risk_guards:
+        if (
+            matched_rule_priority is not None
+            and guard.priority >= matched_rule_priority
+        ):
+            continue
+        replacement = guard.allow(intent, snapshot, config=config)
+        if replacement is not None:
+            return RiskGuardResult(intent=replacement, blocked_by=guard.name)
+    return RiskGuardResult(intent=intent)
+
+
+def _matched_rule_priority(intent: AllocationIntent) -> int | None:
+    matched_rule = _matched_rule_name(intent)
+    if matched_rule is None:
+        return None
+    return _RULE_PRIORITY_BY_NAME.get(matched_rule)
+
+
+def _matched_rule_name(intent: AllocationIntent) -> str | None:
+    diagnostics = intent.diagnostics or {}
+    matched_rule = diagnostics.get("matched_rule_name")
+    return matched_rule if isinstance(matched_rule, str) else None
+
+
+def _rule_for_name(
+    rules: tuple[PortfolioRule, ...],
+    name: str,
+) -> PortfolioRule | None:
+    for rule in rules:
+        if rule.name == name:
+            return rule
+    return None
+
+
+def _cooldown_keyed_by_trigger_symbol(rule: PortfolioRule) -> bool:
+    return bool(getattr(rule, "cooldown_keyed_by_trigger_symbol", False))
+
+
+def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
+    diagnostics = intent.diagnostics or {}
+    raw_symbols = diagnostics.get("portfolio_rule_trigger_assets")
+    if not isinstance(raw_symbols, list):
+        return []
+    return [symbol for symbol in raw_symbols if isinstance(symbol, str)]
+
+
+def _trigger_symbols_for_cooldown(
+    rule: PortfolioRule,
+    snapshot: PortfolioSnapshot,
+) -> list[str]:
+    if rule.name != "cross_up_equal_weight":
+        return []
+    return [
+        symbol
+        for symbol in symbols_for_snapshot(snapshot)
+        if snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        and snapshot.assets[symbol].zone == "above"
+    ]
 
 
 def resolve_portfolio_rules_intent(
@@ -313,15 +460,36 @@ def resolve_portfolio_rules_intent(
     rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
     config: PortfolioRuleConfig | None = None,
     disabled_rules: frozenset[str] = frozenset(),
+    rule_last_executed_at: Mapping[RuleCooldownKey, date] | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
+    last_executed = dict(rule_last_executed_at or {})
+    cooldown_skipped_rules: list[dict[str, object]] = []
     for rule in rules:
         if rule.name in disabled_rules:
             continue
         if rule.matches(snapshot, config=resolved_config):
+            cooldown = (
+                _trigger_symbol_cooldown_diagnostic(
+                    rule,
+                    snapshot=snapshot,
+                    last_executed=last_executed,
+                )
+                if _cooldown_keyed_by_trigger_symbol(rule)
+                else _rule_cooldown_diagnostic(
+                    rule,
+                    snapshot=snapshot,
+                    last_executed_at=last_executed.get(rule.name),
+                )
+            )
+            if cooldown is not None:
+                cooldown_skipped_rules.append(cooldown)
+                continue
             intent = rule.build_intent(snapshot, config=resolved_config)
             diagnostics = dict(intent.diagnostics or {})
             diagnostics.setdefault("matched_rule_name", rule.name)
+            if cooldown_skipped_rules:
+                diagnostics["cooldown_skipped_rules"] = cooldown_skipped_rules
             return replace(intent, diagnostics=diagnostics)
     return AllocationIntent(
         action="hold",
@@ -334,6 +502,11 @@ def resolve_portfolio_rules_intent(
         diagnostics={
             "matched_rule_name": "regime_no_signal_hold",
             **(
+                {"cooldown_skipped_rules": cooldown_skipped_rules}
+                if cooldown_skipped_rules
+                else {}
+            ),
+            **(
                 {
                     "signals_consulted": signals_consulted_for_symbols(
                         snapshot,
@@ -345,6 +518,66 @@ def resolve_portfolio_rules_intent(
             ),
         },
     )
+
+
+def _rule_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    last_executed_at: date | None,
+) -> dict[str, object] | None:
+    remaining_days = rule_cooldown_remaining_days(
+        cooldown_days=rule.cooldown_days,
+        last_executed_at=last_executed_at,
+        current_date=snapshot.current_date,
+    )
+    if remaining_days <= 0 or last_executed_at is None:
+        return None
+    return {
+        "rule": rule.name,
+        "last_executed_at": last_executed_at.isoformat(),
+        "cooldown_days": max(0, int(rule.cooldown_days)),
+        "remaining_days": remaining_days,
+    }
+
+
+def _trigger_symbol_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    trigger_symbols = _trigger_symbols_for_cooldown(rule, snapshot)
+    if not trigger_symbols:
+        return None
+    symbol_cooldowns: list[dict[str, object]] = []
+    remaining_values: list[int] = []
+    for symbol in trigger_symbols:
+        last_executed_at = last_executed.get((rule.name, symbol))
+        remaining_days = rule_cooldown_remaining_days(
+            cooldown_days=rule.cooldown_days,
+            last_executed_at=last_executed_at,
+            current_date=snapshot.current_date,
+        )
+        if remaining_days <= 0 or last_executed_at is None:
+            continue
+        remaining_values.append(remaining_days)
+        symbol_cooldowns.append(
+            {
+                "symbol": symbol,
+                "last_executed_at": last_executed_at.isoformat(),
+                "remaining_days": remaining_days,
+            }
+        )
+    if len(symbol_cooldowns) != len(trigger_symbols):
+        return None
+    return {
+        "rule": rule.name,
+        "cooldown_days": max(0, int(rule.cooldown_days)),
+        "remaining_days": max(remaining_values),
+        "trigger_symbols": trigger_symbols,
+        "symbol_cooldowns": symbol_cooldowns,
+    }
 
 
 def _assets_from_flat_state(snapshot: FlatMinimumState) -> dict[str, DmaMarketState]:
@@ -372,11 +605,29 @@ def _update_cycle_state(
     snapshot: PortfolioSnapshot,
 ) -> dict[str, bool]:
     updated = dict(previous)
+    crypto_crossed_down = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].cross_event == "cross_down"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
+    crypto_crossed_up = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
     for symbol, state in snapshot.assets.items():
         event = state.actionable_cross_event
+        if symbol in _CRYPTO_CYCLE_SYMBOLS:
+            continue
         if event == "cross_down":
             updated[symbol] = True
         elif event == "cross_up":
+            updated[symbol] = False
+    if crypto_crossed_down:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
+            updated[symbol] = True
+    elif crypto_crossed_up:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
             updated[symbol] = False
     return updated
 
@@ -423,6 +674,7 @@ __all__ = [
     "build_initial_portfolio_rules_asset_allocation",
     "build_portfolio_snapshot",
     "build_portfolio_rules_for_params",
+    "build_risk_guards_for_params",
     "default_dma_fgi_portfolio_rules_params",
     "resolve_portfolio_rules_intent",
 ]

@@ -1,39 +1,56 @@
 @import 'tailwindcss';
+@import '@zapengine/design-tokens/css/variables.css';
 
+/*
+ * V2 brand palette comes from @zapengine/design-tokens.
+ * The generated import already defines --bg, --ink, --accent, pillar colors,
+ * and aliases --background -> var(--bg), --foreground -> var(--ink).
+ *
+ * We keep the legacy --font-app-* names so nothing in the codebase that
+ * references them breaks, but rebind them to the token fonts.
+ */
 :root {
-  --background: #0a0a0f;
-  --foreground: #ffffff;
-  --card-bg: rgba(17, 24, 39, 0.5);
-  --border-color: rgba(55, 65, 81, 1);
-  --border-hover: rgba(75, 85, 99, 1);
-  --purple-primary: #8b5cf6;
-  --blue-primary: #3b82f6;
-  --gradient-purple-blue: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
   --font-app-sans:
-    'SF Pro Text', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
-    sans-serif;
+    var(--font-sans-token), 'Segoe UI', system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
   --font-app-mono:
-    'SFMono-Regular', 'SF Mono', ui-monospace, Menlo, Monaco, monospace;
-  /* Removed: --gradient-extended (unused) */
+    var(--font-mono-token), 'SFMono-Regular', ui-monospace, Menlo, Monaco,
+    monospace;
+
+  /* Surface tokens used by .glass-morphism etc. - bound to token equivalents */
+  --card-bg: var(--bg-2);
+  --border-color: var(--line);
+  --border-hover: var(--line-hi);
 }
 
 @theme inline {
+  /* Existing aliases - preserved, but now resolve through tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-app-sans);
   --font-mono: var(--font-app-mono);
-  --color-purple-500: #8b5cf6;
-  --color-purple-600: #7c3aed;
-  --color-blue-400: #60a5fa;
-  --color-blue-500: #3b82f6;
-  --color-blue-600: #2563eb;
-  --color-pink-400: #f472b6;
-  --color-gray-900: #111827;
-  --color-gray-800: #1f2937;
-  --color-gray-700: #374151;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-950: #0a0a0f;
+  --font-serif: var(--font-serif-token);
+
+  /* V2 brand utilities (mirrors landing-page convention) */
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-hi: var(--line-hi);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-muted: var(--accent-muted);
+  --color-error: var(--error);
+  --color-success: var(--success);
+
+  /* Pillar colors - required for charts and asset rendering */
+  --color-btc: var(--btc);
+  --color-usd: var(--usd);
+  --color-spy: var(--spy);
 }
 
 * {
@@ -55,16 +72,13 @@ body {
   overflow-x: hidden;
 }
 
-/* Removed unused: .gradient-text, .gradient-border */
-
 .glass-morphism {
-  background: rgba(17, 24, 39, 0.5);
+  background: var(--bg-2);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
 }
 
-/* Backtesting variation animations */
 @keyframes blink {
   0%,
   100% {

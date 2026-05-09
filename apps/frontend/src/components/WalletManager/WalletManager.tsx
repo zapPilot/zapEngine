@@ -5,7 +5,7 @@ import { memo, type ReactElement, useCallback } from 'react';
 import { BaseCard } from '@/components/ui';
 import { Skeleton } from '@/components/ui/LoadingSystem';
 import { ModalBackdrop } from '@/components/ui/modal';
-import { GRADIENTS } from '@/constants/design-system';
+import { GRADIENTS } from '@/constants/designSystem';
 import { useUser } from '@/contexts/UserContext';
 import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 import type { WalletManagerProps } from '@/types';
@@ -47,7 +47,7 @@ function WalletManagerHeader({
     <div className="flex items-center justify-between p-6 border-b border-gray-700/50">
       <div className="flex items-center space-x-3">
         <div
-          className={`w-10 h-10 rounded-xl bg-gradient-to-r ${GRADIENTS.PRIMARY} flex items-center justify-center`}
+          className={`w-10 h-10 rounded-xl ${GRADIENTS.PRIMARY} flex items-center justify-center`}
         >
           <Wallet className="w-5 h-5 text-white" />
         </div>

@@ -6,16 +6,15 @@ import { WalletMenu } from './WalletMenu';
 
 /** Navigation styling constants */
 const STYLES = {
-  nav: 'h-16 border-b border-gray-800/50 bg-gray-950/80 backdrop-blur-md sticky top-0 z-50 px-4 md:px-8 flex items-center justify-between',
-  logo: 'w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-purple-500/20',
+  nav: 'h-16 border-b border-line bg-bg/80 backdrop-blur-md sticky top-0 z-50 px-4 md:px-8 flex items-center justify-between',
+  logo: 'w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-bg font-bold text-sm shadow-lg shadow-accent/20',
   tabContainer:
-    'flex items-center gap-1 bg-gray-900/50 p-1 rounded-full border border-gray-800/50',
+    'flex items-center gap-1 bg-bg-2/50 p-1 rounded-full border border-line',
   tabBase:
     'px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 cursor-pointer',
-  tabActive:
-    'bg-gradient-to-r from-purple-500/10 to-blue-600/10 border border-purple-500/30 text-white shadow-sm',
+  tabActive: 'bg-accent/10 border border-accent/30 text-ink shadow-sm',
   tabInactive:
-    'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 hover:border-purple-500/20 border border-transparent',
+    'text-ink-dim hover:text-ink hover:bg-surface-elevated/50 hover:border-accent/20 border border-transparent',
 } as const;
 
 /** Get tab button className based on active state */

@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from scripts.attribution._helpers import _first_metric, _metric
 from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL
 from src.services.backtesting.strategies.hierarchical_attribution import (
     HIERARCHICAL_ATTRIBUTION_VARIANTS,
@@ -123,21 +124,6 @@ def _fetch_summary(
     return _extract_summary(payload, strategy_id)
 
 
-def _metric(summary: dict[str, Any], key: str) -> float | int | None:
-    value = summary.get(key)
-    if isinstance(value, int | float):
-        return value
-    return None
-
-
-def _first_metric(summary: dict[str, Any], keys: tuple[str, ...]) -> float | int | None:
-    for key in keys:
-        value = _metric(summary, key)
-        if value is not None:
-            return value
-    return None
-
-
 def _win_rate_percent(summary: dict[str, Any]) -> float | int | None:
     value = _first_metric(summary, ("win_rate_percent", "win_rate"))
     if value is None:
@@ -202,8 +188,8 @@ def _calmar_delta(
 ) -> float | None:
     summary = window_results.get(strategy_id, {})
     baseline = window_results.get(baseline_id, {})
-    calmar = _metric(summary, "calmar_ratio")
-    baseline_calmar = _metric(baseline, "calmar_ratio")
+    calmar = _metric(summary, "calmar_ratio", default=None)
+    baseline_calmar = _metric(baseline, "calmar_ratio", default=None)
     if calmar is None or baseline_calmar is None:
         return None
     return float(calmar) - float(baseline_calmar)
@@ -272,7 +258,7 @@ def render_markdown(
         for strategy_id in strategy_ids:
             variant = HIERARCHICAL_ATTRIBUTION_VARIANTS[strategy_id]
             summary = window_results.get(strategy_id, {})
-            calmar = _metric(summary, "calmar_ratio")
+            calmar = _metric(summary, "calmar_ratio", default=None)
             delta = _calmar_delta(
                 window_results=window_results,
                 strategy_id=strategy_id,
@@ -289,12 +275,19 @@ def render_markdown(
                     (
                         variant.display_name,
                         _format_metric(calmar),
-                        _format_metric(_metric(summary, "sharpe_ratio")),
+                        _format_metric(_metric(summary, "sharpe_ratio", default=None)),
                         _format_metric(
-                            _metric(summary, "max_drawdown_percent"),
+                            _metric(
+                                summary,
+                                "max_drawdown_percent",
+                                default=None,
+                            ),
                             pct=True,
                         ),
-                        _format_metric(_metric(summary, "roi_percent"), pct=True),
+                        _format_metric(
+                            _metric(summary, "roi_percent", default=None),
+                            pct=True,
+                        ),
                         _format_metric(
                             _first_metric(summary, ("trade_count", "total_trades"))
                         ),

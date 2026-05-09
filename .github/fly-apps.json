@@ -22,5 +22,13 @@
     "verify_package_script": "",
     "capture_release_metadata": false,
     "verify_docker": false
+  },
+  {
+    "app": "podcast-pipeline",
+    "secret_name": "FLY_API_TOKEN_PODCAST",
+    "fly_config": "apps/podcast-pipeline/fly.toml",
+    "verify_package_script": "",
+    "capture_release_metadata": true,
+    "verify_docker": true
   }
 ]

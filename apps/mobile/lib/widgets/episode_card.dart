@@ -29,13 +29,10 @@ class EpisodeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final playEnabled = episode.status != EpisodeStatus.unplayed;
     final playButton = PlayPauseButton(
       isPlaying: isPlaying,
       isLoading: isLoading,
       onPressed: onPlay,
-      enabled: playEnabled,
-      tooltip: playEnabled ? null : '點開 episode 才能開始播放',
       variant: PlayPauseButtonVariant.secondary,
     );
 
@@ -57,13 +54,7 @@ class EpisodeCard extends StatelessWidget {
                   child: EpisodeStatusBadge(status: episode.status),
                 ),
                 const SizedBox(width: 10),
-                playEnabled && !isLoading
-                    ? playButton
-                    : GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {},
-                        child: playButton,
-                      ),
+                playButton,
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

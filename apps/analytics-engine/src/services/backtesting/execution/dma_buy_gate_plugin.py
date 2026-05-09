@@ -43,14 +43,15 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
         hints = invocation.hints
         if not self._enabled(intent=intent, hints=hints):
             return ExecutionPluginResult()
-        snapshot = self._gate.snapshot(buy_strength=self._buy_strength(hints))
+        buy_strength = self._buy_strength(hints)
+        snapshot = self._gate.snapshot(buy_strength=buy_strength)
         diagnostics = (self._to_diagnostic(snapshot),)
         if intent.immediate:
             return ExecutionPluginResult(diagnostics=diagnostics)
 
         decision = self._gate.prepare_buy_execution(
             nav_usd=float(context.portfolio.total_value(context.portfolio_price)),
-            buy_strength=self._buy_strength(hints),
+            buy_strength=buy_strength,
         )
         diagnostics = (self._to_diagnostic(decision.snapshot),)
         if not decision.allowed and not self._has_internal_risk_rotation(invocation):
@@ -95,7 +96,8 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
             if float(deltas.get("stable", 0.0)) < -_EPSILON
             else 0.0
         )
-        snapshot = self._gate.snapshot(buy_strength=self._buy_strength(hints))
+        buy_strength = self._buy_strength(hints)
+        snapshot = self._gate.snapshot(buy_strength=buy_strength)
         capped_stable_buy = self._resolve_capped_stable_buy(
             stable_supply=stable_supply,
             snapshot=snapshot,
@@ -121,18 +123,19 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
         hints = invocation.hints
         if not self._enabled(intent=intent, hints=hints):
             return ExecutionPluginResult()
+        buy_strength = self._buy_strength(hints)
         executed_buy = sum(
             float(transfer.amount_usd)
             for transfer in transfers
             if transfer.from_bucket == "stable" and transfer.to_bucket != "stable"
         )
         if executed_buy <= 0.0:
-            snapshot = self._gate.snapshot(buy_strength=self._buy_strength(hints))
+            snapshot = self._gate.snapshot(buy_strength=buy_strength)
             return ExecutionPluginResult(
                 diagnostics=(self._to_diagnostic(snapshot),),
             )
         self._gate.record_buy_execution(executed_buy)
-        snapshot = self._gate.snapshot(buy_strength=self._buy_strength(hints))
+        snapshot = self._gate.snapshot(buy_strength=buy_strength)
         return ExecutionPluginResult(
             clear_plan=True,
             diagnostics=(self._to_diagnostic(snapshot),),

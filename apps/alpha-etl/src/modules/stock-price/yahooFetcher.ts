@@ -15,6 +15,8 @@ import {
   type StockPriceData,
   type YahooFinanceChartQuote,
   YahooFinanceChartQuoteSchema,
+  type YahooFinanceQuote,
+  YahooFinanceQuoteSchema,
 } from '../../modules/stock-price/schema.js';
 import { logger } from '../../utils/logger.js';
 
@@ -46,20 +48,21 @@ export class YahooFinanceFetcher {
     try {
       logger.info('Fetching latest stock price from Yahoo Finance', { symbol });
 
-      const quote = (await this.rateLimitCall(() =>
-        yahooFinance.quote(symbol),
-      )) as {
-        regularMarketPrice?: number;
-        regularMarketTime?: number;
-      };
-
-      if (typeof quote.regularMarketPrice !== 'number') {
-        throw new Error(`No quote data for ${symbol}`);
+      const raw = await this.rateLimitCall(() => yahooFinance.quote(symbol));
+      const parsed = YahooFinanceQuoteSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error(`No quote data for ${symbol}: ${parsed.error.message}`);
       }
 
-      const priceUsd = quote.regularMarketPrice;
-      const ts = quote.regularMarketTime ?? Math.floor(Date.now() / 1000);
-      const date = String(new Date(ts * 1000).toISOString().slice(0, 10));
+      const quote: YahooFinanceQuote = parsed.data;
+      const { regularMarketPrice: priceUsd, regularMarketTime } = quote;
+      let marketDate = new Date();
+      if (regularMarketTime instanceof Date) {
+        marketDate = regularMarketTime;
+      } else if (typeof regularMarketTime === 'number') {
+        marketDate = new Date(regularMarketTime * 1000);
+      }
+      const date = marketDate.toISOString().slice(0, 10);
 
       logger.info('Successfully fetched latest stock price', {
         symbol,

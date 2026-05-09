@@ -24,7 +24,7 @@ import {
   extractSentimentData,
 } from '@/lib/portfolio/portfolioTransformers';
 import { createSectionState } from '@/lib/portfolio/sectionHelpers';
-import type { DashboardProgressiveState } from '@/types/portfolio-progressive';
+import type { DashboardProgressiveState } from '@/types/portfolioProgressive';
 import { logger } from '@/utils';
 
 import { useLandingPageData } from './usePortfolioQuery';

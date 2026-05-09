@@ -2,28 +2,38 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     allocation_key_for_symbol,
+    combine_sizing_meta,
     current_fgi_regime_for_symbol,
     current_target,
     portfolio_target_intent,
     signals_consulted_for_symbols,
+    sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
+from src.services.backtesting.sizing.flat import FlatSizing
 from src.services.backtesting.target_allocation import normalize_target_allocation
+
+if TYPE_CHECKING:
+    from src.services.backtesting.sizing.base import SizingStrategy
 
 
 @dataclass(frozen=True)
 class ExtremeFearDcaBuyRule:
     name: str = "extreme_fear_dca_buy"
     priority: int = 40
+    cooldown_days: int = 14
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA buy assets when their relevant FGI is extreme fear."
+    buy_step: float = 0.01
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
 
     def matches(
         self,
@@ -43,17 +53,36 @@ class ExtremeFearDcaBuyRule:
         matching_symbols = _extreme_fear_symbols(snapshot)
         target = current_target(snapshot)
         stable_available = max(0.0, float(target.get("stable", 0.0)))
+        adjusted_step_by_symbol: dict[str, float] = {}
+        sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
         if matching_symbols and stable_available > 0.0:
-            per_asset_buy = min(
-                max(0.0, float(config.extreme_fear_buy_step)),
-                stable_available / len(matching_symbols),
+            for symbol in matching_symbols:
+                adjusted_step = self.sizing.adjust_step(
+                    self.buy_step,
+                    snapshot=snapshot,
+                    asset=symbol,
+                )
+                adjusted_step_by_symbol[symbol] = max(0.0, float(adjusted_step))
+                sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
+                    sizing=self.sizing,
+                    base_step=self.buy_step,
+                    adjusted_step=adjusted_step,
+                    snapshot=snapshot,
+                    asset=symbol,
+                )
+            total_desired = sum(adjusted_step_by_symbol.values())
+            stable_scale = (
+                min(1.0, stable_available / total_desired)
+                if total_desired > 0.0
+                else 0.0
             )
             for symbol in matching_symbols:
                 key = allocation_key_for_symbol(symbol)
+                per_asset_buy = adjusted_step_by_symbol[symbol] * stable_scale
                 target[key] = max(0.0, float(target.get(key, 0.0))) + per_asset_buy
             target["stable"] = max(
                 0.0,
-                stable_available - (per_asset_buy * len(matching_symbols)),
+                stable_available - sum(adjusted_step_by_symbol.values()) * stable_scale,
             )
         return portfolio_target_intent(
             action="buy",
@@ -68,6 +97,7 @@ class ExtremeFearDcaBuyRule:
             )
             if config.emit_signals_consulted
             else None,
+            sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
         )
 
 

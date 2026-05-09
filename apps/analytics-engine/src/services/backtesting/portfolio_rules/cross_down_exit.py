@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -10,6 +10,7 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     add_stable,
     allocation_key_for_symbol,
+    cross_down_cooldown_days_for,
     current_target,
     portfolio_target_intent,
     signals_consulted_for_symbols,
@@ -28,8 +29,20 @@ _ASSET_CLASS_PEERS: dict[str, tuple[str, ...]] = {
 class CrossDownExitRule:
     name: str = "cross_down_exit"
     priority: int = 10
+    cooldown_days: int = 30
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
+    cross_down_cooldown_days_per_symbol: dict[str, int] = field(
+        default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
+    )
+    default_cross_down_cooldown_days: int = 30
+
+    def cooldown_days_for(self, symbol: str) -> int:
+        return cross_down_cooldown_days_for(
+            symbol,
+            per_symbol=self.cross_down_cooldown_days_per_symbol,
+            default=self.default_cross_down_cooldown_days,
+        )
 
     def matches(
         self,
@@ -74,6 +87,12 @@ class CrossDownExitRule:
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics["portfolio_rule_trigger_assets"] = matching_symbols
+        diagnostics["portfolio_rule_exit_assets"] = exit_symbols
+        diagnostics["portfolio_rule_cooldown_assets"] = exit_symbols
+        diagnostics["portfolio_rule_forced_cross_events"] = dict.fromkeys(
+            exit_symbols,
+            "cross_down",
+        )
         return replace(intent, diagnostics=diagnostics)
 
 

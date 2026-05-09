@@ -1,0 +1,11 @@
+{
+  "extends": "@zapengine/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "vitest/globals"],
+    "incremental": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

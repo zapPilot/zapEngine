@@ -553,6 +553,103 @@ def test_constraint_validation_supports_negative_decision_assertions(
     assert data["constraint_validation"]["passed"] is True
 
 
+def test_constraint_validation_supports_hold_event_current_assertions(
+    tmp_path: Any,
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    payload = deepcopy(_payload())
+    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy["decision"]["target_allocation"] = dict(
+        strategy["portfolio"]["asset_allocation"]
+    )
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-23": {
+                    "events": [
+                        {
+                            "id": "eth_hold_no_signal_trigger",
+                            "event_type": "hold",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_unchanged_from_current",
+                                    "asset": "eth",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        payload,
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-23",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    assert data["constraint_validation"]["passed"] is True
+
+
+def test_constraint_validation_hold_assertion_reports_sell_attempt(
+    tmp_path: Any,
+) -> None:
+    fixture = tmp_path / "constraints.json"
+    payload = deepcopy(_payload())
+    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy["decision"]["target_allocation"] = {
+        "btc": 0.0,
+        "eth": 0.8,
+        "spy": 0.0,
+        "stable": 0.2,
+        "alt": 0.0,
+    }
+    fixture.write_text(
+        json.dumps(
+            {
+                "2025-04-23": {
+                    "events": [
+                        {
+                            "id": "eth_hold_rejects_sell",
+                            "event_type": "hold",
+                            "assertions": [
+                                {
+                                    "type": "target_asset_not_decreased_from_current",
+                                    "asset": "eth",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    rendered = analyzer.analyze_response_payload(
+        payload,
+        strategy_id="eth_btc_rotation_default",
+        date_filter="2025-04-23",
+        output_format="json",
+        enrich_db="never",
+        source_label="fixture",
+        request_body={"configs": []},
+        constraints_fixture=str(fixture),
+    )
+    data = json.loads(rendered)
+
+    validation = data["constraint_validation"]
+    assert validation["passed"] is False
+    assert validation["violations"][0]["id"] == "eth_hold_rejects_sell"
+    assert "expected >= current 1.000000" in validation["violations"][0]["message"]
+
+
 def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
     fixture = tmp_path / "constraints.json"
     fixture.write_text(

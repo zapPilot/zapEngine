@@ -45,7 +45,7 @@ def test_get_mapped_t_handles_near_zero_denom() -> None:
 
     policy = FgiExponentialPacingPolicy(k=3.0)
     with patch(
-        "src.services.backtesting.execution.pacing.fgi_exponential.math.exp",
+        "src.services.backtesting.sizing.fgi_exponential.math.exp",
         _patched_exp,
     ):
         t = policy._get_mapped_t(fgi_value=0.0)

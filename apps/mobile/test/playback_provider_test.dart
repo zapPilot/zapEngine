@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:ai_podcast_mobile/models/episode.dart';
 import 'package:ai_podcast_mobile/services/episode_service.dart';
 import 'package:ai_podcast_mobile/state/playback_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'fakes/fake_podcast_audio_handler.dart';
 
@@ -282,6 +285,338 @@ void main() {
     },
   );
 
+  test('marks an episode listened when position reaches near the end',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 598));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('seek near the end marks an episode listened without a position event',
+      () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+
+    await provider.seek(const Duration(seconds: 599));
+
+    expect(handler.seekPositions, [const Duration(seconds: 599)]);
+    expect(provider.position, const Duration(seconds: 600));
+
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('completion still writes listened when position persistence fails',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService(
+      positionWriteError: Exception('position write failed'),
+    );
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.positionWrites, [
+      const _PositionWrite('user-1', 'episode-1', 599),
+      const _PositionWrite('user-1', 'episode-1', 600),
+    ]);
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test(
+    'completion still writes listened when PostgrestException blocks position writes',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final service = _FakeEpisodeService(
+        positionWriteError: const PostgrestException(
+          message: 'permission denied for table user_episode_state',
+          code: '42501',
+        ),
+      );
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
+
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
+      handler.emitPosition(const Duration(seconds: 599));
+      await _flushProviderAsync();
+
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
+
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test('near-end completion writes listened only once', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 598));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.emitPosition(const Duration(seconds: 600));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test(
+    'completedEpisodeIds stream emits exactly once on near-end completion',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
+      final emitted = <String>[];
+      final sub = provider.completedEpisodeIds.listen(emitted.add);
+
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
+      handler.emitPosition(const Duration(seconds: 599));
+      handler.emitPosition(const Duration(seconds: 599));
+      handler.emitPosition(const Duration(seconds: 600));
+      await _flushProviderAsync();
+
+      expect(emitted, ['episode-1']);
+
+      await sub.cancel();
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
+    'completedEpisodeIds stream emits when handler reports completed state',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
+      final emitted = <String>[];
+      final sub = provider.completedEpisodeIds.listen(emitted.add);
+
+      await provider.toggle(_episode('episode-1'));
+      handler.complete();
+      await _flushProviderAsync();
+
+      expect(emitted, ['episode-1']);
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
+
+      await sub.cancel();
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
+    'seek to mid-episode does not finalize the episode',
+    () async {
+      final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
+      final emitted = <String>[];
+      final sub = provider.completedEpisodeIds.listen(emitted.add);
+
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
+      await provider.seek(const Duration(seconds: 300));
+      await _flushProviderAsync();
+
+      expect(service.listenedWrites, isEmpty);
+      expect(emitted, isEmpty);
+
+      handler.emitPosition(const Duration(seconds: 599));
+      await _flushProviderAsync();
+
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
+      expect(emitted, ['episode-1']);
+
+      await sub.cancel();
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
+    'seek with unknown duration does not finalize the episode',
+    () async {
+      final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
+
+      await provider.toggle(_episode('episode-1'));
+      await provider.seek(const Duration(seconds: 599));
+      await _flushProviderAsync();
+
+      expect(service.listenedWrites, isEmpty);
+
+      handler.emitDuration(const Duration(seconds: 600));
+      handler.emitPosition(const Duration(seconds: 599));
+      await _flushProviderAsync();
+
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
+
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
+    'completion stream stays silent when setListened throws and does not retry',
+    () async {
+      final uncaughtErrors = <Object>[];
+      final service = _FakeEpisodeService(
+        listenedWriteError: const PostgrestException(
+          message: 'permission denied for table user_episode_state',
+          code: '42501',
+        ),
+      );
+
+      await runZonedGuarded<Future<void>>(
+        () async {
+          final handler = FakePodcastAudioHandler();
+          final provider = PlaybackProvider(handler, episodeService: service)
+            ..setUser('user-1');
+          final emitted = <String>[];
+          final sub = provider.completedEpisodeIds.listen(emitted.add);
+
+          await provider.toggle(_episode('episode-1'));
+          handler.emitDuration(const Duration(seconds: 600));
+          handler.emitPosition(const Duration(seconds: 599));
+          await _flushProviderAsync();
+
+          expect(service.listenedWrites, hasLength(1));
+          expect(emitted, isEmpty);
+
+          handler.emitPosition(const Duration(seconds: 600));
+          await _flushProviderAsync();
+
+          expect(service.listenedWrites, hasLength(1));
+          expect(emitted, isEmpty);
+
+          await sub.cancel();
+          provider.dispose();
+          await handler.dispose();
+        },
+        (error, _) {
+          uncaughtErrors.add(error);
+        },
+      );
+
+      expect(
+        uncaughtErrors,
+        contains(
+          isA<PostgrestException>().having(
+            (error) => error.code,
+            'code',
+            '42501',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('near-end and completed state triggers are idempotent', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    handler.complete();
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('replaying an episode can mark it listened again', () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+    final episode = _episode('episode-1');
+
+    await provider.toggle(episode);
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    await provider.toggle(episode.copyWith(listened: true));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   test(
     'position persistence is throttled and flush can write immediately',
     () async {
@@ -309,6 +644,11 @@ void main() {
       await handler.dispose();
     },
   );
+}
+
+Future<void> _flushProviderAsync() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
 }
 
 Episode _episode(String id) {
@@ -344,6 +684,13 @@ Episode _episodeWithTracks(String id) {
 }
 
 class _FakeEpisodeService extends EpisodeService {
+  _FakeEpisodeService({
+    Object? positionWriteError,
+    this.listenedWriteError,
+  }) : this.positionWriteError = positionWriteError;
+
+  final Object? positionWriteError;
+  final Object? listenedWriteError;
   final List<_PositionWrite> positionWrites = [];
   final List<_ListenedWrite> listenedWrites = [];
 
@@ -354,6 +701,10 @@ class _FakeEpisodeService extends EpisodeService {
     required int seconds,
   }) async {
     positionWrites.add(_PositionWrite(userId, episodeId, seconds));
+    final err = positionWriteError;
+    if (err != null) {
+      throw err;
+    }
   }
 
   @override
@@ -363,6 +714,10 @@ class _FakeEpisodeService extends EpisodeService {
     required bool listened,
   }) async {
     listenedWrites.add(_ListenedWrite(userId, episodeId, listened));
+    final err = listenedWriteError;
+    if (err != null) {
+      throw err;
+    }
   }
 }
 

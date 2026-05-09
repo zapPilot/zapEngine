@@ -1,6 +1,7 @@
 import { Coins, Layers } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { GRADIENTS } from '@/constants/designSystem';
 import {
   type AssetCategoryKey,
   getCategoryForToken,
@@ -141,7 +142,7 @@ export function WithdrawModal({
             modalState={modalState}
             dropdownState={dropdownState}
             actionLabel={actionLabel}
-            actionGradient="from-indigo-600 to-violet-600"
+            actionGradient={GRADIENTS.PRIMARY}
             handlePercentage={handlePercentage}
             assetContent={assetContent}
           />

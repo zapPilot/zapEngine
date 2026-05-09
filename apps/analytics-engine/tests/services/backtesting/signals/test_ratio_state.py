@@ -28,6 +28,44 @@ def test_detect_cross_down() -> None:
     assert detect_ratio_cross(prev_zone="above", current_zone="below") == "cross_down"
 
 
+def test_detect_cross_down_without_touch_requires_below() -> None:
+    assert (
+        detect_ratio_cross(
+            prev_zone="above",
+            current_zone="at",
+            cross_on_touch=False,
+        )
+        is None
+    )
+    assert (
+        detect_ratio_cross(
+            prev_zone="above",
+            current_zone="below",
+            cross_on_touch=False,
+        )
+        == "cross_down"
+    )
+
+
+def test_detect_cross_up_without_touch_requires_above() -> None:
+    assert (
+        detect_ratio_cross(
+            prev_zone="below",
+            current_zone="at",
+            cross_on_touch=False,
+        )
+        is None
+    )
+    assert (
+        detect_ratio_cross(
+            prev_zone="below",
+            current_zone="above",
+            cross_on_touch=False,
+        )
+        == "cross_up"
+    )
+
+
 def test_no_cross_when_same_zone() -> None:
     assert detect_ratio_cross(prev_zone="above", current_zone="above") is None
 

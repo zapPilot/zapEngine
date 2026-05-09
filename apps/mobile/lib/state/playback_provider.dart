@@ -17,9 +17,11 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   static const _speedKey = 'playback_speed';
+  static const _completionThreshold = Duration(seconds: 2);
 
   final PodcastAudioHandler _handler;
   final EpisodeService _episodeService;
+  final _completionController = StreamController<String>.broadcast();
 
   StreamSubscription<PlayerState>? _subscription;
   StreamSubscription<Duration>? _positionSubscription;
@@ -38,6 +40,7 @@ class PlaybackProvider extends ChangeNotifier {
   int _queueIndex = -1;
   int? _lastPersistedSecond;
   bool _advancingAfterCompletion = false;
+  final Set<String> _finalizedEpisodeIds = <String>{};
 
   Episode? get currentEpisode => _currentEpisode;
   bool get isPlaying => _isPlaying;
@@ -46,6 +49,7 @@ class PlaybackProvider extends ChangeNotifier {
   Duration get duration => _duration;
   double get speed => _speed;
   AudioTrack? get currentAudioTrack => _currentAudioTrack;
+  Stream<String> get completedEpisodeIds => _completionController.stream;
 
   bool isEpisodePlaying(String id) {
     return _currentEpisode?.id == id && _isPlaying;
@@ -138,8 +142,11 @@ class PlaybackProvider extends ChangeNotifier {
     return _handler.play();
   }
 
-  Future<void> seek(Duration position) {
-    return _handler.seek(position);
+  Future<void> seek(Duration position) async {
+    await _handler.seek(position);
+    _position = position;
+    notifyListeners();
+    _maybeFinalizeNearEnd();
   }
 
   Future<void> flushPosition() {
@@ -193,11 +200,23 @@ class PlaybackProvider extends ChangeNotifier {
         (sec - _lastPersistedSecond!).abs() >= 10) {
       unawaited(_persistPosition());
     }
+    _maybeFinalizeNearEnd();
   }
 
   void _handleDuration(Duration? duration) {
     _duration = duration ?? Duration.zero;
     notifyListeners();
+  }
+
+  void _maybeFinalizeNearEnd() {
+    final episode = _currentEpisode;
+    if (episode == null) return;
+    if (_advancingAfterCompletion) return;
+    if (_finalizedEpisodeIds.contains(episode.id)) return;
+    if (_duration <= Duration.zero) return;
+    if (_duration - _position > _completionThreshold) return;
+
+    unawaited(_handleCompleted());
   }
 
   @override
@@ -206,6 +225,7 @@ class PlaybackProvider extends ChangeNotifier {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _speedSubscription?.cancel();
+    _completionController.close();
     unawaited(_handler.dispose());
     super.dispose();
   }
@@ -228,6 +248,7 @@ class PlaybackProvider extends ChangeNotifier {
 
     _loadingEpisodeId = episode.id;
     _currentEpisode = episode;
+    _finalizedEpisodeIds.remove(episode.id);
     _currentAudioTrack = selectedTrack;
     _position = Duration.zero;
     _duration = Duration.zero;
@@ -249,21 +270,25 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   Future<void> _handleCompleted() async {
+    final completedEpisode = _currentEpisode;
+    if (completedEpisode == null) return;
+    if (!_finalizedEpisodeIds.add(completedEpisode.id)) return;
+
     _advancingAfterCompletion = true;
     try {
-      final completedEpisode = _currentEpisode;
       if (_duration > _position) {
         _position = _duration;
       }
       await _persistPosition(flush: true);
 
       final userId = _userId;
-      if (userId != null && completedEpisode != null) {
+      if (userId != null) {
         await _episodeService.setListened(
           userId: userId,
           episodeId: completedEpisode.id,
           listened: true,
         );
+        _completionController.add(completedEpisode.id);
       }
 
       await _advanceQueue();
@@ -305,10 +330,14 @@ class PlaybackProvider extends ChangeNotifier {
     }
 
     _lastPersistedSecond = seconds;
-    await _episodeService.setPosition(
-      userId: userId,
-      episodeId: episode.id,
-      seconds: seconds,
-    );
+    try {
+      await _episodeService.setPosition(
+        userId: userId,
+        episodeId: episode.id,
+        seconds: seconds,
+      );
+    } catch (error) {
+      debugPrint('Playback position persistence failed: $error');
+    }
   }
 }

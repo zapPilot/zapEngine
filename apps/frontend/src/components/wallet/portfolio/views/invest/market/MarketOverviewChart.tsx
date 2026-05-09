@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
+import { getRegimeFromSentiment, getRegimeLabel } from '@/lib/domain/regime';
 import type { MarketDashboardPoint } from '@/services';
 
 import {
@@ -53,7 +53,7 @@ interface ChartDataPoint {
   sentiment_value: number | null;
   macro_fear_greed: number | null;
   regime: string | null;
-  macro_fear_greed_label: string | null;
+  macro_regime: string | null;
   // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
   btc_price_normalized: number | null;
   btc_dma_normalized: number | null;
@@ -75,7 +75,7 @@ interface TooltipPayload {
     sentiment_value?: number | null;
     macro_fear_greed?: number | null;
     regime?: string | null;
-    macro_fear_greed_label?: string | null;
+    macro_regime?: string | null;
     btc_dma_200?: number | null;
     eth_price_usd?: number | null;
     eth_dma_200?: number | null;
@@ -148,29 +148,43 @@ function formatTooltipValue(
   }
   if (labelName === 'Fear & Greed Index') {
     const rawFgi = payload?.sentiment_value;
-    const regime = payload?.regime as keyof typeof REGIME_LABELS | undefined;
-    const regimeLabel = regime ? REGIME_LABELS[regime] : '';
+    const regimeLabel = getRegimeLabel(payload?.regime);
     return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
   if (labelName === 'Macro FGI') {
     const rawFgi = payload?.macro_fear_greed;
-    const label = payload?.macro_fear_greed_label ?? '';
-    return [`${String(rawFgi)} (${label})`, labelName];
+    const regimeLabel = getRegimeLabel(payload?.macro_regime);
+    return [`${String(rawFgi)} (${regimeLabel})`, labelName];
   }
   return [value as string | number, labelName];
 }
 
-function renderFgiActiveDot(dotProps: {
-  cx?: number | undefined;
-  cy?: number | undefined;
-  payload?: { regime?: string | null | undefined };
-}): JSX.Element {
-  const { cx = 0, cy = 0, payload } = dotProps;
-  const color = getRegimeColor(payload?.regime, '#10B981');
-  return (
-    <circle cx={cx} cy={cy} r={6} fill={color} stroke="#fff" strokeWidth={2} />
-  );
+function makeRegimeActiveDot(regimeField: 'regime' | 'macro_regime') {
+  return function renderActiveDot(dotProps: {
+    cx?: number | undefined;
+    cy?: number | undefined;
+    payload?: Record<string, unknown>;
+  }): JSX.Element {
+    const { cx = 0, cy = 0, payload } = dotProps;
+    const color = getRegimeColor(
+      payload?.[regimeField] as string | null | undefined,
+      '#10B981',
+    );
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={6}
+        fill={color}
+        stroke="#fff"
+        strokeWidth={2}
+      />
+    );
+  };
 }
+
+const renderFgiActiveDot = makeRegimeActiveDot('regime');
+const renderMacroFgiActiveDot = makeRegimeActiveDot('macro_regime');
 
 export function MarketOverviewChart({
   data,
@@ -223,10 +237,10 @@ export function MarketOverviewChart({
         sentiment_value: fgi?.value ?? null,
         macro_fear_greed: macroFearGreed?.value ?? null,
         regime: fgi?.tags?.['regime'] ?? null,
-        macro_fear_greed_label:
-          macroFearGreed?.tags?.['label'] ??
-          macroFearGreed?.tags?.['regime'] ??
-          null,
+        macro_regime:
+          macroFearGreed?.value != null
+            ? getRegimeFromSentiment(macroFearGreed.value)
+            : null,
         btc_price_normalized: normalize(btcPrice, btcMinMax.min, btcMinMax.max),
         btc_dma_normalized: normalize(btcDma, btcMinMax.min, btcMinMax.max),
         eth_price_normalized: normalize(ethPrice, ethMinMax.min, ethMinMax.max),
@@ -326,6 +340,26 @@ export function MarketOverviewChart({
                 const offset =
                   chartData.length > 1 ? i / (chartData.length - 1) : 0;
                 const color = getRegimeColor(d.regime);
+                return (
+                  <stop
+                    key={i}
+                    offset={`${(offset * 100).toFixed(2)}%`}
+                    stopColor={color}
+                  />
+                );
+              })}
+            </linearGradient>
+            <linearGradient
+              id="macroFgiLineGradient"
+              x1="0"
+              y1="0"
+              x2="1"
+              y2="0"
+            >
+              {chartData.map((d, i) => {
+                const offset =
+                  chartData.length > 1 ? i / (chartData.length - 1) : 0;
+                const color = getRegimeColor(d.macro_regime);
                 return (
                   <stop
                     key={i}
@@ -447,16 +481,18 @@ export function MarketOverviewChart({
               : {};
             const activeDotProps = isFgi
               ? { activeDot: renderFgiActiveDot }
-              : isBtcPrice
-                ? {
-                    activeDot: {
-                      r: 5,
-                      fill: line.color,
-                      strokeWidth: 2,
-                      stroke: '#fff',
-                    },
-                  }
-                : {};
+              : isMacroFgi
+                ? { activeDot: renderMacroFgiActiveDot }
+                : isBtcPrice
+                  ? {
+                      activeDot: {
+                        r: 5,
+                        fill: line.color,
+                        strokeWidth: 2,
+                        stroke: '#fff',
+                      },
+                    }
+                  : {};
 
             return (
               <Line
@@ -465,7 +501,13 @@ export function MarketOverviewChart({
                 type="monotone"
                 name={line.label}
                 dataKey={line.dataKey}
-                stroke={isFgi ? 'url(#fgiLineGradient)' : line.color}
+                stroke={
+                  isFgi
+                    ? 'url(#fgiLineGradient)'
+                    : isMacroFgi
+                      ? 'url(#macroFgiLineGradient)'
+                      : line.color
+                }
                 strokeWidth={isFgi || isMacroFgi ? 2.5 : 2}
                 dot={false}
                 {...strokeDasharrayProps}

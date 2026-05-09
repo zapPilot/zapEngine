@@ -7,7 +7,6 @@ from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownEx
 from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
 )
-from src.services.backtesting.portfolio_rules.dma_buy_gate_rule import DmaBuyGateRule
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
@@ -20,16 +19,11 @@ from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
-from src.services.backtesting.portfolio_rules.global_cooldown_gate import (
-    GlobalCooldownGateRule,
-)
-from src.services.backtesting.portfolio_rules.trade_quota_rule import TradeQuotaRule
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
-    GlobalCooldownGateRule(),
     ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
@@ -41,16 +35,10 @@ DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
 RULE_DESCRIPTIONS: dict[str, str] = {
     rule.name: rule.description for rule in DEFAULT_PORTFOLIO_RULES
 }
-_OPTIONAL_PORTFOLIO_RULE_NAMES = frozenset({"dma_buy_gate", "trade_quota"})
-RULE_NAMES: frozenset[str] = (
-    frozenset(rule.name for rule in DEFAULT_PORTFOLIO_RULES)
-    | _OPTIONAL_PORTFOLIO_RULE_NAMES
-)
+RULE_NAMES: frozenset[str] = frozenset(rule.name for rule in DEFAULT_PORTFOLIO_RULES)
 
 __all__ = [
     "DEFAULT_PORTFOLIO_RULES",
-    "DmaBuyGateRule",
     "RULE_DESCRIPTIONS",
     "RULE_NAMES",
-    "TradeQuotaRule",
 ]

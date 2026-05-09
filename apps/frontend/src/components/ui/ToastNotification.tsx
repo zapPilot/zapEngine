@@ -134,7 +134,7 @@ export function ToastNotification({ toast, onClose }: ToastNotificationProps) {
                     toast.action?.onClick();
                     handleClose();
                   }}
-                  className="mt-2 w-full px-3 py-1.5 text-sm rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition font-medium"
+                  className="mt-2 w-full px-3 py-1.5 text-sm rounded-md bg-accent hover:bg-accent/90 text-bg transition font-medium"
                 >
                   {toast.action.label}
                 </button>

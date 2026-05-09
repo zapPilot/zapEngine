@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from src.services.backtesting.capabilities import (
     PortfolioBuckets,
     map_portfolio_to_eth_btc_stable_buckets,
+    map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
 
@@ -69,6 +72,20 @@ class TestToPortfolioWithAssets:
         portfolio = buckets.to_portfolio(current_price=50_000.0)
         assert portfolio is not None
 
+    def test_to_portfolio_rejects_unknown_runtime_mode(self) -> None:
+        buckets = PortfolioBuckets(
+            spot_value=5_000.0,
+            stable_value=5_000.0,
+            btc_value=3_000.0,
+            eth_value=2_000.0,
+        )
+
+        with pytest.raises(ValueError, match="Unsupported runtime portfolio mode"):
+            buckets.to_portfolio(
+                current_price=50_000.0,
+                runtime_mode="paper",  # type: ignore[arg-type]
+            )
+
 
 class TestMapPortfolioNoneAllocation:
     """Cover lines 83 and 100: mappers with None portfolio_allocation."""
@@ -101,6 +118,21 @@ class TestMapPortfolioNoneAllocation:
             stable_value=0.0,
             btc_value=0.0,
             eth_value=0.0,
+            stable_category_value=0.0,
+            alt_value=0.0,
+        )
+
+    def test_spy_eth_btc_stable_none_allocation(self) -> None:
+        result = map_portfolio_to_spy_eth_btc_stable_buckets(
+            SimpleNamespace(portfolio_allocation=None)
+        )
+
+        assert result == PortfolioBuckets(
+            spot_value=0.0,
+            stable_value=0.0,
+            btc_value=0.0,
+            eth_value=0.0,
+            spy_value=0.0,
             stable_category_value=0.0,
             alt_value=0.0,
         )

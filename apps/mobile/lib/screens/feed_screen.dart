@@ -39,6 +39,7 @@ class _FeedScreenState extends State<FeedScreen> {
   int _requestEpoch = 0;
   bool _listenedExpanded = false;
   String? _playbackUserId;
+  StreamSubscription<String>? _completionSub;
 
   @override
   void initState() {
@@ -50,12 +51,17 @@ class _FeedScreenState extends State<FeedScreen> {
         context.read<LikesProvider>().watchUser(user.id);
         _bindPlaybackUser(user.id);
       }
+      _completionSub = context
+          .read<PlaybackProvider>()
+          .completedEpisodeIds
+          .listen(_onEpisodeCompleted);
       unawaited(_loadFirstPage());
     });
   }
 
   @override
   void dispose() {
+    _completionSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -153,6 +159,16 @@ class _FeedScreenState extends State<FeedScreen> {
     if (_playbackUserId == userId) return;
     _playbackUserId = userId;
     context.read<PlaybackProvider>().setUser(userId);
+  }
+
+  void _onEpisodeCompleted(String id) {
+    if (!mounted) return;
+    setState(() {
+      _episodes = [
+        for (final episode in _episodes)
+          episode.id == id ? episode.copyWith(listened: true) : episode,
+      ];
+    });
   }
 
   void _onScroll() {
@@ -271,7 +287,9 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _handleSmartPlay(Episode heroEpisode) async {
     final playback = context.read<PlaybackProvider>();
-    if (playback.currentEpisode?.id == heroEpisode.id) {
+    final shouldResume = playback.currentEpisode?.id == heroEpisode.id &&
+        heroEpisode.status == EpisodeStatus.inProgress;
+    if (shouldResume) {
       if (playback.isPlaying) {
         await playback.pause();
       } else {

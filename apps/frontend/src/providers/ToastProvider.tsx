@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react';
 
-import { Z_INDEX } from '@/constants/design-system';
+import { Z_INDEX } from '@/constants/designSystem';
 
 import { Toast, ToastNotification } from '../components/ui/ToastNotification';
 

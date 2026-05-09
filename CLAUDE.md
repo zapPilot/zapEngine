@@ -2,7 +2,10 @@ See @README.md for project overview and @package.json for root scripts.
 
 # Build order
 
-IMPORTANT: `packages/types` (and other packages) must be built before running `type-check` or `test` on any app. Always run `pnpm build` first if TS2307 errors appear on `@zapengine/*` imports.
+Internal packages (`packages/*`) are built automatically by `pnpm check:local`, `check:ci`, and `check:ci:core` via the `prebuild:packages` step. When invoking type-check or tests directly:
+
+- **Prefer**: `pnpm type-check` / `pnpm test` from the root (Turbo handles `^build` upstream deps).
+- **If TS2307 appears** on `@zapengine/*` imports when running `pnpm --filter X type-check` directly: run `pnpm prebuild:packages` first.
 
 # Per-app tooling
 
@@ -55,7 +58,7 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 
 # Analytics strategy measurement
 
-After changing any backtesting strategy or signal component, start analytics-engine on port 8001 and run `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot`. The checked-in 500-day snapshot fixture is pinned to a reference date; refresh it only after an intentional strategy behavior change with `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot`.
+The snapshot gate runs automatically as part of `pnpm --filter @zapengine/analytics-engine test` and `test:ci` (in-process; no server boot required). If you intentionally change strategy behavior, refresh the fixture: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` (this still requires the server on port 8001 because update mode uses HTTP mode).
 
 # AI Tool Documentation
 
@@ -70,5 +73,4 @@ This repository uses **CLAUDE.md** as the single source of truth for AI assistan
 **Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
-
 

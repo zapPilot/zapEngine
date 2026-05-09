@@ -7,6 +7,19 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-08 — Portfolio rule cooldowns localized
+- **Commit**: pending local change (`dma_fgi_portfolio_rules` per-rule cooldown)
+- **Finding**: The shared post-trade portfolio cooldown gate was removed because it let a cross-down sell suppress short-lived extreme-fear DCA opportunities. Portfolio rules now expose rule-local cooldown fields, defaulting to 0d, and cooldown state is recorded only after an executed transfer.
+- **Regression pins**: strategy coverage verifies a cross-down sell no longer blocks the next extreme-fear DCA, and custom per-rule cooldown skips only the cooling rule after actual execution.
+- **Validation**: `dma_fgi_portfolio_rules` hierarchical validation passes with `extreme_fear_dca_2025_03_11` PASS; 500-day strategy snapshot reports no metric drift above tolerance.
+
+### 2026-05-07 — Risk layer extraction and adaptive sizing audit trail
+- **Commit**: pending local change (`phase4-risk-sizing`)
+- **Finding**: Moved `trade_quota` and `dma_buy_gate` from portfolio-rule wrappers into post-decision `risk/` guards while preserving the old priority semantics, then added `SizingStrategy` with flat defaults and canonical `FgiExponentialSizing(max_multiplier=1.1)` for extreme-fear buys.
+- **Snapshot delta vs flat sizing ablation**: `dma_fgi_portfolio_rules` ROI 64.0972% -> 64.0974% (+0.0002pp), Calmar 4.2665 -> 4.2665 (+0.0000), Sharpe 1.9112 -> 1.9069 (-0.0043), MaxDD unchanged at -10.2024%, trades 48 -> 48 (0). `_minus_adaptive_sizing` preserves the Phase B flat baseline.
+- **Audit trail**: `decisions.jsonl` now emits `sizing_meta` for DCA step rules. Phase B flat decisions show `base == adjusted`; Phase C adaptive extreme-fear buys show `strategy=fgi_exponential`, FGI value, and `base != adjusted`.
+- **Validation**: `tests/test_validation_events.py` passed after both Phase B and Phase C. Full `pnpm --filter @zapengine/analytics-engine test` remains blocked locally by a corrupted Docker test container (`analytics-test-postgres` returns containerd input/output errors), not by pytest failures.
+
 ### 2026-05-07 — Portfolio rules hierarchical-feature port stopped at DMA stable gating
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` priority-spacing setup)
 - **Finding**: Phase 0 priority spacing was behavior-neutral after preserving the existing optional `dma_buy_gate` order after overextension sells. Phase 1's direct flat translation of DMA stable gating (`BTC/ETH below DMA` + crypto FGI in `fear/extreme_fear` -> route to stable) had the wrong sign and was reverted per the stop condition. The ablation proved isolation, but the trigger was too broad in the flat rule layer and blocked profitable extreme-fear DCA exposure.
@@ -35,7 +48,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 
 ### 2026-05-05 — SPY portfolio cross-down cooldown aligned to 30d
 - **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs update.
-- **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. `global_cooldown_days` remains 7d for the separate post-trade DCA gate.
+- **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. Later iterations removed the separate shared post-trade DCA gate in favor of rule-local cooldowns.
 - **Snapshot delta vs SPY-7 `dma_fgi_portfolio_rules` baseline**: ROI 37.03% → 33.08% (-3.95pp), Calmar 1.18 → 1.02 (-0.16), Sharpe 0.91 → 0.87 (-0.04), MaxDD -21.85% → -22.63% (-0.78pp), trades 78 → 51 (-27).
 - **Regression pins**: unit coverage locks the cooldown lookup defaults and custom fallback; strategy coverage verifies SPY and BTC remain cooldown-blocked across the default window. The 2025-03-24 validation event now checks that cooldown-blocked cross-up equal-weight re-entry does not match while allowing hold targets to preserve existing SPY exposure from prior validated DCA. A synthetic 2025-07-15 ETH/BTC ratio cross-up test pins the complete BTC→ETH rotation behavior.
 

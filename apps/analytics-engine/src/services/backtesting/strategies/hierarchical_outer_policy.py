@@ -47,6 +47,8 @@ class HierarchicalOuterSnapshot:
     crypto_dma_reference_asset: str
     spy_latch_active: bool
     pre_existing_stable_share: float
+    current_date: date | None = None
+    spy_latch_activated_on: date | None = None
     spy_latch_target_share: float | None = None
     btc_dma_state: DmaMarketState | None = None
     eth_dma_state: DmaMarketState | None = None
@@ -114,6 +116,7 @@ class FullFeaturedOuterPolicy:
             target_allocation=_apply_spy_latch_to_target(
                 target_allocation=intent.target_allocation,
                 pre_existing_stable_share=snapshot.pre_existing_stable_share,
+                redeploy_existing_stable=_is_spy_latch_activation_day(snapshot),
             ),
         )
 
@@ -595,14 +598,39 @@ def _apply_spy_latch_to_target(
     target_allocation: Mapping[str, float],
     pre_existing_stable_share: float,
     desired_spy_share: float = 1.0,
+    redeploy_existing_stable: bool = False,
 ) -> dict[str, float]:
     target = normalize_target_allocation(target_allocation)
+    if redeploy_existing_stable:
+        return _redeploy_existing_stable_to_spy(
+            target_allocation=target,
+            desired_spy_share=desired_spy_share,
+        )
     stable_target = max(0.0, float(target.get("stable", 0.0)))
     stable_before_tick = max(0.0, min(1.0, pre_existing_stable_share))
     freshly_created_stable_today = max(0.0, stable_target - stable_before_tick)
     spy_target = max(0.0, float(target.get("spy", 0.0)))
     spy_deficit = max(0.0, min(1.0, desired_spy_share) - spy_target)
     redeploy_to_spy = min(freshly_created_stable_today, spy_deficit)
+    if redeploy_to_spy <= 0.0:
+        return target
+    target["stable"] = stable_target - redeploy_to_spy
+    target["spy"] = spy_target + redeploy_to_spy
+    return normalize_target_allocation(target)
+
+
+def _redeploy_existing_stable_to_spy(
+    *,
+    target_allocation: Mapping[str, float],
+    desired_spy_share: float,
+) -> dict[str, float]:
+    target = normalize_target_allocation(target_allocation)
+    stable_target = max(0.0, float(target.get("stable", 0.0)))
+    if stable_target <= 0.0:
+        return target
+    spy_target = max(0.0, float(target.get("spy", 0.0)))
+    spy_deficit = max(0.0, min(1.0, desired_spy_share) - spy_target)
+    redeploy_to_spy = min(stable_target, spy_deficit)
     if redeploy_to_spy <= 0.0:
         return target
     target["stable"] = stable_target - redeploy_to_spy
@@ -626,6 +654,7 @@ def _apply_spy_latch_to_intent(
         target_allocation=target_before,
         pre_existing_stable_share=snapshot.pre_existing_stable_share,
         desired_spy_share=desired_spy_share,
+        redeploy_existing_stable=_is_spy_latch_activation_day(snapshot),
     )
     redeployed = max(
         0.0,
@@ -636,9 +665,14 @@ def _apply_spy_latch_to_intent(
     diagnostics = dict(intent.diagnostics or {})
     existing = diagnostics.get("post_intent_adjustments")
     existing_adjustments = existing if isinstance(existing, list) else []
+    adjustment_name = (
+        "spy_latch_redeploy_existing_stable"
+        if _is_spy_latch_activation_day(snapshot)
+        else "spy_latch_absorb_fresh_stable"
+    )
     diagnostics["post_intent_adjustments"] = [
         *existing_adjustments,
-        "spy_latch_absorb_fresh_stable",
+        adjustment_name,
     ]
     diagnostics["spy_latch_redeployed_stable"] = redeployed
     diagnostics["spy_latch_target_share"] = desired_spy_share
@@ -646,6 +680,14 @@ def _apply_spy_latch_to_intent(
         intent,
         target_allocation=target_after,
         diagnostics=diagnostics,
+    )
+
+
+def _is_spy_latch_activation_day(snapshot: HierarchicalOuterSnapshot) -> bool:
+    return (
+        snapshot.current_date is not None
+        and snapshot.spy_latch_activated_on is not None
+        and snapshot.current_date == snapshot.spy_latch_activated_on
     )
 
 

@@ -161,33 +161,35 @@ describe('useBacktestConfiguration', () => {
   });
 
   it('does not override user edits while defaults are still loading', async () => {
-    vi.useFakeTimers();
-    try {
-      vi.mocked(getStrategyConfigs).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => resolve(mockStrategyConfigs), 50);
-          }),
-      );
-      vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
+    let resolveStrategyConfigs:
+      | ((value: typeof mockStrategyConfigs) => void)
+      | undefined;
+    vi.mocked(getStrategyConfigs).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStrategyConfigs = resolve;
+        }),
+    );
+    vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
-      const { result } = renderHook(() => useBacktestConfiguration(), {
-        wrapper: QueryClientWrapper,
-      });
+    const { result } = renderHook(() => useBacktestConfiguration(), {
+      wrapper: QueryClientWrapper,
+    });
 
-      act(() => {
-        result.current.updateEditorValue('{"custom":"value"}');
-      });
+    act(() => {
+      result.current.updateEditorValue('{"custom":"value"}');
+    });
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(100);
-      });
+    await act(async () => {
+      resolveStrategyConfigs?.(mockStrategyConfigs);
+    });
 
-      expect(getStrategyConfigs).toHaveBeenCalled();
-      expect(result.current.editorValue).toBe('{"custom":"value"}');
-    } finally {
-      vi.useRealTimers();
-    }
+    await waitFor(() => {
+      expect(result.current.isInitializing).toBe(false);
+    });
+
+    expect(getStrategyConfigs).toHaveBeenCalled();
+    expect(result.current.editorValue).toBe('{"custom":"value"}');
   });
 
   // -------------------------------------------------------------------------
@@ -216,37 +218,23 @@ describe('useBacktestConfiguration', () => {
   });
 
   it('does not update editor from catalog when user has already edited and presets fail', async () => {
-    vi.useFakeTimers();
-    try {
-      vi.mocked(getStrategyConfigs).mockRejectedValue(
-        new Error('Presets fail'),
-      );
-      vi.mocked(getBacktestingStrategiesV3).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => resolve(mockCatalog), 50);
-          }),
-      );
+    vi.mocked(getStrategyConfigs).mockRejectedValue(new Error('Presets fail'));
+    vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
 
-      const { result } = renderHook(() => useBacktestConfiguration(), {
-        wrapper: QueryClientWrapper,
-      });
+    const { result } = renderHook(() => useBacktestConfiguration(), {
+      wrapper: QueryClientWrapper,
+    });
 
-      // User edits before catalog resolves
-      act(() => {
-        result.current.updateEditorValue('{"user":"edited"}');
-      });
+    // User edits before defaults settle.
+    act(() => {
+      result.current.updateEditorValue('{"user":"edited"}');
+    });
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(100);
-      });
-
+    await waitFor(() => {
       expect(result.current.isInitializing).toBe(false);
-      // Editor should keep user's value, not the catalog default
-      expect(result.current.editorValue).toBe('{"user":"edited"}');
-    } finally {
-      vi.useRealTimers();
-    }
+    });
+
+    expect(result.current.editorValue).toBe('{"user":"edited"}');
   });
 
   // -------------------------------------------------------------------------
@@ -840,58 +828,45 @@ describe('useBacktestConfiguration', () => {
   // -------------------------------------------------------------------------
 
   it('sets error and marks initialRunSettled when initial payload fails schema validation', async () => {
-    vi.useFakeTimers();
-    try {
-      // Provide presets with a structurally invalid payload shape so the
-      // auto-run useEffect hits the !parsed.success branch.
-      // We simulate by having the initial fallback editor value fail schema.
-      // Since the fallback payload is always valid, we intercept via
-      // updateEditorValue before defaultsReady fires by using delayed presets.
-      vi.mocked(getStrategyConfigs).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(
-              () =>
-                resolve({
-                  strategies: mockCatalog.strategies,
-                  presets: [],
-                  backtest_defaults: { days: 90, total_capital: 10000 },
-                }),
-              20,
-            );
-          }),
+    let resolveStrategyConfigs:
+      | ((value: typeof mockStrategyConfigs) => void)
+      | undefined;
+    // Provide defaults after the user edit so the auto-run useEffect hits the
+    // !parsed.success branch.
+    vi.mocked(getStrategyConfigs).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStrategyConfigs = resolve;
+        }),
+    );
+    vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
+
+    const { result } = renderHook(() => useBacktestConfiguration(), {
+      wrapper: QueryClientWrapper,
+    });
+
+    // Before presets resolve, inject invalid schema (valid JSON, invalid schema)
+    act(() => {
+      result.current.updateEditorValue(
+        JSON.stringify({
+          // missing total_capital and configs
+          bad_field: true,
+        }),
       );
-      vi.mocked(getBacktestingStrategiesV3).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => resolve(mockCatalog), 20);
-          }),
-      );
+    });
 
-      const { result } = renderHook(() => useBacktestConfiguration(), {
-        wrapper: QueryClientWrapper,
+    await act(async () => {
+      resolveStrategyConfigs?.({
+        ...mockStrategyConfigs,
+        presets: [],
+        backtest_defaults: { days: 90, total_capital: 10000 },
       });
+    });
 
-      // Before presets resolve, inject invalid schema (valid JSON, invalid schema)
-      act(() => {
-        result.current.updateEditorValue(
-          JSON.stringify({
-            // missing total_capital and configs
-            bad_field: true,
-          }),
-        );
-      });
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(100);
-      });
-
-      // After defaults ready, auto-run effect fires with bad payload and sets error
+    await waitFor(() => {
       expect(result.current.editorError).toBeTruthy();
-      expect(mockMutate).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

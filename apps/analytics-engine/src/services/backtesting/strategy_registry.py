@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal, cast
 
+from pydantic import BaseModel
+
 from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
@@ -22,6 +24,10 @@ from src.services.backtesting.features import (
     SPY_CRYPTO_RELATIVE_STRENGTH_AUX_SERIES,
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
+)
+from src.services.backtesting.public_params import (
+    DmaGatedFgiPublicParams,
+    EthBtcRotationPublicParams,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
@@ -55,6 +61,7 @@ from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import
 )
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
+ParamFamily = Literal["dma", "eth_btc_rotation", "hierarchical"]
 PublicParamNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
 StrategyBuilder = Callable[["StrategyBuildRequest"], BaseStrategy]
 InitialAllocationBuilder = Callable[..., dict[str, float]]
@@ -112,6 +119,8 @@ class StrategyRecipe:
     warmup_lookback_days: int
     market_data_requirements: MarketDataRequirements
     portfolio_bucket_mapper: PortfolioBucketMapper
+    public_params_model: type[BaseModel]
+    param_family: ParamFamily
     normalize_public_params: PublicParamNormalizer
     build_strategy: StrategyBuilder
     runtime_portfolio_mode: RuntimePortfolioMode = "aggregate"
@@ -181,6 +190,7 @@ def _build_portfolio_rules_strategy(
         display_name=strategy_id,
         canonical_strategy_id=variant_id,
         disabled_rules=variant.disabled_rules,
+        use_adaptive_sizing=variant.use_adaptive_sizing,
         initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
             request,
             build_initial_portfolio_rules_asset_allocation,
@@ -313,6 +323,8 @@ def _build_hierarchical_attribution_recipe(strategy_id: str) -> StrategyRecipe:
         warmup_lookback_days=14,
         market_data_requirements=_hierarchical_pair_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        public_params_model=EthBtcRotationPublicParams,
+        param_family="hierarchical",
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
         build_strategy=_make_hierarchical_attribution_builder(strategy_id),
@@ -363,6 +375,8 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
         warmup_lookback_days=14,
         market_data_requirements=_hierarchical_pair_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        public_params_model=EthBtcRotationPublicParams,
+        param_family="hierarchical",
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_hierarchical_spy_crypto_public_params,
         build_strategy=_make_hierarchical_minimum_builder(strategy_id),
@@ -383,6 +397,8 @@ def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
             requires_macro_fear_greed=True,
         ),
         portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        public_params_model=DmaGatedFgiPublicParams,
+        param_family="dma",
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_dma_public_params,
         build_strategy=_make_portfolio_rules_builder(strategy_id),
@@ -400,6 +416,8 @@ _RECIPES: dict[str, StrategyRecipe] = {
         warmup_lookback_days=14,
         market_data_requirements=_eth_btc_relative_strength_requirements(),
         portfolio_bucket_mapper=map_portfolio_to_eth_btc_stable_buckets,
+        public_params_model=EthBtcRotationPublicParams,
+        param_family="eth_btc_rotation",
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_eth_btc_rotation_public_params,
         build_strategy=_build_eth_btc_rotation_strategy,

@@ -23,7 +23,7 @@ Outer policy: MinimumHierarchicalOuterPolicy (zero tunable fields)
   ├── Feature 3: SPY macro extreme-fear DCA
   │   └── When CNN macro F&G is extreme fear and SPY < SPY_DMA → buy SPY from stable
   └── Feature 4: Persistent SPY latch
-      └── After SPY cross_up, redirect fresh stable from later sells into SPY while latch is active
+      └── On SPY cross_up, redeploy existing stable to SPY; while latch remains active, redirect fresh stable from later sells into SPY
 ```
 
 Source files:
@@ -37,29 +37,45 @@ Source files:
 
 | Strategy | ROI (500d) | Notes |
 |---|---|---|
-| `dma_fgi_portfolio_rules` | 64.31% | Flat rule-engine baseline |
-| `dma_fgi_portfolio_rules_minus_cross_down_exit` | 27.79% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_cross_up_eq_weight` | 21.80% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_extreme_fear_buy` | 60.61% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_overextension_sell` | 52.81% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_fgi_downshift_sell` | 64.83% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules` | 64.10% | Flat rule-engine + adaptive extreme-fear sizing |
+| `dma_fgi_portfolio_rules_minus_adaptive_sizing` | 64.10% | Flat sizing baseline |
+| `dma_fgi_portfolio_rules_minus_cross_down_exit` | 27.80% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_cross_up_eq_weight` | 10.69% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_extreme_fear_buy` | 65.25% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_overextension_sell` | 51.24% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules_minus_fgi_downshift_sell` | 64.61% | Portfolio rules leave-one-out |
 | `eth_btc_rotation` | 126.26% | Saved-config live default |
 | `dma_fgi_hierarchical_control` | 88.64% | Attribution baseline |
 | `dma_fgi_hierarchical_minimum` | 121.30% | Current production target |
-| `dma_fgi_eth_btc_minimum_surgical` | 48.97% | Surgical composer research line |
 
 ### Portfolio rules family
 
 `dma_fgi_portfolio_rules` is the canonical flat rule-engine baseline. It keeps
-the seven user-facing rules in `portfolio_rules/` as portfolio-snapshot rules,
-uses first-match-wins priority, and now executes each matched allocation target
-atomically through `RuleBasedAllocationExecutor` instead of the shared pacing
-executor. The DMA buy gate and trade quota guard are modeled as rule-layer hold
-guards for this strategy only; legacy pacing/plugins remain available to other
-strategies. Cross-down cooldown is per symbol: BTC/ETH/SPY use 30 days by
-default. The 500-day fixture baseline is 64.31% ROI, 4.28 Calmar, -10.20%
-MaxDD, and 47 trades. It is a traceability baseline, not a performance target;
-compare rule attribution against the canonical entry.
+the seven user-facing strategy rules in `portfolio_rules/` as portfolio-snapshot
+rules, then applies post-decision risk guards from `risk/` before atomic
+execution through `RuleBasedAllocationExecutor`. Extreme-fear buys use
+`FgiExponentialSizing(max_multiplier=1.1)` and emit `sizing_meta` in
+`decisions.jsonl`; `_minus_adaptive_sizing` preserves the flat-sizing baseline.
+Cross-down cooldown is per symbol: BTC/ETH/SPY use 30 days by default. The
+500-day fixture baseline is 64.10% ROI, 4.27 Calmar, -10.20% MaxDD, and 48
+trades. It is a traceability baseline, not a performance target; compare rule
+attribution against the canonical entry.
+
+### Coverage scope
+
+Coverage is measured against `dma_fgi_portfolio_rules` and shared backtesting
+infrastructure. Alternative strategy implementations and attribution/research
+recipes are intentionally omitted from coverage measurement:
+`eth_btc_rotation.py`, `spy_eth_btc_rotation.py`,
+`spy_crypto_hierarchical_rotation.py`, `hierarchical_minimum.py`,
+`hierarchical_outer_policy.py`, `hierarchical_attribution.py`,
+`portfolio_rules_attribution.py`, `pair_rotation_template.py`, and
+`dma_top_escape.py`. Keep shared components measured, including
+`strategies/base.py`, `composed_signal.py`, `dma_gated_fgi.py`, `minimum.py`,
+and `dma_fgi_portfolio_rules.py`. Validation-event runner and decision-log
+audit tooling are also omitted from line coverage; verify them by running their
+pytest files and the validation/snapshot commands instead of padding runtime
+coverage.
 
 ## Iteration discipline
 
@@ -72,13 +88,13 @@ Before claiming a strategy change is done:
    ```
    Validation events must all pass. Non-zero exit blocks the change.
 
-2. **Add a validation event for the new behavior**: any new feature, rule, or signal must add ≥1 entry to `tests/fixtures/hierarchical_validation_events.json` exercising the new behavior on a real historical date with `applicable_strategies` listing the strategies the new feature applies to.
+2. **Add a validation event for the new behavior**: any new feature, rule, or signal must add ≥1 entry to `tests/fixtures/hierarchical_validation_events.json` exercising the new behavior on a real historical date with `applicable_strategies` listing the strategies the new feature applies to. The supported fixture schema and assertion types are documented in `tests/fixtures/README.md`.
 
 3. **Run the snapshot regenerate** if the change is meant to shift performance: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` and inspect the diff.
 
 4. **Append an ITERATION_LOG.md entry** with the commit hash + ROI/Calmar/trades delta + which validation events were added.
 
-The pytest gate (`pnpm test`) runs `tests/test_validation_events.py` against all 10 kept strategies on every commit. If a validation event regresses, the commit fails CI before snapshot or ROI checks even run.
+The pytest gate (`pnpm test`) currently scopes `tests/test_validation_events.py` to `dma_fgi_portfolio_rules` only while the `phase4-risk-sizing` iteration is in progress. TODO: widen this gate again after the canonical strategy failures are resolved.
 
 ## What works (do not regress)
 
@@ -90,7 +106,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 | Greed Sell Suppression | **-22.05pp** ROI | cross-validated |
 | Inner ETH/BTC ratio rotation | `eth_btc_rotation` = 126.26% ROI | pre-existing |
 | SPY macro extreme-fear DCA | Fixture-validated; included in 2026-05-04 re-anchor: ROI -0.14pp, Calmar +0.12 | 2026-05-04 |
-| Persistent SPY latch | Fixture-validated fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
+| Persistent SPY latch | Fixture-validated cross-up-day existing stable redeploy plus later fresh-stable absorption; re-anchor: ROI -0.14pp, MaxDD +0.48pp, trades -4 | 2026-05-04 |
 
 ## What doesn't work (do not re-introduce without new evidence)
 
@@ -98,7 +114,7 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 |---|---|---|
 | Adaptive DMA Reference | Removed from the kept minimum target | Re-introduce only through a new measured variant |
 | Fear Recovery Buy | Removed from the kept minimum target | Re-introduce only through a new measured variant |
-| Single-tick SPY Cross-Up Latch | Superseded by persistent fresh-stable latch | Old same-tick-only behavior stays out |
+| Single-tick SPY Cross-Up Latch | Superseded by persistent latch | Cross-up day same-tick existing stable redeploy is included; later days still only absorb fresh stable |
 | Buy Floor | Removed from the kept minimum target | Re-introduce only through a new measured variant |
 | Broad Cross-Down Cooldown | Removed with the minimum research variants | Too blunt without new evidence |
 | Broad Below-DMA Hold | Removed with the minimum research variants | Too blunt without new evidence |
@@ -111,7 +127,7 @@ Phase D note: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` i
 
 1. Append entry to relevant `*_VARIANTS` dict (e.g. `MINIMUM_HIERARCHICAL_VARIANTS`)
 2. Add display name in [constants.py](./constants.py)
-3. Add recipe in [strategy_registry.py](./strategy_registry.py)
+3. Add recipe in [strategy_registry.py](./strategy_registry.py) — set `public_params_model` and `param_family` on the `StrategyRecipe`. The catalog endpoint and runtime params routing derive from the recipe; do not edit `public_params.py`.
 4. Run `sweep_production_window.py --update-snapshot`
 5. Inspect snapshot diff — if |Δ| ≥ 2pp and consistent across baselines, update this file's "Current template baseline" section
 6. Append entry to [ITERATION_LOG.md](./ITERATION_LOG.md)
@@ -121,5 +137,6 @@ Phase D note: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` i
 - **Window**: always 500-day production window (`DEFAULT_DAYS = 500` in frontend). Yearly windows in `sweep_hierarchical.py` are **diagnostic only** — path-dependent state resets at year boundaries.
 - **Snapshot fixture** (`tests/fixtures/strategy_performance_snapshot_500d.json`) `reference_date` is pinned to `2026-04-15`. Do not change without re-anchoring.
 - **Naming**: `_minus_X` = leave-one-out; `_only` = isolation; `[DEPRECATED]` = excluded from default `--check`; `[RESEARCH]` = excluded from default `--check`, no production promotion.
+- **Public params source of truth**: `StrategyRecipe` ([strategy_registry.py](./strategy_registry.py)). `public_params.py` does not hold strategy id lists; do not add parallel dicts or frozensets there.
 
 > Operator commands (snapshot, attribution, validation, diagnosis): see [COMMANDS.md](./COMMANDS.md)

@@ -3,12 +3,12 @@
  * Main request execution logic with retry support
  */
 
-import { createTimeoutController, isAbortError } from './abort-control';
+import { createTimeoutController, isAbortError } from './abortControl';
 import {
   hasHeaders,
   parseCacheControlForHint,
   syncQueryCacheDefaultsFromHint,
-} from './cache-control';
+} from './cacheControl';
 import {
   HTTP_CONFIG,
   type HttpRequestConfig,

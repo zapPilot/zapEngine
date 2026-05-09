@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from scripts.attribution._helpers import _metric
 from src.services.backtesting.constants import (
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_ETH_BTC_ROTATION,
@@ -216,25 +217,24 @@ def _fetch_summaries(
     }
 
 
-def _metric(summary: dict[str, Any], key: str) -> float | int:
-    value = summary.get(key)
-    if not isinstance(value, int | float):
-        raise ValueError(f"Strategy summary missing numeric metric '{key}'")
-    if key == "trade_count":
-        return int(value)
-    return round(float(value), 4)
-
-
 def _snapshot_strategy_entry(
     strategy_id: str, summary: dict[str, Any]
 ) -> dict[str, Any]:
     return {
         "display_name": STRATEGY_DISPLAY_NAMES.get(strategy_id, strategy_id),
-        "calmar_ratio": _metric(summary, "calmar_ratio"),
-        "sharpe_ratio": _metric(summary, "sharpe_ratio"),
-        "max_drawdown_percent": _metric(summary, "max_drawdown_percent"),
-        "roi_percent": _metric(summary, "roi_percent"),
-        "trade_count": _metric(summary, "trade_count"),
+        "calmar_ratio": _metric(summary, "calmar_ratio", round_digits=4),
+        "sharpe_ratio": _metric(summary, "sharpe_ratio", round_digits=4),
+        "max_drawdown_percent": _metric(
+            summary,
+            "max_drawdown_percent",
+            round_digits=4,
+        ),
+        "roi_percent": _metric(summary, "roi_percent", round_digits=4),
+        "trade_count": _metric(
+            summary,
+            "trade_count",
+            integer_keys=("trade_count",),
+        ),
     }
 
 

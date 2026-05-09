@@ -65,21 +65,11 @@ describe('useBacktestConfiguration regressions', () => {
   });
 
   it('keeps manual editor changes intact when late defaults arrive', async () => {
+    let resolveDefaults: ((value: any) => void) | undefined;
     vi.mocked(getStrategyConfigs).mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(
-            () =>
-              resolve({
-                strategies: [],
-                presets: [],
-                backtest_defaults: {
-                  days: 500,
-                  total_capital: 10000,
-                },
-              }),
-            50,
-          );
+          resolveDefaults = resolve;
         }),
     );
 
@@ -89,8 +79,19 @@ describe('useBacktestConfiguration regressions', () => {
       result.current.updateEditorValue('{"manual":true}');
     });
 
+    await act(async () => {
+      resolveDefaults?.({
+        strategies: [],
+        presets: [],
+        backtest_defaults: {
+          days: 500,
+          total_capital: 10000,
+        },
+      });
+    });
+
     await waitFor(() => {
-      expect(getStrategyConfigs).toHaveBeenCalled();
+      expect(result.current.isInitializing).toBe(false);
     });
 
     expect(result.current.editorValue).toBe('{"manual":true}');

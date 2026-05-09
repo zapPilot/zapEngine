@@ -1,3 +1,4 @@
+import { GRADIENTS } from '@/constants/designSystem';
 import { transactionServiceMock as depositTransactionService } from '@/services';
 import type { DepositModalProps } from '@/types/ui/ui.types';
 
@@ -83,7 +84,7 @@ export function DepositModal({
             modalState={modalState}
             dropdownState={dropdownState}
             actionLabel={actionLabel}
-            actionGradient="from-indigo-600 to-purple-600"
+            actionGradient={GRADIENTS.PRIMARY}
             handlePercentage={handlePercentage}
             assetContent={assetContent}
           />
