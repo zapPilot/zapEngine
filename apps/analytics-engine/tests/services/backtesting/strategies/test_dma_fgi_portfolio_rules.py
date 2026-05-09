@@ -343,7 +343,7 @@ def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> N
     )
 
 
-def test_strategy_ratio_cross_up_rotates_btc_to_eth() -> None:
+def test_strategy_ratio_cross_up_rotates_btc_and_stable_to_eth() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(
         10_000.0,
@@ -374,7 +374,7 @@ def test_strategy_ratio_cross_up_rotates_btc_to_eth() -> None:
 
     assert action.snapshot.decision.reason == "portfolio_eth_btc_ratio_rotation_to_eth"
     assert action.snapshot.decision.target_allocation == pytest.approx(
-        {"btc": 0.0, "eth": 0.40, "spy": 0.30, "stable": 0.30, "alt": 0.0}
+        {"btc": 0.0, "eth": 0.70, "spy": 0.30, "stable": 0.0, "alt": 0.0}
     )
 
 
@@ -390,7 +390,7 @@ def test_eth_btc_rotation_swaps_btc_to_eth_on_2025_07_15_cross_up() -> None:
     assert intent.diagnostics is not None
     assert intent.diagnostics["matched_rule_name"] == "eth_btc_ratio_rotation"
     assert intent.target_allocation == pytest.approx(
-        {"btc": 0.0, "eth": 0.40, "spy": 0.30, "stable": 0.30, "alt": 0.0}
+        {"btc": 0.0, "eth": 0.70, "spy": 0.30, "stable": 0.0, "alt": 0.0}
     )
 
 

@@ -15,6 +15,9 @@ export default defineKnipConfig({
     '@zapengine/types',
     'tailwindcss',
     'postcss',
+    // Used from src/app/globals.css via @import; Knip does not resolve CSS
+    // package imports as dependency usage.
+    '@zapengine/design-tokens',
   ],
   ignoreIssues: {
     'src/lib/errors/ServiceError.ts': ['exports'],

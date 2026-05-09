@@ -49,6 +49,65 @@ describe('Supabase user_episode_state grants', () => {
       expectedDataApiTableGrants,
     );
   });
+
+  it('does not expose users table to anon/authenticated via the Data API', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const migrations = readSortedMigrations().join('\n');
+
+    expect(effectiveTablePrivileges(schema, 'users')).toEqual([]);
+    expect(effectiveTablePrivileges(migrations, 'users')).toEqual([]);
+  });
+
+  it('keeps delete revoked on user_episode_state', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const migrations = readSortedMigrations().join('\n');
+
+    expect(
+      effectiveTablePrivileges(schema, 'user_episode_state'),
+    ).not.toContain('delete');
+    expect(
+      effectiveTablePrivileges(migrations, 'user_episode_state'),
+    ).not.toContain('delete');
+  });
+
+  it('signals PostgREST schema reload in every migration that touches Data API grants', () => {
+    const migrationsDir = path.join(
+      repoRoot,
+      'apps/podcast-pipeline/supabase/migrations',
+    );
+    const filenames = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith('.sql'))
+      .sort();
+
+    const grantTouchingFiles = filenames.filter((file) => {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      return /(grant|revoke)[\s\S]+?from_fed_to_chain\.(likes|user_episode_state)/i.test(
+        sql,
+      );
+    });
+
+    expect(grantTouchingFiles).toContain(
+      '011_restore_mobile_data_api_table_grants.sql',
+    );
+
+    for (const file of grantTouchingFiles) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      expect(
+        sql,
+        `${file} must signal "notify pgrst, 'reload schema'" so PostgREST picks up grant changes without restart`,
+      ).toMatch(/notify\s+pgrst\s*,\s*'reload schema'\s*;/i);
+    }
+  });
+
+  it('keeps schema.sql and migrations producing identical Data API table grants', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const migrations = readSortedMigrations().join('\n');
+
+    expect(effectiveDataApiTableGrants(schema)).toEqual(
+      effectiveDataApiTableGrants(migrations),
+    );
+  });
 });
 
 function mobileUserEpisodeStateSelectColumns(): string[] {

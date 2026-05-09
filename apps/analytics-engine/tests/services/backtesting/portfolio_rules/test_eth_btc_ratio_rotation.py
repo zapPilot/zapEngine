@@ -37,7 +37,7 @@ def _ratio_state(
     )
 
 
-def test_rotation_cross_up_swaps_btc_to_eth() -> None:
+def test_rotation_cross_up_absorbs_btc_and_stable_to_eth() -> None:
     rule_snapshot = snapshot(
         current={"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30, "alt": 0.0},
         eth_btc_ratio_state=_ratio_state(actionable_cross_event="cross_up"),
@@ -49,9 +49,9 @@ def test_rotation_cross_up_swaps_btc_to_eth() -> None:
     )
 
     assert intent.target_allocation["btc"] == pytest.approx(0.0)
-    assert intent.target_allocation["eth"] == pytest.approx(0.40)
+    assert intent.target_allocation["eth"] == pytest.approx(0.70)
     assert intent.target_allocation["spy"] == pytest.approx(0.30)
-    assert intent.target_allocation["stable"] == pytest.approx(0.30)
+    assert intent.target_allocation["stable"] == pytest.approx(0.0)
     assert intent.allocation_name == "portfolio_eth_btc_ratio_rotation_to_eth"
     assert intent.diagnostics == {"portfolio_rule_assets": ["BTC", "ETH"]}
 

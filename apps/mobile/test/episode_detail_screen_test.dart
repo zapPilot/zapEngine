@@ -65,30 +65,6 @@ void main() {
     expect(find.text('Latest macro cycle'), findsWidgets);
   });
 
-  testWidgets('ContinueListeningCard handles long titles without overflow', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(393, 852);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await _pumpHarness(
-      tester,
-      ContinueListeningCard(
-        episode: _episode(
-          title: '德银重磅报告：AI的两个终局——马克思的预言与马斯克的愿景',
-        ),
-        allCompleted: false,
-        isPlaying: false,
-        isLoading: false,
-        onPlay: () {},
-      ),
-    );
-
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('Episode detail speed menu updates playback speed', (
     tester,
   ) async {

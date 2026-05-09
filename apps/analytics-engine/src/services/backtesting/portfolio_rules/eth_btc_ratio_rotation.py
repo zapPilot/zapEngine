@@ -45,9 +45,11 @@ class EthBtcRatioRotationRule:
         target = current_target(snapshot)
         btc = float(target.get("btc", 0.0))
         eth = float(target.get("eth", 0.0))
+        stable = float(target.get("stable", 0.0))
         if ratio_state is not None and ratio_state.actionable_cross_event == "cross_up":
-            target["eth"] = eth + btc
+            target["eth"] = eth + btc + stable
             target["btc"] = 0.0
+            target["stable"] = 0.0
             allocation_name = "portfolio_eth_btc_ratio_rotation_to_eth"
         else:
             target["btc"] = btc + eth
