@@ -181,15 +181,18 @@ def _compare_request(
 
 def _fetch_summaries(
     *,
-    client: httpx.Client,
-    endpoint: str,
+    client: Any,
+    endpoint: str | None,
     strategy_ids: list[str],
     start_date: str,
     end_date: str,
     total_capital: float,
 ) -> dict[str, dict[str, Any]]:
+    compare_url = (
+        COMPARE_PATH if endpoint is None else f"{endpoint.rstrip('/')}{COMPARE_PATH}"
+    )
     response = client.post(
-        f"{endpoint.rstrip('/')}{COMPARE_PATH}",
+        compare_url,
         json=_compare_request(
             strategy_ids=strategy_ids,
             start_date=start_date,
@@ -240,7 +243,8 @@ def _snapshot_strategy_entry(
 
 def collect_snapshot(
     *,
-    endpoint: str,
+    endpoint: str | None,
+    client: Any | None = None,
     reference_date: date,
     window_days: int,
     total_capital: float,
@@ -258,7 +262,19 @@ def collect_snapshot(
             ),
             file=sys.stderr,
         )
-    with httpx.Client() as client:
+    if client is None:
+        if endpoint is None:
+            raise ValueError("endpoint is required when no compare client is supplied")
+        with httpx.Client() as http_client:
+            summaries = _fetch_summaries(
+                client=http_client,
+                endpoint=endpoint,
+                strategy_ids=strategy_ids,
+                start_date=start_date.isoformat(),
+                end_date=reference_date.isoformat(),
+                total_capital=total_capital,
+            )
+    else:
         summaries = _fetch_summaries(
             client=client,
             endpoint=endpoint,
@@ -456,6 +472,11 @@ def _merge_preserved_excluded_entries(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="Use FastAPI TestClient instead of requiring a running HTTP server.",
+    )
     parser.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT_PATH))
     parser.add_argument("--reference-date", default=None)
     parser.add_argument("--days", type=int, default=None)
@@ -508,15 +529,34 @@ def main() -> None:
         if args.exclude_deprecated is None
         else bool(args.exclude_deprecated)
     )
-    actual = collect_snapshot(
-        endpoint=str(args.endpoint),
-        reference_date=reference_date,
-        window_days=window_days,
-        total_capital=total_capital,
-        tolerances=tolerances,
-        show_progress=not bool(args.no_progress),
-        exclude_deprecated=exclude_deprecated,
-    )
+    if args.in_process:
+        if args.update_snapshot:
+            parser.error("--in-process cannot be combined with --update-snapshot")
+        from fastapi.testclient import TestClient
+
+        from src.main import app
+
+        with TestClient(app) as client:
+            actual = collect_snapshot(
+                endpoint=None,
+                client=client,
+                reference_date=reference_date,
+                window_days=window_days,
+                total_capital=total_capital,
+                tolerances=tolerances,
+                show_progress=not bool(args.no_progress),
+                exclude_deprecated=exclude_deprecated,
+            )
+    else:
+        actual = collect_snapshot(
+            endpoint=str(args.endpoint),
+            reference_date=reference_date,
+            window_days=window_days,
+            total_capital=total_capital,
+            tolerances=tolerances,
+            show_progress=not bool(args.no_progress),
+            exclude_deprecated=exclude_deprecated,
+        )
     if args.update_snapshot:
         snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         _write_snapshot(snapshot_path, snapshot)
