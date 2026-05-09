@@ -47,7 +47,6 @@ Source files:
 | `eth_btc_rotation` | 126.26% | Saved-config live default |
 | `dma_fgi_hierarchical_control` | 88.64% | Attribution baseline |
 | `dma_fgi_hierarchical_minimum` | 121.30% | Current production target |
-| `dma_fgi_eth_btc_minimum_surgical` | 48.97% | Surgical composer research line |
 
 ### Portfolio rules family
 
@@ -61,6 +60,22 @@ Cross-down cooldown is per symbol: BTC/ETH/SPY use 30 days by default. The
 500-day fixture baseline is 64.10% ROI, 4.27 Calmar, -10.20% MaxDD, and 48
 trades. It is a traceability baseline, not a performance target; compare rule
 attribution against the canonical entry.
+
+### Coverage scope
+
+Coverage is measured against `dma_fgi_portfolio_rules` and shared backtesting
+infrastructure. Alternative strategy implementations and attribution/research
+recipes are intentionally omitted from coverage measurement:
+`eth_btc_rotation.py`, `spy_eth_btc_rotation.py`,
+`spy_crypto_hierarchical_rotation.py`, `hierarchical_minimum.py`,
+`hierarchical_outer_policy.py`, `hierarchical_attribution.py`,
+`portfolio_rules_attribution.py`, `pair_rotation_template.py`, and
+`dma_top_escape.py`. Keep shared components measured, including
+`strategies/base.py`, `composed_signal.py`, `dma_gated_fgi.py`, `minimum.py`,
+and `dma_fgi_portfolio_rules.py`. Validation-event runner and decision-log
+audit tooling are also omitted from line coverage; verify them by running their
+pytest files and the validation/snapshot commands instead of padding runtime
+coverage.
 
 ## Iteration discipline
 

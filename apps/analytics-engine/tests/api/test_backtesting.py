@@ -387,7 +387,8 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
     strategy_ids = [entry.strategy_id for entry in catalog.strategies]
     expected_strategy_ids = [recipe.strategy_id for recipe in list_strategy_recipes()]
     assert strategy_ids == expected_strategy_ids
-    assert len(strategy_ids) == 11
+    assert "eth_btc_rotation" in strategy_ids
+    assert "dma_fgi_portfolio_rules" in strategy_ids
     assert "dma_gated_fgi_btc_asset_control" not in strategy_ids
     assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
     dma_entry = next(

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from src.services.backtesting import target_allocation
 from src.services.backtesting.asset_class_allocator import (
+    _class_demand,
+    _gate_state,
     allocate_stock_crypto_target,
     fgi_risk_multiplier,
     score_dma_distance,
@@ -24,6 +27,12 @@ def test_fgi_multiplier_boosts_fear_and_reduces_greed() -> None:
 
 def test_stock_macro_fgi_overlay_caps_extreme_greed() -> None:
     assert stock_macro_fgi_overlay(0.95, 80) == pytest.approx(0.8)
+
+
+def test_stock_macro_fgi_overlay_handles_missing_and_fear_bands() -> None:
+    assert stock_macro_fgi_overlay(1.2, None) == pytest.approx(1.0)
+    assert stock_macro_fgi_overlay(0.8, 20) == pytest.approx(0.4)
+    assert stock_macro_fgi_overlay(0.8, 40) == pytest.approx(0.6)
 
 
 def test_stock_macro_fgi_overlay_leaves_neutral_and_greed_unchanged() -> None:
@@ -210,3 +219,120 @@ def test_target_allocation_rejects_spot_and_nonzero_alt() -> None:
         normalize_target_allocation(
             {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.9, "alt": 0.1}
         )
+
+
+@pytest.mark.parametrize(
+    ("gate_state", "expected_target", "expected_score"),
+    [
+        ("cross_down", 0.0, 0.0),
+        ("overextended", 0.30, 0.0),
+        ("cross_up", 1.0, 0.60),
+        ("risk_on", 1.0, 0.60),
+        ("accumulation", 0.25, 0.50),
+        ("stable", 0.0, 0.0),
+    ],
+)
+def test_class_demand_gate_states(
+    gate_state: str,
+    expected_target: float,
+    expected_score: float,
+) -> None:
+    target_share, score = _class_demand(
+        current_share=0.5,
+        gate_state=gate_state,
+        accumulation_score=0.5,
+        accumulation_cap=0.5,
+        overextension_pressure=0.4,
+    )
+
+    assert target_share == pytest.approx(expected_target)
+    assert score == pytest.approx(expected_score)
+
+
+def test_normalize_target_allocation_falls_back_when_epsilon_zeroes_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(target_allocation, "_EPSILON", 2.0)
+
+    assert normalize_target_allocation({"btc": 0.5, "stable": 0.5}) == {
+        "btc": 0.0,
+        "eth": 0.0,
+        "spy": 0.0,
+        "stable": 1.0,
+        "alt": 0.0,
+    }
+
+
+def test_gate_state_prioritizes_cross_events() -> None:
+    assert (
+        _gate_state(
+            cross_event="cross_down",
+            has_crossed_up=True,
+            accumulation_score=1.0,
+            overextension_pressure=1.0,
+        )
+        == "cross_down"
+    )
+    assert (
+        _gate_state(
+            cross_event="cross_up",
+            has_crossed_up=False,
+            accumulation_score=0.0,
+            overextension_pressure=0.0,
+        )
+        == "cross_up"
+    )
+
+
+def test_allocator_preserves_crypto_when_crypto_signal_missing() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=-0.30,
+        crypto_dma_distance=None,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.5,
+        current_allocation={"btc": 0.2, "eth": 0.1, "spy": 0.0, "stable": 0.7},
+    )
+
+    assert result.crypto_gate_state == "preserve_unavailable"
+    assert result.allocation["btc"] + result.allocation["eth"] == pytest.approx(0.3)
+
+
+def test_allocator_stock_cross_up_preserves_accumulating_crypto_share() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=0.0,
+        crypto_dma_distance=-0.10,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.0,
+        current_allocation={"btc": 0.2, "eth": 0.0, "spy": 0.0, "stable": 0.8},
+        stock_cross_event="cross_up",
+    )
+
+    assert result.allocation["spy"] == pytest.approx(0.8)
+    assert result.allocation["btc"] == pytest.approx(0.2)
+
+
+def test_allocator_crypto_cross_up_preserves_accumulating_stock_share() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=-0.10,
+        crypto_dma_distance=0.0,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.0,
+        current_allocation={"btc": 0.0, "eth": 0.0, "spy": 0.3, "stable": 0.7},
+        crypto_cross_event="cross_up",
+    )
+
+    assert result.allocation["spy"] == pytest.approx(0.3)
+    assert result.allocation["btc"] == pytest.approx(0.7)
+
+
+def test_allocator_labels_cross_down_stable_proceeds() -> None:
+    result = allocate_stock_crypto_target(
+        stock_dma_distance=0.0,
+        crypto_dma_distance=None,
+        crypto_fgi_regime="neutral",
+        eth_share_in_crypto=0.0,
+        current_allocation={"btc": 0.2, "eth": 0.0, "spy": 0.2, "stable": 0.6},
+        stock_cross_event="cross_down",
+    )
+
+    assert result.stable_reason == "cross_down_proceeds"

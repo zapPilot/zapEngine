@@ -15,7 +15,6 @@ ALLOCATION_STATES = {
 }
 
 STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
-STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL = "dma_fgi_eth_btc_minimum_surgical"
 STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
@@ -40,9 +39,6 @@ STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL = (
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
-    STRATEGY_DMA_FGI_ETH_BTC_MINIMUM_SURGICAL: (
-        "[RESEARCH] ETH/BTC Minimum - Surgical Composer"
-    ),
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",

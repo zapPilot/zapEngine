@@ -28,14 +28,6 @@
       "roi_percent": 121.3018,
       "trade_count": 81
     },
-    "dma_fgi_eth_btc_minimum_surgical": {
-      "display_name": "[RESEARCH] ETH/BTC Minimum - Surgical Composer",
-      "calmar_ratio": 7.5242,
-      "sharpe_ratio": 2.2905,
-      "max_drawdown_percent": -4.4845,
-      "roi_percent": 48.9699,
-      "trade_count": 72
-    },
     "dma_fgi_portfolio_rules": {
       "display_name": "[RESEARCH] Portfolio Rules",
       "calmar_ratio": 4.2665,
