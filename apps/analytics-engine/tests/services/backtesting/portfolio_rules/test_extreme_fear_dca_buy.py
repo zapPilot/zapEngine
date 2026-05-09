@@ -35,14 +35,14 @@ def test_extreme_fear_buy_uses_macro_fgi_for_spy() -> None:
     assert intent.action == "buy"
     assert intent.reason == "portfolio_extreme_fear_dca_buy"
     assert intent.target_allocation == pytest.approx(
-        {"btc": 0.0, "eth": 0.0, "spy": 0.05, "stable": 0.95, "alt": 0.0}
+        {"btc": 0.0, "eth": 0.0, "spy": 0.01, "stable": 0.99, "alt": 0.0}
     )
     assert intent.diagnostics == {
         "portfolio_rule_assets": ["SPY"],
         "sizing_meta": {
             "strategy": "flat",
-            "base": 0.05,
-            "adjusted": 0.05,
+            "base": 0.01,
+            "adjusted": 0.01,
             "fgi": 50.0,
         },
     }
@@ -70,7 +70,7 @@ def test_extreme_fear_buy_uses_crypto_fgi_for_btc_and_eth() -> None:
     intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
 
     assert intent.target_allocation == pytest.approx(
-        {"btc": 0.15, "eth": 0.25, "spy": 0.0, "stable": 0.60, "alt": 0.0}
+        {"btc": 0.11, "eth": 0.21, "spy": 0.0, "stable": 0.68, "alt": 0.0}
     )
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC", "ETH"]
@@ -78,7 +78,7 @@ def test_extreme_fear_buy_uses_crypto_fgi_for_btc_and_eth() -> None:
 
 
 def test_extreme_fear_buy_caps_by_available_stable() -> None:
-    rule = ExtremeFearDcaBuyRule()
+    rule = ExtremeFearDcaBuyRule(buy_step=0.05)
     rule_snapshot = snapshot(
         assets={
             "SPY": state(symbol="SPY"),

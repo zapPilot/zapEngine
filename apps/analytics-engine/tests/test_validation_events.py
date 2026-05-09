@@ -215,7 +215,8 @@ def _shape_extreme_fear_crypto(
         above = current < cross_down_date
         _set_crypto_zone(rows, current, "BTC", above=above)
         _set_crypto_zone(rows, current, "ETH", above=above)
-        _set_spy_zone(rows, current, above=False)
+        _set_spy_zone(rows, current, above=above)
+    rows[event_date]["extra_data"]["macro_fear_greed"] = _macro("extreme_fear")
     sentiments[event_date] = {
         "label": "extreme_fear",
         "value": 10,
