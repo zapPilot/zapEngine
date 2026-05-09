@@ -80,6 +80,7 @@ the fixture claims to exercise before assertion checks run.
 | `eth_btc_ratio_cross_up` | Inner ETH/BTC ratio zone crosses from `below` to `above`. |
 | `eth_btc_ratio_cross_down` | Inner ETH/BTC ratio zone crosses from `above` to `below`. |
 | `decision_action_assertion` | No market trigger check; use for decision-only assertions. |
+| `hold` | No market trigger check; use for free-form date assertions that define which assets may move. |
 
 ## Assertion Fields
 
@@ -130,8 +131,16 @@ Allocation movement vs current portfolio on the event date:
 ```json
 { "type": "target_asset_not_increased_from_current", "asset": "spy" }
 { "type": "target_asset_not_greater_than_current", "asset": "spy" }
+{ "type": "target_asset_not_decreased_from_current", "asset": "eth" }
+{ "type": "target_asset_not_less_than_current", "asset": "eth" }
+{ "type": "target_asset_unchanged_from_current", "asset": "eth" }
 { "type": "target_spy_not_greater_than_current", "tolerance": 0.00002 }
 ```
+
+Use `target_asset_unchanged_from_current` when a `hold` event should prove that
+an asset is neither bought nor sold on the selected date. Use the one-sided
+`target_asset_not_*_from_current` assertions when only buys or only sells should
+be blocked.
 
 Conditional crypto assertions:
 

@@ -218,6 +218,11 @@
             "value": 0
           },
           {
+            "type": "target_asset_equals",
+            "asset": "stable",
+            "value": 0
+          },
+          {
             "type": "target_asset_increased_from_previous",
             "asset": "eth"
           }
@@ -299,17 +304,20 @@
     "events": [
       {
         "id": "eth_cross_down_preserve_spy_2025_11_06",
-        "event_type": "crypto_cross_up",
+        "event_type": "hold",
         "reference_asset": "ETH",
-        "description": "ETH should still in cross down cooldown period",
+        "description": "ETH should still be in its cross-down cooldown period; assertions define which assets may move.",
         "assertions": [
           {
-            "type": "target_asset_equals",
-            "asset": "eth",
-            "value": 0
+            "type": "decision_action_equals",
+            "value": "hold"
+          },
+          {
+            "type": "target_asset_not_decreased_from_current",
+            "asset": "eth"
           }
         ],
-        "rationale": "ETH should hold"
+        "rationale": "ETH should not be reduced on this date even though this is not a fresh DMA cross-up trigger."
       }
     ]
   },

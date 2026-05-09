@@ -519,7 +519,7 @@ def _constraint_event_trigger_failure(
             from_zone="above",
             to_zone="below",
         )
-    if event_type == "decision_action_assertion":
+    if event_type in {"decision_action_assertion", "hold"}:
         return None
     return _constraint_failure(
         point,
@@ -692,6 +692,21 @@ def _evaluate_constraint_assertion(
             assertion=assertion,
             point=event_point,
             comparator="not_greater_than",
+        )
+    if assertion_type == "target_asset_unchanged_from_current":
+        return _constraint_asset_vs_current(
+            assertion=assertion,
+            point=event_point,
+            comparator="equals",
+        )
+    if assertion_type in {
+        "target_asset_not_decreased_from_current",
+        "target_asset_not_less_than_current",
+    }:
+        return _constraint_asset_vs_current(
+            assertion=assertion,
+            point=event_point,
+            comparator="not_less_than",
         )
     if assertion_type in {
         "target_crypto_greater_than_previous",
@@ -1059,9 +1074,11 @@ def _constraint_compare_current_to_previous(
     ):
         return None
     symbol = {
+        "equals": "==",
         "greater_than": ">",
         "less_than": "<",
         "not_greater_than": "<=",
+        "not_less_than": ">=",
     }.get(comparator, comparator)
     return _constraint_failure(
         point,
@@ -1076,12 +1093,16 @@ def _constraint_comparison_passes(
     comparator: str,
     tolerance: float = CONSTRAINT_EPSILON,
 ) -> bool:
+    if comparator == "equals":
+        return abs(actual - previous) <= tolerance
     if comparator == "greater_than":
         return actual > previous + tolerance
     if comparator == "less_than":
         return actual < previous - tolerance
     if comparator == "not_greater_than":
         return actual <= previous + tolerance
+    if comparator == "not_less_than":
+        return actual >= previous - tolerance
     raise ValidationEventError(f"Unsupported constraint comparator: {comparator}")
 
 

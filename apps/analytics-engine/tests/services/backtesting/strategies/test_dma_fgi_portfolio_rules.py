@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.execution.rule_based.allocation_executor import (
@@ -15,6 +16,9 @@ from src.services.backtesting.features import (
     ETH_BTC_RATIO_FEATURE,
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
+)
+from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
+    CrossUpEqualWeightRule,
 )
 from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
     ExtremeFearDcaBuyRule,
@@ -944,6 +948,223 @@ def test_per_rule_cooldown_requires_actual_transfers() -> None:
     assert second_buy.reason == "portfolio_extreme_fear_dca_buy"
 
 
+@pytest.mark.parametrize(
+    ("trigger_symbol", "target_key"), [("SPY", "spy"), ("ETH", "eth")]
+)
+def test_cross_up_equal_weight_cooldown_allows_different_trigger_symbol(
+    trigger_symbol: str,
+    target_key: str,
+) -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current=stable_current,
+            current_date=date(2025, 1, 1),
+        )
+    )
+    _record_rebalance(
+        policy,
+        intent=btc_cross_up,
+        execution_date=date(2025, 1, 1),
+        to_bucket="btc",
+    )
+
+    next_cross_up = policy.decide(
+        _flat_state(
+            btc=state(symbol="BTC", zone="above", dma_distance=0.05),
+            spy=state(
+                symbol="SPY",
+                zone="above" if trigger_symbol == "SPY" else "below",
+                dma_distance=0.05 if trigger_symbol == "SPY" else -0.05,
+                cross_event="cross_up" if trigger_symbol == "SPY" else None,
+                actionable_cross_event="cross_up" if trigger_symbol == "SPY" else None,
+            ),
+            eth=state(
+                symbol="ETH",
+                zone="above" if trigger_symbol == "ETH" else "below",
+                dma_distance=0.05 if trigger_symbol == "ETH" else -0.05,
+                cross_event="cross_up" if trigger_symbol == "ETH" else None,
+                actionable_cross_event="cross_up" if trigger_symbol == "ETH" else None,
+            ),
+            current={"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            current_date=date(2025, 1, 21),
+        )
+    )
+
+    assert btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert next_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert next_cross_up.target_allocation is not None
+    assert next_cross_up.target_allocation[target_key] > 0.0
+    assert next_cross_up.diagnostics is not None
+    assert next_cross_up.diagnostics["portfolio_rule_trigger_assets"] == [
+        trigger_symbol
+    ]
+
+
+def test_cross_up_equal_weight_cooldown_skips_same_trigger_symbol() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    first_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current=stable_current,
+            current_date=date(2025, 1, 1),
+        )
+    )
+    _record_rebalance(
+        policy,
+        intent=first_btc_cross_up,
+        execution_date=date(2025, 1, 1),
+        to_bucket="btc",
+    )
+
+    retry_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current={"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            current_date=date(2025, 1, 21),
+        )
+    )
+
+    assert first_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert retry_btc_cross_up.reason == "regime_no_signal"
+    assert retry_btc_cross_up.diagnostics is not None
+    assert retry_btc_cross_up.diagnostics["cooldown_skipped_rules"] == [
+        {
+            "rule": "cross_up_equal_weight",
+            "cooldown_days": 30,
+            "remaining_days": 10,
+            "trigger_symbols": ["BTC"],
+            "symbol_cooldowns": [
+                {
+                    "symbol": "BTC",
+                    "last_executed_at": "2025-01-01",
+                    "remaining_days": 10,
+                }
+            ],
+        }
+    ]
+
+
+def test_cross_up_equal_weight_cooldown_allows_same_symbol_after_expiry() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    first_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current=stable_current,
+            current_date=date(2025, 1, 1),
+        )
+    )
+    _record_rebalance(
+        policy,
+        intent=first_btc_cross_up,
+        execution_date=date(2025, 1, 1),
+        to_bucket="btc",
+    )
+
+    expired_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current={"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0},
+            current_date=date(2025, 1, 31),
+        )
+    )
+
+    assert first_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert expired_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+
+
+def test_cross_up_equal_weight_per_symbol_cooldown_requires_actual_transfers() -> None:
+    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+
+    first_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current=stable_current,
+            current_date=date(2025, 1, 1),
+        )
+    )
+    policy.record_execution(
+        context=_execution_context(date(2025, 1, 1)),
+        intent=first_btc_cross_up,
+        execution=ExecutionOutcome(event=None, transfers=[]),
+    )
+
+    retry_btc_cross_up = policy.decide(
+        _flat_state(
+            btc=state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
+            ),
+            spy=state(symbol="SPY", zone="below", dma_distance=-0.05),
+            eth=state(symbol="ETH", zone="below", dma_distance=-0.05),
+            current=stable_current,
+            current_date=date(2025, 1, 2),
+        )
+    )
+
+    assert first_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+    assert retry_btc_cross_up.reason == "portfolio_cross_up_equal_weight"
+
+
 def test_strategy_wires_trade_quota_guard_from_params() -> None:
     strategy = DmaFgiPortfolioRulesStrategy(
         total_capital=10_000.0,
@@ -988,6 +1209,43 @@ def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
     )
 
     assert intent.reason == "trade_quota_min_interval_active"
+
+
+def _execution_context(context_date: date) -> StrategyContext:
+    current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0}
+    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
+    return StrategyContext(
+        date=context_date,
+        price=100.0,
+        sentiment={"label": "neutral", "value": 50},
+        price_history=[100.0],
+        portfolio=Portfolio.from_asset_allocation(10_000.0, current, prices),
+        price_map=prices,
+        extra_data={},
+    )
+
+
+def _record_rebalance(
+    policy: DmaFgiPortfolioRulesDecisionPolicy,
+    *,
+    intent: AllocationIntent,
+    execution_date: date,
+    to_bucket: str,
+) -> None:
+    policy.record_execution(
+        context=_execution_context(execution_date),
+        intent=intent,
+        execution=ExecutionOutcome(
+            event="rebalance",
+            transfers=[
+                TransferIntent(
+                    from_bucket="stable",
+                    to_bucket=to_bucket,
+                    amount_usd=500.0,
+                )
+            ],
+        ),
+    )
 
 
 def _flat_state(

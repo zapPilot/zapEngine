@@ -22,6 +22,7 @@ class CrossUpEqualWeightRule:
     name: str = "cross_up_equal_weight"
     priority: int = 20
     cooldown_days: int = 30
+    cooldown_keyed_by_trigger_symbol: bool = True
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
 

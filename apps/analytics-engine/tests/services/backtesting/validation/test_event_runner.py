@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.services.backtesting.validation.event_runner import (
     ValidationEvent,
     evaluate_event,
@@ -196,6 +198,104 @@ def test_extreme_fear_trigger_fails_when_window_has_no_extreme_fear_below_dma() 
         "no extreme_fear (crypto or macro) with DMA below within 10 days"
         in result.failure_message
     )
+
+
+def test_hold_event_is_trigger_free_and_supports_current_allocation_assertions() -> (
+    None
+):
+    event = ValidationEvent(
+        id="hold_without_signal_trigger",
+        event_date="2025-04-01",
+        event_type="hold",
+        assertions=(
+            {
+                "type": "target_asset_unchanged_from_current",
+                "asset": "btc",
+            },
+        ),
+    )
+    timeline = [
+        _point(
+            "2025-04-01",
+            sentiment_label="neutral",
+            macro_label="neutral",
+            dma_zone="below",
+            btc_current=0.25,
+            btc_target=0.25,
+        ),
+    ]
+
+    result = evaluate_event(event, timeline)
+
+    assert result.passed is True
+    assert result.status == "PASS"
+
+
+@pytest.mark.parametrize("btc_target", [0.15, 0.25])
+def test_target_asset_unchanged_from_current_fails_on_asset_movement(
+    btc_target: float,
+) -> None:
+    event = ValidationEvent(
+        id="hold_rejects_asset_movement",
+        event_date="2025-04-01",
+        event_type="hold",
+        assertions=(
+            {
+                "type": "target_asset_unchanged_from_current",
+                "asset": "btc",
+            },
+        ),
+    )
+    timeline = [
+        _point(
+            "2025-04-01",
+            sentiment_label="neutral",
+            macro_label="neutral",
+            btc_current=0.20,
+            btc_target=btc_target,
+        ),
+    ]
+
+    result = evaluate_event(event, timeline)
+
+    assert result.passed is False
+    assert "target btc=" in result.failure_message
+    assert "expected == current 0.200000" in result.failure_message
+
+
+@pytest.mark.parametrize(
+    "assertion_type",
+    ["target_asset_not_decreased_from_current", "target_asset_not_less_than_current"],
+)
+def test_target_asset_not_decreased_from_current_catches_sell_attempts(
+    assertion_type: str,
+) -> None:
+    event = ValidationEvent(
+        id="hold_rejects_btc_sell",
+        event_date="2025-04-01",
+        event_type="hold",
+        assertions=(
+            {
+                "type": assertion_type,
+                "asset": "btc",
+            },
+        ),
+    )
+    timeline = [
+        _point(
+            "2025-04-01",
+            sentiment_label="neutral",
+            macro_label="neutral",
+            btc_current=0.20,
+            btc_target=0.15,
+        ),
+    ]
+
+    result = evaluate_event(event, timeline)
+
+    assert result.passed is False
+    assert "target btc=0.150000" in result.failure_message
+    assert "expected >= current 0.200000" in result.failure_message
 
 
 def _point(

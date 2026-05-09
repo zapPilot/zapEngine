@@ -69,6 +69,7 @@ PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 _RULE_PRIORITY_BY_NAME = {rule.name: rule.priority for rule in DEFAULT_PORTFOLIO_RULES}
 _CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
 _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
+RuleCooldownKey = str | tuple[str, str]
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,10 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
-    _rule_last_executed_at: dict[str, date] = field(default_factory=dict, init=False)
+    _rule_last_executed_at: dict[RuleCooldownKey, date] = field(
+        default_factory=dict,
+        init=False,
+    )
     _last_trade_date: date | None = field(default=None, init=False)
     _trade_dates: list[date] = field(default_factory=list, init=False)
 
@@ -175,12 +179,17 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     ) -> None:
         if not getattr(execution, "transfers", ()):
             return
-        matched_rule = _matched_rule_name(intent)
+        matched_rule_name = _matched_rule_name(intent)
+        if matched_rule_name is None:
+            return
+        matched_rule = _rule_for_name(self.rules, matched_rule_name)
         if matched_rule is None:
             return
-        if matched_rule not in {rule.name for rule in self.rules}:
+        if _cooldown_keyed_by_trigger_symbol(matched_rule):
+            for symbol in _trigger_symbols_from_intent(intent):
+                self._rule_last_executed_at[(matched_rule.name, symbol)] = context.date
             return
-        self._rule_last_executed_at[matched_rule] = context.date
+        self._rule_last_executed_at[matched_rule.name] = context.date
 
 
 @dataclass
@@ -409,13 +418,49 @@ def _matched_rule_name(intent: AllocationIntent) -> str | None:
     return matched_rule if isinstance(matched_rule, str) else None
 
 
+def _rule_for_name(
+    rules: tuple[PortfolioRule, ...],
+    name: str,
+) -> PortfolioRule | None:
+    for rule in rules:
+        if rule.name == name:
+            return rule
+    return None
+
+
+def _cooldown_keyed_by_trigger_symbol(rule: PortfolioRule) -> bool:
+    return bool(getattr(rule, "cooldown_keyed_by_trigger_symbol", False))
+
+
+def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
+    diagnostics = intent.diagnostics or {}
+    raw_symbols = diagnostics.get("portfolio_rule_trigger_assets")
+    if not isinstance(raw_symbols, list):
+        return []
+    return [symbol for symbol in raw_symbols if isinstance(symbol, str)]
+
+
+def _trigger_symbols_for_cooldown(
+    rule: PortfolioRule,
+    snapshot: PortfolioSnapshot,
+) -> list[str]:
+    if rule.name != "cross_up_equal_weight":
+        return []
+    return [
+        symbol
+        for symbol in symbols_for_snapshot(snapshot)
+        if snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        and snapshot.assets[symbol].zone == "above"
+    ]
+
+
 def resolve_portfolio_rules_intent(
     snapshot: PortfolioSnapshot,
     *,
     rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
     config: PortfolioRuleConfig | None = None,
     disabled_rules: frozenset[str] = frozenset(),
-    rule_last_executed_at: Mapping[str, date] | None = None,
+    rule_last_executed_at: Mapping[RuleCooldownKey, date] | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
     last_executed = dict(rule_last_executed_at or {})
@@ -424,10 +469,18 @@ def resolve_portfolio_rules_intent(
         if rule.name in disabled_rules:
             continue
         if rule.matches(snapshot, config=resolved_config):
-            cooldown = _rule_cooldown_diagnostic(
-                rule,
-                snapshot=snapshot,
-                last_executed_at=last_executed.get(rule.name),
+            cooldown = (
+                _trigger_symbol_cooldown_diagnostic(
+                    rule,
+                    snapshot=snapshot,
+                    last_executed=last_executed,
+                )
+                if _cooldown_keyed_by_trigger_symbol(rule)
+                else _rule_cooldown_diagnostic(
+                    rule,
+                    snapshot=snapshot,
+                    last_executed_at=last_executed.get(rule.name),
+                )
             )
             if cooldown is not None:
                 cooldown_skipped_rules.append(cooldown)
@@ -485,6 +538,45 @@ def _rule_cooldown_diagnostic(
         "last_executed_at": last_executed_at.isoformat(),
         "cooldown_days": max(0, int(rule.cooldown_days)),
         "remaining_days": remaining_days,
+    }
+
+
+def _trigger_symbol_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    trigger_symbols = _trigger_symbols_for_cooldown(rule, snapshot)
+    if not trigger_symbols:
+        return None
+    symbol_cooldowns: list[dict[str, object]] = []
+    remaining_values: list[int] = []
+    for symbol in trigger_symbols:
+        last_executed_at = last_executed.get((rule.name, symbol))
+        remaining_days = rule_cooldown_remaining_days(
+            cooldown_days=rule.cooldown_days,
+            last_executed_at=last_executed_at,
+            current_date=snapshot.current_date,
+        )
+        if remaining_days <= 0 or last_executed_at is None:
+            continue
+        remaining_values.append(remaining_days)
+        symbol_cooldowns.append(
+            {
+                "symbol": symbol,
+                "last_executed_at": last_executed_at.isoformat(),
+                "remaining_days": remaining_days,
+            }
+        )
+    if len(symbol_cooldowns) != len(trigger_symbols):
+        return None
+    return {
+        "rule": rule.name,
+        "cooldown_days": max(0, int(rule.cooldown_days)),
+        "remaining_days": max(remaining_values),
+        "trigger_symbols": trigger_symbols,
+        "symbol_cooldowns": symbol_cooldowns,
     }
 
 
