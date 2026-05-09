@@ -368,6 +368,8 @@ grant insert (user_id, episode_id)
 grant update (user_id, episode_id)
   on from_fed_to_chain.likes to anon, authenticated;
 grant delete on from_fed_to_chain.likes to anon, authenticated;
+grant select, insert, update, delete
+  on from_fed_to_chain.likes to anon, authenticated;
 
 revoke select, insert, update, delete
   on from_fed_to_chain.user_episode_state from anon, authenticated;
@@ -377,7 +379,8 @@ grant insert (user_id, episode_id, listened, last_position_seconds, updated_at)
   on from_fed_to_chain.user_episode_state to anon, authenticated;
 grant update (user_id, episode_id, listened, last_position_seconds, updated_at)
   on from_fed_to_chain.user_episode_state to anon, authenticated;
-grant delete on from_fed_to_chain.user_episode_state to anon, authenticated;
+grant select, insert, update
+  on from_fed_to_chain.user_episode_state to anon, authenticated;
 
 revoke execute on function from_fed_to_chain_private.upsert_podcast_user(text, text)
   from public;

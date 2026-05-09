@@ -8,6 +8,10 @@ import 'package:just_audio/just_audio.dart';
 class FakePodcastAudioHandler extends BaseAudioHandler
     with SeekHandler
     implements PodcastAudioHandler {
+  FakePodcastAudioHandler({this.emitPositionOnSeek = true});
+
+  final bool emitPositionOnSeek;
+
   final _playerStateController = StreamController<PlayerState>.broadcast(
     sync: true,
   );
@@ -70,7 +74,9 @@ class FakePodcastAudioHandler extends BaseAudioHandler
   @override
   Future<void> seek(Duration position) async {
     seekPositions.add(position);
-    _positionController.add(position);
+    if (emitPositionOnSeek) {
+      _positionController.add(position);
+    }
   }
 
   @override

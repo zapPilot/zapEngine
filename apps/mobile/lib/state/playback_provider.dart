@@ -142,8 +142,11 @@ class PlaybackProvider extends ChangeNotifier {
     return _handler.play();
   }
 
-  Future<void> seek(Duration position) {
-    return _handler.seek(position);
+  Future<void> seek(Duration position) async {
+    await _handler.seek(position);
+    _position = position;
+    notifyListeners();
+    _maybeFinalizeNearEnd();
   }
 
   Future<void> flushPosition() {
@@ -327,10 +330,14 @@ class PlaybackProvider extends ChangeNotifier {
     }
 
     _lastPersistedSecond = seconds;
-    await _episodeService.setPosition(
-      userId: userId,
-      episodeId: episode.id,
-      seconds: seconds,
-    );
+    try {
+      await _episodeService.setPosition(
+        userId: userId,
+        episodeId: episode.id,
+        seconds: seconds,
+      );
+    } catch (error) {
+      debugPrint('Playback position persistence failed: $error');
+    }
   }
 }

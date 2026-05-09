@@ -50,7 +50,7 @@ class ContinueListeningCard extends StatelessWidget {
                 : '從最舊未聽開始';
 
     return EpisodeHeroFrame(
-      height: 250,
+      constraints: const BoxConstraints(minHeight: 250),
       onTap: () {
         Navigator.push(
           context,
@@ -61,6 +61,7 @@ class ContinueListeningCard extends StatelessWidget {
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -84,10 +85,10 @@ class ContinueListeningCard extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 28),
           Text(
             title,
-            maxLines: 4,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.headlineLarge,
           ),

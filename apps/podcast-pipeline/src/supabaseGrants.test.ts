@@ -10,6 +10,10 @@ const expectedUserStateReadColumns = [
   'listened',
   'last_position_seconds',
 ];
+const expectedDataApiTableGrants = {
+  likes: ['delete', 'insert', 'select', 'update'],
+  user_episode_state: ['insert', 'select', 'update'],
+};
 
 describe('Supabase user_episode_state grants', () => {
   it('keeps schema.sql aligned with mobile feed state reads', () => {
@@ -28,6 +32,22 @@ describe('Supabase user_episode_state grants', () => {
     expect(grantedUserEpisodeStateSelectColumns(migrations)).toEqual([
       ...new Set([...expectedUserStateReadColumns, ...mobileColumns]),
     ]);
+  });
+
+  it('keeps schema.sql exposing mobile write tables to the Data API', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+
+    expect(effectiveDataApiTableGrants(schema)).toEqual(
+      expectedDataApiTableGrants,
+    );
+  });
+
+  it('keeps migrations exposing mobile write tables to the Data API', () => {
+    const migrations = readSortedMigrations().join('\n');
+
+    expect(effectiveDataApiTableGrants(migrations)).toEqual(
+      expectedDataApiTableGrants,
+    );
   });
 });
 
@@ -59,6 +79,49 @@ function grantedUserEpisodeStateSelectColumns(sql: string): string[] {
   }
 
   return splitColumns(latestGrant[1]!);
+}
+
+function effectiveDataApiTableGrants(
+  sql: string,
+): Record<keyof typeof expectedDataApiTableGrants, string[]> {
+  return {
+    likes: effectiveTablePrivileges(sql, 'likes'),
+    user_episode_state: effectiveTablePrivileges(sql, 'user_episode_state'),
+  };
+}
+
+function effectiveTablePrivileges(sql: string, table: string): string[] {
+  const privileges = new Set<string>();
+  const pattern = new RegExp(
+    `\\b(grant|revoke)\\s+([a-z,\\s]+?)\\s+on\\s+from_fed_to_chain\\.${table}\\s+(?:to|from)\\s+anon,\\s*authenticated\\s*;`,
+    'gi',
+  );
+
+  for (const match of sql.matchAll(pattern)) {
+    const action = match[1]!.toLowerCase();
+    const granted = tablePrivileges(match[2]!);
+
+    if (action === 'grant') {
+      for (const privilege of granted) {
+        privileges.add(privilege);
+      }
+    } else {
+      for (const privilege of granted) {
+        privileges.delete(privilege);
+      }
+    }
+  }
+
+  return [...privileges].sort();
+}
+
+function tablePrivileges(value: string): string[] {
+  const privileges = splitColumns(value);
+  if (!privileges.includes('all')) {
+    return privileges.sort();
+  }
+
+  return ['delete', 'insert', 'select', 'update'];
 }
 
 function splitColumns(value: string): string[] {

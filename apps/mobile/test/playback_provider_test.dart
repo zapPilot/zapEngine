@@ -304,6 +304,55 @@ void main() {
     await handler.dispose();
   });
 
+  test('seek near the end marks an episode listened without a position event',
+      () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+
+    await provider.seek(const Duration(seconds: 599));
+
+    expect(handler.seekPositions, [const Duration(seconds: 599)]);
+    expect(provider.position, const Duration(seconds: 600));
+
+    await _flushProviderAsync();
+
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('completion still writes listened when position persistence fails',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final service = _FakeEpisodeService(failPositionWrites: true);
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
+
+    expect(service.positionWrites, [
+      const _PositionWrite('user-1', 'episode-1', 599),
+      const _PositionWrite('user-1', 'episode-1', 600),
+    ]);
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   test('near-end completion writes listened only once', () async {
     final handler = FakePodcastAudioHandler();
     final service = _FakeEpisodeService();
@@ -439,6 +488,9 @@ Episode _episodeWithTracks(String id) {
 }
 
 class _FakeEpisodeService extends EpisodeService {
+  _FakeEpisodeService({this.failPositionWrites = false});
+
+  final bool failPositionWrites;
   final List<_PositionWrite> positionWrites = [];
   final List<_ListenedWrite> listenedWrites = [];
 
@@ -449,6 +501,9 @@ class _FakeEpisodeService extends EpisodeService {
     required int seconds,
   }) async {
     positionWrites.add(_PositionWrite(userId, episodeId, seconds));
+    if (failPositionWrites) {
+      throw Exception('position write failed');
+    }
   }
 
   @override

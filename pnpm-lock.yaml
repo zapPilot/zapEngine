@@ -284,6 +284,9 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: ^5.85.3
         version: 5.99.0(@tanstack/react-query@5.99.0(react@19.2.5))(react@19.2.5)
+      '@zapengine/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
       '@zapengine/intent-engine':
         specifier: workspace:*
         version: link:../../packages/intent-engine

@@ -29,10 +29,10 @@ if TYPE_CHECKING:
 class ExtremeFearDcaBuyRule:
     name: str = "extreme_fear_dca_buy"
     priority: int = 40
-    cooldown_days: int = 7
+    cooldown_days: int = 14
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA buy assets when their relevant FGI is extreme fear."
-    buy_step: float = 0.05
+    buy_step: float = 0.01
     sizing: SizingStrategy = field(default_factory=FlatSizing)
 
     def matches(
