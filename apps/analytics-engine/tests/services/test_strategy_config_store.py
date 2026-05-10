@@ -64,7 +64,8 @@ def test_list_configs_falls_back_to_seed_configs_when_table_missing(
     configs = store.list_configs()
 
     assert [config.config_id for config in configs] == [
-        "dma_fgi_portfolio_rules_default"
+        "dma_fgi_portfolio_rules_default",
+        "dca_classic",
     ]
     assert store.resolve_config(None).config_id == "dma_fgi_portfolio_rules_default"
 
@@ -160,7 +161,7 @@ def test_seed_store_list_configs_returns_all_seeds() -> None:
     configs = store.list_configs()
 
     config_ids = [config.config_id for config in configs]
-    assert config_ids == ["dma_fgi_portfolio_rules_default"]
+    assert config_ids == ["dma_fgi_portfolio_rules_default", "dca_classic"]
 
 
 def test_seed_store_resolve_config_default() -> None:

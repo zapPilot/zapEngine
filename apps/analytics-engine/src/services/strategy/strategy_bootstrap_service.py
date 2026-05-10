@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from src.config.strategy_presets import get_backtest_defaults
 from src.models.backtesting import BacktestStrategyCatalogResponseV3
-from src.models.strategy_config import StrategyConfigsResponse, StrategyPreset
+from src.models.strategy_config import (
+    PortfolioRuleMetadata,
+    StrategyConfigsResponse,
+    StrategyPreset,
+)
+from src.services.backtesting.portfolio_rules import (
+    DEFAULT_PORTFOLIO_RULES,
+    RULE_DESCRIPTIONS,
+    RULE_NAMES,
+    RULE_PRIORITIES,
+)
 from src.services.backtesting.strategy_catalog import get_strategy_catalog_v3
 from src.services.strategy.strategy_config_store import StrategyConfigStore
 
@@ -56,6 +66,19 @@ def build_strategy_catalog_response() -> BacktestStrategyCatalogResponseV3:
     return get_strategy_catalog_v3()
 
 
+def _build_portfolio_rules_metadata() -> list[PortfolioRuleMetadata]:
+    default_rule_names = {rule.name for rule in DEFAULT_PORTFOLIO_RULES}
+    return [
+        PortfolioRuleMetadata(
+            name=name,
+            priority=RULE_PRIORITIES[name],
+            description=RULE_DESCRIPTIONS[name],
+            default_enabled=name in default_rule_names,
+        )
+        for name in sorted(RULE_NAMES, key=lambda rule_name: RULE_PRIORITIES[rule_name])
+    ]
+
+
 def build_strategy_configs_response(
     strategy_config_store: StrategyConfigStore,
 ) -> StrategyConfigsResponse:
@@ -69,6 +92,7 @@ def build_strategy_configs_response(
             },
         ),
         backtest_defaults=get_backtest_defaults(),
+        portfolio_rules=_build_portfolio_rules_metadata(),
     )
 
 

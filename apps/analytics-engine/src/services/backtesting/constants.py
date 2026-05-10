@@ -14,9 +14,11 @@ ALLOCATION_STATES = {
     "neutral_start": {"spot": 0.5, "stable": 0.5},
 }
 
+STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
 
 STRATEGY_DISPLAY_NAMES = {
+    STRATEGY_DCA_CLASSIC: "DCA Classic",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "DMA/FGI Portfolio Rules",
 }
 

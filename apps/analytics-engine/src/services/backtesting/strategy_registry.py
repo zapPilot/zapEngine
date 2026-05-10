@@ -13,8 +13,10 @@ from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
     map_portfolio_to_spy_eth_btc_stable_buckets,
+    map_portfolio_to_two_buckets,
 )
 from src.services.backtesting.constants import (
+    STRATEGY_DCA_CLASSIC,
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
@@ -29,6 +31,7 @@ from src.services.backtesting.public_params import (
     DmaGatedFgiPublicParams,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
+from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
     build_initial_portfolio_rules_asset_allocation,
@@ -36,7 +39,7 @@ from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
-ParamFamily = Literal["dma"]
+ParamFamily = Literal["dma", "none"]
 PublicParamNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
 StrategyBuilder = Callable[["StrategyBuildRequest"], BaseStrategy]
 InitialAllocationBuilder = Callable[..., dict[str, float]]
@@ -72,6 +75,30 @@ def _require_compare_runtime_inputs(request: StrategyBuildRequest) -> None:
 
 def _normalize_dma_public_params(params: dict[str, Any]) -> dict[str, Any]:
     return DmaGatedFgiParams.from_public_params(params).to_public_params()
+
+
+class _DcaPublicParams(BaseModel):
+    """Empty public params model — DCA classic accepts no client params."""
+
+
+def _normalize_dca_params(params: dict[str, Any]) -> dict[str, Any]:
+    if params:
+        raise ValueError("dca_classic does not accept params")
+    return {}
+
+
+def _build_dca_strategy(request: StrategyBuildRequest) -> BaseStrategy:
+    _require_compare_runtime_inputs(request)
+    assert request.initial_allocation is not None
+    assert request.user_start_date is not None
+    return DcaClassicStrategy(
+        total_days=len(request.user_prices),
+        total_capital=request.total_capital,
+        initial_allocation=request.initial_allocation,
+        user_start_date=request.user_start_date,
+        strategy_id=request.resolved_config_id or STRATEGY_DCA_CLASSIC,
+        display_name=request.resolved_config_id or STRATEGY_DCA_CLASSIC,
+    )
 
 
 @dataclass(frozen=True)
@@ -179,7 +206,27 @@ def _build_portfolio_rules_recipe() -> StrategyRecipe:
     )
 
 
+def _build_dca_classic_recipe() -> StrategyRecipe:
+    return StrategyRecipe(
+        strategy_id=STRATEGY_DCA_CLASSIC,
+        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_DCA_CLASSIC],
+        description="Baseline: deploy stables into spot evenly across the simulation.",
+        signal_id=None,
+        primary_asset="BTC",
+        warmup_lookback_days=0,
+        market_data_requirements=MarketDataRequirements(max_lag_days=1),
+        portfolio_bucket_mapper=map_portfolio_to_two_buckets,
+        public_params_model=_DcaPublicParams,
+        param_family="none",
+        runtime_portfolio_mode="aggregate",
+        normalize_public_params=_normalize_dca_params,
+        build_strategy=_build_dca_strategy,
+        supports_daily_suggestion=False,
+    )
+
+
 _RECIPES: dict[str, StrategyRecipe] = {
+    STRATEGY_DCA_CLASSIC: _build_dca_classic_recipe(),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: _build_portfolio_rules_recipe(),
 }
 

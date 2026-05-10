@@ -273,6 +273,7 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
         "reason",
         "score",
         "signals",
+        "rule_matches",
         "target_diff",
         "target",
         "executed",

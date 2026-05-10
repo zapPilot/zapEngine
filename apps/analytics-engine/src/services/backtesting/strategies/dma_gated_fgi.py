@@ -35,6 +35,9 @@ from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
 from src.services.backtesting.features import DMA_200_FEATURE, MarketDataRequirements
+from src.services.backtesting.portfolio_rules import (
+    RULE_NAMES as PORTFOLIO_RULE_NAMES,
+)
 from src.services.backtesting.signals.contracts import SignalContext
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.metadata import build_signal_output
@@ -57,7 +60,12 @@ from src.services.backtesting.tactics.base import (
     hold_reason,
     target_intent,
 )
-from src.services.backtesting.tactics.rules import DEFAULT_RULES, RULE_NAMES
+from src.services.backtesting.tactics.rules import (
+    DEFAULT_RULES,
+)
+from src.services.backtesting.tactics.rules import (
+    RULE_NAMES as TACTICAL_RULE_NAMES,
+)
 from src.services.backtesting.utils import (
     coerce_bool,
     coerce_float,
@@ -84,6 +92,7 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "fgi_slope_reversal_threshold",
         "fgi_slope_recovery_threshold",
         "disabled_rules",
+        "enabled_rules",
     }
 )
 
@@ -108,14 +117,26 @@ def _coerce_rule_name_set(value: Any, *, field_name: str) -> frozenset[str]:
     if not isinstance(value, list | tuple | set | frozenset):
         raise ValueError(f"{field_name} must be an array of rule names")
     names = frozenset(str(item) for item in value)
-    invalid_names = sorted(names - RULE_NAMES)
+    invalid_names = sorted(names - _KNOWN_RULE_NAMES)
     if invalid_names:
         joined = ", ".join(invalid_names)
         raise ValueError(f"{field_name} contains unsupported rule names: {joined}")
     return names
 
 
+def _coerce_optional_rule_name_set(
+    value: Any,
+    *,
+    field_name: str,
+) -> frozenset[str] | None:
+    if value is None:
+        return None
+    return _coerce_rule_name_set(value, field_name=field_name)
+
+
+_KNOWN_RULE_NAMES = PORTFOLIO_RULE_NAMES | TACTICAL_RULE_NAMES
 _DMA_COERCION_SPEC["disabled_rules"] = _coerce_rule_name_set
+_DMA_COERCION_SPEC["enabled_rules"] = _coerce_optional_rule_name_set
 
 
 class DmaGatedFgiParams(BaseModel):
@@ -189,6 +210,13 @@ class DmaGatedFgiParams(BaseModel):
         default_factory=frozenset,
         description="DMA/FGI tactical rule names to skip during policy evaluation.",
     )
+    enabled_rules: frozenset[str] | None = Field(
+        default=None,
+        description=(
+            "Optional rule allowlist. Portfolio-rule strategies use this to "
+            "isolate rule sets for attribution."
+        ),
+    )
 
     @classmethod
     def from_public_params(
@@ -209,6 +237,10 @@ class DmaGatedFgiParams(BaseModel):
             params["disabled_rules"] = sorted(self.disabled_rules)
         else:
             params.pop("disabled_rules", None)
+        if self.enabled_rules is not None:
+            params["enabled_rules"] = sorted(self.enabled_rules)
+        else:
+            params.pop("enabled_rules", None)
         return cast(dict[str, JsonValue], params)
 
     def build_signal_config(self) -> DmaGatedFgiConfig:

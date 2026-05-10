@@ -2,6 +2,8 @@
 
 This file is auto-loaded by Claude Code when working on backtesting strategies.
 For historical iteration records, see [ITERATION_LOG.md](./ITERATION_LOG.md).
+For the current rule-iteration gate, see
+[ITERATION_PLAYBOOK.md](./ITERATION_PLAYBOOK.md).
 
 If you are not working on strategy iteration, you can skip this file.
 
@@ -16,13 +18,12 @@ Active default rules:
 - `cross_down_exit`
 - `cross_up_equal_weight`
 - `eth_btc_ratio_rotation`
-- `eth_btc_deviation_dca`
-- `greed_sell_suppression`
-- `dma_stable_gating`
-- `spy_latch`
 - `dma_overextension_dca_sell`
-- `extreme_fear_dca_buy`
 - `fgi_downshift_dca_sell`
+
+Known non-default rules remain available for attribution diagnostics and
+`enabled_rules` isolation, but are not eligible to fire in the default strategy
+unless explicitly allowlisted.
 
 ## Known Retune Items
 
@@ -30,11 +31,16 @@ The following migrated rules are intentionally left as-is for this PR and should
 be retuned in a later iteration:
 
 - `dma_stable_gating`: current flat trigger is too broad and has negative
-  attribution.
+  attribution. See `ITERATION_LOG.md` entries `2026-05-09` and `2026-05-10`.
 - `greed_sell_suppression`: suppresses little useful behavior in the current
-  flat priority order.
+  flat priority order. See `ITERATION_LOG.md` entries `2026-04-15` and
+  `2026-05-09`.
 - `eth_btc_deviation_dca`: thresholds and symmetric ETH-to-BTC coverage need a
-  fresh fixture pass.
+  fresh fixture pass. See `ITERATION_LOG.md` entry `2026-05-09`.
+- `extreme_fear_dca_buy`: disabled in the default rule set pending isolation
+  checks against the minimal baseline.
+- `spy_latch`: disabled in the default rule set pending flat-engine
+  attribution.
 
 ## Iteration Discipline
 
@@ -51,8 +57,12 @@ Before claiming a strategy change is done:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot
    ```
-4. Prepend an `ITERATION_LOG.md` entry with the strategy delta, validation
-   coverage, and known follow-up items.
+4. Run `scripts/attribution/per_rule_report.py` against a fresh
+   `decisions.jsonl` and attach match / win / shadowed counts to the log entry.
+5. Run `scripts/attribution/rule_only_sweep.py` for any changed rule priority or
+   trigger and attach standalone deltas.
+6. Prepend an `ITERATION_LOG.md` entry with the strategy delta, validation
+   coverage, per-rule diagnostics, and known follow-up items.
 
 ## Conventions
 

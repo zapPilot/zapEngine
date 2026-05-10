@@ -244,6 +244,7 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     body = cast(dict[str, object], response.json())
     strategies = cast(list[dict[str, object]], body["strategies"])
     presets = cast(list[dict[str, object]], body["presets"])
+    portfolio_rules = cast(list[dict[str, object]], body["portfolio_rules"])
     strategy_ids = [cast(str, strategy["strategy_id"]) for strategy in strategies]
     expected_strategy_ids = [recipe.strategy_id for recipe in list_strategy_recipes()]
     assert strategy_ids == expected_strategy_ids
@@ -264,6 +265,25 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         "cross_cooldown_days": 30,
         "cross_on_touch": True,
     }
+    rule_names = [cast(str, rule["name"]) for rule in portfolio_rules]
+    assert rule_names == [
+        "cross_down_exit",
+        "cross_up_equal_weight",
+        "eth_btc_ratio_rotation",
+        "eth_btc_deviation_dca",
+        "greed_sell_suppression",
+        "dma_stable_gating",
+        "spy_latch",
+        "dma_overextension_dca_sell",
+        "extreme_fear_dca_buy",
+        "fgi_downshift_dca_sell",
+    ]
+    greed_rule = next(
+        rule for rule in portfolio_rules if rule["name"] == "greed_sell_suppression"
+    )
+    assert greed_rule["priority"] == 23
+    assert greed_rule["default_enabled"] is False
+    assert isinstance(greed_rule["description"], str)
     assert body["backtest_defaults"] == {"days": 500, "total_capital": 10000}
 
 
@@ -416,6 +436,7 @@ async def test_admin_strategy_configs_return_full_saved_config_payload(
     body = cast(dict[str, object], response.json())
     configs = cast(list[dict[str, object]], body["configs"])
     assert {config["config_id"] for config in configs} == {
+        "dca_classic",
         "dma_fgi_portfolio_rules_default",
     }
     default_config = next(

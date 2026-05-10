@@ -61,7 +61,7 @@ def test_curated_presets_have_single_default_and_single_benchmark() -> None:
     defaults = [preset for preset in STRATEGY_PRESETS if preset.is_default]
     benchmarks = [preset for preset in STRATEGY_PRESETS if preset.is_benchmark]
     assert len(defaults) == 1
-    assert len(benchmarks) == 0
+    assert len(benchmarks) == 1
 
 
 def test_seed_live_configs_expose_nested_params() -> None:

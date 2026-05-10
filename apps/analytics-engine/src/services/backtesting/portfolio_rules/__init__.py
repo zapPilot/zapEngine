@@ -34,35 +34,53 @@ _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
-    # EthBtcDeviationDcaRule(),
-    # GreedSellSuppressionRule(),
-    # DmaStableGatingRule(),
-    # SpyLatchRule(),
-    # ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
 )
-_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = ()
+_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
+    EthBtcDeviationDcaRule(),
+    GreedSellSuppressionRule(),
+    DmaStableGatingRule(),
+    SpyLatchRule(),
+    ExtremeFearDcaBuyRule(),
+)
 
 DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
     sorted(_UNSORTED_DEFAULT_PORTFOLIO_RULES, key=lambda rule: rule.priority)
 )
+ALL_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
+    sorted(
+        (*_UNSORTED_DEFAULT_PORTFOLIO_RULES, *_NON_DEFAULT_PORTFOLIO_RULES),
+        key=lambda rule: rule.priority,
+    )
+)
+DEFAULT_PORTFOLIO_RULE_NAMES: frozenset[str] = frozenset(
+    rule.name for rule in DEFAULT_PORTFOLIO_RULES
+)
+MINIMAL_BASELINE_PORTFOLIO_RULE_NAMES: frozenset[str] = frozenset(
+    {
+        "cross_down_exit",
+        "cross_up_equal_weight",
+        "eth_btc_ratio_rotation",
+    }
+)
 RULE_DESCRIPTIONS: dict[str, str] = {
-    rule.name: rule.description
-    for rule in (*DEFAULT_PORTFOLIO_RULES, *_NON_DEFAULT_PORTFOLIO_RULES)
+    rule.name: rule.description for rule in ALL_PORTFOLIO_RULES
 }
 RULE_PRIORITIES: dict[str, int] = {
-    rule.name: rule.priority
-    for rule in (*DEFAULT_PORTFOLIO_RULES, *_NON_DEFAULT_PORTFOLIO_RULES)
+    rule.name: rule.priority for rule in ALL_PORTFOLIO_RULES
 }
 RULE_NAMES: frozenset[str] = frozenset(RULE_DESCRIPTIONS)
 
 __all__ = [
+    "ALL_PORTFOLIO_RULES",
     "DEFAULT_PORTFOLIO_RULES",
+    "DEFAULT_PORTFOLIO_RULE_NAMES",
     "DmaStableGatingRule",
     "EthBtcDeviationDcaRule",
     "ExtremeFearDcaBuyRule",
     "GreedSellSuppressionRule",
+    "MINIMAL_BASELINE_PORTFOLIO_RULE_NAMES",
     "RULE_DESCRIPTIONS",
     "RULE_NAMES",
     "RULE_PRIORITIES",

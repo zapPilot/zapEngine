@@ -48,6 +48,7 @@ def test_format_decision_log_line_uses_flat_stable_schema() -> None:
         "reason": "portfolio_cross_up_equal_weight",
         "score": 0.95,
         "signals": {"btc.cross": "cross_up", "spy.zone": "above"},
+        "rule_matches": [],
         "target_diff": {"btc": 0.3, "eth": 0.3, "spy": 0.4, "stable": -1.0},
         "target": "portfolio_cross_up_equal_weight",
         "executed": True,

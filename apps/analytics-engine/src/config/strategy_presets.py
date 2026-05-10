@@ -14,7 +14,10 @@ from src.models.strategy_config import (
     StrategyComposition,
     StrategyPreset,
 )
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
+from src.services.backtesting.constants import (
+    STRATEGY_DCA_CLASSIC,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+)
 from src.services.backtesting.public_params import (
     get_default_public_params,
     normalize_nested_public_params,
@@ -183,6 +186,18 @@ SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
         _build_composed_seed_config(definition)
         for definition in _COMPOSED_PRESET_DEFINITIONS
     ),
+    SavedStrategyConfig(
+        config_id=STRATEGY_DCA_CLASSIC,
+        display_name="Classic DCA",
+        description="Simple dollar-cost averaging baseline.",
+        strategy_id=STRATEGY_DCA_CLASSIC,
+        primary_asset="BTC",
+        params={},
+        composition=StrategyComposition(kind="benchmark"),
+        supports_daily_suggestion=False,
+        is_default=False,
+        is_benchmark=True,
+    ),
 ]
 
 BACKTEST_DEFAULTS: Final[BacktestDefaults] = BacktestDefaults(
@@ -262,4 +277,6 @@ def resolve_strategy_preset(config_id: str | None) -> StrategyPreset:
     return resolve_seed_strategy_config(config_id).to_public_preset()
 
 
-STRATEGY_PRESETS: Final[list[StrategyPreset]] = list_strategy_presets()
+STRATEGY_PRESETS: Final[list[StrategyPreset]] = list_strategy_presets() + [
+    get_benchmark_strategy_preset()
+]

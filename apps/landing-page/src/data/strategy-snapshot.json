@@ -13,13 +13,21 @@
     "trade_count": 5.0
   },
   "strategies": {
+    "dca_classic": {
+      "display_name": "DCA Classic",
+      "calmar_ratio": -0.2488,
+      "sharpe_ratio": -0.1686,
+      "max_drawdown_percent": -42.9936,
+      "roi_percent": -14.3192,
+      "trade_count": 500
+    },
     "dma_fgi_portfolio_rules": {
       "display_name": "DMA/FGI Portfolio Rules",
-      "calmar_ratio": 3.7489,
-      "sharpe_ratio": 2.028,
+      "calmar_ratio": 5.0118,
+      "sharpe_ratio": 2.2797,
       "max_drawdown_percent": -9.3248,
-      "roi_percent": 50.8415,
-      "trade_count": 49
+      "roi_percent": 69.1371,
+      "trade_count": 45
     }
   }
 }

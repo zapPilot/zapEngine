@@ -8,12 +8,14 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 Newest first. Each entry: date, commit, finding, key numbers.
 
 ### 2026-05-10 - Single strategy surface
+- **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` only)
 - **Finding**: Collapsed the production-facing strategy surface to the canonical `dma_fgi_portfolio_rules` recipe and removed the ETH/BTC rotation strategy plus leave-one-out attribution variants.
 - **Default config**: replaced `eth_btc_rotation_default` with `dma_fgi_portfolio_rules_default` as the single seed default.
 - **Snapshot scope**: the 500-day fixture now tracks only `dma_fgi_portfolio_rules`; historical attribution rows remain below for audit context.
 
 ### 2026-05-10 - Rule-only architecture migration
+- **Status**: active
 - **Commit**: `4bdd93f2` + pending local change (`rule-only portfolio rules migration`)
 - **Finding**: Completed the rule-only migration by adding `SpyLatchRule` as a stateful post-intent adjustment, adding `EthBtcContinuousWeightRule` for saved-config BTC/ETH rotation, rewriting `eth_btc_rotation` onto the `RuleBasedAllocationExecutor`, and deleting the hierarchical/pair-rotation strategy infrastructure.
 - **Deleted infrastructure**: removed `hierarchical_minimum.py`, `hierarchical_outer_policy.py`, `hierarchical_attribution.py`, `spy_crypto_hierarchical_rotation.py`, `pair_rotation_template.py`, the hierarchical attribution sweep/diagnostic scripts, and their dedicated tests.
@@ -23,6 +25,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Known issue carried forward**: `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` still have negative leave-one-out attribution in the flat first-match engine. Next iteration should retune DMA stable gating to an event-driven trigger, revisit greed suppression interaction with overextension sells, and lower/fixture the ETH/BTC deviation DCA thresholds.
 
 ### 2026-05-09 - Flat portfolio-rule hierarchical behavior ports
+- **Status**: superseded
 - **Commit**: `065860d8` + pending local change (`dma_fgi_portfolio_rules` rule ports)
 - **Finding**: Ported `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` into the canonical flat portfolio-rule engine with leave-one-out attribution variants. The implementation is traceable and fixture-covered, but the 500-day snapshot says all three ports are harmful in the current flat-rule form.
 - **Snapshot delta vs prior `dma_fgi_portfolio_rules` baseline**: ROI 67.6831% -> 50.5217% (-17.1614pp), Calmar 4.9129 -> 3.7265 (-1.1864), MaxDD unchanged at -9.3248%, trades 56 -> 52 (-4). The task brief referenced a 64.10% baseline, but the local pre-change snapshot was already 67.6831% from later pending iterations.
@@ -32,12 +35,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Decision**: keep these ports only as explicit canonical-strategy behavior under review; do not promote them as proven improvements without narrower triggers, threshold tuning, or disabling the harmful pieces.
 
 ### 2026-05-08 — Portfolio rule cooldowns localized
+- **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` per-rule cooldown)
 - **Finding**: The shared post-trade portfolio cooldown gate was removed because it let a cross-down sell suppress short-lived extreme-fear DCA opportunities. Portfolio rules now expose rule-local cooldown fields, defaulting to 0d, and cooldown state is recorded only after an executed transfer.
 - **Regression pins**: strategy coverage verifies a cross-down sell no longer blocks the next extreme-fear DCA, and custom per-rule cooldown skips only the cooling rule after actual execution.
 - **Validation**: `dma_fgi_portfolio_rules` hierarchical validation passes with `extreme_fear_dca_2025_03_11` PASS; 500-day strategy snapshot reports no metric drift above tolerance.
 
 ### 2026-05-07 — Risk layer extraction and adaptive sizing audit trail
+- **Status**: active
 - **Commit**: pending local change (`phase4-risk-sizing`)
 - **Finding**: Moved `trade_quota` and `dma_buy_gate` from portfolio-rule wrappers into post-decision `risk/` guards while preserving the old priority semantics, then added `SizingStrategy` with flat defaults and canonical `FgiExponentialSizing(max_multiplier=1.1)` for extreme-fear buys.
 - **Snapshot delta vs flat sizing ablation**: `dma_fgi_portfolio_rules` ROI 64.0972% -> 64.0974% (+0.0002pp), Calmar 4.2665 -> 4.2665 (+0.0000), Sharpe 1.9112 -> 1.9069 (-0.0043), MaxDD unchanged at -10.2024%, trades 48 -> 48 (0). `_minus_adaptive_sizing` preserves the Phase B flat baseline.
@@ -45,18 +50,21 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: `tests/test_validation_events.py` passed after both Phase B and Phase C. Full `pnpm --filter @zapengine/analytics-engine test` remains blocked locally by a corrupted Docker test container (`analytics-test-postgres` returns containerd input/output errors), not by pytest failures.
 
 ### 2026-05-07 — Portfolio rules hierarchical-feature port stopped at DMA stable gating
+- **Status**: superseded
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` priority-spacing setup)
 - **Finding**: Phase 0 priority spacing was behavior-neutral after preserving the existing optional `dma_buy_gate` order after overextension sells. Phase 1's direct flat translation of DMA stable gating (`BTC/ETH below DMA` + crypto FGI in `fear/extreme_fear` -> route to stable) had the wrong sign and was reverted per the stop condition. The ablation proved isolation, but the trigger was too broad in the flat rule layer and blocked profitable extreme-fear DCA exposure.
 - **Snapshot result**: Phase 0 baseline remained `dma_fgi_portfolio_rules` ROI 64.10%, Calmar 4.27, 48 trades. The reverted Phase 1 candidate fell to ROI 21.76%, Calmar 1.51, 33 trades, while `_minus_dma_stable_gating` returned to ROI 64.10%, Calmar 4.27, 48 trades.
 - **Next**: Reassess the source behavior before trying another port. The profitable hierarchical "DMA stable gating" appears tied to outer DMA intent composition, not the broad below-DMA fear/extreme-fear crypto blocker tested here.
 
 ### 2026-05-07 — Cross-up cooldown restored and validation trigger assets
+- **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` cooldown validation follow-up)
 - **Finding**: Reverted the raw `cross_event` re-entry bypass introduced in the 2026-05-06 iteration: `cross_up_equal_weight` now requires `actionable_cross_event == "cross_up"` and emits `portfolio_rule_trigger_assets` so hierarchical observation diagnostics select the actual cross-triggering asset. `analyze_compare.py` now marks cross-down validation events as `SKIPPED` when the reference asset was already at zero in the previous explicit target allocation.
 - **Snapshot delta vs 55.02% / 47 trades / 3.20 Calmar baseline**: ROI 55.02% → 64.31% (+9.29pp), Calmar 3.20 → 4.28 (+1.09), Sharpe 1.63 → 1.90 (+0.27), MaxDD -11.80% → -10.20% (+1.59pp), trades 47 → 47 (0).
 - **Validation events**: Targeted `dma_fgi_portfolio_rules` checks now resolve `btc_cross_down_2025_03_08` as `SKIPPED`, `cooldown_period_2025_03_24` as `PASS`, and `eth_cross_up_2025_06_09` as `PASS`. The full fixture still has unrelated pre-existing failures in other event families.
 
 ### 2026-05-06 — Portfolio cross semantics and analyzer output cleanup
+- **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` fixture semantics + `analyze_compare.py` CLI cleanup)
 - **Finding**: Portfolio cross-down exits now liquidate BTC/ETH as one crypto peer group while preserving SPY, and SPY-only cross-down remains SPY-scoped. Cross-up equal-weight now treats a same-day raw cross-up as eligible even when the previous cross-down cooldown still marks the above zone blocked, allowing stable to redeploy on the explicit cross-up signal.
 - **Analyzer cleanup**: `analyze_compare.py` no longer exposes output-section profiles; default output renders all sections and `--section` remains the explicit subset mechanism. Markdown `--out` paths are resolved to absolute paths, emit a save notice, and write fallback markdown when markdown rendering fails after constraint validation is available.
@@ -64,6 +72,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation events**: `btc_cross_down_preserve_spy_2025_10_18` and `spy_cross_up_redeploy_2026_04_08` pass as targeted live API constraint checks for `dma_fgi_portfolio_rules`.
 
 ### 2026-05-05 — Portfolio rules atomic execution
+- **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` rule-based executor)
 - **Finding**: `dma_fgi_portfolio_rules` now uses `RuleBasedAllocationExecutor`, so each matched portfolio rule executes the full target-allocation delta on the same bar instead of routing through `FgiExponentialPacingPolicy` and multi-step ramps. The legacy allocation executor, pacing policy, and execution plugins remain untouched for the other strategies.
 - **Rule migration**: DMA buy-side sideways confirmation and trade quotas moved into portfolio-rule hold guards for this strategy only. The executor owns `last_trade_date`/`trade_dates`, and the decision policy reads them through `PortfolioSnapshot`.
@@ -71,6 +80,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Regression pins**: unit coverage verifies atomic full-delta transfers, cost-model handoff, buy-gate holds, trade-quota holds, and strategy wiring. The 2025-03-24 validation event passes, and the research-inclusive 500-day snapshot re-anchor shows drift only in the portfolio-rules family before update.
 
 ### 2026-05-05 — SPY portfolio cross-down cooldown aligned to 30d
+- **Status**: active
 - **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs update.
 - **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. Later iterations removed the separate shared post-trade DCA gate in favor of rule-local cooldowns.
 - **Snapshot delta vs SPY-7 `dma_fgi_portfolio_rules` baseline**: ROI 37.03% → 33.08% (-3.95pp), Calmar 1.18 → 1.02 (-0.16), Sharpe 0.91 → 0.87 (-0.04), MaxDD -21.85% → -22.63% (-0.78pp), trades 78 → 51 (-27).

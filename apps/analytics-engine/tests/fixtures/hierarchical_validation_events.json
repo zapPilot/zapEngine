@@ -1,26 +1,4 @@
 {
-  "2024-12-02": {
-    "events": [
-      {
-        "id": "greed_sell_suppression_2024_12_02",
-        "event_type": "decision_action_assertion",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "Extreme greed with BTC above its overextension threshold should suppress the flat overextension sell.",
-        "assertions": [
-          {
-            "type": "decision_action_equals",
-            "value": "hold"
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "greed_sell_suppression"
-          }
-        ],
-        "rationale": "Covers the above-greed-sell suppression now expressed as a canonical flat portfolio rule."
-      }
-    ]
-  },
   "2025-02-02": {
     "events": [
       {
@@ -90,35 +68,6 @@
       }
     ]
   },
-  "2025-03-11": {
-    "events": [
-      {
-        "id": "extreme_fear_dca_2025_03_11",
-        "event_type": "extreme_fear_below_crypto_dma",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-
-        "description": "Extreme fear while crypto is below DMA should DCA a non-zero amount from stable.",
-        "assertions": [
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "spy",
-            "within_days": 10
-          },
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "eth",
-            "within_days": 10
-          },
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "btc",
-            "within_days": 10
-          }
-        ],
-        "rationale": "SQL-resolved replacement for 2025-03-09, which is fear rather than extreme_fear in the current sentiment feed."
-      }
-    ]
-  },
   "2025-03-24": {
     "events": [
       {
@@ -137,64 +86,6 @@
           }
         ],
         "rationale": "Per-symbol cross-down cooldown must suppress SPY re-entry through early April even when SPY has a cross-up. Portfolio-rule cooldown is local to each rule and no longer creates a global hold gate, so this event verifies cross_up_equal_weight is skipped without asserting that prior DCA crypto exposure is liquidated."
-      }
-    ]
-  },
-  "2025-04-07": {
-    "events": [
-      {
-        "id": "eth_btc_deviation_dca_to_eth_2025_04_07",
-        "event_type": "decision_action_assertion",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "ETH/BTC ratio is more than 40% below its 200d DMA; the flat portfolio rule should DCA BTC exposure toward ETH.",
-        "assertions": [
-          {
-            "type": "decision_action_equals",
-            "value": "sell"
-          },
-          {
-            "type": "decision_reason_in",
-            "values": ["portfolio_eth_btc_deviation_dca_to_eth"]
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "eth_btc_deviation_dca"
-          }
-        ],
-        "rationale": "Validates the new low-ratio mean-reversion rule on the first production-window date where the ratio reaches the -40% DCA threshold."
-      }
-    ]
-  },
-  "2025-03-13": {
-    "events": [
-      {
-        "id": "dma_stable_gating_2025_03_13",
-        "event_type": "decision_action_assertion",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "Fear regime with crypto below DMA should route crypto exposure to stable.",
-        "assertions": [
-          {
-            "type": "decision_action_equals",
-            "value": "sell"
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "dma_stable_gating"
-          },
-          {
-            "type": "target_asset_equals",
-            "asset": "btc",
-            "value": 0
-          },
-          {
-            "type": "target_asset_equals",
-            "asset": "eth",
-            "value": 0
-          }
-        ],
-        "rationale": "Covers the DMA stable gate now expressed as a canonical flat portfolio rule."
       }
     ]
   },
@@ -240,40 +131,6 @@
           }
         ],
         "rationale": "SPY cross-up redeploy is covered by the first-match cross-up rule; follow-through absorption is covered by the next latch fixture."
-      }
-    ]
-  },
-  "2026-04-16": {
-    "events": [
-      {
-        "id": "spy_latch_absorb_fresh_stable_2026_04_16",
-        "event_type": "crypto_cross_down",
-        "reference_asset": "BTC",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "After a SPY cross-up activation, a fresh crypto risk-off stable target should be absorbed into SPY during the latch window.",
-        "assertions": [
-          {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "dma_stable_gating"
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "post_intent_adjustments",
-            "value": ["spy_latch_absorb_fresh_stable"]
-          },
-          {
-            "type": "target_asset_equals",
-            "asset": "stable",
-            "value": 0
-          },
-          {
-            "type": "target_asset_gt",
-            "asset": "spy",
-            "value": 0.99
-          }
-        ],
-        "rationale": "Pins the stateful 14-day SPY latch as a post-intent adjustment rather than a first-match rule."
       }
     ]
   },
@@ -420,35 +277,6 @@
       }
     ]
   },
-  "2025-11-10": {
-    "events": [
-      {
-        "id": "extreme_fear_dca_2025_11_10",
-        "event_type": "extreme_fear_below_crypto_dma",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-
-        "description": "also a extreme_fear range to buy",
-        "assertions": [
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "spy",
-            "within_days": 10
-          },
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "eth",
-            "within_days": 10
-          },
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "btc",
-            "within_days": 10
-          }
-        ],
-        "rationale": "This fixture exercises the shared below_extreme_fear_buy rule, which remains active across the validation strategies. Fear-recovery buy is a separate non-extreme-fear rule."
-      }
-    ]
-  },
   "2026-01-20": {
     "events": [
       {
@@ -463,29 +291,6 @@
           }
         ],
         "rationale": "All validation strategies retain inner ETH/BTC ratio-zone detection; final allocation may be overridden by outer stable/SPY gating."
-      }
-    ]
-  },
-  "2026-02-01": {
-    "events": [
-      {
-        "id": "extreme_fear_dca_2026_02_01",
-        "event_type": "extreme_fear_below_crypto_dma",
-        "applicable_strategies": ["dma_fgi_portfolio_rules"],
-        "description": "also a extreme_fear range to buy",
-        "assertions": [
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "eth",
-            "within_days": 10
-          },
-          {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "btc",
-            "within_days": 10
-          }
-        ],
-        "rationale": "This fixture exercises the shared below_extreme_fear_buy rule when the portfolio is already effectively 100% crypto. The correct invariant is that the extreme-fear DCA rule remains selected, not that allocation exceeds the portfolio cap."
       }
     ]
   },

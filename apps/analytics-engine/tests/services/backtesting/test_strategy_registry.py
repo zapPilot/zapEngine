@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from src.services.backtesting.constants import (
+    STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.backtesting.features import (
@@ -42,7 +43,7 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
     recipe_ids = {recipe.strategy_id for recipe in list_strategy_recipes()}
 
     assert {entry.strategy_id for entry in catalog.strategies} == recipe_ids
-    assert recipe_ids == {STRATEGY_DMA_FGI_PORTFOLIO_RULES}
+    assert recipe_ids == {STRATEGY_DCA_CLASSIC, STRATEGY_DMA_FGI_PORTFOLIO_RULES}
 
 
 def test_portfolio_rules_recipe_builds_compare_strategy() -> None:

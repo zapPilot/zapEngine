@@ -28,6 +28,7 @@ def format_decision_log_line(
         "reason": str(decision.get("reason", "")),
         "score": _round_number(details.get("decision_score"), digits=4),
         "signals": _signals_consulted(details),
+        "rule_matches": _rule_matches(details),
         "target_diff": _target_diff(prior_target or {}, target),
         "target": _target_name(details),
         "executed": _executed(point),
@@ -145,6 +146,35 @@ def _signals_consulted(details: dict[str, Any]) -> dict[str, Any]:
         for key, value in raw.items()
         if isinstance(key, str) and _json_scalar(value) is not None
     }
+
+
+def _rule_matches(details: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = details.get("portfolio_rule_matches")
+    if not isinstance(raw, list):
+        return []
+    matches: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        rule_name = item.get("rule_name")
+        matched = item.get("matched")
+        if not isinstance(rule_name, str) or not isinstance(matched, bool):
+            continue
+        would_have_acted_action = item.get("would_have_acted_action")
+        suppressed_by = item.get("suppressed_by")
+        matches.append(
+            {
+                "rule_name": rule_name,
+                "matched": matched,
+                "would_have_acted_action": would_have_acted_action
+                if isinstance(would_have_acted_action, str)
+                else None,
+                "suppressed_by": suppressed_by
+                if isinstance(suppressed_by, str)
+                else None,
+            }
+        )
+    return matches
 
 
 def _executed(point: dict[str, Any]) -> bool:

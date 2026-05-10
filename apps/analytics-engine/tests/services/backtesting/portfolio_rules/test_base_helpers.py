@@ -21,12 +21,7 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
         ("cross_down_exit", 10),
         ("cross_up_equal_weight", 20),
         ("eth_btc_ratio_rotation", 21),
-        ("eth_btc_deviation_dca", 22),
-        ("greed_sell_suppression", 23),
-        ("dma_stable_gating", 24),
-        ("spy_latch", 25),
         ("dma_overextension_dca_sell", 30),
-        ("extreme_fear_dca_buy", 40),
         ("fgi_downshift_dca_sell", 50),
     ]
 

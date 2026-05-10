@@ -9,7 +9,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+
+from src.services.backtesting.portfolio_rules import RULE_NAMES
 
 if TYPE_CHECKING:
     from src.services.backtesting.strategy_registry import StrategyRecipe
@@ -63,6 +65,19 @@ class DmaGatedFgiPublicParams(BaseModel):
         default_factory=_TradeQuotaPublicParams
     )
     top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
+    disabled_rules: list[str] = Field(default_factory=list)
+    enabled_rules: list[str] | None = Field(default=None)
+
+    @field_validator("disabled_rules", "enabled_rules")
+    @classmethod
+    def validate_rule_names(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        invalid_rules = sorted(set(value) - RULE_NAMES)
+        if invalid_rules:
+            joined = ", ".join(invalid_rules)
+            raise ValueError(f"Unsupported portfolio rule names: {joined}")
+        return value
 
 
 def _get_recipe(strategy_id: str) -> StrategyRecipe:
@@ -94,51 +109,63 @@ def normalize_nested_public_params(
     return cast(dict[str, JsonValue], normalized.model_dump(mode="json"))
 
 
-_DMA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
-    # (flat_key, nested_section, nested_key)
-    ("cross_cooldown_days", "signal", "cross_cooldown_days"),
-    ("cross_on_touch", "signal", "cross_on_touch"),
-    ("pacing_k", "pacing", "k"),
-    ("pacing_r_max", "pacing", "r_max"),
-    ("buy_sideways_window_days", "buy_gate", "window_days"),
-    ("buy_sideways_max_range", "buy_gate", "sideways_max_range"),
-    ("buy_leg_caps", "buy_gate", "leg_caps"),
-    ("min_trade_interval_days", "trade_quota", "min_trade_interval_days"),
-    ("max_trades_7d", "trade_quota", "max_trades_7d"),
-    ("max_trades_30d", "trade_quota", "max_trades_30d"),
-    ("dma_overextension_threshold", "top_escape", "dma_overextension_threshold"),
-    ("fgi_slope_reversal_threshold", "top_escape", "fgi_slope_reversal_threshold"),
-    ("fgi_slope_recovery_threshold", "top_escape", "fgi_slope_recovery_threshold"),
+_DMA_FIELD_MAPPING: Final[list[tuple[str, tuple[str, ...]]]] = [
+    # (flat_key, public_param_path)
+    ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
+    ("cross_on_touch", ("signal", "cross_on_touch")),
+    ("pacing_k", ("pacing", "k")),
+    ("pacing_r_max", ("pacing", "r_max")),
+    ("buy_sideways_window_days", ("buy_gate", "window_days")),
+    ("buy_sideways_max_range", ("buy_gate", "sideways_max_range")),
+    ("buy_leg_caps", ("buy_gate", "leg_caps")),
+    ("min_trade_interval_days", ("trade_quota", "min_trade_interval_days")),
+    ("max_trades_7d", ("trade_quota", "max_trades_7d")),
+    ("max_trades_30d", ("trade_quota", "max_trades_30d")),
+    ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
+    ("fgi_slope_reversal_threshold", ("top_escape", "fgi_slope_reversal_threshold")),
+    ("fgi_slope_recovery_threshold", ("top_escape", "fgi_slope_recovery_threshold")),
+    ("disabled_rules", ("disabled_rules",)),
+    ("enabled_rules", ("enabled_rules",)),
 ]
+
+
+def _json_ready_value(value: Any) -> Any:
+    if isinstance(value, frozenset | set):
+        return sorted(value)
+    if isinstance(value, list):
+        return list(value)
+    return value
 
 
 def _nested_to_flat(
     nested: BaseModel,
-    field_mapping: list[tuple[str, str, str]],
+    field_mapping: list[tuple[str, tuple[str, ...]]],
 ) -> dict[str, Any]:
     """Extract flat runtime params from a nested public params model."""
     flat: dict[str, Any] = {}
-    for flat_key, section, nested_key in field_mapping:
-        section_model = getattr(nested, section)
-        value = getattr(section_model, nested_key)
-        if isinstance(value, list):
-            value = list(value)
-        flat[flat_key] = value
+    for flat_key, path in field_mapping:
+        if len(path) == 1:
+            value = getattr(nested, path[0])
+        else:
+            section_model = getattr(nested, path[0])
+            value = getattr(section_model, path[1])
+        flat[flat_key] = _json_ready_value(value)
     return flat
 
 
 def _flat_to_nested(
     resolved: BaseModel,
-    field_mapping: list[tuple[str, str, str]],
-) -> dict[str, dict[str, Any]]:
+    field_mapping: list[tuple[str, tuple[str, ...]]],
+) -> dict[str, Any]:
     """Group flat runtime params into nested section dicts."""
-    sections: dict[str, dict[str, Any]] = {}
-    for flat_key, section, nested_key in field_mapping:
-        value = getattr(resolved, flat_key)
-        if isinstance(value, list):
-            value = list(value)
-        sections.setdefault(section, {})[nested_key] = value
-    return sections
+    nested: dict[str, Any] = {}
+    for flat_key, path in field_mapping:
+        value = _json_ready_value(getattr(resolved, flat_key))
+        if len(path) == 1:
+            nested[path[0]] = value
+        else:
+            nested.setdefault(path[0], {})[path[1]] = value
+    return nested
 
 
 def public_params_to_runtime_params(
@@ -190,6 +217,8 @@ def runtime_params_to_public_params(
             buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
             trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
             top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
+            disabled_rules=sections.get("disabled_rules", []),
+            enabled_rules=sections.get("enabled_rules"),
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
 
