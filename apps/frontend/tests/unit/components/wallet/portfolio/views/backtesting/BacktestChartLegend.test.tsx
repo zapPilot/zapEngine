@@ -7,10 +7,7 @@ describe('BacktestChartLegend', () => {
   it('renders grouped legends for strategy and events only', () => {
     render(
       <BacktestChartLegend
-        sortedStrategyIds={[
-          'eth_btc_rotation_default',
-          'dma_fgi_portfolio_rules',
-        ]}
+        sortedStrategyIds={['dma_fgi_portfolio_rules_default']}
       />,
     );
 
@@ -22,15 +19,11 @@ describe('BacktestChartLegend', () => {
   it('includes kept strategy and event labels', () => {
     render(
       <BacktestChartLegend
-        sortedStrategyIds={[
-          'eth_btc_rotation_default',
-          'dma_fgi_portfolio_rules',
-        ]}
+        sortedStrategyIds={['dma_fgi_portfolio_rules_default']}
       />,
     );
 
-    expect(screen.getByText('ETH/BTC Rotation Default')).toBeInTheDocument();
-    expect(screen.getByText('Portfolio Rules')).toBeInTheDocument();
+    expect(screen.getByText('DMA/FGI Portfolio Rules')).toBeInTheDocument();
     expect(screen.getByText('Buy Spot')).toBeInTheDocument();
     expect(screen.getByText('Sell Spot')).toBeInTheDocument();
     expect(screen.getByText('Switch to ETH')).toBeInTheDocument();
@@ -39,7 +32,11 @@ describe('BacktestChartLegend', () => {
   });
 
   it('does not render market context controls', () => {
-    render(<BacktestChartLegend sortedStrategyIds={['eth_btc_rotation_default']} />);
+    render(
+      <BacktestChartLegend
+        sortedStrategyIds={['dma_fgi_portfolio_rules_default']}
+      />,
+    );
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('BTC Price')).not.toBeInTheDocument();
@@ -52,8 +49,7 @@ describe('BacktestChartLegend', () => {
     render(<BacktestChartLegend sortedStrategyIds={[]} />);
 
     expect(screen.queryByText('Strategy')).toBeNull();
-    expect(screen.queryByText('ETH/BTC Rotation Default')).toBeNull();
-    expect(screen.queryByText('Portfolio Rules')).toBeNull();
+    expect(screen.queryByText('DMA/FGI Portfolio Rules')).toBeNull();
     expect(screen.getByText('Events')).toBeInTheDocument();
   });
 });

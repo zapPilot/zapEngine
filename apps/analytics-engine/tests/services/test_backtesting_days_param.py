@@ -20,10 +20,12 @@ from src.services.backtesting.strategy_registry import get_strategy_recipe
 from src.services.strategy.backtesting_service import BacktestingService
 from tests.services.backtesting.support import compare_request, price_row, price_series
 
-STRATEGY_WARMUP_DAYS = get_strategy_recipe("eth_btc_rotation").warmup_lookback_days
+STRATEGY_WARMUP_DAYS = get_strategy_recipe(
+    "dma_fgi_portfolio_rules"
+).warmup_lookback_days
 
 
-def _eth_rotation_price_series(start: date, days: int) -> list[dict[str, object]]:
+def _portfolio_rules_price_series(start: date, days: int) -> list[dict[str, object]]:
     rows = price_series(start, days)
     for row in rows:
         btc_price = float(row["price"])
@@ -152,8 +154,8 @@ class TestBacktestingDatePriority:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="eth_btc_rotation_default",
-                    strategy_id="eth_btc_rotation",
+                    config_id="dma_fgi_portfolio_rules_default",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params={},
                 )
             ],
@@ -281,7 +283,7 @@ class TestBacktestingPrimerDays:
         call_kwargs = mock_runner.call_args.kwargs
         assert call_kwargs["user_start_date"] == user_start
         strategy_ids = [cfg.strategy_id for cfg in call_kwargs["request"].configs]
-        assert strategy_ids == ["eth_btc_rotation"]
+        assert strategy_ids == ["dma_fgi_portfolio_rules"]
 
     @pytest.mark.asyncio
     async def test_output_timeline_excludes_primer_days(self, service):
@@ -290,7 +292,7 @@ class TestBacktestingPrimerDays:
         user_days = 10
         fetch_start = user_start - timedelta(days=primer_days)
 
-        prices = _eth_rotation_price_series(fetch_start, primer_days + user_days + 1)
+        prices = _portfolio_rules_price_series(fetch_start, primer_days + user_days + 1)
         sentiments = {
             fetch_start + timedelta(days=i): {"value": 50, "label": "neutral"}
             for i in range(primer_days + user_days + 1)

@@ -7,6 +7,12 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-10 - Single strategy surface
+- **Commit**: pending local change (`dma_fgi_portfolio_rules` only)
+- **Finding**: Collapsed the production-facing strategy surface to the canonical `dma_fgi_portfolio_rules` recipe and removed the ETH/BTC rotation strategy plus leave-one-out attribution variants.
+- **Default config**: replaced `eth_btc_rotation_default` with `dma_fgi_portfolio_rules_default` as the single seed default.
+- **Snapshot scope**: the 500-day fixture now tracks only `dma_fgi_portfolio_rules`; historical attribution rows remain below for audit context.
+
 ### 2026-05-10 - Rule-only architecture migration
 - **Commit**: `4bdd93f2` + pending local change (`rule-only portfolio rules migration`)
 - **Finding**: Completed the rule-only migration by adding `SpyLatchRule` as a stateful post-intent adjustment, adding `EthBtcContinuousWeightRule` for saved-config BTC/ETH rotation, rewriting `eth_btc_rotation` onto the `RuleBasedAllocationExecutor`, and deleting the hierarchical/pair-rotation strategy infrastructure.

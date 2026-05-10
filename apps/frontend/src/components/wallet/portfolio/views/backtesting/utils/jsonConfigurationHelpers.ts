@@ -152,7 +152,7 @@ export function parseConfigStrategyIdWithPresets(
  * ```ts
  * updateConfigStrategy(
  *   '{"configs":[{"config_id":"x","strategy_id":"old"}]}',
- *   { config_id: "eth_btc_rotation_default", saved_config_id: "eth_btc_rotation_default" }
+ *   { config_id: "dma_fgi_portfolio_rules_default", saved_config_id: "dma_fgi_portfolio_rules_default" }
  * )
  * ```
  */

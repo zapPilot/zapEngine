@@ -9,10 +9,7 @@ import {
 } from 'recharts';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import {
-  formatChartAxisDate,
-  formatCurrencyAxis,
-} from '@/utils';
+import { formatChartAxisDate, formatCurrencyAxis } from '@/utils';
 
 import { getPrimaryStrategyId } from '../utils/chartHelpers';
 import {

@@ -103,7 +103,7 @@ describe('BacktestAllocationBar', () => {
   it('renders ETH labels with the shared indigo chart color', () => {
     render(
       <BacktestAllocationBar
-        displayName="ETH Rotation"
+        displayName="Portfolio Rules Custom"
         allocation={{ btc: 0, eth: 0.75, spy: 0, stable: 0.25, alt: 0 }}
       />,
     );

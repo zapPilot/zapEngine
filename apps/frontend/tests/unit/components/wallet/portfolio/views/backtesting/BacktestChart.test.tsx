@@ -186,12 +186,12 @@ describe('BacktestChart', () => {
   it('does not apply dashed stroke to kept strategies', () => {
     const props = {
       ...defaultProps,
-      sortedStrategyIds: ['strat_a', 'eth_btc_rotation_default'],
+      sortedStrategyIds: ['strat_a', 'dma_fgi_portfolio_rules_default'],
     };
     render(<BacktestChart {...props} />);
 
     const rotationArea = screen.getByTestId(
-      'area-eth_btc_rotation_default_value',
+      'area-dma_fgi_portfolio_rules_default_value',
     );
     expect(rotationArea.getAttribute('data-stroke-dasharray')).toBe('');
   });

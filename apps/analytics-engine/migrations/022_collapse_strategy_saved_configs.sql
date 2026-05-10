@@ -1,9 +1,11 @@
--- Fix: switch system default to the single portfolio-rules seed config.
+DELETE FROM public.strategy_saved_configs
+WHERE strategy_id <> 'dma_fgi_portfolio_rules';
 
 UPDATE public.strategy_saved_configs
-SET is_default = FALSE, updated_at = timezone('utc', now())
-WHERE is_default = TRUE
-  AND config_id <> 'dma_fgi_portfolio_rules_default';
+SET
+    is_default = (config_id = 'dma_fgi_portfolio_rules_default'),
+    is_benchmark = FALSE,
+    updated_at = timezone('utc', now());
 
 INSERT INTO public.strategy_saved_configs (
     config_id,

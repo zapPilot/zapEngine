@@ -13,9 +13,6 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from src.services.backtesting.portfolio_rules.dma_stable_gating import (
     DmaStableGatingRule,
 )
-from src.services.backtesting.portfolio_rules.eth_btc_continuous_weight import (
-    EthBtcContinuousWeightRule,
-)
 from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
     EthBtcDeviationDcaRule,
 )
@@ -45,9 +42,7 @@ _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
 )
-_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
-    EthBtcContinuousWeightRule(),
-)
+_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = ()
 
 DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
     sorted(_UNSORTED_DEFAULT_PORTFOLIO_RULES, key=lambda rule: rule.priority)
@@ -64,6 +59,7 @@ RULE_NAMES: frozenset[str] = frozenset(RULE_DESCRIPTIONS)
 
 __all__ = [
     "DEFAULT_PORTFOLIO_RULES",
+    "ExtremeFearDcaBuyRule",
     "RULE_DESCRIPTIONS",
     "RULE_NAMES",
     "RULE_PRIORITIES",

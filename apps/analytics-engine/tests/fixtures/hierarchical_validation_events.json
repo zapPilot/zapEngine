@@ -204,7 +204,7 @@
         "id": "btc_cross_up_2025_04_22",
         "event_type": "crypto_cross_up",
         "reference_asset": "BTC",
-        "applicable_strategies": ["dma_fgi_portfolio_rules", "eth_btc_rotation"],
+        "applicable_strategies": ["dma_fgi_portfolio_rules"],
         "description": "BTC price crosses above BTC DMA; crypto risk-on should DCA a non-zero amount from stable.",
         "assertions": [
           {
@@ -324,34 +324,6 @@
           }
         ],
         "rationale": "Pins the canonical portfolio-rule strategy's binary ETH/BTC ratio rotation rule."
-      },
-      {
-        "id": "eth_btc_continuous_weight_2025_07_15",
-        "event_type": "decision_action_assertion",
-        "applicable_strategies": ["eth_btc_rotation"],
-        "description": "ETH/BTC ratio modestly above its DMA should continuously tilt the BTC/ETH-only wrapper toward BTC without going binary.",
-        "assertions": [
-          {
-            "type": "decision_reason_in",
-            "values": ["portfolio_eth_btc_continuous_weight"]
-          },
-          {
-            "type": "decision_detail_equals",
-            "key": "matched_rule_name",
-            "value": "eth_btc_continuous_weight"
-          },
-          {
-            "type": "target_asset_gt",
-            "asset": "btc",
-            "value": 0.15
-          },
-          {
-            "type": "target_asset_gt",
-            "asset": "eth",
-            "value": 0.09
-          }
-        ],
-        "rationale": "Pins the saved-config BTC/ETH rotation strategy to the continuous DMA-distance weighting rule."
       }
     ]
   },
@@ -499,7 +471,7 @@
       {
         "id": "extreme_fear_dca_2026_02_01",
         "event_type": "extreme_fear_below_crypto_dma",
-        "applicable_strategies": ["dma_fgi_portfolio_rules", "eth_btc_rotation"],
+        "applicable_strategies": ["dma_fgi_portfolio_rules"],
         "description": "also a extreme_fear range to buy",
         "assertions": [
           {

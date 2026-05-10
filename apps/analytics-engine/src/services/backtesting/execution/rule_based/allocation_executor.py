@@ -29,10 +29,15 @@ class RuleBasedAllocationExecutor:
 
     last_trade_date: date | None = field(default=None, init=False)
     trade_dates: list[date] = field(default_factory=list, init=False)
+    _seeded_trade_dates: tuple[date, ...] = field(default=(), init=False)
 
     def reset(self) -> None:
-        self.last_trade_date = None
-        self.trade_dates = []
+        self.trade_dates = list(self._seeded_trade_dates)
+        self.last_trade_date = max(self._seeded_trade_dates, default=None)
+
+    def seed_trade_dates(self, trade_dates: list[date] | tuple[date, ...]) -> None:
+        self._seeded_trade_dates = tuple(sorted(set(trade_dates)))
+        self.reset()
 
     def observe(self, hints: ExecutionHints) -> None:
         del hints

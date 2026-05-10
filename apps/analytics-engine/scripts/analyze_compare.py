@@ -26,7 +26,7 @@ EnrichMode = Literal["auto", "never", "required"]
 
 DEFAULT_ENDPOINT = "http://localhost:8001"
 DEFAULT_COMPARE_PATH = "/api/v3/backtesting/compare"
-DEFAULT_SAVED_CONFIG_ID = "eth_btc_rotation_default"
+DEFAULT_SAVED_CONFIG_ID = "dma_fgi_portfolio_rules_default"
 DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_STATEFUL_DATE_LOOKBACK_DAYS = 400
 APP_ROOT = Path(__file__).resolve().parents[1]

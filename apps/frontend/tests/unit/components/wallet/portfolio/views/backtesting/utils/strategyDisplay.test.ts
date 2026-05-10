@@ -8,14 +8,11 @@ import {
 describe('strategyDisplay', () => {
   describe('getStrategyDisplayName', () => {
     it('returns display names for canonical strategies', () => {
-      expect(getStrategyDisplayName('eth_btc_rotation')).toBe(
-        'ETH/BTC Rotation',
+      expect(getStrategyDisplayName('dma_fgi_portfolio_rules')).toBe(
+        'DMA/FGI Portfolio Rules',
       );
-      expect(getStrategyDisplayName('eth_btc_rotation_default')).toBe(
-        'ETH/BTC Rotation Default',
-      );
-      expect(getStrategyDisplayName('dma_fgi_hierarchical_minimum')).toBe(
-        'Hierarchical Minimum',
+      expect(getStrategyDisplayName('dma_fgi_portfolio_rules_default')).toBe(
+        'DMA/FGI Portfolio Rules',
       );
     });
 
@@ -38,8 +35,8 @@ describe('strategyDisplay', () => {
     });
 
     it('uses a deterministic hash color without an index', () => {
-      expect(getStrategyColor('eth_btc_rotation_default')).toBe(
-        getStrategyColor('eth_btc_rotation_default'),
+      expect(getStrategyColor('dma_fgi_portfolio_rules_default')).toBe(
+        getStrategyColor('dma_fgi_portfolio_rules_default'),
       );
     });
   });

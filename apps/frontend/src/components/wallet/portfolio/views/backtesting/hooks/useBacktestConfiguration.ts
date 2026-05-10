@@ -5,7 +5,10 @@ import { getStrategyConfigs } from '@/services';
 import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
-import { DEFAULT_DAYS, ETH_BTC_ROTATION_STRATEGY_ID } from '../constants';
+import {
+  DEFAULT_DAYS,
+  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+} from '../constants';
 import {
   normalizePresetBackedConfigs,
   parseConfigStrategyIdWithPresets,
@@ -226,7 +229,7 @@ export function useBacktestConfiguration() {
   const days = parseJsonField(editorValue, 'days', DEFAULT_DAYS);
   const selectedStrategyId = parseConfigStrategyIdWithPresets(
     editorValue,
-    ETH_BTC_ROTATION_STRATEGY_ID,
+    DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
     strategyConfigs?.presets ?? [],
   );
 

@@ -10,7 +10,6 @@ from typing import Any, cast
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from src.services.backtesting.composition_types import (
-    DecisionPolicy,
     StatefulSignalComponent,
 )
 from src.services.backtesting.decision import (
@@ -462,28 +461,7 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
         )
 
 
-@dataclass(frozen=True)
-class DmaGatedFgiDecisionPolicy(DecisionPolicy):
-    """Decision policy for the DMA/FGI signal family."""
-
-    decision_policy_id: str = "dma_fgi_policy"
-    dma_overextension_threshold: float = 0.30
-    fgi_slope_reversal_threshold: float = -0.05
-    fgi_slope_recovery_threshold: float = 0.05
-    disabled_rules: frozenset[str] = frozenset()
-
-    def decide(self, snapshot: DmaMarketState) -> AllocationIntent:
-        return _resolve_dma_allocation_intent(
-            snapshot,
-            dma_overextension_threshold=self.dma_overextension_threshold,
-            fgi_slope_reversal_threshold=self.fgi_slope_reversal_threshold,
-            fgi_slope_recovery_threshold=self.fgi_slope_recovery_threshold,
-            disabled_rules=self.disabled_rules,
-        )
-
-
 __all__ = [
-    "DmaGatedFgiDecisionPolicy",
     "DmaGatedFgiParams",
     "DmaGatedFgiSignalComponent",
     "default_dma_gated_fgi_params",

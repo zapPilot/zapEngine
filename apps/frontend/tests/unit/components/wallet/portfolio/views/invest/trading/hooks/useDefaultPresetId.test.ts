@@ -52,14 +52,14 @@ describe('useDefaultPresetId', () => {
     expect(result.current).toBeUndefined();
   });
 
-  it('prefers the backend default flag before the curated rotation fallback', () => {
+  it('prefers the backend default flag before the curated portfolio-rules fallback', () => {
     mockUseStrategyConfigs({
       strategies: [],
       presets: [
         createPreset({ config_id: 'dma_gated_fgi_default' }),
         createPreset({
-          config_id: 'eth_btc_rotation_default',
-          strategy_id: 'eth_btc_rotation',
+          config_id: 'dma_fgi_portfolio_rules_default',
+          strategy_id: 'dma_fgi_portfolio_rules',
           is_default: true,
         }),
       ],
@@ -68,17 +68,17 @@ describe('useDefaultPresetId', () => {
 
     const { result } = renderHook(() => useDefaultPresetId(true));
 
-    expect(result.current).toBe('eth_btc_rotation_default');
+    expect(result.current).toBe('dma_fgi_portfolio_rules_default');
   });
 
-  it('falls back to the curated rotation id when no preset is flagged as default', () => {
+  it('falls back to the curated portfolio-rules id when no preset is flagged as default', () => {
     mockUseStrategyConfigs({
       strategies: [],
       presets: [
         createPreset({ config_id: 'dca_classic', strategy_id: 'dca_classic' }),
         createPreset({
-          config_id: 'eth_btc_rotation_default',
-          strategy_id: 'eth_btc_rotation',
+          config_id: 'dma_fgi_portfolio_rules_default',
+          strategy_id: 'dma_fgi_portfolio_rules',
         }),
       ],
       backtest_defaults: { days: 500, total_capital: 10000 },
@@ -86,21 +86,21 @@ describe('useDefaultPresetId', () => {
 
     const { result } = renderHook(() => useDefaultPresetId(true));
 
-    expect(result.current).toBe('eth_btc_rotation_default');
+    expect(result.current).toBe('dma_fgi_portfolio_rules_default');
   });
 
-  it('falls back to the first eth_btc_rotation preset', () => {
+  it('falls back to the first dma_fgi_portfolio_rules preset', () => {
     mockUseStrategyConfigs({
       strategies: [],
       presets: [
         createPreset({ config_id: 'dca_classic', strategy_id: 'dca_classic' }),
         createPreset({
-          config_id: 'rotation_alt_1',
-          strategy_id: 'eth_btc_rotation',
+          config_id: 'portfolio_rules_alt_1',
+          strategy_id: 'dma_fgi_portfolio_rules',
         }),
         createPreset({
-          config_id: 'rotation_alt_2',
-          strategy_id: 'eth_btc_rotation',
+          config_id: 'portfolio_rules_alt_2',
+          strategy_id: 'dma_fgi_portfolio_rules',
         }),
       ],
       backtest_defaults: { days: 500, total_capital: 10000 },
@@ -108,7 +108,7 @@ describe('useDefaultPresetId', () => {
 
     const { result } = renderHook(() => useDefaultPresetId(true));
 
-    expect(result.current).toBe('rotation_alt_1');
+    expect(result.current).toBe('portfolio_rules_alt_1');
   });
 
   it('falls back to the first preset when there is no DMA strategy', () => {

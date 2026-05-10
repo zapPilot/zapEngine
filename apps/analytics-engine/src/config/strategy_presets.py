@@ -14,14 +14,13 @@ from src.models.strategy_config import (
     StrategyComposition,
     StrategyPreset,
 )
-from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 from src.services.backtesting.public_params import (
     get_default_public_params,
     normalize_nested_public_params,
     public_params_to_runtime_params,
 )
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
-from src.services.backtesting.strategies.eth_btc_rotation import EthBtcRotationParams
 
 
 @dataclass(frozen=True)
@@ -43,48 +42,33 @@ class _ComposedPresetDefinition:
 # ── Strategy Tuning ──────────────────────────────────────────────────────────
 # Central point for tuning strategy defaults.
 # Edit values here using the nested public params contract.
-STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {
-    STRATEGY_ETH_BTC_ROTATION: {
-        "trade_quota": {
-            "min_trade_interval_days": 1,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-        "rotation": {
-            "cooldown_days": 14,
-        },
-    },
-}
+STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {}
 # ─────────────────────────────────────────────────────────────────────────────
 
-ETH_BTC_ROTATION_CONFIG_ID: Final[str] = "eth_btc_rotation_default"
+DMA_FGI_PORTFOLIO_RULES_CONFIG_ID: Final[str] = "dma_fgi_portfolio_rules_default"
 
 _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
     "cross_cooldown_days",
     "cross_on_touch",
 )
 _PARAMS_MODEL_BY_STRATEGY: Final[dict[str, type[DmaGatedFgiParams]]] = {
-    STRATEGY_ETH_BTC_ROTATION: EthBtcRotationParams,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES: DmaGatedFgiParams,
 }
 _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
     _ComposedPresetDefinition(
-        config_id=ETH_BTC_ROTATION_CONFIG_ID,
-        display_name="ETH/BTC RS Rotation",
+        config_id=DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
+        display_name="DMA/FGI Portfolio Rules",
         description=(
-            "Default live/backtest preset that rotates spot exposure between "
-            "BTC and ETH based on ETH/BTC relative strength vs DMA. Trade "
-            "frequency limited to prevent overtrading."
+            "Default rule-based strategy: SPY/BTC/ETH portfolio rules driven by "
+            "DMA crosses, ETH/BTC ratio rotation, and FGI regime shifts. Risk "
+            "guards enforce trade pacing."
         ),
-        strategy_id=STRATEGY_ETH_BTC_ROTATION,
-        signal_component_id="eth_btc_rs_signal",
-        decision_component_id="eth_btc_rotation_policy",
-        signal_param_fields=(
-            *_DEFAULT_SIGNAL_PARAM_FIELDS,
-            "ratio_cross_cooldown_days",
-            "rotation_neutral_band",
-            "rotation_max_deviation",
-        ),
-        bucket_mapper_id="eth_btc_stable",
+        strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+        signal_component_id="dma_fgi_portfolio_rules_signal",
+        decision_component_id="dma_fgi_portfolio_rules_policy",
+        signal_param_fields=_DEFAULT_SIGNAL_PARAM_FIELDS,
+        bucket_mapper_id="spy_eth_btc_stable",
+        supports_daily_suggestion=True,
         is_default=True,
     ),
 )
@@ -172,31 +156,6 @@ def _build_composed_strategy_composition(
             component_id=definition.decision_component_id,
             params={},
         ),
-        pacing_policy=StrategyComponentRef(
-            component_id="fgi_exponential",
-            params={
-                "k": params.pacing_k,
-                "r_max": params.pacing_r_max,
-            },
-        ),
-        execution_profile=StrategyComponentRef(
-            component_id="two_bucket_rebalance",
-            params={},
-        ),
-        plugins=[
-            StrategyComponentRef(
-                component_id="dma_buy_gate",
-                params={
-                    "window_days": params.buy_sideways_window_days,
-                    "sideways_max_range": params.buy_sideways_max_range,
-                    "leg_caps": list(params.buy_leg_caps),
-                },
-            ),
-            StrategyComponentRef(
-                component_id="trade_quota_guard",
-                params=params.build_trade_quota_plugin_params(),
-            ),
-        ],
     )
 
 

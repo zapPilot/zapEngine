@@ -2,15 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-import pytest
-
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH,
-    STRATEGY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -21,7 +14,6 @@ from src.services.backtesting.features import (
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
 )
-from src.services.backtesting.strategies.eth_btc_rotation import EthBtcRotationStrategy
 from src.services.backtesting.strategy_catalog import get_strategy_catalog_v3
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
@@ -30,26 +22,12 @@ from src.services.backtesting.strategy_registry import (
 )
 
 
-def test_strategy_registry_exposes_eth_btc_rotation_recipe_with_aux_series() -> None:
-    recipe = get_strategy_recipe(STRATEGY_ETH_BTC_ROTATION)
-
-    assert recipe.supports_daily_suggestion is True
-    assert recipe.signal_id == "eth_btc_rs_signal"
-    assert recipe.primary_asset == "BTC"
-    assert recipe.warmup_lookback_days == 14
-    assert recipe.market_data_requirements.requires_sentiment is True
-    assert recipe.market_data_requirements.require_dma_200 is True
-    assert recipe.market_data_requirements.required_aux_series == frozenset(
-        {"eth_btc_relative_strength"}
-    )
-
-
 def test_strategy_registry_exposes_portfolio_rules_recipe_with_macro_requirements() -> (
     None
 ):
     recipe = get_strategy_recipe(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
 
-    assert recipe.supports_daily_suggestion is False
+    assert recipe.supports_daily_suggestion is True
     assert recipe.signal_id == "dma_fgi_portfolio_rules_signal"
     assert recipe.primary_asset == "BTC"
     assert recipe.market_data_requirements.requires_sentiment is True
@@ -64,27 +42,7 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
     recipe_ids = {recipe.strategy_id for recipe in list_strategy_recipes()}
 
     assert {entry.strategy_id for entry in catalog.strategies} == recipe_ids
-    assert STRATEGY_ETH_BTC_ROTATION in recipe_ids
-    assert STRATEGY_DMA_FGI_PORTFOLIO_RULES in recipe_ids
-
-
-def test_eth_btc_rotation_recipe_builds_compare_strategy() -> None:
-    recipe = get_strategy_recipe(STRATEGY_ETH_BTC_ROTATION)
-
-    strategy = recipe.build_strategy(
-        StrategyBuildRequest(
-            mode="compare",
-            config_id="eth-btc-test",
-            total_capital=10_000.0,
-            params={"cross_cooldown_days": 30},
-            user_prices=[{"date": date(2025, 1, 1), "price": 100.0}],
-            initial_allocation={"spot": 0.5, "stable": 0.5},
-            user_start_date=date(2025, 1, 1),
-        )
-    )
-
-    assert isinstance(strategy, EthBtcRotationStrategy)
-    assert strategy.strategy_id == "eth-btc-test"
+    assert recipe_ids == {STRATEGY_DMA_FGI_PORTFOLIO_RULES}
 
 
 def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
@@ -122,58 +80,3 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         "stable": 0.0,
         "alt": 0.0,
     }
-
-
-@pytest.mark.parametrize(
-    ("strategy_id", "disabled_rule"),
-    [
-        (
-            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
-            "dma_stable_gating",
-        ),
-        (
-            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
-            "greed_sell_suppression",
-        ),
-        (
-            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
-            "eth_btc_deviation_dca",
-        ),
-        (
-            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH,
-            "spy_latch",
-        ),
-    ],
-)
-def test_portfolio_rules_minus_recipes_disable_one_rule(
-    strategy_id: str,
-    disabled_rule: str,
-) -> None:
-    recipe = get_strategy_recipe(strategy_id)
-
-    strategy = recipe.build_strategy(
-        StrategyBuildRequest(
-            mode="compare",
-            total_capital=10_000.0,
-            params={"cross_cooldown_days": 30},
-            user_prices=[
-                {
-                    "date": date(2025, 1, 1),
-                    "price": 100.0,
-                    "prices": {"btc": 100.0, "eth": 120.0, "spy": 500.0},
-                    "extra_data": {
-                        DMA_200_FEATURE: 90.0,
-                        ETH_DMA_200_FEATURE: 100.0,
-                        SPY_DMA_200_FEATURE: 450.0,
-                    },
-                }
-            ],
-            initial_allocation={"spot": 1.0, "stable": 0.0},
-            user_start_date=date(2025, 1, 1),
-        )
-    )
-
-    assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
-    assert strategy.canonical_strategy_id == STRATEGY_DMA_FGI_PORTFOLIO_RULES
-    assert strategy.disabled_rules == frozenset({disabled_rule})
-    assert disabled_rule not in {rule.name for rule in strategy.decision_policy.rules}

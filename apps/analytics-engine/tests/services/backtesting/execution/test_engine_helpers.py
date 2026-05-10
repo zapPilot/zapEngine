@@ -40,7 +40,7 @@ from tests.services.backtesting.support import make_strategy_snapshot
 class WarmupAwareStrategy(BaseStrategy):
     strategy_id = "warmup_aware"
     display_name = "Warmup Aware"
-    canonical_strategy_id = "eth_btc_rotation"
+    canonical_strategy_id = "dma_fgi_portfolio_rules"
 
     def __init__(self) -> None:
         self.warmup_calls = 0
@@ -57,7 +57,7 @@ class WarmupAwareStrategy(BaseStrategy):
 class ExplicitSignalSummaryStrategy(BaseStrategy):
     strategy_id = "summary_signal"
     display_name = "Summary Signal"
-    canonical_strategy_id = "eth_btc_rotation"
+    canonical_strategy_id = "dma_fgi_portfolio_rules"
     summary_signal_id = "explicit_signal"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
@@ -257,8 +257,8 @@ def test_materialize_compare_request_passes_through_request() -> None:
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="eth_rotation_runtime",
-                strategy_id="eth_btc_rotation",
+                config_id="portfolio_rules_runtime",
+                strategy_id="dma_fgi_portfolio_rules",
                 params={},
             ),
         ],
@@ -304,7 +304,7 @@ def test_resolve_price_map_skips_non_positive_value() -> None:
 class _SimpleHoldStrategy(BaseStrategy):
     strategy_id = "simple_hold"
     display_name = "Simple Hold"
-    canonical_strategy_id = "eth_btc_rotation"
+    canonical_strategy_id = "dma_fgi_portfolio_rules"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         return StrategyAction(snapshot=make_strategy_snapshot(reason="hold"))

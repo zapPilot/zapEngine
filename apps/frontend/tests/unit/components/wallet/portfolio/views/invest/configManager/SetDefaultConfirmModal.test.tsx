@@ -33,7 +33,7 @@ const defaultProps = {
   onConfirm: vi.fn(),
   isPending: false,
   currentDefaultName: 'DMA Default',
-  targetConfigName: 'ETH Rotation',
+  targetConfigName: 'Portfolio Rules Custom',
 };
 
 describe('SetDefaultConfirmModal', () => {
@@ -57,7 +57,7 @@ describe('SetDefaultConfirmModal', () => {
   it('displays the current and target config names', () => {
     render(<SetDefaultConfirmModal {...defaultProps} />);
     expect(screen.getByText('DMA Default')).toBeInTheDocument();
-    expect(screen.getByText('ETH Rotation')).toBeInTheDocument();
+    expect(screen.getByText('Portfolio Rules Custom')).toBeInTheDocument();
   });
 
   it('shows Confirm button when isPending is false', () => {

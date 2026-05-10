@@ -11,11 +11,13 @@ from src.services.strategy.strategy_config_store import StrategyConfigStore
 
 def _build_public_presets(
     strategy_config_store: StrategyConfigStore,
+    *,
+    supported_strategy_ids: set[str],
 ) -> list[StrategyPreset]:
     public_configs = [
         config
         for config in strategy_config_store.list_configs()
-        if not config.is_benchmark
+        if not config.is_benchmark and config.strategy_id in supported_strategy_ids
     ]
     default_configs = [config for config in public_configs if config.is_default]
 
@@ -60,7 +62,12 @@ def build_strategy_configs_response(
     catalog = build_strategy_catalog_response()
     return StrategyConfigsResponse(
         strategies=catalog.strategies,
-        presets=_build_public_presets(strategy_config_store),
+        presets=_build_public_presets(
+            strategy_config_store,
+            supported_strategy_ids={
+                strategy.strategy_id for strategy in catalog.strategies
+            },
+        ),
         backtest_defaults=get_backtest_defaults(),
     )
 

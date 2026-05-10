@@ -49,7 +49,7 @@ def _state(
         fgi_value=50.0,
         fgi_slope=fgi_slope,
         fgi_regime=fgi_regime,
-        regime_source="value",
+        regime_source="label",
         ath_event=cast(AthEvent | None, ath_event),
         asset_symbol=asset_symbol,
         macro_fear_greed_regime=macro_fear_greed_regime,

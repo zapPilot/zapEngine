@@ -259,8 +259,8 @@ export function getPrimaryStrategyId(sortedIds: string[]): string | null {
  * @returns Array with at most 1 ID: [primaryStrategy]
  * @example
  * ```ts
- * filterToActiveStrategies(["dma_fgi_hierarchical_minimum", "eth_btc_rotation"])
- * // => ["dma_fgi_hierarchical_minimum"]
+ * filterToActiveStrategies(["dma_fgi_portfolio_rules_default", "custom_strategy"])
+ * // => ["dma_fgi_portfolio_rules_default"]
  * ```
  */
 export function filterToActiveStrategies(sortedIds: string[]): string[] {

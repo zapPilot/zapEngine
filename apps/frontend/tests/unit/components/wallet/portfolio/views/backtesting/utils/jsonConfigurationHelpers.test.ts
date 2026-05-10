@@ -36,9 +36,11 @@ describe('updateConfigStrategy', () => {
         { config_id: 'x', strategy_id: 'old', params: { pacing: { k: 1 } } },
       ],
     });
-    const result = JSON.parse(updateConfigStrategy(json, 'eth_btc_rotation'));
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
+    const result = JSON.parse(
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules'),
+    );
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.configs[0].params).toEqual({ pacing: { k: 1 } });
     expect(result.days).toBe(500);
   });
@@ -50,12 +52,12 @@ describe('updateConfigStrategy', () => {
       ],
     });
     const result = JSON.parse(
-      updateConfigStrategy(json, 'eth_btc_rotation', {
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules', {
         signal: { cross_cooldown_days: 14 },
       }),
     );
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.configs[0].params).toEqual({
       signal: { cross_cooldown_days: 14 },
     });
@@ -109,10 +111,12 @@ describe('updateConfigStrategy', () => {
       ],
     });
 
-    const result = JSON.parse(updateConfigStrategy(json, 'eth_btc_rotation'));
+    const result = JSON.parse(
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules'),
+    );
 
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
   });
 
   it('replaces params with empty object when defaultParams is {}', () => {

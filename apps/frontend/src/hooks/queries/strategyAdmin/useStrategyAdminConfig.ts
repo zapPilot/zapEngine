@@ -15,7 +15,7 @@ import { getStrategyAdminConfig } from '@/services';
  *
  * @example
  * ```typescript
- * const { data: config } = useStrategyAdminConfig("eth_btc_rotation_default");
+ * const { data: config } = useStrategyAdminConfig("dma_fgi_portfolio_rules_default");
  * ```
  */
 export function useStrategyAdminConfig(configId: string | null) {

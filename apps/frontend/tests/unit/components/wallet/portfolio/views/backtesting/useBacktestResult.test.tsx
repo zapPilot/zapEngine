@@ -9,24 +9,8 @@ function createResponse() {
     strategies: {
       dma_fgi_portfolio_rules: {
         strategy_id: 'dma_fgi_portfolio_rules',
-        display_name: 'Portfolio Rules',
-        total_invested: 10000,
-        final_value: 10000,
-        roi_percent: 0,
-        trade_count: 0,
-        final_allocation: {
-          btc: 0.5,
-          eth: 0,
-          spy: 0,
-          stable: 0.5,
-          alt: 0,
-        },
-        parameters: {},
-      },
-      eth_btc_rotation_default: {
-        strategy_id: 'eth_btc_rotation',
-        display_name: 'ETH/BTC Rotation Default',
-        signal_id: 'eth_btc_rs_signal' as const,
+        display_name: 'DMA/FGI Portfolio Rules',
+        signal_id: 'dma_fgi_portfolio_rules_signal' as const,
         total_invested: 10000,
         final_value: 10500,
         roi_percent: 5,
@@ -64,45 +48,8 @@ function createResponse() {
                 alt: 0,
               },
             },
-            signal: null,
-            decision: {
-              action: 'hold' as const,
-              reason: 'portfolio_hold',
-              rule_group: 'none' as const,
-              target_allocation: {
-                btc: 0.5,
-                eth: 0,
-                spy: 0,
-                stable: 0.5,
-                alt: 0,
-              },
-              immediate: false,
-            },
-            execution: {
-              event: null,
-              transfers: [],
-              blocked_reason: null,
-              step_count: 0,
-              steps_remaining: 0,
-              interval_days: 0,
-            },
-          },
-          eth_btc_rotation_default: {
-            portfolio: {
-              spot_usd: 5000,
-              stable_usd: 5000,
-              total_value: 10000,
-              spot_asset: 'BTC',
-              allocation: {
-                btc: 0.5,
-                eth: 0,
-                spy: 0,
-                stable: 0.5,
-                alt: 0,
-              },
-            },
             signal: {
-              id: 'eth_btc_rs_signal' as const,
+              id: 'dma_fgi_portfolio_rules_signal' as const,
               regime: 'fear',
               raw_value: 20,
               confidence: 1,
@@ -159,43 +106,6 @@ function createResponse() {
         strategies: {
           dma_fgi_portfolio_rules: {
             portfolio: {
-              spot_usd: 5100,
-              stable_usd: 5100,
-              total_value: 10200,
-              spot_asset: 'BTC',
-              allocation: {
-                btc: 0.5,
-                eth: 0,
-                spy: 0,
-                stable: 0.5,
-                alt: 0,
-              },
-            },
-            signal: null,
-            decision: {
-              action: 'hold' as const,
-              reason: 'portfolio_hold',
-              rule_group: 'none' as const,
-              target_allocation: {
-                btc: 0.5,
-                eth: 0,
-                spy: 0,
-                stable: 0.5,
-                alt: 0,
-              },
-              immediate: false,
-            },
-            execution: {
-              event: null,
-              transfers: [],
-              blocked_reason: null,
-              step_count: 0,
-              steps_remaining: 0,
-              interval_days: 0,
-            },
-          },
-          eth_btc_rotation_default: {
-            portfolio: {
               spot_usd: 8400,
               stable_usd: 2100,
               total_value: 10500,
@@ -209,7 +119,7 @@ function createResponse() {
               },
             },
             signal: {
-              id: 'eth_btc_rs_signal' as const,
+              id: 'dma_fgi_portfolio_rules_signal' as const,
               regime: 'greed',
               raw_value: 75,
               confidence: 1,
@@ -278,7 +188,7 @@ describe('useBacktestResult', () => {
     expect(point.buySpotSignal).toBeNull();
     expect(point).not.toHaveProperty('dma_200');
     expect(point.eventStrategies.sell_spot).toContain(
-      'ETH/BTC Rotation Default',
+      'DMA/FGI Portfolio Rules',
     );
   });
 
@@ -294,11 +204,9 @@ describe('useBacktestResult', () => {
       useBacktestResult(createResponse() as any),
     );
 
-    expect(result.current.sortedStrategyIds[0]).toBe(
-      'eth_btc_rotation_default',
-    );
+    expect(result.current.sortedStrategyIds[0]).toBe('dma_fgi_portfolio_rules');
     expect(result.current.sortedStrategyIds).toEqual([
-      'eth_btc_rotation_default',
+      'dma_fgi_portfolio_rules',
     ]);
   });
 
@@ -324,7 +232,7 @@ describe('useBacktestResult', () => {
     );
 
     const point = result.current.chartData[0] as any;
-    expect(point.strategies.eth_btc_rotation_default.portfolio.spot_asset).toBe(
+    expect(point.strategies.dma_fgi_portfolio_rules.portfolio.spot_asset).toBe(
       'BTC',
     );
   });
@@ -343,10 +251,10 @@ describe('useBacktestResult', () => {
   it('does not synthesize switch markers from spot asset metadata changes', () => {
     const response = {
       strategies: {
-        eth_btc_rotation_default: {
-          strategy_id: 'eth_btc_rotation',
+        dma_fgi_portfolio_rules_default: {
+          strategy_id: 'dma_fgi_portfolio_rules',
           display_name: 'ETH BTC Rotation Default',
-          signal_id: 'eth_btc_rs_signal',
+          signal_id: 'dma_fgi_portfolio_rules_signal',
           total_invested: 10000,
           final_value: 10400,
           roi_percent: 4,
@@ -370,7 +278,7 @@ describe('useBacktestResult', () => {
             sentiment_label: 'fear',
           },
           strategies: {
-            eth_btc_rotation_default: {
+            dma_fgi_portfolio_rules_default: {
               portfolio: {
                 spot_usd: 8000,
                 stable_usd: 2000,
@@ -378,7 +286,7 @@ describe('useBacktestResult', () => {
                 spot_asset: 'BTC',
                 allocation: { btc: 0.8, eth: 0, spy: 0, stable: 0.2, alt: 0 },
               },
-              signal: { id: 'eth_btc_rs_signal' },
+              signal: { id: 'dma_fgi_portfolio_rules_signal' },
               decision: {
                 action: 'hold',
                 reason: 'btc',
@@ -412,7 +320,7 @@ describe('useBacktestResult', () => {
             sentiment_label: 'fear',
           },
           strategies: {
-            eth_btc_rotation_default: {
+            dma_fgi_portfolio_rules_default: {
               portfolio: {
                 spot_usd: 8100,
                 stable_usd: 2100,
@@ -420,7 +328,7 @@ describe('useBacktestResult', () => {
                 spot_asset: 'ETH',
                 allocation: { btc: 0, eth: 0.8, spy: 0, stable: 0.2, alt: 0 },
               },
-              signal: { id: 'eth_btc_rs_signal' },
+              signal: { id: 'dma_fgi_portfolio_rules_signal' },
               decision: {
                 action: 'hold',
                 reason: 'eth',
@@ -454,7 +362,7 @@ describe('useBacktestResult', () => {
             sentiment_label: 'neutral',
           },
           strategies: {
-            eth_btc_rotation_default: {
+            dma_fgi_portfolio_rules_default: {
               portfolio: {
                 spot_usd: 0,
                 stable_usd: 10200,
@@ -462,7 +370,7 @@ describe('useBacktestResult', () => {
                 spot_asset: null,
                 allocation: { btc: 0, eth: 0, spy: 0, stable: 1, alt: 0 },
               },
-              signal: { id: 'eth_btc_rs_signal' },
+              signal: { id: 'dma_fgi_portfolio_rules_signal' },
               decision: {
                 action: 'sell',
                 reason: 'stable',
@@ -496,7 +404,7 @@ describe('useBacktestResult', () => {
             sentiment_label: 'neutral',
           },
           strategies: {
-            eth_btc_rotation_default: {
+            dma_fgi_portfolio_rules_default: {
               portfolio: {
                 spot_usd: 8200,
                 stable_usd: 2000,
@@ -504,7 +412,7 @@ describe('useBacktestResult', () => {
                 spot_asset: 'BTC',
                 allocation: { btc: 0.8, eth: 0, spy: 0, stable: 0.2, alt: 0 },
               },
-              signal: { id: 'eth_btc_rs_signal' },
+              signal: { id: 'dma_fgi_portfolio_rules_signal' },
               decision: {
                 action: 'buy',
                 reason: 'back_to_btc',

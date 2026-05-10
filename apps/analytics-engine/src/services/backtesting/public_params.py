@@ -22,12 +22,6 @@ class _SignalPublicParams(BaseModel):
     cross_on_touch: bool = Field(default=True)
 
 
-class _EthBtcSignalPublicParams(_SignalPublicParams):
-    ratio_cross_cooldown_days: int = Field(default=30, ge=0, strict=True)
-    rotation_neutral_band: float = Field(default=0.05, ge=0.0)
-    rotation_max_deviation: float = Field(default=0.20, gt=0.0)
-
-
 class _PacingPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -59,13 +53,6 @@ class _TopEscapePublicParams(BaseModel):
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
-class _RotationPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    drift_threshold: float = Field(default=0.03, ge=0.0, le=0.20)
-    cooldown_days: int = Field(default=14, ge=0, strict=True)
-
-
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -76,19 +63,6 @@ class DmaGatedFgiPublicParams(BaseModel):
         default_factory=_TradeQuotaPublicParams
     )
     top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
-
-
-class EthBtcRotationPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    signal: _EthBtcSignalPublicParams = Field(default_factory=_EthBtcSignalPublicParams)
-    pacing: _PacingPublicParams = Field(default_factory=_PacingPublicParams)
-    buy_gate: _BuyGatePublicParams = Field(default_factory=_BuyGatePublicParams)
-    trade_quota: _TradeQuotaPublicParams = Field(
-        default_factory=_TradeQuotaPublicParams
-    )
-    top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
-    rotation: _RotationPublicParams = Field(default_factory=_RotationPublicParams)
 
 
 def _get_recipe(strategy_id: str) -> StrategyRecipe:
@@ -135,14 +109,6 @@ _DMA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
     ("dma_overextension_threshold", "top_escape", "dma_overextension_threshold"),
     ("fgi_slope_reversal_threshold", "top_escape", "fgi_slope_reversal_threshold"),
     ("fgi_slope_recovery_threshold", "top_escape", "fgi_slope_recovery_threshold"),
-]
-
-_ROTATION_EXTRA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
-    ("ratio_cross_cooldown_days", "signal", "ratio_cross_cooldown_days"),
-    ("rotation_neutral_band", "signal", "rotation_neutral_band"),
-    ("rotation_max_deviation", "signal", "rotation_max_deviation"),
-    ("rotation_drift_threshold", "rotation", "drift_threshold"),
-    ("rotation_cooldown_days", "rotation", "cooldown_days"),
 ]
 
 
@@ -199,17 +165,6 @@ def public_params_to_runtime_params(
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
-    if recipe.param_family == "eth_btc_rotation":
-        from src.services.backtesting.strategies.eth_btc_rotation import (
-            EthBtcRotationParams,
-        )
-
-        nested_rotation = EthBtcRotationPublicParams.model_validate(normalized)
-        flat = _nested_to_flat(
-            nested_rotation, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        return EthBtcRotationParams.from_public_params(flat).to_public_params()
-
     return normalized
 
 
@@ -237,25 +192,6 @@ def runtime_params_to_public_params(
             top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
-
-    if recipe.param_family == "eth_btc_rotation":
-        from src.services.backtesting.strategies.eth_btc_rotation import (
-            EthBtcRotationParams,
-        )
-
-        resolved_rotation = EthBtcRotationParams.from_public_params(raw_params)
-        sections = _flat_to_nested(
-            resolved_rotation, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        rotation_model = EthBtcRotationPublicParams(
-            signal=_EthBtcSignalPublicParams(**sections.get("signal", {})),
-            pacing=_PacingPublicParams(**sections.get("pacing", {})),
-            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
-            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
-            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
-            rotation=_RotationPublicParams(**sections.get("rotation", {})),
-        )
-        return cast(dict[str, JsonValue], rotation_model.model_dump(mode="json"))
 
     return cast(dict[str, JsonValue], raw_params)
 
@@ -287,7 +223,6 @@ def normalize_saved_strategy_public_params(
 
 __all__ = [
     "DmaGatedFgiPublicParams",
-    "EthBtcRotationPublicParams",
     "get_default_public_params",
     "get_nested_public_params_schema",
     "normalize_nested_public_params",

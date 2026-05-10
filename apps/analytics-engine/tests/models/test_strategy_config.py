@@ -27,13 +27,13 @@ def test_backtest_defaults_use_dma_first_defaults() -> None:
 
 def test_strategy_preset_accepts_any_strategy_id() -> None:
     preset = StrategyPreset(
-        config_id="eth_btc_rotation_default",
-        display_name="ETH/BTC Rotation Default",
-        strategy_id="eth_btc_rotation",
+        config_id="dma_fgi_portfolio_rules_default",
+        display_name="DMA/FGI Portfolio Rules Default",
+        strategy_id="dma_fgi_portfolio_rules",
         params={"signal": {"cross_cooldown_days": 30}},
         is_default=True,
     )
-    assert preset.strategy_id == "eth_btc_rotation"
+    assert preset.strategy_id == "dma_fgi_portfolio_rules"
     assert preset.params["signal"]["cross_cooldown_days"] == 30
 
     # strategy_id is str — any valid string is accepted
@@ -50,7 +50,7 @@ def test_strategy_preset_validates_config_id() -> None:
         StrategyPreset(
             config_id="invalid config id",
             display_name="Bad",
-            strategy_id="eth_btc_rotation",
+            strategy_id="dma_fgi_portfolio_rules",
         )
 
 
@@ -58,8 +58,8 @@ def test_strategy_configs_response_round_trips() -> None:
     response = StrategyConfigsResponse(
         strategies=[
             {
-                "strategy_id": "eth_btc_rotation",
-                "display_name": "ETH/BTC Rotation",
+                "strategy_id": "dma_fgi_portfolio_rules",
+                "display_name": "DMA/FGI Portfolio Rules",
                 "description": "ETH/BTC relative-strength rotation",
                 "param_schema": {"type": "object"},
                 "default_params": {"signal": {"cross_cooldown_days": 30}},
@@ -68,9 +68,9 @@ def test_strategy_configs_response_round_trips() -> None:
         ],
         presets=[
             StrategyPreset(
-                config_id="eth_btc_rotation_default",
-                display_name="ETH/BTC Rotation Default",
-                strategy_id="eth_btc_rotation",
+                config_id="dma_fgi_portfolio_rules_default",
+                display_name="DMA/FGI Portfolio Rules Default",
+                strategy_id="dma_fgi_portfolio_rules",
                 params={"signal": {"cross_cooldown_days": 30}},
                 is_default=True,
             )
@@ -79,25 +79,25 @@ def test_strategy_configs_response_round_trips() -> None:
     )
 
     restored = StrategyConfigsResponse.model_validate(response.model_dump())
-    assert restored.strategies[0].strategy_id == "eth_btc_rotation"
-    assert restored.presets[0].config_id == "eth_btc_rotation_default"
+    assert restored.strategies[0].strategy_id == "dma_fgi_portfolio_rules"
+    assert restored.presets[0].config_id == "dma_fgi_portfolio_rules_default"
     assert restored.backtest_defaults.days == 365
     assert restored.backtest_defaults.total_capital == 25000.0
 
 
 def test_saved_strategy_config_admin_requests_validate_full_composition() -> None:
     request = CreateSavedStrategyConfigRequest(
-        config_id="eth_rotation_custom",
-        display_name="ETH Rotation Custom",
-        strategy_id="eth_btc_rotation",
+        config_id="portfolio_rules_custom",
+        display_name="Portfolio Rules Custom",
+        strategy_id="dma_fgi_portfolio_rules",
         primary_asset="btc",
         params={"signal": {"cross_cooldown_days": 12}},
         composition=StrategyComposition(
             kind="composed",
-            bucket_mapper_id="eth_btc_stable",
-            signal=StrategyComponentRef(component_id="eth_btc_rs_signal"),
+            bucket_mapper_id="spy_eth_btc_stable",
+            signal=StrategyComponentRef(component_id="dma_fgi_portfolio_rules_signal"),
             decision_policy=StrategyComponentRef(
-                component_id="eth_btc_rotation_policy"
+                component_id="dma_fgi_portfolio_rules_policy"
             ),
             pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
             execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
@@ -112,21 +112,21 @@ def test_saved_strategy_config_admin_requests_validate_full_composition() -> Non
     update = UpdateSavedStrategyConfigRequest.model_validate(
         request.model_dump(exclude={"config_id"})
     )
-    assert update.strategy_id == "eth_btc_rotation"
+    assert update.strategy_id == "dma_fgi_portfolio_rules"
 
 
 def test_saved_strategy_config_admin_responses_round_trip() -> None:
     config = CreateSavedStrategyConfigRequest(
-        config_id="eth_rotation_custom",
-        display_name="ETH Rotation Custom",
-        strategy_id="eth_btc_rotation",
+        config_id="portfolio_rules_custom",
+        display_name="Portfolio Rules Custom",
+        strategy_id="dma_fgi_portfolio_rules",
         primary_asset="BTC",
         composition=StrategyComposition(
             kind="composed",
-            bucket_mapper_id="eth_btc_stable",
-            signal=StrategyComponentRef(component_id="eth_btc_rs_signal"),
+            bucket_mapper_id="spy_eth_btc_stable",
+            signal=StrategyComponentRef(component_id="dma_fgi_portfolio_rules_signal"),
             decision_policy=StrategyComponentRef(
-                component_id="eth_btc_rotation_policy"
+                component_id="dma_fgi_portfolio_rules_policy"
             ),
             pacing_policy=StrategyComponentRef(component_id="fgi_exponential"),
             execution_profile=StrategyComponentRef(component_id="two_bucket_rebalance"),
@@ -142,7 +142,7 @@ def test_saved_strategy_config_admin_responses_round_trip() -> None:
     )
     list_response = SavedStrategyConfigListResponse(configs=[response.config])
 
-    assert list_response.configs[0].config_id == "eth_rotation_custom"
+    assert list_response.configs[0].config_id == "portfolio_rules_custom"
 
 
 # ---------------------------------------------------------------------------

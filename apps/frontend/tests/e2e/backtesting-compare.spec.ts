@@ -13,9 +13,9 @@ const PLAYWRIGHT_TEST_BASE_URL =
   process.env['PLAYWRIGHT_BASE_URL'] ??
   `http://127.0.0.1:${process.env['PLAYWRIGHT_PORT'] ?? '3000'}`;
 const PLAYWRIGHT_TEST_ORIGIN = new URL(PLAYWRIGHT_TEST_BASE_URL).origin;
-const ROTATION_STRATEGY_ID = 'eth_btc_rotation_default';
-const UI_PRIMARY_CONFIG_ID = 'eth_btc_rotation_default';
-const ROTATION_STRATEGY_LABEL = 'ETH/BTC Relative Strength Rotation';
+const ROTATION_STRATEGY_ID = 'dma_fgi_portfolio_rules_default';
+const UI_PRIMARY_CONFIG_ID = 'dma_fgi_portfolio_rules_default';
+const ROTATION_STRATEGY_LABEL = 'DMA/FGI Portfolio Rules';
 const ROTATION_SPOT_SEGMENT_TEST_ID = `backtest-${UI_PRIMARY_CONFIG_ID}-btc`;
 const ETH_CHART_COLOR_RGB = '99, 102, 241';
 const BTC_CHART_COLOR_RGB = '245, 158, 11';
@@ -74,16 +74,8 @@ const STRATEGIES_RESPONSE = {
   strategies: [
     {
       strategy_id: 'dma_fgi_portfolio_rules',
-      display_name: 'Portfolio Rules',
-      description: 'Baseline',
-      param_schema: { type: 'object', additionalProperties: false },
-      default_params: {},
-      supports_daily_suggestion: false,
-    },
-    {
-      strategy_id: 'eth_btc_rotation',
-      display_name: 'ETH/BTC Relative Strength Rotation',
-      description: 'ETH/BTC rotation strategy',
+      display_name: 'DMA/FGI Portfolio Rules',
+      description: 'Rule-based portfolio strategy',
       param_schema: { type: 'object' },
       default_params: {
         signal: {
@@ -102,10 +94,10 @@ const STRATEGIES_RESPONSE = {
 const STRATEGY_CONFIGS_RESPONSE = {
   presets: [
     {
-      config_id: 'eth_btc_rotation_default',
-      display_name: 'ETH/BTC Rotation Default',
-      description: 'Curated ETH/BTC rotation preset',
-      strategy_id: 'eth_btc_rotation',
+      config_id: 'dma_fgi_portfolio_rules_default',
+      display_name: 'DMA/FGI Portfolio Rules',
+      description: 'Curated portfolio-rules preset',
+      strategy_id: 'dma_fgi_portfolio_rules',
       params: {
         signal: {
           cross_cooldown_days: 30,
@@ -142,10 +134,10 @@ const COMPARE_RESPONSE = {
         stable: 0.5,
       },
     },
-    eth_btc_rotation_default: {
-      strategy_id: 'eth_btc_rotation',
-      display_name: 'ETH/BTC Rotation Default',
-      signal_id: 'eth_btc_rotation',
+    dma_fgi_portfolio_rules_default: {
+      strategy_id: 'dma_fgi_portfolio_rules',
+      display_name: 'DMA/FGI Portfolio Rules',
+      signal_id: 'dma_fgi_portfolio_rules_signal',
       total_invested: 10000,
       final_value: 11200,
       roi_percent: 12,
@@ -192,7 +184,7 @@ const COMPARE_RESPONSE = {
             interval_days: 0,
           },
         },
-        eth_btc_rotation_default: {
+        dma_fgi_portfolio_rules_default: {
           portfolio: {
             spot_usd: 5000,
             stable_usd: 5000,
@@ -200,7 +192,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.5, stable: 0.5 },
           },
           signal: {
-            id: 'eth_btc_rotation',
+            id: 'dma_fgi_portfolio_rules',
             regime: 'fear',
             raw_value: 25,
             confidence: 1,
@@ -267,7 +259,7 @@ const COMPARE_RESPONSE = {
             interval_days: 7,
           },
         },
-        eth_btc_rotation_default: {
+        dma_fgi_portfolio_rules_default: {
           portfolio: {
             spot_usd: 4800,
             stable_usd: 5200,
@@ -275,7 +267,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.48, stable: 0.52 },
           },
           signal: {
-            id: 'eth_btc_rotation',
+            id: 'dma_fgi_portfolio_rules',
             regime: 'fear',
             raw_value: 20,
             confidence: 1,
@@ -348,7 +340,7 @@ const COMPARE_RESPONSE = {
             interval_days: 7,
           },
         },
-        eth_btc_rotation_default: {
+        dma_fgi_portfolio_rules_default: {
           portfolio: {
             spot_usd: 7000,
             stable_usd: 3000,
@@ -356,7 +348,7 @@ const COMPARE_RESPONSE = {
             allocation: { spot: 0.7, stable: 0.3 },
           },
           signal: {
-            id: 'eth_btc_rotation',
+            id: 'dma_fgi_portfolio_rules',
             regime: 'greed',
             raw_value: 70,
             confidence: 1,
@@ -619,7 +611,7 @@ test.describe('Backtesting (v3) - Terminal display + two-bucket chart', () => {
     await expect(page.getByText(SELECTORS.maxDrawdownLabel)).toBeVisible();
 
     await expect(
-      page.getByText('ETH/BTC Rotation Default').first(),
+      page.getByText('DMA/FGI Portfolio Rules').first(),
     ).toBeVisible();
 
     await expect(page.getByText('Sell Spot').first()).toBeVisible();

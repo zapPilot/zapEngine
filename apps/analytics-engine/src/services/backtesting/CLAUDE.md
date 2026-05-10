@@ -24,11 +24,6 @@ Active default rules:
 - `extreme_fear_dca_buy`
 - `fgi_downshift_dca_sell`
 
-`eth_btc_rotation` remains a saved-config-compatible BTC/ETH strategy, but it is
-now also a rule wrapper over the shared portfolio-rule policy. Its BTC/ETH-only
-rule set uses continuous ETH/BTC DMA-distance weighting instead of the
-portfolio baseline's stepped ETH/BTC deviation DCA.
-
 ## Known Retune Items
 
 The following migrated rules are intentionally left as-is for this PR and should
@@ -66,7 +61,6 @@ Before claiming a strategy change is done:
 - `StrategyRecipe` in [strategy_registry.py](./strategy_registry.py) is the
   public params source of truth. Do not add parallel strategy-id lists in
   `public_params.py`.
-- `_minus_X` means leave-one-out attribution. `[RESEARCH]` strategies are
-  excluded from default production snapshot checks.
+- `dma_fgi_portfolio_rules` is the only production backtesting strategy.
 
 Operator commands are listed in [COMMANDS.md](./COMMANDS.md).

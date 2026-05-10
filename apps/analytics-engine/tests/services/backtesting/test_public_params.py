@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from src.services.backtesting import public_params
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_ETH_BTC_ROTATION,
 )
 
 
@@ -57,22 +56,6 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
         "fgi_slope_reversal_threshold": -0.07,
         "fgi_slope_recovery_threshold": 0.06,
     }
-
-
-def test_eth_btc_runtime_params_to_public_params_includes_rotation_section() -> None:
-    nested = public_params.runtime_params_to_public_params(
-        STRATEGY_ETH_BTC_ROTATION,
-        {
-            "ratio_cross_cooldown_days": 9,
-            "rotation_neutral_band": 0.04,
-            "rotation_max_deviation": 0.18,
-            "rotation_drift_threshold": 0.02,
-            "rotation_cooldown_days": 5,
-        },
-    )
-
-    assert nested["signal"]["ratio_cross_cooldown_days"] == 9
-    assert nested["rotation"] == {"drift_threshold": 0.02, "cooldown_days": 5}
 
 
 def test_public_param_helpers_return_normalized_payload_for_custom_family(

@@ -8,7 +8,7 @@ import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
 import {
   DEFAULT_DAYS,
   DEFAULT_TOTAL_CAPITAL,
-  ETH_BTC_ROTATION_STRATEGY_ID,
+  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
   getDefaultConfigIdForStrategyId,
 } from '../constants';
 
@@ -102,16 +102,19 @@ export function buildDefaultPayloadFromStrategies(
   strategies: BacktestStrategyCatalogEntryV3[] | null,
   defaults: BacktestDefaults = FALLBACK_DEFAULTS,
 ): BacktestRequest {
-  const ethBtcRotation = strategies?.find(
-    (strategy) => strategy.strategy_id === ETH_BTC_ROTATION_STRATEGY_ID,
+  const portfolioRules = strategies?.find(
+    (strategy) => strategy.strategy_id === DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
   );
-  const defaultParams = ethBtcRotation?.default_params ?? {};
+  const defaultParams = portfolioRules?.default_params ?? {};
 
   return {
     days: defaults.days,
     total_capital: defaults.total_capital,
     configs: [
-      buildAdhocCompareConfig(ETH_BTC_ROTATION_STRATEGY_ID, defaultParams),
+      buildAdhocCompareConfig(
+        DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+        defaultParams,
+      ),
     ],
   };
 }

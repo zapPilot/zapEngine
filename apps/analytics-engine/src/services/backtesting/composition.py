@@ -22,7 +22,7 @@ from src.services.backtesting.composition_catalog import (
     SignalComponentFactory,
     get_default_composition_catalog,
 )
-from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 from src.services.backtesting.execution.allocation_intent_executor import (
     AllocationIntentExecutor,
 )
@@ -30,7 +30,10 @@ from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.public_params import public_params_to_runtime_params
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
-from src.services.backtesting.strategy_registry import StrategyBuildRequest
+from src.services.backtesting.strategy_registry import (
+    StrategyBuildRequest,
+    get_strategy_recipe,
+)
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,14 @@ def resolve_saved_strategy_config(
     bucket_mapper = resolved_catalog.resolve_bucket_mapper(
         saved_config.composition.bucket_mapper_id
     )
+
+    if saved_config.strategy_id == STRATEGY_DMA_FGI_PORTFOLIO_RULES:
+        return _resolve_recipe_saved_strategy_config(
+            saved_config=saved_config,
+            family=family,
+            bucket_mapper=bucket_mapper,
+            catalog=resolved_catalog,
+        )
 
     if family.composition_kind == "benchmark":
         if family.benchmark_strategy_builder_factory is None:
@@ -203,6 +214,54 @@ def resolve_saved_strategy_config(
     )
 
 
+def _resolve_recipe_saved_strategy_config(
+    *,
+    saved_config: SavedStrategyConfig,
+    family: Any,
+    bucket_mapper: PortfolioBucketMapper,
+    catalog: CompositionCatalog,
+) -> ResolvedSavedStrategyConfig:
+    if family.composition_kind != "composed":
+        raise ValueError(
+            f"Strategy family '{saved_config.strategy_id}' is not recipe-backed"
+        )
+    signal_ref = _require_component_ref(
+        saved_config.composition.signal,
+        field_name="signal",
+    )
+    decision_ref = _require_component_ref(
+        saved_config.composition.decision_policy,
+        field_name="decision_policy",
+    )
+    catalog.resolve_signal_component_factory(signal_ref.component_id)(signal_ref.params)
+    catalog.resolve_decision_policy_factory(decision_ref.component_id)(
+        decision_ref.params
+    )
+    for plugin_ref in saved_config.composition.plugins:
+        catalog.resolve_plugin_factory(plugin_ref.component_id)(plugin_ref.params)
+
+    recipe = get_strategy_recipe(saved_config.strategy_id)
+    runtime_params = recipe.normalize_public_params(
+        public_params_to_runtime_params(saved_config.strategy_id, saved_config.params)
+    )
+    return ResolvedSavedStrategyConfig(
+        saved_config_id=saved_config.config_id,
+        request_config_id=saved_config.config_id,
+        strategy_id=saved_config.strategy_id,
+        display_name=saved_config.display_name,
+        description=saved_config.description,
+        primary_asset=saved_config.primary_asset,
+        summary_signal_id=recipe.signal_id,
+        warmup_lookback_days=recipe.warmup_lookback_days,
+        market_data_requirements=recipe.market_data_requirements,
+        portfolio_bucket_mapper=bucket_mapper,
+        runtime_portfolio_mode=family.runtime_portfolio_mode,
+        supports_daily_suggestion=saved_config.supports_daily_suggestion,
+        public_params=runtime_params,
+        build_strategy=recipe.build_strategy,
+    )
+
+
 def _validate_component_params(
     *,
     decision_factory: DecisionPolicyFactory,
@@ -226,17 +285,6 @@ def _validate_component_params(
         catalog.resolve_plugin_factory(plugin_ref.component_id)(plugin_ref.params)
 
 
-def _resolve_rotation_cooldown_days(saved_config: SavedStrategyConfig) -> int:
-    if saved_config.strategy_id != STRATEGY_ETH_BTC_ROTATION:
-        return 0
-    runtime_params = public_params_to_runtime_params(
-        saved_config.strategy_id,
-        saved_config.params,
-    )
-    rotation_cooldown_days = runtime_params.get("rotation_cooldown_days")
-    return rotation_cooldown_days if isinstance(rotation_cooldown_days, int) else 0
-
-
 def _build_composed_strategy(
     *,
     saved_config: SavedStrategyConfig,
@@ -249,8 +297,6 @@ def _build_composed_strategy(
     plugin_refs: list[StrategyComponentRef],
     catalog: CompositionCatalog,
 ) -> Callable[[StrategyBuildRequest], BaseStrategy]:
-    rotation_cooldown_days = _resolve_rotation_cooldown_days(saved_config)
-
     def _builder(request: StrategyBuildRequest) -> BaseStrategy:
         signal_component = signal_component_factory(signal_params)
         plugins = tuple(
@@ -265,7 +311,6 @@ def _build_composed_strategy(
             execution_engine=AllocationIntentExecutor(
                 pacing_policy=pacing_policy_factory(pacing_params),
                 plugins=plugins,
-                rotation_cooldown_days=rotation_cooldown_days,
             ),
             public_params=dict(saved_config.params),
             signal_id=signal_component.signal_id,

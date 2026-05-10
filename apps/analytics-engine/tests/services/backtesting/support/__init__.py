@@ -19,12 +19,13 @@ def mock_portfolio(
     *,
     btc: float = 0.0,
     eth: float = 0.0,
+    spy: float = 0.0,
     stable: float = 0.0,
     others: float = 0.0,
     debt: float = 0.0,
 ) -> object:
     """Build a mock portfolio object for daily suggestion and parity tests."""
-    total_assets = btc + eth + stable + others
+    total_assets = btc + eth + spy + stable + others
     return SimpleNamespace(
         total_assets_usd=total_assets,
         total_debt_usd=debt,
@@ -32,6 +33,7 @@ def mock_portfolio(
         portfolio_allocation=SimpleNamespace(
             btc=None if btc == 0 else SimpleNamespace(total_value=btc),
             eth=None if eth == 0 else SimpleNamespace(total_value=eth),
+            spy=None if spy == 0 else SimpleNamespace(total_value=spy),
             stablecoins=None if stable == 0 else SimpleNamespace(total_value=stable),
             others=None if others == 0 else SimpleNamespace(total_value=others),
         ),

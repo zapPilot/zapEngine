@@ -25,8 +25,8 @@ const mockState = vi.hoisted(() => ({
         supports_daily_suggestion: true,
       },
       {
-        strategy_id: 'eth_btc_rotation',
-        display_name: 'ETH/BTC Rotation',
+        strategy_id: 'dma_fgi_portfolio_rules',
+        display_name: 'DMA/FGI Portfolio Rules',
         description: null,
         param_schema: {},
         default_params: {},
@@ -810,16 +810,18 @@ describe('ConfigEditorView', () => {
         screen.getByRole('option', { name: 'DMA-Gated FGI' }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('option', { name: 'ETH/BTC Rotation' }),
+        screen.getByRole('option', { name: 'DMA/FGI Portfolio Rules' }),
       ).toBeInTheDocument();
     });
 
     it('updating strategy ID reflects in form state', () => {
       renderConfigEditorView();
       fireEvent.change(screen.getByRole('combobox'), {
-        target: { value: 'eth_btc_rotation' },
+        target: { value: 'dma_fgi_portfolio_rules' },
       });
-      expect(screen.getByRole('combobox')).toHaveValue('eth_btc_rotation');
+      expect(screen.getByRole('combobox')).toHaveValue(
+        'dma_fgi_portfolio_rules',
+      );
     });
 
     it('shows loading placeholder while strategies are fetching', () => {

@@ -57,7 +57,7 @@ def test_trade_history_store_lists_dates_with_filters(db_session: Session) -> No
             INSERT INTO strategy_trade_history (user_id, trade_date, strategy_id)
             VALUES
                 (:user_id, :trade_date_1, 'dma_gated_fgi'),
-                (:user_id, :trade_date_2, 'eth_btc_rotation'),
+                (:user_id, :trade_date_2, 'dma_fgi_portfolio_rules'),
                 (:other_user_id, :trade_date_3, 'dma_gated_fgi')
             """
         ),

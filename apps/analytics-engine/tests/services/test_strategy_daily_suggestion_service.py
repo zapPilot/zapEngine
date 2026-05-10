@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -11,7 +11,6 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.services.backtesting.capabilities import PortfolioBuckets
-from src.services.backtesting.composition import build_saved_config_from_legacy
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
@@ -29,12 +28,51 @@ from src.services.strategy.strategy_daily_suggestion_service import (
 from tests.services.backtesting.support import mock_portfolio
 
 
+def _date_range(start_date: date | None, end_date: date | None) -> list[date]:
+    start = start_date or date(2025, 1, 10)
+    end = end_date or start
+    return [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
+
+
+def _stock_dma_history(
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    **_: object,
+) -> dict[date, dict[str, float]]:
+    return {
+        current_date: {"price_usd": 500.0, "dma_200": 480.0}
+        for current_date in _date_range(start_date, end_date)
+    }
+
+
+def _macro_fear_greed_history(
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict[date, dict[str, object]]:
+    return {
+        current_date: {
+            "score": 72.0,
+            "label": "greed",
+            "raw_rating": "greed",
+            "source": "test",
+            "updated_at": current_date.isoformat(),
+        }
+        for current_date in _date_range(start_date, end_date)
+    }
+
+
 def _service() -> tuple[StrategyDailySuggestionService, dict[str, object]]:
     mocks = {
         "landing_page_service": SimpleNamespace(),
         "regime_tracking_service": SimpleNamespace(),
         "sentiment_service": SimpleNamespace(),
         "token_price_service": SimpleNamespace(),
+        "stock_price_service": SimpleNamespace(get_dma_history=_stock_dma_history),
+        "macro_fear_greed_service": SimpleNamespace(
+            get_daily_macro_fear_greed=_macro_fear_greed_history
+        ),
         "canonical_snapshot_service": SimpleNamespace(),
         "strategy_config_store": SimpleNamespace(
             resolve_config=lambda config_id: resolve_seed_strategy_config(config_id)
@@ -46,7 +84,7 @@ def _service() -> tuple[StrategyDailySuggestionService, dict[str, object]]:
 
 def _default_signal() -> SignalObservation:
     return SignalObservation(
-        signal_id="eth_btc_rs_signal",
+        signal_id="dma_fgi_portfolio_rules_signal",
         regime="greed",
         confidence=1.0,
         raw_value=72.0,
@@ -158,7 +196,7 @@ def _hold_rotation_snapshot(
 
 
 def test_map_portfolio_to_buckets_uses_two_bucket_model() -> None:
-    buckets = get_strategy_recipe("eth_btc_rotation").portfolio_bucket_mapper(
+    buckets = get_strategy_recipe("dma_fgi_portfolio_rules").portfolio_bucket_mapper(
         mock_portfolio(btc=2_000.0, eth=3_000.0, stable=4_000.0, others=1_000.0)
     )
     assert buckets == PortfolioBuckets(
@@ -166,6 +204,7 @@ def test_map_portfolio_to_buckets_uses_two_bucket_model() -> None:
         stable_value=5_000.0,
         btc_value=2_000.0,
         eth_value=3_000.0,
+        spy_value=0.0,
         stable_category_value=4_000.0,
         alt_value=1_000.0,
     )
@@ -176,7 +215,9 @@ def test_get_daily_suggestion_rejects_unsupported_preset(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
     monkeypatch.setattr(
         "src.services.strategy.strategy_daily_suggestion_service.resolve_saved_strategy_config",
@@ -202,13 +243,15 @@ def test_get_daily_suggestion_raises_market_data_unavailable_when_dma_completely
     """
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
     mocks["landing_page_service"].get_landing_page_data = (
         lambda _user_id: mock_portfolio(stable=10_000.0)
     )
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
-        date="2025-01-10", price_usd=100_000.0
+        date="2025-01-10", price_usd=99_000.0
     )
     mocks["token_price_service"].get_price_history = lambda **_: [
         SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
@@ -235,7 +278,9 @@ def test_get_daily_suggestion_builds_recipe_first_response(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     def _fake_daily_recommendation(self, input_data):
@@ -248,7 +293,7 @@ def test_get_daily_suggestion_builds_recipe_first_response(
         return StrategyAction(snapshot=_sell_snapshot(signal=_default_signal()))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         _fake_daily_recommendation,
     )
 
@@ -279,11 +324,11 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(UUID(int=3))
-    assert response.config_id == "eth_btc_rotation_default"
-    assert response.config_display_name == "ETH/BTC RS Rotation"
-    assert response.strategy_id == "eth_btc_rotation"
+    assert response.config_id == "dma_fgi_portfolio_rules_default"
+    assert response.config_display_name == "DMA/FGI Portfolio Rules"
+    assert response.strategy_id == "dma_fgi_portfolio_rules"
     assert response.context.portfolio.allocation.spot == pytest.approx(0.25)
-    assert response.context.signal.id == "eth_btc_rs_signal"
+    assert response.context.signal.id == "dma_fgi_portfolio_rules_signal"
     assert response.context.signal.details["ath_event"] == "token_ath"
     assert response.context.strategy.reason_code == "above_greed_sell"
     assert response.context.strategy.stance == "sell"
@@ -292,7 +337,11 @@ def test_get_daily_suggestion_builds_recipe_first_response(
     assert response.action.kind is None
     assert response.action.reason_code == "interval_wait"
     assert response.action.transfers == []
-    assert response.context.market.token_price == {"btc": 100_000.0, "eth": 3_000.0}
+    assert response.context.market.token_price == {
+        "btc": 100_000.0,
+        "eth": 3_000.0,
+        "spy": 500.0,
+    }
     assert response.context.portfolio.asset_allocation is not None
     assert response.context.portfolio.asset_allocation.btc == pytest.approx(0.25)
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.0)
@@ -313,11 +362,13 @@ def test_get_daily_suggestion_rotation_preserves_asset_target_allocation(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_rotation_snapshot(signal=_default_signal())
         ),
@@ -353,10 +404,14 @@ def test_get_daily_suggestion_rotation_preserves_asset_target_allocation(
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(
-        UUID(int=9), config_id="eth_btc_rotation_default"
+        UUID(int=9), config_id="dma_fgi_portfolio_rules_default"
     )
 
-    assert response.context.market.token_price == {"btc": 100_000.0, "eth": 3_000.0}
+    assert response.context.market.token_price == {
+        "btc": 100_000.0,
+        "eth": 3_000.0,
+        "spy": 500.0,
+    }
     assert response.context.portfolio.asset_allocation.btc == pytest.approx(0.6)
     assert response.context.portfolio.asset_allocation.eth == pytest.approx(0.1)
     assert response.context.portfolio.asset_allocation.stable == pytest.approx(0.3)
@@ -377,11 +432,13 @@ def test_get_daily_suggestion_exposes_debt_aware_totals_without_changing_runtime
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(signal=_default_signal())
         ),
@@ -396,7 +453,7 @@ def test_get_daily_suggestion_exposes_debt_aware_totals_without_changing_runtime
         )
     )
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
-        date="2025-01-10", price_usd=100_000.0
+        date="2025-01-10", price_usd=99_000.0
     )
 
     def _price_history(**kwargs):
@@ -422,7 +479,7 @@ def test_get_daily_suggestion_exposes_debt_aware_totals_without_changing_runtime
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(
-        UUID(int=10), config_id="eth_btc_rotation_default"
+        UUID(int=10), config_id="dma_fgi_portfolio_rules_default"
     )
 
     assert response.context.portfolio.total_value == pytest.approx(10_000.0)
@@ -436,11 +493,13 @@ def test_get_daily_suggestion_marks_hold_rotation_transfers_as_action_required(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(
                 signal=_default_signal(),
@@ -485,7 +544,7 @@ def test_get_daily_suggestion_marks_hold_rotation_transfers_as_action_required(
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(
-        UUID(int=10), config_id="eth_btc_rotation_default"
+        UUID(int=10), config_id="dma_fgi_portfolio_rules_default"
     )
 
     assert response.context.strategy.stance == "hold"
@@ -501,11 +560,13 @@ def test_get_daily_suggestion_marks_hold_rotation_cooldown_as_blocked(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(
                 signal=_default_signal(),
@@ -544,7 +605,7 @@ def test_get_daily_suggestion_marks_hold_rotation_cooldown_as_blocked(
     mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
 
     response = service.get_daily_suggestion(
-        UUID(int=11), config_id="eth_btc_rotation_default"
+        UUID(int=11), config_id="dma_fgi_portfolio_rules_default"
     )
 
     assert response.context.strategy.stance == "hold"
@@ -557,10 +618,22 @@ def test_get_daily_suggestion_marks_hold_rotation_cooldown_as_blocked(
 
 def test_get_daily_suggestion_applies_trade_quota_history() -> None:
     service, mocks = _service()
-    quota_config = build_saved_config_from_legacy(
-        strategy_id="eth_btc_rotation",
-        params={"min_trade_interval_days": 3},
-        config_id="eth_rotation_quota_live",
+    base_params = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default").params
+    quota_config = resolve_seed_strategy_config(
+        "dma_fgi_portfolio_rules_default"
+    ).model_copy(
+        update={
+            "config_id": "portfolio_rules_quota_live",
+            "params": {
+                **base_params,
+                "trade_quota": {
+                    "min_trade_interval_days": 3,
+                    "max_trades_7d": None,
+                    "max_trades_30d": None,
+                },
+            },
+        },
+        deep=True,
     )
     mocks["strategy_config_store"].resolve_config = lambda _config_id: quota_config
     service.trade_history_store = SimpleNamespace(
@@ -570,7 +643,7 @@ def test_get_daily_suggestion_applies_trade_quota_history() -> None:
         lambda _user_id: mock_portfolio(btc=2_500.0, stable=7_500.0)
     )
     mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
-        date="2025-01-10", price_usd=100_000.0
+        date="2025-01-10", price_usd=99_000.0
     )
     mocks["token_price_service"].get_price_history = (
         lambda **kwargs: [
@@ -579,13 +652,15 @@ def test_get_daily_suggestion_applies_trade_quota_history() -> None:
         ]
         if kwargs.get("token_symbol") == "ETH"
         else [
-            SimpleNamespace(date="2025-01-09", price_usd=99_000.0),
-            SimpleNamespace(date="2025-01-10", price_usd=100_000.0),
+            SimpleNamespace(date="2025-01-09", price_usd=101_000.0),
+            SimpleNamespace(date="2025-01-10", price_usd=99_000.0),
         ]
     )
     mocks["token_price_service"].get_dma_history = lambda **kwargs: {
-        date(2025, 1, 9): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0,
-        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0,
+        date(2025, 1, 9): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 100_000.0,
+        date(2025, 1, 10): 2_900.0
+        if kwargs.get("token_symbol") == "ETH"
+        else 100_000.0,
     }
     mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
         date(2025, 1, 9): {
@@ -608,7 +683,7 @@ def test_get_daily_suggestion_applies_trade_quota_history() -> None:
     ]
 
     response = service.get_daily_suggestion(
-        UUID(int=7), config_id="eth_rotation_quota_live"
+        UUID(int=7), config_id="portfolio_rules_quota_live"
     )
 
     assert response.action.status == "blocked"
@@ -622,11 +697,11 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
 ) -> None:
     service, mocks = _service()
     custom_default = resolve_seed_strategy_config(
-        "eth_btc_rotation_default"
+        "dma_fgi_portfolio_rules_default"
     ).model_copy(
         update={
-            "config_id": "eth_rotation_alt_default",
-            "display_name": "ETH Rotation Alt Default",
+            "config_id": "portfolio_rules_alt_default",
+            "display_name": "Portfolio Rules Alt Default",
             "is_default": True,
         },
         deep=True,
@@ -634,7 +709,7 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
     mocks["strategy_config_store"].resolve_config = lambda _config_id: custom_default
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_sell_snapshot(signal=_default_signal())
         ),
@@ -667,7 +742,7 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
 
     response = service.get_daily_suggestion(UUID(int=6))
 
-    assert response.config_id == "eth_rotation_alt_default"
+    assert response.config_id == "portfolio_rules_alt_default"
 
 
 def test_get_daily_suggestion_uses_recipe_capabilities(
@@ -675,14 +750,14 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
 ) -> None:
     service, mocks = _service()
     recipe = replace(
-        get_strategy_recipe("eth_btc_rotation"),
+        get_strategy_recipe("dma_fgi_portfolio_rules"),
         primary_asset="ETH",
         portfolio_bucket_mapper=lambda _portfolio: PortfolioBuckets(
             spot_value=1_000.0,
             stable_value=9_000.0,
         ),
     )
-    base_config = resolve_seed_strategy_config("eth_btc_rotation_default")
+    base_config = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
     mocks["strategy_config_store"].resolve_config = (
         lambda _config_id: base_config.model_copy(
             update={"config_id": "eth_dma", "primary_asset": "ETH"}
@@ -710,7 +785,7 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
         return StrategyAction(snapshot=_sell_snapshot(signal=_default_signal()))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         _fake_daily_recommendation,
     )
 
@@ -744,7 +819,7 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
 
     response = service.get_daily_suggestion(UUID(int=5))
 
-    assert response.context.market.token_price == {"eth": 3_000.0}
+    assert response.context.market.token_price == {"eth": 3_000.0, "spy": 500.0}
     assert response.context.portfolio.allocation.spot == pytest.approx(0.1)
     assert response.context.portfolio.allocation.stable == pytest.approx(0.9)
     assert response.context.portfolio.asset_allocation.btc == pytest.approx(0.0)
@@ -762,14 +837,16 @@ def test_get_daily_suggestion_requires_serialized_signal(
 ) -> None:
     service, mocks = _service()
     mocks["strategy_config_store"].resolve_config = (
-        lambda _config_id: resolve_seed_strategy_config("eth_btc_rotation_default")
+        lambda _config_id: resolve_seed_strategy_config(
+            "dma_fgi_portfolio_rules_default"
+        )
     )
 
     def _missing_signal(self, _input_data):
         return StrategyAction(snapshot=_sell_snapshot(signal=None))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.composed_signal.ComposedSignalStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
         _missing_signal,
     )
     mocks["landing_page_service"].get_landing_page_data = (

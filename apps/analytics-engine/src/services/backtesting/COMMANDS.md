@@ -18,15 +18,8 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
 
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-  --saved-config-id dma_fgi_portfolio_rules \
-  --config-id dma_fgi_portfolio_rules \
-  --from-date 2025-01-01 \
-  --to-date 2026-04-10 \
-  --format markdown
-
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-  --saved-config-id eth_btc_rotation \
-  --config-id eth_btc_rotation \
+  --saved-config-id dma_fgi_portfolio_rules_default \
+  --config-id dma_fgi_portfolio_rules_default \
   --from-date 2025-01-01 \
   --to-date 2026-04-10 \
   --format markdown

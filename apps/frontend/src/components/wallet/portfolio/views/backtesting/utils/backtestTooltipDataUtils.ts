@@ -74,7 +74,7 @@ const buildParsedTooltipData = ({
  * const data = buildBacktestTooltipData({
  *   payload: rechartsPayload,
  *   label: "2026-01-15",
- *   sortedStrategyIds: ["dma_fgi_hierarchical_minimum", "eth_btc_rotation"],
+ *   sortedStrategyIds: ["dma_fgi_hierarchical_minimum", "dma_fgi_portfolio_rules"],
  * });
  * ```
  */

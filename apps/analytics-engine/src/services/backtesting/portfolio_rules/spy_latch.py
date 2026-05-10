@@ -135,12 +135,15 @@ class SpyLatchRule:
     def _is_expired(self, current_date: date) -> bool:
         return (
             self._activated_on is not None
-            and current_date - self._activated_on > timedelta(days=self.follow_through_days)
+            and current_date - self._activated_on
+            > timedelta(days=self.follow_through_days)
         )
 
 
 def _current_stable_share(snapshot: PortfolioSnapshot) -> float:
-    return max(0.0, min(1.0, float(snapshot.current_asset_allocation.get("stable", 0.0))))
+    return max(
+        0.0, min(1.0, float(snapshot.current_asset_allocation.get("stable", 0.0)))
+    )
 
 
 def _apply_spy_latch_to_target(

@@ -54,10 +54,10 @@ vi.mock('framer-motion', () => ({
 
 const mockBacktestData = {
   strategies: {
-    eth_btc_rotation_default: {
-      strategy_id: 'eth_btc_rotation',
-      display_name: 'ETH/BTC Rotation Default',
-      signal_id: 'eth_btc_rs_signal',
+    dma_fgi_portfolio_rules_default: {
+      strategy_id: 'dma_fgi_portfolio_rules',
+      display_name: 'DMA/FGI Portfolio Rules',
+      signal_id: 'dma_fgi_portfolio_rules_signal',
       total_invested: 10000,
       final_value: 12000,
       roi_percent: 15.5,
@@ -80,7 +80,7 @@ const mockBacktestData = {
         sentiment_label: 'neutral',
       },
       strategies: {
-        eth_btc_rotation_default: {
+        dma_fgi_portfolio_rules_default: {
           portfolio: {
             spot_usd: 6000,
             stable_usd: 4000,
@@ -91,7 +91,7 @@ const mockBacktestData = {
             },
           },
           signal: {
-            id: 'eth_btc_rs_signal',
+            id: 'dma_fgi_portfolio_rules_signal',
             regime: 'neutral',
             raw_value: 50,
             confidence: 1,

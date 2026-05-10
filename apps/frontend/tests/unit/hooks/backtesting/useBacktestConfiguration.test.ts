@@ -44,10 +44,10 @@ describe('useBacktestConfiguration regressions', () => {
       strategies: [],
       presets: [
         {
-          config_id: 'eth_btc_rotation_default',
-          display_name: 'ETH/BTC RS Rotation',
-          description: 'Curated rotation preset',
-          strategy_id: 'eth_btc_rotation',
+          config_id: 'dma_fgi_portfolio_rules_default',
+          display_name: 'DMA/FGI Portfolio Rules',
+          description: 'Curated portfolio-rules preset',
+          strategy_id: 'dma_fgi_portfolio_rules',
           params: { pacing: { k: 5, r_max: 1 } },
           is_benchmark: false,
           is_default: true,

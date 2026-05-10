@@ -67,13 +67,15 @@ async def test_run_compare_v3_enables_dma_and_shifts_effective_start_without_mut
         "market_data_requirements"
     ]
     assert requirements.requires_sentiment is True
-    assert requirements.required_price_features == frozenset({"dma_200"})
+    assert requirements.required_price_features == frozenset(
+        {"dma_200", "eth_dma_200", "spy_dma_200"}
+    )
     service.data_provider.fetch_sentiments.assert_awaited_once()
     assert request.start_date == date(2025, 1, 1)
-    assert [cfg.strategy_id for cfg in request.configs] == ["eth_btc_rotation"]
+    assert [cfg.strategy_id for cfg in request.configs] == ["dma_fgi_portfolio_rules"]
     assert [
         cfg.strategy_id for cfg in mock_runner.call_args.kwargs["request"].configs
-    ] == ["eth_btc_rotation"]
+    ] == ["dma_fgi_portfolio_rules"]
     assert mock_runner.call_args.kwargs["user_start_date"] == date(2025, 1, 3)
     window = mock_runner.call_args.kwargs["window"]
     assert window.truncated is True
@@ -296,8 +298,8 @@ async def test_run_compare_v3_rejects_mixed_primary_assets_before_fetch(
             compare_request(
                 configs=[
                     BacktestCompareConfigV3(
-                        config_id="eth_rotation_runtime",
-                        strategy_id="eth_btc_rotation",
+                        config_id="portfolio_rules_runtime",
+                        strategy_id="dma_fgi_portfolio_rules",
                         params={},
                     ),
                     BacktestCompareConfigV3(
@@ -361,7 +363,7 @@ async def test_run_compare_v3_resolves_saved_config_with_injected_catalog(
 async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requested_saved = resolve_seed_strategy_config("eth_btc_rotation_default")
+    requested_saved = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
     service = BacktestingService(
         db=MagicMock(),
         token_price_service=MagicMock(),
@@ -369,7 +371,7 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
         strategy_config_store=MagicMock(
             resolve_config=lambda _config_id: requested_saved,
             list_configs=lambda: [
-                resolve_seed_strategy_config("eth_btc_rotation_default")
+                resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
             ],
         ),
     )
@@ -389,7 +391,7 @@ async def test_run_compare_v3_does_not_auto_inject_baseline_for_saved_configs(
             configs=[
                 BacktestCompareConfigV3(
                     config_id="rotation_runtime",
-                    saved_config_id="eth_btc_rotation_default",
+                    saved_config_id="dma_fgi_portfolio_rules_default",
                 )
             ]
         )
@@ -412,7 +414,7 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
         strategy_config_store=MagicMock(
             get_config=lambda _config_id: None,
             list_configs=lambda: [
-                resolve_seed_strategy_config("eth_btc_rotation_default")
+                resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
             ],
         ),
     )

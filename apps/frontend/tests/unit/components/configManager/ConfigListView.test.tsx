@@ -70,8 +70,8 @@ const benchmarkConfig: SavedStrategyConfig = {
 };
 
 const nonDefaultConfig: SavedStrategyConfig = {
-  config_id: 'eth_rotation',
-  display_name: 'ETH Rotation',
+  config_id: 'portfolio_rules_custom',
+  display_name: 'Portfolio Rules Custom',
   description: null,
   strategy_id: 'dma_gated_fgi',
   primary_asset: 'ETH',
@@ -222,7 +222,7 @@ describe('ConfigListView', () => {
       // Use title="Edit" buttons; both desktop and mobile render
       const editButtons = screen.getAllByTitle('Edit');
       fireEvent.click(editButtons[0]);
-      expect(onEdit).toHaveBeenCalledWith('eth_rotation');
+      expect(onEdit).toHaveBeenCalledWith('portfolio_rules_custom');
     });
 
     it('calls onDuplicate with the full config when Duplicate is clicked', () => {
@@ -275,7 +275,9 @@ describe('ConfigListView', () => {
       const setDefaultButtons = screen.getAllByTitle('Set as Default');
       fireEvent.click(setDefaultButtons[0]);
       expect(screen.getAllByText('DMA Default').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('ETH Rotation').length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText('Portfolio Rules Custom').length,
+      ).toBeGreaterThan(0);
     });
 
     it('closes the modal when Cancel is clicked', async () => {
@@ -295,12 +297,14 @@ describe('ConfigListView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
       await waitFor(() => {
-        expect(mockState.mutateAsync).toHaveBeenCalledWith('eth_rotation');
+        expect(mockState.mutateAsync).toHaveBeenCalledWith(
+          'portfolio_rules_custom',
+        );
       });
       expect(mockState.showToast).toHaveBeenCalledWith({
         type: 'success',
         title: 'Default updated',
-        message: '"ETH Rotation" is now the default configuration.',
+        message: '"Portfolio Rules Custom" is now the default configuration.',
       });
     });
 
@@ -351,7 +355,9 @@ describe('ConfigListView', () => {
       renderConfigListView([defaultConfig, benchmarkConfig, nonDefaultConfig]);
       expect(screen.getAllByText('DMA Default').length).toBeGreaterThan(0);
       expect(screen.getAllByText('DCA Classic').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('ETH Rotation').length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText('Portfolio Rules Custom').length,
+      ).toBeGreaterThan(0);
     });
   });
 });

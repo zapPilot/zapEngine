@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from src.config.strategy_presets import (
-    ETH_BTC_ROTATION_CONFIG_ID,
+    DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
     STRATEGY_PRESETS,
     STRATEGY_TUNING_OVERRIDES,
     get_backtest_defaults,
@@ -19,28 +19,30 @@ from src.config.strategy_presets import (
     resolve_strategy_default_params,
     resolve_strategy_preset,
 )
-from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 
 
 def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
     presets = list_strategy_presets()
-    assert [preset.config_id for preset in presets] == [ETH_BTC_ROTATION_CONFIG_ID]
-    assert [preset.strategy_id for preset in presets] == ["eth_btc_rotation"]
+    assert [preset.config_id for preset in presets] == [
+        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+    ]
+    assert [preset.strategy_id for preset in presets] == ["dma_fgi_portfolio_rules"]
     assert presets[0].params["signal"]["cross_cooldown_days"] == 30
 
 
-def test_default_preset_is_eth_btc_rotation() -> None:
+def test_default_preset_is_dma_fgi_portfolio_rules() -> None:
     default = get_default_strategy_preset()
-    assert default.config_id == ETH_BTC_ROTATION_CONFIG_ID
-    assert default.strategy_id == "eth_btc_rotation"
+    assert default.config_id == DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+    assert default.strategy_id == "dma_fgi_portfolio_rules"
 
 
 def test_resolve_strategy_preset_supports_default_and_explicit_ids() -> None:
-    assert resolve_strategy_preset(None).config_id == ETH_BTC_ROTATION_CONFIG_ID
-    assert resolve_strategy_preset("").config_id == ETH_BTC_ROTATION_CONFIG_ID
+    assert resolve_strategy_preset(None).config_id == DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+    assert resolve_strategy_preset("").config_id == DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
     assert (
-        resolve_strategy_preset(ETH_BTC_ROTATION_CONFIG_ID).strategy_id
-        == "eth_btc_rotation"
+        resolve_strategy_preset(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID).strategy_id
+        == "dma_fgi_portfolio_rules"
     )
 
 
@@ -62,53 +64,50 @@ def test_curated_presets_have_single_default_and_single_benchmark() -> None:
     assert len(benchmarks) == 0
 
 
-def test_seed_live_configs_expose_nested_tuned_params() -> None:
-    eth_config = resolve_seed_strategy_config(ETH_BTC_ROTATION_CONFIG_ID)
+def test_seed_live_configs_expose_nested_params() -> None:
+    config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
 
-    assert eth_config.params == resolve_strategy_default_params(
-        STRATEGY_ETH_BTC_ROTATION
+    assert config.params == resolve_strategy_default_params(
+        STRATEGY_DMA_FGI_PORTFOLIO_RULES
     )
-    assert isinstance(eth_config.params["rotation"], dict)
+    assert isinstance(config.params["signal"], dict)
 
 
-def test_seed_live_configs_attach_trade_quota_plugin() -> None:
-    eth_config = resolve_seed_strategy_config(ETH_BTC_ROTATION_CONFIG_ID)
+def test_seed_live_configs_attach_rule_based_composition_refs() -> None:
+    config = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
 
-    assert [plugin.component_id for plugin in eth_config.composition.plugins] == [
-        "dma_buy_gate",
-        "trade_quota_guard",
-    ]
-    expected_quota_params = {
-        key: value
-        for key, value in eth_config.params["trade_quota"].items()
-        if value is not None
-    }
-    assert eth_config.composition.plugins[1].params == expected_quota_params
+    assert config.composition.signal is not None
+    assert config.composition.signal.component_id == "dma_fgi_portfolio_rules_signal"
+    assert config.composition.decision_policy is not None
+    assert (
+        config.composition.decision_policy.component_id
+        == "dma_fgi_portfolio_rules_policy"
+    )
+    assert config.composition.bucket_mapper_id == "spy_eth_btc_stable"
+    assert config.composition.plugins == []
 
 
 def test_resolve_strategy_default_params_applies_nested_tuning_overrides() -> None:
     with patch.dict(
         STRATEGY_TUNING_OVERRIDES,
         {
-            STRATEGY_ETH_BTC_ROTATION: {
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES: {
                 "trade_quota": {"min_trade_interval_days": 2},
-                "rotation": {"cooldown_days": 9},
             },
         },
     ):
-        eth_params = resolve_strategy_default_params(STRATEGY_ETH_BTC_ROTATION)
+        params = resolve_strategy_default_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
 
-    assert eth_params["trade_quota"]["min_trade_interval_days"] == 2
-    assert eth_params["rotation"]["cooldown_days"] == 9
+    assert params["trade_quota"]["min_trade_interval_days"] == 2
 
 
 def test_resolve_strategy_default_params_rejects_unsupported_tuning_keys() -> None:
     with patch.dict(
         STRATEGY_TUNING_OVERRIDES,
-        {STRATEGY_ETH_BTC_ROTATION: {"unsupported_group": {"value": 1}}},
+        {STRATEGY_DMA_FGI_PORTFOLIO_RULES: {"unsupported_group": {"value": 1}}},
     ):
         with pytest.raises(ValueError, match="Extra inputs are not permitted"):
-            resolve_strategy_default_params(STRATEGY_ETH_BTC_ROTATION)
+            resolve_strategy_default_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
 
 
 def test_get_default_seed_strategy_config_raises_when_no_default() -> None:

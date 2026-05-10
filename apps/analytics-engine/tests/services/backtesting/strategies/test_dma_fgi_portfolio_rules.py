@@ -378,7 +378,7 @@ def test_strategy_ratio_cross_up_rotates_btc_and_stable_to_eth() -> None:
     )
 
 
-def test_eth_btc_rotation_swaps_btc_to_eth_on_2025_07_15_cross_up() -> None:
+def test_portfolio_rules_swap_btc_to_eth_on_2025_07_15_cross_up() -> None:
     """Canonical 2025-07-15 scenario: ETH/BTC ratio cross-up swaps BTC to ETH."""
     snapshot = _flat_minimum_state_with_ratio_cross_up(
         current_alloc={"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30}

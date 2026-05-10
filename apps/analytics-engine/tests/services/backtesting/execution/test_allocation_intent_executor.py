@@ -197,7 +197,7 @@ def test_executor_buy_blocks_until_sideways_confirms() -> None:
     assert buy_gate["sideways_confirmed"] is False
 
 
-def test_executor_buy_gate_allows_btc_eth_rotation_without_stable_buy() -> None:
+def test_executor_buy_gate_allows_btc_eth_rebalance_without_stable_buy() -> None:
     executor = _executor(with_buy_gate=True)
     portfolio = Portfolio(
         stable_balance=5_000.0,

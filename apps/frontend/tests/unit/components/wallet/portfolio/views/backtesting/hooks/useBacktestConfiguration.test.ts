@@ -41,9 +41,9 @@ const mockCatalogRotationDefaultParams = {
 const mockStrategyConfigs = {
   strategies: [
     {
-      strategy_id: 'eth_btc_rotation' as const,
-      display_name: 'ETH/BTC Rotation',
-      description: 'Rotation strategy',
+      strategy_id: 'dma_fgi_portfolio_rules' as const,
+      display_name: 'DMA/FGI Portfolio Rules',
+      description: 'Rule-based portfolio strategy',
       param_schema: {},
       default_params: mockCatalogRotationDefaultParams,
       supports_daily_suggestion: true,
@@ -51,10 +51,10 @@ const mockStrategyConfigs = {
   ],
   presets: [
     {
-      config_id: 'eth_btc_rotation_default',
-      display_name: 'ETH/BTC RS Rotation',
-      description: 'Curated rotation preset',
-      strategy_id: 'eth_btc_rotation' as const,
+      config_id: 'dma_fgi_portfolio_rules_default',
+      display_name: 'DMA/FGI Portfolio Rules',
+      description: 'Curated portfolio-rules preset',
+      strategy_id: 'dma_fgi_portfolio_rules' as const,
       params: mockRotationPresetParams,
       is_benchmark: false,
       is_default: true,
@@ -70,9 +70,9 @@ const mockCatalog = {
   catalog_version: '2.0.0',
   strategies: [
     {
-      strategy_id: 'eth_btc_rotation' as const,
-      display_name: 'ETH/BTC Rotation',
-      description: 'Rotation strategy',
+      strategy_id: 'dma_fgi_portfolio_rules' as const,
+      display_name: 'DMA/FGI Portfolio Rules',
+      description: 'Rule-based portfolio strategy',
       param_schema: {},
       default_params: mockCatalogRotationDefaultParams,
       supports_daily_suggestion: true,
@@ -110,7 +110,7 @@ describe('useBacktestConfiguration', () => {
   // Initialization and defaults
   // -------------------------------------------------------------------------
 
-  it('starts with fallback rotation editor defaults', () => {
+  it('starts with fallback portfolio-rules editor defaults', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -121,7 +121,7 @@ describe('useBacktestConfiguration', () => {
     expect(parsed.days).toBe(500);
     expect(parsed.total_capital).toBe(10000);
     expect(parsed.configs).toHaveLength(1);
-    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
   });
 
   it('loads presets, seeds the editor, and auto-runs once', async () => {
@@ -135,7 +135,9 @@ describe('useBacktestConfiguration', () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(90);
-      expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
+      expect(parsed.configs[0].config_id).toBe(
+        'dma_fgi_portfolio_rules_default',
+      );
     });
 
     await waitFor(() => {
@@ -155,8 +157,10 @@ describe('useBacktestConfiguration', () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(500);
-      expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
-      expect(parsed.configs[0].strategy_id).toBe('eth_btc_rotation');
+      expect(parsed.configs[0].config_id).toBe(
+        'dma_fgi_portfolio_rules_default',
+      );
+      expect(parsed.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
     });
   });
 
@@ -524,8 +528,8 @@ describe('useBacktestConfiguration', () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: 'eth_btc_rotation_default',
-              strategy_id: 'eth_btc_rotation',
+              config_id: 'dma_fgi_portfolio_rules_default',
+              strategy_id: 'dma_fgi_portfolio_rules',
               params: {
                 rotation_cooldown_days: 7,
               },
@@ -612,7 +616,7 @@ describe('useBacktestConfiguration', () => {
     );
   });
 
-  it('includes ETH/BTC signal and top_escape public params when provided', () => {
+  it('includes portfolio-rules signal and top_escape public params when provided', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -625,24 +629,17 @@ describe('useBacktestConfiguration', () => {
           total_capital: 10000,
           configs: [
             {
-              config_id: 'dma_gated_fgi_ratio_cooldown',
-              strategy_id: 'dma_gated_fgi_ratio_cooldown',
+              config_id: 'dma_fgi_portfolio_rules_default',
+              strategy_id: 'dma_fgi_portfolio_rules',
               params: {
                 signal: {
                   cross_cooldown_days: 30,
                   cross_on_touch: true,
-                  ratio_cross_cooldown_days: 30,
-                  rotation_neutral_band: 0.05,
-                  rotation_max_deviation: 0.2,
                 },
                 top_escape: {
                   dma_overextension_threshold: 0.3,
                   fgi_slope_reversal_threshold: -0.05,
                   fgi_slope_recovery_threshold: 0.05,
-                },
-                rotation: {
-                  drift_threshold: 0.03,
-                  cooldown_days: 7,
                 },
               },
             },
@@ -664,18 +661,11 @@ describe('useBacktestConfiguration', () => {
               signal: {
                 cross_cooldown_days: 30,
                 cross_on_touch: true,
-                ratio_cross_cooldown_days: 30,
-                rotation_neutral_band: 0.05,
-                rotation_max_deviation: 0.2,
               },
               top_escape: {
                 dma_overextension_threshold: 0.3,
                 fgi_slope_reversal_threshold: -0.05,
                 fgi_slope_recovery_threshold: 0.05,
-              },
-              rotation: {
-                drift_threshold: 0.03,
-                cooldown_days: 7,
               },
             },
           }),
@@ -965,7 +955,7 @@ describe('useBacktestConfiguration', () => {
 
     // Should restore catalog-based defaults and clear error
     const parsed = JSON.parse(result.current.editorValue);
-    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.current.editorError).toBeNull();
   });
 
@@ -996,7 +986,7 @@ describe('useBacktestConfiguration', () => {
     });
 
     const parsed = JSON.parse(result.current.editorValue);
-    // catalog fallback: eth_btc_rotation default_params from mockCatalog
+    // catalog fallback: dma_fgi_portfolio_rules default_params from mockCatalog
     expect(parsed.configs[0].params.pacing.k).toBe(3);
     expect(result.current.editorError).toBeNull();
   });
@@ -1015,7 +1005,7 @@ describe('useBacktestConfiguration', () => {
 
     await waitFor(() => {
       expect(JSON.parse(result.current.editorValue).configs[0].config_id).toBe(
-        'eth_btc_rotation_default',
+        'dma_fgi_portfolio_rules_default',
       );
     });
 
@@ -1033,7 +1023,7 @@ describe('useBacktestConfiguration', () => {
 
     const parsed = JSON.parse(result.current.editorValue);
     expect(parsed.days).toBe(90);
-    expect(parsed.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.current.editorError).toBeNull();
   });
 

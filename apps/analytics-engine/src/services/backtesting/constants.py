@@ -14,36 +14,10 @@ ALLOCATION_STATES = {
     "neutral_start": {"spot": 0.5, "stable": 0.5},
 }
 
-STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING = (
-    "dma_fgi_portfolio_rules_minus_dma_stable_gating"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION = (
-    "dma_fgi_portfolio_rules_minus_greed_sell_suppression"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA = (
-    "dma_fgi_portfolio_rules_minus_eth_btc_deviation_dca"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH = (
-    "dma_fgi_portfolio_rules_minus_spy_latch"
-)
 
 STRATEGY_DISPLAY_NAMES = {
-    STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING: (
-        "[RESEARCH] Portfolio Rules - DMA Stable Gating"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION: (
-        "[RESEARCH] Portfolio Rules - Greed Sell Suppression"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA: (
-        "[RESEARCH] Portfolio Rules - ETH/BTC Deviation DCA"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH: (
-        "[RESEARCH] Portfolio Rules - SPY Latch"
-    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES: "DMA/FGI Portfolio Rules",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {
