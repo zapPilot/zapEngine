@@ -5,7 +5,6 @@ import pytest
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiParams,
-    default_dma_gated_fgi_params,
 )
 
 
@@ -73,10 +72,3 @@ def test_dma_params_public_serialization_sorts_disabled_rules() -> None:
         "above_ath_sell",
         "regime_no_signal_hold",
     ]
-
-
-def test_default_dma_gated_fgi_params_uses_public_contract() -> None:
-    params = default_dma_gated_fgi_params()
-
-    assert params["cross_cooldown_days"] == 30
-    assert "disabled_rules" not in params

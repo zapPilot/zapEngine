@@ -30,6 +30,9 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
+from src.services.backtesting.portfolio_rules.base import (
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+)
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     BlockedZone,
@@ -52,7 +55,6 @@ from src.services.backtesting.target_allocation import (
     target_from_current_allocation,
 )
 
-FLAT_MINIMUM_SIGNAL_ID = "dma_fgi_flat_minimum_signal"
 _RATIO_ROTATION_ALLOCATION_PREFIX = "portfolio_eth_btc_ratio_rotation_"
 
 
@@ -111,7 +113,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
 
     config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
     ratio_cross_cooldown_days: int = 30
-    signal_id: str = FLAT_MINIMUM_SIGNAL_ID
+    signal_id: str = "dma_fgi_flat_minimum_signal"
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
             requires_sentiment=True,
@@ -217,9 +219,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             btc_dma_state=committed["btc"],
             eth_dma_state=committed["eth"],
         )
-        if ratio_state is not None and _is_ratio_rotation_intent(
-            intent, ratio_state=ratio_state
-        ):
+        if ratio_state is not None and _is_ratio_rotation_intent(intent):
             self._start_ratio_cooldown(ratio_state.cross_event)
             updated_snapshot = replace(
                 updated_snapshot,
@@ -488,7 +488,7 @@ def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     for key in (
         "flat_dma_assets",
         "portfolio_rule_cooldown_assets",
-        "portfolio_rule_trigger_assets",
+        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
         "portfolio_rule_assets",
     ):
         assets = diagnostics.get(key)
@@ -501,7 +501,7 @@ def _observation_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
     for key in (
         "flat_dma_assets",
-        "portfolio_rule_trigger_assets",
+        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
         "portfolio_rule_assets",
         "portfolio_rule_cooldown_assets",
     ):
@@ -537,21 +537,11 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
     )
 
 
-def _is_ratio_rotation_intent(
-    intent: AllocationIntent,
-    *,
-    ratio_state: EthBtcRatioState | None = None,
-) -> bool:
+def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
     allocation_name = intent.allocation_name
     if not isinstance(allocation_name, str):
         return False
-    if allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX):
-        return True
-    return (
-        allocation_name == "portfolio_eth_btc_continuous_weight"
-        and ratio_state is not None
-        and ratio_state.cross_event is not None
-    )
+    return allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX)
 
 
 def _select_observation_state(
@@ -613,7 +603,6 @@ def _convert_ratio_to_diagnostics(
 
 
 __all__ = [
-    "FLAT_MINIMUM_SIGNAL_ID",
     "FlatMinimumSignalComponent",
     "FlatMinimumState",
     "build_initial_flat_minimum_asset_allocation",

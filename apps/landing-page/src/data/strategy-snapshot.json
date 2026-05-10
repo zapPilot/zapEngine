@@ -4,6 +4,7 @@
   "window_start": "2024-12-02",
   "window_end": "2026-04-15",
   "total_capital": 10000.0,
+  "default_strategy_id": "dma_fgi_portfolio_rules",
   "tolerances": {
     "roi_percent": 2.0,
     "calmar_ratio": 0.1,
@@ -14,11 +15,11 @@
   "strategies": {
     "dma_fgi_portfolio_rules": {
       "display_name": "DMA/FGI Portfolio Rules",
-      "calmar_ratio": 3.7265,
-      "sharpe_ratio": 2.0178,
+      "calmar_ratio": 3.7489,
+      "sharpe_ratio": 2.028,
       "max_drawdown_percent": -9.3248,
-      "roi_percent": 50.5217,
-      "trade_count": 52
+      "roi_percent": 50.8415,
+      "trade_count": 49
     }
   }
 }

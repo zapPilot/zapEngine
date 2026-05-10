@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     add_stable,
@@ -86,7 +87,7 @@ class CrossDownExitRule:
             else None,
         )
         diagnostics = dict(intent.diagnostics or {})
-        diagnostics["portfolio_rule_trigger_assets"] = matching_symbols
+        diagnostics[DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS] = matching_symbols
         diagnostics["portfolio_rule_exit_assets"] = exit_symbols
         diagnostics["portfolio_rule_cooldown_assets"] = exit_symbols
         diagnostics["portfolio_rule_forced_cross_events"] = dict.fromkeys(

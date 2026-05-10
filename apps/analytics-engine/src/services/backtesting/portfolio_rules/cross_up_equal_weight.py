@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     ALLOCATION_KEY_BY_SYMBOL,
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     allocation_key_for_symbol,
@@ -70,7 +71,7 @@ class CrossUpEqualWeightRule:
             else None,
         )
         diagnostics = dict(intent.diagnostics or {})
-        diagnostics["portfolio_rule_trigger_assets"] = trigger_symbols
+        diagnostics[DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS] = trigger_symbols
         return replace(intent, diagnostics=diagnostics)
 
 

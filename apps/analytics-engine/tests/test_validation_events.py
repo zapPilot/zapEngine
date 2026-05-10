@@ -153,8 +153,6 @@ def _shape_event_market(
         _shape_eth_btc_deviation_dca(rows, dates)
     elif event.id == "spy_latch_absorb_fresh_stable_2026_04_16":
         _shape_spy_latch_absorption(rows, sentiments, dates, event_date)
-    elif event.id == "eth_btc_continuous_weight_2025_07_15":
-        _shape_eth_btc_continuous_weight(rows, dates)
     elif event.event_type == "crypto_cross_down":
         _shape_crypto_cross_down(rows, event_date, event.reference_asset or "BTC")
     elif event.event_type == "crypto_cross_up":
@@ -235,18 +233,6 @@ def _shape_spy_latch_absorption(
         "value": 25,
         "timestamp": event_date.isoformat(),
     }
-
-
-def _shape_eth_btc_continuous_weight(
-    rows: dict[date, dict[str, Any]],
-    dates: list[date],
-) -> None:
-    for current in dates:
-        _set_crypto_zone(rows, current, "BTC", above=True)
-        _set_crypto_zone(rows, current, "ETH", above=True)
-        _set_spy_zone(rows, current, above=False)
-        _set_ratio(rows, current, ratio=1.0)
-    _set_ratio(rows, dates[-1], ratio=1.10)
 
 
 def _shape_crypto_cross_down(

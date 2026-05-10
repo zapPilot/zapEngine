@@ -7,6 +7,8 @@ from datetime import date
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_MATCHED_RULE_NAME,
+    DIAG_SIGNALS_CONSULTED,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_target,
@@ -98,11 +100,11 @@ class TradeQuotaGuard:
             next_trade_date=next_trade_date,
         )
         diagnostics: dict[str, object] = {
-            "matched_rule_name": self.name,
+            DIAG_MATCHED_RULE_NAME: self.name,
             **payload,
         }
         if signals_consulted is not None:
-            diagnostics["signals_consulted"] = signals_consulted
+            diagnostics[DIAG_SIGNALS_CONSULTED] = signals_consulted
         return diagnostics
 
 

@@ -29,6 +29,11 @@ ALLOCATION_KEY_BY_SYMBOL: dict[str, str] = {
 SYMBOL_BY_ALLOCATION_KEY: dict[str, str] = {
     value: key for key, value in ALLOCATION_KEY_BY_SYMBOL.items()
 }
+DIAG_MATCHED_RULE_NAME = "matched_rule_name"
+DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS = "portfolio_rule_trigger_assets"
+DIAG_PORTFOLIO_RULE_COOLDOWN_KEY = "portfolio_rule_cooldown_key"
+DIAG_COOLDOWN_SKIPPED_RULES = "cooldown_skipped_rules"
+DIAG_SIGNALS_CONSULTED = "signals_consulted"
 _EPSILON = 1e-12
 
 if TYPE_CHECKING:
@@ -188,7 +193,7 @@ def portfolio_target_intent(
         "portfolio_rule_assets": [normalize_symbol(asset) for asset in assets]
     }
     if signals_consulted:
-        diagnostics["signals_consulted"] = dict(signals_consulted)
+        diagnostics[DIAG_SIGNALS_CONSULTED] = dict(signals_consulted)
     return replace(intent, diagnostics=diagnostics)
 
 
@@ -300,6 +305,11 @@ def build_dca_sell_intent(
 
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
+    "DIAG_COOLDOWN_SKIPPED_RULES",
+    "DIAG_MATCHED_RULE_NAME",
+    "DIAG_PORTFOLIO_RULE_COOLDOWN_KEY",
+    "DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS",
+    "DIAG_SIGNALS_CONSULTED",
     "PORTFOLIO_RULE_SYMBOLS",
     "SYMBOL_BY_ALLOCATION_KEY",
     "PortfolioRule",

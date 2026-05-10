@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from scripts.attribution._helpers import _metric
+from src.config.strategy_presets import get_default_seed_strategy_config
 from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
 from src.services.backtesting.strategy_registry import (
     get_strategy_recipe,
@@ -270,12 +271,19 @@ def collect_snapshot(
             end_date=reference_date.isoformat(),
             total_capital=total_capital,
         )
+    default_strategy_id = get_default_seed_strategy_config().strategy_id
+    if default_strategy_id not in strategy_ids:
+        raise ValueError(
+            f"Default strategy {default_strategy_id!r} not present in snapshot "
+            "strategies; regenerate with the full strategy set."
+        )
     snapshot: dict[str, Any] = {
         "reference_date": reference_date.isoformat(),
         "window_days": window_days,
         "window_start": start_date.isoformat(),
         "window_end": reference_date.isoformat(),
         "total_capital": total_capital,
+        "default_strategy_id": default_strategy_id,
         "tolerances": {key: tolerances[key] for key in METRIC_KEYS},
         "strategies": {
             strategy_id: _snapshot_strategy_entry(strategy_id, summaries[strategy_id])

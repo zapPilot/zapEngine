@@ -166,7 +166,7 @@ export const MESSAGES = {
   // Backtest proof section
   backtest: {
     title: 'Trades drove the return.',
-    subtitle: `${BACKTEST_SNAPSHOT.windowDays}-day strategy snapshot pinned to ${BACKTEST_SNAPSHOT.referenceDate}. Minimum hierarchical production candidate vs DCA Classic, daily signal evaluation, ${BACKTEST_SNAPSHOT.tradeCount} executed trades.`,
+    subtitle: `${BACKTEST_SNAPSHOT.windowDays}-day strategy snapshot pinned to ${BACKTEST_SNAPSHOT.referenceDate}. ${BACKTEST_SNAPSHOT.displayName} vs DCA Classic, daily signal evaluation, ${BACKTEST_SNAPSHOT.tradeCount} executed trades.`,
     stats: [
       {
         label: 'ROI vs DCA',

@@ -1,6 +1,6 @@
 import strategySnapshot from './strategy-snapshot.json';
 
-const BACKTEST_STRATEGY_ID = 'dma_fgi_hierarchical_minimum';
+const BACKTEST_STRATEGY_ID = strategySnapshot.default_strategy_id;
 
 interface StrategyMetrics {
   display_name: string;
@@ -16,6 +16,7 @@ interface StrategyPerformanceSnapshot {
   window_days: number;
   window_start: string;
   window_end: string;
+  default_strategy_id: string;
   strategies: Record<string, StrategyMetrics>;
 }
 
@@ -44,7 +45,7 @@ export function formatMetricPercent(value: number): string {
   return `${value.toFixed(2)}%`;
 }
 
-export function formatRatio(value: number): string {
+function formatRatio(value: number): string {
   return value.toFixed(2);
 }
 

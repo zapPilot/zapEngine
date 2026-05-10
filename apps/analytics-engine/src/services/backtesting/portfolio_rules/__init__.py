@@ -59,8 +59,12 @@ RULE_NAMES: frozenset[str] = frozenset(RULE_DESCRIPTIONS)
 
 __all__ = [
     "DEFAULT_PORTFOLIO_RULES",
+    "DmaStableGatingRule",
+    "EthBtcDeviationDcaRule",
     "ExtremeFearDcaBuyRule",
+    "GreedSellSuppressionRule",
     "RULE_DESCRIPTIONS",
     "RULE_NAMES",
     "RULE_PRIORITIES",
+    "SpyLatchRule",
 ]

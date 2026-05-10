@@ -17,7 +17,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Commit**: `4bdd93f2` + pending local change (`rule-only portfolio rules migration`)
 - **Finding**: Completed the rule-only migration by adding `SpyLatchRule` as a stateful post-intent adjustment, adding `EthBtcContinuousWeightRule` for saved-config BTC/ETH rotation, rewriting `eth_btc_rotation` onto the `RuleBasedAllocationExecutor`, and deleting the hierarchical/pair-rotation strategy infrastructure.
 - **Deleted infrastructure**: removed `hierarchical_minimum.py`, `hierarchical_outer_policy.py`, `hierarchical_attribution.py`, `spy_crypto_hierarchical_rotation.py`, `pair_rotation_template.py`, the hierarchical attribution sweep/diagnostic scripts, and their dedicated tests.
-- **Snapshot delta vs 2026-05-09 `dma_fgi_portfolio_rules` baseline**: ROI remains 50.5217%, Calmar 3.7265, Sharpe 2.0178, MaxDD -9.3248%, trades 52. The refreshed 500-day fixture removes `dma_fgi_hierarchical_control` and `dma_fgi_hierarchical_minimum`; `eth_btc_rotation` remains 126.2611% ROI, so the rule wrapper stayed within the ±5pp saved-config tolerance.
+- **Snapshot delta vs 2026-05-09 `dma_fgi_portfolio_rules` baseline**: ROI remains 50.5217%, Calmar 3.7265, Sharpe 2.0178, MaxDD -9.3248%, trades 52. The refreshed 500-day fixture removes `dma_fgi_hierarchical_control` and `retired hierarchical minimum`; `eth_btc_rotation` remains 126.2611% ROI, so the rule wrapper stayed within the ±5pp saved-config tolerance.
 - **SPY latch attribution**: added `dma_fgi_portfolio_rules_minus_spy_latch` after the rule-only migration. The 500-day leave-one-out is behavior-neutral vs baseline: ROI 50.5217%, Calmar 3.7265, Sharpe 2.0178, MaxDD -9.3248%, trades 52.
 - **Validation events**: added `spy_latch_absorb_fresh_stable_2026_04_16` for synthetic 14-day latch absorption and `eth_btc_continuous_weight_2025_07_15` for real BTC/ETH continuous weighting. Live `analyze_compare.py` validation passes for `dma_fgi_portfolio_rules` (19 checked) and `eth_btc_rotation` (3 checked).
 - **Known issue carried forward**: `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` still have negative leave-one-out attribution in the flat first-match engine. Next iteration should retune DMA stable gating to an event-driven trigger, revisit greed suppression interaction with overextension sells, and lower/fixture the ETH/BTC deviation DCA thresholds.
@@ -86,13 +86,13 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Commit**: this commit (`dma_fgi_portfolio_rules` research baseline + attribution variants)
 - **Finding**: Added a portfolio-level rule layer parallel to asset-local tactics. The canonical strategy evaluates the five flat rules first-match-wins: cross-down exits, cross-up equal-weight, extreme-fear DCA buy, DMA-overextension DCA sell, and FGI-downshift DCA sell. Each rule has its own file and a leave-one-out strategy id for snapshot attribution.
 - **Result**: `dma_fgi_portfolio_rules` ROI = 9.37%, Calmar 0.29, MaxDD -22.83%, 102 trades.
-- **Attribution sanity**: leave-one-out ROI deltas vs canonical are cross-down exit -0.70pp, cross-up equal-weight -0.51pp, extreme-fear buy -0.39pp, overextension sell +1.91pp, and FGI-downshift sell -0.05pp. The v1 goal is traceability, not beating `dma_fgi_hierarchical_minimum`.
-- **Comparison**: vs `dma_fgi_hierarchical_minimum` (121.30% ROI), -111.93pp ROI; vs `dma_fgi_eth_btc_minimum` (145.28% ROI), -135.91pp ROI.
+- **Attribution sanity**: leave-one-out ROI deltas vs canonical are cross-down exit -0.70pp, cross-up equal-weight -0.51pp, extreme-fear buy -0.39pp, overextension sell +1.91pp, and FGI-downshift sell -0.05pp. The v1 goal is traceability, not beating `retired hierarchical minimum`.
+- **Comparison**: vs `retired hierarchical minimum` (121.30% ROI), -111.93pp ROI; vs `dma_fgi_eth_btc_minimum` (145.28% ROI), -135.91pp ROI.
 
 ### 2026-05-04 — SPY macro extreme fear + persistent SPY latch
-- **Commit**: this commit (`dma_fgi_hierarchical_minimum` production behavior re-anchor)
+- **Commit**: this commit (`retired hierarchical minimum` production behavior re-anchor)
 - **Finding**: Added fixture-backed crypto extreme-fear DCA dates, introduced a SPY-side macro extreme-fear DCA rule using CNN macro F&G plus SPY DMA, and promoted the SPY latch from same-tick-only behavior to persistent fresh-stable absorption while the latch remains active. The 500-day minimum baseline stays inside the ROI noise band while improving risk-adjusted metrics, so the snapshot was re-anchored.
-- **Snapshot delta vs previous `dma_fgi_hierarchical_minimum` baseline**: ROI 121.44% → 121.30% (-0.14pp), Calmar 4.50 → 4.63 (+0.12), Sharpe 1.91 → 1.98 (+0.07), MaxDD -17.46% → -16.97% (+0.48pp), trades 85 → 81 (-4).
+- **Snapshot delta vs previous `retired hierarchical minimum` baseline**: ROI 121.44% → 121.30% (-0.14pp), Calmar 4.50 → 4.63 (+0.12), Sharpe 1.91 → 1.98 (+0.07), MaxDD -17.46% → -16.97% (+0.48pp), trades 85 → 81 (-4).
 - **Validation events**: new constraints pass for crypto extreme-fear DCA on 2025-03-11 and 2025-04-07, SPY macro extreme-fear DCA on 2025-03-13 and 2025-04-08, and persistent latch absorption on 2025-05-24. Proposed 2025-03-09/2025-03-03 were shifted because the trigger gates did not resolve to crypto extreme fear / SPY below-DMA respectively.
 
 ### 2026-05-03 — Flat minimum baseline
@@ -100,18 +100,18 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Rationale**: Break the strategy out of the hierarchical outer SPY/crypto sleeve and inner BTC/ETH ratio framework while preserving the minimum stack's event-driven DMA semantics. The flat baseline removes outer/inner gating, adaptive crypto DMA reference selection, ETH/BTC ratio rotation, and target composers; each of SPY/BTC/ETH gets its own DMA-200 gate. Cross-down sells only the triggering asset to stable, explicit buy intents redeploy existing stable, and no-signal days preserve the current allocation.
 - **Result**: `dma_fgi_flat_minimum` ROI = 24.04%, Calmar 0.93, MaxDD -18.31%, 55 trades.
 - **Comparison**:
-  - vs `dma_fgi_hierarchical_minimum` (121.44% ROI, 4.50 Calmar, -17.46% MaxDD, 85 trades): -97.40pp ROI, -3.57 Calmar, 0.85pp deeper drawdown, -30 trades.
+  - vs `retired hierarchical minimum` (121.44% ROI, 4.50 Calmar, -17.46% MaxDD, 85 trades): -97.40pp ROI, -3.57 Calmar, 0.85pp deeper drawdown, -30 trades.
   - vs `dma_fgi_eth_btc_minimum` (145.28% ROI, 4.46 Calmar, -20.72% MaxDD, 51 trades): -121.24pp ROI, -3.53 Calmar, 2.41pp shallower drawdown, +4 trades.
 - **Validation note**: `analyze_compare.py` on 2025-02-02 now passes `eth_cross_down_2025_02_02` for `dma_fgi_flat_minimum`: `target_allocation.eth = 0.0`, portfolio ETH = 0.0, and stable rises to ~72.11%.
 
 ### 2026-05-02 - SPY tax fix attempt: DMA-discipline variants (Phase D)
 - **Commit**: this commit (DMA cooldown/below-DMA research variants + sweep)
-- **D-1 finding**: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` is BTC 0.00%, ETH 90.48%, SPY 9.52%, stable 0.00%; inner-pair fix needed yes.
+- **D-1 finding**: BTC vs ETH split on 2025-04-22 in `retired hierarchical minimum` is BTC 0.00%, ETH 90.48%, SPY 9.52%, stable 0.00%; inner-pair fix needed yes.
 - **Variants**:
-  - `dma_fgi_hierarchical_minimum_cross_cooldown`: 30-day actionable cross-down cooldown for SPY/BTC/ETH allocation increases.
-  - `dma_fgi_hierarchical_minimum_below_dma_hold`: no allocation increase while SPY/BTC/ETH is below its own DMA, with extreme-fear DCA carve-out.
-  - `dma_fgi_hierarchical_minimum_dma_disciplined`: both constraints together.
-- **Results vs `dma_fgi_hierarchical_minimum` baseline (121.44% ROI, 85 trades)**:
+  - Retired hierarchical minimum cross-cooldown: 30-day actionable cross-down cooldown for SPY/BTC/ETH allocation increases.
+  - Retired hierarchical minimum below-DMA hold: no allocation increase while SPY/BTC/ETH is below its own DMA, with extreme-fear DCA carve-out.
+  - Retired hierarchical minimum DMA-disciplined: both constraints together.
+- **Results vs `retired hierarchical minimum` baseline (121.44% ROI, 85 trades)**:
   - `_cross_cooldown`: ROI 115.35%, delta -6.09pp, trades 73 (delta -12)
   - `_below_dma_hold`: ROI 20.65%, delta -100.79pp, trades 89 (delta +4)
   - `_dma_disciplined`: ROI 19.03%, delta -102.41pp, trades 88 (delta +3)
@@ -123,9 +123,9 @@ Newest first. Each entry: date, commit, finding, key numbers.
 ### 2026-05-02 - SPY tax fix attempt: S1/S4 targeted variants
 - **Commit**: this commit (targeted S1/S4 research variants + sweep)
 - **Variants**:
-  - `dma_fgi_hierarchical_minimum_dma_buffer`: S1 test; requires 3% above-DMA distance before above-DMA DMA buy entries.
-  - `dma_fgi_hierarchical_minimum_dual_above_hold`: S4 test; holds the current outer allocation while both SPY and crypto are above DMA.
-- **Results vs `dma_fgi_hierarchical_minimum` baseline (121.44% ROI, 85 trades)**:
+  - Retired hierarchical minimum DMA-buffer: S1 test; requires 3% above-DMA distance before above-DMA DMA buy entries.
+  - Retired hierarchical minimum dual-above hold: S4 test; holds the current outer allocation while both SPY and crypto are above DMA.
+- **Results vs `retired hierarchical minimum` baseline (121.44% ROI, 85 trades)**:
   - `_dma_buffer`: ROI 121.49%, delta +0.05pp, trades 85 (delta 0)
   - `_dual_above_hold`: ROI 107.69%, delta -13.74pp, trades 72 (delta -13)
 - **Validation**: `validate_hierarchical_events.py --all-strategies` now includes both research variants; all expected hierarchical events pass.
@@ -147,7 +147,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 
 ### 2026-05-02 — SPY tax decomposed via `dma_fgi_eth_btc_minimum`
 - **Commit**: `05326af` (eth_btc_minimum research variant + sweep)
-- **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `dma_fgi_hierarchical_minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
+- **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `retired hierarchical minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
 - **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%, Calmar 4.46, MaxDD -20.72%, 51 trades
 - **Interpretation (Branch 2)**: Greed Sell Suppression is **universal positive** (+4.07pp in 2-asset vs adaptive_binary 141.21%). SPY tax is **23.84pp** (= 145.28 - 121.44), larger than first estimated. SPY tax is **architecture-induced, not asset-induced** — `hierarchical_minimum` executes 33 more trades than the 2-asset version (84 vs 51), strongly suggesting outer SPY/crypto switching is over-active and mistimes asset transitions.
 - **Next iteration target**: diagnose SPY/crypto switch timing in outer pair-template. Suspects: outer DMA gating threshold too aggressive, composition formula shrinks crypto share too fast when SPY rises, symmetric DMA200 windows ignore asset volatility differences, no "both-above-DMA hold" rule (oscillates between SPY and crypto).
@@ -155,15 +155,15 @@ Newest first. Each entry: date, commit, finding, key numbers.
 ### 2026-04-15 — Buy Floor removed, Phase A deprecation
 - **Commit**: `e3e140c` (Buy Floor removal + 8 strategies marked DEPRECATED)
 - **Finding**: `dma_buy_strength_floor` has +0.28pp Δ in the minimum baseline (1 trade difference over 500 days). Below noise threshold. Removed from `MinimumHierarchicalOuterPolicy` at the type level. Added `feature_summary()` method to outer policy Protocol.
-- **Snapshot delta**: `dma_fgi_hierarchical_minimum` 121.16% → ~121.44% (matches old `_minus_buy_floor` exactly, validating behavior-equivalence).
+- **Snapshot delta**: `retired hierarchical minimum` 121.16% → ~121.44% (matches old `_minus_buy_floor` exactly, validating behavior-equivalence).
 - **Deprecated**: 4 `full_minus_*` Phase 1 variants (poisoned by Adaptive DMA), `adaptive_dma_only`, `fear_recovery_only`, two `(sucks)` controls.
 
-### 2026-04-15 — `dma_fgi_hierarchical_minimum` shipped
+### 2026-04-15 — `retired hierarchical minimum` shipped
 - **Commit**: `fe8db22`
 - **Finding**: Minimum hierarchical SPY/crypto strategy (DMA gating + Greed Sell Suppression + Buy Floor + inner ETH/BTC rotation) hits 121.16% ROI vs production 36.62%. Validates that Adaptive DMA Reference + Fear Recovery Buy + SPY Cross-Up Latch are all unnecessary or harmful.
 - **Architecture**: introduced `HierarchicalOuterDecisionPolicy` Protocol, extracted `FullFeaturedOuterPolicy` from existing strategy class (behavior-preserving refactor), added `MinimumHierarchicalOuterPolicy` as a 2-feature composition.
 - **Snapshot deltas**:
-  - `dma_fgi_hierarchical_minimum`: 121.16% ROI, 4.50 Calmar
+  - `retired hierarchical minimum`: 121.16% ROI, 4.50 Calmar
   - `_minus_greed_suppression`: 99.11% (-22.05pp Δ — Greed Sell Suppression strongest active feature)
   - `_minus_buy_floor`: 121.44% (+0.28pp Δ — Buy Floor noise; led to next iteration)
   - `_minus_dma_gating`: 24.48% (-96.68pp Δ — DMA gating is foundation)

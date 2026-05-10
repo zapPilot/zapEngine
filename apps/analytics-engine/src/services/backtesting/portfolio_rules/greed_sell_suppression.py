@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_MATCHED_RULE_NAME,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_fgi_regime_for_symbol,
@@ -70,7 +71,7 @@ class GreedSellSuppressionRule:
             else None,
         )
         diagnostics = dict(intent.diagnostics or {})
-        diagnostics["matched_rule_name"] = self.name
+        diagnostics[DIAG_MATCHED_RULE_NAME] = self.name
         return replace(intent, diagnostics=diagnostics)
 
 

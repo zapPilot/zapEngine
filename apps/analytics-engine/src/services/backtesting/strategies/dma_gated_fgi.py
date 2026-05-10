@@ -245,10 +245,6 @@ class DmaGatedFgiParams(BaseModel):
         )
 
 
-def default_dma_gated_fgi_params() -> dict[str, JsonValue]:
-    return DmaGatedFgiParams().to_public_params()
-
-
 def _hold_reason(zone: Zone) -> str:
     return hold_reason(zone)
 
@@ -464,5 +460,4 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
 __all__ = [
     "DmaGatedFgiParams",
     "DmaGatedFgiSignalComponent",
-    "default_dma_gated_fgi_params",
 ]

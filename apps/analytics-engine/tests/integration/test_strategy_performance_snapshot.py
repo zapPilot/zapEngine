@@ -42,6 +42,13 @@ def test_portfolio_rules_snapshot_entry_exists() -> None:
     assert metrics["roi_percent"] is not None
 
 
+def test_default_strategy_snapshot_entry_exists() -> None:
+    snapshot = load_snapshot()
+    default_strategy_id = snapshot.get("default_strategy_id")
+    assert isinstance(default_strategy_id, str)
+    assert default_strategy_id in snapshot["strategies"]
+
+
 def test_every_registered_strategy_has_snapshot_entry() -> None:
     """Snapshot must cover the entire production measurement strategy universe."""
     snapshot = load_snapshot()

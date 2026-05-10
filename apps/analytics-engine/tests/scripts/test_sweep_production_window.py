@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 from pytest import MonkeyPatch
@@ -55,6 +56,11 @@ def test_collect_snapshot_can_use_in_process_client_without_endpoint(
         "_default_strategy_universe",
         lambda *, exclude_deprecated=False: ["strategy-a"],
     )
+    monkeypatch.setattr(
+        sweep_production_window,
+        "get_default_seed_strategy_config",
+        lambda: SimpleNamespace(strategy_id="strategy-a"),
+    )
     client = FakeCompareClient()
 
     snapshot = collect_snapshot(
@@ -70,4 +76,5 @@ def test_collect_snapshot_can_use_in_process_client_without_endpoint(
     assert client.posted_urls == [sweep_production_window.COMPARE_PATH]
     assert client.requests[0]["start_date"] == "2026-04-14"
     assert client.requests[0]["end_date"] == "2026-04-15"
+    assert snapshot["default_strategy_id"] == "strategy-a"
     assert snapshot["strategies"]["strategy-a"]["roi_percent"] == 24.75

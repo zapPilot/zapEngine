@@ -7,6 +7,7 @@ from typing import Any
 
 from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_PORTFOLIO_RULE_COOLDOWN_KEY,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_target,
@@ -98,7 +99,7 @@ class EthBtcDeviationDcaRule:
             else None,
         )
         diagnostics = dict(intent.diagnostics or {})
-        diagnostics["portfolio_rule_cooldown_key"] = [
+        diagnostics[DIAG_PORTFOLIO_RULE_COOLDOWN_KEY] = [
             self.name,
             str(tier["cooldown_suffix"]),
         ]

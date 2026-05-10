@@ -33,6 +33,11 @@ from src.services.backtesting.portfolio_rules import (
     RULE_PRIORITIES,
 )
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_COOLDOWN_SKIPPED_RULES,
+    DIAG_MATCHED_RULE_NAME,
+    DIAG_PORTFOLIO_RULE_COOLDOWN_KEY,
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+    DIAG_SIGNALS_CONSULTED,
     PORTFOLIO_RULE_SYMBOLS,
     PortfolioRule,
     PortfolioRuleConfig,
@@ -96,10 +101,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     _trade_dates: list[date] = field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:
-        invalid_rules = sorted(self.disabled_rules - RULE_NAMES)
-        if invalid_rules:
-            joined = ", ".join(invalid_rules)
-            raise ValueError(f"Unsupported portfolio rule names: {joined}")
+        _assert_known_rule_names(self.disabled_rules)
 
     def reset(self) -> None:
         self._previous_fgi_regime = {}
@@ -227,10 +229,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             if isinstance(self.params, DmaGatedFgiParams)
             else DmaGatedFgiParams.from_public_params(self.params)
         )
-        invalid_rules = sorted(self.disabled_rules - RULE_NAMES)
-        if invalid_rules:
-            joined = ", ".join(invalid_rules)
-            raise ValueError(f"Unsupported portfolio rule names: {joined}")
+        _assert_known_rule_names(self.disabled_rules)
 
         self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
@@ -367,6 +366,13 @@ def _required_rule(
     raise ValueError(f"Missing required portfolio rule: {rule_type.__name__}")
 
 
+def _assert_known_rule_names(disabled_rules: frozenset[str]) -> None:
+    invalid_rules = sorted(disabled_rules - RULE_NAMES)
+    if invalid_rules:
+        joined = ", ".join(invalid_rules)
+        raise ValueError(f"Unsupported portfolio rule names: {joined}")
+
+
 def build_risk_guards_for_params(
     params: DmaGatedFgiParams,
 ) -> tuple[RiskGuard, ...]:
@@ -430,7 +436,7 @@ def _matched_rule_priority(intent: AllocationIntent) -> int | None:
 
 def _matched_rule_name(intent: AllocationIntent) -> str | None:
     diagnostics = intent.diagnostics or {}
-    matched_rule = diagnostics.get("matched_rule_name")
+    matched_rule = diagnostics.get(DIAG_MATCHED_RULE_NAME)
     return matched_rule if isinstance(matched_rule, str) else None
 
 
@@ -450,7 +456,7 @@ def _cooldown_keyed_by_trigger_symbol(rule: PortfolioRule) -> bool:
 
 def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
     diagnostics = intent.diagnostics or {}
-    raw_symbols = diagnostics.get("portfolio_rule_trigger_assets")
+    raw_symbols = diagnostics.get(DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS)
     if not isinstance(raw_symbols, list):
         return []
     return [symbol for symbol in raw_symbols if isinstance(symbol, str)]
@@ -458,7 +464,7 @@ def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
 
 def _cooldown_key_from_intent(intent: AllocationIntent) -> RuleCooldownKey | None:
     diagnostics = intent.diagnostics or {}
-    raw_key = diagnostics.get("portfolio_rule_cooldown_key")
+    raw_key = diagnostics.get(DIAG_PORTFOLIO_RULE_COOLDOWN_KEY)
     if isinstance(raw_key, str):
         return raw_key
     if (
@@ -533,9 +539,9 @@ def resolve_portfolio_rules_intent(
                 continue
             intent = rule.build_intent(snapshot, config=resolved_config)
             diagnostics = dict(intent.diagnostics or {})
-            diagnostics.setdefault("matched_rule_name", rule.name)
+            diagnostics.setdefault(DIAG_MATCHED_RULE_NAME, rule.name)
             if cooldown_skipped_rules:
-                diagnostics["cooldown_skipped_rules"] = cooldown_skipped_rules
+                diagnostics[DIAG_COOLDOWN_SKIPPED_RULES] = cooldown_skipped_rules
             return replace(intent, diagnostics=diagnostics)
     return AllocationIntent(
         action="hold",
@@ -546,15 +552,15 @@ def resolve_portfolio_rules_intent(
         rule_group="none",
         decision_score=0.0,
         diagnostics={
-            "matched_rule_name": "regime_no_signal_hold",
+            DIAG_MATCHED_RULE_NAME: "regime_no_signal_hold",
             **(
-                {"cooldown_skipped_rules": cooldown_skipped_rules}
+                {DIAG_COOLDOWN_SKIPPED_RULES: cooldown_skipped_rules}
                 if cooldown_skipped_rules
                 else {}
             ),
             **(
                 {
-                    "signals_consulted": signals_consulted_for_symbols(
+                    DIAG_SIGNALS_CONSULTED: signals_consulted_for_symbols(
                         snapshot,
                         tuple(symbols_for_snapshot(snapshot)),
                     )
@@ -574,16 +580,33 @@ def _rule_cooldown_diagnostic(
     cooldown_days: int,
     last_executed: Mapping[RuleCooldownKey, date],
 ) -> dict[str, object] | None:
+    cooldown = _cooldown_entry(
+        cooldown_key=cooldown_key,
+        cooldown_days=cooldown_days,
+        current_date=snapshot.current_date,
+        last_executed=last_executed,
+    )
+    if cooldown is None:
+        return None
+    return {"rule": rule.name, **cooldown}
+
+
+def _cooldown_entry(
+    *,
+    cooldown_key: RuleCooldownKey,
+    cooldown_days: int,
+    current_date: date | None,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
     last_executed_at = last_executed.get(cooldown_key)
     remaining_days = rule_cooldown_remaining_days(
         cooldown_days=cooldown_days,
         last_executed_at=last_executed_at,
-        current_date=snapshot.current_date,
+        current_date=current_date,
     )
     if remaining_days <= 0 or last_executed_at is None:
         return None
     return {
-        "rule": rule.name,
         "last_executed_at": last_executed_at.isoformat(),
         "cooldown_days": max(0, int(cooldown_days)),
         "remaining_days": remaining_days,
@@ -632,27 +655,29 @@ def _trigger_symbol_cooldown_diagnostic(
     trigger_symbols = _trigger_symbols_for_cooldown(rule, snapshot)
     if not trigger_symbols:
         return None
-    symbol_cooldowns: list[dict[str, object]] = []
-    remaining_values: list[int] = []
+    symbol_entries: list[tuple[str, dict[str, object]]] = []
     for symbol in trigger_symbols:
-        last_executed_at = last_executed.get((rule.name, symbol))
-        remaining_days = rule_cooldown_remaining_days(
+        cooldown = _cooldown_entry(
+            cooldown_key=(rule.name, symbol),
             cooldown_days=rule.cooldown_days,
-            last_executed_at=last_executed_at,
             current_date=snapshot.current_date,
+            last_executed=last_executed,
         )
-        if remaining_days <= 0 or last_executed_at is None:
-            continue
-        remaining_values.append(remaining_days)
-        symbol_cooldowns.append(
-            {
-                "symbol": symbol,
-                "last_executed_at": last_executed_at.isoformat(),
-                "remaining_days": remaining_days,
-            }
-        )
-    if len(symbol_cooldowns) != len(trigger_symbols):
+        if cooldown is not None:
+            symbol_entries.append((symbol, cooldown))
+    if len(symbol_entries) != len(trigger_symbols):
         return None
+    remaining_values = [
+        cast(int, cooldown["remaining_days"]) for _, cooldown in symbol_entries
+    ]
+    symbol_cooldowns = [
+        {
+            "symbol": symbol,
+            "last_executed_at": cooldown["last_executed_at"],
+            "remaining_days": cooldown["remaining_days"],
+        }
+        for symbol, cooldown in symbol_entries
+    ]
     return {
         "rule": rule.name,
         "cooldown_days": max(0, int(rule.cooldown_days)),

@@ -1,6 +1,6 @@
 #!/usr/bin/env pnpm tsx
 
-import { readFileSync } from 'node:fs';
+import { copyFileSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
@@ -19,10 +19,22 @@ function readJson(path: string): unknown {
 }
 
 function main() {
+  const shouldFix = process.argv.includes('--fix');
   const analyticsSnapshot = readJson(ANALYTICS_SNAPSHOT);
   const landingPageSnapshot = readJson(LANDING_PAGE_SNAPSHOT);
 
   if (!isDeepStrictEqual(analyticsSnapshot, landingPageSnapshot)) {
+    if (shouldFix) {
+      copyFileSync(ANALYTICS_SNAPSHOT, LANDING_PAGE_SNAPSHOT);
+      console.log(
+        `Synced strategy snapshot: ${relative(
+          ROOT,
+          ANALYTICS_SNAPSHOT,
+        )} → ${relative(ROOT, LANDING_PAGE_SNAPSHOT)}`,
+      );
+      return;
+    }
+
     console.error('Strategy snapshot drift detected.');
     console.error(
       `Copy ${relative(ROOT, ANALYTICS_SNAPSHOT)} to ${relative(

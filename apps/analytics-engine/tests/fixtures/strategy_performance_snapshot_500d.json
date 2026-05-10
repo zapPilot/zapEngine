@@ -4,6 +4,7 @@
   "window_start": "2024-12-02",
   "window_end": "2026-04-15",
   "total_capital": 10000.0,
+  "default_strategy_id": "dma_fgi_portfolio_rules",
   "tolerances": {
     "roi_percent": 2.0,
     "calmar_ratio": 0.1,
