@@ -6,6 +6,28 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
+    'likedEpisodeIds exposes the currently liked episodes from the stream',
+    () async {
+      final service = _FakeLikesService();
+      final provider = LikesProvider(likesService: service);
+
+      provider.watchUser('user-1');
+      service.addSnapshot(
+        const LikeSnapshot(
+          likedEpisodeIds: {'episode-1', 'episode-2'},
+          counts: {'episode-1': 2, 'episode-2': 1},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.likedEpisodeIds, {'episode-1', 'episode-2'});
+
+      provider.dispose();
+      service.dispose();
+    },
+  );
+
+  test(
     'watchUser stores stream errors instead of letting them escape',
     () async {
       final service = _FakeLikesService();
@@ -33,6 +55,8 @@ class _FakeLikesService extends LikesService {
   Stream<LikeSnapshot> streamLikeSnapshot(String userId) => _controller.stream;
 
   void addError(Object error) => _controller.addError(error);
+
+  void addSnapshot(LikeSnapshot snapshot) => _controller.add(snapshot);
 
   void dispose() {
     _controller.close();

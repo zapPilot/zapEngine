@@ -5,8 +5,8 @@ import 'package:zapengine_tokens/design_tokens.dart';
 import '../models/episode.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../widgets/bookmark_button.dart';
 import '../widgets/episode_hero_frame.dart';
-import '../widgets/like_button.dart';
 import '../widgets/play_pause_button.dart';
 import '../widgets/playback_speed_menu.dart';
 import '../widgets/share_button.dart';
@@ -432,7 +432,7 @@ class _ActionRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        LikeButton(episode: episode),
+        BookmarkButton(episode: episode),
         ShareButton(episode: episode),
       ],
     );

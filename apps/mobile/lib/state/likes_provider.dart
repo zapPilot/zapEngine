@@ -32,6 +32,13 @@ class LikesProvider extends ChangeNotifier {
 
   Object? get streamError => _streamError;
 
+  Set<String> get likedEpisodeIds {
+    return {
+      for (final entry in _states.entries)
+        if (entry.value.liked) entry.key,
+    };
+  }
+
   EpisodeLikeState stateFor(Episode episode) {
     return _states[episode.id] ??
         EpisodeLikeState(liked: false, count: episode.likeCount);

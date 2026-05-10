@@ -7,8 +7,8 @@ import '../models/episode_status.dart';
 import '../screens/episode_detail_screen.dart';
 import '../theme/colors.dart';
 import '../utils/date_format.dart';
+import 'bookmark_button.dart';
 import 'episode_status_badge.dart';
-import 'like_button.dart';
 import 'play_pause_button.dart';
 import 'share_button.dart';
 
@@ -76,7 +76,7 @@ class EpisodeCard extends StatelessWidget {
                             formatEpisodeDate(episode.createdAt),
                             style: theme.textTheme.bodySmall,
                           ),
-                          LikeButton(episode: episode, compact: true),
+                          BookmarkButton(episode: episode, compact: true),
                           ShareButton(episode: episode, compact: true),
                         ],
                       ),
