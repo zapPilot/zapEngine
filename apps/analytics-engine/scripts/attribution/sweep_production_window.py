@@ -13,20 +13,11 @@ from typing import Any
 import httpx
 
 from scripts.attribution._helpers import _metric
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_ETH_BTC_ROTATION,
+from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
+from src.services.backtesting.strategy_registry import (
+    get_strategy_recipe,
+    list_strategy_recipes,
 )
-from src.services.backtesting.strategies.hierarchical_attribution import (
-    HIERARCHICAL_ATTRIBUTION_VARIANTS,
-)
-from src.services.backtesting.strategies.hierarchical_minimum import (
-    MINIMUM_HIERARCHICAL_VARIANTS,
-)
-from src.services.backtesting.strategies.portfolio_rules_attribution import (
-    PORTFOLIO_RULES_ATTRIBUTION_VARIANTS,
-)
-from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
@@ -93,12 +84,8 @@ def _is_excluded_strategy(strategy_id: str) -> bool:
 def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]:
     strategy_ids: list[str] = []
     seen: set[str] = set()
-    for strategy_id in (
-        *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
-        *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
-        *PORTFOLIO_RULES_ATTRIBUTION_VARIANTS.keys(),
-        STRATEGY_ETH_BTC_ROTATION,
-    ):
+    for recipe in list_strategy_recipes():
+        strategy_id = recipe.strategy_id
         if strategy_id in seen:
             continue
         if exclude_deprecated and _is_excluded_strategy(strategy_id):

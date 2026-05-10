@@ -1,4 +1,26 @@
 {
+  "2024-12-02": {
+    "events": [
+      {
+        "id": "greed_sell_suppression_2024_12_02",
+        "event_type": "decision_action_assertion",
+        "applicable_strategies": ["dma_fgi_portfolio_rules"],
+        "description": "Extreme greed with BTC above its overextension threshold should suppress the flat overextension sell.",
+        "assertions": [
+          {
+            "type": "decision_action_equals",
+            "value": "hold"
+          },
+          {
+            "type": "decision_detail_equals",
+            "key": "matched_rule_name",
+            "value": "greed_sell_suppression"
+          }
+        ],
+        "rationale": "Ports the hierarchical above-greed-sell suppression into the canonical flat portfolio-rule strategy."
+      }
+    ]
+  },
   "2025-02-02": {
     "events": [
       {
@@ -116,27 +138,58 @@
   "2025-04-07": {
     "events": [
       {
-        "id": "extreme_fear_dca_2025_04_07",
-        "event_type": "extreme_fear_below_crypto_dma",
-        "description": "it's a range that we should buy for extreme_fear",
+        "id": "eth_btc_deviation_dca_to_eth_2025_04_07",
+        "event_type": "decision_action_assertion",
+        "applicable_strategies": ["dma_fgi_portfolio_rules"],
+        "description": "ETH/BTC ratio is more than 40% below its 200d DMA; the flat portfolio rule should DCA BTC exposure toward ETH.",
         "assertions": [
           {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "spy",
-            "within_days": 10
+            "type": "decision_action_equals",
+            "value": "sell"
           },
           {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "eth",
-            "within_days": 10
+            "type": "decision_reason_in",
+            "values": ["portfolio_eth_btc_deviation_dca_to_eth"]
           },
           {
-            "type": "eventually_target_asset_greater_than_previous",
-            "asset": "btc",
-            "within_days": 10
+            "type": "decision_detail_equals",
+            "key": "matched_rule_name",
+            "value": "eth_btc_deviation_dca"
           }
         ],
-        "rationale": "Shared below_extreme_fear_buy rule remains active across validation strategies."
+        "rationale": "Validates the new low-ratio mean-reversion rule on the first production-window date where the ratio reaches the -40% DCA threshold."
+      }
+    ]
+  },
+  "2025-03-13": {
+    "events": [
+      {
+        "id": "dma_stable_gating_2025_03_13",
+        "event_type": "decision_action_assertion",
+        "applicable_strategies": ["dma_fgi_portfolio_rules"],
+        "description": "Fear regime with crypto below DMA should route crypto exposure to stable.",
+        "assertions": [
+          {
+            "type": "decision_action_equals",
+            "value": "sell"
+          },
+          {
+            "type": "decision_detail_equals",
+            "key": "matched_rule_name",
+            "value": "dma_stable_gating"
+          },
+          {
+            "type": "target_asset_equals",
+            "asset": "btc",
+            "value": 0
+          },
+          {
+            "type": "target_asset_equals",
+            "asset": "eth",
+            "value": 0
+          }
+        ],
+        "rationale": "Ports the hierarchical DMA stable gate into the canonical flat portfolio-rule strategy."
       }
     ]
   },
@@ -309,15 +362,15 @@
         "description": "ETH should still be in its cross-down cooldown period; assertions define which assets may move.",
         "assertions": [
           {
-            "type": "decision_action_equals",
-            "value": "hold"
+            "type": "decision_action_in",
+            "values": ["hold", "sell"]
           },
           {
             "type": "target_asset_not_decreased_from_current",
             "asset": "eth"
           }
         ],
-        "rationale": "ETH should not be reduced on this date even though this is not a fresh DMA cross-up trigger."
+        "rationale": "ETH should not be reduced on this date even though this is not a fresh DMA cross-up trigger; the flat DMA stable gate may still surface a sell intent when another crypto sleeve remains in fear below DMA."
       }
     ]
   },

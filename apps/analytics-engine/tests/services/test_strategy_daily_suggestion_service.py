@@ -171,7 +171,7 @@ def test_map_portfolio_to_buckets_uses_two_bucket_model() -> None:
     )
 
 
-def test_get_daily_suggestion_rejects_non_dma_preset(
+def test_get_daily_suggestion_rejects_unsupported_preset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, mocks = _service()
@@ -181,15 +181,14 @@ def test_get_daily_suggestion_rejects_non_dma_preset(
     monkeypatch.setattr(
         "src.services.strategy.strategy_daily_suggestion_service.resolve_saved_strategy_config",
         lambda _saved_config, **_: SimpleNamespace(
-            strategy_id="dma_fgi_portfolio_rules_minus_cross_down_exit",
+            strategy_id="dma_fgi_portfolio_rules",
             supports_daily_suggestion=False,
         ),
     )
     with pytest.raises(
         ValueError,
         match=(
-            "Strategy 'dma_fgi_portfolio_rules_minus_cross_down_exit' "
-            "does not support /daily-suggestion"
+            "Strategy 'dma_fgi_portfolio_rules' does not support /daily-suggestion"
         ),
     ):
         service.get_daily_suggestion(UUID(int=1))

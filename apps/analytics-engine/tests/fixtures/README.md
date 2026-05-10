@@ -58,10 +58,9 @@ Optional event fields:
 - `rationale`: why this behavior matters.
 
 `applicable_strategies` is only for strategies where the validated capability is
-intentionally disabled, such as leave-one-out variants
-`dma_fgi_portfolio_rules_minus_*`. Do not use it to exclude a strategy that is
-designed to support the event but currently fails. In that case, fix the rule,
-sizing, or assertion semantics so the failure stays loud.
+intentionally unavailable. Do not use it to exclude a strategy that is designed
+to support the event but currently fails. In that case, fix the rule, sizing, or
+assertion semantics so the failure stays loud.
 
 ## Event Types
 

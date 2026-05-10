@@ -96,7 +96,6 @@ omit = [
     "src/services/backtesting/strategies/hierarchical_minimum.py",
     "src/services/backtesting/strategies/hierarchical_outer_policy.py",
     "src/services/backtesting/strategies/hierarchical_attribution.py",
-    "src/services/backtesting/strategies/portfolio_rules_attribution.py",
     "src/services/backtesting/strategies/pair_rotation_template.py",
     "src/services/backtesting/strategies/dma_top_escape.py",
     # Validation/audit tooling is verified by its own tests and fixture runs,

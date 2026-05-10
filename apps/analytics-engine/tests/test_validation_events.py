@@ -142,7 +142,13 @@ def _shape_event_market(
 ) -> None:
     event_date = date.fromisoformat(event.event_date)
     previous_date = event_date - timedelta(days=1)
-    if event.event_type == "crypto_cross_down":
+    if event.id == "greed_sell_suppression_2024_12_02":
+        _shape_greed_sell_suppression(rows, sentiments, event_date)
+    elif event.id == "dma_stable_gating_2025_03_13":
+        _shape_dma_stable_gating(rows, sentiments, dates)
+    elif event.id == "eth_btc_deviation_dca_to_eth_2025_04_07":
+        _shape_eth_btc_deviation_dca(rows, dates)
+    elif event.event_type == "crypto_cross_down":
         _shape_crypto_cross_down(rows, event_date, event.reference_asset or "BTC")
     elif event.event_type == "crypto_cross_up":
         _shape_crypto_cross_up(rows, dates, event_date, event.reference_asset or "BTC")
@@ -161,6 +167,43 @@ def _shape_event_market(
         _shape_ratio_cross(rows, dates, event_date, previous_ratio=1.2, event_ratio=0.8)
     elif event.id == "cooldown_period_2025_03_24":
         _shape_cooldown_event(rows, dates, event_date)
+
+
+def _shape_greed_sell_suppression(
+    rows: dict[date, dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    event_date: date,
+) -> None:
+    rows[event_date]["price"] = 150.0
+    rows[event_date]["prices"]["btc"] = 150.0
+    sentiments[event_date] = {
+        "label": "extreme_greed",
+        "value": 90,
+        "timestamp": event_date.isoformat(),
+    }
+
+
+def _shape_dma_stable_gating(
+    rows: dict[date, dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    dates: list[date],
+) -> None:
+    for current in dates:
+        _set_crypto_zone(rows, current, "BTC", above=False)
+        _set_crypto_zone(rows, current, "ETH", above=False)
+        sentiments[current] = {
+            "label": "fear",
+            "value": 25,
+            "timestamp": current.isoformat(),
+        }
+
+
+def _shape_eth_btc_deviation_dca(
+    rows: dict[date, dict[str, Any]],
+    dates: list[date],
+) -> None:
+    for current in dates:
+        _set_ratio(rows, current, ratio=0.55)
 
 
 def _shape_crypto_cross_down(

@@ -15,7 +15,14 @@ from src.services.backtesting.capabilities import (
     map_portfolio_to_eth_btc_stable_buckets,
     map_portfolio_to_spy_eth_btc_stable_buckets,
 )
-from src.services.backtesting.constants import STRATEGY_ETH_BTC_ROTATION
+from src.services.backtesting.constants import (
+    STRATEGY_DISPLAY_NAMES,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
+    STRATEGY_ETH_BTC_ROTATION,
+)
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
@@ -50,9 +57,6 @@ from src.services.backtesting.strategies.hierarchical_minimum import (
 from src.services.backtesting.strategies.pair_rotation_template import (
     ADAPTIVE_BINARY_ETH_BTC_TEMPLATE,
     build_initial_pair_asset_allocation,
-)
-from src.services.backtesting.strategies.portfolio_rules_attribution import (
-    PORTFOLIO_RULES_ATTRIBUTION_VARIANTS,
 )
 from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
     SPY_CRYPTO_TEMPLATE,
@@ -178,18 +182,18 @@ def _build_compare_price_row_initial_asset_allocation(
 def _build_portfolio_rules_strategy(
     request: StrategyBuildRequest,
     *,
-    variant_id: str,
+    default_strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    disabled_rules: frozenset[str] = frozenset(),
 ) -> BaseStrategy:
     params = DmaGatedFgiParams.from_public_params(request.params)
-    variant = PORTFOLIO_RULES_ATTRIBUTION_VARIANTS[variant_id]
-    strategy_id = request.resolved_config_id or variant_id
+    strategy_id = request.resolved_config_id or default_strategy_id
     return DmaFgiPortfolioRulesStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,
         display_name=strategy_id,
-        canonical_strategy_id=variant_id,
-        disabled_rules=variant.disabled_rules,
+        canonical_strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+        disabled_rules=disabled_rules,
         initial_asset_allocation=_build_compare_price_row_initial_asset_allocation(
             request,
             build_initial_portfolio_rules_asset_allocation,
@@ -197,11 +201,16 @@ def _build_portfolio_rules_strategy(
     )
 
 
-def _make_portfolio_rules_builder(variant_id: str) -> StrategyBuilder:
+def _make_portfolio_rules_builder(
+    *,
+    strategy_id: str,
+    disabled_rules: frozenset[str],
+) -> StrategyBuilder:
     def _builder(request: StrategyBuildRequest) -> BaseStrategy:
         return _build_portfolio_rules_strategy(
             request,
-            variant_id=variant_id,
+            default_strategy_id=strategy_id,
+            disabled_rules=disabled_rules,
         )
 
     return _builder
@@ -383,12 +392,19 @@ def _build_hierarchical_minimum_recipe(strategy_id: str) -> StrategyRecipe:
     )
 
 
-def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
-    variant = PORTFOLIO_RULES_ATTRIBUTION_VARIANTS[strategy_id]
+def _build_portfolio_rules_recipe(
+    *,
+    strategy_id: str = STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    disabled_rules: frozenset[str] = frozenset(),
+) -> StrategyRecipe:
     return StrategyRecipe(
         strategy_id=strategy_id,
-        display_name=variant.display_name,
-        description=variant.description,
+        display_name=STRATEGY_DISPLAY_NAMES[strategy_id],
+        description=(
+            "Canonical flat portfolio-rule strategy with all DMA/FGI rules enabled."
+            if not disabled_rules
+            else "Leave-one-out portfolio-rule attribution variant."
+        ),
         signal_id="dma_fgi_portfolio_rules_signal",
         primary_asset="BTC",
         warmup_lookback_days=14,
@@ -400,7 +416,10 @@ def _build_portfolio_rules_recipe(strategy_id: str) -> StrategyRecipe:
         param_family="dma",
         runtime_portfolio_mode="asset",
         normalize_public_params=_normalize_dma_public_params,
-        build_strategy=_make_portfolio_rules_builder(strategy_id),
+        build_strategy=_make_portfolio_rules_builder(
+            strategy_id=strategy_id,
+            disabled_rules=disabled_rules,
+        ),
         supports_daily_suggestion=False,
     )
 
@@ -422,10 +441,25 @@ _RECIPES: dict[str, StrategyRecipe] = {
         build_strategy=_build_eth_btc_rotation_strategy,
         supports_daily_suggestion=True,
     ),
-    **{
-        strategy_id: _build_portfolio_rules_recipe(strategy_id)
-        for strategy_id in PORTFOLIO_RULES_ATTRIBUTION_VARIANTS
-    },
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES: _build_portfolio_rules_recipe(),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING: (
+        _build_portfolio_rules_recipe(
+            strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
+            disabled_rules=frozenset({"dma_stable_gating"}),
+        )
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION: (
+        _build_portfolio_rules_recipe(
+            strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
+            disabled_rules=frozenset({"greed_sell_suppression"}),
+        )
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA: (
+        _build_portfolio_rules_recipe(
+            strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
+            disabled_rules=frozenset({"eth_btc_deviation_dca"}),
+        )
+    ),
     **{
         strategy_id: _build_hierarchical_attribution_recipe(strategy_id)
         for strategy_id in HIERARCHICAL_ATTRIBUTION_VARIANTS

@@ -37,12 +37,7 @@ Source files:
 
 | Strategy | ROI (500d) | Notes |
 |---|---|---|
-| `dma_fgi_portfolio_rules` | 64.10% | Flat rule-engine baseline |
-| `dma_fgi_portfolio_rules_minus_cross_down_exit` | 27.80% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_cross_up_eq_weight` | 10.69% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_extreme_fear_buy` | 65.25% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_overextension_sell` | 51.24% | Portfolio rules leave-one-out |
-| `dma_fgi_portfolio_rules_minus_fgi_downshift_sell` | 64.61% | Portfolio rules leave-one-out |
+| `dma_fgi_portfolio_rules` | 50.52% | Flat rule-engine baseline after 2026-05-09 rule ports; new ports need review |
 | `eth_btc_rotation` | 126.26% | Saved-config live default |
 | `dma_fgi_hierarchical_control` | 88.64% | Attribution baseline |
 | `dma_fgi_hierarchical_minimum` | 121.30% | Current production target |
@@ -50,13 +45,16 @@ Source files:
 ### Portfolio rules family
 
 `dma_fgi_portfolio_rules` is the canonical flat rule-engine baseline. It keeps
-the seven user-facing strategy rules in `portfolio_rules/` as portfolio-snapshot
+the nine user-facing strategy rules in `portfolio_rules/` as portfolio-snapshot
 rules, then applies post-decision risk guards from `risk/` before atomic
 execution through `RuleBasedAllocationExecutor`. Cross-down cooldown is per
 symbol: BTC/ETH/SPY use 30 days by default. The 500-day fixture baseline is
-64.10% ROI, 4.27 Calmar, -10.20% MaxDD, and 48 trades. It is a traceability
+50.52% ROI, 3.73 Calmar, -9.32% MaxDD, and 52 trades. It is a traceability
 baseline, not a performance target; compare rule attribution against the
-canonical entry.
+canonical entry. The 2026-05-09 flat ports for DMA stable gating, greed sell
+suppression, and ETH/BTC deviation DCA are active for traceability, but their
+leave-one-out attribution is negative and they should not be promoted without
+retuning.
 
 ### Coverage scope
 
@@ -66,13 +64,12 @@ recipes are intentionally omitted from coverage measurement:
 `eth_btc_rotation.py`, `spy_eth_btc_rotation.py`,
 `spy_crypto_hierarchical_rotation.py`, `hierarchical_minimum.py`,
 `hierarchical_outer_policy.py`, `hierarchical_attribution.py`,
-`portfolio_rules_attribution.py`, `pair_rotation_template.py`, and
-`dma_top_escape.py`. Keep shared components measured, including
-`strategies/base.py`, `composed_signal.py`, `dma_gated_fgi.py`, `minimum.py`,
-and `dma_fgi_portfolio_rules.py`. Validation-event runner and decision-log
-audit tooling are also omitted from line coverage; verify them by running their
-pytest files and the validation/snapshot commands instead of padding runtime
-coverage.
+`pair_rotation_template.py`, and `dma_top_escape.py`. Keep shared components
+measured, including `strategies/base.py`, `composed_signal.py`,
+`dma_gated_fgi.py`, `minimum.py`, and `dma_fgi_portfolio_rules.py`.
+Validation-event runner and decision-log audit tooling are also omitted from
+line coverage; verify them by running their pytest files and the
+validation/snapshot commands instead of padding runtime coverage.
 
 ## Iteration discipline
 
@@ -117,6 +114,9 @@ Each finding is established by ROI delta from leave-one-out variants in the snap
 | Broad Cross-Down Cooldown | Removed with the minimum research variants | Too blunt without new evidence |
 | Broad Below-DMA Hold | Removed with the minimum research variants | Too blunt without new evidence |
 | Adaptive Extreme-Fear Sizing (`FgiExponentialSizing`) | `_minus_adaptive_sizing` snapshot Δ -0.0002pp (noise floor 0.5pp) | Re-introduce only with sizing strategy showing \|Δ\| ≥ 2pp |
+| Flat DMA stable gating port (`dma_fgi_portfolio_rules`) | `_minus_dma_stable_gating` improved ROI from 50.52% to 61.85% (+11.33pp when removed), Calmar +0.79 | Active only for traceability after the port; do not promote without a narrower trigger |
+| Flat Greed Sell Suppression port (`dma_fgi_portfolio_rules`) | `_minus_greed_sell_suppression` improved ROI from 50.52% to 53.39% (+2.87pp when removed), Calmar +0.20 | Re-tune before retaining; blocking flat overextension sells hurt this snapshot |
+| Flat ETH/BTC DMA-deviation DCA port (`dma_fgi_portfolio_rules`) | `_minus_eth_btc_deviation_dca` improved ROI from 50.52% to 53.06% (+2.54pp when removed), Calmar +0.18; 2025-05-01 was -37.19% and did not trigger the -40% tier | Re-test thresholds and symmetric ETH->BTC behavior before promotion |
 
 Signal/noise threshold: **|Δ| < 0.5pp** = noise; **0.5pp ≤ |Δ| < 2pp** = weak signal; **|Δ| ≥ 2pp** = actionable.
 
@@ -124,7 +124,7 @@ Phase D note: BTC vs ETH split on 2025-04-22 in `dma_fgi_hierarchical_minimum` i
 
 ## Open gaps
 
-- **Wider ETH/BTC DMA-deviation rotation**: existing `ADAPTIVE_BINARY_ETH_BTC_TEMPLATE` saturates at 20% below DMA. Design intent is DCA at 40% deviation and large-scale rotation at 50% deviation. Around 2025-05-01 the ratio sat ~28% below DMA; capture the inner-allocation snapshot for that date in `decisions.jsonl` before re-tuning, to confirm whether the behavior gap is in the threshold values or in the rotation firing earlier elsewhere in the stack.
+- No active open gap is recorded for ETH/BTC DMA-deviation rotation. The flat `eth_btc_deviation_dca` port exists and is fixture-covered, but its current attribution is negative; future work should retest threshold/symmetry variants rather than re-introducing the same rule unchanged.
 
 ## Adding a new variant
 

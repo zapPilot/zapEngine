@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
     STRATEGY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.features import (
@@ -116,3 +121,54 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         "stable": 0.0,
         "alt": 0.0,
     }
+
+
+@pytest.mark.parametrize(
+    ("strategy_id", "disabled_rule"),
+    [
+        (
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
+            "dma_stable_gating",
+        ),
+        (
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
+            "greed_sell_suppression",
+        ),
+        (
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
+            "eth_btc_deviation_dca",
+        ),
+    ],
+)
+def test_portfolio_rules_minus_recipes_disable_one_rule(
+    strategy_id: str,
+    disabled_rule: str,
+) -> None:
+    recipe = get_strategy_recipe(strategy_id)
+
+    strategy = recipe.build_strategy(
+        StrategyBuildRequest(
+            mode="compare",
+            total_capital=10_000.0,
+            params={"cross_cooldown_days": 30},
+            user_prices=[
+                {
+                    "date": date(2025, 1, 1),
+                    "price": 100.0,
+                    "prices": {"btc": 100.0, "eth": 120.0, "spy": 500.0},
+                    "extra_data": {
+                        DMA_200_FEATURE: 90.0,
+                        ETH_DMA_200_FEATURE: 100.0,
+                        SPY_DMA_200_FEATURE: 450.0,
+                    },
+                }
+            ],
+            initial_allocation={"spot": 1.0, "stable": 0.0},
+            user_start_date=date(2025, 1, 1),
+        )
+    )
+
+    assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
+    assert strategy.canonical_strategy_id == STRATEGY_DMA_FGI_PORTFOLIO_RULES
+    assert strategy.disabled_rules == frozenset({disabled_rule})
+    assert disabled_rule not in {rule.name for rule in strategy.decision_policy.rules}

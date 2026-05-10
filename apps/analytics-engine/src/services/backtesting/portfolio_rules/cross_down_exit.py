@@ -35,13 +35,12 @@ class CrossDownExitRule:
     cross_down_cooldown_days_per_symbol: dict[str, int] = field(
         default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
     )
-    default_cross_down_cooldown_days: int = 30
 
     def cooldown_days_for(self, symbol: str) -> int:
         return cross_down_cooldown_days_for(
             symbol,
             per_symbol=self.cross_down_cooldown_days_per_symbol,
-            default=self.default_cross_down_cooldown_days,
+            default=self.cooldown_days,
         )
 
     def matches(

@@ -7,6 +7,15 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-09 - Flat portfolio-rule hierarchical behavior ports
+- **Commit**: `065860d8` + pending local change (`dma_fgi_portfolio_rules` rule ports)
+- **Finding**: Ported `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` into the canonical flat portfolio-rule engine with leave-one-out attribution variants. The implementation is traceable and fixture-covered, but the 500-day snapshot says all three ports are harmful in the current flat-rule form.
+- **Snapshot delta vs prior `dma_fgi_portfolio_rules` baseline**: ROI 67.6831% -> 50.5217% (-17.1614pp), Calmar 4.9129 -> 3.7265 (-1.1864), MaxDD unchanged at -9.3248%, trades 56 -> 52 (-4). The task brief referenced a 64.10% baseline, but the local pre-change snapshot was already 67.6831% from later pending iterations.
+- **Leave-one-out attribution vs new baseline**: `_minus_dma_stable_gating` ROI 61.8548% (+11.3331pp when removed), Calmar +0.7864, trades +3; `_minus_greed_sell_suppression` ROI 53.3945% (+2.8728pp), Calmar +0.2021, trades +3; `_minus_eth_btc_deviation_dca` ROI 53.0608% (+2.5391pp), Calmar +0.1775, trades +7. Since removal improves ROI by at least 2pp for all three, each port fails the retention threshold as implemented.
+- **Validation events**: added/updated `tests/fixtures/hierarchical_validation_events.json` events `greed_sell_suppression_2024_12_02`, `dma_stable_gating_2025_03_13`, and `eth_btc_deviation_dca_to_eth_2025_04_07`; relaxed `eth_cross_down_preserve_spy_2025_11_06` action matching because flat DMA stable gating can now surface a sell intent there.
+- **2025-05-01 audit**: ETH/BTC ratio distance was -37.1915%, below the -40% DCA trigger, so `dma_fgi_portfolio_rules` correctly held on that date. The low-side deviation DCA fixture uses 2025-04-07, where the threshold is actually crossed.
+- **Decision**: keep these ports only as explicit canonical-strategy behavior under review; do not promote them as proven improvements without narrower triggers, threshold tuning, or disabling the harmful pieces.
+
 ### 2026-05-08 — Portfolio rule cooldowns localized
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` per-rule cooldown)
 - **Finding**: The shared post-trade portfolio cooldown gate was removed because it let a cross-down sell suppress short-lived extreme-fear DCA opportunities. Portfolio rules now expose rule-local cooldown fields, defaulting to 0d, and cooldown state is recorded only after an executed transfer.

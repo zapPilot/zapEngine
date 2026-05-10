@@ -12,6 +12,46 @@
     "trade_count": 5.0
   },
   "strategies": {
+    "eth_btc_rotation": {
+      "display_name": "ETH/BTC Relative Strength Rotation",
+      "calmar_ratio": 4.4234,
+      "sharpe_ratio": 1.9368,
+      "max_drawdown_percent": -18.4141,
+      "roi_percent": 126.2611,
+      "trade_count": 61
+    },
+    "dma_fgi_portfolio_rules": {
+      "display_name": "[RESEARCH] Portfolio Rules",
+      "calmar_ratio": 3.7265,
+      "sharpe_ratio": 2.0178,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 50.5217,
+      "trade_count": 52
+    },
+    "dma_fgi_portfolio_rules_minus_dma_stable_gating": {
+      "display_name": "[RESEARCH] Portfolio Rules - DMA Stable Gating",
+      "calmar_ratio": 4.5129,
+      "sharpe_ratio": 2.2349,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 61.8548,
+      "trade_count": 55
+    },
+    "dma_fgi_portfolio_rules_minus_greed_sell_suppression": {
+      "display_name": "[RESEARCH] Portfolio Rules - Greed Sell Suppression",
+      "calmar_ratio": 3.9286,
+      "sharpe_ratio": 2.1392,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 53.3945,
+      "trade_count": 55
+    },
+    "dma_fgi_portfolio_rules_minus_eth_btc_deviation_dca": {
+      "display_name": "[RESEARCH] Portfolio Rules - ETH/BTC Deviation DCA",
+      "calmar_ratio": 3.904,
+      "sharpe_ratio": 1.9422,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 53.0608,
+      "trade_count": 59
+    },
     "dma_fgi_hierarchical_control": {
       "display_name": "84% Hierarchical Attribution Control",
       "calmar_ratio": 5.2073,
@@ -27,62 +67,6 @@
       "max_drawdown_percent": -16.9734,
       "roi_percent": 121.3018,
       "trade_count": 81
-    },
-    "dma_fgi_portfolio_rules": {
-      "display_name": "[RESEARCH] Portfolio Rules",
-      "calmar_ratio": 4.9129,
-      "sharpe_ratio": 2.2334,
-      "max_drawdown_percent": -9.3248,
-      "roi_percent": 67.6831,
-      "trade_count": 56
-    },
-    "dma_fgi_portfolio_rules_minus_cross_down_exit": {
-      "display_name": "[RESEARCH] Portfolio Rules - Cross-Down Exit",
-      "calmar_ratio": 0.7834,
-      "sharpe_ratio": 0.8364,
-      "max_drawdown_percent": -27.6443,
-      "roi_percent": 30.8415,
-      "trade_count": 59
-    },
-    "dma_fgi_portfolio_rules_minus_cross_up_eq_weight": {
-      "display_name": "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight",
-      "calmar_ratio": 2.7203,
-      "sharpe_ratio": 1.3029,
-      "max_drawdown_percent": -11.1662,
-      "roi_percent": 43.8521,
-      "trade_count": 51
-    },
-    "dma_fgi_portfolio_rules_minus_extreme_fear_buy": {
-      "display_name": "[RESEARCH] Portfolio Rules - Extreme-Fear Buy",
-      "calmar_ratio": 5.0001,
-      "sharpe_ratio": 2.2754,
-      "max_drawdown_percent": -9.3248,
-      "roi_percent": 68.9644,
-      "trade_count": 45
-    },
-    "dma_fgi_portfolio_rules_minus_overextension_sell": {
-      "display_name": "[RESEARCH] Portfolio Rules - Overextension Sell",
-      "calmar_ratio": 3.094,
-      "sharpe_ratio": 1.5416,
-      "max_drawdown_percent": -13.3893,
-      "roi_percent": 60.833,
-      "trade_count": 35
-    },
-    "dma_fgi_portfolio_rules_minus_fgi_downshift_sell": {
-      "display_name": "[RESEARCH] Portfolio Rules - FGI Downshift Sell",
-      "calmar_ratio": 4.3437,
-      "sharpe_ratio": 1.9278,
-      "max_drawdown_percent": -10.209,
-      "roi_percent": 65.3773,
-      "trade_count": 49
-    },
-    "eth_btc_rotation": {
-      "display_name": "ETH/BTC Relative Strength Rotation",
-      "calmar_ratio": 4.4234,
-      "sharpe_ratio": 1.9368,
-      "max_drawdown_percent": -18.4141,
-      "roi_percent": 126.2611,
-      "trade_count": 61
     }
   }
 }

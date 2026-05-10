@@ -10,6 +10,12 @@ from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
+from src.services.backtesting.portfolio_rules.dma_stable_gating import (
+    DmaStableGatingRule,
+)
+from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
+    EthBtcDeviationDcaRule,
+)
 from src.services.backtesting.portfolio_rules.eth_btc_ratio_rotation import (
     EthBtcRatioRotationRule,
 )
@@ -19,11 +25,17 @@ from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
 from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
+from src.services.backtesting.portfolio_rules.greed_sell_suppression import (
+    GreedSellSuppressionRule,
+)
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
+    EthBtcDeviationDcaRule(),
+    GreedSellSuppressionRule(),
+    DmaStableGatingRule(),
     ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),

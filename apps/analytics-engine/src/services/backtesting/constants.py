@@ -18,20 +18,14 @@ STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
 STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
 STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT = (
-    "dma_fgi_portfolio_rules_minus_cross_down_exit"
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING = (
+    "dma_fgi_portfolio_rules_minus_dma_stable_gating"
 )
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT = (
-    "dma_fgi_portfolio_rules_minus_cross_up_eq_weight"
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION = (
+    "dma_fgi_portfolio_rules_minus_greed_sell_suppression"
 )
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY = (
-    "dma_fgi_portfolio_rules_minus_extreme_fear_buy"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL = (
-    "dma_fgi_portfolio_rules_minus_overextension_sell"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL = (
-    "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA = (
+    "dma_fgi_portfolio_rules_minus_eth_btc_deviation_dca"
 )
 
 STRATEGY_DISPLAY_NAMES = {
@@ -39,20 +33,14 @@ STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
     STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: (
-        "[RESEARCH] Portfolio Rules - Cross-Down Exit"
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING: (
+        "[RESEARCH] Portfolio Rules - DMA Stable Gating"
     ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT: (
-        "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight"
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION: (
+        "[RESEARCH] Portfolio Rules - Greed Sell Suppression"
     ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY: (
-        "[RESEARCH] Portfolio Rules - Extreme-Fear Buy"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL: (
-        "[RESEARCH] Portfolio Rules - Overextension Sell"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL: (
-        "[RESEARCH] Portfolio Rules - FGI Downshift Sell"
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA: (
+        "[RESEARCH] Portfolio Rules - ETH/BTC Deviation DCA"
     ),
 }
 
