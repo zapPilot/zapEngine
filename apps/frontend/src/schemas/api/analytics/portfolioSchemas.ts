@@ -30,6 +30,7 @@ const allocationCategorySchema = z.object({
 const portfolioAllocationSchema = z.object({
   btc: allocationCategorySchema,
   eth: allocationCategorySchema,
+  spy: allocationCategorySchema.optional(),
   stablecoins: allocationCategorySchema,
   others: allocationCategorySchema,
 });

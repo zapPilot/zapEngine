@@ -198,6 +198,32 @@ describe('calculateAllocation', () => {
       expect(result.simplifiedCrypto).toHaveLength(1);
       expect(result.simplifiedCrypto[0].symbol).toBe('BTC');
     });
+
+    it('includes SPY in simplifiedCrypto when allocation.spy is provided', () => {
+      const spyData: LandingPageResponse = {
+        ...mockLandingData,
+        portfolio_allocation: {
+          ...mockLandingData.portfolio_allocation,
+          spy: {
+            total_value: 17000,
+            percentage_of_portfolio: 10,
+            wallet_tokens_value: 0,
+            other_sources_value: 17000,
+          },
+        },
+      };
+
+      const result = calculateAllocation(spyData);
+
+      const spyAsset = result.simplifiedCrypto.find((a) => a.symbol === 'SPY');
+      expect(spyAsset).toMatchObject({
+        asset: 'SPY',
+        symbol: 'SPY',
+        name: 'S&P 500',
+        value: 10,
+        color: '#16A34A',
+      });
+    });
   });
 });
 

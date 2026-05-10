@@ -276,7 +276,7 @@ describe('useBacktestResult', () => {
 
     expect(point.sellSpotSignal).toBe(10000);
     expect(point.buySpotSignal).toBeNull();
-    expect(point.dma_200).toBe(49500);
+    expect(point).not.toHaveProperty('dma_200');
     expect(point.eventStrategies.sell_spot).toContain(
       'ETH/BTC Rotation Default',
     );

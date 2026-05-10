@@ -1,36 +1,22 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
 import { BacktestChartLegend } from '@/components/wallet/portfolio/views/backtesting/components/BacktestChartLegend';
-import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
-
-const ACTIVE_INDICATORS = new Set<IndicatorKey>([
-  'sentiment',
-  'macroFearGreed',
-  'btcPrice',
-  'dma200',
-]);
 
 describe('BacktestChartLegend', () => {
-  function noop(): void {
-    // noop
-  }
-
-  it('renders grouped legends for strategy, indicators, and events', () => {
+  it('renders grouped legends for strategy and events only', () => {
     render(
       <BacktestChartLegend
         sortedStrategyIds={[
           'eth_btc_rotation_default',
           'dma_fgi_portfolio_rules',
         ]}
-        activeIndicators={ACTIVE_INDICATORS}
-        onToggleIndicator={noop}
       />,
     );
 
     expect(screen.getByText('Strategy')).toBeInTheDocument();
-    expect(screen.getByText('Market Context')).toBeInTheDocument();
     expect(screen.getByText('Events')).toBeInTheDocument();
+    expect(screen.queryByText('Market Context')).not.toBeInTheDocument();
   });
 
   it('includes kept strategy and event labels', () => {
@@ -40,91 +26,34 @@ describe('BacktestChartLegend', () => {
           'eth_btc_rotation_default',
           'dma_fgi_portfolio_rules',
         ]}
-        activeIndicators={ACTIVE_INDICATORS}
-        onToggleIndicator={noop}
       />,
     );
 
     expect(screen.getByText('ETH/BTC Rotation Default')).toBeInTheDocument();
     expect(screen.getByText('Portfolio Rules')).toBeInTheDocument();
-    expect(screen.getByText('Sentiment')).toBeInTheDocument();
-    expect(screen.getByText('Macro FGI')).toBeInTheDocument();
-    expect(screen.getByText('DMA 200')).toBeInTheDocument();
     expect(screen.getByText('Buy Spot')).toBeInTheDocument();
     expect(screen.getByText('Sell Spot')).toBeInTheDocument();
     expect(screen.getByText('Switch to ETH')).toBeInTheDocument();
     expect(screen.getByText('Switch to BTC')).toBeInTheDocument();
+    expect(screen.getByText('Switch to SPY')).toBeInTheDocument();
   });
 
-  it('calls onToggleIndicator when an indicator button is clicked', () => {
-    const onToggleIndicator = vi.fn();
-    render(
-      <BacktestChartLegend
-        sortedStrategyIds={['eth_btc_rotation_default']}
-        activeIndicators={ACTIVE_INDICATORS}
-        onToggleIndicator={onToggleIndicator}
-      />,
-    );
+  it('does not render market context controls', () => {
+    render(<BacktestChartLegend sortedStrategyIds={['eth_btc_rotation_default']} />);
 
-    const sentimentButton = screen.getByText('Sentiment').closest('button');
-    expect(sentimentButton).not.toBeNull();
-    fireEvent.click(sentimentButton!);
-    expect(onToggleIndicator).toHaveBeenCalledWith('sentiment');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByText('BTC Price')).not.toBeInTheDocument();
+    expect(screen.queryByText('DMA 200')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sentiment')).not.toBeInTheDocument();
+    expect(screen.queryByText('Macro FGI')).not.toBeInTheDocument();
   });
 
-  it('sets aria-pressed=true for active indicators and false for inactive', () => {
-    render(
-      <BacktestChartLegend
-        sortedStrategyIds={['eth_btc_rotation_default']}
-        activeIndicators={new Set<IndicatorKey>(['sentiment'])}
-        onToggleIndicator={noop}
-      />,
-    );
+  it('renders no Strategy group when sortedStrategyIds is empty', () => {
+    render(<BacktestChartLegend sortedStrategyIds={[]} />);
 
-    const sentimentBtn = screen.getByText('Sentiment').closest('button');
-    const macroFgiBtn = screen.getByText('Macro FGI').closest('button');
-    const btcPriceBtn = screen.getByText('BTC Price').closest('button');
-    const dma200Btn = screen.getByText('DMA 200').closest('button');
-
-    expect(sentimentBtn?.getAttribute('aria-pressed')).toBe('true');
-    expect(macroFgiBtn?.getAttribute('aria-pressed')).toBe('false');
-    expect(btcPriceBtn?.getAttribute('aria-pressed')).toBe('false');
-    expect(dma200Btn?.getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('sets aria-pressed=false for all indicator buttons when activeIndicators is empty', () => {
-    render(
-      <BacktestChartLegend
-        sortedStrategyIds={['eth_btc_rotation_default']}
-        activeIndicators={new Set<IndicatorKey>()}
-        onToggleIndicator={noop}
-      />,
-    );
-
-    const buttons = screen
-      .getAllByRole('button')
-      .filter((btn) => btn.hasAttribute('aria-pressed'));
-    expect(buttons.length).toBeGreaterThan(0);
-    for (const btn of buttons) {
-      expect(btn.getAttribute('aria-pressed')).toBe('false');
-    }
-  });
-
-  it('renders Strategy section title but no strategy color dots when sortedStrategyIds is empty', () => {
-    render(
-      <BacktestChartLegend
-        sortedStrategyIds={[]}
-        activeIndicators={ACTIVE_INDICATORS}
-        onToggleIndicator={noop}
-      />,
-    );
-
-    // LegendGroup for Strategy returns null when items.length === 0,
-    // so neither the "Strategy" heading nor any strategy labels render
     expect(screen.queryByText('Strategy')).toBeNull();
     expect(screen.queryByText('ETH/BTC Rotation Default')).toBeNull();
     expect(screen.queryByText('Portfolio Rules')).toBeNull();
-    // Events section still renders its own dots
     expect(screen.getByText('Events')).toBeInTheDocument();
   });
 });

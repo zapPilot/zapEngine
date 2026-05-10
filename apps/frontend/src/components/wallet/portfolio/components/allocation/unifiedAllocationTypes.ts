@@ -1,7 +1,7 @@
 /**
  * Type definitions for the Unified Allocation Bar component.
  *
- * Provides a consistent 4-category allocation model across all visualization contexts:
+ * Provides a consistent 5-category allocation model across all visualization contexts:
  * - Dashboard (PortfolioComposition)
  * - Strategy (AllocationComparison)
  * - Backtesting (BacktestTooltip)
@@ -25,7 +25,7 @@ export type UnifiedCategory = 'btc' | 'eth' | 'spy' | 'stable' | 'alt';
 export interface UnifiedSegment {
   /** Category identifier */
   category: UnifiedCategory;
-  /** Display label (e.g., "BTC", "BTC-STABLE", "STABLE", "ALT") */
+  /** Display label (e.g., "BTC", "ETH", "SPY", "STABLE", "ALT") */
   label: string;
   /** Percentage value (0-100) */
   percentage: number;
@@ -66,6 +66,7 @@ export interface UnifiedAllocationBarProps {
 export interface PortfolioAllocationSource {
   btc: number;
   eth: number;
+  spy?: number;
   others: number;
   stablecoins: number;
 }

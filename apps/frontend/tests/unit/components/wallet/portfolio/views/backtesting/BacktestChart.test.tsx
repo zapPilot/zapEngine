@@ -1,7 +1,7 @@
 /**
  * Unit tests for BacktestChart pure helpers and component rendering
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ let capturedTooltipContent:
     }) => ReactNode)
   | null = null;
 let capturedTooltipProps: Record<string, unknown> | null = null;
+let capturedLegendProps: Record<string, unknown> | null = null;
 
 // Mock recharts — jsdom has no SVG layout engine
 vi.mock('recharts', async () => {
@@ -89,21 +90,10 @@ vi.mock('@/components/ui/BaseCard', () => ({
 vi.mock(
   '@/components/wallet/portfolio/views/backtesting/components/BacktestChartLegend',
   () => ({
-    BacktestChartLegend: ({
-      onToggleIndicator,
-    }: {
-      onToggleIndicator: (key: 'macroFearGreed') => void;
-    }) => (
-      <div data-testid="chart-legend">
-        <button
-          type="button"
-          data-testid="toggle-macro-fgi"
-          onClick={() => onToggleIndicator('macroFearGreed')}
-        >
-          Macro FGI
-        </button>
-      </div>
-    ),
+    BacktestChartLegend: (props: Record<string, unknown>) => {
+      capturedLegendProps = props;
+      return <div data-testid="chart-legend" />;
+    },
   }),
 );
 
@@ -175,23 +165,17 @@ describe('BacktestChart', () => {
   it('renders chart legend', () => {
     render(<BacktestChart {...defaultProps} />);
     expect(screen.getByTestId('chart-legend')).toBeDefined();
+    expect(capturedLegendProps).toEqual({
+      sortedStrategyIds: defaultProps.sortedStrategyIds,
+    });
   });
 
   it('does not render indicator lines when indicators default to OFF', () => {
     render(<BacktestChart {...defaultProps} />);
-    // Indicators default to OFF (empty activeIndicators set), so lines are absent
     expect(screen.queryByTestId('line-sentiment')).toBeNull();
     expect(screen.queryByTestId('line-macro_fear_greed')).toBeNull();
     expect(screen.queryByTestId('line-btc_price')).toBeNull();
     expect(screen.queryByTestId('line-dma_200')).toBeNull();
-  });
-
-  it('renders macro FGI line when its market context toggle is active', () => {
-    render(<BacktestChart {...defaultProps} />);
-
-    fireEvent.click(screen.getByTestId('toggle-macro-fgi'));
-
-    expect(screen.getByTestId('line-macro_fear_greed')).toBeDefined();
   });
 
   it('renders scatter signals', () => {

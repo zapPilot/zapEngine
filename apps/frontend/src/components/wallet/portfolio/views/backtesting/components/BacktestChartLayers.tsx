@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Area, Line, Scatter } from 'recharts';
+import { Area, Scatter } from 'recharts';
 
 import { CHART_SIGNALS } from '../utils/chartHelpers';
 import {
@@ -10,7 +10,6 @@ import {
   getStrategyVisualTier,
   getStrokeDasharrayProps,
 } from './backtestChartHelpers';
-import type { IndicatorKey } from './backtestChartLegendData';
 
 interface ChartDefsProps {
   strategyIds: string[];
@@ -22,85 +21,6 @@ interface StrategyAreaProps {
   index: number;
   isPrimary: boolean;
   prefix: string;
-}
-
-export function renderIndicatorLayers(
-  activeIndicators: Set<IndicatorKey>,
-): ReactElement[] {
-  const layers: ReactElement[] = [];
-
-  if (activeIndicators.has('sentiment')) {
-    layers.push(
-      <Line
-        key="indicator-sentiment"
-        yAxisId="sentimentRight"
-        type="monotone"
-        dataKey="sentiment"
-        name="Sentiment"
-        stroke="#a855f7"
-        strokeWidth={1}
-        dot={false}
-        connectNulls={true}
-        strokeOpacity={0.4}
-        legendType="none"
-      />,
-    );
-  }
-
-  if (activeIndicators.has('macroFearGreed')) {
-    layers.push(
-      <Line
-        key="indicator-macro-fear-greed"
-        yAxisId="sentimentRight"
-        type="monotone"
-        dataKey="macro_fear_greed"
-        name="Macro FGI"
-        stroke="#14b8a6"
-        strokeWidth={1.25}
-        dot={false}
-        connectNulls={true}
-        strokeOpacity={0.55}
-        legendType="none"
-      />,
-    );
-  }
-
-  if (activeIndicators.has('btcPrice')) {
-    layers.push(
-      <Line
-        key="indicator-btc-price"
-        yAxisId="priceRight"
-        type="monotone"
-        dataKey="btc_price"
-        name="BTC Price"
-        stroke="#3b82f6"
-        strokeWidth={1.5}
-        dot={false}
-        connectNulls={true}
-        legendType="none"
-      />,
-    );
-  }
-
-  if (activeIndicators.has('dma200')) {
-    layers.push(
-      <Line
-        key="indicator-dma200"
-        yAxisId="priceRight"
-        type="monotone"
-        dataKey="dma_200"
-        name="DMA 200"
-        stroke="#f59e0b"
-        strokeWidth={1.25}
-        strokeDasharray="5 3"
-        dot={false}
-        connectNulls={true}
-        legendType="none"
-      />,
-    );
-  }
-
-  return layers;
 }
 
 export function ChartDefs({

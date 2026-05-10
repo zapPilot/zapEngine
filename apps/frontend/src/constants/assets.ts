@@ -14,7 +14,7 @@ export const ASSET_COLORS = {
 } as const;
 
 /**
- * Unified 4-category color scheme for allocation bars.
+ * Unified 5-category color scheme for allocation bars.
  *
  * This provides a consistent color palette across all allocation visualizations:
  * - Dashboard (PortfolioComposition)

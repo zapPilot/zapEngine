@@ -23,6 +23,7 @@ export interface PortfolioAllocation {
 const CRYPTO_ASSET_META: Omit<AllocationConstituent, 'value'>[] = [
   { asset: 'BTC', symbol: 'BTC', name: 'Bitcoin', color: ASSET_COLORS.BTC },
   { asset: 'ETH', symbol: 'ETH', name: 'Ethereum', color: ASSET_COLORS.ETH },
+  { asset: 'SPY', symbol: 'SPY', name: 'S&P 500', color: ASSET_COLORS.SPY },
   { asset: 'Others', symbol: 'ALT', name: 'Altcoins', color: ASSET_COLORS.ALT },
 ];
 
@@ -37,10 +38,11 @@ export function calculateAllocation(
   // Calculate total values
   const btcValue = allocation.btc.total_value;
   const ethValue = allocation.eth.total_value;
+  const spyValue = allocation.spy?.total_value ?? 0;
   const othersValue = allocation.others.total_value;
   const stablecoinsValue = allocation.stablecoins.total_value;
 
-  const totalCrypto = btcValue + ethValue + othersValue;
+  const totalCrypto = btcValue + ethValue + spyValue + othersValue;
   const totalAssets = totalCrypto + stablecoinsValue;
 
   // Protect against division by zero
@@ -62,7 +64,8 @@ export function calculateAllocation(
 
   // Build constituents for detailed breakdown
   const safeCryptoDivisor = totalCrypto || 1;
-  const [btcMeta, ethMeta, altMeta] = CRYPTO_ASSET_META as [
+  const [btcMeta, ethMeta, spyMeta, altMeta] = CRYPTO_ASSET_META as [
+    Omit<AllocationConstituent, 'value'>,
     Omit<AllocationConstituent, 'value'>,
     Omit<AllocationConstituent, 'value'>,
     Omit<AllocationConstituent, 'value'>,
@@ -70,6 +73,7 @@ export function calculateAllocation(
   const cryptoConstituents: AllocationConstituent[] = [
     { ...btcMeta, value: (btcValue / safeCryptoDivisor) * 100 },
     { ...ethMeta, value: (ethValue / safeCryptoDivisor) * 100 },
+    { ...spyMeta, value: (spyValue / safeCryptoDivisor) * 100 },
     { ...altMeta, value: (othersValue / safeCryptoDivisor) * 100 },
   ].filter((c) => c.value > 0);
   const stableConstituents: AllocationConstituent[] = [];
@@ -102,6 +106,7 @@ export function calculateAllocation(
   const simplifiedCrypto: AllocationConstituent[] = [
     { ...btcMeta, value: allocation.btc.percentage_of_portfolio },
     { ...ethMeta, value: allocation.eth.percentage_of_portfolio },
+    { ...spyMeta, value: allocation.spy?.percentage_of_portfolio ?? 0 },
     { ...altMeta, value: allocation.others.percentage_of_portfolio },
   ].filter((c) => c.value > 0);
 

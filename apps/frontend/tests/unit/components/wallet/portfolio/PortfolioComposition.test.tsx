@@ -88,7 +88,7 @@ const mockData: WalletPortfolioDataWithDirection = {
         asset: 'bitcoin',
         symbol: 'BTC',
         name: 'Bitcoin',
-        value: 35,
+        value: 25,
         color: '#F7931A',
       },
       {
@@ -97,6 +97,13 @@ const mockData: WalletPortfolioDataWithDirection = {
         name: 'Ethereum',
         value: 15,
         color: '#627EEA',
+      },
+      {
+        asset: 'spy',
+        symbol: 'SPY',
+        name: 'S&P 500',
+        value: 10,
+        color: '#16A34A',
       },
       {
         asset: 'solana',
@@ -164,6 +171,7 @@ describe('PortfolioComposition', () => {
       // Check for legend items (unified categories: BTC, ETH, ALT, STABLE)
       expect(screen.getAllByText('BTC')[0]).toBeInTheDocument();
       expect(screen.getAllByText('ETH')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('SPY').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('ALT')[0]).toBeInTheDocument();
       // We expect multiple '40%' from the target/current stable segments.
       expect(screen.getAllByText('40%').length).toBeGreaterThanOrEqual(2);

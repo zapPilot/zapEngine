@@ -22,9 +22,29 @@ import {
   buildTargetCryptoAssets,
 } from '../utils/portfolioCompositionHelpers';
 
+/**
+ * Target allocation shape for the Target Allocation bar.
+ *
+ * Two modes:
+ *  - **Coarse (2-bucket)**: only `crypto` + `stable` are provided. The bar
+ *    renders the entire crypto portion as a single BTC segment (legacy regime
+ *    data only exposes spot/stable, so BTC stands in for "all spot crypto").
+ *  - **Asset-aware**: in addition to `crypto`/`stable`, callers may provide any
+ *    of `btc`/`eth`/`spy`/`alt` as percentages-of-total. When at least one is
+ *    present, the bar renders the explicit per-asset breakdown and skips the
+ *    all-BTC fallback. Values that are omitted are treated as 0.
+ *
+ * Note: per-asset fields should sum to `crypto`. The component does not
+ * re-normalize.
+ */
 interface CompositionTarget {
   crypto: number;
   stable: number;
+  /** Optional per-asset target percentages of total (sum should equal `crypto`). */
+  btc?: number;
+  eth?: number;
+  spy?: number;
+  alt?: number;
 }
 
 interface PortfolioCompositionProps {
@@ -51,15 +71,66 @@ const STYLES = {
 } as const;
 
 /**
- * Builds unified target segments from crypto/stable percentages.
- * The entire crypto portion maps to BTC (the sole spot crypto asset).
+ * Builds unified target segments from a CompositionTarget.
+ *
+ * - When the target carries per-asset fields (`btc`/`eth`/`spy`/`alt`), each
+ *   non-zero asset is emitted as its own segment with the matching unified
+ *   color.
+ * - When no per-asset fields are present (legacy 2-bucket regime data), the
+ *   entire `crypto` portion is rendered as a single BTC segment — preserving
+ *   the prior behavior so existing callers stay unchanged.
+ * - `stable` is always emitted as a STABLE segment when > 0.
  */
 function buildTargetUnifiedSegments(
   target: CompositionTarget,
 ): UnifiedSegment[] {
   const segments: UnifiedSegment[] = [];
 
-  if (target.crypto > 0) {
+  const hasAssetBreakdown =
+    target.btc !== undefined ||
+    target.eth !== undefined ||
+    target.spy !== undefined ||
+    target.alt !== undefined;
+
+  if (hasAssetBreakdown) {
+    const btc = target.btc ?? 0;
+    const eth = target.eth ?? 0;
+    const spy = target.spy ?? 0;
+    const alt = target.alt ?? 0;
+
+    if (btc > 0) {
+      segments.push({
+        category: 'btc',
+        label: 'BTC',
+        percentage: btc,
+        color: UNIFIED_COLORS.BTC,
+      });
+    }
+    if (eth > 0) {
+      segments.push({
+        category: 'eth',
+        label: 'ETH',
+        percentage: eth,
+        color: UNIFIED_COLORS.ETH,
+      });
+    }
+    if (spy > 0) {
+      segments.push({
+        category: 'spy',
+        label: 'SPY',
+        percentage: spy,
+        color: UNIFIED_COLORS.SPY,
+      });
+    }
+    if (alt > 0) {
+      segments.push({
+        category: 'alt',
+        label: 'ALT',
+        percentage: alt,
+        color: UNIFIED_COLORS.ALT,
+      });
+    }
+  } else if (target.crypto > 0) {
     segments.push({
       category: 'btc',
       label: 'BTC',

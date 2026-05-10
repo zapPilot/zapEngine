@@ -69,13 +69,6 @@ export const CHART_SIGNALS: SignalConfig[] = [
 ];
 
 const SIGNAL_FIELDS = CHART_SIGNALS.map((s) => s.field);
-const SENTIMENT_INDEX_MAP: Record<string, number> = {
-  extreme_fear: 0,
-  fear: 25,
-  neutral: 50,
-  greed: 75,
-  extreme_greed: 100,
-};
 const MS_PER_DAY = 86_400_000;
 const DEFAULT_Y_DOMAIN: [number, number] = [0, 1000];
 const Y_AXIS_PADDING_FACTOR = 0.05;
@@ -217,41 +210,6 @@ function getPointValues(
   return values;
 }
 
-function getPrimaryDma(
-  point: BacktestTimelinePoint,
-  strategyIds: string[],
-): number | null {
-  for (const strategyId of strategyIds) {
-    const signal = point.strategies[strategyId]?.signal;
-    const details = signal?.details;
-    const dmaDetails =
-      details && typeof details === 'object' && 'dma' in details
-        ? (details.dma as { dma_200?: number | null } | null | undefined)
-        : null;
-    const dma = dmaDetails?.dma_200;
-    if (typeof dma === 'number') {
-      return dma;
-    }
-  }
-
-  return null;
-}
-
-function getMacroFearGreedScore(point: BacktestTimelinePoint): number | null {
-  const score = point.market.macro_fear_greed?.score;
-  return typeof score === 'number' ? score : null;
-}
-
-export function sentimentLabelToIndex(
-  label: string | null | undefined,
-): number | null {
-  if (!label) {
-    return null;
-  }
-
-  return SENTIMENT_INDEX_MAP[label] ?? null;
-}
-
 export function calculateYAxisDomain(
   chartData: Record<string, unknown>[],
   strategyIds: string[],
@@ -332,13 +290,6 @@ export function buildChartPoint(
       data[`${id}_value`] = strategy.portfolio.total_value;
     }
   }
-
-  data['btc_price'] = point.market.token_price['btc'] ?? null;
-  data['dma_200'] = getPrimaryDma(point, strategyIds);
-  data['sentiment'] =
-    point.market.sentiment ??
-    sentimentLabelToIndex(point.market.sentiment_label);
-  data['macro_fear_greed'] = getMacroFearGreedScore(point);
 
   const acc = createSignalAccumulator();
   processStrategyTransfers(point, strategyIds, acc);

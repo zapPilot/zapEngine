@@ -6,6 +6,7 @@ export const ASSET_SYMBOL_SETS = {
       s.toLowerCase(),
     ),
   ),
+  spy: new Set(['spy']),
   stablecoins: new Set(
     [
       'usdc',

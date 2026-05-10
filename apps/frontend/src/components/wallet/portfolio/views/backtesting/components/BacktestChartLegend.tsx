@@ -1,22 +1,14 @@
 import type { ReactElement } from 'react';
 
 import { LegendTitle } from '../../shared/LegendTitle';
-import { PillToggleGroup } from '../../shared/PillToggleGroup';
+import { CHART_SIGNALS, type SignalKey } from '../utils/chartHelpers';
 import {
   getStrategyColor,
   getStrategyDisplayName,
 } from '../utils/strategyDisplay';
-import {
-  EVENT_LEGEND,
-  INDICATOR_LEGEND,
-  type IndicatorKey,
-  type LegendItem,
-} from './backtestChartLegendData';
 
 interface BacktestChartLegendProps {
   sortedStrategyIds: string[];
-  activeIndicators: ReadonlySet<IndicatorKey>;
-  onToggleIndicator: (key: IndicatorKey) => void;
 }
 
 interface LegendGroupProps {
@@ -24,31 +16,35 @@ interface LegendGroupProps {
   items: LegendItem[];
 }
 
+interface LegendItem {
+  label: string;
+  color: string;
+}
+
+const EVENT_LEGEND_KEYS: SignalKey[] = [
+  'buy_spot',
+  'sell_spot',
+  'switch_to_eth',
+  'switch_to_btc',
+  'switch_to_spy',
+];
+
+const EVENT_LEGEND: LegendItem[] = EVENT_LEGEND_KEYS.flatMap((key) => {
+  const signal = CHART_SIGNALS.find((config) => config.key === key);
+  return signal ? [{ label: signal.name, color: signal.color }] : [];
+});
+
 export function BacktestChartLegend({
   sortedStrategyIds,
-  activeIndicators,
-  onToggleIndicator,
 }: BacktestChartLegendProps): ReactElement {
   const strategyLegend = sortedStrategyIds.map((strategyId, index) => ({
     label: getStrategyDisplayName(strategyId),
     color: getStrategyColor(strategyId, index),
   }));
 
-  const indicatorItems = INDICATOR_LEGEND.map((item) => ({
-    key: item.key,
-    label: item.label,
-    color: item.color,
-  }));
-
   return (
     <div className="flex flex-wrap items-start gap-4">
       <LegendGroup title="Strategy" items={strategyLegend} />
-      <PillToggleGroup
-        title="Market Context"
-        items={indicatorItems}
-        activeKeys={activeIndicators}
-        onToggle={onToggleIndicator}
-      />
       <LegendGroup title="Events" items={EVENT_LEGEND} />
     </div>
   );

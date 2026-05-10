@@ -7,7 +7,6 @@ import {
   CHART_SIGNALS,
   filterToActiveStrategies,
   getPrimaryStrategyId,
-  sentimentLabelToIndex,
   sortStrategyIds,
 } from '@/components/wallet/portfolio/views/backtesting/utils/chartHelpers';
 import { getBacktestSpotAssetColor } from '@/components/wallet/portfolio/views/backtesting/utils/spotAssetDisplay';
@@ -69,30 +68,6 @@ function createTimelinePoint(
     ...overrides,
   };
 }
-
-describe('sentimentLabelToIndex', () => {
-  it.each([
-    ['extreme_fear', 0],
-    ['fear', 25],
-    ['neutral', 50],
-    ['greed', 75],
-    ['extreme_greed', 100],
-  ])('maps %s to %i', (label, expected) => {
-    expect(sentimentLabelToIndex(label)).toBe(expected);
-  });
-
-  it('returns null for unknown labels', () => {
-    expect(sentimentLabelToIndex('unknown')).toBeNull();
-  });
-
-  it('returns null for null input', () => {
-    expect(sentimentLabelToIndex(null)).toBeNull();
-  });
-
-  it('returns null for undefined input', () => {
-    expect(sentimentLabelToIndex(undefined)).toBeNull();
-  });
-});
 
 describe('getPrimaryStrategyId', () => {
   it('returns null for an empty array', () => {
@@ -234,7 +209,7 @@ describe('buildChartPoint', () => {
     expect(result.strategies).toEqual(point.strategies);
   });
 
-  it('uses market.sentiment when present', () => {
+  it('does not emit removed market context overlay fields', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         market: {
@@ -242,22 +217,6 @@ describe('buildChartPoint', () => {
           token_price: { btc: 50000 },
           sentiment: 18,
           sentiment_label: 'extreme_fear',
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBe(18);
-  });
-
-  it('copies macro fear and greed score from the market snapshot', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: null,
           macro_fear_greed: {
             score: 35,
             label: 'fear',
@@ -266,32 +225,6 @@ describe('buildChartPoint', () => {
             raw_rating: 'Fear',
           },
         },
-      }),
-      [],
-    );
-
-    expect(result.macro_fear_greed).toBe(35);
-  });
-
-  it('falls back to a sentiment label index', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: 'fear',
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBe(25);
-  });
-
-  it('reads dma_200 from the first strategy signal with DMA data', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
         strategies: {
           eth_btc_rotation_default: createStrategyPoint({
             signal: {
@@ -318,7 +251,10 @@ describe('buildChartPoint', () => {
       ['eth_btc_rotation_default'],
     );
 
-    expect(result.dma_200).toBe(48000);
+    expect(result).not.toHaveProperty('btc_price');
+    expect(result).not.toHaveProperty('dma_200');
+    expect(result).not.toHaveProperty('sentiment');
+    expect(result).not.toHaveProperty('macro_fear_greed');
   });
 
   it('creates a sell spot marker from a spot -> stable transfer', () => {
@@ -429,41 +365,6 @@ describe('buildChartPoint', () => {
     expect(result.nonexistent_strat_value).toBeUndefined();
   });
 
-  it('returns null sentiment when both sentiment and label are null', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: null,
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBeNull();
-  });
-
-  it('returns null macro fear and greed when the market snapshot omits it', () => {
-    const result = buildChartPoint(createTimelinePoint(), []);
-
-    expect(result.macro_fear_greed).toBeNull();
-  });
-
-  it('returns null dma_200 when no strategies have DMA data', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        strategies: {
-          strat_a: createStrategyPoint({ signal: null }),
-        },
-      }),
-      ['strat_a'],
-    );
-
-    expect(result.dma_200).toBeNull();
-  });
-
   it('uses null for transfers when execution.transfers is null or undefined', () => {
     // Exercises the `strategy.execution.transfers ?? []` fallback in getTransfers
     const result = buildChartPoint(
@@ -558,22 +459,6 @@ describe('buildChartPoint', () => {
     const eventStrategies = result.eventStrategies as Record<string, string[]>;
     // Strategy name should appear only once despite two matching transfers
     expect(eventStrategies.buy_spot).toEqual(['ETH/BTC Rotation Default']);
-  });
-
-  it('returns null btc_price when token_price has no btc key', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: {},
-          sentiment: null,
-          sentiment_label: null,
-        },
-      }),
-      [],
-    );
-
-    expect(result.btc_price).toBeNull();
   });
 
   it('uses the max portfolio value when multiple strategies trigger the same marker', () => {

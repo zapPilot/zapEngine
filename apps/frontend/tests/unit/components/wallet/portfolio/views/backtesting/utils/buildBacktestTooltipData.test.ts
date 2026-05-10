@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
 import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 import type {
   BacktestBucket,
@@ -200,24 +199,6 @@ function createTooltipPayload() {
       },
     },
     {
-      name: 'Sentiment',
-      value: 25,
-      color: '#f59e0b',
-      payload: { market: makeMarket() },
-    },
-    {
-      name: 'BTC Price',
-      value: 60000,
-      color: '#22c55e',
-      payload: {},
-    },
-    {
-      name: 'DMA 200',
-      value: 50000,
-      color: '#38bdf8',
-      payload: {},
-    },
-    {
       name: 'Buy Spot',
       value: 12000,
       color: '#22c55e',
@@ -410,198 +391,6 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.decision?.assetChangeNote?.label).toBe(
         'No asset changes - held position',
       );
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSentimentValue — "Unknown" branch when sentiment is null/undefined
-  // ------------------------------------------------------------------
-
-  describe('formatSentimentValue', () => {
-    it("displays 'Unknown' when sentiment_label is null", () => {
-      const market = makeMarket('2026-01-15', null);
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 42,
-          color: '#f59e0b',
-          payload: { market },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const sentiment = result?.sections.signals.find(
-        (s) => s.name === 'Sentiment',
-      );
-      expect(sentiment?.value).toBe('Unknown (42)');
-    });
-
-    it('capitalizes a provided sentiment_label', () => {
-      const market = makeMarket('2026-01-15', 'extreme_greed');
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 90,
-          color: '#f59e0b',
-          payload: { market },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const sentiment = result?.sections.signals.find(
-        (s) => s.name === 'Sentiment',
-      );
-      // Only first character is uppercased; rest is kept as-is
-      expect(sentiment?.value).toBe('Extreme_greed (90)');
-    });
-  });
-
-  describe('formatSignalValue — Macro FGI', () => {
-    it('formats macro fear and greed label and score', () => {
-      const market = makeMarket('2026-01-15', 'fear', {
-        score: 35,
-        label: 'fear',
-        source: 'cnn_fear_greed_unofficial',
-        updated_at: '2026-01-15T12:00:00+00:00',
-        raw_rating: 'Fear',
-      });
-      const payload = [
-        {
-          name: 'Macro FGI',
-          value: 35,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({ payload });
-      const macroFgi = result?.sections.signals.find(
-        (s) => s.name === 'Macro FGI',
-      );
-
-      expect(macroFgi?.value).toBe('Fear (35)');
-    });
-
-    it("displays 'Unknown' when macro fear and greed label is absent", () => {
-      const market = makeMarket('2026-01-15', 'fear', null);
-      const payload = [
-        {
-          name: 'Macro FGI',
-          value: 42,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({ payload });
-      const macroFgi = result?.sections.signals.find(
-        (s) => s.name === 'Macro FGI',
-      );
-
-      expect(macroFgi?.value).toBe('Unknown (42)');
-    });
-
-    it('filters macro fear and greed when its indicator is inactive', () => {
-      const market = makeMarket('2026-01-15', 'fear', {
-        score: 35,
-        label: 'fear',
-        source: 'cnn_fear_greed_unofficial',
-        updated_at: '2026-01-15T12:00:00+00:00',
-        raw_rating: 'Fear',
-      });
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 25,
-          color: '#f59e0b',
-          payload: { market },
-        },
-        {
-          name: 'Macro FGI',
-          value: 35,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({
-        payload,
-        activeIndicators: new Set<IndicatorKey>(['sentiment']),
-      });
-
-      expect(
-        result?.sections.signals.some((signal) => signal.name === 'Macro FGI'),
-      ).toBe(false);
-      expect(
-        result?.sections.signals.some((signal) => signal.name === 'Sentiment'),
-      ).toBe(true);
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSignalValue — "BTC Price" / "DMA 200" when value is not a number
-  // ------------------------------------------------------------------
-
-  describe('formatSignalValue — BTC Price / DMA 200 with undefined value', () => {
-    it("returns empty string for 'BTC Price' when value is undefined", () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: undefined,
-          color: '#22c55e',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const btc = result?.sections.signals.find((s) => s.name === 'BTC Price');
-      expect(btc?.value).toBe('');
-    });
-
-    it("returns empty string for 'DMA 200' when value is undefined", () => {
-      const payload = [
-        {
-          name: 'DMA 200',
-          value: undefined,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const dma = result?.sections.signals.find((s) => s.name === 'DMA 200');
-      expect(dma?.value).toBe('');
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSignalValue — VIX (numeric and non-numeric)
-  // ------------------------------------------------------------------
-
-  describe('formatSignalValue — VIX signal (non-Sentiment, non-BTC/DMA)', () => {
-    it('rounds a numeric VIX value to 2 decimal places', () => {
-      const payload = [
-        {
-          name: 'VIX',
-          value: 18.456789,
-          color: '#a78bfa',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
-      expect(vix?.value).toBe(18.46);
-    });
-
-    it('returns empty string for VIX when value is undefined', () => {
-      const payload = [
-        {
-          name: 'VIX',
-          value: undefined,
-          color: '#a78bfa',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
-      // value ?? "" → ""
-      expect(vix?.value).toBe('');
     });
   });
 
@@ -921,130 +710,10 @@ describe('buildBacktestTooltipData', () => {
   });
 
   // ------------------------------------------------------------------
-  // BTC / DMA 200 ratio computation
+  // Full integration — categorizes strategy, event, decision, and allocations
   // ------------------------------------------------------------------
 
-  describe('BTC / DMA 200 ratio signal', () => {
-    it('appends BTC/DMA200 ratio when both signals have numeric values', () => {
-      const result = buildBacktestTooltipData({
-        payload: createTooltipPayload(),
-        label: '2026-01-01',
-      });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeDefined();
-      expect(ratio?.value).toBe('1.20');
-      expect(ratio?.color).toBe('#a78bfa');
-    });
-
-    it('does not append ratio when BTC Price signal is missing', () => {
-      const payload = [
-        {
-          name: 'DMA 200',
-          value: 50000,
-          color: '#38bdf8',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it('does not append ratio when DMA 200 signal is missing', () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: 60000,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it('does not append ratio when DMA 200 value is zero (avoids division by zero)', () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: 60000,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-        {
-          name: 'DMA 200',
-          value: 0,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it("appends ratio of 0.00 when BTC Price value is undefined (formatSignalValue yields '', parsed as 0)", () => {
-      // When BTC Price has no numeric value, formatSignalValue returns "".
-      // parseNumericSignal("") → Number("") = 0 (finite), so btcNum = 0.
-      // The ratio is computed as 0 / dmaNum = 0.00 and IS appended.
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: undefined,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-        {
-          name: 'DMA 200',
-          value: 50000,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ] as unknown as {
-        name: string;
-        value: number;
-        color: string;
-        payload: object;
-      }[];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      // btcNum = 0 (parsed from ""), dmaNum = 50000 → ratio = "0.00"
-      expect(ratio?.value).toBe('0.00');
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // Full integration — categorizes all item types correctly
-  // ------------------------------------------------------------------
-
-  describe('full integration — categorizes strategies, signals, events, allocations', () => {
+  describe('full integration — categorizes strategies, events, allocations', () => {
     it('produces correct sections from a complete payload', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
@@ -1058,14 +727,7 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.strategies).toEqual([
         { name: 'ETH/BTC Rotation Default', value: 12000, color: '#3b82f6' },
       ]);
-      expect(result?.sections.signals).toEqual(
-        expect.arrayContaining([
-          { name: 'Sentiment', value: 'Fear (25)', color: '#f59e0b' },
-          { name: 'BTC Price', value: '$60,000', color: '#22c55e' },
-          { name: 'DMA 200', value: '$50,000', color: '#38bdf8' },
-          { name: 'BTC / DMA 200', value: '1.20', color: '#a78bfa' },
-        ]),
-      );
+      expect(result?.sections).not.toHaveProperty('signals');
       expect(result?.sections.events).toEqual([
         {
           name: 'Buy Spot',
