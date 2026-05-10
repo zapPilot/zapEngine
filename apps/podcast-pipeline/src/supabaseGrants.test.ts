@@ -108,6 +108,31 @@ describe('Supabase user_episode_state grants', () => {
       effectiveDataApiTableGrants(migrations),
     );
   });
+
+  it('latest migration restores language classroom data in the mobile episode view', () => {
+    const { filename, sql } = readLatestMigration();
+
+    expect(filename).toMatch(/restore_language_classrooms/i);
+    expect(sql).toMatch(
+      /drop\s+view\s+if\s+exists\s+from_fed_to_chain\.episodes_with_stats\s*;/i,
+    );
+    expect(sql).toMatch(
+      /create\s+view\s+from_fed_to_chain\.episodes_with_stats\s+with\s*\(\s*security_invoker\s*=\s*true\s*\)\s+as/i,
+    );
+    expect(sql).toMatch(
+      /coalesce\s*\(\s*lc\.language_classrooms\s*,\s*'\[\]'::jsonb\s*\)\s+as\s+language_classrooms/i,
+    );
+    expect(sql).toMatch(
+      /group\s+by\s+episode_localization_id[\s\S]+?\)\s+lc\s+on\s+lc\.episode_localization_id\s*=\s*el\.id/i,
+    );
+    expect(sql).toMatch(
+      /where\s+el\.id\s*=\s*language_classrooms\.episode_localization_id[\s\S]+?el\.status\s*=\s*'completed'[\s\S]+?el\.hls_url\s*<>\s*''/i,
+    );
+    expect(sql).toMatch(
+      /grant\s+select\s+on\s+from_fed_to_chain\.episodes_with_stats\s+to\s+anon,\s*authenticated\s*;/i,
+    );
+    expect(sql).toMatch(/notify\s+pgrst\s*,\s*'reload schema'\s*;/i);
+  });
 });
 
 function mobileUserEpisodeStateSelectColumns(): string[] {
@@ -200,6 +225,27 @@ function readSortedMigrations(): string[] {
     .filter((file) => file.endsWith('.sql'))
     .sort()
     .map((file) => fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+}
+
+function readLatestMigration(): { filename: string; sql: string } {
+  const migrationsDir = path.join(
+    repoRoot,
+    'apps/podcast-pipeline/supabase/migrations',
+  );
+  const filename = fs
+    .readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.sql'))
+    .sort()
+    .at(-1);
+
+  if (!filename) {
+    throw new Error('No Supabase migrations found');
+  }
+
+  return {
+    filename,
+    sql: fs.readFileSync(path.join(migrationsDir, filename), 'utf8'),
+  };
 }
 
 function readRepoFile(relativePath: string): string {
