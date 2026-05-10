@@ -65,7 +65,7 @@ export class AnalyticsClientService {
     // Daily suggestion occasionally has a cold-path spike on the first upstream call
     // (~13-14s observed) before subsequent requests drop below 1s.
     const response = await this.fetchFromAnalytics<unknown>(
-      `/api/v3/strategy/daily-suggestion/${userId}?config_id=eth_btc_rotation_default`,
+      `/api/v3/strategy/daily-suggestion/${userId}?config_id=dma_fgi_portfolio_rules_default`,
       'daily suggestion',
       userId,
       {
