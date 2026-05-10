@@ -18,6 +18,17 @@ The portfolio is always a mix of three understandable assets — no tokens you c
 
 Allocation across the three pillars shifts with the market regime.
 
+## How the engine decides
+
+Inside the strategy engine is a deterministic priority stack of six rule types. On every market snapshot, the engine walks the stack from highest priority down — the first rule whose trigger conditions are met produces the day's allocation. There is no scoring, no blending, no model overrides.
+
+The six rules fall into two output shapes:
+
+- **Cross-based rules** — fire on a hard regime-line crossing and act decisively in a single move. A trend break exits to defense in full; a reclaim of trend resets risk in equal weight; a relative-strength flip rotates the crypto leg outright.
+- **DCA-based rules** — fire on extension and sentiment shifts and act in small, fixed-percentage increments so the portfolio glides rather than jumps.
+
+After a rule picks a target, post-decision risk guards enforce minimum spacing between trades and rolling trade-quota caps — the engine cannot churn even when signals fire often. The rule-by-rule breakdown lives in [How it works](/docs/how-it-works#the-rules-in-priority-order).
+
 ## What stays in your wallet
 
 <Callout type="info" title="Self-custody by construction">
@@ -33,7 +44,7 @@ Allocation across the three pillars shifts with the market regime.
   <Card
     title="How it works"
     href="/docs/how-it-works"
-    description="Sense the regime, decide the allocation, sign one bundle. The three-step flow and the two execution paths."
+    description="The Sense → Decide → Sign flow, the six-rule priority engine, and the two execution paths."
   />
   <Card
     title="Architecture"

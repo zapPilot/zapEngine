@@ -41,11 +41,12 @@ describe('BacktestProofV2', () => {
     it('renders stat values', () => {
       render(<BacktestProofV2 />);
 
-      expect(screen.getByText('+135.8pp')).toBeInTheDocument();
-      expect(screen.getByText('121.44%')).toBeInTheDocument();
-      expect(screen.getByText('4.50')).toBeInTheDocument();
-      expect(screen.getByText('1.91')).toBeInTheDocument();
-      expect(screen.getByText('-17.46%')).toBeInTheDocument();
+      expect(screen.getByText('+135.66pp')).toBeInTheDocument();
+      expect(screen.getByText('121.30%')).toBeInTheDocument();
+      expect(screen.getByText('4.63')).toBeInTheDocument();
+      expect(screen.getByText('1.98')).toBeInTheDocument();
+      expect(screen.getByText('-16.97%')).toBeInTheDocument();
+      expect(screen.getByText(/81 executed trades/)).toBeInTheDocument();
     });
   });
 

@@ -35,11 +35,7 @@ export function HeroV2() {
           <span>Non-custodial · Self-directed · Live on mainnet</span>
         </div>
 
-        <h1 className="hero-title">
-          Trade with <em>discipline.</em>
-          <br />
-          Yield is the <span className="accent-block">icing.</span>
-        </h1>
+        <h1 className="hero-title">{MESSAGES.hero.title.primary}</h1>
 
         <p className="hero-sub">{MESSAGES.hero.subtitle}</p>
 

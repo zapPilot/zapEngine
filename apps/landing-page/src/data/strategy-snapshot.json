@@ -1,0 +1,72 @@
+{
+  "reference_date": "2026-04-15",
+  "window_days": 500,
+  "window_start": "2024-12-02",
+  "window_end": "2026-04-15",
+  "total_capital": 10000.0,
+  "tolerances": {
+    "roi_percent": 2.0,
+    "calmar_ratio": 0.1,
+    "sharpe_ratio": 0.1,
+    "max_drawdown_percent": 1.0,
+    "trade_count": 5.0
+  },
+  "strategies": {
+    "eth_btc_rotation": {
+      "display_name": "ETH/BTC Relative Strength Rotation",
+      "calmar_ratio": 4.4234,
+      "sharpe_ratio": 1.9368,
+      "max_drawdown_percent": -18.4141,
+      "roi_percent": 126.2611,
+      "trade_count": 61
+    },
+    "dma_fgi_portfolio_rules": {
+      "display_name": "[RESEARCH] Portfolio Rules",
+      "calmar_ratio": 3.7265,
+      "sharpe_ratio": 2.0178,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 50.5217,
+      "trade_count": 52
+    },
+    "dma_fgi_portfolio_rules_minus_dma_stable_gating": {
+      "display_name": "[RESEARCH] Portfolio Rules - DMA Stable Gating",
+      "calmar_ratio": 4.5129,
+      "sharpe_ratio": 2.2349,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 61.8548,
+      "trade_count": 55
+    },
+    "dma_fgi_portfolio_rules_minus_greed_sell_suppression": {
+      "display_name": "[RESEARCH] Portfolio Rules - Greed Sell Suppression",
+      "calmar_ratio": 3.9286,
+      "sharpe_ratio": 2.1392,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 53.3945,
+      "trade_count": 55
+    },
+    "dma_fgi_portfolio_rules_minus_eth_btc_deviation_dca": {
+      "display_name": "[RESEARCH] Portfolio Rules - ETH/BTC Deviation DCA",
+      "calmar_ratio": 3.904,
+      "sharpe_ratio": 1.9422,
+      "max_drawdown_percent": -9.3248,
+      "roi_percent": 53.0608,
+      "trade_count": 59
+    },
+    "dma_fgi_hierarchical_control": {
+      "display_name": "84% Hierarchical Attribution Control",
+      "calmar_ratio": 5.2073,
+      "sharpe_ratio": 1.9385,
+      "max_drawdown_percent": -11.3106,
+      "roi_percent": 88.6384,
+      "trade_count": 73
+    },
+    "dma_fgi_hierarchical_minimum": {
+      "display_name": "Hierarchical Minimum",
+      "calmar_ratio": 4.6275,
+      "sharpe_ratio": 1.9826,
+      "max_drawdown_percent": -16.9734,
+      "roi_percent": 121.3018,
+      "trade_count": 81
+    }
+  }
+}

@@ -22,7 +22,7 @@ describe('HeroV2', () => {
     it('renders main heading', () => {
       render(<HeroV2 />);
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-        /Trade with/,
+        'BlackRock in your wallet.',
       );
     });
 
