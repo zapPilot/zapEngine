@@ -15,8 +15,6 @@ ALLOCATION_STATES = {
 }
 
 STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
-STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
-STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING = (
     "dma_fgi_portfolio_rules_minus_dma_stable_gating"
@@ -27,11 +25,12 @@ STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION = (
 STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA = (
     "dma_fgi_portfolio_rules_minus_eth_btc_deviation_dca"
 )
+STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH = (
+    "dma_fgi_portfolio_rules_minus_spy_latch"
+)
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING: (
         "[RESEARCH] Portfolio Rules - DMA Stable Gating"
@@ -41,6 +40,9 @@ STRATEGY_DISPLAY_NAMES = {
     ),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA: (
         "[RESEARCH] Portfolio Rules - ETH/BTC Deviation DCA"
+    ),
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH: (
+        "[RESEARCH] Portfolio Rules - SPY Latch"
     ),
 }
 

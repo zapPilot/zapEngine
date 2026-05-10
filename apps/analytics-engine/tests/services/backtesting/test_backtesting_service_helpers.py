@@ -7,7 +7,7 @@ import pytest
 
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
-from src.services.backtesting.constants import STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_DMA_200_FEATURE,
@@ -448,8 +448,8 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
             end_date=date(2025, 1, 2),
             configs=[
                 BacktestCompareConfigV3(
-                    config_id=STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
-                    saved_config_id=STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
+                    config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+                    saved_config_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
                 )
             ],
         )
@@ -458,10 +458,12 @@ async def test_run_compare_v3_accepts_builtin_strategy_id_as_saved_config_alias(
     requirements = service.data_provider.fetch_token_prices.call_args.kwargs[
         "market_data_requirements"
     ]
-    assert requirements.required_price_features == frozenset({DMA_200_FEATURE})
+    assert requirements.required_price_features == frozenset(
+        {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+    )
     resolved_configs = mock_runner.call_args.kwargs["resolved_configs"]
     assert [config.strategy_id for config in resolved_configs] == [
-        STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM
+        STRATEGY_DMA_FGI_PORTFOLIO_RULES
     ]
 
 

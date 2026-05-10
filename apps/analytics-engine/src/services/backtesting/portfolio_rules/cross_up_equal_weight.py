@@ -25,6 +25,7 @@ class CrossUpEqualWeightRule:
     cooldown_keyed_by_trigger_symbol: bool = True
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
+    applicable_symbols: frozenset[str] | None = None
 
     def matches(
         self,
@@ -33,7 +34,9 @@ class CrossUpEqualWeightRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return _has_cross_up(snapshot) and bool(_eligible_symbols(snapshot))
+        return _has_cross_up(snapshot, rule=self) and bool(
+            _eligible_symbols(snapshot, rule=self)
+        )
 
     def build_intent(
         self,
@@ -41,7 +44,7 @@ class CrossUpEqualWeightRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        eligible_symbols = _eligible_symbols(snapshot)
+        eligible_symbols = _eligible_symbols(snapshot, rule=self)
         trigger_symbols = [
             symbol
             for symbol in eligible_symbols
@@ -71,17 +74,27 @@ class CrossUpEqualWeightRule:
         return replace(intent, diagnostics=diagnostics)
 
 
-def _has_cross_up(snapshot: PortfolioSnapshot) -> bool:
+def _has_cross_up(
+    snapshot: PortfolioSnapshot,
+    *,
+    rule: CrossUpEqualWeightRule,
+) -> bool:
     return any(
-        _is_cross_up_signal(snapshot, symbol) for symbol in _eligible_symbols(snapshot)
+        _is_cross_up_signal(snapshot, symbol)
+        for symbol in _eligible_symbols(snapshot, rule=rule)
     )
 
 
-def _eligible_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _eligible_symbols(
+    snapshot: PortfolioSnapshot,
+    *,
+    rule: CrossUpEqualWeightRule,
+) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if snapshot.assets[symbol].zone == "above"
+        and (rule.applicable_symbols is None or symbol in rule.applicable_symbols)
         and symbol in ALLOCATION_KEY_BY_SYMBOL
         and (
             _is_cross_up_signal(snapshot, symbol)

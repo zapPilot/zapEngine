@@ -224,7 +224,10 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             btc_dma_state=committed["btc"],
             eth_dma_state=committed["eth"],
         )
-        if _is_ratio_rotation_intent(intent) and ratio_state is not None:
+        if (
+            ratio_state is not None
+            and _is_ratio_rotation_intent(intent, ratio_state=ratio_state)
+        ):
             self._start_ratio_cooldown(ratio_state.cross_event)
             updated_snapshot = replace(
                 updated_snapshot,
@@ -757,10 +760,20 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
     )
 
 
-def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
+def _is_ratio_rotation_intent(
+    intent: AllocationIntent,
+    *,
+    ratio_state: EthBtcRatioState | None = None,
+) -> bool:
     allocation_name = intent.allocation_name
-    return isinstance(allocation_name, str) and allocation_name.startswith(
-        _RATIO_ROTATION_ALLOCATION_PREFIX
+    if not isinstance(allocation_name, str):
+        return False
+    if allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX):
+        return True
+    return (
+        allocation_name == "portfolio_eth_btc_continuous_weight"
+        and ratio_state is not None
+        and ratio_state.cross_event is not None
     )
 
 

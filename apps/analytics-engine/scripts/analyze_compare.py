@@ -12,9 +12,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from scripts._summarize import render_summary
-from src.services.backtesting.strategies.hierarchical_attribution import (
-    HIERARCHICAL_ATTRIBUTION_VARIANTS,
-)
 from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
 from src.services.backtesting.validation.event_runner import (
     ConstraintValidationFailed,
@@ -1727,15 +1724,8 @@ def _optional_upper(value: Any) -> str | None:
 
 
 def _build_active_tactics(strategy_id: str) -> dict[str, Any]:
-    variant = HIERARCHICAL_ATTRIBUTION_VARIANTS.get(strategy_id)
-    if variant is None:
-        return {}
-    return {
-        "adaptive_crypto_dma_reference": variant.adaptive_crypto_dma_reference,
-        "spy_cross_up_latch": variant.spy_cross_up_latch,
-        "disabled_rules": sorted(variant.disabled_rules),
-        "dma_buy_strength_floor": variant.dma_buy_strength_floor,
-    }
+    del strategy_id
+    return {}
 
 
 def _render_text_context(context: dict[str, Any] | None) -> list[str]:

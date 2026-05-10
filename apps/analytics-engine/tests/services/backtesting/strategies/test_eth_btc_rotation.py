@@ -5,12 +5,18 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.execution.portfolio import Portfolio
+from src.services.backtesting.execution.rule_based.allocation_executor import (
+    RuleBasedAllocationExecutor,
+)
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaCooldownState
-from src.services.backtesting.strategies.base import StrategyAction, StrategyContext
+from src.services.backtesting.strategies.base import StrategyContext
+from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+    DmaFgiPortfolioRulesDecisionPolicy,
+)
 from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 from src.services.backtesting.strategies.eth_btc_rotation import (
     EthBtcRelativeStrengthSignalComponent,
@@ -55,13 +61,6 @@ def _build_context(
         price_map={"btc": btc_price, "eth": eth_price},
         extra_data=extra_data,
     )
-
-
-def _buy_gate_payload(action: StrategyAction) -> dict[str, object] | None:
-    for diagnostic in action.snapshot.execution.plugin_diagnostics:
-        if diagnostic.plugin_id == "dma_buy_gate":
-            return dict(diagnostic.payload)
-    return None
 
 
 def test_signal_component_marks_ratio_state_unavailable_when_ratio_missing() -> None:
@@ -1410,7 +1409,23 @@ def test_ratio_cooldown_expiry_resumes_gradual_zone_rotation() -> None:
     assert resumed_intent.target_allocation["eth"] == pytest.approx(0.0)
 
 
-def test_eth_btc_rotation_strategy_targets_full_stable_when_outer_gate_exits() -> None:
+def test_eth_btc_rotation_strategy_uses_rule_wrapper_components() -> None:
+    strategy = EthBtcRotationStrategy(total_capital=10_000.0)
+
+    assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
+    assert isinstance(strategy.decision_policy, DmaFgiPortfolioRulesDecisionPolicy)
+    assert [
+        rule.name for rule in strategy.decision_policy.rules
+    ] == [
+        "cross_down_exit",
+        "cross_up_equal_weight",
+        "eth_btc_continuous_weight",
+        "dma_stable_gating",
+        "extreme_fear_dca_buy",
+    ]
+
+
+def test_eth_btc_rotation_strategy_uses_continuous_weight_rule() -> None:
     strategy = EthBtcRotationStrategy(
         total_capital=10_000.0,
         strategy_id="eth_rotation_runtime",
@@ -1451,16 +1466,17 @@ def test_eth_btc_rotation_strategy_targets_full_stable_when_outer_gate_exits() -
 
     action = strategy.on_day(context)
 
+    assert action.snapshot.decision.reason == "portfolio_eth_btc_continuous_weight"
     assert action.snapshot.decision.target_allocation == {
-        "btc": 0.0,
+        "btc": 1.0,
         "eth": 0.0,
         "spy": 0.0,
-        "stable": 1.0,
+        "stable": 0.0,
         "alt": 0.0,
     }
 
 
-def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
+def test_eth_btc_rotation_stays_stable_when_no_rule_cycle_is_open() -> None:
     strategy = EthBtcRotationStrategy(
         total_capital=10_000.0,
         params=EthBtcRotationParams(
@@ -1485,7 +1501,7 @@ def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
     strategy.initialize(portfolio, None, init_context)
     strategy.warmup_day(init_context)
 
-    action: StrategyAction | None = None
+    action = None
     for offset in range(5):
         is_buy_day = offset == 4
         context = _build_context(
@@ -1502,31 +1518,18 @@ def test_eth_btc_rotation_non_cross_buy_uses_buy_gate_leg_cap() -> None:
         action = strategy.on_day(context)
 
     assert action is not None
-    assert action.snapshot.decision.reason == "below_extreme_fear_buy"
-    assert action.snapshot.decision.immediate is False
+    assert action.snapshot.decision.reason == "regime_no_signal"
     assert action.snapshot.decision.target_allocation == {
-        "btc": 1.0,
+        "btc": 0.0,
         "eth": 0.0,
         "spy": 0.0,
-        "stable": 0.0,
+        "stable": 1.0,
         "alt": 0.0,
     }
-    assert action.transfers is not None
-    stable_buy = sum(
-        transfer.amount_usd
-        for transfer in action.transfers
-        if transfer.from_bucket == "stable" and transfer.to_bucket != "stable"
-    )
-    assert stable_buy == pytest.approx(500.0)
-    buy_gate = _buy_gate_payload(action)
-    assert buy_gate is not None
-    assert buy_gate["sideways_confirmed"] is True
-    assert buy_gate["leg_index"] == 1
-    assert buy_gate["leg_cap_pct"] == pytest.approx(0.05)
-    assert buy_gate["leg_spent_usd"] == pytest.approx(500.0)
+    assert action.transfers is None
 
 
-def test_eth_btc_rotation_unconfirmed_buy_gate_blocks_stable_not_rotation() -> None:
+def test_eth_btc_rotation_continuous_weight_rotates_without_stable_buy_gate() -> None:
     strategy = EthBtcRotationStrategy(
         total_capital=10_000.0,
         params=EthBtcRotationParams(cross_cooldown_days=0),
@@ -1566,12 +1569,12 @@ def test_eth_btc_rotation_unconfirmed_buy_gate_blocks_stable_not_rotation() -> N
     )
     action = strategy.on_day(context)
 
-    assert action.snapshot.decision.reason == "below_extreme_fear_buy"
+    assert action.snapshot.decision.reason == "portfolio_eth_btc_continuous_weight"
     assert action.snapshot.decision.target_allocation == {
         "btc": 0.0,
-        "eth": 1.0,
+        "eth": 0.5,
         "spy": 0.0,
-        "stable": 0.0,
+        "stable": 0.5,
         "alt": 0.0,
     }
     assert action.transfers is not None
@@ -1581,9 +1584,7 @@ def test_eth_btc_rotation_unconfirmed_buy_gate_blocks_stable_not_rotation() -> N
     )
     assert all(transfer.from_bucket != "stable" for transfer in action.transfers)
     assert action.snapshot.execution.blocked_reason is None
-    buy_gate = _buy_gate_payload(action)
-    assert buy_gate is not None
-    assert buy_gate["sideways_confirmed"] is False
+    assert action.snapshot.execution.plugin_diagnostics == ()
 
 
 def test_build_initial_eth_btc_asset_allocation_uses_ratio_split() -> None:

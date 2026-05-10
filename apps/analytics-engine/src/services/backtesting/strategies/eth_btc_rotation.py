@@ -20,16 +20,31 @@ from src.services.backtesting.constants import (
 )
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import RatioSignalDiagnostics, SignalObservation
-from src.services.backtesting.execution.allocation_intent_executor import (
-    AllocationIntentExecutor,
-)
 from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.execution.rule_based.allocation_executor import (
+    RuleBasedAllocationExecutor,
+)
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
     ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES,
+    ETH_DMA_200_FEATURE,
     MarketDataRequirements,
+)
+from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
+    CrossUpEqualWeightRule,
+)
+from src.services.backtesting.portfolio_rules.dma_stable_gating import (
+    DmaStableGatingRule,
+)
+from src.services.backtesting.portfolio_rules.eth_btc_continuous_weight import (
+    EthBtcContinuousWeightRule,
+)
+from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
+    ExtremeFearDcaBuyRule,
 )
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
@@ -45,12 +60,17 @@ from src.services.backtesting.signals.ratio_state import (
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
+from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleExecutionState,
+)
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DMA_GATED_FGI_PUBLIC_PARAM_KEYS,
     DmaGatedFgiDecisionPolicy,
     DmaGatedFgiParams,
     DmaGatedFgiSignalComponent,
 )
+from src.services.backtesting.strategies.minimum import FlatMinimumSignalComponent
 from src.services.backtesting.target_allocation import normalize_target_allocation
 from src.services.backtesting.utils import coerce_float, coerce_int, coerce_params
 
@@ -64,6 +84,7 @@ ETH_BTC_ROTATION_PUBLIC_PARAM_KEYS = frozenset(
         "rotation_cooldown_days",
     }
 )
+_ETH_BTC_SYMBOLS = frozenset({"BTC", "ETH"})
 
 _ROTATION_COERCION_SPEC: dict[str, Any] = {
     "ratio_cross_cooldown_days": coerce_int,
@@ -677,7 +698,7 @@ def _requires_ratio_rotation(
 
 @dataclass
 class EthBtcRotationStrategy(ComposedSignalStrategy):
-    """DMA stable-gated strategy with BTC/ETH relative-strength rotation."""
+    """BTC/ETH-only rule-based rotation strategy."""
 
     total_capital: float
     signal_id: str = "eth_btc_rs_signal"
@@ -687,7 +708,7 @@ class EthBtcRotationStrategy(ComposedSignalStrategy):
     )
     signal_component: StatefulSignalComponent = field(init=False, repr=False)
     decision_policy: DecisionPolicy = field(init=False, repr=False)
-    execution_engine: AllocationIntentExecutor = field(init=False, repr=False)
+    execution_engine: RuleBasedAllocationExecutor = field(init=False, repr=False)
     public_params: dict[str, Any] = field(default_factory=dict)
     strategy_id: str = STRATEGY_ETH_BTC_ROTATION
     display_name: str = STRATEGY_DISPLAY_NAMES[STRATEGY_ETH_BTC_ROTATION]
@@ -704,25 +725,31 @@ class EthBtcRotationStrategy(ComposedSignalStrategy):
             else EthBtcRotationParams.from_public_params(self.params)
         )
         self.params = resolved_params
-        self.signal_component = EthBtcRelativeStrengthSignalComponent(
+        self.execution_engine = RuleBasedAllocationExecutor()
+        self.signal_component = FlatMinimumSignalComponent(
             config=resolved_params.build_signal_config(),
             ratio_cross_cooldown_days=resolved_params.ratio_cross_cooldown_days,
-            rotation_neutral_band=resolved_params.rotation_neutral_band,
-            rotation_max_deviation=resolved_params.rotation_max_deviation,
-        )
-        self.decision_policy = EthBtcRotationDecisionPolicy(
-            rotation_drift_threshold=resolved_params.rotation_drift_threshold,
-            rotation_max_deviation=resolved_params.rotation_max_deviation,
-            _dma_policy=DmaGatedFgiDecisionPolicy(
-                dma_overextension_threshold=resolved_params.dma_overextension_threshold,
-                fgi_slope_reversal_threshold=resolved_params.fgi_slope_reversal_threshold,
-                fgi_slope_recovery_threshold=resolved_params.fgi_slope_recovery_threshold,
+            signal_id=self.signal_id,
+            market_data_requirements=MarketDataRequirements(
+                requires_sentiment=True,
+                required_price_features=frozenset(
+                    {DMA_200_FEATURE, ETH_DMA_200_FEATURE}
+                ),
+                required_aux_series=frozenset({ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES}),
+                max_lag_days=7,
             ),
+            cross_down_cooldown_days_by_symbol={
+                "BTC": resolved_params.cross_cooldown_days,
+                "ETH": resolved_params.cross_cooldown_days,
+            },
         )
-        self.execution_engine = AllocationIntentExecutor(
-            pacing_policy=resolved_params.build_pacing_policy(),
-            plugins=resolved_params.build_execution_plugins(),
-            rotation_cooldown_days=resolved_params.rotation_cooldown_days,
+        self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
+            rules=_build_eth_btc_rotation_rules(resolved_params),
+            config=PortfolioRuleConfig(emit_signals_consulted=True),
+            execution_state_provider=lambda: RuleExecutionState(
+                last_trade_date=self.execution_engine.last_trade_date,
+                trade_dates=tuple(self.execution_engine.trade_dates),
+            ),
         )
         self.public_params = {
             "signal_id": self.signal_id,
@@ -733,12 +760,47 @@ class EthBtcRotationStrategy(ComposedSignalStrategy):
         return dict(self.public_params)
 
 
+def _build_eth_btc_rotation_rules(
+    params: EthBtcRotationParams,
+) -> tuple[
+    CrossDownExitRule
+    | CrossUpEqualWeightRule
+    | EthBtcContinuousWeightRule
+    | DmaStableGatingRule
+    | ExtremeFearDcaBuyRule,
+    ...,
+]:
+    return tuple(
+        sorted(
+            (
+                CrossDownExitRule(
+                    applicable_symbols=_ETH_BTC_SYMBOLS,
+                    cross_down_cooldown_days_per_symbol={
+                        "BTC": params.cross_cooldown_days,
+                        "ETH": params.cross_cooldown_days,
+                    },
+                ),
+                CrossUpEqualWeightRule(applicable_symbols=_ETH_BTC_SYMBOLS),
+                EthBtcContinuousWeightRule(
+                    cooldown_days=params.rotation_cooldown_days,
+                    rotation_max_deviation=params.rotation_max_deviation,
+                    rotation_drift_threshold=params.rotation_drift_threshold,
+                ),
+                DmaStableGatingRule(applicable_symbols=_ETH_BTC_SYMBOLS),
+                ExtremeFearDcaBuyRule(applicable_symbols=_ETH_BTC_SYMBOLS),
+            ),
+            key=lambda rule: rule.priority,
+        )
+    )
+
+
 __all__ = [
     "EthBtcRelativeStrengthSignalComponent",
     "EthBtcRotationDecisionPolicy",
     "EthBtcRotationParams",
     "EthBtcRotationState",
     "EthBtcRotationStrategy",
+    "_build_eth_btc_rotation_rules",
     "build_initial_eth_btc_asset_allocation",
     "default_eth_btc_rotation_params",
 ]

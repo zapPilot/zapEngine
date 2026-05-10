@@ -32,6 +32,7 @@ class CrossDownExitRule:
     cooldown_days: int = 30
     rule_group: RuleGroup = "cross"
     description: str = "Exit any asset that crosses below DMA; proceeds remain stable."
+    applicable_symbols: frozenset[str] | None = None
     cross_down_cooldown_days_per_symbol: dict[str, int] = field(
         default_factory=lambda: {"BTC": 30, "ETH": 30, "SPY": 14}
     )
@@ -50,7 +51,7 @@ class CrossDownExitRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return bool(_cross_down_symbols(snapshot))
+        return bool(_cross_down_symbols(snapshot, rule=self))
 
     def build_intent(
         self,
@@ -58,8 +59,8 @@ class CrossDownExitRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _cross_down_symbols(snapshot)
-        exit_symbols = _exit_symbols_for_cross_down(matching_symbols)
+        matching_symbols = _cross_down_symbols(snapshot, rule=self)
+        exit_symbols = _exit_symbols_for_cross_down(matching_symbols, rule=self)
         target = current_target(snapshot)
         liquidated_symbols: list[str] = []
         for symbol in exit_symbols:
@@ -95,21 +96,36 @@ class CrossDownExitRule:
         return replace(intent, diagnostics=diagnostics)
 
 
-def _cross_down_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _cross_down_symbols(
+    snapshot: PortfolioSnapshot,
+    *,
+    rule: CrossDownExitRule,
+) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
+        if _is_applicable_symbol(rule, symbol)
         if snapshot.assets[symbol].actionable_cross_event == "cross_down"
     ]
 
 
-def _exit_symbols_for_cross_down(symbols: list[str]) -> list[str]:
+def _exit_symbols_for_cross_down(
+    symbols: list[str],
+    *,
+    rule: CrossDownExitRule,
+) -> list[str]:
     exit_symbols: list[str] = []
     for symbol in symbols:
         for peer in _ASSET_CLASS_PEERS.get(symbol, (symbol,)):
+            if not _is_applicable_symbol(rule, peer):
+                continue
             if peer not in exit_symbols:
                 exit_symbols.append(peer)
     return exit_symbols
+
+
+def _is_applicable_symbol(rule: CrossDownExitRule, symbol: str) -> bool:
+    return rule.applicable_symbols is None or symbol in rule.applicable_symbols
 
 
 __all__ = ["CrossDownExitRule"]

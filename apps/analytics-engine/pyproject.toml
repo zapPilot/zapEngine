@@ -87,17 +87,6 @@ source = ["src"]
 omit = [
     "*/tests/*",
     "test_*.py",
-    # Alternative strategy implementations are research/attribution recipes, not
-    # the canonical dma_fgi_portfolio_rules line. Shared backtesting
-    # infrastructure and shared strategy components remain measured.
-    "src/services/backtesting/strategies/eth_btc_rotation.py",
-    "src/services/backtesting/strategies/spy_eth_btc_rotation.py",
-    "src/services/backtesting/strategies/spy_crypto_hierarchical_rotation.py",
-    "src/services/backtesting/strategies/hierarchical_minimum.py",
-    "src/services/backtesting/strategies/hierarchical_outer_policy.py",
-    "src/services/backtesting/strategies/hierarchical_attribution.py",
-    "src/services/backtesting/strategies/pair_rotation_template.py",
-    "src/services/backtesting/strategies/dma_top_escape.py",
     # Validation/audit tooling is verified by its own tests and fixture runs,
     # but is not part of the canonical strategy runtime coverage budget.
     "src/services/backtesting/validation/event_runner.py",

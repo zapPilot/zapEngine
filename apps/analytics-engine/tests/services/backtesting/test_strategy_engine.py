@@ -74,7 +74,7 @@ class RotateToEthStrategy(BaseStrategy):
 class BuySpyStrategy(BaseStrategy):
     strategy_id = "buy_spy"
     display_name = "Buy SPY"
-    canonical_strategy_id = "dma_fgi_hierarchical_minimum"
+    canonical_strategy_id = "dma_fgi_portfolio_rules"
 
     def on_day(self, context: StrategyContext) -> StrategyAction:
         del context

@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("path", help="Path to compare-v3 JSON response")
     parser.add_argument(
         "--strategy-id",
-        default="dma_fgi_hierarchical_minimum",
+        default="dma_fgi_portfolio_rules",
         help="Strategy id key in timeline.strategies (default: %(default)s)",
     )
     args = parser.parse_args(argv)

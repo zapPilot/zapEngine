@@ -210,19 +210,6 @@ def public_params_to_runtime_params(
         )
         return EthBtcRotationParams.from_public_params(flat).to_public_params()
 
-    if recipe.param_family == "hierarchical":
-        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
-            HierarchicalPairRotationParams,
-        )
-
-        nested_hierarchical = EthBtcRotationPublicParams.model_validate(normalized)
-        flat = _nested_to_flat(
-            nested_hierarchical, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        return HierarchicalPairRotationParams.from_public_params(
-            flat
-        ).to_public_params()
-
     return normalized
 
 
@@ -269,31 +256,6 @@ def runtime_params_to_public_params(
             rotation=_RotationPublicParams(**sections.get("rotation", {})),
         )
         return cast(dict[str, JsonValue], rotation_model.model_dump(mode="json"))
-
-    if recipe.param_family == "hierarchical":
-        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
-            HierarchicalPairRotationParams,
-        )
-
-        resolved_hierarchical = HierarchicalPairRotationParams.from_public_params(
-            raw_params
-        )
-        sections = _flat_to_nested(
-            resolved_hierarchical,
-            _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING,
-        )
-        hierarchical_model = EthBtcRotationPublicParams(
-            signal=_EthBtcSignalPublicParams(**sections.get("signal", {})),
-            pacing=_PacingPublicParams(**sections.get("pacing", {})),
-            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
-            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
-            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
-            rotation=_RotationPublicParams(**sections.get("rotation", {})),
-        )
-        return cast(
-            dict[str, JsonValue],
-            hierarchical_model.model_dump(mode="json"),
-        )
 
     return cast(dict[str, JsonValue], raw_params)
 

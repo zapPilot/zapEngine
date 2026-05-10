@@ -187,9 +187,7 @@ def test_get_daily_suggestion_rejects_unsupported_preset(
     )
     with pytest.raises(
         ValueError,
-        match=(
-            "Strategy 'dma_fgi_portfolio_rules' does not support /daily-suggestion"
-        ),
+        match=("Strategy 'dma_fgi_portfolio_rules' does not support /daily-suggestion"),
     ):
         service.get_daily_suggestion(UUID(int=1))
 

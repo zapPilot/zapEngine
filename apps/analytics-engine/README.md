@@ -29,7 +29,7 @@ See [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) f
 - Iteration log (commit hashes + ROI deltas for every feature tested)
 - "What works / what doesn't" with negative-result evidence
 - Snapshot fixture workflow (`sweep_production_window.py`)
-- Hierarchical attribution & regression event commands
+- Rule-based attribution & regression event commands
 
 ## Import conventions & dead-code policy
 

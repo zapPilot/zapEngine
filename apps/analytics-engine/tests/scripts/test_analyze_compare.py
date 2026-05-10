@@ -194,7 +194,7 @@ def _spy_payload() -> dict[str, Any]:
                     "sentiment_label": "neutral",
                 },
                 "strategies": {
-                    "dma_fgi_hierarchical_minimum": {
+                    "dma_fgi_portfolio_rules": {
                         "portfolio": {
                             "spot_usd": 4_000.0,
                             "stable_usd": 6_000.0,
@@ -352,8 +352,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
 
     analyzer.analyze_payload(
         endpoint="http://testserver",
-        saved_config_id="dma_fgi_hierarchical_minimum",
-        config_id="dma_fgi_hierarchical_minimum",
+        saved_config_id="dma_fgi_portfolio_rules",
+        config_id="dma_fgi_portfolio_rules",
         date_filter="2026-04-27",
         history_start_date="2024-11-01",
         output_format="json",
@@ -364,8 +364,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
     assert captured["request"]["end_date"] == "2026-04-27"
     assert captured["request"]["configs"] == [
         {
-            "config_id": "dma_fgi_hierarchical_minimum",
-            "saved_config_id": "dma_fgi_hierarchical_minimum",
+            "config_id": "dma_fgi_portfolio_rules",
+            "saved_config_id": "dma_fgi_portfolio_rules",
         }
     ]
 
@@ -395,7 +395,7 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
 def test_default_sections_include_spy_dma_and_asset_class_summary() -> None:
     rendered = analyzer.analyze_response_payload(
         _spy_payload(),
-        strategy_id="dma_fgi_hierarchical_minimum",
+        strategy_id="dma_fgi_portfolio_rules",
         output_format="json",
         enrich_db="never",
         source_label="fixture",
@@ -441,27 +441,6 @@ def test_analyze_compare_surfaces_matched_rule_name() -> None:
 
     assert "Matched rule: `above_greed_sell`" in rendered
     assert "Sell when price is above DMA and FGI is greed." in rendered
-
-
-def test_analyze_compare_renders_active_tactics_section() -> None:
-    payload = deepcopy(_payload())
-    for point in payload["timeline"]:
-        state = point["strategies"].pop("eth_btc_rotation_default")
-        point["strategies"]["dma_fgi_hierarchical_control"] = state
-
-    rendered = analyzer.analyze_response_payload(
-        payload,
-        strategy_id="dma_fgi_hierarchical_control",
-        date_filter="2025-04-22",
-        output_format="markdown",
-        enrich_db="never",
-        source_label="fixture",
-        request_body={"configs": []},
-        sections=["active_tactics"],
-    )
-
-    assert "### Active Tactics" in rendered
-    assert "Adaptive crypto DMA reference: `False`" in rendered
 
 
 def test_constraint_validation_passes_and_uses_full_history(

@@ -9,6 +9,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_DMA_STABLE_GATING,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_GREED_SELL_SUPPRESSION,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH,
     STRATEGY_ETH_BTC_ROTATION,
 )
 from src.services.backtesting.features import (
@@ -137,6 +138,10 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         (
             STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ETH_BTC_DEVIATION_DCA,
             "eth_btc_deviation_dca",
+        ),
+        (
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_SPY_LATCH,
+            "spy_latch",
         ),
     ],
 )

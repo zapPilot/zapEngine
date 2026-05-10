@@ -25,7 +25,10 @@ class DmaStableGatingRule:
     priority: int = 24
     cooldown_days: int = 30
     rule_group: RuleGroup = "dma_fgi"
-    description: str = "Move crypto exposure to stable when crypto is below DMA in fear."
+    description: str = (
+        "Move crypto exposure to stable when crypto is below DMA in fear."
+    )
+    applicable_symbols: frozenset[str] | None = None
 
     def matches(
         self,
@@ -34,7 +37,7 @@ class DmaStableGatingRule:
         config: PortfolioRuleConfig,
     ) -> bool:
         del config
-        return bool(_matching_symbols(snapshot))
+        return bool(_matching_symbols(snapshot, rule=self))
 
     def build_intent(
         self,
@@ -42,7 +45,7 @@ class DmaStableGatingRule:
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
-        matching_symbols = _matching_symbols(snapshot)
+        matching_symbols = _matching_symbols(snapshot, rule=self)
         target = current_target(snapshot)
         for symbol in matching_symbols:
             key = allocation_key_for_symbol(symbol)
@@ -65,11 +68,16 @@ class DmaStableGatingRule:
         )
 
 
-def _matching_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _matching_symbols(
+    snapshot: PortfolioSnapshot,
+    *,
+    rule: DmaStableGatingRule,
+) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
         if symbol in {"BTC", "ETH"}
+        and (rule.applicable_symbols is None or symbol in rule.applicable_symbols)
         and snapshot.assets[symbol].zone == "below"
         and current_fgi_regime_for_symbol(snapshot, symbol) == "fear"
     ]

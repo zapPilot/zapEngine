@@ -30,6 +30,7 @@ from src.services.backtesting.execution.rule_based.allocation_executor import (
 from src.services.backtesting.portfolio_rules import (
     DEFAULT_PORTFOLIO_RULES,
     RULE_NAMES,
+    RULE_PRIORITIES,
 )
 from src.services.backtesting.portfolio_rules.base import (
     PORTFOLIO_RULE_SYMBOLS,
@@ -63,7 +64,7 @@ from src.services.backtesting.strategies.minimum import (
 )
 
 PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
-_RULE_PRIORITY_BY_NAME = {rule.name: rule.priority for rule in DEFAULT_PORTFOLIO_RULES}
+_RULE_PRIORITY_BY_NAME = RULE_PRIORITIES
 _CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
 _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
 RuleCooldownKey = str | tuple[str, str]
@@ -134,7 +135,12 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             risk_guards=self.risk_guards,
             config=self.config,
         )
-        intent = risk_result.intent
+        intent = _apply_post_intent_adjustments(
+            risk_result.intent,
+            portfolio_snapshot,
+            rules=self.rules,
+            config=self.config,
+        )
         self._previous_fgi_regime = _current_fgi_regime_by_symbol(portfolio_snapshot)
         self._cycle_open_per_symbol = _update_cycle_state(
             self._cycle_open_per_symbol,
@@ -281,12 +287,12 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
                 "eth_btc_deviation_dca",
                 "greed_sell_suppression",
                 "dma_stable_gating",
+                "spy_latch",
                 "cross_up_equal_weight",
                 "extreme_fear_dca_buy",
                 "dma_overextension_dca_sell",
                 "fgi_downshift_dca_sell",
             ],
-            "hierarchical_layers": False,
             "ratio_rotation": True,
             "research_only": True,
         }
@@ -398,6 +404,21 @@ def _apply_risk_guards(
         if replacement is not None:
             return RiskGuardResult(intent=replacement, blocked_by=guard.name)
     return RiskGuardResult(intent=intent)
+
+
+def _apply_post_intent_adjustments(
+    intent: AllocationIntent,
+    snapshot: PortfolioSnapshot,
+    *,
+    rules: tuple[PortfolioRule, ...],
+    config: PortfolioRuleConfig,
+) -> AllocationIntent:
+    adjusted = intent
+    for rule in rules:
+        hook = getattr(rule, "apply_post_intent_adjustments", None)
+        if callable(hook):
+            adjusted = hook(intent=adjusted, snapshot=snapshot, config=config)
+    return adjusted
 
 
 def _matched_rule_priority(intent: AllocationIntent) -> int | None:

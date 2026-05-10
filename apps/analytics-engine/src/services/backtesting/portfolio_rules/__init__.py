@@ -13,6 +13,9 @@ from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import 
 from src.services.backtesting.portfolio_rules.dma_stable_gating import (
     DmaStableGatingRule,
 )
+from src.services.backtesting.portfolio_rules.eth_btc_continuous_weight import (
+    EthBtcContinuousWeightRule,
+)
 from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
     EthBtcDeviationDcaRule,
 )
@@ -28,29 +31,40 @@ from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
 from src.services.backtesting.portfolio_rules.greed_sell_suppression import (
     GreedSellSuppressionRule,
 )
+from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
     CrossUpEqualWeightRule(),
-    EthBtcDeviationDcaRule(),
-    GreedSellSuppressionRule(),
-    DmaStableGatingRule(),
-    ExtremeFearDcaBuyRule(),
+    # EthBtcDeviationDcaRule(),
+    # GreedSellSuppressionRule(),
+    # DmaStableGatingRule(),
+    # SpyLatchRule(),
+    # ExtremeFearDcaBuyRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
+)
+_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
+    EthBtcContinuousWeightRule(),
 )
 
 DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
     sorted(_UNSORTED_DEFAULT_PORTFOLIO_RULES, key=lambda rule: rule.priority)
 )
 RULE_DESCRIPTIONS: dict[str, str] = {
-    rule.name: rule.description for rule in DEFAULT_PORTFOLIO_RULES
+    rule.name: rule.description
+    for rule in (*DEFAULT_PORTFOLIO_RULES, *_NON_DEFAULT_PORTFOLIO_RULES)
 }
-RULE_NAMES: frozenset[str] = frozenset(rule.name for rule in DEFAULT_PORTFOLIO_RULES)
+RULE_PRIORITIES: dict[str, int] = {
+    rule.name: rule.priority
+    for rule in (*DEFAULT_PORTFOLIO_RULES, *_NON_DEFAULT_PORTFOLIO_RULES)
+}
+RULE_NAMES: frozenset[str] = frozenset(RULE_DESCRIPTIONS)
 
 __all__ = [
     "DEFAULT_PORTFOLIO_RULES",
     "RULE_DESCRIPTIONS",
     "RULE_NAMES",
+    "RULE_PRIORITIES",
 ]

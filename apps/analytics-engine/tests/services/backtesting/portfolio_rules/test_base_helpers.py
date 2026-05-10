@@ -24,6 +24,7 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
         ("eth_btc_deviation_dca", 22),
         ("greed_sell_suppression", 23),
         ("dma_stable_gating", 24),
+        ("spy_latch", 25),
         ("dma_overextension_dca_sell", 30),
         ("extreme_fear_dca_buy", 40),
         ("fgi_downshift_dca_sell", 50),
