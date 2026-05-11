@@ -26,12 +26,12 @@ export interface PairRatioRow {
   ratio_value: number;
 }
 
-interface RollingSeriesRow {
+export interface RollingSeriesRow {
   snapshot_date: string;
   value: number;
 }
 
-interface RollingDmaMetric {
+export interface RollingDmaMetric {
   dma200: number | null;
   ratioVsDma: number | null;
   isAboveDma: boolean | null;
@@ -159,7 +159,7 @@ function mapRollingMetric<
   } & Record<RatioKey, number | null>;
 }
 
-function computeRollingDmaMetrics(
+export function computeRollingDmaMetrics(
   rows: RollingSeriesRow[],
   windowSize: number,
 ): RollingDmaMetric[] {

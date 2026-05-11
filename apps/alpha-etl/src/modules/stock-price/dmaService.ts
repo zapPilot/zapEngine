@@ -14,10 +14,9 @@
 import type { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
-import {
-  type LatestDmaSnapshot,
-  mapLatestDmaSnapshotRow,
-} from '../../modules/core/dmaSnapshot.js';
+import type { LatestDmaSnapshot } from '../../modules/core/dmaSnapshot.js';
+import { StockPriceDmaWriter } from '../../modules/stock-price/dmaWriter.js';
+import { computeRollingDmaMetrics } from '../../modules/token-price/dmaCalculator.js';
 import { logger } from '../../utils/logger.js';
 
 export interface StockPriceDmaSnapshotInsert {
@@ -41,12 +40,14 @@ export interface StockPriceRow {
 
 export class StockPriceDmaService {
   private pool: Pool;
+  private writer: StockPriceDmaWriter;
   private static readonly DMA_WINDOW_SIZE = 200;
   private static readonly SOURCE = 'yahoo-finance';
   private static readonly DEFAULT_SYMBOL = 'SPY';
 
   constructor(pool?: Pool) {
     this.pool = pool ?? getDbPool();
+    this.writer = new StockPriceDmaWriter();
   }
 
   async updateDmaForSymbol(
@@ -91,35 +92,7 @@ export class StockPriceDmaService {
   async getLatestDmaSnapshot(
     symbol: string = StockPriceDmaService.DEFAULT_SYMBOL,
   ): Promise<LatestDmaSnapshot | null> {
-    const tableName = getTableName('STOCK_PRICE_DMA_SNAPSHOTS');
-    const query = `
-      SELECT snapshot_date, price_usd, dma_200, is_above_dma
-      FROM ${tableName}
-      WHERE source = 'yahoo-finance' AND symbol = $1
-      ORDER BY snapshot_date DESC
-      LIMIT 1
-    `;
-
-    try {
-      const result = await this.pool.query<{
-        snapshot_date: string;
-        price_usd: string;
-        dma_200: string | null;
-        is_above_dma: boolean | null;
-      }>(query, [symbol]);
-
-      if (result.rows.length === 0) {
-        return null;
-      }
-
-      return mapLatestDmaSnapshotRow(result.rows[0]!);
-    } catch (error) {
-      logger.error('Failed to get latest DMA snapshot', {
-        symbol,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
+    return this.writer.getLatestDmaSnapshot(symbol);
   }
 
   private async fetchPricesForSymbol(symbol: string): Promise<StockPriceRow[]> {
@@ -151,30 +124,25 @@ export class StockPriceDmaService {
   ): StockPriceDmaSnapshotInsert[] {
     const now = new Date().toISOString();
 
+    const metrics = computeRollingDmaMetrics(
+      prices.map((row) => ({
+        snapshot_date: row.snapshot_date,
+        value: row.price_usd,
+      })),
+      windowSize,
+    );
+
     return prices.map((row, index) => {
-      const windowStart = Math.max(0, index - windowSize + 1);
-      const window = prices.slice(windowStart, index + 1);
-      const daysAvailable = window.length;
-
-      let dma200: number | null = null;
-      let priceVsDmaRatio: number | null = null;
-      let isAboveDma: boolean | null = null;
-
-      if (daysAvailable >= windowSize) {
-        const sum = window.reduce((acc, p) => acc + p.price_usd, 0);
-        dma200 = sum / windowSize;
-        priceVsDmaRatio = row.price_usd / dma200;
-        isAboveDma = row.price_usd > dma200;
-      }
+      const metric = metrics[index];
 
       return {
         symbol: row.symbol,
         snapshot_date: row.snapshot_date,
         price_usd: row.price_usd,
-        dma_200: dma200,
-        price_vs_dma_ratio: priceVsDmaRatio,
-        is_above_dma: isAboveDma,
-        days_available: daysAvailable,
+        dma_200: metric?.dma200 ?? null,
+        price_vs_dma_ratio: metric?.ratioVsDma ?? null,
+        is_above_dma: metric?.isAboveDma ?? null,
+        days_available: metric?.daysAvailable ?? 0,
         source: StockPriceDmaService.SOURCE,
         snapshot_time: now,
         created_at: now,
@@ -197,90 +165,18 @@ export class StockPriceDmaService {
       recordCount: snapshots.length,
     });
 
-    const tableName = getTableName('STOCK_PRICE_DMA_SNAPSHOTS');
-    const columns = [
-      'symbol',
-      'snapshot_date',
-      'price_usd',
-      'dma_200',
-      'price_vs_dma_ratio',
-      'is_above_dma',
-      'days_available',
-      'source',
-      'snapshot_time',
-      'created_at',
-    ];
+    const writeResult = await this.writer.writeDmaSnapshots(snapshots);
 
-    logger.info('Building DMA insert query', {
-      snapshotCount: snapshots.length,
-      columns: columns.length,
-      firstSnapshot: snapshots[0] ? JSON.stringify(snapshots[0]) : 'undefined',
-    });
-
-    try {
-      // Batch insert in chunks to avoid PostgreSQL parameter limit (max ~32767)
-      const BATCH_SIZE = 1000;
-      let totalInserted = 0;
-
-      for (let i = 0; i < snapshots.length; i += BATCH_SIZE) {
-        const batch = snapshots.slice(i, i + BATCH_SIZE);
-        const batchPlaceholders: string[] = [];
-        const batchValues: unknown[] = [];
-
-        batch.forEach((snapshot, idx) => {
-          const offset = idx * 10;
-          batchPlaceholders.push(
-            `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`,
-          );
-          batchValues.push(
-            snapshot.symbol,
-            snapshot.snapshot_date,
-            snapshot.price_usd,
-            snapshot.dma_200,
-            snapshot.price_vs_dma_ratio,
-            snapshot.is_above_dma,
-            snapshot.days_available,
-            snapshot.source,
-            snapshot.snapshot_time,
-            snapshot.created_at,
-          );
-        });
-
-        const batchQuery = `
-        INSERT INTO ${tableName} (${columns.join(', ')})
-        VALUES ${batchPlaceholders.join(', ')}
-        ON CONFLICT (source, symbol, snapshot_date)
-        DO UPDATE SET
-          price_usd = EXCLUDED.price_usd,
-          dma_200 = EXCLUDED.dma_200,
-          price_vs_dma_ratio = EXCLUDED.price_vs_dma_ratio,
-          is_above_dma = EXCLUDED.is_above_dma,
-          days_available = EXCLUDED.days_available,
-          snapshot_time = EXCLUDED.snapshot_time
-        RETURNING id;
-      `;
-
-        const result = await this.pool.query({
-          text: batchQuery,
-          values: batchValues,
-        });
-        totalInserted += result.rowCount ?? 0;
-
-        logger.info('Batch inserted', {
-          batchIndex: i / BATCH_SIZE,
-          batchSize: batch.length,
-          inserted: result.rowCount,
-        });
-      }
-
-      return { recordsInserted: totalInserted };
-    } catch (error) {
+    if (!writeResult.success) {
+      const errorMessage = writeResult.errors[0] ?? 'DMA write failed';
       logger.error('Failed to write DMA snapshots', {
         jobId,
         symbol,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
-      throw error;
+      throw new Error(errorMessage);
     }
+
+    return { recordsInserted: writeResult.recordsInserted };
   }
 }

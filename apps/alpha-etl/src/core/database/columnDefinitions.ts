@@ -1,3 +1,4 @@
+import type { StockPriceDmaSnapshotInsert } from '../../modules/stock-price/dmaService.js';
 import type {
   DailyStockPrice,
   StockPriceData,
@@ -326,4 +327,24 @@ export function buildStockPriceInsertValues(
 ): InsertValuesResult<StockPriceColumn> {
   const mappedRecords = records.map(mapStockPriceRecord);
   return buildInsertValuesFor(mappedRecords, STOCK_PRICE_COLUMNS);
+}
+
+export const STOCK_PRICE_DMA_COLUMNS: readonly (keyof StockPriceDmaSnapshotInsert)[] =
+  [
+    'symbol',
+    'snapshot_date',
+    'price_usd',
+    'dma_200',
+    'price_vs_dma_ratio',
+    'is_above_dma',
+    'days_available',
+    'source',
+    'snapshot_time',
+    'created_at',
+  ] as const;
+
+export function buildStockPriceDmaInsertValues(
+  records: StockPriceDmaSnapshotInsert[],
+): InsertValuesResult<keyof StockPriceDmaSnapshotInsert & string> {
+  return buildNullableInsertValuesFor(records, STOCK_PRICE_DMA_COLUMNS);
 }
