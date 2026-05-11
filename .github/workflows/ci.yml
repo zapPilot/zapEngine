@@ -45,7 +45,10 @@ jobs:
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       DATABASE_READ_ONLY: 'true'
-      DATABASE_READ_ONLY_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
+      # Snapshot gate (test:strategy-snapshot:fast) boots the FastAPI app and
+      # reads alpha_raw.* via this URL. Point at the Supabase read-only replica.
+      DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
+      # Pytest fixtures use these local URLs; do not point at production.
       TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
       DATABASE_INTEGRATION_URL: postgresql+asyncpg://test_user:testpass123@localhost:5432/test_db
     steps:
