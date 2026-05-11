@@ -53,6 +53,35 @@
       ],
       "type": "object"
     },
+    "portfolio_rules": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "default_enabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "priority",
+          "description",
+          "default_enabled"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "presets": {
       "items": {
         "additionalProperties": false,
@@ -101,6 +130,12 @@
                   }
                 },
                 "type": "object"
+              },
+              "disabled_rules": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               "pacing": {
                 "additionalProperties": false,
@@ -244,6 +279,12 @@
                   }
                 },
                 "type": "object"
+              },
+              "disabled_rules": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               "pacing": {
                 "additionalProperties": false,

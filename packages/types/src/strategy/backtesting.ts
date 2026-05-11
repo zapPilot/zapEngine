@@ -65,6 +65,7 @@ export const BacktestCompareParamsV3Schema = z
     trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
     top_escape: BacktestTopEscapeParamsV3Schema.optional(),
     rotation: BacktestRotationParamsV3Schema.optional(),
+    disabled_rules: z.array(z.string()).optional(),
   })
   .catchall(JsonValueSchema);
 

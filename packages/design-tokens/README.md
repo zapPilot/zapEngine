@@ -1,6 +1,6 @@
 # @zapengine/design-tokens
 
-Shared ZapPilot brand tokens for web (TypeScript / Tailwind / CSS variables) and mobile (Flutter / Dart).
+Shared Zap Pilot brand tokens for web (TypeScript / Tailwind / CSS variables) and mobile (Flutter / Dart).
 
 ## Overview
 

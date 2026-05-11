@@ -10,10 +10,10 @@ describe('getBacktestSnapshot', () => {
     expect(snapshot.windowDays).toBe(analyticsSnapshot.window_days);
     expect(snapshot.windowStart).toBe(analyticsSnapshot.window_start);
     expect(snapshot.windowEnd).toBe(analyticsSnapshot.window_end);
-    expect(snapshot.roiPercent).toBe('50.84%');
+    expect(snapshot.roiPercent).toBe('69.14%');
     expect(snapshot.maxDrawdownPercent).toBe('-9.32%');
-    expect(snapshot.sharpeRatio).toBe('2.03');
-    expect(snapshot.calmarRatio).toBe('3.75');
-    expect(snapshot.tradeCount).toBe('49');
+    expect(snapshot.sharpeRatio).toBe('2.28');
+    expect(snapshot.calmarRatio).toBe('5.01');
+    expect(snapshot.tradeCount).toBe('45');
   });
 });

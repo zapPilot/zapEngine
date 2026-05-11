@@ -51,6 +51,18 @@ const TELEGRAM_HELP_TEXT =
 const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 const TELEGRAM_START_TEXT = '收到，開始處理文章。';
+const APP_STORE_SHARE_REDIRECT_URL = 'https://apps.apple.com/?utm_source=share';
+// Keep this in sync with the final iOS bundle ID before App Store submission.
+const APPLE_APP_SITE_ASSOCIATION = {
+  applinks: {
+    details: [
+      {
+        appIDs: ['LP8CA4MT6U.com.example.fromFedToChainApp'],
+        components: [{ '/': '/e/*' }],
+      },
+    ],
+  },
+};
 
 app.use('*', cors());
 
@@ -60,6 +72,11 @@ function healthResponse(c: Context) {
 
 app.get('/', healthResponse);
 app.get('/health', healthResponse);
+app.get('/.well-known/apple-app-site-association', (c) =>
+  c.json(APPLE_APP_SITE_ASSOCIATION),
+);
+app.get('/.well-known/assetlinks.json', (c) => c.json([]));
+app.get('/e/:id', (c) => c.redirect(APP_STORE_SHARE_REDIRECT_URL, 302));
 
 app.post('/ingest', async (c) => {
   requireAdminAuthorization(c.req.header('authorization'));

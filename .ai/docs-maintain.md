@@ -28,6 +28,7 @@ Excluded paths (never scan or edit):
 - **/.next/**, **/dist/**, **/.turbo/**, **/coverage/**, **/build/**
 - **/.venv/**, **/__pycache__/**
 - Generated SDKs / contract artifacts
+- .worktrees/**          # parallel git worktrees; treat their docs as duplicates of the main checkout
 
 ---
 

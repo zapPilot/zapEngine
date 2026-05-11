@@ -65,6 +65,12 @@
                 },
                 "type": "object"
               },
+              "disabled_rules": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "pacing": {
                 "additionalProperties": false,
                 "properties": {
