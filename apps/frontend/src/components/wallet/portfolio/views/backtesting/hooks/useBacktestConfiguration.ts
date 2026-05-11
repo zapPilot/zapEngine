@@ -6,6 +6,7 @@ import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
 import {
+  DCA_CLASSIC_STRATEGY_ID,
   DEFAULT_DAYS,
   DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
 } from '../constants';
@@ -237,10 +238,12 @@ export function useBacktestConfiguration() {
     if (!strategyConfigs?.strategies?.length) {
       return [{ value: selectedStrategyId, label: selectedStrategyId }];
     }
-    return strategyConfigs.strategies.map((s) => ({
-      value: s.strategy_id,
-      label: s.display_name,
-    }));
+    return strategyConfigs.strategies
+      .filter((s) => s.strategy_id !== DCA_CLASSIC_STRATEGY_ID)
+      .map((s) => ({
+        value: s.strategy_id,
+        label: s.display_name,
+      }));
   }, [strategyConfigs?.strategies, selectedStrategyId]);
 
   return {

@@ -8,6 +8,7 @@ import {
 describe('strategyDisplay', () => {
   describe('getStrategyDisplayName', () => {
     it('returns display names for canonical strategies', () => {
+      expect(getStrategyDisplayName('dca_classic')).toBe('DCA Classic');
       expect(getStrategyDisplayName('dma_fgi_portfolio_rules')).toBe(
         'DMA/FGI Portfolio Rules',
       );
@@ -24,6 +25,11 @@ describe('strategyDisplay', () => {
   });
 
   describe('getStrategyColor', () => {
+    it('returns the fixed baseline gray for DCA Classic', () => {
+      expect(getStrategyColor('dca_classic', 0)).toBe('#4b5563');
+      expect(getStrategyColor('dca_classic')).toBe('#4b5563');
+    });
+
     it('returns palette colors by index', () => {
       expect(getStrategyColor('any_strategy', 0)).toBe('#3b82f6');
       expect(getStrategyColor('another_strategy', 1)).toBe('#06b6d4');

@@ -146,6 +146,38 @@ describe('useBacktestConfiguration', () => {
     });
   });
 
+  it('excludes DCA Classic from strategy picker options when the catalog includes it', async () => {
+    vi.mocked(getStrategyConfigs).mockResolvedValue({
+      ...mockStrategyConfigs,
+      strategies: [
+        {
+          strategy_id: 'dca_classic' as const,
+          display_name: 'DCA Classic',
+          description: 'Dollar-cost averaging baseline',
+          param_schema: {},
+          default_params: {},
+          supports_daily_suggestion: false,
+        },
+        ...mockStrategyConfigs.strategies,
+      ],
+    });
+    vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
+
+    const { result } = renderHook(() => useBacktestConfiguration(), {
+      wrapper: QueryClientWrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedStrategyId).toBe('dma_fgi_portfolio_rules');
+      expect(result.current.strategyOptions).toEqual([
+        {
+          value: 'dma_fgi_portfolio_rules',
+          label: 'DMA/FGI Portfolio Rules',
+        },
+      ]);
+    });
+  });
+
   it('falls back to catalog defaults when presets fail', async () => {
     vi.mocked(getStrategyConfigs).mockRejectedValue(
       new Error('Presets unavailable'),
