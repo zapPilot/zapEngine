@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
+import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/bookmark_button.dart';
 import '../widgets/episode_hero_frame.dart';
+import '../widgets/language_chip_row.dart';
 import '../widgets/play_pause_button.dart';
 import '../widgets/playback_speed_menu.dart';
 import '../widgets/share_button.dart';
+import '../widgets/synced_transcript.dart';
 
 class EpisodeDetailScreen extends StatefulWidget {
   const EpisodeDetailScreen({super.key, required this.episode});
@@ -108,7 +111,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                   _LanguageClassroomSection(episode: _episode),
                   if (_episode.languageClassrooms.isNotEmpty)
                     const SizedBox(height: 28),
-                  _TranscriptSection(episode: _episode),
+                  SyncedTranscript(episode: _episode),
                 ],
               ),
             ),
@@ -290,6 +293,9 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
               enabled: isCurrent,
               onSelected: playback.setAudioTrack,
             ),
+          ] else ...[
+            const SizedBox(height: 10),
+            const LanguageChipRow(currentCode: AppConfig.contentLanguageCode),
           ],
         ],
       ),
@@ -615,46 +621,6 @@ class _KeywordChip extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TranscriptSection extends StatelessWidget {
-  const _TranscriptSection({required this.episode});
-
-  final Episode episode;
-
-  @override
-  Widget build(BuildContext context) {
-    final script = episode.script?.trim();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Transcript',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(height: 1),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Text(
-            script?.isNotEmpty == true ? script! : 'No script available yet.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.6,
-                  letterSpacing: 0.2,
-                ),
-          ),
-        ),
-      ],
     );
   }
 }

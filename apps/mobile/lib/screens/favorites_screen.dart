@@ -190,6 +190,18 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     isPlaying: playback.isEpisodePlaying(episode.id),
                     isLoading: playback.loadingEpisodeId == episode.id,
                     onPlay: () => playback.toggle(episode),
+                    onDelete: () {
+                      final currentUser =
+                          context.read<AuthProvider>().currentUser;
+                      if (currentUser == null) return;
+                      unawaited(
+                        context.read<LikesProvider>().toggle(
+                              episode,
+                              currentUser.id,
+                            ),
+                      );
+                    },
+                    deleteLabel: '從收藏移除',
                   ),
                 );
               },
@@ -219,7 +231,7 @@ class _DismissBackground extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.only(right: 20),
             child: Icon(
-              Icons.bookmark_remove_rounded,
+              Icons.delete_outline_rounded,
               color: Colors.redAccent,
             ),
           ),

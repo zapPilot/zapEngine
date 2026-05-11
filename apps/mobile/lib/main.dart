@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/auth_gate.dart';
 import 'services/audio_player_handler.dart';
+import 'services/deep_link_service.dart';
 import 'services/episode_service.dart';
 import 'state/auth_provider.dart';
 import 'state/likes_provider.dart';
@@ -52,23 +55,59 @@ Future<void> main() async {
     ),
   );
 
+  final navigatorKey = GlobalKey<NavigatorState>();
   runApp(
     AiPodcastApp(
       supabaseConfigured: _supabaseAnonKey.isNotEmpty,
       audioHandler: audioHandler,
+      navigatorKey: navigatorKey,
+      deepLinkService: DeepLinkService(navigatorKey: navigatorKey),
     ),
   );
 }
 
-class AiPodcastApp extends StatelessWidget {
+class AiPodcastApp extends StatefulWidget {
   const AiPodcastApp({
     super.key,
     required this.audioHandler,
+    this.navigatorKey,
+    this.deepLinkService,
     this.supabaseConfigured = true,
   });
 
   final PodcastAudioHandler audioHandler;
+  final GlobalKey<NavigatorState>? navigatorKey;
+  final DeepLinkService? deepLinkService;
   final bool supabaseConfigured;
+
+  @override
+  State<AiPodcastApp> createState() => _AiPodcastAppState();
+}
+
+class _AiPodcastAppState extends State<AiPodcastApp> {
+  late final GlobalKey<NavigatorState> _navigatorKey =
+      widget.navigatorKey ?? GlobalKey<NavigatorState>();
+  DeepLinkService? get _deepLinkService => widget.deepLinkService;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final deepLinkService = _deepLinkService;
+      if (deepLinkService != null) {
+        unawaited(deepLinkService.start());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    final deepLinkService = _deepLinkService;
+    if (deepLinkService != null) {
+      unawaited(deepLinkService.dispose());
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,16 +115,19 @@ class AiPodcastApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
-          create: (_) =>
-              PlaybackProvider(audioHandler, episodeService: EpisodeService()),
+          create: (_) => PlaybackProvider(
+            widget.audioHandler,
+            episodeService: EpisodeService(),
+          ),
         ),
         ChangeNotifierProvider(create: (_) => LikesProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: 'From Fed to Chain',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark(),
-        home: AuthGate(supabaseConfigured: supabaseConfigured),
+        home: AuthGate(supabaseConfigured: widget.supabaseConfigured),
       ),
     );
   }

@@ -58,6 +58,23 @@ class EpisodeService {
     );
   }
 
+  Future<Episode?> getEpisodeById(
+    String id, {
+    String languageCode = AppConfig.contentLanguageCode,
+  }) async {
+    final rows = await _supabaseService.client
+        .from('episodes_with_stats')
+        .select(
+          'id,localization_id,title,language_code,hls_url,created_at,listened,script,like_count,language_classrooms',
+        )
+        .eq('id', id)
+        .eq('language_code', languageCode)
+        .limit(1);
+
+    if (rows.isEmpty) return null;
+    return Episode.fromJson(rows.first);
+  }
+
   Future<Set<String>> getListenedEpisodeIds(String userId) async {
     final rows = await _supabaseService.client
         .from('user_episode_state')

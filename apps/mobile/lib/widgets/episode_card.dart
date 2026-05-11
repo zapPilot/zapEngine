@@ -19,10 +19,14 @@ class EpisodeCard extends StatelessWidget {
     required this.isPlaying,
     required this.isLoading,
     required this.onPlay,
+    this.onDelete,
+    this.deleteLabel = 'Delete',
   });
 
   final Episode episode;
   final VoidCallback onPlay;
+  final VoidCallback? onDelete;
+  final String? deleteLabel;
   final bool isPlaying;
   final bool isLoading;
 
@@ -132,6 +136,21 @@ class EpisodeCard extends StatelessWidget {
                   );
                 },
               ),
+              if (onDelete != null)
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.redAccent,
+                  ),
+                  title: Text(
+                    deleteLabel ?? 'Delete',
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onDelete!();
+                  },
+                ),
               const SizedBox(height: 8),
             ],
           ),

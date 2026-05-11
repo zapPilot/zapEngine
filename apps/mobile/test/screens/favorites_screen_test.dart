@@ -95,10 +95,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.drag(
+    await tester.timedDrag(
       find.byKey(const ValueKey('favorite-episode-old')),
       const Offset(-500, 0),
+      const Duration(milliseconds: 200),
     );
+    await tester.pump();
+
+    expect(
+      find.byIcon(Icons.delete_outline_rounded, skipOffstage: false),
+      findsOneWidget,
+    );
+
     await tester.pumpAndSettle();
 
     expect(likesService.toggles, [
@@ -109,6 +117,48 @@ void main() {
       ),
     ]);
     expect(find.text('Older favorite'), findsNothing);
+  });
+
+  testWidgets('overflow menu can remove a favorite', (tester) async {
+    final episodeService = _FavoritesEpisodeService(
+      pages: [
+        [
+          _episode(
+            id: 'episode-menu',
+            title: 'Menu favorite',
+            createdAt: DateTime(2026, 5, 2),
+          ),
+        ],
+      ],
+    );
+    final likesService = _FavoritesLikesService();
+
+    await _pumpFavorites(tester, episodeService, likesService);
+    likesService.addSnapshot(
+      const LikeSnapshot(
+        likedEpisodeIds: {'episode-menu'},
+        counts: {'episode-menu': 1},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('從收藏移除'), findsOneWidget);
+
+    await tester.tap(find.text('從收藏移除'));
+    await tester.pumpAndSettle();
+
+    expect(likesService.toggles, [
+      const _ToggleLike(
+        userId: 'user-1',
+        episodeId: 'episode-menu',
+        currentlyLiked: true,
+      ),
+    ]);
+    expect(find.text('Menu favorite'), findsNothing);
   });
 }
 

@@ -685,9 +685,9 @@ Episode _episodeWithTracks(String id) {
 
 class _FakeEpisodeService extends EpisodeService {
   _FakeEpisodeService({
-    Object? positionWriteError,
+    this.positionWriteError,
     this.listenedWriteError,
-  }) : this.positionWriteError = positionWriteError;
+  });
 
   final Object? positionWriteError;
   final Object? listenedWriteError;
