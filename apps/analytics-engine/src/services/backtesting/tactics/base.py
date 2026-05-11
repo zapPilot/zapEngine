@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -86,37 +85,10 @@ def target_intent(
     )
 
 
-def target_intent_builder(
-    *,
-    action: DecisionAction,
-    target: dict[str, float],
-    allocation_name: str,
-    reason: str,
-    immediate: bool = False,
-) -> Callable[..., AllocationIntent]:
-    def build_intent(
-        self: Rule,
-        snapshot: DmaMarketState,
-        *,
-        config: RuleConfig,
-    ) -> AllocationIntent:
-        return target_intent(
-            action=action,
-            target=target,
-            allocation_name=allocation_name,
-            reason=reason,
-            rule_group=self.rule_group,
-            immediate=immediate,
-        )
-
-    return build_intent
-
-
 __all__ = [
     "Rule",
     "RuleConfig",
     "hold_intent",
     "hold_reason",
     "target_intent",
-    "target_intent_builder",
 ]
