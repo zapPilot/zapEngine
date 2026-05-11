@@ -27,6 +27,8 @@ const DCA_CLASSIC_DISPLAY_NAME = getStrategyDisplayName(
   DCA_CLASSIC_STRATEGY_ID,
 );
 
+const isDcaClassic = (id: string): boolean => id === DCA_CLASSIC_STRATEGY_ID;
+
 const SIGNAL_EVENT_KEYS = new Set<string>([
   'buy_spot',
   'sell_spot',
@@ -188,16 +190,14 @@ function getActiveDecisionStrategyId(
   orderedIds: string[],
 ): string | null {
   const activeComparisonId = orderedIds.find(
-    (strategyId) =>
-      strategyId !== DCA_CLASSIC_STRATEGY_ID && strategies?.[strategyId],
+    (strategyId) => !isDcaClassic(strategyId) && strategies?.[strategyId],
   );
   if (activeComparisonId) {
     return activeComparisonId;
   }
 
   const signaledEntry = Object.entries(strategies ?? {}).find(
-    ([id, strategy]) =>
-      id !== DCA_CLASSIC_STRATEGY_ID && strategy.signal != null,
+    ([id, strategy]) => !isDcaClassic(id) && strategy.signal != null,
   );
   return signaledEntry?.[0] ?? null;
 }
