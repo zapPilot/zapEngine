@@ -42,14 +42,7 @@ export function normalize(
   return ((v - min) / (max - min)) * 100;
 }
 
-interface AssetRanges {
-  btc: number[];
-  eth: number[];
-  spy: number[];
-}
-
 export function collectAssetRanges(data: MarketDashboardPoint[]): {
-  ranges: AssetRanges;
   btcMinMax: { min: number; max: number };
   ethMinMax: { min: number; max: number };
   sp500MinMax: { min: number; max: number };
@@ -72,7 +65,6 @@ export function collectAssetRanges(data: MarketDashboardPoint[]): {
   }
 
   return {
-    ranges: { btc: btcValues, eth: ethValues, spy: sp500Values },
     btcMinMax: getMinMax(btcValues),
     ethMinMax: getMinMax(ethValues),
     sp500MinMax: getMinMax(sp500Values),
