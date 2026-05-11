@@ -30,19 +30,26 @@ function sampleEvenlyFromIndices(
   return sampled;
 }
 
-function isCriticalPoint(point: BacktestTimelinePoint): boolean {
-  return Object.values(point.strategies).some(
-    (strategy) => strategy?.decision?.action !== 'hold',
-  );
+function isCriticalPoint(
+  point: BacktestTimelinePoint,
+  primaryStrategyId: string | null,
+): boolean {
+  if (!primaryStrategyId) {
+    return false;
+  }
+
+  const strategy = point.strategies[primaryStrategyId];
+  return (strategy?.execution.transfers?.length ?? 0) > 0;
 }
 
 function collectCriticalIndices(
   timeline: BacktestTimelinePoint[],
+  primaryStrategyId: string | null,
 ): Set<number> {
   const criticalIndices = new Set<number>([0, timeline.length - 1]);
 
   for (const [index, point] of timeline.entries()) {
-    if (isCriticalPoint(point)) {
+    if (isCriticalPoint(point, primaryStrategyId)) {
       criticalIndices.add(index);
     }
   }
@@ -75,10 +82,10 @@ function collectNonCriticalIndices(
 }
 
 /**
- * Sample timeline data so every decision day always renders.
+ * Sample timeline data so every primary-strategy transfer day always renders.
  *
  * Invariants:
- * - Every point where any strategy's `decision.action !== 'hold'` is preserved.
+ * - Every point where the primary strategy has execution transfers is preserved.
  * - First and last points are always preserved.
  * - Non-critical (hold-only) days are evenly sampled to fill the budget
  *   remaining after the critical set.
@@ -88,11 +95,13 @@ function collectNonCriticalIndices(
  * because action days must never be dropped.
  *
  * @param timeline - Full timeline array from API
+ * @param primaryStrategyId - Strategy whose transfer days must be preserved
  * @param cap - Soft target for total rendered points (default: CHART_POINT_LIMIT)
- * @returns Sampled timeline array with every action day preserved
+ * @returns Sampled timeline array with every primary transfer day preserved
  */
 export function sampleTimelineData(
   timeline: BacktestTimelinePoint[] | undefined,
+  primaryStrategyId: string | null,
   cap: number = CHART_POINT_LIMIT,
 ): BacktestTimelinePoint[] {
   if (!timeline || timeline.length === 0) {
@@ -103,7 +112,7 @@ export function sampleTimelineData(
     return timeline;
   }
 
-  const criticalIndices = collectCriticalIndices(timeline);
+  const criticalIndices = collectCriticalIndices(timeline, primaryStrategyId);
   const sortedCriticalIndices = Array.from(criticalIndices).sort(
     (a, b) => a - b,
   );

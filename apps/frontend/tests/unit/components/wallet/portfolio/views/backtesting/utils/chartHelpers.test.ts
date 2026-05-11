@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DCA_BASELINE_SPARSE_STRIDE,
+  DCA_CLASSIC_STRATEGY_ID,
+} from '@/components/wallet/portfolio/views/backtesting/constants';
+import {
   buildChartPoint,
   calculateActualDays,
   calculateYAxisDomain,
@@ -211,6 +215,99 @@ describe('buildChartPoint', () => {
     expect(result.date).toBe(point.market.date);
     expect(result).not.toHaveProperty('market');
     expect(result).not.toHaveProperty('strategies');
+  });
+
+  it('emits DCA value at pointIndex 0 and totalPoints - 1', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint({
+          portfolio: {
+            spot_usd: 7000,
+            stable_usd: 3000,
+            total_value: 12345,
+            allocation: allocation(0.7, 0.3),
+          },
+        }),
+      },
+    });
+
+    const firstPoint = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: 0,
+      totalPoints: 12,
+    });
+    const lastPoint = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: 11,
+      totalPoints: 12,
+    });
+
+    expect(firstPoint[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(12345);
+    expect(lastPoint[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(12345);
+  });
+
+  it('emits DCA value at pointIndex % sparse stride === 0', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: DCA_BASELINE_SPARSE_STRIDE,
+      totalPoints: 20,
+    });
+
+    expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(10000);
+  });
+
+  it('emits null for DCA at non-stride non-endpoint indices', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    for (const pointIndex of [1, 5, 7]) {
+      const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+        pointIndex,
+        totalPoints: 20,
+      });
+
+      expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBeNull();
+    }
+  });
+
+  it('always emits experiment value regardless of sparseContext', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        dma_fgi_portfolio_rules_default: createStrategyPoint({
+          portfolio: {
+            spot_usd: 8000,
+            stable_usd: 2000,
+            total_value: 12000,
+            allocation: allocation(0.8, 0.2),
+          },
+        }),
+      },
+    });
+
+    const result = buildChartPoint(point, ['dma_fgi_portfolio_rules_default'], {
+      pointIndex: 1,
+      totalPoints: 20,
+    });
+
+    expect(result.dma_fgi_portfolio_rules_default_value).toBe(12000);
+  });
+
+  it('emits DCA value normally when sparseContext is omitted', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID]);
+
+    expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(10000);
   });
 
   it('does not emit removed market context overlay fields', () => {
@@ -771,7 +868,7 @@ describe('buildChartPoint', () => {
     ).toEqual(['DMA/FGI Portfolio Rules']);
   });
 
-  it('falls back to a buy spot marker when decision.action is buy with no transfers', () => {
+  it('does not create a buy spot marker when decision.action is buy with no transfers', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
@@ -797,14 +894,14 @@ describe('buildChartPoint', () => {
       ['dma_fgi_portfolio_rules_default'],
     );
 
-    expect(result.buySpotSignal).toBe(10000);
+    expect(result.buySpotSignal).toBeNull();
     expect(result.sellSpotSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).buy_spot,
-    ).toEqual(['DMA/FGI Portfolio Rules']);
+    ).toEqual([]);
   });
 
-  it('falls back to a sell spot marker when decision.action is sell with no transfers', () => {
+  it('does not create a sell spot marker when decision.action is sell with no transfers', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
@@ -830,14 +927,14 @@ describe('buildChartPoint', () => {
       ['dma_fgi_portfolio_rules_default'],
     );
 
-    expect(result.sellSpotSignal).toBe(10000);
+    expect(result.sellSpotSignal).toBeNull();
     expect(result.buySpotSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).sell_spot,
-    ).toEqual(['DMA/FGI Portfolio Rules']);
+    ).toEqual([]);
   });
 
-  it('falls back to a buy spot marker when action is buy but transfer direction is unrecognised', () => {
+  it('does not create a marker when transfer direction is unrecognised', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
@@ -865,7 +962,8 @@ describe('buildChartPoint', () => {
       ['dma_fgi_portfolio_rules_default'],
     );
 
-    expect(result.buySpotSignal).toBe(10000);
+    expect(result.buySpotSignal).toBeNull();
+    expect(result.sellSpotSignal).toBeNull();
   });
 
   it('emits no signal when decision.action is hold and there are no transfers', () => {

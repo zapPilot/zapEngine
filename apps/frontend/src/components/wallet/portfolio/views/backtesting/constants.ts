@@ -1,6 +1,9 @@
 /** Canonical strategy ID for the DCA Classic baseline (rendered as a dashed reference line). */
 export const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';
 
+/** Emit DCA Classic baseline value every Nth sampled point (line interpolates the gaps). */
+export const DCA_BASELINE_SPARSE_STRIDE = 6;
+
 /** Canonical strategy ID for the portfolio-rules strategy. */
 export const DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID = 'dma_fgi_portfolio_rules';
 

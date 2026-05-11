@@ -47,9 +47,13 @@ export function useBacktestResult(
     }
 
     const index = new Map<string, BacktestTimelinePoint>();
-    const data = response.timeline.map((point) => {
+    const total = response.timeline.length;
+    const data = response.timeline.map((point, pointIndex) => {
       index.set(point.market.date, point);
-      return buildChartPoint(point, sortedStrategyIds);
+      return buildChartPoint(point, sortedStrategyIds, {
+        pointIndex,
+        totalPoints: total,
+      });
     });
 
     return { chartData: data, chartDataIndex: index };

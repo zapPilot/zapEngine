@@ -72,6 +72,7 @@ export function StrategyArea({
       fillOpacity={isPrimary ? 1 : 0}
       fill={isPrimary ? `url(#${prefix}-color-${strategyId})` : 'transparent'}
       strokeWidth={strokeWidth}
+      connectNulls={isDcaClassic}
       {...strokeDasharrayProps}
     />
   );

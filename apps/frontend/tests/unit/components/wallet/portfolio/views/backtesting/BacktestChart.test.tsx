@@ -34,11 +34,13 @@ vi.mock('recharts', async () => {
     name?: string;
     dataKey?: string;
     strokeDasharray?: string;
-  }>(({ name, dataKey, strokeDasharray }) => (
+    connectNulls?: boolean;
+  }>(({ name, dataKey, strokeDasharray, connectNulls }) => (
     <div
       data-testid={`area-${dataKey}`}
       data-name={name}
       data-stroke-dasharray={strokeDasharray || ''}
+      data-connect-nulls={connectNulls ? 'true' : 'false'}
     />
   ));
   const Line = createRechartsMockComponent<{
@@ -234,6 +236,20 @@ describe('BacktestChart', () => {
 
     const stratArea = screen.getByTestId('area-strat_a_value');
     expect(stratArea.getAttribute('data-stroke-dasharray')).toBe('');
+  });
+
+  it('connects null gaps for the DCA Classic baseline area', () => {
+    const props = {
+      ...defaultProps,
+      sortedStrategyIds: ['dca_classic', 'strat_a'],
+    };
+
+    render(<BacktestChart {...props} />);
+
+    const dcaArea = screen.getByTestId('area-dca_classic_value');
+    const experimentArea = screen.getByTestId('area-strat_a_value');
+    expect(dcaArea.getAttribute('data-connect-nulls')).toBe('true');
+    expect(experimentArea.getAttribute('data-connect-nulls')).toBe('false');
   });
 
   it('uses custom chartIdPrefix for gradient IDs', () => {

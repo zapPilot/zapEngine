@@ -4,7 +4,10 @@ import type {
 } from '@/types/backtesting';
 
 import { getBacktestTransferDirection } from '../backtestBuckets';
-import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
+import {
+  DCA_BASELINE_SPARSE_STRIDE,
+  DCA_CLASSIC_STRATEGY_ID,
+} from '../constants';
 import { getBacktestSpotAssetColor } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
 
@@ -93,6 +96,11 @@ type BacktestStrategy = NonNullable<
   BacktestTimelinePoint['strategies'][string]
 >;
 
+interface SparseContext {
+  pointIndex: number;
+  totalPoints: number;
+}
+
 function classifyTransfer(
   from: BacktestBucket,
   to: BacktestBucket,
@@ -174,14 +182,6 @@ function forEachActiveStrategy(
   }
 }
 
-function fallbackSignalForAction(
-  action: BacktestStrategy['decision']['action'],
-): SignalKey | null {
-  if (action === 'buy') return 'buy_spot';
-  if (action === 'sell') return 'sell_spot';
-  return null;
-}
-
 function processStrategyTransfers(
   point: BacktestTimelinePoint,
   strategyIds: string[],
@@ -189,7 +189,6 @@ function processStrategyTransfers(
 ): void {
   forEachActiveStrategy(point, strategyIds, (strategyId, strategy) => {
     const displayName = getStrategyDisplayName(strategyId);
-    let signalSetForStrategy = false;
 
     for (const transfer of getTransfers(strategy)) {
       const signalKey = classifyTransfer(
@@ -201,19 +200,7 @@ function processStrategyTransfers(
       }
 
       updateSignal(acc, signalKey, strategy.portfolio.total_value, displayName);
-      signalSetForStrategy = true;
     }
-
-    if (signalSetForStrategy) {
-      return;
-    }
-
-    const fallbackKey = fallbackSignalForAction(strategy.decision.action);
-    if (!fallbackKey) {
-      return;
-    }
-
-    updateSignal(acc, fallbackKey, strategy.portfolio.total_value, displayName);
   });
 }
 
@@ -331,6 +318,7 @@ export function sortStrategyIds(ids: string[]): string[] {
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
+  sparseContext?: SparseContext,
 ): BacktestChartPoint {
   const data: BacktestChartPoint = {
     date: point.market.date,
@@ -351,7 +339,16 @@ export function buildChartPoint(
   for (const id of strategyIds) {
     const strategy = point.strategies[id];
     if (strategy) {
-      data[`${id}_value`] = strategy.portfolio.total_value;
+      const shouldSparseDca =
+        id === DCA_CLASSIC_STRATEGY_ID &&
+        sparseContext !== undefined &&
+        sparseContext.pointIndex !== 0 &&
+        sparseContext.pointIndex !== sparseContext.totalPoints - 1 &&
+        sparseContext.pointIndex % DCA_BASELINE_SPARSE_STRIDE !== 0;
+
+      data[`${id}_value`] = shouldSparseDca
+        ? null
+        : strategy.portfolio.total_value;
     }
   }
 

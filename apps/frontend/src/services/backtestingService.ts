@@ -1,3 +1,4 @@
+import { DCA_CLASSIC_STRATEGY_ID } from '@/components/wallet/portfolio/views/backtesting/constants';
 import { httpUtils } from '@/lib/http';
 import { createApiServiceCaller } from '@/lib/http/createServiceCaller';
 import {
@@ -46,9 +47,14 @@ export async function runBacktest(
     ),
   );
 
-  // Sample timeline data to reduce memory usage while preserving signals
+  const primaryStrategyId =
+    Object.keys(response.strategies ?? {}).find(
+      (id) => id !== DCA_CLASSIC_STRATEGY_ID,
+    ) ?? null;
+
+  // Sample timeline data to reduce memory usage while preserving primary strategy signals.
   return {
     ...response,
-    timeline: sampleTimelineData(response.timeline),
+    timeline: sampleTimelineData(response.timeline, primaryStrategyId),
   };
 }
