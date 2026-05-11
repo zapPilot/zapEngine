@@ -7,6 +7,7 @@ import type {
 import { buildBacktestTooltipData as buildBacktestTooltipDataRaw } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 import type {
   BacktestBucket,
+  BacktestExecution,
   BacktestTimelinePoint,
   BacktestTransferMetadata,
 } from '@/types/backtesting';
@@ -66,6 +67,7 @@ function makeStrategyPoint(overrides: {
   transfers?: BacktestTransferMetadata[];
   blocked_reason?: string | null;
   buy_gate?: { block_reason: string | null } | null;
+  execution?: Partial<BacktestExecution>;
 }) {
   const spotUsd = overrides.spot ?? 5000;
   const stableUsd = overrides.stable ?? 5000;
@@ -133,6 +135,23 @@ function makeStrategyPoint(overrides: {
             },
           }
         : {}),
+      ...overrides.execution,
+    },
+  };
+}
+
+function noActionExecution(): BacktestExecution {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
     },
   };
 }
@@ -747,6 +766,34 @@ describe('buildBacktestTooltipData', () => {
         sortedStrategyIds: ['my_strat'],
       });
 
+      expect(result?.sections.decision?.assetChanges).toEqual([]);
+      expect(result?.sections.decision?.assetChangeNote).toEqual({
+        label: 'No asset changes - held position',
+        color: '#cbd5e1',
+      });
+    });
+
+    it('shows sell intent but no asset changes for no-action sell without transfers', () => {
+      const strategies = {
+        my_strat: makeStrategyPoint({
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
+          decision: {
+            action: 'sell',
+            reason: 'portfolio_dma_overextension_dca_sell',
+            rule_group: 'dma_fgi',
+          },
+          execution: noActionExecution(),
+        }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['my_strat'],
+      });
+
+      expect(result?.sections.decision?.action).toEqual({
+        label: 'Sell',
+        color: '#fca5a5',
+      });
       expect(result?.sections.decision?.assetChanges).toEqual([]);
       expect(result?.sections.decision?.assetChangeNote).toEqual({
         label: 'No asset changes - held position',

@@ -4,13 +4,32 @@ import {
   CHART_POINT_LIMIT,
   sampleTimelineData,
 } from '@/services/backtestingTimelineService';
-import type { BacktestTimelinePoint } from '@/types/backtesting';
+import type {
+  BacktestExecution,
+  BacktestTimelinePoint,
+} from '@/types/backtesting';
 
 type DecisionAction =
   BacktestTimelinePoint['strategies'][string]['decision']['action'];
 
 const PRIMARY_STRATEGY_ID = 'dma_gated_fgi_default';
 const DCA_STRATEGY_ID = 'dca_classic';
+
+function noActionExecution(): BacktestExecution {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
 
 function createStrategyPoint(action: DecisionAction) {
   return {
@@ -36,6 +55,33 @@ function createStrategyPoint(action: DecisionAction) {
       step_count: 0,
       steps_remaining: 0,
       interval_days: 0,
+    },
+  };
+}
+
+function withPrimaryNoActionSellIntent(
+  point: BacktestTimelinePoint,
+  strategyId: string = PRIMARY_STRATEGY_ID,
+): BacktestTimelinePoint {
+  const strategy = point.strategies[strategyId];
+  if (!strategy) {
+    return point;
+  }
+
+  return {
+    ...point,
+    strategies: {
+      ...point.strategies,
+      [strategyId]: {
+        ...strategy,
+        decision: {
+          ...strategy.decision,
+          action: 'sell',
+          reason: 'portfolio_dma_overextension_dca_sell',
+          rule_group: 'dma_fgi',
+        },
+        execution: noActionExecution(),
+      },
     },
   };
 }
@@ -171,9 +217,11 @@ describe('sampleTimelineData', () => {
 
   it('does not preserve no-action primary intent days without transfers', () => {
     const noActionIntentIndex = 7;
-    const timeline = buildTimeline(30, {
-      [noActionIntentIndex]: { [PRIMARY_STRATEGY_ID]: 'buy' },
-    });
+    const timeline = buildTimeline(30).map((point, index) =>
+      index === noActionIntentIndex
+        ? withPrimaryNoActionSellIntent(point)
+        : point,
+    );
 
     const result = sampleTimelineData(timeline, PRIMARY_STRATEGY_ID, 6);
     const resultDates = datesFor(result);

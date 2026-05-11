@@ -8,6 +8,7 @@ import {
   runBacktest,
 } from '@/services/backtestingService';
 import type {
+  BacktestExecution,
   BacktestRequest,
   BacktestTimelinePoint,
 } from '@/types/backtesting';
@@ -16,6 +17,22 @@ type DecisionAction =
   BacktestTimelinePoint['strategies'][string]['decision']['action'];
 
 const PRIMARY_STRATEGY_ID = 'dma_gated_fgi_default';
+
+function noActionExecution(): BacktestExecution {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
 
 function createTimelinePoint(
   index: number,
@@ -86,23 +103,31 @@ function createTimelinePoint(
           },
           immediate: false,
         },
-        execution: {
-          event: opts?.withTransfers ? 'rebalance' : null,
-          transfers: opts?.withTransfers
-            ? [
+        execution: opts?.withTransfers
+          ? {
+              event: 'rebalance',
+              transfers: [
                 {
                   from_bucket: 'stable',
                   to_bucket: 'spot',
                   amount_usd: 123,
                 },
-              ]
-            : [],
-          blocked_reason:
-            action === 'hold' || opts?.withTransfers ? null : 'no_transfer',
-          step_count: opts?.withTransfers ? 1 : 0,
-          steps_remaining: 0,
-          interval_days: 3,
-        },
+              ],
+              blocked_reason: null,
+              step_count: 1,
+              steps_remaining: 0,
+              interval_days: 3,
+            }
+          : opts?.actionWithoutTransfers
+            ? noActionExecution()
+            : {
+                event: null,
+                transfers: [],
+                blocked_reason: null,
+                step_count: 0,
+                steps_remaining: 0,
+                interval_days: 3,
+              },
       },
     },
   };
