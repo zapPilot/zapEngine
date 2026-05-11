@@ -44,8 +44,10 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      DATABASE_READ_ONLY_URL: postgresql://test_user:testpass123@localhost:5432/test_db
+      DATABASE_READ_ONLY: 'true'
+      DATABASE_READ_ONLY_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
       TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
+      DATABASE_INTEGRATION_URL: postgresql+asyncpg://test_user:testpass123@localhost:5432/test_db
     steps:
       - uses: actions/checkout@v4
         with:
