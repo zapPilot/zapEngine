@@ -1,8 +1,7 @@
 import { httpUtils } from '@/lib/http';
 import { createApiServiceCaller } from '@/lib/http/createServiceCaller';
 import {
-  MAX_CHART_POINTS,
-  MIN_CHART_POINTS,
+  CHART_POINT_LIMIT,
   sampleTimelineData,
 } from '@/services/backtestingTimelineService';
 import type {
@@ -24,7 +23,7 @@ const callBacktestingApi = createApiServiceCaller(
 
 /** @internal — test-only re-exports */
 export { sampleTimelineData as _sampleTimelineData };
-export { MAX_CHART_POINTS, MIN_CHART_POINTS };
+export { CHART_POINT_LIMIT };
 
 export async function getBacktestingStrategiesV3(): Promise<BacktestStrategyCatalogResponseV3> {
   return callBacktestingApi(() =>

@@ -3,9 +3,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { httpUtils } from '@/lib/http';
 import {
   _sampleTimelineData as sampleTimelineData,
+  CHART_POINT_LIMIT,
   getBacktestingStrategiesV3,
-  MAX_CHART_POINTS,
-  MIN_CHART_POINTS,
   runBacktest,
 } from '@/services/backtestingService';
 import type {
@@ -172,7 +171,7 @@ describe('backtestingService', () => {
         configs: [{ config_id: 'dca_classic', strategy_id: 'dca_classic' }],
       });
 
-      expect(result.timeline.length).toBeLessThanOrEqual(MAX_CHART_POINTS);
+      expect(result.timeline.length).toBeLessThanOrEqual(CHART_POINT_LIMIT);
     });
   });
 
@@ -183,7 +182,7 @@ describe('backtestingService', () => {
     });
 
     it('returns the timeline unchanged when it is already small enough', () => {
-      const timeline = Array.from({ length: MIN_CHART_POINTS }, (_, i) =>
+      const timeline = Array.from({ length: CHART_POINT_LIMIT }, (_, i) =>
         createTimelinePoint(i),
       );
 
@@ -230,7 +229,7 @@ describe('backtestingService', () => {
 
       const result = sampleTimelineData(timeline as BacktestTimelinePoint[]);
 
-      expect(result.length).toBeLessThanOrEqual(MAX_CHART_POINTS);
+      expect(result.length).toBeLessThanOrEqual(CHART_POINT_LIMIT);
       expect(result.length).toBeLessThan(timeline.length);
     });
   });

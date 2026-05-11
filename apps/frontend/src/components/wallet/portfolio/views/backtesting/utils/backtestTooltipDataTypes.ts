@@ -1,6 +1,7 @@
 import type {
   BacktestAssetAllocation,
   BacktestStrategyPoint,
+  BacktestTimelinePoint,
 } from '@/types/backtesting';
 
 export interface TooltipItem {
@@ -82,6 +83,7 @@ export interface ParsedTooltipSource {
   payload: BacktestTooltipPayloadEntry[];
   label: string | number | undefined;
   sortedStrategyIds: string[] | undefined;
+  chartDataIndex?: Map<string, BacktestTimelinePoint> | undefined;
 }
 
 export interface BacktestTooltipProps {
@@ -89,4 +91,5 @@ export interface BacktestTooltipProps {
   payload?: BacktestTooltipPayloadEntry[];
   label?: string | number;
   sortedStrategyIds?: string[];
+  chartDataIndex?: Map<string, BacktestTimelinePoint> | undefined;
 }

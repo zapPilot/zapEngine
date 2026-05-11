@@ -1,37 +1,9 @@
-import {
-  isBacktestTransfer,
-  resolveBacktestSpotAsset,
-} from '@/components/wallet/portfolio/views/backtesting';
-import type {
-  BacktestTimelinePoint,
-  BacktestTransferMetadata,
-} from '@/types/backtesting';
-
-const EVENT_PADDING = 20;
+import type { BacktestTimelinePoint } from '@/types/backtesting';
 
 /**
- * Minimum number of data points to keep in the timeline for chart rendering.
- * Ensures sufficient data density for meaningful chart visualization.
+ * Maximum number of data points to render in the backtesting chart.
  */
-export const MIN_CHART_POINTS = 90;
-
-/**
- * Maximum number of data points to allow in the timeline.
- * Allows dynamic expansion for event-heavy timelines while maintaining performance.
- */
-export const MAX_CHART_POINTS = 150;
-
-function extractTransfers(
-  strategy: BacktestTimelinePoint['strategies'][string] | undefined,
-): BacktestTransferMetadata[] {
-  const transfers = strategy?.execution?.transfers;
-
-  if (!Array.isArray(transfers)) {
-    return [];
-  }
-
-  return transfers.filter(isBacktestTransfer);
-}
+export const CHART_POINT_LIMIT = 120;
 
 function sampleEvenlyFromIndices(
   indices: number[],
@@ -58,14 +30,9 @@ function sampleEvenlyFromIndices(
   return sampled;
 }
 
-function hasCriticalStrategyEvent(
-  strategy: BacktestTimelinePoint['strategies'][string] | undefined,
-  previousStrategy: BacktestTimelinePoint['strategies'][string] | undefined,
-): boolean {
-  return (
-    extractTransfers(strategy).length > 0 ||
-    resolveBacktestSpotAsset(strategy) !==
-      resolveBacktestSpotAsset(previousStrategy)
+function isCriticalPoint(point: BacktestTimelinePoint): boolean {
+  return Object.values(point.strategies).some(
+    (strategy) => strategy?.decision?.action !== 'hold',
   );
 }
 
@@ -75,30 +42,12 @@ function collectCriticalIndices(
   const criticalIndices = new Set<number>([0, timeline.length - 1]);
 
   for (const [index, point] of timeline.entries()) {
-    const previousPoint = index > 0 ? timeline[index - 1] : undefined;
-    const hasCriticalEvent = Object.entries(point.strategies).some(
-      ([strategyId, strategy]) =>
-        hasCriticalStrategyEvent(
-          strategy,
-          previousPoint?.strategies[strategyId],
-        ),
-    );
-    if (hasCriticalEvent) {
+    if (isCriticalPoint(point)) {
       criticalIndices.add(index);
     }
   }
 
   return criticalIndices;
-}
-
-function calculateEffectiveMax(
-  minPoints: number,
-  criticalIndexCount: number,
-): number {
-  return Math.min(
-    MAX_CHART_POINTS,
-    Math.max(minPoints, criticalIndexCount + EVENT_PADDING),
-  );
 }
 
 function mapIndicesToTimeline(
@@ -126,45 +75,42 @@ function collectNonCriticalIndices(
 }
 
 /**
- * Sample timeline data while preserving critical trading events.
+ * Sample timeline data so every decision day always renders.
  *
- * Always preserves:
- * - First and last points
- * - Points where any strategy executes spot/stable transfers
- * - Points where any strategy changes its current `spot_asset`
+ * Invariants:
+ * - Every point where any strategy's `decision.action !== 'hold'` is preserved.
+ * - First and last points are always preserved.
+ * - Non-critical (hold-only) days are evenly sampled to fill the budget
+ *   remaining after the critical set.
  *
- * Dynamically expands the point limit to fit all strategy events, then samples
- * non-critical points evenly to fill remaining slots.
+ * `cap` is a soft target for non-critical sampling, not a hard upper bound on
+ * output length. When critical days alone exceed `cap`, output exceeds `cap`
+ * because action days must never be dropped.
  *
  * @param timeline - Full timeline array from API
- * @param minPoints - Minimum number of points to return (default: MIN_CHART_POINTS)
- * @returns Sampled timeline array with trading events preserved
+ * @param cap - Soft target for total rendered points (default: CHART_POINT_LIMIT)
+ * @returns Sampled timeline array with every action day preserved
  */
 export function sampleTimelineData(
   timeline: BacktestTimelinePoint[] | undefined,
-  minPoints: number = MIN_CHART_POINTS,
+  cap: number = CHART_POINT_LIMIT,
 ): BacktestTimelinePoint[] {
   if (!timeline || timeline.length === 0) {
     return [];
   }
 
-  if (timeline.length <= minPoints) {
+  if (timeline.length <= cap) {
     return timeline;
   }
 
   const criticalIndices = collectCriticalIndices(timeline);
-  const effectiveMax = calculateEffectiveMax(minPoints, criticalIndices.size);
-
-  if (timeline.length <= effectiveMax) {
-    return timeline;
-  }
-
   const sortedCriticalIndices = Array.from(criticalIndices).sort(
     (a, b) => a - b,
   );
-  const remainingSlots = effectiveMax - sortedCriticalIndices.length;
 
-  if (remainingSlots <= 0) {
+  const remainingSlots = Math.max(0, cap - sortedCriticalIndices.length);
+
+  if (remainingSlots === 0) {
     return mapIndicesToTimeline(timeline, sortedCriticalIndices);
   }
 

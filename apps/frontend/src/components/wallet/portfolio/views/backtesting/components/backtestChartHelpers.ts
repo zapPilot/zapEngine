@@ -1,3 +1,5 @@
+import type { BacktestTimelinePoint } from '@/types/backtesting';
+
 import type {
   BacktestTooltipPayloadEntry,
   BacktestTooltipProps,
@@ -17,9 +19,11 @@ export function buildBacktestTooltipProps(params: {
   payload: readonly BacktestTooltipPayloadEntry[] | undefined;
   label: string | number | undefined;
   sortedStrategyIds: string[];
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
 }): BacktestTooltipProps {
-  const { active, payload, label, sortedStrategyIds } = params;
+  const { active, payload, label, sortedStrategyIds, chartDataIndex } = params;
   const tooltipProps: BacktestTooltipProps = {
+    chartDataIndex,
     sortedStrategyIds,
   };
 

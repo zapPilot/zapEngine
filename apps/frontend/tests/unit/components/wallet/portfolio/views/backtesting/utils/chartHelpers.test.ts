@@ -208,8 +208,9 @@ describe('buildChartPoint', () => {
 
     expect(result.dma_fgi_portfolio_rules_default_value).toBe(12000);
     expect(result.dma_fgi_portfolio_rules_value).toBe(10500);
-    expect(result.market).toEqual(point.market);
-    expect(result.strategies).toEqual(point.strategies);
+    expect(result.date).toBe(point.market.date);
+    expect(result).not.toHaveProperty('market');
+    expect(result).not.toHaveProperty('strategies');
   });
 
   it('does not emit removed market context overlay fields', () => {
@@ -722,6 +723,166 @@ describe('buildChartPoint', () => {
     expect(
       (result.eventStrategies as Record<string, string[]>).switch_to_spy,
     ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('creates a buy spot marker from a stable → spy transfer (regression for 2026-04-08)', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        market: {
+          date: '2026-04-08',
+          token_price: { btc: 71975, eth: 2241, spy: 676 },
+          sentiment: 43,
+          sentiment_label: 'neutral',
+        },
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            portfolio: {
+              spot_usd: 16107,
+              stable_usd: 0,
+              total_value: 16107,
+              allocation: allocation(1, 0),
+            },
+            decision: {
+              action: 'buy',
+              reason: 'portfolio_cross_up_equal_weight',
+              rule_group: 'cross',
+              target_allocation: allocation(0, 0, { spy: 1 }),
+              immediate: true,
+            },
+            execution: {
+              event: 'rebalance',
+              transfers: [
+                { from_bucket: 'stable', to_bucket: 'spy', amount_usd: 16155 },
+              ],
+              blocked_reason: null,
+              step_count: 0,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBe(16107);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).buy_spot,
+    ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('falls back to a buy spot marker when decision.action is buy with no transfers', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'buy',
+              reason: 'blocked_action',
+              rule_group: 'cross',
+              target_allocation: allocation(1, 0),
+              immediate: true,
+            },
+            execution: {
+              event: null,
+              transfers: [],
+              blocked_reason: 'cooldown_active',
+              step_count: 0,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBe(10000);
+    expect(result.sellSpotSignal).toBeNull();
+    expect(
+      (result.eventStrategies as Record<string, string[]>).buy_spot,
+    ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('falls back to a sell spot marker when decision.action is sell with no transfers', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'sell',
+              reason: 'blocked_action',
+              rule_group: 'cross',
+              target_allocation: allocation(0, 1),
+              immediate: true,
+            },
+            execution: {
+              event: null,
+              transfers: [],
+              blocked_reason: 'cooldown_active',
+              step_count: 0,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.sellSpotSignal).toBe(10000);
+    expect(result.buySpotSignal).toBeNull();
+    expect(
+      (result.eventStrategies as Record<string, string[]>).sell_spot,
+    ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('falls back to a buy spot marker when action is buy but transfer direction is unrecognised', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'buy',
+              reason: 'edge_case',
+              rule_group: 'cross',
+              target_allocation: allocation(0.5, 0.5),
+              immediate: true,
+            },
+            execution: {
+              event: 'rebalance',
+              transfers: [
+                { from_bucket: 'spot', to_bucket: 'spot', amount_usd: 50 },
+              ],
+              blocked_reason: null,
+              step_count: 1,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBe(10000);
+  });
+
+  it('emits no signal when decision.action is hold and there are no transfers', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint(),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBeNull();
+    expect(result.sellSpotSignal).toBeNull();
+    expect(result.switchToBtcSignal).toBeNull();
+    expect(result.switchToEthSignal).toBeNull();
+    expect(result.switchToSpySignal).toBeNull();
   });
 
   it('does not emit signals from a second strategy excluded from strategyIds', () => {

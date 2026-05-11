@@ -170,6 +170,7 @@ describe('useBacktestResult', () => {
 
     expect(result.current).toEqual({
       chartData: [],
+      chartDataIndex: new Map(),
       yAxisDomain: [0, 1000],
       summary: null,
       sortedStrategyIds: [],
@@ -226,15 +227,16 @@ describe('useBacktestResult', () => {
     expect(result.current.chartData).toHaveLength(2);
   });
 
-  it('preserves portfolio.spot_asset on chartData strategies for tooltip consumers', () => {
-    const { result } = renderHook(() =>
-      useBacktestResult(createResponse() as any),
-    );
+  it('indexes original timeline points by date for tooltip consumers', () => {
+    const response = createResponse();
+    const { result } = renderHook(() => useBacktestResult(response as any));
 
-    const point = result.current.chartData[0] as any;
-    expect(point.strategies.dma_fgi_portfolio_rules.portfolio.spot_asset).toBe(
-      'BTC',
-    );
+    expect(result.current.chartDataIndex.size).toBe(response.timeline.length);
+    for (const point of response.timeline) {
+      expect(result.current.chartDataIndex.get(point.market.date)).toBe(point);
+    }
+    expect(result.current.chartData[0]).not.toHaveProperty('strategies');
+    expect(result.current.chartData[0]).not.toHaveProperty('market');
   });
 
   it('returns a valid y-axis domain tuple', () => {

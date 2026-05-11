@@ -142,9 +142,42 @@ vi.mock(
 describe('BacktestChart', () => {
   const defaultProps = {
     chartData: [
-      { date: '2025-01-01', strat_a_value: 1000, strat_b_value: 900 },
-      { date: '2025-01-02', strat_a_value: 1050, strat_b_value: 920 },
+      {
+        date: '2025-01-01',
+        strat_a_value: 1000,
+        strat_b_value: 900,
+        buySpotSignal: null,
+        sellSpotSignal: null,
+        switchToEthSignal: null,
+        switchToBtcSignal: null,
+        switchToSpySignal: null,
+        eventStrategies: {
+          buy_spot: [],
+          sell_spot: [],
+          switch_to_eth: [],
+          switch_to_btc: [],
+          switch_to_spy: [],
+        },
+      },
+      {
+        date: '2025-01-02',
+        strat_a_value: 1050,
+        strat_b_value: 920,
+        buySpotSignal: null,
+        sellSpotSignal: null,
+        switchToEthSignal: null,
+        switchToBtcSignal: null,
+        switchToSpySignal: null,
+        eventStrategies: {
+          buy_spot: [],
+          sell_spot: [],
+          switch_to_eth: [],
+          switch_to_btc: [],
+          switch_to_spy: [],
+        },
+      },
     ],
+    chartDataIndex: new Map(),
     sortedStrategyIds: ['strat_a', 'strat_b'],
     yAxisDomain: [800, 1200] as [number, number],
     actualDays: 30,
@@ -238,6 +271,9 @@ describe('BacktestChart', () => {
 
     // BacktestTooltip receives the built props — the mock renders a div
     expect(result).toBeDefined();
+    expect(
+      (result as { props?: Record<string, unknown> }).props?.chartDataIndex,
+    ).toBe(defaultProps.chartDataIndex);
   });
 
   it('buildBacktestTooltipProps handles undefined active/payload/label gracefully', () => {

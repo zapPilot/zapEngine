@@ -9,9 +9,13 @@ import {
 } from 'recharts';
 
 import { BaseCard } from '@/components/ui/BaseCard';
+import type { BacktestTimelinePoint } from '@/types/backtesting';
 import { formatChartAxisDate, formatCurrencyAxis } from '@/utils';
 
-import { getPrimaryStrategyId } from '../utils/chartHelpers';
+import {
+  type BacktestChartPoint,
+  getPrimaryStrategyId,
+} from '../utils/chartHelpers';
 import {
   AXIS_DEFAULTS,
   axisTick,
@@ -26,7 +30,8 @@ import { BacktestChartLegend } from './BacktestChartLegend';
 import { BacktestTooltip, type BacktestTooltipProps } from './BacktestTooltip';
 
 export interface BacktestChartProps {
-  chartData: Record<string, unknown>[];
+  chartData: BacktestChartPoint[];
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
   sortedStrategyIds: string[];
   yAxisDomain: [number, number];
   actualDays: number;
@@ -37,6 +42,7 @@ export interface BacktestChartProps {
 export const BacktestChart = memo(function BacktestChart({
   actualDays,
   chartData,
+  chartDataIndex,
   chartIdPrefix = 'default',
   sortedStrategyIds,
   yAxisDomain,
@@ -94,6 +100,7 @@ export const BacktestChart = memo(function BacktestChart({
                     payload,
                     label,
                     sortedStrategyIds,
+                    chartDataIndex,
                   });
 
                 return <BacktestTooltip {...tooltipProps} />;

@@ -29,23 +29,20 @@ const buildParsedTooltipData = ({
   payload,
   label,
   sortedStrategyIds,
+  chartDataIndex,
 }: ParsedTooltipSource): ParsedTooltipData | null => {
   if (payload.length === 0) {
     return null;
   }
 
   const firstPayload = payload[0]?.payload;
-  const market = firstPayload?.['market'] as
-    | {
-        date?: string;
-      }
-    | undefined;
+  const dateKey = typeof label === 'string' ? label : firstPayload?.['date'];
+  const fullPoint = dateKey ? chartDataIndex?.get(String(dateKey)) : undefined;
+  const market = fullPoint?.market;
   const eventStrategies = firstPayload?.['eventStrategies'] as
     | EventStrategiesRecord
     | undefined;
-  const strategies = firstPayload?.['strategies'] as
-    | StrategiesRecord
-    | undefined;
+  const strategies = fullPoint?.strategies as StrategiesRecord | undefined;
   const orderedIds = getOrderedStrategyIds(strategies, sortedStrategyIds);
   const sections = buildTooltipSections(
     payload,
@@ -82,6 +79,7 @@ export function buildBacktestTooltipData({
   payload,
   label,
   sortedStrategyIds,
+  chartDataIndex,
 }: BacktestTooltipProps): ParsedTooltipData | null {
   if (!payload || payload.length === 0) {
     return null;
@@ -91,5 +89,6 @@ export function buildBacktestTooltipData({
     payload,
     label,
     sortedStrategyIds,
+    chartDataIndex,
   });
 }

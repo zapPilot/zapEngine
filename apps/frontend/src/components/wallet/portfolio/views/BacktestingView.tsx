@@ -26,8 +26,14 @@ export function BacktestingView(): ReactElement {
     updateEditorValue,
   } = useBacktestConfiguration();
 
-  const { chartData, yAxisDomain, summary, sortedStrategyIds, actualDays } =
-    useBacktestResult(backtestData ?? null);
+  const {
+    chartData,
+    chartDataIndex,
+    yAxisDomain,
+    summary,
+    sortedStrategyIds,
+    actualDays,
+  } = useBacktestResult(backtestData ?? null);
 
   let content: ReactElement;
   if (isInitializing || isPending) {
@@ -49,6 +55,7 @@ export function BacktestingView(): ReactElement {
         sortedStrategyIds={sortedStrategyIds}
         actualDays={actualDays}
         chartData={chartData}
+        chartDataIndex={chartDataIndex}
         yAxisDomain={yAxisDomain}
         isPending={isPending}
         onRun={handleRunBacktest}

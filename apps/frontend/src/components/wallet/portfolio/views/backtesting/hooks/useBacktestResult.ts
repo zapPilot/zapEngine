@@ -1,8 +1,12 @@
 import { useMemo } from 'react';
 
-import type { BacktestResponse } from '@/types/backtesting';
+import type {
+  BacktestResponse,
+  BacktestTimelinePoint,
+} from '@/types/backtesting';
 
 import {
+  type BacktestChartPoint,
   buildChartPoint,
   calculateActualDays,
   calculateYAxisDomain,
@@ -11,7 +15,8 @@ import {
 } from '../utils/chartHelpers';
 
 export interface UseBacktestResultReturn {
-  chartData: Record<string, unknown>[];
+  chartData: BacktestChartPoint[];
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
   yAxisDomain: [number, number];
   summary: { strategies: BacktestResponse['strategies'] } | null;
   sortedStrategyIds: string[];
@@ -36,14 +41,18 @@ export function useBacktestResult(
     [response],
   );
 
-  const chartData = useMemo(() => {
+  const { chartData, chartDataIndex } = useMemo(() => {
     if (!response) {
-      return [];
+      return { chartData: [], chartDataIndex: new Map() };
     }
 
-    return response.timeline.map((point) =>
-      buildChartPoint(point, sortedStrategyIds),
-    );
+    const index = new Map<string, BacktestTimelinePoint>();
+    const data = response.timeline.map((point) => {
+      index.set(point.market.date, point);
+      return buildChartPoint(point, sortedStrategyIds);
+    });
+
+    return { chartData: data, chartDataIndex: index };
   }, [response, sortedStrategyIds]);
 
   const summary = response ? { strategies: response.strategies } : null;
@@ -55,6 +64,7 @@ export function useBacktestResult(
 
   return {
     chartData,
+    chartDataIndex,
     yAxisDomain,
     summary,
     sortedStrategyIds,

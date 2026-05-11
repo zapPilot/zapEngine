@@ -114,4 +114,34 @@ describe('isRuntimeMode', () => {
     process.env['NODE_ENV'] = 'development';
     expect(isRuntimeMode('development')).toBe(true);
   });
+
+  it('falls back to development when NODE_ENV is empty string', () => {
+    const originalNodeEnv = process.env['NODE_ENV'];
+    const originalMode = (import.meta.env as Record<string, unknown>)['MODE'];
+    process.env['NODE_ENV'] = '';
+    delete (import.meta.env as Record<string, unknown>)['MODE'];
+    expect(isRuntimeMode('development')).toBe(true);
+    process.env['NODE_ENV'] = originalNodeEnv;
+    (import.meta.env as Record<string, unknown>)['MODE'] = originalMode;
+  });
+
+  it('falls back to MODE from import.meta.env when NODE_ENV is empty', () => {
+    const originalNodeEnv = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = '';
+    const originalMode = (import.meta.env as Record<string, unknown>)['MODE'];
+    (import.meta.env as Record<string, unknown>)['MODE'] = 'production';
+    expect(isRuntimeMode('production')).toBe(true);
+    process.env['NODE_ENV'] = originalNodeEnv;
+    (import.meta.env as Record<string, unknown>)['MODE'] = originalMode;
+  });
+
+  it('falls back to development when both NODE_ENV and MODE are empty/missing', () => {
+    const originalNodeEnv = process.env['NODE_ENV'];
+    const originalMode = (import.meta.env as Record<string, unknown>)['MODE'];
+    process.env['NODE_ENV'] = '';
+    delete (import.meta.env as Record<string, unknown>)['MODE'];
+    expect(isRuntimeMode('development')).toBe(true);
+    process.env['NODE_ENV'] = originalNodeEnv;
+    (import.meta.env as Record<string, unknown>)['MODE'] = originalMode;
+  });
 });

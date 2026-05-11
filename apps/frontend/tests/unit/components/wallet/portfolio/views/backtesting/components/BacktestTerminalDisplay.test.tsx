@@ -93,6 +93,7 @@ describe('BacktestTerminalDisplay', () => {
     sortedStrategyIds: [],
     actualDays: 500,
     chartData: [],
+    chartDataIndex: new Map(),
     yAxisDomain: [0, 100] as [number, number],
     isPending: false,
     onRun: mockOnRun,

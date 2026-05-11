@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
+import type {
+  BacktestTooltipPayloadEntry,
+  BacktestTooltipProps,
+} from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataTypes';
+import { buildBacktestTooltipData as buildBacktestTooltipDataRaw } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 import type {
   BacktestBucket,
+  BacktestTimelinePoint,
   BacktestTransferMetadata,
 } from '@/types/backtesting';
 
@@ -13,6 +18,10 @@ vi.mock('@/utils', () => ({
 // ---------------------------------------------------------------------------
 // Shared fixture helpers
 // ---------------------------------------------------------------------------
+
+type PayloadWithIndex = BacktestTooltipPayloadEntry[] & {
+  chartDataIndex?: Map<string, BacktestTimelinePoint>;
+};
 
 function makeMarket(
   date = '2026-01-15',
@@ -128,6 +137,34 @@ function makeStrategyPoint(overrides: {
   };
 }
 
+function buildBacktestTooltipData(props: BacktestTooltipProps) {
+  const payloadIndex = (props.payload as PayloadWithIndex | undefined)
+    ?.chartDataIndex;
+
+  return buildBacktestTooltipDataRaw({
+    ...props,
+    chartDataIndex: props.chartDataIndex ?? payloadIndex,
+  });
+}
+
+function attachChartDataIndex(
+  payload: BacktestTooltipPayloadEntry[],
+  market = makeMarket(),
+  strategies: Record<string, object> = {},
+): PayloadWithIndex {
+  return Object.assign(payload, {
+    chartDataIndex: new Map<string, BacktestTimelinePoint>([
+      [
+        market.date,
+        {
+          market,
+          strategies,
+        } as BacktestTimelinePoint,
+      ],
+    ]),
+  });
+}
+
 /**
  * Builds a minimal single-entry payload. All other signal/event entries can be
  * appended when testing those specific branches.
@@ -136,18 +173,21 @@ function minimalPayload(
   market = makeMarket(),
   strategies: Record<string, object> = {},
 ) {
-  return [
-    {
-      name: 'strategy_a',
-      value: 10000,
-      color: '#3b82f6',
-      payload: {
-        market,
-        eventStrategies: { buy_spot: [], sell_spot: [] },
-        strategies,
+  return attachChartDataIndex(
+    [
+      {
+        name: 'strategy_a',
+        value: 10000,
+        color: '#3b82f6',
+        payload: {
+          date: market.date,
+          eventStrategies: { buy_spot: [], sell_spot: [] },
+        },
       },
-    },
-  ];
+    ],
+    market,
+    strategies,
+  );
 }
 
 function transfer(
@@ -160,51 +200,57 @@ function transfer(
 
 // Full payload used across multiple tests (mirrors original fixture)
 function createTooltipPayload() {
-  return [
-    {
-      name: 'DMA/FGI Portfolio Rules',
-      value: 12000,
-      color: '#3b82f6',
-      payload: {
-        market: makeMarket(),
-        eventStrategies: {
-          buy_spot: ['DMA/FGI Portfolio Rules'],
-          sell_spot: [],
-        },
-        strategies: {
-          dma_fgi_portfolio_rules: makeStrategyPoint({
-            spot: 5000,
-            stable: 5000,
-            signal: null,
-          }),
-          dma_fgi_portfolio_rules_default: makeStrategyPoint({
-            spot: 9600,
-            stable: 2400,
-            spotAsset: 'ETH',
-            signal: { id: 'dma_fgi_portfolio_rules_signal' },
-            decision: {
-              action: 'buy',
-              reason: 'below_extreme_fear_buy',
-              rule_group: 'dma_fgi',
-              details: {
-                allocation_name: 'dma_below_extreme_fear_buy',
-                target_spot_asset: 'ETH',
-              },
-            },
-            transfers: [transfer('stable', 'eth', 240)],
-            blocked_reason: 'cooldown_active',
-            buy_gate: { block_reason: 'sideways_pending' },
-          }),
+  const market = makeMarket();
+  const strategies = {
+    dma_fgi_portfolio_rules: makeStrategyPoint({
+      spot: 5000,
+      stable: 5000,
+      signal: null,
+    }),
+    dma_fgi_portfolio_rules_default: makeStrategyPoint({
+      spot: 9600,
+      stable: 2400,
+      spotAsset: 'ETH',
+      signal: { id: 'dma_fgi_portfolio_rules_signal' },
+      decision: {
+        action: 'buy',
+        reason: 'below_extreme_fear_buy',
+        rule_group: 'dma_fgi',
+        details: {
+          allocation_name: 'dma_below_extreme_fear_buy',
+          target_spot_asset: 'ETH',
         },
       },
-    },
-    {
-      name: 'Buy Spot',
-      value: 12000,
-      color: '#22c55e',
-      payload: {},
-    },
-  ];
+      transfers: [transfer('stable', 'eth', 240)],
+      blocked_reason: 'cooldown_active',
+      buy_gate: { block_reason: 'sideways_pending' },
+    }),
+  };
+
+  return attachChartDataIndex(
+    [
+      {
+        name: 'DMA/FGI Portfolio Rules',
+        value: 12000,
+        color: '#3b82f6',
+        payload: {
+          date: market.date,
+          eventStrategies: {
+            buy_spot: ['DMA/FGI Portfolio Rules'],
+            sell_spot: [],
+          },
+        },
+      },
+      {
+        name: 'Buy Spot',
+        value: 12000,
+        color: '#22c55e',
+        payload: {},
+      },
+    ],
+    market,
+    strategies,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -231,10 +277,10 @@ describe('buildBacktestTooltipData', () => {
   // ------------------------------------------------------------------
 
   describe('date string derivation', () => {
-    it('uses market.date when available, ignoring label', () => {
+    it('uses the label date to resolve market data from the index', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
       });
       expect(result?.dateStr).toBe(new Date('2026-01-15').toLocaleDateString());
     });
@@ -717,7 +763,7 @@ describe('buildBacktestTooltipData', () => {
     it('produces correct sections from a complete payload', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
         sortedStrategyIds: [
           'dma_fgi_portfolio_rules_default',
           'dma_fgi_portfolio_rules',
@@ -744,7 +790,7 @@ describe('buildBacktestTooltipData', () => {
     it('includes the active comparison decision summary', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
         sortedStrategyIds: [
           'dma_fgi_portfolio_rules_default',
           'dma_fgi_portfolio_rules',

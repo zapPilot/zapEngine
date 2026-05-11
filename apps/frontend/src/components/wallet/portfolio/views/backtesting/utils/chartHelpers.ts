@@ -30,6 +30,16 @@ export interface SignalConfig {
     | 'wye';
 }
 
+export interface BacktestChartPoint extends Record<string, unknown> {
+  date: string;
+  buySpotSignal: number | null;
+  sellSpotSignal: number | null;
+  switchToEthSignal: number | null;
+  switchToBtcSignal: number | null;
+  switchToSpySignal: number | null;
+  eventStrategies: Record<SignalKey, string[]>;
+}
+
 /** Unified signal configuration */
 export const CHART_SIGNALS: SignalConfig[] = [
   {
@@ -164,6 +174,14 @@ function forEachActiveStrategy(
   }
 }
 
+function fallbackSignalForAction(
+  action: BacktestStrategy['decision']['action'],
+): SignalKey | null {
+  if (action === 'buy') return 'buy_spot';
+  if (action === 'sell') return 'sell_spot';
+  return null;
+}
+
 function processStrategyTransfers(
   point: BacktestTimelinePoint,
   strategyIds: string[],
@@ -171,6 +189,8 @@ function processStrategyTransfers(
 ): void {
   forEachActiveStrategy(point, strategyIds, (strategyId, strategy) => {
     const displayName = getStrategyDisplayName(strategyId);
+    let signalSetForStrategy = false;
+
     for (const transfer of getTransfers(strategy)) {
       const signalKey = classifyTransfer(
         transfer.from_bucket,
@@ -181,7 +201,19 @@ function processStrategyTransfers(
       }
 
       updateSignal(acc, signalKey, strategy.portfolio.total_value, displayName);
+      signalSetForStrategy = true;
     }
+
+    if (signalSetForStrategy) {
+      return;
+    }
+
+    const fallbackKey = fallbackSignalForAction(strategy.decision.action);
+    if (!fallbackKey) {
+      return;
+    }
+
+    updateSignal(acc, fallbackKey, strategy.portfolio.total_value, displayName);
   });
 }
 
@@ -299,11 +331,21 @@ export function sortStrategyIds(ids: string[]): string[] {
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {
+): BacktestChartPoint {
+  const data: BacktestChartPoint = {
     date: point.market.date,
-    market: point.market,
-    strategies: point.strategies,
+    buySpotSignal: null,
+    sellSpotSignal: null,
+    switchToEthSignal: null,
+    switchToBtcSignal: null,
+    switchToSpySignal: null,
+    eventStrategies: {
+      buy_spot: [],
+      sell_spot: [],
+      switch_to_eth: [],
+      switch_to_btc: [],
+      switch_to_spy: [],
+    },
   };
 
   for (const id of strategyIds) {
