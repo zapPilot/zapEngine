@@ -24,11 +24,14 @@ export async function writeSnapshotData<T>(
   data: T[],
   writer: SnapshotWriter<T>,
 ): Promise<WriteResult> {
-  const snapshot = data[0]!;
-  await writer.insertSnapshot(snapshot);
+  let recordsInserted = 0;
+  for (const snapshot of data) {
+    await writer.insertSnapshot(snapshot);
+    recordsInserted += 1;
+  }
   return {
     success: true,
-    recordsInserted: 1,
+    recordsInserted,
     errors: [],
     duplicatesSkipped: 0,
   };
