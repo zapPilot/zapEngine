@@ -424,7 +424,7 @@ describe('RebalancePanel', () => {
     render(<RebalancePanel userId="0xabc" />);
 
     expect(screen.getByText('BTC')).toBeDefined();
-    expect(screen.getByText('STABLE')).toBeDefined();
+    expect(screen.getAllByText(/STABLE/)).toHaveLength(3);
     expect(screen.getAllByText('Add')).toHaveLength(2);
     expect(screen.getAllByText('Reduce')).toHaveLength(1);
   });
@@ -565,7 +565,7 @@ describe('RebalancePanel', () => {
     render(<RebalancePanel userId="0xabc" />);
 
     expect(screen.getByText('Add')).toBeDefined();
-    expect(screen.queryByText('Reduce')).toHaveLength(0);
+    expect(screen.queryByText('Reduce')).toBeNull();
   });
 
   it('renders action dots correctly for multiple transfers', () => {

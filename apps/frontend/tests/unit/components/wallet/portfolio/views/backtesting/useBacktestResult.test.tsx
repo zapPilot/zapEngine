@@ -4,6 +4,22 @@ import { useBacktestResult } from '@/components/wallet/portfolio/views/backtesti
 
 import { renderHook } from '../../../../../../test-utils';
 
+function noActionExecution() {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action' as const,
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
+
 function createResponse() {
   return {
     strategies: {
@@ -191,6 +207,39 @@ describe('useBacktestResult', () => {
     expect(point.eventStrategies.sell_spot).toContain(
       'DMA/FGI Portfolio Rules',
     );
+  });
+
+  it('does not build chart markers from a no-action sell execution response', () => {
+    const response = createResponse() as any;
+    response.timeline[0].strategies.dma_fgi_portfolio_rules.decision = {
+      action: 'sell',
+      reason: 'portfolio_dma_overextension_dca_sell',
+      rule_group: 'dma_fgi',
+      target_allocation: {
+        btc: 0.4,
+        eth: 0,
+        spy: 0,
+        stable: 0.6,
+        alt: 0,
+      },
+      immediate: false,
+    };
+    response.timeline[0].strategies.dma_fgi_portfolio_rules.execution =
+      noActionExecution();
+
+    const { result } = renderHook(() => useBacktestResult(response));
+    const point = result.current.chartData[0] as any;
+
+    expect(point.sellSpotSignal).toBeNull();
+    expect(point.buySpotSignal).toBeNull();
+    expect(point.switchToBtcSignal).toBeNull();
+    expect(point.switchToEthSignal).toBeNull();
+    expect(point.switchToSpySignal).toBeNull();
+    expect(point.eventStrategies.sell_spot).toEqual([]);
+    expect(
+      result.current.chartDataIndex.get('2024-01-01')?.strategies
+        .dma_fgi_portfolio_rules.execution,
+    ).toMatchObject(noActionExecution());
   });
 
   it('wraps strategies in a summary object', () => {

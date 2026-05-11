@@ -58,6 +58,22 @@ function createStrategyPoint(
   };
 }
 
+function noActionExecution(): BacktestStrategyPoint['execution'] {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
+
 function createTimelinePoint(
   overrides: Partial<BacktestTimelinePoint> = {},
 ): BacktestTimelinePoint {
@@ -901,26 +917,19 @@ describe('buildChartPoint', () => {
     ).toEqual([]);
   });
 
-  it('does not create a sell spot marker when decision.action is sell with no transfers', () => {
+  it('does not create a sell spot marker from a no-action sell execution response', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
           dma_fgi_portfolio_rules_default: createStrategyPoint({
             decision: {
               action: 'sell',
-              reason: 'blocked_action',
-              rule_group: 'cross',
+              reason: 'portfolio_dma_overextension_dca_sell',
+              rule_group: 'dma_fgi',
               target_allocation: allocation(0, 1),
               immediate: true,
             },
-            execution: {
-              event: null,
-              transfers: [],
-              blocked_reason: 'cooldown_active',
-              step_count: 0,
-              steps_remaining: 0,
-              interval_days: 0,
-            },
+            execution: noActionExecution(),
           }),
         },
       }),
@@ -931,6 +940,15 @@ describe('buildChartPoint', () => {
     expect(result.buySpotSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).sell_spot,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_btc,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_eth,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_spy,
     ).toEqual([]);
   });
 
