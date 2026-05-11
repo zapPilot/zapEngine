@@ -1,4 +1,5 @@
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
+import type { TooltipPayloadEntry, TooltipValueType } from 'recharts';
 
 import { getRegimeColor, getRegimeLabel } from '@/lib/domain/regime';
 import type { MarketDashboardPoint } from '@/services';
@@ -13,7 +14,7 @@ export function getBaseAssets(d: MarketDashboardPoint) {
   };
 }
 
-export function toNumeric(
+function toNumeric(
   v: string | number | readonly (string | number)[] | undefined,
 ): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
@@ -24,7 +25,7 @@ export function toNumeric(
   return null;
 }
 
-export function getMinMax(arr: number[]): { min: number; max: number } {
+function getMinMax(arr: number[]): { min: number; max: number } {
   if (arr.length === 0) return { min: 0, max: 1 };
   const min = Math.min(...arr);
   const max = Math.max(...arr);
@@ -78,7 +79,7 @@ export function collectAssetRanges(data: MarketDashboardPoint[]): {
   };
 }
 
-export const DOLLAR_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
+const DOLLAR_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
   MARKET_LINES.filter((l) => l.axis === 'price').map((l) => {
     const rawKey = l.dataKey.replace('_normalized', '');
     return [l.label, rawKey];
@@ -86,12 +87,12 @@ export const DOLLAR_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export function formatTooltipValue(
-  value: string | number | readonly (string | number)[] | undefined,
+  value: TooltipValueType | undefined,
   name: string | number | undefined,
-  props: TooltipPayload,
-): [string | number, string | number] {
+  item: TooltipPayloadEntry,
+): [ReactNode, string | number] {
   const labelName = String(name ?? '');
-  const payload = props.payload;
+  const payload = item.payload as ChartPayloadRow | undefined;
 
   const dollarField = DOLLAR_FORMAT_LABELS[labelName];
   if (dollarField != null) {
@@ -119,14 +120,12 @@ export function formatTooltipValue(
   return [value as string | number, labelName];
 }
 
-export interface TooltipPayload {
-  payload?: {
-    sentiment_value?: number | null;
-    macro_fear_greed?: number | null;
-    regime?: string | null;
-    macro_regime?: string | null;
-    [key: string]: unknown;
-  };
+interface ChartPayloadRow {
+  sentiment_value?: number | null;
+  macro_fear_greed?: number | null;
+  regime?: string | null;
+  macro_regime?: string | null;
+  [key: string]: unknown;
 }
 
 export function createGradientStops(

@@ -310,7 +310,7 @@ export function MarketOverviewChart({
               fontWeight: 'bold',
             }}
             cursor={{ stroke: '#4B5563', strokeWidth: 1 }}
-            formatter={formatTooltipValue as never}
+            formatter={formatTooltipValue}
           />
 
           {activeLineDescriptors.map((line) => {
