@@ -5,11 +5,11 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.decision_policy import (
+    resolve_portfolio_rules_intent,
+)
 from src.services.backtesting.portfolio_rules.dma_stable_gating import (
     DmaStableGatingRule,
-)
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    resolve_portfolio_rules_intent,
 )
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 

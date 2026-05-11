@@ -7,9 +7,6 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any, cast
 
-from src.services.backtesting.composition_types import (
-    StatefulSignalComponent,
-)
 from src.services.backtesting.decision import (
     AllocationIntent,
 )
@@ -33,6 +30,10 @@ from src.services.backtesting.features import (
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
 )
+from src.services.backtesting.signals.contracts import StatefulSignalComponent
+from src.services.backtesting.signals.dma_gated_fgi.component import (
+    DmaGatedFgiSignalComponent,
+)
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     BlockedZone,
@@ -47,9 +48,6 @@ from src.services.backtesting.signals.ratio_state import (
     detect_ratio_cross,
 )
 from src.services.backtesting.strategies.base import StrategyContext
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiSignalComponent,
-)
 from src.services.backtesting.target_allocation import (
     normalize_target_allocation,
     target_from_current_allocation,

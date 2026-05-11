@@ -58,7 +58,7 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 
 # Analytics strategy measurement
 
-The snapshot gate runs automatically as part of `pnpm --filter @zapengine/analytics-engine test` and `test:ci` (in-process; no server boot required). If you intentionally change strategy behavior, refresh the fixture: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` (this still requires the server on port 8001 because update mode uses HTTP mode).
+The snapshot gate runs automatically as part of `pnpm --filter @zapengine/analytics-engine test` and `test:ci` (in-process; no server boot required). The in-process gate boots the FastAPI app via `TestClient(app)`, which connects to `DATABASE_READ_ONLY_URL`. In CI this must point at the Supabase read-only replica (set as a GitHub Actions secret `DATABASE_READ_ONLY_URL`); a local pg container does not contain the production `alpha_raw.*` time-series the fixture was generated from. If you intentionally change strategy behavior, refresh the fixture: `pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot` (this still requires the server on port 8001 because update mode uses HTTP mode).
 
 # AI Tool Documentation
 

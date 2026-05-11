@@ -24,10 +24,22 @@ function withBaseURL<Config extends Record<string, unknown> | undefined>(
 }
 
 function createServiceHttpClient(baseURL: string) {
-  // Helper to wrap config with baseURL
   const withBase = <C extends Record<string, unknown> | undefined>(
     config?: C,
   ) => withBaseURL(baseURL, config) as C;
+
+  const mutate = <T>(
+    fn: (
+      url: string,
+      body: unknown,
+      config: Record<string, unknown>,
+      transformer?: ResponseTransformer<T>,
+    ) => Promise<T>,
+    endpoint: string,
+    body: unknown,
+    config?: MutateConfig,
+    transformer?: ResponseTransformer<T>,
+  ) => fn(endpoint, body, withBase(config), transformer);
 
   return {
     get: <T = unknown>(
@@ -41,21 +53,21 @@ function createServiceHttpClient(baseURL: string) {
       body?: unknown,
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
-    ) => httpPost(endpoint, body, withBase(config), transformer),
+    ) => mutate(httpPost, endpoint, body, config, transformer),
 
     put: <T = unknown>(
       endpoint: string,
       body?: unknown,
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
-    ) => httpPut(endpoint, body, withBase(config), transformer),
+    ) => mutate(httpPut, endpoint, body, config, transformer),
 
     patch: <T = unknown>(
       endpoint: string,
       body?: unknown,
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
-    ) => httpPatch(endpoint, body, withBase(config), transformer),
+    ) => mutate(httpPatch, endpoint, body, config, transformer),
 
     delete: <T = unknown>(
       endpoint: string,

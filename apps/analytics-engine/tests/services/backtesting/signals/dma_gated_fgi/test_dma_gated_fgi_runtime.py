@@ -5,6 +5,9 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.signals.contracts import SignalContext
+from src.services.backtesting.signals.dma_gated_fgi.component import (
+    _resolve_dma_allocation_intent,
+)
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.errors import SignalDataError
 from src.services.backtesting.signals.dma_gated_fgi.signal_engine import (
@@ -13,9 +16,6 @@ from src.services.backtesting.signals.dma_gated_fgi.signal_engine import (
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
-)
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    _resolve_dma_allocation_intent,
 )
 
 

@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import Mock
 
 from src.services.backtesting.features import MarketDataRequirements
-from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
+from src.services.backtesting.strategies.composed import ComposedSignalStrategy
 
 
 def _build_minimal_strategy() -> ComposedSignalStrategy:

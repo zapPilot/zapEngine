@@ -9,7 +9,7 @@ from src.services.backtesting.execution.pacing import FgiExponentialPacingPolicy
 from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
-from src.services.backtesting.strategies.minimum import (
+from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
 )
 

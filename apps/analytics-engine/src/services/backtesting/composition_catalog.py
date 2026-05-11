@@ -16,10 +16,6 @@ from src.services.backtesting.capabilities import (
     map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
-from src.services.backtesting.composition_types import (
-    DecisionPolicy,
-    StatefulSignalComponent,
-)
 from src.services.backtesting.constants import (
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
@@ -30,16 +26,18 @@ from src.services.backtesting.execution.pacing import FgiExponentialPacingPolicy
 from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
-from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.portfolio_rules.base import DecisionPolicy
+from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
     DmaFgiPortfolioRulesDecisionPolicy,
 )
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiParams,
-)
-from src.services.backtesting.strategies.minimum import (
+from src.services.backtesting.signals.contracts import StatefulSignalComponent
+from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
+)
+from src.services.backtesting.strategies.base import BaseStrategy
+from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+    DmaGatedFgiParams,
 )
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from src.services.backtesting.utils import (

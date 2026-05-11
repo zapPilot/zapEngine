@@ -1,0 +1,823 @@
+"""Portfolio-level DMA/FGI rule decision policy.
+
+Rules are evaluated first-match-wins by explicit priority:
+cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation,
+DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
+If different assets emit cross-up and cross-down on the same day, cross-down
+exits win and the cross-up rebalance can be reconsidered on the next eligible
+day.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
+from datetime import date
+from typing import Any, Protocol, TypeVar, cast
+
+from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.portfolio_rules import (
+    ALL_PORTFOLIO_RULES,
+    DEFAULT_PORTFOLIO_RULES,
+    RULE_NAMES,
+    RULE_PRIORITIES,
+)
+from src.services.backtesting.portfolio_rules.base import (
+    DIAG_COOLDOWN_SKIPPED_RULES,
+    DIAG_MATCHED_RULE_NAME,
+    DIAG_PORTFOLIO_RULE_COOLDOWN_KEY,
+    DIAG_PORTFOLIO_RULE_MATCHES,
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+    DIAG_SIGNALS_CONSULTED,
+    DecisionPolicy,
+    PortfolioRule,
+    PortfolioRuleConfig,
+    PortfolioSnapshot,
+    current_fgi_regime_for_symbol,
+    current_target,
+    rule_cooldown_remaining_days,
+    signals_consulted_for_symbols,
+    symbols_for_snapshot,
+)
+from src.services.backtesting.risk import (
+    RiskGuard,
+    RiskGuardResult,
+    TradeQuotaGuard,
+)
+from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.flat_minimum import FlatMinimumState
+from src.services.backtesting.strategies.base import StrategyContext
+
+PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
+_RULE_PRIORITY_BY_NAME = RULE_PRIORITIES
+_CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
+_RuleT = TypeVar("_RuleT", bound=PortfolioRule)
+RuleCooldownKey = str | tuple[str, str]
+
+
+class _PortfolioRuleParams(Protocol):
+    disabled_rules: frozenset[str]
+    enabled_rules: frozenset[str] | None
+    min_trade_interval_days: int | None
+    max_trades_7d: int | None
+    max_trades_30d: int | None
+
+
+@dataclass(frozen=True)
+class RuleExecutionState:
+    last_trade_date: date | None = None
+    trade_dates: tuple[date, ...] = ()
+
+
+@dataclass(frozen=True)
+class RuleMatchOutcome:
+    rule_name: str
+    matched: bool
+    would_have_acted_action: str | None = None
+    suppressed_by: str | None = None
+
+
+@dataclass
+class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
+    """Decision policy that evaluates whole-portfolio rules."""
+
+    decision_policy_id: str = "dma_fgi_portfolio_rules_policy"
+    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES
+    risk_guards: tuple[RiskGuard, ...] = ()
+    config: PortfolioRuleConfig = field(default_factory=PortfolioRuleConfig)
+    disabled_rules: frozenset[str] = frozenset()
+    enabled_rules: frozenset[str] | None = None
+    execution_state_provider: Callable[[], RuleExecutionState] | None = None
+    _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
+    _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
+    _rule_last_executed_at: dict[RuleCooldownKey, date] = field(
+        default_factory=dict,
+        init=False,
+    )
+    _last_trade_date: date | None = field(default=None, init=False)
+    _trade_dates: list[date] = field(default_factory=list, init=False)
+
+    def __post_init__(self) -> None:
+        assert_known_rule_names(self.disabled_rules, field_name="disabled_rules")
+        assert_known_rule_names(self.enabled_rules, field_name="enabled_rules")
+
+    def reset(self) -> None:
+        self._previous_fgi_regime = {}
+        self._cycle_open_per_symbol = {}
+        self._rule_last_executed_at = {}
+        self._last_trade_date = None
+        self._trade_dates = []
+        for component in (*self.rules, *self.risk_guards):
+            reset = getattr(component, "reset", None)
+            if callable(reset):
+                reset()
+
+    def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
+        execution_state = self._resolve_execution_state()
+        portfolio_snapshot = build_portfolio_snapshot(
+            snapshot,
+            previous_fgi_regime=self._previous_fgi_regime,
+            cycle_open_per_symbol=self._cycle_open_per_symbol,
+            last_trade_date=execution_state.last_trade_date,
+            trade_dates=execution_state.trade_dates,
+        )
+        self._observe_components(portfolio_snapshot)
+        intent = resolve_portfolio_rules_intent(
+            portfolio_snapshot,
+            rules=self.rules,
+            config=self.config,
+            disabled_rules=self.disabled_rules,
+            enabled_rules=self.enabled_rules,
+            rule_last_executed_at=self._rule_last_executed_at,
+        )
+        risk_result = _apply_risk_guards(
+            intent,
+            portfolio_snapshot,
+            risk_guards=self.risk_guards,
+            config=self.config,
+        )
+        intent = _apply_post_intent_adjustments(
+            risk_result.intent,
+            portfolio_snapshot,
+            rules=active_rules(
+                self.rules,
+                disabled_rules=self.disabled_rules,
+                enabled_rules=self.enabled_rules,
+            ),
+            config=self.config,
+        )
+        self._previous_fgi_regime = _current_fgi_regime_by_symbol(portfolio_snapshot)
+        self._cycle_open_per_symbol = _update_cycle_state(
+            self._cycle_open_per_symbol,
+            portfolio_snapshot,
+        )
+        self._record_intent(intent)
+        if self.execution_state_provider is None and intent.action != "hold":
+            self._last_trade_date = snapshot.current_date
+            if snapshot.current_date is not None:
+                self._trade_dates.append(snapshot.current_date)
+        return intent
+
+    def _resolve_execution_state(self) -> RuleExecutionState:
+        if self.execution_state_provider is not None:
+            return self.execution_state_provider()
+        return RuleExecutionState(
+            last_trade_date=self._last_trade_date,
+            trade_dates=tuple(self._trade_dates),
+        )
+
+    def _observe_components(self, snapshot: PortfolioSnapshot) -> None:
+        for component in (
+            *active_rules(
+                self.rules,
+                disabled_rules=self.disabled_rules,
+                enabled_rules=self.enabled_rules,
+            ),
+            *self.risk_guards,
+        ):
+            observe = getattr(component, "observe", None)
+            if callable(observe):
+                observe(snapshot, config=self.config)
+
+    def _record_intent(self, intent: AllocationIntent) -> None:
+        for component in (
+            *active_rules(
+                self.rules,
+                disabled_rules=self.disabled_rules,
+                enabled_rules=self.enabled_rules,
+            ),
+            *self.risk_guards,
+        ):
+            record_intent = getattr(component, "record_intent", None)
+            if callable(record_intent):
+                record_intent(intent)
+
+    def record_execution(
+        self,
+        *,
+        context: StrategyContext,
+        intent: AllocationIntent,
+        execution: Any,
+    ) -> None:
+        if not getattr(execution, "transfers", ()):
+            return
+        matched_rule_name = _matched_rule_name(intent)
+        if matched_rule_name is None:
+            return
+        matched_rule = _rule_for_name(self.rules, matched_rule_name)
+        if matched_rule is None:
+            return
+        if _cooldown_keyed_by_trigger_symbol(matched_rule):
+            for symbol in _trigger_symbols_from_intent(intent):
+                self._rule_last_executed_at[(matched_rule.name, symbol)] = context.date
+            return
+        self._rule_last_executed_at[
+            _cooldown_key_from_intent(intent) or matched_rule.name
+        ] = context.date
+
+
+def build_portfolio_snapshot(
+    snapshot: FlatMinimumState,
+    *,
+    previous_fgi_regime: Mapping[str, str],
+    cycle_open_per_symbol: Mapping[str, bool] | None = None,
+    last_trade_date: date | None = None,
+    trade_dates: tuple[date, ...] = (),
+) -> PortfolioSnapshot:
+    assets = _assets_from_flat_state(snapshot)
+    return PortfolioSnapshot(
+        assets=assets,
+        current_asset_allocation=snapshot.current_asset_allocation,
+        previous_fgi_regime=dict(previous_fgi_regime),
+        cycle_open_per_symbol=dict(cycle_open_per_symbol or {}),
+        eth_btc_ratio_state=snapshot.eth_btc_ratio_state,
+        macro_fgi_regime=_macro_regime(assets),
+        crypto_fgi_regime=_crypto_regime(assets),
+        macro_fgi_value=_macro_value(assets),
+        crypto_fgi_value=_crypto_value(assets),
+        last_trade_date=last_trade_date,
+        current_date=snapshot.current_date,
+        trade_dates=trade_dates,
+    )
+
+
+def build_portfolio_rules_for_params(
+    params: _PortfolioRuleParams,
+    *,
+    include_inactive: bool = False,
+) -> tuple[PortfolioRule, ...]:
+    assert_known_rule_names(params.disabled_rules, field_name="disabled_rules")
+    assert_known_rule_names(params.enabled_rules, field_name="enabled_rules")
+    rule_universe = ALL_PORTFOLIO_RULES if include_inactive else DEFAULT_PORTFOLIO_RULES
+    rules = [
+        fresh_portfolio_rule(rule)
+        for rule in rule_universe
+        if include_inactive or rule.name not in params.disabled_rules
+    ]
+    return tuple(sorted(rules, key=lambda rule: rule.priority))
+
+
+def fresh_portfolio_rule(rule: _RuleT) -> _RuleT:
+    return deepcopy(rule)
+
+
+def required_rule(
+    rules: tuple[PortfolioRule, ...],
+    rule_type: type[_RuleT],
+) -> _RuleT:
+    for rule in rules:
+        if isinstance(rule, rule_type):
+            return rule
+    raise ValueError(f"Missing required portfolio rule: {rule_type.__name__}")
+
+
+def assert_known_rule_names(
+    rule_names: frozenset[str] | None,
+    *,
+    field_name: str,
+) -> None:
+    if rule_names is None:
+        return
+    invalid_rules = sorted(rule_names - RULE_NAMES)
+    if invalid_rules:
+        joined = ", ".join(invalid_rules)
+        raise ValueError(f"Unsupported portfolio rule names in {field_name}: {joined}")
+
+
+def build_risk_guards_for_params(
+    params: _PortfolioRuleParams,
+) -> tuple[RiskGuard, ...]:
+    guards: list[RiskGuard] = []
+    if (
+        params.min_trade_interval_days is not None
+        or params.max_trades_7d is not None
+        or params.max_trades_30d is not None
+    ):
+        guards.append(
+            TradeQuotaGuard(
+                min_trade_interval_days=params.min_trade_interval_days,
+                max_trades_7d=params.max_trades_7d,
+                max_trades_30d=params.max_trades_30d,
+            )
+        )
+    return tuple(sorted(guards, key=lambda guard: guard.priority))
+
+
+def active_rules(
+    rules: tuple[PortfolioRule, ...],
+    *,
+    disabled_rules: frozenset[str],
+    enabled_rules: frozenset[str] | None,
+) -> tuple[PortfolioRule, ...]:
+    return tuple(
+        rule
+        for rule in rules
+        if _rule_is_active(
+            rule,
+            disabled_rules=disabled_rules,
+            enabled_rules=enabled_rules,
+        )
+    )
+
+
+def _rule_is_active(
+    rule: PortfolioRule,
+    *,
+    disabled_rules: frozenset[str],
+    enabled_rules: frozenset[str] | None,
+) -> bool:
+    if rule.name in disabled_rules:
+        return False
+    return enabled_rules is None or rule.name in enabled_rules
+
+
+def _apply_risk_guards(
+    intent: AllocationIntent,
+    snapshot: PortfolioSnapshot,
+    *,
+    risk_guards: tuple[RiskGuard, ...],
+    config: PortfolioRuleConfig,
+) -> RiskGuardResult:
+    matched_rule_priority = _matched_rule_priority(intent)
+    for guard in risk_guards:
+        if (
+            matched_rule_priority is not None
+            and guard.priority >= matched_rule_priority
+        ):
+            continue
+        replacement = guard.allow(intent, snapshot, config=config)
+        if replacement is not None:
+            return RiskGuardResult(
+                intent=_preserve_rule_trace_diagnostics(replacement, original=intent),
+                blocked_by=guard.name,
+            )
+    return RiskGuardResult(intent=intent)
+
+
+def _preserve_rule_trace_diagnostics(
+    replacement: AllocationIntent,
+    *,
+    original: AllocationIntent,
+) -> AllocationIntent:
+    original_diagnostics = original.diagnostics or {}
+    replacement_diagnostics = dict(replacement.diagnostics or {})
+    for key in (DIAG_PORTFOLIO_RULE_MATCHES, DIAG_COOLDOWN_SKIPPED_RULES):
+        if key in original_diagnostics and key not in replacement_diagnostics:
+            replacement_diagnostics[key] = original_diagnostics[key]
+    return replace(replacement, diagnostics=replacement_diagnostics)
+
+
+def _apply_post_intent_adjustments(
+    intent: AllocationIntent,
+    snapshot: PortfolioSnapshot,
+    *,
+    rules: tuple[PortfolioRule, ...],
+    config: PortfolioRuleConfig,
+) -> AllocationIntent:
+    adjusted = intent
+    for rule in rules:
+        hook = getattr(rule, "apply_post_intent_adjustments", None)
+        if callable(hook):
+            adjusted = hook(intent=adjusted, snapshot=snapshot, config=config)
+    return adjusted
+
+
+def _matched_rule_priority(intent: AllocationIntent) -> int | None:
+    matched_rule = _matched_rule_name(intent)
+    if matched_rule is None:
+        return None
+    return _RULE_PRIORITY_BY_NAME.get(matched_rule)
+
+
+def _matched_rule_name(intent: AllocationIntent) -> str | None:
+    diagnostics = intent.diagnostics or {}
+    matched_rule = diagnostics.get(DIAG_MATCHED_RULE_NAME)
+    return matched_rule if isinstance(matched_rule, str) else None
+
+
+def _rule_for_name(
+    rules: tuple[PortfolioRule, ...],
+    name: str,
+) -> PortfolioRule | None:
+    for rule in rules:
+        if rule.name == name:
+            return rule
+    return None
+
+
+def _cooldown_keyed_by_trigger_symbol(rule: PortfolioRule) -> bool:
+    return bool(getattr(rule, "cooldown_keyed_by_trigger_symbol", False))
+
+
+def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
+    diagnostics = intent.diagnostics or {}
+    raw_symbols = diagnostics.get(DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS)
+    if not isinstance(raw_symbols, list):
+        return []
+    return [symbol for symbol in raw_symbols if isinstance(symbol, str)]
+
+
+def _cooldown_key_from_intent(intent: AllocationIntent) -> RuleCooldownKey | None:
+    diagnostics = intent.diagnostics or {}
+    raw_key = diagnostics.get(DIAG_PORTFOLIO_RULE_COOLDOWN_KEY)
+    if isinstance(raw_key, str):
+        return raw_key
+    if (
+        isinstance(raw_key, tuple)
+        and len(raw_key) == 2
+        and all(isinstance(part, str) for part in raw_key)
+    ):
+        return cast(tuple[str, str], raw_key)
+    if (
+        isinstance(raw_key, list)
+        and len(raw_key) == 2
+        and all(isinstance(part, str) for part in raw_key)
+    ):
+        return (raw_key[0], raw_key[1])
+    return None
+
+
+def _trigger_symbols_for_cooldown(
+    rule: PortfolioRule,
+    snapshot: PortfolioSnapshot,
+) -> list[str]:
+    if rule.name != "cross_up_equal_weight":
+        return []
+    return [
+        symbol
+        for symbol in symbols_for_snapshot(snapshot)
+        if snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        and snapshot.assets[symbol].zone == "above"
+    ]
+
+
+def resolve_portfolio_rules_intent(
+    snapshot: PortfolioSnapshot,
+    *,
+    rules: tuple[PortfolioRule, ...] = DEFAULT_PORTFOLIO_RULES,
+    config: PortfolioRuleConfig | None = None,
+    disabled_rules: frozenset[str] = frozenset(),
+    enabled_rules: frozenset[str] | None = None,
+    rule_last_executed_at: Mapping[RuleCooldownKey, date] | None = None,
+) -> AllocationIntent:
+    resolved_config = config or PortfolioRuleConfig()
+    last_executed = dict(rule_last_executed_at or {})
+    cooldown_skipped_rules: list[dict[str, object]] = []
+    raw_outcomes: list[RuleMatchOutcome] = []
+    winning_rule_name: str | None = None
+    winning_intent: AllocationIntent | None = None
+
+    for rule in rules:
+        matched = rule.matches(snapshot, config=resolved_config)
+        candidate_intent: AllocationIntent | None = None
+        would_have_acted_action: str | None = None
+        if matched:
+            candidate_intent = rule.build_intent(snapshot, config=resolved_config)
+            would_have_acted_action = candidate_intent.action
+        raw_outcomes.append(
+            RuleMatchOutcome(
+                rule_name=rule.name,
+                matched=matched,
+                would_have_acted_action=would_have_acted_action,
+            )
+        )
+        if not matched or winning_intent is not None:
+            continue
+        if not _rule_is_active(
+            rule,
+            disabled_rules=disabled_rules,
+            enabled_rules=enabled_rules,
+        ):
+            continue
+        cooldown = _cooldown_diagnostic_for_rule(
+            rule,
+            snapshot=snapshot,
+            config=resolved_config,
+            last_executed=last_executed,
+        )
+        if cooldown is not None:
+            cooldown_skipped_rules.append(cooldown)
+            continue
+        winning_rule_name = rule.name
+        winning_intent = candidate_intent
+
+    rule_trace = _rule_match_outcome_dicts(
+        _apply_shadowing(raw_outcomes, winner_name=winning_rule_name)
+    )
+    if winning_intent is not None and winning_rule_name is not None:
+        diagnostics = dict(winning_intent.diagnostics or {})
+        diagnostics.setdefault(DIAG_MATCHED_RULE_NAME, winning_rule_name)
+        diagnostics[DIAG_PORTFOLIO_RULE_MATCHES] = rule_trace
+        if cooldown_skipped_rules:
+            diagnostics[DIAG_COOLDOWN_SKIPPED_RULES] = cooldown_skipped_rules
+        return replace(winning_intent, diagnostics=diagnostics)
+
+    return AllocationIntent(
+        action="hold",
+        target_allocation=current_target(snapshot),
+        allocation_name=None,
+        immediate=False,
+        reason="regime_no_signal",
+        rule_group="none",
+        decision_score=0.0,
+        diagnostics={
+            DIAG_MATCHED_RULE_NAME: "regime_no_signal_hold",
+            DIAG_PORTFOLIO_RULE_MATCHES: rule_trace,
+            **(
+                {DIAG_COOLDOWN_SKIPPED_RULES: cooldown_skipped_rules}
+                if cooldown_skipped_rules
+                else {}
+            ),
+            **(
+                {
+                    DIAG_SIGNALS_CONSULTED: signals_consulted_for_symbols(
+                        snapshot,
+                        tuple(symbols_for_snapshot(snapshot)),
+                    )
+                }
+                if resolved_config.emit_signals_consulted
+                else {}
+            ),
+        },
+    )
+
+
+def _cooldown_diagnostic_for_rule(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    config: PortfolioRuleConfig,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    if _cooldown_keyed_by_trigger_symbol(rule):
+        return _trigger_symbol_cooldown_diagnostic(
+            rule,
+            snapshot=snapshot,
+            last_executed=last_executed,
+        )
+    return _rule_cooldown_diagnostic(
+        rule,
+        snapshot=snapshot,
+        cooldown_key=_rule_cooldown_key(
+            rule,
+            snapshot=snapshot,
+            config=config,
+        ),
+        cooldown_days=_rule_cooldown_days(
+            rule,
+            snapshot=snapshot,
+            config=config,
+        ),
+        last_executed=last_executed,
+    )
+
+
+def _apply_shadowing(
+    outcomes: list[RuleMatchOutcome],
+    *,
+    winner_name: str | None,
+) -> list[RuleMatchOutcome]:
+    if winner_name is None:
+        return outcomes
+    winner_priority = _RULE_PRIORITY_BY_NAME.get(winner_name)
+    if winner_priority is None:
+        return outcomes
+    shadowed: list[RuleMatchOutcome] = []
+    for outcome in outcomes:
+        suppressed_by = outcome.suppressed_by
+        if (
+            outcome.matched
+            and outcome.rule_name != winner_name
+            and _RULE_PRIORITY_BY_NAME.get(outcome.rule_name, winner_priority)
+            > winner_priority
+        ):
+            suppressed_by = winner_name
+        shadowed.append(replace(outcome, suppressed_by=suppressed_by))
+    return shadowed
+
+
+def _rule_match_outcome_dicts(
+    outcomes: list[RuleMatchOutcome],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "rule_name": outcome.rule_name,
+            "matched": outcome.matched,
+            "would_have_acted_action": outcome.would_have_acted_action,
+            "suppressed_by": outcome.suppressed_by,
+        }
+        for outcome in outcomes
+    ]
+
+
+def _rule_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    cooldown_key: RuleCooldownKey,
+    cooldown_days: int,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    cooldown = _cooldown_entry(
+        cooldown_key=cooldown_key,
+        cooldown_days=cooldown_days,
+        current_date=snapshot.current_date,
+        last_executed=last_executed,
+    )
+    if cooldown is None:
+        return None
+    return {"rule": rule.name, **cooldown}
+
+
+def _cooldown_entry(
+    *,
+    cooldown_key: RuleCooldownKey,
+    cooldown_days: int,
+    current_date: date | None,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    last_executed_at = last_executed.get(cooldown_key)
+    remaining_days = rule_cooldown_remaining_days(
+        cooldown_days=cooldown_days,
+        last_executed_at=last_executed_at,
+        current_date=current_date,
+    )
+    if remaining_days <= 0 or last_executed_at is None:
+        return None
+    return {
+        "last_executed_at": last_executed_at.isoformat(),
+        "cooldown_days": max(0, int(cooldown_days)),
+        "remaining_days": remaining_days,
+    }
+
+
+def _rule_cooldown_key(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    config: PortfolioRuleConfig,
+) -> RuleCooldownKey:
+    cooldown_key = getattr(rule, "cooldown_key", None)
+    if not callable(cooldown_key):
+        return rule.name
+    raw_key = cooldown_key(snapshot, config=config)
+    if isinstance(raw_key, str):
+        return raw_key
+    if (
+        isinstance(raw_key, tuple)
+        and len(raw_key) == 2
+        and all(isinstance(part, str) for part in raw_key)
+    ):
+        return cast(tuple[str, str], raw_key)
+    return rule.name
+
+
+def _rule_cooldown_days(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    config: PortfolioRuleConfig,
+) -> int:
+    cooldown_days_for_snapshot = getattr(rule, "cooldown_days_for_snapshot", None)
+    if callable(cooldown_days_for_snapshot):
+        return int(cooldown_days_for_snapshot(snapshot, config=config))
+    return int(rule.cooldown_days)
+
+
+def _trigger_symbol_cooldown_diagnostic(
+    rule: PortfolioRule,
+    *,
+    snapshot: PortfolioSnapshot,
+    last_executed: Mapping[RuleCooldownKey, date],
+) -> dict[str, object] | None:
+    trigger_symbols = _trigger_symbols_for_cooldown(rule, snapshot)
+    if not trigger_symbols:
+        return None
+    symbol_entries: list[tuple[str, dict[str, object]]] = []
+    for symbol in trigger_symbols:
+        cooldown = _cooldown_entry(
+            cooldown_key=(rule.name, symbol),
+            cooldown_days=rule.cooldown_days,
+            current_date=snapshot.current_date,
+            last_executed=last_executed,
+        )
+        if cooldown is not None:
+            symbol_entries.append((symbol, cooldown))
+    if len(symbol_entries) != len(trigger_symbols):
+        return None
+    remaining_values = [
+        cast(int, cooldown["remaining_days"]) for _, cooldown in symbol_entries
+    ]
+    symbol_cooldowns = [
+        {
+            "symbol": symbol,
+            "last_executed_at": cooldown["last_executed_at"],
+            "remaining_days": cooldown["remaining_days"],
+        }
+        for symbol, cooldown in symbol_entries
+    ]
+    return {
+        "rule": rule.name,
+        "cooldown_days": max(0, int(rule.cooldown_days)),
+        "remaining_days": max(remaining_values),
+        "trigger_symbols": trigger_symbols,
+        "symbol_cooldowns": symbol_cooldowns,
+    }
+
+
+def _assets_from_flat_state(snapshot: FlatMinimumState) -> dict[str, DmaMarketState]:
+    assets: dict[str, DmaMarketState] = {}
+    if snapshot.spy_dma_state is not None:
+        assets["SPY"] = snapshot.spy_dma_state
+    if snapshot.btc_dma_state is not None:
+        assets["BTC"] = snapshot.btc_dma_state
+    if snapshot.eth_dma_state is not None:
+        assets["ETH"] = snapshot.eth_dma_state
+    return assets
+
+
+def _current_fgi_regime_by_symbol(snapshot: PortfolioSnapshot) -> dict[str, str]:
+    regimes: dict[str, str] = {}
+    for symbol in symbols_for_snapshot(snapshot):
+        regime = current_fgi_regime_for_symbol(snapshot, symbol)
+        if regime is not None:
+            regimes[symbol] = regime
+    return regimes
+
+
+def _update_cycle_state(
+    previous: dict[str, bool],
+    snapshot: PortfolioSnapshot,
+) -> dict[str, bool]:
+    updated = dict(previous)
+    crypto_crossed_down = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].cross_event == "cross_down"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
+    crypto_crossed_up = any(
+        snapshot.assets.get(symbol) is not None
+        and snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        for symbol in _CRYPTO_CYCLE_SYMBOLS
+    )
+    for symbol, state in snapshot.assets.items():
+        event = state.actionable_cross_event
+        if symbol in _CRYPTO_CYCLE_SYMBOLS:
+            continue
+        if event == "cross_down":
+            updated[symbol] = True
+        elif event == "cross_up":
+            updated[symbol] = False
+    if crypto_crossed_down:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
+            updated[symbol] = True
+    elif crypto_crossed_up:
+        for symbol in _CRYPTO_CYCLE_SYMBOLS:
+            updated[symbol] = False
+    return updated
+
+
+def _macro_regime(assets: Mapping[str, DmaMarketState]) -> str | None:
+    spy_state = assets.get("SPY")
+    if spy_state is None:
+        return None
+    return spy_state.macro_fear_greed_regime
+
+
+def _crypto_regime(assets: Mapping[str, DmaMarketState]) -> str | None:
+    for symbol in ("BTC", "ETH"):
+        state = assets.get(symbol)
+        if state is not None:
+            return state.fgi_regime
+    return None
+
+
+def _macro_value(assets: Mapping[str, DmaMarketState]) -> float | None:
+    spy_state = assets.get("SPY")
+    if spy_state is None:
+        return None
+    return spy_state.macro_fear_greed_value
+
+
+def _crypto_value(assets: Mapping[str, DmaMarketState]) -> float | None:
+    for symbol in ("BTC", "ETH"):
+        state = assets.get(symbol)
+        if state is not None:
+            return state.fgi_value
+    return None
+
+
+__all__ = [
+    "PORTFOLIO_RULES_SIGNAL_ID",
+    "DmaFgiPortfolioRulesDecisionPolicy",
+    "RuleExecutionState",
+    "active_rules",
+    "assert_known_rule_names",
+    "build_portfolio_rules_for_params",
+    "build_portfolio_snapshot",
+    "build_risk_guards_for_params",
+    "fresh_portfolio_rule",
+    "required_rule",
+    "resolve_portfolio_rules_intent",
+]

@@ -6,6 +6,9 @@ from typing import cast
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.decision_policy import (
+    resolve_portfolio_rules_intent,
+)
 from src.services.backtesting.portfolio_rules.eth_btc_deviation_dca import (
     EthBtcDeviationDcaRule,
 )
@@ -14,9 +17,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     Zone,
 )
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    resolve_portfolio_rules_intent,
-)
 from tests.services.backtesting.portfolio_rules.helpers import snapshot
 
 

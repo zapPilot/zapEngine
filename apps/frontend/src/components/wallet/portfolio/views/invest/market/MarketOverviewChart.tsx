@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { getRegimeFromSentiment, getRegimeLabel } from '@/lib/domain/regime';
+import { getRegimeFromSentiment } from '@/lib/domain/regime';
 import type { MarketDashboardPoint } from '@/services';
 
 import {
@@ -18,21 +18,20 @@ import {
   DEFAULT_ACTIVE_LINES,
   formatPriceLabel,
   formatXAxisDate,
-  getRegimeColor,
   MARKET_LINES,
   type MarketLineKey,
   REGIME_COLORS,
 } from './sections/marketDashboardConstants';
+import {
+  collectAssetRanges,
+  createGradientStops,
+  formatTooltipValue,
+  getBaseAssets,
+  makeRegimeActiveDot,
+  normalize,
+} from './utils/marketChartUtils';
 
 type RegimeKey = keyof typeof REGIME_COLORS;
-
-function getBaseAssets(d: MarketDashboardPoint) {
-  return {
-    btc: d.values['btc'],
-    eth: d.values['eth'],
-    spy: d.values['spy'],
-  };
-}
 
 /**
  * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
@@ -54,13 +53,10 @@ interface ChartDataPoint {
   macro_fear_greed: number | null;
   regime: string | null;
   macro_regime: string | null;
-  // Normalized (0-100 scale) - BTC Price + BTC DMA share same scale
   btc_price_normalized: number | null;
   btc_dma_normalized: number | null;
-  // Normalized - ETH Price + ETH DMA share same scale
   eth_price_normalized: number | null;
   eth_dma_normalized: number | null;
-  // Normalized - SPY Price + SPY DMA share same scale
   sp500_price_normalized: number | null;
   sp500_dma_normalized: number | null;
 }
@@ -68,119 +64,6 @@ interface ChartDataPoint {
 interface MarketOverviewChartProps {
   data: MarketDashboardPoint[];
   activeLines?: ReadonlySet<MarketLineKey>;
-}
-
-interface TooltipPayload {
-  payload?: {
-    sentiment_value?: number | null;
-    macro_fear_greed?: number | null;
-    regime?: string | null;
-    macro_regime?: string | null;
-    btc_dma_200?: number | null;
-    eth_price_usd?: number | null;
-    eth_dma_200?: number | null;
-    eth_btc_ratio?: number | null;
-    eth_btc_dma_200?: number | null;
-    price_usd?: number | null;
-    sp500_price_usd?: number | null;
-    sp500_dma_200?: number | null;
-  };
-}
-
-function toNumeric(
-  v: string | number | readonly (string | number)[] | undefined,
-): number | null {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  if (typeof v === 'string') {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
-
-function getMinMax(arr: number[]): { min: number; max: number } {
-  if (arr.length === 0) return { min: 0, max: 1 };
-  const min = Math.min(...arr);
-  const max = Math.max(...arr);
-  if (max === min) return { min, max: max + 1 };
-  return { min, max };
-}
-
-function normalize(v: number | null, min: number, max: number): number | null {
-  if (v == null) return null;
-  return ((v - min) / (max - min)) * 100;
-}
-
-const DOLLAR_FORMAT_LABELS: Record<string, string> = {
-  'BTC Price': 'price_usd',
-  'BTC 200 DMA': 'btc_dma_200',
-  'ETH Price': 'eth_price_usd',
-  'ETH 200 DMA': 'eth_dma_200',
-  'SPY Price': 'sp500_price_usd',
-  'SPY 200 DMA': 'sp500_dma_200',
-};
-
-/**
- * Recharts' `Tooltip.formatter` types `name` as `string | number | undefined`.
- * The chart only emits string names, but we keep the wider parameter type so
- * the function is assignable to the prop without a cast.
- */
-function formatTooltipValue(
-  value: string | number | readonly (string | number)[] | undefined,
-  name: string | number | undefined,
-  props: TooltipPayload,
-): [string | number, string | number] {
-  const labelName = String(name ?? '');
-  const payload = props.payload;
-
-  const dollarField = DOLLAR_FORMAT_LABELS[labelName];
-  if (dollarField != null) {
-    const rawValue =
-      (payload as Record<string, unknown>)?.[dollarField] ?? toNumeric(value);
-    return [
-      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
-      labelName,
-    ];
-  }
-
-  if (labelName === 'ETH/BTC Ratio' || labelName === 'ETH/BTC 200 DMA') {
-    return [Number(value ?? 0).toFixed(4), labelName];
-  }
-  if (labelName === 'Fear & Greed Index') {
-    const rawFgi = payload?.sentiment_value;
-    const regimeLabel = getRegimeLabel(payload?.regime);
-    return [`${String(rawFgi)} (${regimeLabel})`, labelName];
-  }
-  if (labelName === 'Macro FGI') {
-    const rawFgi = payload?.macro_fear_greed;
-    const regimeLabel = getRegimeLabel(payload?.macro_regime);
-    return [`${String(rawFgi)} (${regimeLabel})`, labelName];
-  }
-  return [value as string | number, labelName];
-}
-
-function makeRegimeActiveDot(regimeField: 'regime' | 'macro_regime') {
-  return function renderActiveDot(dotProps: {
-    cx?: number | undefined;
-    cy?: number | undefined;
-    payload?: Record<string, unknown>;
-  }): JSX.Element {
-    const { cx = 0, cy = 0, payload } = dotProps;
-    const color = getRegimeColor(
-      payload?.[regimeField] as string | null | undefined,
-      '#10B981',
-    );
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={6}
-        fill={color}
-        stroke="#fff"
-        strokeWidth={2}
-      />
-    );
-  };
 }
 
 const renderFgiActiveDot = makeRegimeActiveDot('regime');
@@ -191,26 +74,7 @@ export function MarketOverviewChart({
   activeLines = DEFAULT_ACTIVE_LINES,
 }: MarketOverviewChartProps): JSX.Element {
   const chartData = useMemo<ChartDataPoint[]>(() => {
-    const btcValues: number[] = [];
-    const ethValues: number[] = [];
-    const sp500Values: number[] = [];
-
-    for (const d of data) {
-      const { btc, eth, spy } = getBaseAssets(d);
-      if (btc?.value != null) btcValues.push(btc.value);
-      const btcDma = btc?.indicators?.['dma_200']?.value;
-      if (btcDma != null) btcValues.push(btcDma);
-      if (eth?.value != null) ethValues.push(eth.value);
-      const ethDma = eth?.indicators?.['dma_200']?.value;
-      if (ethDma != null) ethValues.push(ethDma);
-      if (spy?.value != null) sp500Values.push(spy.value);
-      const spyDma = spy?.indicators?.['dma_200']?.value;
-      if (spyDma != null) sp500Values.push(spyDma);
-    }
-
-    const btcMinMax = getMinMax(btcValues);
-    const ethMinMax = getMinMax(ethValues);
-    const sp500MinMax = getMinMax(sp500Values);
+    const { btcMinMax, ethMinMax, sp500MinMax } = collectAssetRanges(data);
 
     return data.map((d) => {
       const { btc, eth, spy } = getBaseAssets(d);
@@ -336,18 +200,7 @@ export function MarketOverviewChart({
               <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="fgiLineGradient" x1="0" y1="0" x2="1" y2="0">
-              {chartData.map((d, i) => {
-                const offset =
-                  chartData.length > 1 ? i / (chartData.length - 1) : 0;
-                const color = getRegimeColor(d.regime);
-                return (
-                  <stop
-                    key={i}
-                    offset={`${(offset * 100).toFixed(2)}%`}
-                    stopColor={color}
-                  />
-                );
-              })}
+              {createGradientStops(chartData, (d) => d.regime)}
             </linearGradient>
             <linearGradient
               id="macroFgiLineGradient"
@@ -356,18 +209,7 @@ export function MarketOverviewChart({
               x2="1"
               y2="0"
             >
-              {chartData.map((d, i) => {
-                const offset =
-                  chartData.length > 1 ? i / (chartData.length - 1) : 0;
-                const color = getRegimeColor(d.macro_regime);
-                return (
-                  <stop
-                    key={i}
-                    offset={`${(offset * 100).toFixed(2)}%`}
-                    stopColor={color}
-                  />
-                );
-              })}
+              {createGradientStops(chartData, (d) => d.macro_regime)}
             </linearGradient>
           </defs>
           <CartesianGrid
@@ -468,7 +310,7 @@ export function MarketOverviewChart({
               fontWeight: 'bold',
             }}
             cursor={{ stroke: '#4B5563', strokeWidth: 1 }}
-            formatter={formatTooltipValue}
+            formatter={formatTooltipValue as never}
           />
 
           {activeLineDescriptors.map((line) => {
