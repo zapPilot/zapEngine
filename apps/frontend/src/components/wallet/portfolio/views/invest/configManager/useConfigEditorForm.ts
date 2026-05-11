@@ -25,10 +25,10 @@ import {
   type ConfigEditorFormState,
   type ConfigEditorMode,
   getActiveJsonEditorState,
+  getInitialFormState,
   getMutationErrorTitle,
   getSeedConfig,
   getSeededFormState,
-  INITIAL_FORM_STATE,
   type JsonTab,
   tryParseJson,
 } from './configEditorShared';
@@ -69,8 +69,9 @@ export function useConfigEditorForm({
   const updateMutation = useUpdateStrategyConfig();
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
-  const [formState, setFormState] =
-    useState<ConfigEditorFormState>(INITIAL_FORM_STATE);
+  const [formState, setFormState] = useState<ConfigEditorFormState>(() =>
+    getInitialFormState(),
+  );
   const [activeJsonTab, setActiveJsonTab] = useState<JsonTab>('params');
 
   const seedConfig = useMemo(
@@ -123,6 +124,10 @@ export function useConfigEditorForm({
       paramsValidation.parsed,
       compositionValidation.parsed,
     );
+    setFormState((previous) => ({
+      ...previous,
+      paramsJson: JSON.stringify(sharedFields.params, null, 2),
+    }));
 
     try {
       if (mode === 'create') {

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { LegendTitle } from '../../shared/LegendTitle';
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import { CHART_SIGNALS, type SignalKey } from '../utils/chartHelpers';
 import {
   getStrategyColor,
@@ -37,10 +38,13 @@ const EVENT_LEGEND: LegendItem[] = EVENT_LEGEND_KEYS.flatMap((key) => {
 export function BacktestChartLegend({
   sortedStrategyIds,
 }: BacktestChartLegendProps): ReactElement {
-  const strategyLegend = sortedStrategyIds.map((strategyId, index) => ({
-    label: getStrategyDisplayName(strategyId),
-    color: getStrategyColor(strategyId, index),
-  }));
+  const strategyLegend = sortedStrategyIds
+    .map((strategyId, index) => ({ strategyId, index }))
+    .filter(({ strategyId }) => strategyId !== DCA_CLASSIC_STRATEGY_ID)
+    .map(({ strategyId, index }) => ({
+      label: getStrategyDisplayName(strategyId),
+      color: getStrategyColor(strategyId, index),
+    }));
 
   return (
     <div className="flex flex-wrap items-start gap-4">

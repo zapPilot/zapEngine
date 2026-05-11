@@ -1,3 +1,6 @@
+/** Canonical strategy ID for the DCA Classic baseline (rendered as a dashed reference line). */
+export const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';
+
 /** Canonical strategy ID for the portfolio-rules strategy. */
 export const DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID = 'dma_fgi_portfolio_rules';
 

@@ -6,6 +6,7 @@ import type {
 import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
 
 import {
+  DCA_CLASSIC_STRATEGY_ID,
   DEFAULT_DAYS,
   DEFAULT_TOTAL_CAPITAL,
   DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
@@ -46,6 +47,15 @@ function buildAdhocCompareConfig(
     config_id: getDefaultConfigIdForStrategyId(strategyId),
     strategy_id: strategyId,
     ...(defaultParams !== undefined && { params: defaultParams }),
+  };
+}
+
+/** Adhoc DCA Classic baseline config — drawn as a dashed reference line on the chart. */
+function buildDcaBaselineConfig(): BacktestCompareConfigV3 {
+  return {
+    config_id: DCA_CLASSIC_STRATEGY_ID,
+    strategy_id: DCA_CLASSIC_STRATEGY_ID,
+    params: {},
   };
 }
 
@@ -91,7 +101,10 @@ export function buildDefaultPayloadFromPresets(
   return {
     days: defaults.days,
     total_capital: defaults.total_capital,
-    configs: [buildPresetBackedCompareConfig(defaultPreset)],
+    configs: [
+      buildDcaBaselineConfig(),
+      buildPresetBackedCompareConfig(defaultPreset),
+    ],
   };
 }
 
@@ -111,6 +124,7 @@ export function buildDefaultPayloadFromStrategies(
     days: defaults.days,
     total_capital: defaults.total_capital,
     configs: [
+      buildDcaBaselineConfig(),
       buildAdhocCompareConfig(
         DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         defaultParams,

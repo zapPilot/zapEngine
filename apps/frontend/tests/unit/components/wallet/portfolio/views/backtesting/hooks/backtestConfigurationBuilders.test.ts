@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DCA_CLASSIC_STRATEGY_ID,
   DEFAULT_DAYS,
   DEFAULT_TOTAL_CAPITAL,
   DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
@@ -14,6 +15,12 @@ import {
 } from '@/components/wallet/portfolio/views/backtesting/hooks/backtestConfigurationBuilders';
 import type { BacktestStrategyCatalogEntryV3 } from '@/types/backtesting';
 import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
+
+const DCA_BASELINE_CONFIG = {
+  config_id: DCA_CLASSIC_STRATEGY_ID,
+  strategy_id: DCA_CLASSIC_STRATEGY_ID,
+  params: {},
+};
 
 function createPreset(
   overrides: Partial<StrategyPreset> & { config_id: string },
@@ -61,6 +68,7 @@ describe('buildDefaultPayloadFromPresets', () => {
       days: 365,
       total_capital: 50000,
       configs: [
+        DCA_BASELINE_CONFIG,
         {
           config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
           saved_config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
@@ -85,14 +93,16 @@ describe('buildDefaultPayloadFromPresets', () => {
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('shared_config');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('shared_config');
   });
 
   it('falls back to the canonical portfolio-rules payload when no presets are available', () => {
     const result = buildDefaultPayloadFromPresets([], TEST_DEFAULTS);
 
     expect(result.configs).toEqual([
+      DCA_BASELINE_CONFIG,
       {
         config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
         strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
@@ -112,8 +122,9 @@ describe('buildDefaultPayloadFromPresets', () => {
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]).toEqual({
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
       config_id: 'only_one',
       saved_config_id: 'only_one',
     });
@@ -135,8 +146,9 @@ describe('buildDefaultPayloadFromPresets', () => {
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('first_non_default');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('first_non_default');
   });
 
   it('promotes the default preset to first even when it is in the middle of the input', () => {
@@ -158,8 +170,9 @@ describe('buildDefaultPayloadFromPresets', () => {
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('the_default');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('the_default');
   });
 
   it('uses days and total_capital from the provided defaults, not the preset', () => {
@@ -204,7 +217,8 @@ describe('buildDefaultPayloadFromStrategies', () => {
 
     const result = buildDefaultPayloadFromStrategies(strategies);
 
-    expect(result.configs[0]).toEqual({
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
       config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
       strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
       params: { ratio: 0.5 },
@@ -225,7 +239,8 @@ describe('buildDefaultPayloadFromStrategies', () => {
 
     const result = buildDefaultPayloadFromStrategies(strategies);
 
-    expect(result.configs[0]).toEqual({
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
       config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
       strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
       params: {},
@@ -235,7 +250,8 @@ describe('buildDefaultPayloadFromStrategies', () => {
   it('handles null strategies array by using empty params', () => {
     const result = buildDefaultPayloadFromStrategies(null);
 
-    expect(result.configs[0]?.params).toEqual({});
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.params).toEqual({});
   });
 });
 

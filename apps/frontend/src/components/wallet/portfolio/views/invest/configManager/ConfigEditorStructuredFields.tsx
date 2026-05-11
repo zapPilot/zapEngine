@@ -1,10 +1,15 @@
+import { Info } from 'lucide-react';
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 
-import { useStrategyConfigs } from '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs';
+import {
+  type PortfolioRuleMetadata,
+  usePortfolioRules,
+} from '@/hooks/usePortfolioRules';
 
 import {
   type ConfigEditorFormState,
   type ConfigEditorMode,
+  LOCKED_STRATEGY_ID,
 } from './configEditorShared';
 
 interface ConfigEditorStructuredFieldsProps {
@@ -26,6 +31,37 @@ function updateField<Key extends keyof ConfigEditorFormState>(
   }));
 }
 
+function updateRuleEnabled(
+  setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
+  ruleName: string,
+  enabled: boolean,
+): void {
+  setFormState((previous) => {
+    const disabledRules = new Set(previous.disabledRules);
+    if (enabled) {
+      disabledRules.delete(ruleName);
+    } else {
+      disabledRules.add(ruleName);
+    }
+    return {
+      ...previous,
+      disabledRules,
+    };
+  });
+}
+
+function resetRulesToDefaults(
+  setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
+  rules: PortfolioRuleMetadata[],
+): void {
+  setFormState((previous) => ({
+    ...previous,
+    disabledRules: new Set(
+      rules.filter((rule) => !rule.defaultEnabled).map((rule) => rule.name),
+    ),
+  }));
+}
+
 export function ConfigEditorStructuredFields({
   configIdValid,
   formState,
@@ -33,12 +69,7 @@ export function ConfigEditorStructuredFields({
   mode,
   setFormState,
 }: ConfigEditorStructuredFieldsProps): ReactElement {
-  const {
-    data: strategyConfigs,
-    isLoading: strategiesLoading,
-    isError: strategiesError,
-  } = useStrategyConfigs();
-  const strategies = strategyConfigs?.strategies ?? [];
+  const { rules } = usePortfolioRules();
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 space-y-5">
@@ -112,31 +143,9 @@ export function ConfigEditorStructuredFields({
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
             Strategy ID *
           </label>
-          <select
-            value={formState.strategyId}
-            onChange={(event) =>
-              updateField(setFormState, 'strategyId', event.target.value)
-            }
-            className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-            disabled={isBenchmark}
-          >
-            <option value="">Select strategy...</option>
-            {strategiesLoading && (
-              <option value="" disabled>
-                Loading…
-              </option>
-            )}
-            {strategiesError && (
-              <option value="" disabled>
-                Failed to load strategies
-              </option>
-            )}
-            {strategies.map((strategy) => (
-              <option key={strategy.strategy_id} value={strategy.strategy_id}>
-                {strategy.display_name}
-              </option>
-            ))}
-          </select>
+          <span className="inline-flex min-h-10 w-full items-center rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 font-mono text-sm text-gray-200">
+            {LOCKED_STRATEGY_ID}
+          </span>
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -152,6 +161,71 @@ export function ConfigEditorStructuredFields({
             className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
             disabled={isBenchmark}
           />
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-gray-800 bg-gray-950/30 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-white">Portfolio Rules</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                updateField(setFormState, 'disabledRules', new Set<string>())
+              }
+              disabled={isBenchmark}
+              className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Enable all
+            </button>
+            <button
+              type="button"
+              onClick={() => resetRulesToDefaults(setFormState, rules)}
+              disabled={isBenchmark}
+              className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset to defaults
+            </button>
+          </div>
+        </div>
+
+        <div className="divide-y divide-gray-800">
+          {rules.map((rule) => {
+            const checked = !formState.disabledRules.has(rule.name);
+            return (
+              <label
+                key={rule.name}
+                className="grid grid-cols-[auto,1fr,auto,auto] items-center gap-3 py-3"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) =>
+                    updateRuleEnabled(
+                      setFormState,
+                      rule.name,
+                      event.target.checked,
+                    )
+                  }
+                  disabled={isBenchmark}
+                  className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span className="min-w-0 break-words font-mono text-sm text-gray-200">
+                  {rule.name}
+                </span>
+                <span className="rounded border border-gray-700 bg-gray-800 px-2 py-0.5 font-mono text-xs text-gray-400">
+                  P{rule.priority}
+                </span>
+                <span
+                  aria-label={`${rule.name} description`}
+                  role="img"
+                  title={rule.description}
+                >
+                  <Info aria-hidden className="h-4 w-4 text-gray-500" />
+                </span>
+              </label>
+            );
+          })}
         </div>
       </div>
 

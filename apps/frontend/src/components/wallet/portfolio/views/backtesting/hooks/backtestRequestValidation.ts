@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
+
 // ── Zod Schemas ──────────────────────────────────────────────────────
 
 const signalParamsSchema = z
@@ -121,6 +123,9 @@ export function validateConfigsStrategyIdsAgainstCatalog(
     return null;
   }
   const allowed = new Set(strategies.map((entry) => entry.strategy_id));
+  // DCA Classic is always permitted as a baseline reference even when the
+  // catalog omits benchmark entries.
+  allowed.add(DCA_CLASSIC_STRATEGY_ID);
   for (let index = 0; index < configs.length; index += 1) {
     const config = configs[index];
     if (!config) {

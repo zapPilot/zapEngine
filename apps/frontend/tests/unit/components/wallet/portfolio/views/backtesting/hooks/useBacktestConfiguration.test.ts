@@ -120,8 +120,9 @@ describe('useBacktestConfiguration', () => {
     const parsed = JSON.parse(result.current.editorValue);
     expect(parsed.days).toBe(500);
     expect(parsed.total_capital).toBe(10000);
-    expect(parsed.configs).toHaveLength(1);
-    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
+    expect(parsed.configs).toHaveLength(2);
+    expect(parsed.configs[0].config_id).toBe('dca_classic');
+    expect(parsed.configs[1].config_id).toBe('dma_fgi_portfolio_rules_default');
   });
 
   it('loads presets, seeds the editor, and auto-runs once', async () => {
@@ -135,7 +136,7 @@ describe('useBacktestConfiguration', () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(90);
-      expect(parsed.configs[0].config_id).toBe(
+      expect(parsed.configs[1].config_id).toBe(
         'dma_fgi_portfolio_rules_default',
       );
     });
@@ -157,10 +158,10 @@ describe('useBacktestConfiguration', () => {
     await waitFor(() => {
       const parsed = JSON.parse(result.current.editorValue);
       expect(parsed.days).toBe(500);
-      expect(parsed.configs[0].config_id).toBe(
+      expect(parsed.configs[1].config_id).toBe(
         'dma_fgi_portfolio_rules_default',
       );
-      expect(parsed.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
+      expect(parsed.configs[1].strategy_id).toBe('dma_fgi_portfolio_rules');
     });
   });
 
@@ -259,7 +260,7 @@ describe('useBacktestConfiguration', () => {
     await waitFor(() => {
       // catalog fallback was used: default params from the DMA catalog entry
       const parsed = JSON.parse(result.current.editorValue);
-      expect(parsed.configs[0].params.pacing.k).toBe(3);
+      expect(parsed.configs[1].params.pacing.k).toBe(3);
     });
   });
 
@@ -955,7 +956,7 @@ describe('useBacktestConfiguration', () => {
 
     // Should restore catalog-based defaults and clear error
     const parsed = JSON.parse(result.current.editorValue);
-    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
+    expect(parsed.configs[1].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.current.editorError).toBeNull();
   });
 
@@ -987,7 +988,7 @@ describe('useBacktestConfiguration', () => {
 
     const parsed = JSON.parse(result.current.editorValue);
     // catalog fallback: dma_fgi_portfolio_rules default_params from mockCatalog
-    expect(parsed.configs[0].params.pacing.k).toBe(3);
+    expect(parsed.configs[1].params.pacing.k).toBe(3);
     expect(result.current.editorError).toBeNull();
   });
 
@@ -1004,7 +1005,7 @@ describe('useBacktestConfiguration', () => {
     });
 
     await waitFor(() => {
-      expect(JSON.parse(result.current.editorValue).configs[0].config_id).toBe(
+      expect(JSON.parse(result.current.editorValue).configs[1].config_id).toBe(
         'dma_fgi_portfolio_rules_default',
       );
     });
@@ -1023,7 +1024,7 @@ describe('useBacktestConfiguration', () => {
 
     const parsed = JSON.parse(result.current.editorValue);
     expect(parsed.days).toBe(90);
-    expect(parsed.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
+    expect(parsed.configs[1].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.current.editorError).toBeNull();
   });
 

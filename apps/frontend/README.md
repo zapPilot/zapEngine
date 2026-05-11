@@ -36,6 +36,14 @@ All client-exposed variables must be prefixed `VITE_`. Key ones:
 
 See the monorepo root `.env.example` for the full list.
 
+## Deep dives
+
+See [docs/](./docs/):
+
+- [LAYERING.md](./docs/LAYERING.md)
+- [PORTFOLIO_DATA_FLOW.md](./docs/PORTFOLIO_DATA_FLOW.md)
+- [SERVICES.md](./docs/SERVICES.md)
+
 ## Deploy
 
 Static build (`pnpm build` → `dist/`) deployed to Vercel via the repo's deploy workflow.

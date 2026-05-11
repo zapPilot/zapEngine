@@ -35,6 +35,20 @@ const mockState = vi.hoisted(() => ({
     ],
     presets: [],
     backtest_defaults: { days: 500, total_capital: 10000 },
+    portfolio_rules: [
+      {
+        name: 'cross_down_exit',
+        priority: 10,
+        description: 'Exit any asset that crosses below DMA.',
+        default_enabled: true,
+      },
+      {
+        name: 'greed_sell_suppression',
+        priority: 23,
+        description: 'Suppress greed sells while another rule has precedence.',
+        default_enabled: true,
+      },
+    ],
   },
   strategyConfigsIsLoading: false,
   strategyConfigsIsError: false,
@@ -44,12 +58,15 @@ const baseConfig: SavedStrategyConfig = {
   config_id: 'momentum_bot',
   display_name: 'Momentum Bot',
   description: 'Trades with market momentum',
-  strategy_id: 'dma_gated_fgi',
+  strategy_id: 'dma_fgi_portfolio_rules',
   primary_asset: 'BTC',
   supports_daily_suggestion: true,
   is_default: false,
   is_benchmark: false,
-  params: { rotation: { drift_threshold: 0.1 } },
+  params: {
+    disabled_rules: ['greed_sell_suppression'],
+    signal: { cross_cooldown_days: 12 },
+  },
   composition: {
     kind: 'bucket_strategy',
     bucket_mapper_id: 'spot_stable',
@@ -137,9 +154,6 @@ function fillRequiredCreateFields(): void {
   });
   fireEvent.change(screen.getByPlaceholderText('My Strategy Config'), {
     target: { value: 'My Strategy Config' },
-  });
-  fireEvent.change(screen.getByRole('combobox'), {
-    target: { value: 'dma_gated_fgi' },
   });
   fireEvent.change(screen.getByPlaceholderText('BTC'), {
     target: { value: 'ETH' },
@@ -307,6 +321,22 @@ describe('ConfigEditorView', () => {
       expect(
         screen.queryByRole('button', { name: /duplicate/i }),
       ).not.toBeInTheDocument();
+    });
+
+    it('shows locked dma_fgi_portfolio_rules strategy badge instead of a strategy selector', () => {
+      renderConfigEditorView();
+
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      expect(screen.getByText('dma_fgi_portfolio_rules')).toBeInTheDocument();
+    });
+
+    it('renders portfolio rule checkboxes from strategy bootstrap metadata', () => {
+      renderConfigEditorView();
+
+      expect(
+        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+      ).toBeChecked();
+      expect(screen.getByText('P23')).toBeInTheDocument();
     });
   });
 
@@ -539,7 +569,7 @@ describe('ConfigEditorView', () => {
           config_id: 'my_strategy_config',
           display_name: 'My Strategy Config',
           description: 'Optional note',
-          strategy_id: 'dma_gated_fgi',
+          strategy_id: 'dma_fgi_portfolio_rules',
           primary_asset: 'ETH',
           supports_daily_suggestion: true,
           params: {},
@@ -553,6 +583,39 @@ describe('ConfigEditorView', () => {
         message: '"My Strategy Config" has been created.',
       });
       expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it('saves unchecked portfolio rules into params and overrides textarea disabled_rules', async () => {
+      renderConfigEditorView();
+      fillRequiredCreateFields();
+
+      fireEvent.change(screen.getByDisplayValue('{}'), {
+        target: {
+          value: JSON.stringify(
+            {
+              disabled_rules: ['cross_down_exit'],
+              signal: { cross_cooldown_days: 9 },
+            },
+            null,
+            2,
+          ),
+        },
+      });
+      fireEvent.click(
+        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(mockState.createMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            params: {
+              disabled_rules: ['greed_sell_suppression'],
+              signal: { cross_cooldown_days: 9 },
+            },
+          }),
+        );
+      });
     });
 
     it('sends null description when description is blank after trim', async () => {
@@ -629,10 +692,13 @@ describe('ConfigEditorView', () => {
           body: {
             display_name: 'Momentum Bot',
             description: 'Trades with market momentum',
-            strategy_id: 'dma_gated_fgi',
+            strategy_id: 'dma_fgi_portfolio_rules',
             primary_asset: 'BTC',
             supports_daily_suggestion: true,
-            params: { rotation: { drift_threshold: 0.1 } },
+            params: {
+              disabled_rules: ['greed_sell_suppression'],
+              signal: { cross_cooldown_days: 12 },
+            },
             composition: baseConfig.composition,
           },
         });
@@ -795,55 +861,63 @@ describe('ConfigEditorView', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Strategy ID select options
+  // Locked strategy and rules
   // ---------------------------------------------------------------------------
 
-  describe('strategy ID select (dynamic from /v3/strategy/configs)', () => {
-    it('renders strategy options from useStrategyConfigs response', () => {
+  describe('locked strategy and portfolio rules', () => {
+    it('does not render the legacy strategy selector', () => {
       renderConfigEditorView();
-      const select = screen.getByRole('combobox');
-      expect(select).toBeInTheDocument();
-      expect(
-        screen.getByRole('option', { name: 'Select strategy...' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('option', { name: 'DMA-Gated FGI' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('option', { name: 'DMA/FGI Portfolio Rules' }),
-      ).toBeInTheDocument();
+
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      expect(screen.getByText('dma_fgi_portfolio_rules')).toBeInTheDocument();
     });
 
-    it('updating strategy ID reflects in form state', () => {
+    it('seeds disabled rule checkboxes from an existing config', () => {
+      mockState.existingConfig = baseConfig;
+      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+
+      expect(
+        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+      ).not.toBeChecked();
+      expect(
+        screen.getByRole('checkbox', { name: /cross_down_exit/i }),
+      ).toBeChecked();
+    });
+
+    it('enable all clears disabled rule selections', () => {
+      mockState.existingConfig = baseConfig;
+      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
+
+      expect(
+        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+      ).toBeChecked();
+    });
+
+    it('reset to defaults restores default rule selections', () => {
+      mockState.strategyConfigsData = {
+        ...mockState.strategyConfigsData,
+        portfolio_rules: [
+          ...mockState.strategyConfigsData.portfolio_rules,
+          {
+            name: 'experimental_rule',
+            priority: 60,
+            description: 'Experimental rule',
+            default_enabled: false,
+          },
+        ],
+      };
       renderConfigEditorView();
-      fireEvent.change(screen.getByRole('combobox'), {
-        target: { value: 'dma_fgi_portfolio_rules' },
-      });
-      expect(screen.getByRole('combobox')).toHaveValue(
-        'dma_fgi_portfolio_rules',
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reset to defaults' }),
       );
-    });
 
-    it('shows loading placeholder while strategies are fetching', () => {
-      mockState.strategyConfigsIsLoading = true;
-      renderConfigEditorView();
       expect(
-        screen.getByRole('option', { name: 'Loading…' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole('option', { name: 'DMA-Gated FGI' }),
-      ).not.toBeInTheDocument();
-    });
-
-    it('shows error placeholder and no stale fallback when fetch fails', () => {
-      mockState.strategyConfigsIsError = true;
-      renderConfigEditorView();
-      expect(
-        screen.getByRole('option', { name: 'Failed to load strategies' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole('option', { name: 'DMA-Gated FGI' }),
-      ).not.toBeInTheDocument();
+        screen.getByRole('checkbox', { name: /experimental_rule/i }),
+      ).not.toBeChecked();
     });
   });
 });
