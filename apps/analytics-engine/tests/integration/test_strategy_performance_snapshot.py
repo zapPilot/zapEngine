@@ -11,11 +11,7 @@ from scripts.attribution.sweep_production_window import (
     _default_strategy_universe,
 )
 from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-)
-from src.services.backtesting.strategies.hierarchical_outer_policy import (
-    MinimumHierarchicalOuterPolicy,
 )
 
 SNAPSHOT_PATH = (
@@ -40,30 +36,17 @@ def _strategy_metrics(snapshot: dict[str, Any], strategy_id: str) -> dict[str, A
     return raw_metrics
 
 
-def test_hierarchical_minimum_outperforms_portfolio_rules_baseline() -> None:
-    """The minimum stack should materially beat the flat portfolio-rules baseline."""
+def test_portfolio_rules_snapshot_entry_exists() -> None:
     snapshot = load_snapshot()
-    minimum = _strategy_metrics(snapshot, STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM)[
-        "roi_percent"
-    ]
-    portfolio_rules = _strategy_metrics(snapshot, STRATEGY_DMA_FGI_PORTFOLIO_RULES)[
-        "roi_percent"
-    ]
-    minimum_advantage_floor = 40.0
-
-    assert minimum >= portfolio_rules + minimum_advantage_floor, (
-        f"minimum ROI ({minimum:.2f}%) no longer clears current production "
-        f"({portfolio_rules:.2f}%) by {minimum_advantage_floor}pp. This indicates "
-        "the two-feature minimum lost its expected SPY-bearing advantage."
-    )
+    metrics = _strategy_metrics(snapshot, STRATEGY_DMA_FGI_PORTFOLIO_RULES)
+    assert metrics["roi_percent"] is not None
 
 
-def test_minimum_policy_feature_summary() -> None:
-    assert MinimumHierarchicalOuterPolicy().feature_summary()["active_features"] == [
-        "dma_stable_gating",
-        "greed_sell_suppression",
-        "persistent_spy_latch",
-    ]
+def test_default_strategy_snapshot_entry_exists() -> None:
+    snapshot = load_snapshot()
+    default_strategy_id = snapshot.get("default_strategy_id")
+    assert isinstance(default_strategy_id, str)
+    assert default_strategy_id in snapshot["strategies"]
 
 
 def test_every_registered_strategy_has_snapshot_entry() -> None:

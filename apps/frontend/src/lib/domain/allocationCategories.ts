@@ -64,6 +64,10 @@ export function getAllocationCategoryForToken(
     return 'eth';
   }
 
+  if (ASSET_SYMBOL_SETS.spy.has(normalized)) {
+    return 'spy';
+  }
+
   if (ASSET_SYMBOL_SETS.stablecoins.has(normalized)) {
     return 'stable';
   }

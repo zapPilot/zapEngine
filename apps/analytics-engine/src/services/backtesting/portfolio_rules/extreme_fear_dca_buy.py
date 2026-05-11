@@ -11,12 +11,10 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     allocation_key_for_symbol,
-    combine_sizing_meta,
     current_fgi_regime_for_symbol,
     current_target,
     portfolio_target_intent,
     signals_consulted_for_symbols,
-    sizing_meta_for_symbol,
     symbols_for_snapshot,
 )
 from src.services.backtesting.sizing.flat import FlatSizing
@@ -35,6 +33,7 @@ class ExtremeFearDcaBuyRule:
     rule_group: RuleGroup = "dma_fgi"
     description: str = "DCA buy assets when their relevant FGI is extreme fear."
     buy_step: float = 0.01
+    applicable_symbols: frozenset[str] | None = None
     sizing: SizingStrategy = field(default_factory=FlatSizing)
     _detection_dates: dict[str, date] = field(
         default_factory=dict,
@@ -57,7 +56,7 @@ class ExtremeFearDcaBuyRule:
         del config
         if self.buy_delay_days <= 0 or snapshot.current_date is None:
             return
-        for symbol in _extreme_fear_symbols(snapshot):
+        for symbol in _extreme_fear_symbols(snapshot, rule=self):
             self._detection_dates.setdefault(symbol, snapshot.current_date)
         for symbol in list(self._detection_dates):
             if not snapshot.cycle_open_per_symbol.get(symbol, False):
@@ -83,7 +82,7 @@ class ExtremeFearDcaBuyRule:
     ) -> bool:
         del config
         if self.buy_delay_days <= 0:
-            return bool(_extreme_fear_symbols(snapshot))
+            return bool(_extreme_fear_symbols(snapshot, rule=self))
         return bool(self._delay_eligible_symbols(snapshot))
 
     def _delay_eligible_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
@@ -104,13 +103,12 @@ class ExtremeFearDcaBuyRule:
         config: PortfolioRuleConfig,
     ) -> AllocationIntent:
         if self.buy_delay_days <= 0:
-            matching_symbols = _extreme_fear_symbols(snapshot)
+            matching_symbols = _extreme_fear_symbols(snapshot, rule=self)
         else:
             matching_symbols = self._delay_eligible_symbols(snapshot)
         target = current_target(snapshot)
         stable_available = max(0.0, float(target.get("stable", 0.0)))
         adjusted_step_by_symbol: dict[str, float] = {}
-        sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
         if matching_symbols and stable_available > 0.0:
             for symbol in matching_symbols:
                 adjusted_step = self.sizing.adjust_step(
@@ -119,13 +117,6 @@ class ExtremeFearDcaBuyRule:
                     asset=symbol,
                 )
                 adjusted_step_by_symbol[symbol] = max(0.0, float(adjusted_step))
-                sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
-                    sizing=self.sizing,
-                    base_step=self.buy_step,
-                    adjusted_step=adjusted_step,
-                    snapshot=snapshot,
-                    asset=symbol,
-                )
             total_desired = sum(adjusted_step_by_symbol.values())
             stable_scale = (
                 min(1.0, stable_available / total_desired)
@@ -153,14 +144,18 @@ class ExtremeFearDcaBuyRule:
             )
             if config.emit_signals_consulted
             else None,
-            sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
         )
 
 
-def _extreme_fear_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+def _extreme_fear_symbols(
+    snapshot: PortfolioSnapshot,
+    *,
+    rule: ExtremeFearDcaBuyRule,
+) -> list[str]:
     return [
         symbol
         for symbol in symbols_for_snapshot(snapshot)
+        if (rule.applicable_symbols is None or symbol in rule.applicable_symbols)
         if current_fgi_regime_for_symbol(snapshot, symbol) == "extreme_fear"
         and snapshot.cycle_open_per_symbol.get(symbol, False)
     ]

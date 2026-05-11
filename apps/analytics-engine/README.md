@@ -29,7 +29,7 @@ See [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) f
 - Iteration log (commit hashes + ROI deltas for every feature tested)
 - "What works / what doesn't" with negative-result evidence
 - Snapshot fixture workflow (`sweep_production_window.py`)
-- Hierarchical attribution & regression event commands
+- Rule-based attribution & regression event commands
 
 ## Import conventions & dead-code policy
 
@@ -38,3 +38,14 @@ See [CLAUDE.md](./CLAUDE.md).
 ## Environment
 
 PostgreSQL (Supabase) via async SQLAlchemy. `DATABASE_READ_ONLY=true` is enforced — writes are blocked at the pool level. Local port override: `ANALYTICS_ENGINE_PORT=8001`.
+
+## Deep dives
+
+See [docs/](./docs/):
+
+- [snapshot_architecture.md](./docs/snapshot_architecture.md)
+- [sql_parameter_audit.md](./docs/sql_parameter_audit.md)
+- [SENTIMENT_DATABASE_SERVICE.md](./docs/SENTIMENT_DATABASE_SERVICE.md)
+- [PATTERN_MIGRATION.md](./docs/PATTERN_MIGRATION.md)
+- [coding_standards.md](./docs/coding_standards.md)
+- [diagnostics/](./docs/diagnostics/)

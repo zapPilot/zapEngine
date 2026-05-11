@@ -8,7 +8,6 @@ import pytest
 
 from src.services.backtesting.capabilities import (
     PortfolioBuckets,
-    map_portfolio_to_eth_btc_stable_buckets,
     map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
@@ -95,14 +94,15 @@ class TestMapPortfolioNoneAllocation:
         result = map_portfolio_to_two_buckets(portfolio)
         assert result == PortfolioBuckets(spot_value=0.0, stable_value=0.0)
 
-    def test_eth_btc_stable_none_allocation(self) -> None:
+    def test_spy_eth_btc_stable_none_allocation(self) -> None:
         portfolio = SimpleNamespace(portfolio_allocation=None)
-        result = map_portfolio_to_eth_btc_stable_buckets(portfolio)
+        result = map_portfolio_to_spy_eth_btc_stable_buckets(portfolio)
         assert result == PortfolioBuckets(
             spot_value=0.0,
             stable_value=0.0,
             btc_value=0.0,
             eth_value=0.0,
+            spy_value=0.0,
             stable_category_value=0.0,
             alt_value=0.0,
         )
@@ -111,22 +111,8 @@ class TestMapPortfolioNoneAllocation:
         result = map_portfolio_to_two_buckets(SimpleNamespace())
         assert result == PortfolioBuckets(spot_value=0.0, stable_value=0.0)
 
-    def test_eth_btc_stable_no_allocation_attr(self) -> None:
-        result = map_portfolio_to_eth_btc_stable_buckets(SimpleNamespace())
-        assert result == PortfolioBuckets(
-            spot_value=0.0,
-            stable_value=0.0,
-            btc_value=0.0,
-            eth_value=0.0,
-            stable_category_value=0.0,
-            alt_value=0.0,
-        )
-
-    def test_spy_eth_btc_stable_none_allocation(self) -> None:
-        result = map_portfolio_to_spy_eth_btc_stable_buckets(
-            SimpleNamespace(portfolio_allocation=None)
-        )
-
+    def test_spy_eth_btc_stable_no_allocation_attr(self) -> None:
+        result = map_portfolio_to_spy_eth_btc_stable_buckets(SimpleNamespace())
         assert result == PortfolioBuckets(
             spot_value=0.0,
             stable_value=0.0,

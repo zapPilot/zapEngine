@@ -1,8 +1,9 @@
+import type { BacktestTimelinePoint } from '@/types/backtesting';
+
 import type {
   BacktestTooltipPayloadEntry,
   BacktestTooltipProps,
 } from '../utils/backtestTooltipDataTypes';
-import type { IndicatorKey } from './backtestChartLegendData';
 
 export const AXIS_DEFAULTS = {
   tickLine: false,
@@ -18,13 +19,12 @@ export function buildBacktestTooltipProps(params: {
   payload: readonly BacktestTooltipPayloadEntry[] | undefined;
   label: string | number | undefined;
   sortedStrategyIds: string[];
-  activeIndicators: Set<IndicatorKey>;
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
 }): BacktestTooltipProps {
-  const { active, payload, label, sortedStrategyIds, activeIndicators } =
-    params;
+  const { active, payload, label, sortedStrategyIds, chartDataIndex } = params;
   const tooltipProps: BacktestTooltipProps = {
+    chartDataIndex,
     sortedStrategyIds,
-    activeIndicators,
   };
 
   if (active !== undefined) {

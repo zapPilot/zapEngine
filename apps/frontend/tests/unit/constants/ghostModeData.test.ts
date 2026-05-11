@@ -51,6 +51,11 @@ describe('GHOST_MODE_PREVIEW', () => {
       const eth = simplifiedCrypto.find((a) => a.symbol === 'ETH');
       expect(eth).toBeDefined();
       expect(eth?.name).toBe('Ethereum');
+
+      const spy = simplifiedCrypto.find((a) => a.symbol === 'SPY');
+      expect(spy).toBeDefined();
+      expect(spy?.name).toBe('S&P 500');
+      expect(spy?.color).toBe('#16A34A');
     });
 
     it('has valid constituents structure', () => {

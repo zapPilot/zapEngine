@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  app_links: ^6.3.0
   http: ^1.2.2
   just_audio: ^0.9.40
   audio_service: ^0.18.15

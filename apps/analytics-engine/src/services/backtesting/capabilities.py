@@ -129,36 +129,6 @@ def map_portfolio_to_two_buckets(portfolio: Any) -> PortfolioBuckets:
     )
 
 
-def map_portfolio_to_eth_btc_stable_buckets(portfolio: Any) -> PortfolioBuckets:
-    """Map landing-page allocation payloads into BTC/ETH/stable runtime buckets."""
-
-    allocation = getattr(portfolio, "portfolio_allocation", None)
-    if allocation is None:
-        return PortfolioBuckets(
-            spot_value=0.0,
-            stable_value=0.0,
-            btc_value=0.0,
-            eth_value=0.0,
-            stable_category_value=0.0,
-            alt_value=0.0,
-        )
-    btc_value = float(getattr(getattr(allocation, "btc", None), "total_value", 0.0))
-    eth_value = float(getattr(getattr(allocation, "eth", None), "total_value", 0.0))
-    stable_category_value = float(
-        getattr(getattr(allocation, "stablecoins", None), "total_value", 0.0)
-    )
-    alt_value = float(getattr(getattr(allocation, "others", None), "total_value", 0.0))
-    stable_value = stable_category_value + alt_value
-    return PortfolioBuckets(
-        spot_value=btc_value + eth_value,
-        stable_value=stable_value,
-        btc_value=btc_value,
-        eth_value=eth_value,
-        stable_category_value=stable_category_value,
-        alt_value=alt_value,
-    )
-
-
 def map_portfolio_to_spy_eth_btc_stable_buckets(portfolio: Any) -> PortfolioBuckets:
     """Map landing-page allocation payloads into SPY/BTC/ETH/stable runtime buckets.
 
@@ -201,7 +171,6 @@ __all__ = [
     "PortfolioBucketMapper",
     "PortfolioBuckets",
     "RuntimePortfolioMode",
-    "map_portfolio_to_eth_btc_stable_buckets",
     "map_portfolio_to_spy_eth_btc_stable_buckets",
     "map_portfolio_to_two_buckets",
 ]

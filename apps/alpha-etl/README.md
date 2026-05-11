@@ -71,6 +71,10 @@ All env vars live in the monorepo root `.env` (see `.env.example` at repo root).
 
 Files in `migrations/` use non-sequential numbering with some duplicate prefixes — treat existing filenames as immutable history. New migrations use the next unused prefix after `012`.
 
+## Deep dives
+
+See [docs/adr/](./docs/adr/) for architectural decision records.
+
 ## Deployment
 
 Fly.io via Docker — `fly deploy`.

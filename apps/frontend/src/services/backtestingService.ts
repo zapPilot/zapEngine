@@ -1,8 +1,8 @@
+import { DCA_CLASSIC_STRATEGY_ID } from '@/components/wallet/portfolio/views/backtesting/constants';
 import { httpUtils } from '@/lib/http';
 import { createApiServiceCaller } from '@/lib/http/createServiceCaller';
 import {
-  MAX_CHART_POINTS,
-  MIN_CHART_POINTS,
+  CHART_POINT_LIMIT,
   sampleTimelineData,
 } from '@/services/backtestingTimelineService';
 import type {
@@ -24,7 +24,7 @@ const callBacktestingApi = createApiServiceCaller(
 
 /** @internal — test-only re-exports */
 export { sampleTimelineData as _sampleTimelineData };
-export { MAX_CHART_POINTS, MIN_CHART_POINTS };
+export { CHART_POINT_LIMIT };
 
 export async function getBacktestingStrategiesV3(): Promise<BacktestStrategyCatalogResponseV3> {
   return callBacktestingApi(() =>
@@ -47,9 +47,14 @@ export async function runBacktest(
     ),
   );
 
-  // Sample timeline data to reduce memory usage while preserving signals
+  const primaryStrategyId =
+    Object.keys(response.strategies ?? {}).find(
+      (id) => id !== DCA_CLASSIC_STRATEGY_ID,
+    ) ?? null;
+
+  // Sample timeline data to reduce memory usage while preserving primary strategy signals.
   return {
     ...response,
-    timeline: sampleTimelineData(response.timeline),
+    timeline: sampleTimelineData(response.timeline, primaryStrategyId),
   };
 }

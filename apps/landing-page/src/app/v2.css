@@ -237,20 +237,6 @@
   animation: v2-fade-up 0.9s 0.25s cubic-bezier(0.2, 0.65, 0.3, 0.99) forwards;
 }
 
-.v2-root .hero-title em {
-  color: var(--accent);
-  font-style: italic;
-}
-
-.v2-root .hero-title .accent-block {
-  display: inline;
-  background: linear-gradient(
-    180deg,
-    transparent 60%,
-    rgba(212, 197, 163, 0.18) 60%
-  );
-}
-
 .v2-root .hero-sub {
   max-width: 520px;
   margin: 0 0 40px;

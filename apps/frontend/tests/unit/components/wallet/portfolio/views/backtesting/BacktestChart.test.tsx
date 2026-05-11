@@ -1,7 +1,7 @@
 /**
  * Unit tests for BacktestChart pure helpers and component rendering
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ let capturedTooltipContent:
     }) => ReactNode)
   | null = null;
 let capturedTooltipProps: Record<string, unknown> | null = null;
+let capturedLegendProps: Record<string, unknown> | null = null;
 
 // Mock recharts — jsdom has no SVG layout engine
 vi.mock('recharts', async () => {
@@ -33,11 +34,13 @@ vi.mock('recharts', async () => {
     name?: string;
     dataKey?: string;
     strokeDasharray?: string;
-  }>(({ name, dataKey, strokeDasharray }) => (
+    connectNulls?: boolean;
+  }>(({ name, dataKey, strokeDasharray, connectNulls }) => (
     <div
       data-testid={`area-${dataKey}`}
       data-name={name}
       data-stroke-dasharray={strokeDasharray || ''}
+      data-connect-nulls={connectNulls ? 'true' : 'false'}
     />
   ));
   const Line = createRechartsMockComponent<{
@@ -89,21 +92,10 @@ vi.mock('@/components/ui/BaseCard', () => ({
 vi.mock(
   '@/components/wallet/portfolio/views/backtesting/components/BacktestChartLegend',
   () => ({
-    BacktestChartLegend: ({
-      onToggleIndicator,
-    }: {
-      onToggleIndicator: (key: 'macroFearGreed') => void;
-    }) => (
-      <div data-testid="chart-legend">
-        <button
-          type="button"
-          data-testid="toggle-macro-fgi"
-          onClick={() => onToggleIndicator('macroFearGreed')}
-        >
-          Macro FGI
-        </button>
-      </div>
-    ),
+    BacktestChartLegend: (props: Record<string, unknown>) => {
+      capturedLegendProps = props;
+      return <div data-testid="chart-legend" />;
+    },
   }),
 );
 
@@ -152,9 +144,42 @@ vi.mock(
 describe('BacktestChart', () => {
   const defaultProps = {
     chartData: [
-      { date: '2025-01-01', strat_a_value: 1000, strat_b_value: 900 },
-      { date: '2025-01-02', strat_a_value: 1050, strat_b_value: 920 },
+      {
+        date: '2025-01-01',
+        strat_a_value: 1000,
+        strat_b_value: 900,
+        buySpotSignal: null,
+        sellSpotSignal: null,
+        switchToEthSignal: null,
+        switchToBtcSignal: null,
+        switchToSpySignal: null,
+        eventStrategies: {
+          buy_spot: [],
+          sell_spot: [],
+          switch_to_eth: [],
+          switch_to_btc: [],
+          switch_to_spy: [],
+        },
+      },
+      {
+        date: '2025-01-02',
+        strat_a_value: 1050,
+        strat_b_value: 920,
+        buySpotSignal: null,
+        sellSpotSignal: null,
+        switchToEthSignal: null,
+        switchToBtcSignal: null,
+        switchToSpySignal: null,
+        eventStrategies: {
+          buy_spot: [],
+          sell_spot: [],
+          switch_to_eth: [],
+          switch_to_btc: [],
+          switch_to_spy: [],
+        },
+      },
     ],
+    chartDataIndex: new Map(),
     sortedStrategyIds: ['strat_a', 'strat_b'],
     yAxisDomain: [800, 1200] as [number, number],
     actualDays: 30,
@@ -175,23 +200,17 @@ describe('BacktestChart', () => {
   it('renders chart legend', () => {
     render(<BacktestChart {...defaultProps} />);
     expect(screen.getByTestId('chart-legend')).toBeDefined();
+    expect(capturedLegendProps).toEqual({
+      sortedStrategyIds: defaultProps.sortedStrategyIds,
+    });
   });
 
   it('does not render indicator lines when indicators default to OFF', () => {
     render(<BacktestChart {...defaultProps} />);
-    // Indicators default to OFF (empty activeIndicators set), so lines are absent
     expect(screen.queryByTestId('line-sentiment')).toBeNull();
     expect(screen.queryByTestId('line-macro_fear_greed')).toBeNull();
     expect(screen.queryByTestId('line-btc_price')).toBeNull();
     expect(screen.queryByTestId('line-dma_200')).toBeNull();
-  });
-
-  it('renders macro FGI line when its market context toggle is active', () => {
-    render(<BacktestChart {...defaultProps} />);
-
-    fireEvent.click(screen.getByTestId('toggle-macro-fgi'));
-
-    expect(screen.getByTestId('line-macro_fear_greed')).toBeDefined();
   });
 
   it('renders scatter signals', () => {
@@ -202,12 +221,12 @@ describe('BacktestChart', () => {
   it('does not apply dashed stroke to kept strategies', () => {
     const props = {
       ...defaultProps,
-      sortedStrategyIds: ['strat_a', 'eth_btc_rotation_default'],
+      sortedStrategyIds: ['strat_a', 'dma_fgi_portfolio_rules_default'],
     };
     render(<BacktestChart {...props} />);
 
     const rotationArea = screen.getByTestId(
-      'area-eth_btc_rotation_default_value',
+      'area-dma_fgi_portfolio_rules_default_value',
     );
     expect(rotationArea.getAttribute('data-stroke-dasharray')).toBe('');
   });
@@ -217,6 +236,20 @@ describe('BacktestChart', () => {
 
     const stratArea = screen.getByTestId('area-strat_a_value');
     expect(stratArea.getAttribute('data-stroke-dasharray')).toBe('');
+  });
+
+  it('connects null gaps for the DCA Classic baseline area', () => {
+    const props = {
+      ...defaultProps,
+      sortedStrategyIds: ['dca_classic', 'strat_a'],
+    };
+
+    render(<BacktestChart {...props} />);
+
+    const dcaArea = screen.getByTestId('area-dca_classic_value');
+    const experimentArea = screen.getByTestId('area-strat_a_value');
+    expect(dcaArea.getAttribute('data-connect-nulls')).toBe('true');
+    expect(experimentArea.getAttribute('data-connect-nulls')).toBe('false');
   });
 
   it('uses custom chartIdPrefix for gradient IDs', () => {
@@ -254,6 +287,9 @@ describe('BacktestChart', () => {
 
     // BacktestTooltip receives the built props — the mock renders a div
     expect(result).toBeDefined();
+    expect(
+      (result as { props?: Record<string, unknown> }).props?.chartDataIndex,
+    ).toBe(defaultProps.chartDataIndex);
   });
 
   it('buildBacktestTooltipProps handles undefined active/payload/label gracefully', () => {

@@ -44,12 +44,12 @@ def state(
         fgi_value=fgi_value,
         fgi_slope=0.0,
         fgi_regime=fgi_regime,
-        regime_source="value",
+        regime_source="label",
         ath_event=cast(AthEvent | None, None),
         asset_symbol=symbol,
         macro_fear_greed_value=macro_fear_greed_value,
         macro_fear_greed_regime=macro_fear_greed_regime,
-        macro_fear_greed_regime_source="value"
+        macro_fear_greed_regime_source="label"
         if macro_fear_greed_regime is not None
         else None,
     )

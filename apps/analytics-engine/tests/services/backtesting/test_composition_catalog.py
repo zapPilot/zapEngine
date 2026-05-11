@@ -9,19 +9,21 @@ from src.services.backtesting.execution.pacing import FgiExponentialPacingPolicy
 from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiSignalComponent,
+from src.services.backtesting.strategies.minimum import (
+    FlatMinimumSignalComponent,
 )
 
 
-def test_resolve_signal_component_factory_builds_dma_signal_component() -> None:
+def test_resolve_signal_component_factory_builds_portfolio_rules_signal_component() -> (
+    None
+):
     factory = build_default_composition_catalog().resolve_signal_component_factory(
-        "dma_gated_fgi_signal"
+        "dma_fgi_portfolio_rules_signal"
     )
 
     component = factory({"cross_cooldown_days": 7, "cross_on_touch": False})
 
-    assert isinstance(component, DmaGatedFgiSignalComponent)
+    assert isinstance(component, FlatMinimumSignalComponent)
     assert component.config.cross_cooldown_days == 7
     assert component.config.cross_on_touch is False
 

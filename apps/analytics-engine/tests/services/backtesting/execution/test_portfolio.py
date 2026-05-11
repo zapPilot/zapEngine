@@ -118,8 +118,8 @@ def test_rotate_spot_asset_btc_to_spy_moves_balance() -> None:
 
     Pre-fix the source list was ('BTC', 'ETH') only, so BTC->SPY worked but
     ETH->SPY (or any source->SPY when BTC was empty) silently no-op'd. This
-    test pins the specific BTC->SPY case the SpyEthBtcRotation strategy
-    actually exercises.
+    test pins the specific BTC->SPY case exercised by rule-based portfolio
+    strategies.
     """
     portfolio = Portfolio(
         spot_balance=1.0,

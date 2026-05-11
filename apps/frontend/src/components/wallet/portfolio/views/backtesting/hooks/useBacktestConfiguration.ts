@@ -5,7 +5,11 @@ import { getStrategyConfigs } from '@/services';
 import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
-import { DEFAULT_DAYS, ETH_BTC_ROTATION_STRATEGY_ID } from '../constants';
+import {
+  DCA_CLASSIC_STRATEGY_ID,
+  DEFAULT_DAYS,
+  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+} from '../constants';
 import {
   normalizePresetBackedConfigs,
   parseConfigStrategyIdWithPresets,
@@ -226,7 +230,7 @@ export function useBacktestConfiguration() {
   const days = parseJsonField(editorValue, 'days', DEFAULT_DAYS);
   const selectedStrategyId = parseConfigStrategyIdWithPresets(
     editorValue,
-    ETH_BTC_ROTATION_STRATEGY_ID,
+    DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
     strategyConfigs?.presets ?? [],
   );
 
@@ -234,10 +238,12 @@ export function useBacktestConfiguration() {
     if (!strategyConfigs?.strategies?.length) {
       return [{ value: selectedStrategyId, label: selectedStrategyId }];
     }
-    return strategyConfigs.strategies.map((s) => ({
-      value: s.strategy_id,
-      label: s.display_name,
-    }));
+    return strategyConfigs.strategies
+      .filter((s) => s.strategy_id !== DCA_CLASSIC_STRATEGY_ID)
+      .map((s) => ({
+        value: s.strategy_id,
+        label: s.display_name,
+      }));
   }, [strategyConfigs?.strategies, selectedStrategyId]);
 
   return {

@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { IndicatorKey } from '@/components/wallet/portfolio/views/backtesting/components/backtestChartLegendData';
-import { buildBacktestTooltipData } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
+import type {
+  BacktestTooltipPayloadEntry,
+  BacktestTooltipProps,
+} from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataTypes';
+import { buildBacktestTooltipData as buildBacktestTooltipDataRaw } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
 import type {
   BacktestBucket,
+  BacktestExecution,
+  BacktestTimelinePoint,
   BacktestTransferMetadata,
 } from '@/types/backtesting';
 
@@ -14,6 +19,10 @@ vi.mock('@/utils', () => ({
 // ---------------------------------------------------------------------------
 // Shared fixture helpers
 // ---------------------------------------------------------------------------
+
+type PayloadWithIndex = BacktestTooltipPayloadEntry[] & {
+  chartDataIndex?: Map<string, BacktestTimelinePoint>;
+};
 
 function makeMarket(
   date = '2026-01-15',
@@ -58,6 +67,7 @@ function makeStrategyPoint(overrides: {
   transfers?: BacktestTransferMetadata[];
   blocked_reason?: string | null;
   buy_gate?: { block_reason: string | null } | null;
+  execution?: Partial<BacktestExecution>;
 }) {
   const spotUsd = overrides.spot ?? 5000;
   const stableUsd = overrides.stable ?? 5000;
@@ -95,7 +105,7 @@ function makeStrategyPoint(overrides: {
     signal:
       overrides.signal !== undefined
         ? overrides.signal
-        : { id: 'eth_btc_rs_signal' },
+        : { id: 'dma_fgi_portfolio_rules_signal' },
     decision: {
       action: overrides.decision?.action ?? 'hold',
       reason: overrides.decision?.reason ?? 'baseline',
@@ -125,8 +135,53 @@ function makeStrategyPoint(overrides: {
             },
           }
         : {}),
+      ...overrides.execution,
     },
   };
+}
+
+function noActionExecution(): BacktestExecution {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
+
+function buildBacktestTooltipData(props: BacktestTooltipProps) {
+  const payloadIndex = (props.payload as PayloadWithIndex | undefined)
+    ?.chartDataIndex;
+
+  return buildBacktestTooltipDataRaw({
+    ...props,
+    chartDataIndex: props.chartDataIndex ?? payloadIndex,
+  });
+}
+
+function attachChartDataIndex(
+  payload: BacktestTooltipPayloadEntry[],
+  market = makeMarket(),
+  strategies: Record<string, object> = {},
+): PayloadWithIndex {
+  return Object.assign(payload, {
+    chartDataIndex: new Map<string, BacktestTimelinePoint>([
+      [
+        market.date,
+        {
+          market,
+          strategies,
+        } as BacktestTimelinePoint,
+      ],
+    ]),
+  });
 }
 
 /**
@@ -137,18 +192,21 @@ function minimalPayload(
   market = makeMarket(),
   strategies: Record<string, object> = {},
 ) {
-  return [
-    {
-      name: 'strategy_a',
-      value: 10000,
-      color: '#3b82f6',
-      payload: {
-        market,
-        eventStrategies: { buy_spot: [], sell_spot: [] },
-        strategies,
+  return attachChartDataIndex(
+    [
+      {
+        name: 'strategy_a',
+        value: 10000,
+        color: '#3b82f6',
+        payload: {
+          date: market.date,
+          eventStrategies: { buy_spot: [], sell_spot: [] },
+        },
       },
-    },
-  ];
+    ],
+    market,
+    strategies,
+  );
 }
 
 function transfer(
@@ -161,69 +219,57 @@ function transfer(
 
 // Full payload used across multiple tests (mirrors original fixture)
 function createTooltipPayload() {
-  return [
-    {
-      name: 'ETH/BTC Rotation Default',
-      value: 12000,
-      color: '#3b82f6',
-      payload: {
-        market: makeMarket(),
-        eventStrategies: {
-          buy_spot: ['ETH/BTC Rotation Default'],
-          sell_spot: [],
-        },
-        strategies: {
-          dma_fgi_portfolio_rules: makeStrategyPoint({
-            spot: 5000,
-            stable: 5000,
-            signal: null,
-          }),
-          eth_btc_rotation_default: makeStrategyPoint({
-            spot: 9600,
-            stable: 2400,
-            spotAsset: 'ETH',
-            signal: { id: 'eth_btc_rs_signal' },
-            decision: {
-              action: 'buy',
-              reason: 'below_extreme_fear_buy',
-              rule_group: 'dma_fgi',
-              details: {
-                allocation_name: 'dma_below_extreme_fear_buy',
-                target_spot_asset: 'ETH',
-              },
-            },
-            transfers: [transfer('stable', 'eth', 240)],
-            blocked_reason: 'cooldown_active',
-            buy_gate: { block_reason: 'sideways_pending' },
-          }),
+  const market = makeMarket();
+  const strategies = {
+    dma_fgi_portfolio_rules: makeStrategyPoint({
+      spot: 5000,
+      stable: 5000,
+      signal: null,
+    }),
+    dma_fgi_portfolio_rules_default: makeStrategyPoint({
+      spot: 9600,
+      stable: 2400,
+      spotAsset: 'ETH',
+      signal: { id: 'dma_fgi_portfolio_rules_signal' },
+      decision: {
+        action: 'buy',
+        reason: 'below_extreme_fear_buy',
+        rule_group: 'dma_fgi',
+        details: {
+          allocation_name: 'dma_below_extreme_fear_buy',
+          target_spot_asset: 'ETH',
         },
       },
-    },
-    {
-      name: 'Sentiment',
-      value: 25,
-      color: '#f59e0b',
-      payload: { market: makeMarket() },
-    },
-    {
-      name: 'BTC Price',
-      value: 60000,
-      color: '#22c55e',
-      payload: {},
-    },
-    {
-      name: 'DMA 200',
-      value: 50000,
-      color: '#38bdf8',
-      payload: {},
-    },
-    {
-      name: 'Buy Spot',
-      value: 12000,
-      color: '#22c55e',
-      payload: {},
-    },
-  ];
+      transfers: [transfer('stable', 'eth', 240)],
+      blocked_reason: 'cooldown_active',
+      buy_gate: { block_reason: 'sideways_pending' },
+    }),
+  };
+
+  return attachChartDataIndex(
+    [
+      {
+        name: 'DMA/FGI Portfolio Rules',
+        value: 12000,
+        color: '#3b82f6',
+        payload: {
+          date: market.date,
+          eventStrategies: {
+            buy_spot: ['DMA/FGI Portfolio Rules'],
+            sell_spot: [],
+          },
+        },
+      },
+      {
+        name: 'Buy Spot',
+        value: 12000,
+        color: '#22c55e',
+        payload: {},
+      },
+    ],
+    market,
+    strategies,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -250,10 +296,10 @@ describe('buildBacktestTooltipData', () => {
   // ------------------------------------------------------------------
 
   describe('date string derivation', () => {
-    it('uses market.date when available, ignoring label', () => {
+    it('uses the label date to resolve market data from the index', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
       });
       expect(result?.dateStr).toBe(new Date('2026-01-15').toLocaleDateString());
     });
@@ -410,198 +456,6 @@ describe('buildBacktestTooltipData', () => {
       expect(result?.sections.decision?.assetChangeNote?.label).toBe(
         'No asset changes - held position',
       );
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSentimentValue — "Unknown" branch when sentiment is null/undefined
-  // ------------------------------------------------------------------
-
-  describe('formatSentimentValue', () => {
-    it("displays 'Unknown' when sentiment_label is null", () => {
-      const market = makeMarket('2026-01-15', null);
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 42,
-          color: '#f59e0b',
-          payload: { market },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const sentiment = result?.sections.signals.find(
-        (s) => s.name === 'Sentiment',
-      );
-      expect(sentiment?.value).toBe('Unknown (42)');
-    });
-
-    it('capitalizes a provided sentiment_label', () => {
-      const market = makeMarket('2026-01-15', 'extreme_greed');
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 90,
-          color: '#f59e0b',
-          payload: { market },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const sentiment = result?.sections.signals.find(
-        (s) => s.name === 'Sentiment',
-      );
-      // Only first character is uppercased; rest is kept as-is
-      expect(sentiment?.value).toBe('Extreme_greed (90)');
-    });
-  });
-
-  describe('formatSignalValue — Macro FGI', () => {
-    it('formats macro fear and greed label and score', () => {
-      const market = makeMarket('2026-01-15', 'fear', {
-        score: 35,
-        label: 'fear',
-        source: 'cnn_fear_greed_unofficial',
-        updated_at: '2026-01-15T12:00:00+00:00',
-        raw_rating: 'Fear',
-      });
-      const payload = [
-        {
-          name: 'Macro FGI',
-          value: 35,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({ payload });
-      const macroFgi = result?.sections.signals.find(
-        (s) => s.name === 'Macro FGI',
-      );
-
-      expect(macroFgi?.value).toBe('Fear (35)');
-    });
-
-    it("displays 'Unknown' when macro fear and greed label is absent", () => {
-      const market = makeMarket('2026-01-15', 'fear', null);
-      const payload = [
-        {
-          name: 'Macro FGI',
-          value: 42,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({ payload });
-      const macroFgi = result?.sections.signals.find(
-        (s) => s.name === 'Macro FGI',
-      );
-
-      expect(macroFgi?.value).toBe('Unknown (42)');
-    });
-
-    it('filters macro fear and greed when its indicator is inactive', () => {
-      const market = makeMarket('2026-01-15', 'fear', {
-        score: 35,
-        label: 'fear',
-        source: 'cnn_fear_greed_unofficial',
-        updated_at: '2026-01-15T12:00:00+00:00',
-        raw_rating: 'Fear',
-      });
-      const payload = [
-        {
-          name: 'Sentiment',
-          value: 25,
-          color: '#f59e0b',
-          payload: { market },
-        },
-        {
-          name: 'Macro FGI',
-          value: 35,
-          color: '#14b8a6',
-          payload: { market },
-        },
-      ];
-
-      const result = buildBacktestTooltipData({
-        payload,
-        activeIndicators: new Set<IndicatorKey>(['sentiment']),
-      });
-
-      expect(
-        result?.sections.signals.some((signal) => signal.name === 'Macro FGI'),
-      ).toBe(false);
-      expect(
-        result?.sections.signals.some((signal) => signal.name === 'Sentiment'),
-      ).toBe(true);
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSignalValue — "BTC Price" / "DMA 200" when value is not a number
-  // ------------------------------------------------------------------
-
-  describe('formatSignalValue — BTC Price / DMA 200 with undefined value', () => {
-    it("returns empty string for 'BTC Price' when value is undefined", () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: undefined,
-          color: '#22c55e',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const btc = result?.sections.signals.find((s) => s.name === 'BTC Price');
-      expect(btc?.value).toBe('');
-    });
-
-    it("returns empty string for 'DMA 200' when value is undefined", () => {
-      const payload = [
-        {
-          name: 'DMA 200',
-          value: undefined,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const dma = result?.sections.signals.find((s) => s.name === 'DMA 200');
-      expect(dma?.value).toBe('');
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // formatSignalValue — VIX (numeric and non-numeric)
-  // ------------------------------------------------------------------
-
-  describe('formatSignalValue — VIX signal (non-Sentiment, non-BTC/DMA)', () => {
-    it('rounds a numeric VIX value to 2 decimal places', () => {
-      const payload = [
-        {
-          name: 'VIX',
-          value: 18.456789,
-          color: '#a78bfa',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
-      expect(vix?.value).toBe(18.46);
-    });
-
-    it('returns empty string for VIX when value is undefined', () => {
-      const payload = [
-        {
-          name: 'VIX',
-          value: undefined,
-          color: '#a78bfa',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const vix = result?.sections.signals.find((s) => s.name === 'VIX');
-      // value ?? "" → ""
-      expect(vix?.value).toBe('');
     });
   });
 
@@ -771,7 +625,7 @@ describe('buildBacktestTooltipData', () => {
     it('uses the active primary comparison strategy only', () => {
       const strategies = {
         dma_fgi_portfolio_rules: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'buy',
             reason: 'daily_buy',
@@ -780,7 +634,7 @@ describe('buildBacktestTooltipData', () => {
           transfers: [transfer('stable', 'btc', 100)],
         }),
         primary_strategy: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'buy',
             reason: 'below_extreme_fear_buy',
@@ -792,7 +646,7 @@ describe('buildBacktestTooltipData', () => {
           transfers: [transfer('stable', 'eth', 200)],
         }),
         secondary_strategy: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'sell',
             reason: 'above_greed_sell',
@@ -825,7 +679,7 @@ describe('buildBacktestTooltipData', () => {
     it('falls back to the decision reason when allocation_name is missing', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'hold',
             reason: 'regime_no_signal',
@@ -847,7 +701,7 @@ describe('buildBacktestTooltipData', () => {
     it('formats buy, sell, and rotation asset changes from transfers', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'buy',
             reason: 'mixed_rebalance',
@@ -875,7 +729,7 @@ describe('buildBacktestTooltipData', () => {
     it('uses a blocked no-change note when there are no transfers', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'buy',
             reason: 'below_extreme_fear_buy',
@@ -899,7 +753,7 @@ describe('buildBacktestTooltipData', () => {
     it('uses a held-position no-change note when there are no transfers and no block', () => {
       const strategies = {
         my_strat: makeStrategyPoint({
-          signal: { id: 'eth_btc_rs_signal' },
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
           decision: {
             action: 'hold',
             reason: 'waiting',
@@ -918,163 +772,64 @@ describe('buildBacktestTooltipData', () => {
         color: '#cbd5e1',
       });
     });
-  });
 
-  // ------------------------------------------------------------------
-  // BTC / DMA 200 ratio computation
-  // ------------------------------------------------------------------
-
-  describe('BTC / DMA 200 ratio signal', () => {
-    it('appends BTC/DMA200 ratio when both signals have numeric values', () => {
+    it('shows sell intent but no asset changes for no-action sell without transfers', () => {
+      const strategies = {
+        my_strat: makeStrategyPoint({
+          signal: { id: 'dma_fgi_portfolio_rules_signal' },
+          decision: {
+            action: 'sell',
+            reason: 'portfolio_dma_overextension_dca_sell',
+            rule_group: 'dma_fgi',
+          },
+          execution: noActionExecution(),
+        }),
+      };
       const result = buildBacktestTooltipData({
-        payload: createTooltipPayload(),
-        label: '2026-01-01',
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['my_strat'],
       });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeDefined();
-      expect(ratio?.value).toBe('1.20');
-      expect(ratio?.color).toBe('#a78bfa');
-    });
 
-    it('does not append ratio when BTC Price signal is missing', () => {
-      const payload = [
-        {
-          name: 'DMA 200',
-          value: 50000,
-          color: '#38bdf8',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it('does not append ratio when DMA 200 signal is missing', () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: 60000,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it('does not append ratio when DMA 200 value is zero (avoids division by zero)', () => {
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: 60000,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-        {
-          name: 'DMA 200',
-          value: 0,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      expect(ratio).toBeUndefined();
-    });
-
-    it("appends ratio of 0.00 when BTC Price value is undefined (formatSignalValue yields '', parsed as 0)", () => {
-      // When BTC Price has no numeric value, formatSignalValue returns "".
-      // parseNumericSignal("") → Number("") = 0 (finite), so btcNum = 0.
-      // The ratio is computed as 0 / dmaNum = 0.00 and IS appended.
-      const payload = [
-        {
-          name: 'BTC Price',
-          value: undefined,
-          color: '#22c55e',
-          payload: {
-            market: makeMarket(),
-            strategies: {},
-            eventStrategies: {},
-          },
-        },
-        {
-          name: 'DMA 200',
-          value: 50000,
-          color: '#38bdf8',
-          payload: {},
-        },
-      ] as unknown as {
-        name: string;
-        value: number;
-        color: string;
-        payload: object;
-      }[];
-      const result = buildBacktestTooltipData({ payload });
-      const ratio = result?.sections.signals.find(
-        (s) => s.name === 'BTC / DMA 200',
-      );
-      // btcNum = 0 (parsed from ""), dmaNum = 50000 → ratio = "0.00"
-      expect(ratio?.value).toBe('0.00');
+      expect(result?.sections.decision?.action).toEqual({
+        label: 'Sell',
+        color: '#fca5a5',
+      });
+      expect(result?.sections.decision?.assetChanges).toEqual([]);
+      expect(result?.sections.decision?.assetChangeNote).toEqual({
+        label: 'No asset changes - held position',
+        color: '#cbd5e1',
+      });
     });
   });
 
   // ------------------------------------------------------------------
-  // Full integration — categorizes all item types correctly
+  // Full integration — categorizes strategy, event, decision, and allocations
   // ------------------------------------------------------------------
 
-  describe('full integration — categorizes strategies, signals, events, allocations', () => {
+  describe('full integration — categorizes strategies, events, allocations', () => {
     it('produces correct sections from a complete payload', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
         sortedStrategyIds: [
-          'eth_btc_rotation_default',
+          'dma_fgi_portfolio_rules_default',
           'dma_fgi_portfolio_rules',
         ],
       });
 
       expect(result?.sections.strategies).toEqual([
-        { name: 'ETH/BTC Rotation Default', value: 12000, color: '#3b82f6' },
+        { name: 'DMA/FGI Portfolio Rules', value: 12000, color: '#3b82f6' },
       ]);
-      expect(result?.sections.signals).toEqual(
-        expect.arrayContaining([
-          { name: 'Sentiment', value: 'Fear (25)', color: '#f59e0b' },
-          { name: 'BTC Price', value: '$60,000', color: '#22c55e' },
-          { name: 'DMA 200', value: '$50,000', color: '#38bdf8' },
-          { name: 'BTC / DMA 200', value: '1.20', color: '#a78bfa' },
-        ]),
-      );
+      expect(result?.sections).not.toHaveProperty('signals');
       expect(result?.sections.events).toEqual([
         {
           name: 'Buy Spot',
-          strategies: ['ETH/BTC Rotation Default'],
+          strategies: ['DMA/FGI Portfolio Rules'],
           color: '#22c55e',
         },
       ]);
       expect(result?.sections.allocations.map((a) => a.id)).toEqual([
-        'eth_btc_rotation_default',
+        'dma_fgi_portfolio_rules_default',
         'dma_fgi_portfolio_rules',
       ]);
     });
@@ -1082,16 +837,16 @@ describe('buildBacktestTooltipData', () => {
     it('includes the active comparison decision summary', () => {
       const result = buildBacktestTooltipData({
         payload: createTooltipPayload(),
-        label: '2026-01-01',
+        label: '2026-01-15',
         sortedStrategyIds: [
-          'eth_btc_rotation_default',
+          'dma_fgi_portfolio_rules_default',
           'dma_fgi_portfolio_rules',
         ],
       });
 
       expect(result?.sections.decision).toEqual({
-        strategyId: 'eth_btc_rotation_default',
-        displayName: 'ETH/BTC Rotation Default',
+        strategyId: 'dma_fgi_portfolio_rules_default',
+        displayName: 'DMA/FGI Portfolio Rules',
         rule: {
           label: 'dma_below_extreme_fear_buy',
           group: 'dma_fgi',

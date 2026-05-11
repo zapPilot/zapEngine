@@ -1,7 +1,7 @@
 /**
  * Utility functions for mapping different data sources to unified allocation segments.
  *
- * These mappers convert source-specific data formats into the unified 4-category model,
+ * These mappers convert source-specific data formats into the unified 5-category model,
  * enabling consistent visualization across Dashboard, Strategy, and Backtesting views.
  */
 
@@ -107,7 +107,7 @@ function getRecordTotal(data: Record<string, number> | number): number {
  * Maps portfolio allocation data (dashboard) to unified segments.
  *
  * Source values are percentages (0-100).
- * ETH and others are separated into their own display buckets.
+ * ETH, SPY, and others are separated into their own display buckets.
  *
  * @example
  * ```ts
@@ -126,6 +126,7 @@ export function mapPortfolioToUnified(
   const segments: UnifiedSegment[] = [
     createSegment('btc', data.btc),
     createSegment('eth', data.eth),
+    createSegment('spy', data.spy ?? 0),
     createSegment('stable', data.stablecoins),
     createSegment('alt', data.others),
   ];
@@ -134,7 +135,7 @@ export function mapPortfolioToUnified(
 }
 
 /**
- * Maps explicit four-bucket asset allocation ratios to unified segments.
+ * Maps explicit five-bucket asset allocation ratios to unified segments.
  *
  * Source values are normalized ratios (0-1) and converted to percentages.
  * Consumers can optionally limit which categories are rendered.
@@ -187,8 +188,9 @@ export function mapStrategyToUnified(
  * This is the richest mapper - it uses the full asset breakdown from backtesting:
  * - `spot.btc` + `lp.btc` → BTC
  * - `spot.eth` + `lp.eth` → ETH
+ * - `spot.spy` + `lp.spy` → SPY
  * - `stable` → STABLE
- * - `spot.others` + `lp.others` → ALT
+ * - everything else in `spot` + `lp` → ALT
  *
  * @example
  * ```ts
@@ -217,21 +219,24 @@ export function mapBacktestToUnified(
   const btcLp = getRecordValue(data.lp, 'btc');
   const ethSpot = getRecordValue(data.spot, 'eth');
   const ethLp = getRecordValue(data.lp, 'eth');
+  const spySpot = getRecordValue(data.spot, 'spy');
+  const spyLp = getRecordValue(data.lp, 'spy');
 
-  // Calculate "others" as anything not explicitly BTC or ETH
+  // Calculate "others" as anything not explicitly BTC, ETH, or SPY
   const othersSpot =
     typeof data.spot === 'number'
       ? data.spot // When spot is a number, it's all "others"
-      : spotTotal - btcSpot - ethSpot;
+      : spotTotal - btcSpot - ethSpot - spySpot;
 
   const othersLp =
     typeof data.lp === 'number'
       ? data.lp // When lp is a number, it's all "others"
-      : lpTotal - btcLp - ethLp;
+      : lpTotal - btcLp - ethLp - spyLp;
 
   const segments: UnifiedSegment[] = [
     createSegment('btc', ((btcSpot + btcLp) / total) * 100),
     createSegment('eth', ((ethSpot + ethLp) / total) * 100),
+    createSegment('spy', ((spySpot + spyLp) / total) * 100),
     createSegment('stable', (data.stable / total) * 100),
     createSegment('alt', ((othersSpot + othersLp) / total) * 100),
   ];
@@ -259,6 +264,7 @@ export function mapLegacyConstituentsToUnified(
 ): UnifiedSegment[] {
   let btcTotal = 0;
   let ethTotal = 0;
+  let spyTotal = 0;
   let altTotal = 0;
 
   for (const asset of cryptoAssets) {
@@ -268,6 +274,8 @@ export function mapLegacyConstituentsToUnified(
       btcTotal += asset.value;
     } else if (category === 'eth') {
       ethTotal += asset.value;
+    } else if (category === 'spy') {
+      spyTotal += asset.value;
     } else if (category === 'alt') {
       altTotal += asset.value;
     }
@@ -276,6 +284,7 @@ export function mapLegacyConstituentsToUnified(
   const segments: UnifiedSegment[] = [
     createSegment('btc', btcTotal),
     createSegment('eth', ethTotal),
+    createSegment('spy', spyTotal),
     createSegment('stable', stablePercentage),
     createSegment('alt', altTotal),
   ];

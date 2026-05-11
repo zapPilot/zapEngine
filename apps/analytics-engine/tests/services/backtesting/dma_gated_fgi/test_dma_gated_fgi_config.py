@@ -5,7 +5,6 @@ import pytest
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.strategies.dma_gated_fgi import (
     DmaGatedFgiParams,
-    default_dma_gated_fgi_params,
 )
 
 
@@ -58,7 +57,7 @@ def test_dma_params_reject_unknown_public_param() -> None:
 
 def test_dma_params_validate_disabled_rule_names() -> None:
     with pytest.raises(ValueError, match="must be an array of rule names"):
-        DmaGatedFgiParams.from_public_params({"disabled_rules": "above_ath_sell"})
+        DmaGatedFgiParams.from_public_params({"disabled_rules": "cross_down_exit"})
 
     with pytest.raises(ValueError, match="contains unsupported rule names"):
         DmaGatedFgiParams.from_public_params({"disabled_rules": ["not_a_rule"]})
@@ -66,17 +65,21 @@ def test_dma_params_validate_disabled_rule_names() -> None:
 
 def test_dma_params_public_serialization_sorts_disabled_rules() -> None:
     params = DmaGatedFgiParams.from_public_params(
-        {"disabled_rules": ["regime_no_signal_hold", "above_ath_sell"]}
+        {"disabled_rules": ["greed_sell_suppression", "cross_down_exit"]}
     )
 
     assert params.to_public_params()["disabled_rules"] == [
-        "above_ath_sell",
-        "regime_no_signal_hold",
+        "cross_down_exit",
+        "greed_sell_suppression",
     ]
 
 
-def test_default_dma_gated_fgi_params_uses_public_contract() -> None:
-    params = default_dma_gated_fgi_params()
+def test_dma_params_public_serialization_sorts_enabled_portfolio_rules() -> None:
+    params = DmaGatedFgiParams.from_public_params(
+        {"enabled_rules": ["dma_stable_gating", "cross_down_exit"]}
+    )
 
-    assert params["cross_cooldown_days"] == 30
-    assert "disabled_rules" not in params
+    assert params.to_public_params()["enabled_rules"] == [
+        "cross_down_exit",
+        "dma_stable_gating",
+    ]

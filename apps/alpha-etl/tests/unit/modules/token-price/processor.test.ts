@@ -126,22 +126,42 @@ describe("TokenPriceETLProcessor error paths", () => {
         status: "pending",
       };
 
-      mocks.fetcher.fetchCurrentPrice.mockResolvedValueOnce({
-        priceUsd: 100,
-        marketCapUsd: 1000,
-        volume24hUsd: 500,
-        source: "coingecko",
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        timestamp: new Date(),
-      });
-      mocks.writer.insertSnapshot.mockResolvedValueOnce(undefined);
-      mocks.dmaService.updateDmaForToken.mockResolvedValueOnce({
-        recordsInserted: 1,
-      });
-      mocks.dmaService.updateEthBtcRatioDma.mockResolvedValueOnce({
-        recordsInserted: 1,
-      });
+      mocks.fetcher.fetchCurrentPrice
+        .mockResolvedValueOnce({
+          priceUsd: 100,
+          marketCapUsd: 1000,
+          volume24hUsd: 500,
+          source: "coingecko",
+          tokenSymbol: "BTC",
+          tokenId: "bitcoin",
+          timestamp: new Date(),
+        })
+        .mockResolvedValueOnce({
+          priceUsd: 2000,
+          marketCapUsd: 200000,
+          volume24hUsd: 50000,
+          source: "coingecko",
+          tokenSymbol: "ETH",
+          tokenId: "ethereum",
+          timestamp: new Date(),
+        });
+      mocks.writer.insertSnapshot
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+      mocks.dmaService.updateDmaForToken
+        .mockResolvedValueOnce({
+          recordsInserted: 1,
+        })
+        .mockResolvedValueOnce({
+          recordsInserted: 1,
+        });
+      mocks.dmaService.updateEthBtcRatioDma
+        .mockResolvedValueOnce({
+          recordsInserted: 1,
+        })
+        .mockResolvedValueOnce({
+          recordsInserted: 1,
+        });
 
       await processor.process(job as unknown);
 
@@ -149,7 +169,7 @@ describe("TokenPriceETLProcessor error paths", () => {
       expect(stats.lastProcessedAt).not.toBeNull();
       expect(stats.successRate).toContain("%");
       expect(stats.totalProcessed).toBe(1);
-      expect(mocks.dmaService.updateEthBtcRatioDma).toHaveBeenCalledTimes(1);
+      expect(mocks.dmaService.updateEthBtcRatioDma).toHaveBeenCalledTimes(2);
     });
 
     it("should show N/A success rate when nothing processed", () => {

@@ -34,7 +34,6 @@ function createTooltipData(overrides: Record<string, unknown> = {}) {
     sections: {
       strategies: [],
       events: [],
-      signals: [],
       decision: null,
       allocations: [],
     },
@@ -71,7 +70,6 @@ describe('BacktestTooltip', () => {
               color: '#22c55e',
             },
           ],
-          signals: [],
           decision: null,
           allocations: [],
         },
@@ -85,13 +83,12 @@ describe('BacktestTooltip', () => {
     expect(screen.getByText('Buy Spot (AWP)')).toBeInTheDocument();
   });
 
-  it('renders signals and the structured decision section when present', () => {
+  it('renders the structured decision section when present', () => {
     mockedBuildBacktestTooltipData.mockReturnValue(
       createTooltipData({
         sections: {
           strategies: [],
           events: [],
-          signals: [{ name: 'Trend', value: 'UP', color: '#10b981' }],
           decision: {
             strategyId: 'dma_gated_fgi_default',
             displayName: 'DMA Gated FGI Default',
@@ -119,9 +116,7 @@ describe('BacktestTooltip', () => {
 
     render(<BacktestTooltip active={true} payload={[]} label="" />);
 
-    expect(screen.getByText('Signals')).toBeInTheDocument();
-    expect(screen.getByText('Trend')).toBeInTheDocument();
-    expect(screen.getByText('UP')).toBeInTheDocument();
+    expect(screen.queryByText('Signals')).not.toBeInTheDocument();
     expect(screen.getByText('Decision')).toBeInTheDocument();
     expect(screen.getByText('DMA Gated FGI Default')).toBeInTheDocument();
     expect(screen.getByText('Rule')).toBeInTheDocument();
@@ -140,7 +135,6 @@ describe('BacktestTooltip', () => {
         sections: {
           strategies: [],
           events: [],
-          signals: [],
           decision: null,
           allocations: [
             {

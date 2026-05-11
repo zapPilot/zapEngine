@@ -8,12 +8,10 @@ from datetime import date
 from typing import Any, cast
 
 from src.services.backtesting.composition_types import (
-    DecisionPolicy,
     StatefulSignalComponent,
 )
 from src.services.backtesting.decision import (
     AllocationIntent,
-    RuleGroup,
 )
 from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
@@ -32,6 +30,9 @@ from src.services.backtesting.features import (
     SPY_DMA_200_FEATURE,
     MarketDataRequirements,
 )
+from src.services.backtesting.portfolio_rules.base import (
+    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+)
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     BlockedZone,
@@ -47,7 +48,6 @@ from src.services.backtesting.signals.ratio_state import (
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiDecisionPolicy,
     DmaGatedFgiSignalComponent,
 )
 from src.services.backtesting.target_allocation import (
@@ -55,12 +55,7 @@ from src.services.backtesting.target_allocation import (
     target_from_current_allocation,
 )
 
-FLAT_MINIMUM_SIGNAL_ID = "dma_fgi_flat_minimum_signal"
-_MINIMUM_DISABLED_RULES = frozenset({"above_greed_sell", "below_fear_recovering_buy"})
-_DMA_SELL_RULE_GROUPS: frozenset[RuleGroup] = frozenset({"cross", "dma_fgi", "ath"})
-_DMA_BUY_RULE_GROUPS: frozenset[RuleGroup] = frozenset({"cross", "dma_fgi"})
 _RATIO_ROTATION_ALLOCATION_PREFIX = "portfolio_eth_btc_ratio_rotation_"
-_EPSILON = 1e-9
 
 
 @dataclass(frozen=True)
@@ -118,7 +113,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
 
     config: DmaGatedFgiConfig = field(default_factory=DmaGatedFgiConfig)
     ratio_cross_cooldown_days: int = 30
-    signal_id: str = FLAT_MINIMUM_SIGNAL_ID
+    signal_id: str = "dma_fgi_flat_minimum_signal"
     market_data_requirements: MarketDataRequirements = field(
         default_factory=lambda: MarketDataRequirements(
             requires_sentiment=True,
@@ -224,7 +219,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             btc_dma_state=committed["btc"],
             eth_dma_state=committed["eth"],
         )
-        if _is_ratio_rotation_intent(intent) and ratio_state is not None:
+        if ratio_state is not None and _is_ratio_rotation_intent(intent):
             self._start_ratio_cooldown(ratio_state.cross_event)
             updated_snapshot = replace(
                 updated_snapshot,
@@ -374,63 +369,6 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         return self._signal_for(spec.allocation_key).observe(asset_context)
 
 
-@dataclass(frozen=True)
-class FlatMinimumDecisionPolicy(DecisionPolicy):
-    """Flat event-driven DMA policy across SPY, BTC, and ETH."""
-
-    decision_policy_id: str = "flat_minimum_policy"
-    dma_policy: DmaGatedFgiDecisionPolicy = field(
-        default_factory=lambda: DmaGatedFgiDecisionPolicy(
-            disabled_rules=_MINIMUM_DISABLED_RULES
-        )
-    )
-
-    def decide(self, snapshot: FlatMinimumState) -> AllocationIntent:
-        current = target_from_current_allocation(snapshot.current_asset_allocation)
-        asset_intents = _resolve_asset_dma_intents(
-            snapshot=snapshot,
-            dma_policy=self.dma_policy,
-        )
-        sell_specs = [
-            (spec, intent)
-            for spec, intent in asset_intents
-            if _is_flat_dma_sell_intent(intent)
-        ]
-        if sell_specs:
-            return _build_flat_dma_intent(
-                specs=sell_specs,
-                target_allocation=_zero_sold_assets_to_stable(
-                    current_allocation=current,
-                    specs=sell_specs,
-                ),
-            )
-
-        buy_specs = [
-            (spec, intent)
-            for spec, intent in asset_intents
-            if _is_flat_dma_buy_intent(intent)
-        ]
-        if buy_specs:
-            return _build_flat_dma_intent(
-                specs=buy_specs,
-                target_allocation=_redeploy_stable_to_buy_assets(
-                    current_allocation=current,
-                    specs=buy_specs,
-                ),
-            )
-
-        return AllocationIntent(
-            action="hold",
-            target_allocation=current,
-            allocation_name=None,
-            immediate=False,
-            reason="regime_no_signal",
-            rule_group="none",
-            decision_score=0.0,
-            diagnostics={"flat_dma_assets": []},
-        )
-
-
 def build_initial_flat_minimum_asset_allocation(
     *,
     aggregate_allocation: Mapping[str, float],
@@ -545,170 +483,12 @@ def _coerce_optional_float(value: Any) -> float | None:
     return None
 
 
-def _resolve_asset_dma_intents(
-    *,
-    snapshot: FlatMinimumState,
-    dma_policy: DmaGatedFgiDecisionPolicy,
-) -> list[tuple[FlatMinimumAssetSpec, AllocationIntent]]:
-    resolved: list[tuple[FlatMinimumAssetSpec, AllocationIntent]] = []
-    for spec in _ASSET_SPECS:
-        state = snapshot.dma_state_for(spec.allocation_key)
-        if state is None:
-            continue
-        resolved.append(
-            (
-                spec,
-                _suppress_ath_sell_intent(
-                    intent=dma_policy.decide(state),
-                    snapshot=state,
-                ),
-            )
-        )
-    return resolved
-
-
-def _suppress_ath_sell_intent(
-    *,
-    intent: AllocationIntent,
-    snapshot: DmaMarketState,
-) -> AllocationIntent:
-    if intent.reason != "ath_sell":
-        return intent
-    return AllocationIntent(
-        action="hold",
-        target_allocation=None,
-        allocation_name=None,
-        immediate=False,
-        reason="price_equal_dma_hold" if snapshot.zone == "at" else "regime_no_signal",
-        rule_group="none",
-        decision_score=0.0,
-    )
-
-
-def _is_flat_dma_sell_intent(intent: AllocationIntent) -> bool:
-    return (
-        intent.action == "sell"
-        and intent.target_allocation is not None
-        and intent.rule_group in _DMA_SELL_RULE_GROUPS
-    )
-
-
-def _is_flat_dma_buy_intent(intent: AllocationIntent) -> bool:
-    return (
-        intent.action == "buy"
-        and intent.target_allocation is not None
-        and intent.rule_group in _DMA_BUY_RULE_GROUPS
-    )
-
-
-def _zero_sold_assets_to_stable(
-    *,
-    current_allocation: Mapping[str, float],
-    specs: list[tuple[FlatMinimumAssetSpec, AllocationIntent]],
-) -> dict[str, float]:
-    target = normalize_target_allocation(current_allocation)
-    for spec, _intent in specs:
-        released_share = max(0.0, float(target.get(spec.allocation_key, 0.0)))
-        target[spec.allocation_key] = 0.0
-        target["stable"] = max(0.0, float(target.get("stable", 0.0))) + released_share
-    return normalize_target_allocation(target)
-
-
-def _redeploy_stable_to_buy_assets(
-    *,
-    current_allocation: Mapping[str, float],
-    specs: list[tuple[FlatMinimumAssetSpec, AllocationIntent]],
-) -> dict[str, float]:
-    target = normalize_target_allocation(current_allocation)
-    if not specs:
-        return target
-    stable_share = max(0.0, float(target.get("stable", 0.0)))
-    if stable_share <= _EPSILON:
-        return target
-    per_asset_share = stable_share / len(specs)
-    for spec, _intent in specs:
-        target[spec.allocation_key] = (
-            max(0.0, float(target.get(spec.allocation_key, 0.0))) + per_asset_share
-        )
-    target["stable"] = 0.0
-    return normalize_target_allocation(target)
-
-
-def _build_flat_dma_intent(
-    *,
-    specs: list[tuple[FlatMinimumAssetSpec, AllocationIntent]],
-    target_allocation: Mapping[str, float],
-) -> AllocationIntent:
-    primary_spec, primary_intent = min(
-        specs,
-        key=lambda spec: _dma_rule_priority(spec[1].rule_group),
-    )
-    reason = (
-        primary_intent.reason
-        if len(specs) == 1
-        else "+".join(_asset_dma_reason(spec, intent) for spec, intent in specs)
-    )
-    allocation_name = (
-        primary_intent.allocation_name
-        if len(specs) == 1
-        else "+".join(
-            _asset_dma_allocation_name(spec, intent) for spec, intent in specs
-        )
-    )
-    diagnostics: dict[str, Any] = {
-        "flat_dma_asset": primary_spec.symbol,
-        "flat_dma_assets": [spec.symbol for spec, _intent in specs],
-        "flat_dma_asset_reasons": {
-            spec.symbol: intent.reason for spec, intent in specs
-        },
-        "flat_dma_matched_rules": {
-            spec.symbol: (intent.diagnostics or {}).get("matched_rule_name")
-            for spec, intent in specs
-        },
-    }
-    return AllocationIntent(
-        action=primary_intent.action,
-        target_allocation=normalize_target_allocation(target_allocation),
-        allocation_name=allocation_name,
-        immediate=any(intent.immediate for _spec, intent in specs),
-        reason=reason,
-        rule_group=primary_intent.rule_group,
-        decision_score=primary_intent.decision_score,
-        diagnostics=diagnostics,
-    )
-
-
-def _dma_rule_priority(rule_group: RuleGroup) -> int:
-    if rule_group == "cross":
-        return 0
-    if rule_group == "dma_fgi":
-        return 1
-    if rule_group == "ath":
-        return 2
-    return 3
-
-
-def _asset_dma_reason(
-    spec: FlatMinimumAssetSpec,
-    intent: AllocationIntent,
-) -> str:
-    return f"{spec.symbol.lower()}_{intent.reason}"
-
-
-def _asset_dma_allocation_name(
-    spec: FlatMinimumAssetSpec,
-    intent: AllocationIntent,
-) -> str:
-    allocation_name = intent.allocation_name or intent.reason
-    return f"{spec.symbol.lower()}_{allocation_name}"
-
-
 def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
     for key in (
         "flat_dma_assets",
         "portfolio_rule_cooldown_assets",
-        "portfolio_rule_trigger_assets",
+        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
         "portfolio_rule_assets",
     ):
         assets = diagnostics.get(key)
@@ -721,7 +501,7 @@ def _observation_dma_assets(intent: AllocationIntent) -> frozenset[str]:
     diagnostics = intent.diagnostics or {}
     for key in (
         "flat_dma_assets",
-        "portfolio_rule_trigger_assets",
+        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
         "portfolio_rule_assets",
         "portfolio_rule_cooldown_assets",
     ):
@@ -759,9 +539,9 @@ def _hold_commit_intent(intent: AllocationIntent) -> AllocationIntent:
 
 def _is_ratio_rotation_intent(intent: AllocationIntent) -> bool:
     allocation_name = intent.allocation_name
-    return isinstance(allocation_name, str) and allocation_name.startswith(
-        _RATIO_ROTATION_ALLOCATION_PREFIX
-    )
+    if not isinstance(allocation_name, str):
+        return False
+    return allocation_name.startswith(_RATIO_ROTATION_ALLOCATION_PREFIX)
 
 
 def _select_observation_state(
@@ -823,8 +603,6 @@ def _convert_ratio_to_diagnostics(
 
 
 __all__ = [
-    "FLAT_MINIMUM_SIGNAL_ID",
-    "FlatMinimumDecisionPolicy",
     "FlatMinimumSignalComponent",
     "FlatMinimumState",
     "build_initial_flat_minimum_asset_allocation",

@@ -63,7 +63,7 @@ export async function getStrategyConfigs(): Promise<StrategyConfigsResponse> {
  * const suggestion = await getDailySuggestion('user-123');
  *
  * // Get suggestion for a specific preset
- * const suggestion = await getDailySuggestion('user-123', 'eth_btc_rotation_default');
+ * const suggestion = await getDailySuggestion('user-123', 'dma_fgi_portfolio_rules_default');
  *
  * // Inspect whether any user action is required
  * console.log(suggestion.action.status, suggestion.context.target.allocation);

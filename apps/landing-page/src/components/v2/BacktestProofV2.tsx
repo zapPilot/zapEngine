@@ -67,9 +67,19 @@ function lastPoint(series: EquitySeries): EquityPoint {
   return point;
 }
 
+function lastPointForSeries(seriesId: string): EquityPoint {
+  const series = EQUITY_SERIES.find((item) => item.id === seriesId);
+  if (series === undefined) {
+    throw new Error(`Equity series ${seriesId} is missing`);
+  }
+  return lastPoint(series);
+}
+
 export function BacktestProofV2() {
   const drawdownTop = yForValue(100);
   const drawdownBottom = yForValue(100 + equityCurve.drawdownBand.dcaPercent);
+  const strategyEndValue = lastPointForSeries('strategy').value.toFixed(2);
+  const dcaEndValue = lastPointForSeries('dca').value.toFixed(2);
 
   return (
     <Section
@@ -110,8 +120,8 @@ export function BacktestProofV2() {
           <title>Strategy equity curve versus DCA Classic</title>
           <desc id="equity-curve-description">
             Indexed 500-day equity curve from {equityCurve.window.start} to{' '}
-            {equityCurve.window.end}. Strategy finishes at 221.44 and DCA
-            Classic finishes at 85.64.
+            {equityCurve.window.end}. Strategy finishes at {strategyEndValue}{' '}
+            and DCA Classic finishes at {dcaEndValue}.
           </desc>
 
           <rect

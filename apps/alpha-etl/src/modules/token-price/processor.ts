@@ -42,6 +42,13 @@ import { logger } from '../../utils/logger.js';
 import { TokenPriceDmaService } from './dmaService.js';
 
 export class TokenPriceETLProcessor implements BaseETLProcessor {
+  private static readonly DEFAULT_TOKENS: readonly {
+    tokenId: string;
+    tokenSymbol: string;
+  }[] = [
+    { tokenId: 'bitcoin', tokenSymbol: 'BTC' },
+    { tokenId: 'ethereum', tokenSymbol: 'ETH' },
+  ];
   private static readonly DEFAULT_TOKEN_ID = 'bitcoin';
   private static readonly DEFAULT_TOKEN_SYMBOL = 'BTC';
 
@@ -85,13 +92,11 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
    * DMA is a derived metric — failure here does not invalidate the primary price data.
    */
   private async updateDmaAfterPriceWrite(jobId: string): Promise<void> {
-    await runDmaPostStep(jobId, () =>
-      this.updateDmaForToken(
-        TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
-        TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-        jobId,
-      ),
-    );
+    for (const token of TokenPriceETLProcessor.DEFAULT_TOKENS) {
+      await runDmaPostStep(jobId, () =>
+        this.updateDmaForToken(token.tokenSymbol, token.tokenId, jobId),
+      );
+    }
   }
 
   /**
@@ -292,11 +297,12 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
       job,
       'token-price',
       async () => {
-        const priceData = await this.fetcher.fetchCurrentPrice(
-          TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-          TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
+        const prices = await Promise.all(
+          TokenPriceETLProcessor.DEFAULT_TOKENS.map((token) =>
+            this.fetcher.fetchCurrentPrice(token.tokenId, token.tokenSymbol),
+          ),
         );
-        return [priceData];
+        return prices;
       },
       async (rawData) => rawData,
       async (data) => writeSnapshotData(data, this.writer),

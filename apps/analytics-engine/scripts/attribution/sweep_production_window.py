@@ -13,20 +13,12 @@ from typing import Any
 import httpx
 
 from scripts.attribution._helpers import _metric
-from src.services.backtesting.constants import (
-    STRATEGY_DISPLAY_NAMES,
-    STRATEGY_ETH_BTC_ROTATION,
+from src.config.strategy_presets import get_default_seed_strategy_config
+from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
+from src.services.backtesting.strategy_registry import (
+    get_strategy_recipe,
+    list_strategy_recipes,
 )
-from src.services.backtesting.strategies.hierarchical_attribution import (
-    HIERARCHICAL_ATTRIBUTION_VARIANTS,
-)
-from src.services.backtesting.strategies.hierarchical_minimum import (
-    MINIMUM_HIERARCHICAL_VARIANTS,
-)
-from src.services.backtesting.strategies.portfolio_rules_attribution import (
-    PORTFOLIO_RULES_ATTRIBUTION_VARIANTS,
-)
-from src.services.backtesting.strategy_registry import get_strategy_recipe
 
 APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENDPOINT = "http://localhost:8001"
@@ -93,12 +85,8 @@ def _is_excluded_strategy(strategy_id: str) -> bool:
 def _default_strategy_universe(*, exclude_deprecated: bool = False) -> list[str]:
     strategy_ids: list[str] = []
     seen: set[str] = set()
-    for strategy_id in (
-        *HIERARCHICAL_ATTRIBUTION_VARIANTS.keys(),
-        *MINIMUM_HIERARCHICAL_VARIANTS.keys(),
-        *PORTFOLIO_RULES_ATTRIBUTION_VARIANTS.keys(),
-        STRATEGY_ETH_BTC_ROTATION,
-    ):
+    for recipe in list_strategy_recipes():
+        strategy_id = recipe.strategy_id
         if strategy_id in seen:
             continue
         if exclude_deprecated and _is_excluded_strategy(strategy_id):
@@ -283,12 +271,19 @@ def collect_snapshot(
             end_date=reference_date.isoformat(),
             total_capital=total_capital,
         )
+    default_strategy_id = get_default_seed_strategy_config().strategy_id
+    if default_strategy_id not in strategy_ids:
+        raise ValueError(
+            f"Default strategy {default_strategy_id!r} not present in snapshot "
+            "strategies; regenerate with the full strategy set."
+        )
     snapshot: dict[str, Any] = {
         "reference_date": reference_date.isoformat(),
         "window_days": window_days,
         "window_start": start_date.isoformat(),
         "window_end": reference_date.isoformat(),
         "total_capital": total_capital,
+        "default_strategy_id": default_strategy_id,
         "tolerances": {key: tolerances[key] for key in METRIC_KEYS},
         "strategies": {
             strategy_id: _snapshot_strategy_entry(strategy_id, summaries[strategy_id])

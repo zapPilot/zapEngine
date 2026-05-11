@@ -1,11 +1,17 @@
 import { useCallback, useMemo } from 'react';
 
-import type { BacktestResponse } from '@/types/backtesting';
+import type {
+  BacktestResponse,
+  BacktestTimelinePoint,
+} from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
 import { FIXED_PACING_ENGINE_ID } from '../constants';
 import { buildCompareConfigForStrategyId } from '../hooks/backtestConfigurationBuilders';
-import { getPrimaryStrategyId } from '../utils/chartHelpers';
+import {
+  type BacktestChartPoint,
+  getPrimaryStrategyId,
+} from '../utils/chartHelpers';
 import {
   updateConfigStrategy,
   updateJsonField,
@@ -28,7 +34,9 @@ export interface BacktestTerminalDisplayProps {
   /** Actual number of simulated days */
   actualDays: number;
   /** Chart timeline data */
-  chartData: Record<string, unknown>[];
+  chartData: BacktestChartPoint[];
+  /** Original sampled timeline points keyed by chart date for tooltip detail */
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
   /** Y-axis domain for chart */
   yAxisDomain: [number, number];
   /** Whether a backtest is currently running */
@@ -58,6 +66,7 @@ export function BacktestTerminalDisplay({
   sortedStrategyIds,
   actualDays,
   chartData,
+  chartDataIndex,
   yAxisDomain,
   isPending,
   onRun,
@@ -114,6 +123,7 @@ export function BacktestTerminalDisplay({
         <div className="relative px-4 py-2">
           <BacktestChart
             chartData={chartData}
+            chartDataIndex={chartDataIndex}
             sortedStrategyIds={sortedStrategyIds}
             yAxisDomain={yAxisDomain}
             actualDays={actualDays}

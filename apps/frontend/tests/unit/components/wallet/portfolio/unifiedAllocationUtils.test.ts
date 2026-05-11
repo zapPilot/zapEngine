@@ -21,15 +21,32 @@ describe('unifiedAllocationUtils', () => {
       const result = mapPortfolioToUnified({
         btc: 40,
         eth: 30,
+        spy: 15,
         others: 10,
+        stablecoins: 5,
+      });
+
+      expect(result).toHaveLength(5);
+      expect(result.find((s) => s.category === 'btc')?.percentage).toBe(40);
+      expect(result.find((s) => s.category === 'eth')?.percentage).toBe(30);
+      expect(result.find((s) => s.category === 'spy')?.percentage).toBe(15);
+      expect(result.find((s) => s.category === 'alt')?.percentage).toBe(10);
+      expect(result.find((s) => s.category === 'stable')?.percentage).toBe(5);
+    });
+
+    it('emits a distinct SPY segment when portfolio allocation includes spy', () => {
+      const result = mapPortfolioToUnified({
+        btc: 30,
+        eth: 20,
+        spy: 25,
+        others: 5,
         stablecoins: 20,
       });
 
-      expect(result).toHaveLength(4);
-      expect(result.find((s) => s.category === 'btc')?.percentage).toBe(40);
-      expect(result.find((s) => s.category === 'eth')?.percentage).toBe(30);
-      expect(result.find((s) => s.category === 'alt')?.percentage).toBe(10);
-      expect(result.find((s) => s.category === 'stable')?.percentage).toBe(20);
+      const spy = result.find((s) => s.category === 'spy');
+      expect(spy?.percentage).toBe(25);
+      expect(spy?.color).toBe(UNIFIED_COLORS.SPY);
+      expect(spy?.label).toBe('SPY');
     });
 
     it('filters out zero-value segments', () => {
@@ -93,7 +110,7 @@ describe('unifiedAllocationUtils', () => {
   });
 
   describe('mapAssetAllocationToUnified', () => {
-    it('maps explicit four-bucket ratios to unified segments', () => {
+    it('maps explicit five-bucket ratios to unified segments', () => {
       const result = mapAssetAllocationToUnified({
         btc: 0.4,
         eth: 0.2,
@@ -264,6 +281,19 @@ describe('unifiedAllocationUtils', () => {
       expect(result.find((s) => s.category === 'btc')).toBeUndefined(); // no BTC
       expect(result.find((s) => s.category === 'alt')).toBeUndefined();
     });
+
+    it('categorizes SPY spot and SPY-LP under SPY', () => {
+      const result = mapBacktestToUnified({
+        spot: { btc: 1000, spy: 1500 },
+        lp: { spy: 500 },
+        stable: 2000,
+      });
+
+      expect(result.find((s) => s.category === 'spy')?.percentage).toBeCloseTo(
+        40,
+      );
+      expect(result.find((s) => s.category === 'alt')).toBeUndefined();
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -297,6 +327,18 @@ describe('unifiedAllocationUtils', () => {
       );
 
       expect(result.find((s) => s.category === 'btc')?.percentage).toBe(50); // 30 + 20
+    });
+
+    it('categorizes SPY constituents under SPY', () => {
+      const result = mapLegacyConstituentsToUnified(
+        [{ symbol: 'SPY', value: 25, color: '#16A34A' }],
+        75,
+      );
+
+      const spy = result.find((s) => s.category === 'spy');
+      expect(spy?.percentage).toBe(25);
+      expect(spy?.color).toBe(UNIFIED_COLORS.SPY);
+      expect(spy?.label).toBe('SPY');
     });
 
     it('handles empty crypto assets', () => {

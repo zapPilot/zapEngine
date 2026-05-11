@@ -123,10 +123,18 @@ class BacktestDefaults(BaseModel):
     total_capital: float = Field(default=10000)
 
 
+class PortfolioRuleMetadata(BaseModel):
+    name: str
+    priority: int
+    description: str
+    default_enabled: bool = True
+
+
 class StrategyConfigsResponse(BaseModel):
     strategies: list[BacktestStrategyCatalogEntryV3]
     presets: list[StrategyPreset]
     backtest_defaults: BacktestDefaults
+    portfolio_rules: list[PortfolioRuleMetadata] = Field(default_factory=list)
 
 
 def _normalize_primary_asset(value: str) -> str:

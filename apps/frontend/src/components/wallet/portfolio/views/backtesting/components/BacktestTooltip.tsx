@@ -9,27 +9,6 @@ import { BacktestAllocationBar } from './BacktestAllocationBar';
 
 export type { BacktestTooltipProps };
 
-function MetricRow({
-  entry,
-  keyPrefix,
-  index,
-}: {
-  entry: { name: string; value: string | number; color: string };
-  keyPrefix: string;
-  index: number;
-}) {
-  return (
-    <div
-      key={`${keyPrefix}-${index}`}
-      className="text-xs flex justify-between gap-4"
-      style={{ color: entry.color }}
-    >
-      <span>{entry.name}</span>
-      <span className="font-mono text-right">{entry.value}</span>
-    </div>
-  );
-}
-
 function DecisionRow({
   label,
   children,
@@ -106,7 +85,7 @@ export function BacktestTooltip(props: BacktestTooltipProps) {
   if (!active || !data) return null;
 
   const { dateStr, sections } = data;
-  const { strategies, events, signals, decision, allocations } = sections;
+  const { strategies, events, decision, allocations } = sections;
 
   return (
     <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 shadow-lg min-w-[260px] max-w-[360px]">
@@ -136,22 +115,6 @@ export function BacktestTooltip(props: BacktestTooltipProps) {
           );
         })}
       </div>
-
-      {signals.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-700 space-y-1">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">
-            Signals
-          </div>
-          {signals.map((entry, index) => (
-            <MetricRow
-              key={`sig-${index}`}
-              entry={entry}
-              keyPrefix="sig"
-              index={index}
-            />
-          ))}
-        </div>
-      )}
 
       {decision && <DecisionBlock decision={decision} />}
 

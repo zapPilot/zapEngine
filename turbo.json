@@ -56,17 +56,35 @@
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "passThroughEnv": [
+        "DATABASE_READ_ONLY",
+        "DATABASE_READ_ONLY_URL",
+        "TEST_DATABASE_URL",
+        "DATABASE_INTEGRATION_URL"
+      ],
       "outputs": []
     },
     "test:coverage": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "passThroughEnv": [
+        "DATABASE_READ_ONLY",
+        "DATABASE_READ_ONLY_URL",
+        "TEST_DATABASE_URL",
+        "DATABASE_INTEGRATION_URL"
+      ],
       "outputs": ["coverage/**", "htmlcov/**"]
     },
     "test:ci": {
       "dependsOn": ["^build"],
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "passThroughEnv": [
+        "DATABASE_READ_ONLY",
+        "DATABASE_READ_ONLY_URL",
+        "TEST_DATABASE_URL",
+        "DATABASE_INTEGRATION_URL"
+      ],
       "outputs": []
     },
     "format": {

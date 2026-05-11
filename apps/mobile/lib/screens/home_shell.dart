@@ -8,7 +8,9 @@ import '../state/playback_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/mini_player.dart';
 import 'coming_soon_screen.dart';
+import 'favorites_screen.dart';
 import 'feed_screen.dart';
+import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, EpisodeService? episodeService})
@@ -52,8 +54,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             children: [
               FeedScreen(episodeService: widget._episodeService),
               const ComingSoonScreen(title: '探索'),
-              const ComingSoonScreen(title: '收藏'),
-              const ComingSoonScreen(title: '設定'),
+              FavoritesScreen(episodeService: widget._episodeService),
+              const SettingsScreen(),
             ],
           ),
           const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),

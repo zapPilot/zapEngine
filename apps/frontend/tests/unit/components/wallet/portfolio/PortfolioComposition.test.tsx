@@ -88,7 +88,7 @@ const mockData: WalletPortfolioDataWithDirection = {
         asset: 'bitcoin',
         symbol: 'BTC',
         name: 'Bitcoin',
-        value: 35,
+        value: 25,
         color: '#F7931A',
       },
       {
@@ -97,6 +97,13 @@ const mockData: WalletPortfolioDataWithDirection = {
         name: 'Ethereum',
         value: 15,
         color: '#627EEA',
+      },
+      {
+        asset: 'spy',
+        symbol: 'SPY',
+        name: 'S&P 500',
+        value: 10,
+        color: '#16A34A',
       },
       {
         asset: 'solana',
@@ -164,6 +171,7 @@ describe('PortfolioComposition', () => {
       // Check for legend items (unified categories: BTC, ETH, ALT, STABLE)
       expect(screen.getAllByText('BTC')[0]).toBeInTheDocument();
       expect(screen.getAllByText('ETH')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('SPY').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('ALT')[0]).toBeInTheDocument();
       // We expect multiple '40%' from the target/current stable segments.
       expect(screen.getAllByText('40%').length).toBeGreaterThanOrEqual(2);
@@ -328,6 +336,215 @@ describe('PortfolioComposition', () => {
       );
 
       expect(screen.getByTestId('rebalance-button')).toBeDisabled();
+    });
+  });
+
+  describe('Drift Boundary Cases', () => {
+    it('applies gray color when drift is exactly at 5% threshold', () => {
+      const thresholdDriftData = { ...mockData, delta: 5.0 };
+      render(
+        <PortfolioComposition
+          data={thresholdDriftData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: 5.0%/);
+      expect(driftElement).toHaveClass('text-gray-500');
+    });
+
+    it('applies orange color when drift is just above 5% threshold', () => {
+      const justAboveData = { ...mockData, delta: 5.1 };
+      render(
+        <PortfolioComposition
+          data={justAboveData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: 5.1%/);
+      expect(driftElement).toHaveClass('text-orange-400');
+    });
+
+    it('applies gray color when drift is exactly 0', () => {
+      const zeroDriftData = { ...mockData, delta: 0 };
+      render(
+        <PortfolioComposition
+          data={zeroDriftData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: 0.0%/);
+      expect(driftElement).toHaveClass('text-gray-500');
+    });
+
+    it('handles negative drift values', () => {
+      const negativeDriftData = { ...mockData, delta: -3.5 };
+      render(
+        <PortfolioComposition
+          data={negativeDriftData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: -3.5%/);
+      expect(driftElement).toHaveClass('text-gray-500');
+    });
+
+    it('handles large negative drift values', () => {
+      const largeNegativeDriftData = { ...mockData, delta: -15.2 };
+      render(
+        <PortfolioComposition
+          data={largeNegativeDriftData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: -15.2%/);
+      expect(driftElement).toHaveClass('text-gray-500');
+    });
+  });
+
+  describe('Target Allocation with per-asset breakdown', () => {
+    it('renders when targetAllocation has btc per-asset', () => {
+      render(
+        <PortfolioComposition
+          data={mockData}
+          currentRegime={undefined}
+          targetAllocation={{
+            crypto: 60,
+            stable: 40,
+            btc: 40,
+            eth: 20,
+            spy: 0,
+            alt: 0,
+          }}
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText('Portfolio Composition')).toBeInTheDocument();
+    });
+
+    it('renders when targetAllocation has all per-asset fields', () => {
+      render(
+        <PortfolioComposition
+          data={mockData}
+          currentRegime={undefined}
+          targetAllocation={{
+            crypto: 70,
+            stable: 30,
+            btc: 30,
+            eth: 20,
+            spy: 10,
+            alt: 10,
+          }}
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText('Portfolio Composition')).toBeInTheDocument();
+    });
+  });
+
+  describe('Edge cases in target resolution', () => {
+    it('uses targetAllocation when both targetAllocation and currentRegime are provided', () => {
+      const result = render(
+        <PortfolioComposition
+          data={mockData}
+          currentRegime="Risk-On"
+          targetAllocation={{ crypto: 55, stable: 45 }}
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(result.container.firstChild).not.toBeNull();
+    });
+  });
+
+  describe('Data with various allocation values', () => {
+    it('handles 100% crypto allocation', () => {
+      const allCryptoData: WalletPortfolioDataWithDirection = {
+        ...mockData,
+        currentAllocation: {
+          crypto: 100,
+          stable: 0,
+          simplifiedCrypto: [
+            {
+              asset: 'bitcoin',
+              symbol: 'BTC',
+              name: 'Bitcoin',
+              value: 100,
+              color: '#F7931A',
+            },
+          ],
+        },
+      };
+
+      render(
+        <PortfolioComposition
+          data={allCryptoData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText('Portfolio Composition')).toBeInTheDocument();
+    });
+
+    it('handles 100% stable allocation', () => {
+      const allStableData: WalletPortfolioDataWithDirection = {
+        ...mockData,
+        currentAllocation: {
+          crypto: 0,
+          stable: 100,
+          simplifiedCrypto: [],
+        },
+      };
+
+      render(
+        <PortfolioComposition
+          data={allStableData}
+          currentRegime="Risk-Off"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText('Portfolio Composition')).toBeInTheDocument();
+    });
+
+    it('handles zero delta', () => {
+      const zeroDeltaData = { ...mockData, delta: 0 };
+
+      render(
+        <PortfolioComposition
+          data={zeroDeltaData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText(/Drift: 0.0%/)).toBeInTheDocument();
+    });
+
+    it('handles fractional delta values', () => {
+      const fractionalData = { ...mockData, delta: 2.75 };
+
+      render(
+        <PortfolioComposition
+          data={fractionalData}
+          currentRegime="Risk-On"
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByText(/Drift: 2.8%/)).toBeInTheDocument();
     });
   });
 });

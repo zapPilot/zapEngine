@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DCA_BASELINE_SPARSE_STRIDE,
+  DCA_CLASSIC_STRATEGY_ID,
+} from '@/components/wallet/portfolio/views/backtesting/constants';
+import {
   buildChartPoint,
   calculateActualDays,
   calculateYAxisDomain,
   CHART_SIGNALS,
   filterToActiveStrategies,
   getPrimaryStrategyId,
-  sentimentLabelToIndex,
   sortStrategyIds,
 } from '@/components/wallet/portfolio/views/backtesting/utils/chartHelpers';
 import { getBacktestSpotAssetColor } from '@/components/wallet/portfolio/views/backtesting/utils/spotAssetDisplay';
@@ -55,6 +58,22 @@ function createStrategyPoint(
   };
 }
 
+function noActionExecution(): BacktestStrategyPoint['execution'] {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
+
 function createTimelinePoint(
   overrides: Partial<BacktestTimelinePoint> = {},
 ): BacktestTimelinePoint {
@@ -70,30 +89,6 @@ function createTimelinePoint(
   };
 }
 
-describe('sentimentLabelToIndex', () => {
-  it.each([
-    ['extreme_fear', 0],
-    ['fear', 25],
-    ['neutral', 50],
-    ['greed', 75],
-    ['extreme_greed', 100],
-  ])('maps %s to %i', (label, expected) => {
-    expect(sentimentLabelToIndex(label)).toBe(expected);
-  });
-
-  it('returns null for unknown labels', () => {
-    expect(sentimentLabelToIndex('unknown')).toBeNull();
-  });
-
-  it('returns null for null input', () => {
-    expect(sentimentLabelToIndex(null)).toBeNull();
-  });
-
-  it('returns null for undefined input', () => {
-    expect(sentimentLabelToIndex(undefined)).toBeNull();
-  });
-});
-
 describe('getPrimaryStrategyId', () => {
   it('returns null for an empty array', () => {
     expect(getPrimaryStrategyId([])).toBeNull();
@@ -103,7 +98,7 @@ describe('getPrimaryStrategyId', () => {
     expect(
       getPrimaryStrategyId([
         'dma_fgi_portfolio_rules',
-        'eth_btc_rotation_default',
+        'dma_fgi_portfolio_rules_default',
       ]),
     ).toBe('dma_fgi_portfolio_rules');
   });
@@ -129,8 +124,11 @@ describe('CHART_SIGNALS', () => {
 describe('sortStrategyIds', () => {
   it('sorts kept strategies by display name', () => {
     expect(
-      sortStrategyIds(['eth_btc_rotation_default', 'dma_fgi_portfolio_rules']),
-    ).toEqual(['eth_btc_rotation_default', 'dma_fgi_portfolio_rules']);
+      sortStrategyIds([
+        'dma_fgi_portfolio_rules_default',
+        'dma_fgi_portfolio_rules',
+      ]),
+    ).toEqual(['dma_fgi_portfolio_rules_default', 'dma_fgi_portfolio_rules']);
   });
 
   it('sorts other strategies by display name', () => {
@@ -189,10 +187,10 @@ describe('calculateYAxisDomain', () => {
   it('includes strategy values and signal markers', () => {
     const [min, max] = calculateYAxisDomain(
       [
-        { eth_btc_rotation_default_value: 1000, buySpotSignal: 500 },
-        { eth_btc_rotation_default_value: 2000, sellSpotSignal: 2200 },
+        { dma_fgi_portfolio_rules_default_value: 1000, buySpotSignal: 500 },
+        { dma_fgi_portfolio_rules_default_value: 2000, sellSpotSignal: 2200 },
       ],
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(min).toBe(415);
@@ -204,7 +202,7 @@ describe('buildChartPoint', () => {
   it('copies strategy values from portfolio.total_value', () => {
     const point = createTimelinePoint({
       strategies: {
-        eth_btc_rotation_default: createStrategyPoint({
+        dma_fgi_portfolio_rules_default: createStrategyPoint({
           portfolio: {
             spot_usd: 8000,
             stable_usd: 2000,
@@ -224,17 +222,111 @@ describe('buildChartPoint', () => {
     });
 
     const result = buildChartPoint(point, [
-      'eth_btc_rotation_default',
+      'dma_fgi_portfolio_rules_default',
       'dma_fgi_portfolio_rules',
     ]);
 
-    expect(result.eth_btc_rotation_default_value).toBe(12000);
+    expect(result.dma_fgi_portfolio_rules_default_value).toBe(12000);
     expect(result.dma_fgi_portfolio_rules_value).toBe(10500);
-    expect(result.market).toEqual(point.market);
-    expect(result.strategies).toEqual(point.strategies);
+    expect(result.date).toBe(point.market.date);
+    expect(result).not.toHaveProperty('market');
+    expect(result).not.toHaveProperty('strategies');
   });
 
-  it('uses market.sentiment when present', () => {
+  it('emits DCA value at pointIndex 0 and totalPoints - 1', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint({
+          portfolio: {
+            spot_usd: 7000,
+            stable_usd: 3000,
+            total_value: 12345,
+            allocation: allocation(0.7, 0.3),
+          },
+        }),
+      },
+    });
+
+    const firstPoint = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: 0,
+      totalPoints: 12,
+    });
+    const lastPoint = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: 11,
+      totalPoints: 12,
+    });
+
+    expect(firstPoint[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(12345);
+    expect(lastPoint[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(12345);
+  });
+
+  it('emits DCA value at pointIndex % sparse stride === 0', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+      pointIndex: DCA_BASELINE_SPARSE_STRIDE,
+      totalPoints: 20,
+    });
+
+    expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(10000);
+  });
+
+  it('emits null for DCA at non-stride non-endpoint indices', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    for (const pointIndex of [1, 5, 7]) {
+      const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID], {
+        pointIndex,
+        totalPoints: 20,
+      });
+
+      expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBeNull();
+    }
+  });
+
+  it('always emits experiment value regardless of sparseContext', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        dma_fgi_portfolio_rules_default: createStrategyPoint({
+          portfolio: {
+            spot_usd: 8000,
+            stable_usd: 2000,
+            total_value: 12000,
+            allocation: allocation(0.8, 0.2),
+          },
+        }),
+      },
+    });
+
+    const result = buildChartPoint(point, ['dma_fgi_portfolio_rules_default'], {
+      pointIndex: 1,
+      totalPoints: 20,
+    });
+
+    expect(result.dma_fgi_portfolio_rules_default_value).toBe(12000);
+  });
+
+  it('emits DCA value normally when sparseContext is omitted', () => {
+    const point = createTimelinePoint({
+      strategies: {
+        [DCA_CLASSIC_STRATEGY_ID]: createStrategyPoint(),
+      },
+    });
+
+    const result = buildChartPoint(point, [DCA_CLASSIC_STRATEGY_ID]);
+
+    expect(result[`${DCA_CLASSIC_STRATEGY_ID}_value`]).toBe(10000);
+  });
+
+  it('does not emit removed market context overlay fields', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         market: {
@@ -242,22 +334,6 @@ describe('buildChartPoint', () => {
           token_price: { btc: 50000 },
           sentiment: 18,
           sentiment_label: 'extreme_fear',
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBe(18);
-  });
-
-  it('copies macro fear and greed score from the market snapshot', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: null,
           macro_fear_greed: {
             score: 35,
             label: 'fear',
@@ -266,36 +342,10 @@ describe('buildChartPoint', () => {
             raw_rating: 'Fear',
           },
         },
-      }),
-      [],
-    );
-
-    expect(result.macro_fear_greed).toBe(35);
-  });
-
-  it('falls back to a sentiment label index', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: 'fear',
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBe(25);
-  });
-
-  it('reads dma_200 from the first strategy signal with DMA data', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             signal: {
-              id: 'eth_btc_rs_signal',
+              id: 'dma_fgi_portfolio_rules_signal',
               regime: 'fear',
               raw_value: 20,
               confidence: 1,
@@ -315,17 +365,20 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
-    expect(result.dma_200).toBe(48000);
+    expect(result).not.toHaveProperty('btc_price');
+    expect(result).not.toHaveProperty('dma_200');
+    expect(result).not.toHaveProperty('sentiment');
+    expect(result).not.toHaveProperty('macro_fear_greed');
   });
 
   it('creates a sell spot marker from a spot -> stable transfer', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -343,20 +396,20 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.sellSpotSignal).toBe(10000);
     expect(
       (result.eventStrategies as Record<string, string[]>).sell_spot,
-    ).toEqual(['ETH/BTC Rotation Default']);
+    ).toEqual(['DMA/FGI Portfolio Rules']);
   });
 
   it('creates a buy spot marker from a stable -> spot transfer', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -380,7 +433,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.buySpotSignal).toBe(11000);
@@ -429,47 +482,12 @@ describe('buildChartPoint', () => {
     expect(result.nonexistent_strat_value).toBeUndefined();
   });
 
-  it('returns null sentiment when both sentiment and label are null', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: { btc: 50000 },
-          sentiment: null,
-          sentiment_label: null,
-        },
-      }),
-      [],
-    );
-
-    expect(result.sentiment).toBeNull();
-  });
-
-  it('returns null macro fear and greed when the market snapshot omits it', () => {
-    const result = buildChartPoint(createTimelinePoint(), []);
-
-    expect(result.macro_fear_greed).toBeNull();
-  });
-
-  it('returns null dma_200 when no strategies have DMA data', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        strategies: {
-          strat_a: createStrategyPoint({ signal: null }),
-        },
-      }),
-      ['strat_a'],
-    );
-
-    expect(result.dma_200).toBeNull();
-  });
-
   it('uses null for transfers when execution.transfers is null or undefined', () => {
     // Exercises the `strategy.execution.transfers ?? []` fallback in getTransfers
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: null as unknown as [],
@@ -481,7 +499,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     // No transfers processed — signals remain null
@@ -495,7 +513,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -518,7 +536,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     // Unrecognised transfer directions produce no signal markers
@@ -531,7 +549,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -552,35 +570,19 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     const eventStrategies = result.eventStrategies as Record<string, string[]>;
     // Strategy name should appear only once despite two matching transfers
-    expect(eventStrategies.buy_spot).toEqual(['ETH/BTC Rotation Default']);
-  });
-
-  it('returns null btc_price when token_price has no btc key', () => {
-    const result = buildChartPoint(
-      createTimelinePoint({
-        market: {
-          date: '2024-01-01',
-          token_price: {},
-          sentiment: null,
-          sentiment_label: null,
-        },
-      }),
-      [],
-    );
-
-    expect(result.btc_price).toBeNull();
+    expect(eventStrategies.buy_spot).toEqual(['DMA/FGI Portfolio Rules']);
   });
 
   it('uses the max portfolio value when multiple strategies trigger the same marker', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -626,7 +628,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default', 'alpha_strategy'],
+      ['dma_fgi_portfolio_rules_default', 'alpha_strategy'],
     );
 
     expect(result.buySpotSignal).toBe(15000);
@@ -636,7 +638,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 5000,
               stable_usd: 5000,
@@ -657,7 +659,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.switchToBtcSignal).toBeNull();
@@ -674,7 +676,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -694,7 +696,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.buySpotSignal).toBe(11000);
@@ -705,7 +707,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             portfolio: {
               spot_usd: 7000,
               stable_usd: 3000,
@@ -725,7 +727,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.buySpotSignal).toBe(11000);
@@ -735,7 +737,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -749,7 +751,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.sellSpotSignal).toBe(10000);
@@ -760,7 +762,7 @@ describe('buildChartPoint', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -774,21 +776,21 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.switchToBtcSignal).toBe(10000);
     expect(result.switchToEthSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).switch_to_btc,
-    ).toEqual(['ETH/BTC Rotation Default']);
+    ).toEqual(['DMA/FGI Portfolio Rules']);
   });
 
   it('creates a switchToEth marker from a btc → eth transfer', () => {
     const result = buildChartPoint(
       createTimelinePoint({
         strategies: {
-          eth_btc_rotation_default: createStrategyPoint({
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
             execution: {
               event: 'rebalance',
               transfers: [
@@ -802,7 +804,7 @@ describe('buildChartPoint', () => {
           }),
         },
       }),
-      ['eth_btc_rotation_default'],
+      ['dma_fgi_portfolio_rules_default'],
     );
 
     expect(result.switchToEthSignal).toBe(10000);
@@ -833,7 +835,170 @@ describe('buildChartPoint', () => {
     expect(result.switchToSpySignal).toBe(10000);
     expect(
       (result.eventStrategies as Record<string, string[]>).switch_to_spy,
-    ).toEqual(['Portfolio Rules']);
+    ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('creates a buy spot marker from a stable → spy transfer (regression for 2026-04-08)', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        market: {
+          date: '2026-04-08',
+          token_price: { btc: 71975, eth: 2241, spy: 676 },
+          sentiment: 43,
+          sentiment_label: 'neutral',
+        },
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            portfolio: {
+              spot_usd: 16107,
+              stable_usd: 0,
+              total_value: 16107,
+              allocation: allocation(1, 0),
+            },
+            decision: {
+              action: 'buy',
+              reason: 'portfolio_cross_up_equal_weight',
+              rule_group: 'cross',
+              target_allocation: allocation(0, 0, { spy: 1 }),
+              immediate: true,
+            },
+            execution: {
+              event: 'rebalance',
+              transfers: [
+                { from_bucket: 'stable', to_bucket: 'spy', amount_usd: 16155 },
+              ],
+              blocked_reason: null,
+              step_count: 0,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBe(16107);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).buy_spot,
+    ).toEqual(['DMA/FGI Portfolio Rules']);
+  });
+
+  it('does not create a buy spot marker when decision.action is buy with no transfers', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'buy',
+              reason: 'blocked_action',
+              rule_group: 'cross',
+              target_allocation: allocation(1, 0),
+              immediate: true,
+            },
+            execution: {
+              event: null,
+              transfers: [],
+              blocked_reason: 'cooldown_active',
+              step_count: 0,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBeNull();
+    expect(result.sellSpotSignal).toBeNull();
+    expect(
+      (result.eventStrategies as Record<string, string[]>).buy_spot,
+    ).toEqual([]);
+  });
+
+  it('does not create a sell spot marker from a no-action sell execution response', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'sell',
+              reason: 'portfolio_dma_overextension_dca_sell',
+              rule_group: 'dma_fgi',
+              target_allocation: allocation(0, 1),
+              immediate: true,
+            },
+            execution: noActionExecution(),
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.sellSpotSignal).toBeNull();
+    expect(result.buySpotSignal).toBeNull();
+    expect(
+      (result.eventStrategies as Record<string, string[]>).sell_spot,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_btc,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_eth,
+    ).toEqual([]);
+    expect(
+      (result.eventStrategies as Record<string, string[]>).switch_to_spy,
+    ).toEqual([]);
+  });
+
+  it('does not create a marker when transfer direction is unrecognised', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint({
+            decision: {
+              action: 'buy',
+              reason: 'edge_case',
+              rule_group: 'cross',
+              target_allocation: allocation(0.5, 0.5),
+              immediate: true,
+            },
+            execution: {
+              event: 'rebalance',
+              transfers: [
+                { from_bucket: 'spot', to_bucket: 'spot', amount_usd: 50 },
+              ],
+              blocked_reason: null,
+              step_count: 1,
+              steps_remaining: 0,
+              interval_days: 0,
+            },
+          }),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBeNull();
+    expect(result.sellSpotSignal).toBeNull();
+  });
+
+  it('emits no signal when decision.action is hold and there are no transfers', () => {
+    const result = buildChartPoint(
+      createTimelinePoint({
+        strategies: {
+          dma_fgi_portfolio_rules_default: createStrategyPoint(),
+        },
+      }),
+      ['dma_fgi_portfolio_rules_default'],
+    );
+
+    expect(result.buySpotSignal).toBeNull();
+    expect(result.sellSpotSignal).toBeNull();
+    expect(result.switchToBtcSignal).toBeNull();
+    expect(result.switchToEthSignal).toBeNull();
+    expect(result.switchToSpySignal).toBeNull();
   });
 
   it('does not emit signals from a second strategy excluded from strategyIds', () => {
@@ -857,7 +1022,7 @@ describe('buildChartPoint', () => {
             interval_days: 3,
           },
         }),
-        eth_btc_rotation_default: createStrategyPoint({
+        dma_fgi_portfolio_rules_default: createStrategyPoint({
           portfolio: {
             spot_usd: 5000,
             stable_usd: 5000,
@@ -886,7 +1051,7 @@ describe('buildChartPoint', () => {
     expect(result.sellSpotSignal).toBeNull();
     expect(
       (result.eventStrategies as Record<string, string[]>).buy_spot,
-    ).toEqual(['Portfolio Rules']);
+    ).toEqual(['DMA/FGI Portfolio Rules']);
   });
 });
 
@@ -899,7 +1064,7 @@ describe('filterToActiveStrategies', () => {
     expect(
       filterToActiveStrategies([
         'dma_fgi_portfolio_rules',
-        'eth_btc_rotation_default',
+        'dma_fgi_portfolio_rules_default',
         'extra_strat',
       ]),
     ).toEqual(['dma_fgi_portfolio_rules']);

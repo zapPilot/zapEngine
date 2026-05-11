@@ -96,7 +96,7 @@ function Segment({
 /**
  * UnifiedAllocationBar - A reusable allocation visualization component.
  *
- * Displays portfolio allocation across 4 categories: BTC, BTC-STABLE, STABLE, ALT.
+ * Displays portfolio allocation across 5 categories: BTC, ETH, SPY, STABLE, ALT.
  * Supports multiple sizes, optional legend, and inline labels for large segments.
  *
  * @example

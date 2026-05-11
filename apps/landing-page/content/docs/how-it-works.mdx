@@ -31,6 +31,8 @@ The signal categories are stable. The exact thresholds, weights, and cooldowns a
 
 When the regime shifts, the rules engine produces a target allocation across the three pillars. Idle capital between rebalances is parked in baseline-yield venues so the portfolio is never doing nothing — but yield is the icing, not the strategy. Approximately 90% of the return comes from regime trading itself, not from yield.
 
+The engine is a **first-match-wins priority stack** of six rule types in two output shapes — decisive _cross-based_ moves and incremental _DCA-based_ nudges. The full breakdown is in [The rules, in priority order](#the-rules-in-priority-order) below.
+
 </Step>
 
 <Step>
@@ -64,6 +66,43 @@ Capability detection — and the EIP-7702 → Multicall3 fallback decision — i
 </Step>
 
 </Steps>
+
+## The rules, in priority order
+
+On each daily snapshot, the engine walks this list top-down. The first rule whose trigger conditions are met produces that day's target allocation; the rest are skipped. Per-rule cooldowns prevent the same rule from re-firing on consecutive eligible days, and a same-day cross-down always wins over a same-day cross-up.
+
+### 1. Cross-down exit
+
+When a risk asset's price closes below its long-term trend line, the engine moves out of that asset — and its peers in the same risk class — into the defensive leg, full size, immediately. This is the highest-priority rule in the stack: when a sell and a buy signal collide on the same day, the sell wins.
+
+### 2. Cross-up equal-weight
+
+When one or more risk assets close back above the trend line, the engine resets risk to an equal split across whichever assets are above the line that day. It reactivates exposure in a balanced way without trying to pick a winner among the assets that just turned.
+
+### 3. ETH/BTC ratio rotation
+
+When the ETH/BTC strength ratio crosses its long-term trend line, the crypto leg flips entirely between the two. The leg is one-or-the-other under this rule — once it has fired, the portfolio does not hold both BTC and ETH simultaneously until the next ratio cross.
+
+### 4. DMA overextension DCA sell
+
+When a risk asset trades well above its long-term trend line, the engine begins trimming a small, fixed-percentage slice on each eligible day, redistributing the proceeds between the defensive leg and the equity leg. Acting gradually here lets a strong trend continue running without being cut short on the first sign of overextension.
+
+### 5. Extreme-fear DCA buy
+
+When sentiment for an asset reaches the extreme-fear regime and that asset's cycle is currently active, the engine buys it in small, fixed-percentage increments out of the defensive leg. This is the asymmetric "buy fear" arm of the strategy — purposely incremental so a single bad day cannot deploy the entire defensive leg.
+
+### 6. FGI downshift DCA sell
+
+When sentiment transitions out of greed back into a more neutral or fearful regime, the engine trims risk in small increments back into the defensive leg. The asymmetric "defend on greed unwind" arm — designed to start dialing back exposure before the trend itself breaks, not after.
+
+### What stops the engine from churning
+
+Two stabilizers sit on top of the rule stack:
+
+- **Per-rule cooldowns** — once a rule fires, it sits out for a configured window before it can fire again (per-symbol for the cross-down exit, so SPY and BTC cooldowns are independent). Prevents whipsaw on indicator noise.
+- **Trade quota guards** — post-decision guards cap the minimum spacing between any two trades and the total number of trades over rolling short and longer windows, regardless of which rule produced the intent. The strategy cannot accidentally trade itself into the ground.
+
+When no rule's trigger conditions are met on a given day, the engine **holds** — no trade is prepared and you receive no signing prompt. That is the common case and it is intentional: most days, the right move is to do nothing.
 
 <Callout type="warn" title="What changes vs. what stays">
   Strategy parameters — thresholds, target weights, cooldown lengths, and the

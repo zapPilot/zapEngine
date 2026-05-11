@@ -35,7 +35,7 @@ def _strategy_state(
             "spot_asset": spot_asset,
         },
         "signal": {
-            "id": "eth_btc_rs_signal",
+            "id": "dma_fgi_portfolio_rules_signal",
             "regime": "fear",
             "raw_value": 30.0,
             "confidence": 1.0,
@@ -101,7 +101,7 @@ def _payload() -> dict[str, Any]:
                     "sentiment_label": "fear",
                 },
                 "strategies": {
-                    "eth_btc_rotation_default": _strategy_state(
+                    "dma_fgi_portfolio_rules_default": _strategy_state(
                         action="sell",
                         reason="dma_cross_down",
                         rule_group="cross",
@@ -128,7 +128,7 @@ def _payload() -> dict[str, Any]:
                     "sentiment_label": "fear",
                 },
                 "strategies": {
-                    "eth_btc_rotation_default": _strategy_state(
+                    "dma_fgi_portfolio_rules_default": _strategy_state(
                         action="buy",
                         reason="dma_cross_up",
                         rule_group="cross",
@@ -155,7 +155,7 @@ def _payload() -> dict[str, Any]:
                     "sentiment_label": "neutral",
                 },
                 "strategies": {
-                    "eth_btc_rotation_default": _strategy_state(
+                    "dma_fgi_portfolio_rules_default": _strategy_state(
                         action="hold",
                         reason="above_hold",
                         rule_group="rotation",
@@ -194,7 +194,7 @@ def _spy_payload() -> dict[str, Any]:
                     "sentiment_label": "neutral",
                 },
                 "strategies": {
-                    "dma_fgi_hierarchical_minimum": {
+                    "dma_fgi_portfolio_rules": {
                         "portfolio": {
                             "spot_usd": 4_000.0,
                             "stable_usd": 6_000.0,
@@ -210,7 +210,7 @@ def _spy_payload() -> dict[str, Any]:
                             "spot_asset": "BTC",
                         },
                         "signal": {
-                            "id": "spy_eth_btc_rs_signal",
+                            "id": "spy_dma_fgi_portfolio_rules_signal",
                             "regime": "neutral",
                             "raw_value": 45.0,
                             "confidence": 1.0,
@@ -304,8 +304,8 @@ def test_analyze_payload_builds_api_request_and_filters_window(
     assert captured["request"]["end_date"] == "2025-04-23"
     assert captured["request"]["configs"] == [
         {
-            "config_id": "eth_btc_rotation_default",
-            "saved_config_id": "eth_btc_rotation_default",
+            "config_id": "dma_fgi_portfolio_rules_default",
+            "saved_config_id": "dma_fgi_portfolio_rules_default",
         }
     ]
     assert [record["date"] for record in data["records"]] == [
@@ -352,8 +352,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
 
     analyzer.analyze_payload(
         endpoint="http://testserver",
-        saved_config_id="dma_fgi_hierarchical_minimum",
-        config_id="dma_fgi_hierarchical_minimum",
+        saved_config_id="dma_fgi_portfolio_rules",
+        config_id="dma_fgi_portfolio_rules",
         date_filter="2026-04-27",
         history_start_date="2024-11-01",
         output_format="json",
@@ -364,8 +364,8 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
     assert captured["request"]["end_date"] == "2026-04-27"
     assert captured["request"]["configs"] == [
         {
-            "config_id": "dma_fgi_hierarchical_minimum",
-            "saved_config_id": "dma_fgi_hierarchical_minimum",
+            "config_id": "dma_fgi_portfolio_rules",
+            "saved_config_id": "dma_fgi_portfolio_rules",
         }
     ]
 
@@ -373,7 +373,7 @@ def test_analyze_payload_date_request_accepts_explicit_history_start(
 def test_analyze_compare_json_contains_lookback_and_rule_classification() -> None:
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -395,7 +395,7 @@ def test_analyze_compare_json_contains_lookback_and_rule_classification() -> Non
 def test_default_sections_include_spy_dma_and_asset_class_summary() -> None:
     rendered = analyzer.analyze_response_payload(
         _spy_payload(),
-        strategy_id="dma_fgi_hierarchical_minimum",
+        strategy_id="dma_fgi_portfolio_rules",
         output_format="json",
         enrich_db="never",
         source_label="fixture",
@@ -425,12 +425,12 @@ def test_profile_cli_argument_is_removed() -> None:
 
 def test_analyze_compare_surfaces_matched_rule_name() -> None:
     payload = deepcopy(_payload())
-    strategy = payload["timeline"][1]["strategies"]["eth_btc_rotation_default"]
+    strategy = payload["timeline"][1]["strategies"]["dma_fgi_portfolio_rules_default"]
     strategy["decision"]["details"] = {"matched_rule_name": "above_greed_sell"}
 
     rendered = analyzer.analyze_response_payload(
         payload,
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="markdown",
         enrich_db="never",
@@ -441,27 +441,6 @@ def test_analyze_compare_surfaces_matched_rule_name() -> None:
 
     assert "Matched rule: `above_greed_sell`" in rendered
     assert "Sell when price is above DMA and FGI is greed." in rendered
-
-
-def test_analyze_compare_renders_active_tactics_section() -> None:
-    payload = deepcopy(_payload())
-    for point in payload["timeline"]:
-        state = point["strategies"].pop("eth_btc_rotation_default")
-        point["strategies"]["dma_fgi_hierarchical_control"] = state
-
-    rendered = analyzer.analyze_response_payload(
-        payload,
-        strategy_id="dma_fgi_hierarchical_control",
-        date_filter="2025-04-22",
-        output_format="markdown",
-        enrich_db="never",
-        source_label="fixture",
-        request_body={"configs": []},
-        sections=["active_tactics"],
-    )
-
-    assert "### Active Tactics" in rendered
-    assert "Adaptive crypto DMA reference: `False`" in rendered
 
 
 def test_constraint_validation_passes_and_uses_full_history(
@@ -493,7 +472,7 @@ def test_constraint_validation_passes_and_uses_full_history(
 
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -514,7 +493,7 @@ def test_constraint_validation_supports_negative_decision_assertions(
 ) -> None:
     fixture = tmp_path / "constraints.json"
     payload = deepcopy(_payload())
-    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy = payload["timeline"][2]["strategies"]["dma_fgi_portfolio_rules_default"]
     strategy["decision"]["details"] = {"matched_rule_name": "regime_no_signal_hold"}
     fixture.write_text(
         json.dumps(
@@ -540,7 +519,7 @@ def test_constraint_validation_supports_negative_decision_assertions(
 
     rendered = analyzer.analyze_response_payload(
         payload,
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-23",
         output_format="json",
         enrich_db="never",
@@ -558,7 +537,7 @@ def test_constraint_validation_supports_hold_event_current_assertions(
 ) -> None:
     fixture = tmp_path / "constraints.json"
     payload = deepcopy(_payload())
-    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy = payload["timeline"][2]["strategies"]["dma_fgi_portfolio_rules_default"]
     strategy["decision"]["target_allocation"] = dict(
         strategy["portfolio"]["asset_allocation"]
     )
@@ -585,7 +564,7 @@ def test_constraint_validation_supports_hold_event_current_assertions(
 
     rendered = analyzer.analyze_response_payload(
         payload,
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-23",
         output_format="json",
         enrich_db="never",
@@ -603,7 +582,7 @@ def test_constraint_validation_hold_assertion_reports_sell_attempt(
 ) -> None:
     fixture = tmp_path / "constraints.json"
     payload = deepcopy(_payload())
-    strategy = payload["timeline"][2]["strategies"]["eth_btc_rotation_default"]
+    strategy = payload["timeline"][2]["strategies"]["dma_fgi_portfolio_rules_default"]
     strategy["decision"]["target_allocation"] = {
         "btc": 0.0,
         "eth": 0.8,
@@ -634,7 +613,7 @@ def test_constraint_validation_hold_assertion_reports_sell_attempt(
 
     rendered = analyzer.analyze_response_payload(
         payload,
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-23",
         output_format="json",
         enrich_db="never",
@@ -676,7 +655,7 @@ def test_constraint_validation_reports_trigger_violation(tmp_path: Any) -> None:
 
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -782,7 +761,7 @@ def test_markdown_output_is_saved_before_constraint_failure_raise(
     with pytest.raises(analyzer.ConstraintValidationFailed):
         analyzer.analyze_response_payload(
             _payload(),
-            strategy_id="eth_btc_rotation_default",
+            strategy_id="dma_fgi_portfolio_rules_default",
             date_filter="2025-04-22",
             output_format="markdown",
             enrich_db="never",
@@ -835,7 +814,7 @@ def test_markdown_render_failure_writes_fallback_before_reraising(
     with pytest.raises(RuntimeError, match="render boom"):
         analyzer.analyze_response_payload(
             _payload(),
-            strategy_id="eth_btc_rotation_default",
+            strategy_id="dma_fgi_portfolio_rules_default",
             date_filter="2025-04-22",
             output_format="markdown",
             enrich_db="never",
@@ -875,7 +854,7 @@ def test_ratio_cross_constraint_requires_zone_transition(tmp_path: Any) -> None:
 
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -930,7 +909,7 @@ def test_constraint_event_id_filters_selected_events(tmp_path: Any) -> None:
 
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -973,7 +952,7 @@ def test_constraints_outside_selected_range_are_skipped(tmp_path: Any) -> None:
 
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         from_date="2025-04-23",
         to_date="2025-04-23",
         output_format="json",
@@ -993,7 +972,7 @@ def test_constraints_outside_selected_range_are_skipped(tmp_path: Any) -> None:
 def test_no_constraints_disables_validation() -> None:
     rendered = analyzer.analyze_response_payload(
         _payload(),
-        strategy_id="eth_btc_rotation_default",
+        strategy_id="dma_fgi_portfolio_rules_default",
         date_filter="2025-04-22",
         output_format="json",
         enrich_db="never",
@@ -1077,7 +1056,7 @@ def test_main_summary_outputs_compact_rollup(
     def _fake_fetch(_: str, __: dict[str, Any]) -> dict[str, Any]:
         payload = _payload()
         payload["strategies"] = {
-            "eth_btc_rotation_default": {
+            "dma_fgi_portfolio_rules_default": {
                 "roi_percent": 12.34,
                 "calmar_ratio": 1.23,
                 "max_drawdown_percent": -5.67,
@@ -1110,7 +1089,7 @@ def test_main_summary_outputs_compact_rollup(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "strategy: eth_btc_rotation_default" in output
+    assert "strategy: dma_fgi_portfolio_rules_default" in output
     assert "ROI: +12.34%" in output
     assert "rules fired:" in output
     assert len(output.splitlines()) <= 80

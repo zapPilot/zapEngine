@@ -152,14 +152,14 @@ void main() {
     expect(find.text('Played'), findsNothing);
   });
 
-  testWidgets('Episode detail hides language pill for fallback-only audio', (
+  testWidgets('Episode detail shows language chips for fallback-only audio', (
     tester,
   ) async {
     await _pumpHarness(tester, EpisodeDetailScreen(episode: _episode()));
 
-    expect(find.text('繁中'), findsNothing);
-    expect(find.text('EN'), findsNothing);
-    expect(find.text('日本語'), findsNothing);
+    expect(find.text('中'), findsOneWidget);
+    expect(find.text('EN'), findsOneWidget);
+    expect(find.text('日'), findsOneWidget);
   });
 
   testWidgets('Episode detail shows language classroom lessons', (

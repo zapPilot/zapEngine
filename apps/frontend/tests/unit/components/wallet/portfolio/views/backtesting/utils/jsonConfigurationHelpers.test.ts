@@ -36,9 +36,11 @@ describe('updateConfigStrategy', () => {
         { config_id: 'x', strategy_id: 'old', params: { pacing: { k: 1 } } },
       ],
     });
-    const result = JSON.parse(updateConfigStrategy(json, 'eth_btc_rotation'));
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
+    const result = JSON.parse(
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules'),
+    );
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.configs[0].params).toEqual({ pacing: { k: 1 } });
     expect(result.days).toBe(500);
   });
@@ -50,12 +52,12 @@ describe('updateConfigStrategy', () => {
       ],
     });
     const result = JSON.parse(
-      updateConfigStrategy(json, 'eth_btc_rotation', {
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules', {
         signal: { cross_cooldown_days: 14 },
       }),
     );
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
     expect(result.configs[0].params).toEqual({
       signal: { cross_cooldown_days: 14 },
     });
@@ -109,10 +111,12 @@ describe('updateConfigStrategy', () => {
       ],
     });
 
-    const result = JSON.parse(updateConfigStrategy(json, 'eth_btc_rotation'));
+    const result = JSON.parse(
+      updateConfigStrategy(json, 'dma_fgi_portfolio_rules'),
+    );
 
-    expect(result.configs[0].config_id).toBe('eth_btc_rotation_default');
-    expect(result.configs[0].strategy_id).toBe('eth_btc_rotation');
+    expect(result.configs[0].config_id).toBe('dma_fgi_portfolio_rules_default');
+    expect(result.configs[0].strategy_id).toBe('dma_fgi_portfolio_rules');
   });
 
   it('replaces params with empty object when defaultParams is {}', () => {
@@ -129,5 +133,124 @@ describe('updateConfigStrategy', () => {
     const result = JSON.parse(updateConfigStrategy(json, 'new_strat', {}));
 
     expect(result.configs[0].params).toEqual({});
+  });
+});
+
+describe('parseJsonField edge cases', () => {
+  it('returns fallback for non-numeric field values', () => {
+    expect(parseJsonField('{"days":"not_a_number"}', 'days', 500)).toBe(500);
+    expect(parseJsonField('{"days":null}', 'days', 500)).toBe(500);
+    expect(parseJsonField('{"days":undefined}', 'days', 500)).toBe(500);
+    expect(parseJsonField('{"days":true}', 'days', 500)).toBe(500);
+  });
+
+  it('returns fallback for arrays and objects in field', () => {
+    expect(parseJsonField('{"days":[1,2,3]}', 'days', 500)).toBe(500);
+    expect(parseJsonField('{"days":{"nested":true}}', 'days', 500)).toBe(500);
+  });
+
+  it('handles negative numbers correctly', () => {
+    expect(parseJsonField('{"days":-30}', 'days', 500)).toBe(-30);
+  });
+
+  it('handles floating point numbers', () => {
+    expect(parseJsonField('{"days":3.14}', 'days', 500)).toBe(3.14);
+  });
+
+  it('handles zero value correctly', () => {
+    expect(parseJsonField('{"days":0}', 'days', 500)).toBe(0);
+  });
+});
+
+describe('parseJsonField invalid JSON', () => {
+  it('returns fallback for invalid JSON strings', () => {
+    expect(parseJsonField('{invalid json}', 'days', 500)).toBe(500);
+    expect(parseJsonField('', 'days', 500)).toBe(500);
+    expect(parseJsonField('not json at all', 'days', 500)).toBe(500);
+  });
+
+  it('returns fallback when field is missing', () => {
+    expect(parseJsonField('{"other_field":100}', 'days', 500)).toBe(500);
+  });
+});
+
+describe('updateJsonField edge cases', () => {
+  it('updates numeric field to zero', () => {
+    const result = JSON.parse(updateJsonField('{"days":500}', 'days', 0));
+    expect(result.days).toBe(0);
+  });
+
+  it('updates negative numbers', () => {
+    const result = JSON.parse(updateJsonField('{"days":500}', 'days', -30));
+    expect(result.days).toBe(-30);
+  });
+
+  it('updates floating point numbers', () => {
+    const result = JSON.parse(updateJsonField('{"days":500}', 'days', 3.14));
+    expect(result.days).toBe(3.14);
+  });
+
+  it('preserves existing fields when updating', () => {
+    const result = JSON.parse(
+      updateJsonField('{"days":500,"other":100}', 'days', 365),
+    );
+    expect(result.days).toBe(365);
+    expect(result.other).toBe(100);
+  });
+
+  it('returns original when JSON has syntax error', () => {
+    expect(updateJsonField('{broken json}', 'days', 365)).toBe('{broken json}');
+  });
+
+  it('adds field when field does not exist', () => {
+    const original = '{"other_field":100}';
+    const result = JSON.parse(updateJsonField(original, 'missing_field', 365));
+    expect(result.other_field).toBe(100);
+    expect(result.missing_field).toBe(365);
+  });
+});
+
+describe('updateConfigStrategy edge cases', () => {
+  it('handles config with null params', () => {
+    const json = JSON.stringify({
+      configs: [{ config_id: 'x', strategy_id: 'old', params: null }],
+    });
+    const result = JSON.parse(updateConfigStrategy(json, 'new_strat'));
+    expect(result.configs[0].strategy_id).toBe('new_strat');
+    expect(result.configs[0].params).toBe(null);
+  });
+
+  it('handles config with undefined params', () => {
+    const json = JSON.stringify({
+      configs: [{ config_id: 'x', strategy_id: 'old' }],
+    });
+    const result = JSON.parse(updateConfigStrategy(json, 'new_strat'));
+    expect(result.configs[0].params).toBeUndefined();
+  });
+
+  it('handles JSON with trailing whitespace', () => {
+    const json =
+      '{"days":500,"configs":[{"config_id":"x","strategy_id":"old"}]}  ';
+    const result = JSON.parse(updateConfigStrategy(json, 'new_strat'));
+    expect(result.configs[0].strategy_id).toBe('new_strat');
+  });
+
+  it('handles JSON with newlines', () => {
+    const json = `{
+      "days": 500,
+      "configs": [{"config_id": "x", "strategy_id": "old"}]
+    }`;
+    const result = JSON.parse(updateConfigStrategy(json, 'new_strat'));
+    expect(result.configs[0].strategy_id).toBe('new_strat');
+  });
+
+  it('returns original JSON when configs is not an array', () => {
+    const json = '{"configs":"not_an_array"}';
+    expect(updateConfigStrategy(json, 'x')).toBe(json);
+  });
+
+  it('returns original JSON when configs is null', () => {
+    const json = '{"configs":null}';
+    expect(updateConfigStrategy(json, 'x')).toBe(json);
   });
 });

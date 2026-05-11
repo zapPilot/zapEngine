@@ -13,15 +13,22 @@ const PREVIEW_CRYPTO_ASSETS: AllocationConstituent[] = [
     asset: 'bitcoin',
     symbol: 'BTC',
     name: 'Bitcoin',
-    value: 35,
+    value: 30,
     color: '#F7931A',
   },
   {
     asset: 'ethereum',
     symbol: 'ETH',
     name: 'Ethereum',
-    value: 20,
+    value: 15,
     color: '#627EEA',
+  },
+  {
+    asset: 'spy',
+    symbol: 'SPY',
+    name: 'S&P 500',
+    value: 10,
+    color: '#16A34A',
   },
 ];
 

@@ -9,14 +9,13 @@ import {
 } from 'recharts';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import { useToggleSet } from '@/hooks/ui';
-import {
-  formatChartAxisDate,
-  formatCurrencyAxis,
-  formatSentiment,
-} from '@/utils';
+import type { BacktestTimelinePoint } from '@/types/backtesting';
+import { formatChartAxisDate, formatCurrencyAxis } from '@/utils';
 
-import { getPrimaryStrategyId } from '../utils/chartHelpers';
+import {
+  type BacktestChartPoint,
+  getPrimaryStrategyId,
+} from '../utils/chartHelpers';
 import {
   AXIS_DEFAULTS,
   axisTick,
@@ -24,16 +23,15 @@ import {
 } from './backtestChartHelpers';
 import {
   ChartDefs,
-  renderIndicatorLayers,
   renderSignalScatterLayers,
   StrategyArea,
 } from './BacktestChartLayers';
 import { BacktestChartLegend } from './BacktestChartLegend';
-import type { IndicatorKey } from './backtestChartLegendData';
 import { BacktestTooltip, type BacktestTooltipProps } from './BacktestTooltip';
 
 export interface BacktestChartProps {
-  chartData: Record<string, unknown>[];
+  chartData: BacktestChartPoint[];
+  chartDataIndex: Map<string, BacktestTimelinePoint>;
   sortedStrategyIds: string[];
   yAxisDomain: [number, number];
   actualDays: number;
@@ -44,18 +42,12 @@ export interface BacktestChartProps {
 export const BacktestChart = memo(function BacktestChart({
   actualDays,
   chartData,
+  chartDataIndex,
   chartIdPrefix = 'default',
   sortedStrategyIds,
   yAxisDomain,
 }: BacktestChartProps): ReactElement {
   const primarySeriesId = getPrimaryStrategyId(sortedStrategyIds);
-  const { activeSet: activeIndicators, toggle: handleToggleIndicator } =
-    useToggleSet<IndicatorKey>({ initialValue: [] });
-
-  const showPriceAxis =
-    activeIndicators.has('btcPrice') || activeIndicators.has('dma200');
-  const showSentimentAxis =
-    activeIndicators.has('sentiment') || activeIndicators.has('macroFearGreed');
 
   return (
     <BaseCard
@@ -69,11 +61,7 @@ export const BacktestChart = memo(function BacktestChart({
             ({actualDays} Days)
           </span>
         </div>
-        <BacktestChartLegend
-          sortedStrategyIds={sortedStrategyIds}
-          activeIndicators={activeIndicators}
-          onToggleIndicator={handleToggleIndicator}
-        />
+        <BacktestChartLegend sortedStrategyIds={sortedStrategyIds} />
       </div>
 
       <div className="flex-1 w-full pt-4 pr-4">
@@ -102,41 +90,6 @@ export const BacktestChart = memo(function BacktestChart({
               tickFormatter={formatCurrencyAxis}
             />
 
-            {showPriceAxis && (
-              <YAxis
-                yAxisId="priceRight"
-                orientation="right"
-                tick={axisTick('#f59e0b')}
-                {...AXIS_DEFAULTS}
-                width={64}
-                tickFormatter={formatCurrencyAxis}
-                label={{
-                  value: 'BTC / DMA 200',
-                  angle: 90,
-                  position: 'insideRight',
-                  style: { fontSize: 10, fill: '#f59e0b' },
-                }}
-              />
-            )}
-
-            {showSentimentAxis && (
-              <YAxis
-                yAxisId="sentimentRight"
-                orientation="right"
-                domain={[0, 100]}
-                tick={axisTick('#a855f7')}
-                {...AXIS_DEFAULTS}
-                width={48}
-                label={{
-                  value: '0-100 Index',
-                  angle: 90,
-                  position: 'insideRight',
-                  style: { fontSize: 10, fill: '#a855f7' },
-                }}
-                tickFormatter={formatSentiment}
-              />
-            )}
-
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
               wrapperStyle={{ zIndex: 20 }}
@@ -147,14 +100,12 @@ export const BacktestChart = memo(function BacktestChart({
                     payload,
                     label,
                     sortedStrategyIds,
-                    activeIndicators: activeIndicators as Set<IndicatorKey>,
+                    chartDataIndex,
                   });
 
                 return <BacktestTooltip {...tooltipProps} />;
               }}
             />
-
-            {renderIndicatorLayers(activeIndicators as Set<IndicatorKey>)}
 
             {sortedStrategyIds.map((strategyId, index) => (
               <StrategyArea

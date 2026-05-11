@@ -17,6 +17,7 @@ export interface ConfigEditorViewProps {
 
 export const CONFIG_ID_PATTERN = /^[a-z0-9_]+$/;
 export const JSON_TABS = ['params', 'composition'] as const;
+export const LOCKED_STRATEGY_ID = 'dma_fgi_portfolio_rules';
 
 export type JsonTab = (typeof JSON_TABS)[number];
 export type ConfigEditorMode = ConfigEditorViewProps['mode'];
@@ -32,6 +33,7 @@ export interface ConfigEditorFormState {
   description: string;
   strategyId: string;
   primaryAsset: string;
+  disabledRules: Set<string>;
   supportsDailySuggestion: boolean;
   paramsJson: string;
   compositionJson: string;
@@ -55,12 +57,13 @@ export interface JsonEditorPanelProps {
   value: string;
 }
 
-export const INITIAL_FORM_STATE: ConfigEditorFormState = {
+const INITIAL_FORM_STATE: ConfigEditorFormState = {
   configIdInput: '',
   displayName: '',
   description: '',
-  strategyId: '',
+  strategyId: LOCKED_STRATEGY_ID,
   primaryAsset: '',
+  disabledRules: new Set<string>(),
   supportsDailySuggestion: false,
   paramsJson: '{}',
   compositionJson: '{}',
@@ -72,6 +75,13 @@ export function tryParseJson<T>(value: string): ParsedJsonResult<T> {
   } catch {
     return { valid: false, parsed: null };
   }
+}
+
+export function getInitialFormState(): ConfigEditorFormState {
+  return {
+    ...INITIAL_FORM_STATE,
+    disabledRules: new Set(INITIAL_FORM_STATE.disabledRules),
+  };
 }
 
 export function getSeedConfig(
@@ -87,8 +97,13 @@ export function getSeededFormState(
   seedConfig: SavedStrategyConfig | null,
 ): ConfigEditorFormState {
   if (!seedConfig) {
-    return INITIAL_FORM_STATE;
+    return getInitialFormState();
   }
+  const disabledRules = Array.isArray(seedConfig.params.disabled_rules)
+    ? seedConfig.params.disabled_rules.filter(
+        (ruleName): ruleName is string => typeof ruleName === 'string',
+      )
+    : [];
 
   return {
     configIdInput: mode === 'edit' ? seedConfig.config_id : '',
@@ -97,8 +112,9 @@ export function getSeededFormState(
         ? seedConfig.display_name
         : `${seedConfig.display_name} (copy)`,
     description: seedConfig.description ?? '',
-    strategyId: seedConfig.strategy_id,
+    strategyId: LOCKED_STRATEGY_ID,
     primaryAsset: seedConfig.primary_asset,
+    disabledRules: new Set(disabledRules),
     supportsDailySuggestion: seedConfig.supports_daily_suggestion,
     paramsJson: JSON.stringify(seedConfig.params, null, 2),
     compositionJson: JSON.stringify(seedConfig.composition, null, 2),
@@ -118,13 +134,23 @@ export function buildFieldsPayload(
   params: BacktestCompareParamsV3,
   composition: StrategyComposition,
 ): ConfigFieldsPayload {
+  const disabledRules = [...formState.disabledRules].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const mergedParams: BacktestCompareParamsV3 = { ...params };
+  if (disabledRules.length > 0) {
+    mergedParams.disabled_rules = disabledRules;
+  } else {
+    delete mergedParams.disabled_rules;
+  }
+
   return {
     display_name: formState.displayName.trim(),
     description: formState.description.trim() || null,
-    strategy_id: formState.strategyId,
+    strategy_id: LOCKED_STRATEGY_ID,
     primary_asset: formState.primaryAsset,
     supports_daily_suggestion: formState.supportsDailySuggestion,
-    params,
+    params: mergedParams,
     composition,
   };
 }

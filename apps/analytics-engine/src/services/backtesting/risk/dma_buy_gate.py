@@ -11,6 +11,8 @@ from src.services.backtesting.execution.dma_buy_gate import (
 )
 from src.services.backtesting.execution.pacing.base import compute_dma_buy_strength
 from src.services.backtesting.portfolio_rules.base import (
+    DIAG_MATCHED_RULE_NAME,
+    DIAG_SIGNALS_CONSULTED,
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_fgi_regime_for_symbol,
@@ -77,7 +79,7 @@ class DmaBuyGateGuard(DmaBuyGateConfigMixin):
             rule_group="none",
             decision_score=0.0,
             diagnostics={
-                "matched_rule_name": self.name,
+                DIAG_MATCHED_RULE_NAME: self.name,
                 "buy_gate_block_reason": blocking_snapshot.buy_gate_block_reason,
                 "buy_sideways_confirmed": blocking_snapshot.buy_sideways_confirmed,
                 "buy_sideways_window_days": blocking_snapshot.buy_sideways_window_days,
@@ -86,7 +88,7 @@ class DmaBuyGateGuard(DmaBuyGateConfigMixin):
                 "buy_strength": blocking_snapshot.buy_strength,
                 **(
                     {
-                        "signals_consulted": signals_consulted_for_symbols(
+                        DIAG_SIGNALS_CONSULTED: signals_consulted_for_symbols(
                             snapshot,
                             tuple(
                                 _dca_buy_symbols(snapshot)

@@ -489,20 +489,33 @@ describe("BTC Price Pipeline", () => {
         tokenSymbol: "BTC",
         tokenId: "bitcoin",
       };
+      const mockEthPriceData = {
+        priceUsd: 3000,
+        marketCapUsd: 500000,
+        volume24hUsd: 100000,
+        timestamp: new Date(),
+        source: "coingecko",
+        tokenSymbol: "ETH",
+        tokenId: "ethereum",
+      };
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
         "fetchCurrentPrice",
-      ).mockResolvedValue(mockPriceData);
+      )
+        .mockResolvedValueOnce(mockPriceData)
+        .mockResolvedValueOnce(mockEthPriceData);
       vi.spyOn(
         TokenPriceWriter.prototype,
         "insertSnapshot",
-      ).mockResolvedValue();
+      )
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
 
       const result = await pipeline.process(job);
 
       expect(result.success).toBe(true);
-      expect(result.recordsInserted).toBe(1);
+      expect(result.recordsInserted).toBe(2);
     });
 
     it("process should trigger DMA post-step on success", async () => {

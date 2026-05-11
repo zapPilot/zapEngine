@@ -7,7 +7,7 @@
   "source": "Sampled landing-page visualization derived from the pinned analytics-engine 500-day snapshot; indexed to 100. Final values match snapshot ROI metrics.",
   "drawdownBand": {
     "label": "Max drawdown range",
-    "strategyPercent": -17.46,
+    "strategyPercent": -16.97,
     "dcaPercent": -43.02
   },
   "series": [
@@ -34,7 +34,7 @@
         { "date": "2026-02-01", "value": 226.0 },
         { "date": "2026-02-28", "value": 186.6 },
         { "date": "2026-03-31", "value": 216.7 },
-        { "date": "2026-04-15", "value": 221.44 }
+        { "date": "2026-04-15", "value": 221.3 }
       ]
     },
     {

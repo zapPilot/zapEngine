@@ -63,8 +63,11 @@ def test_list_configs_falls_back_to_seed_configs_when_table_missing(
 
     configs = store.list_configs()
 
-    assert [config.config_id for config in configs] == ["eth_btc_rotation_default"]
-    assert store.resolve_config(None).config_id == "eth_btc_rotation_default"
+    assert [config.config_id for config in configs] == [
+        "dma_fgi_portfolio_rules_default",
+        "dca_classic",
+    ]
+    assert store.resolve_config(None).config_id == "dma_fgi_portfolio_rules_default"
 
 
 def test_upsert_and_resolve_saved_config_round_trip(
@@ -77,9 +80,9 @@ def test_upsert_and_resolve_saved_config_round_trip(
         "src.services.strategy.strategy_config_store.validate_write_operation",
         lambda: None,
     )
-    config = resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
+    config = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default").model_copy(
         update={
-            "config_id": "eth_btc_rotation_custom",
+            "config_id": "dma_fgi_portfolio_rules_custom",
             "display_name": "ETH/BTC Custom",
             "is_default": False,
         }
@@ -87,10 +90,11 @@ def test_upsert_and_resolve_saved_config_round_trip(
 
     stored = store.upsert_config(config)
 
-    assert stored.config_id == "eth_btc_rotation_custom"
+    assert stored.config_id == "dma_fgi_portfolio_rules_custom"
     assert stored.display_name == "ETH/BTC Custom"
     assert (
-        store.resolve_config("eth_btc_rotation_custom").composition.signal is not None
+        store.resolve_config("dma_fgi_portfolio_rules_custom").composition.signal
+        is not None
     )
 
 
@@ -104,11 +108,11 @@ def test_upsert_configs_can_flip_default_without_duplicate_defaults(
         "src.services.strategy.strategy_config_store.validate_write_operation",
         lambda: None,
     )
-    original_default = resolve_seed_strategy_config("eth_btc_rotation_default")
+    original_default = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
     alternate = original_default.model_copy(
         update={
-            "config_id": "eth_rotation_alt",
-            "display_name": "ETH Rotation Alt",
+            "config_id": "portfolio_rules_alt",
+            "display_name": "Portfolio Rules Alt",
             "is_default": False,
         }
     )
@@ -119,8 +123,8 @@ def test_upsert_configs_can_flip_default_without_duplicate_defaults(
         ]
     )
 
-    assert store.resolve_config(None).config_id == "eth_rotation_alt"
-    assert store.get_config("eth_btc_rotation_default") is not None
+    assert store.resolve_config(None).config_id == "portfolio_rules_alt"
+    assert store.get_config("dma_fgi_portfolio_rules_default") is not None
 
 
 def test_resolve_config_raises_on_unknown_config_id(
@@ -157,19 +161,19 @@ def test_seed_store_list_configs_returns_all_seeds() -> None:
     configs = store.list_configs()
 
     config_ids = [config.config_id for config in configs]
-    assert config_ids == ["eth_btc_rotation_default"]
+    assert config_ids == ["dma_fgi_portfolio_rules_default", "dca_classic"]
 
 
 def test_seed_store_resolve_config_default() -> None:
     store = SeedStrategyConfigStore()
     config = store.resolve_config(None)
-    assert config.config_id == "eth_btc_rotation_default"
+    assert config.config_id == "dma_fgi_portfolio_rules_default"
 
 
 def test_seed_store_resolve_config_by_id() -> None:
     store = SeedStrategyConfigStore()
-    config = store.resolve_config("eth_btc_rotation_default")
-    assert config.config_id == "eth_btc_rotation_default"
+    config = store.resolve_config("dma_fgi_portfolio_rules_default")
+    assert config.config_id == "dma_fgi_portfolio_rules_default"
 
 
 def test_seed_store_resolve_config_unknown_raises() -> None:
@@ -180,9 +184,9 @@ def test_seed_store_resolve_config_unknown_raises() -> None:
 
 def test_seed_store_get_config_found() -> None:
     store = SeedStrategyConfigStore()
-    config = store.get_config("eth_btc_rotation_default")
+    config = store.get_config("dma_fgi_portfolio_rules_default")
     assert config is not None
-    assert config.config_id == "eth_btc_rotation_default"
+    assert config.config_id == "dma_fgi_portfolio_rules_default"
 
 
 def test_seed_store_get_config_missing_returns_none() -> None:
@@ -203,7 +207,7 @@ def test_resolve_config_falls_back_to_seed_default_when_no_db_default(
         lambda: None,
     )
     # Upsert a non-default config only
-    config = resolve_seed_strategy_config("eth_btc_rotation_default").model_copy(
+    config = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default").model_copy(
         update={
             "config_id": "only_non_default",
             "display_name": "Non-Default",
@@ -227,7 +231,7 @@ def test_resolve_config_falls_back_to_seed_default_when_no_db_default(
     # resolve_config(None) should fall through to get_default_seed_strategy_config
     # which still reads from the real SEED_STRATEGY_CONFIGS
     result = store.resolve_config(None)
-    assert result.config_id == "eth_btc_rotation_default"
+    assert result.config_id == "dma_fgi_portfolio_rules_default"
 
 
 def test_table_exists_returns_false_on_sqlalchemy_error(

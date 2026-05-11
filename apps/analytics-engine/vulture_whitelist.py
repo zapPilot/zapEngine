@@ -499,7 +499,7 @@ last_actionable_zone  # unused variable (src/services/backtesting/signals/dma_ga
 cooldown_end_date  # unused variable (src/services/backtesting/signals/dma_gated_fgi/types.py)
 fgi_ema_prev  # unused variable (src/services/backtesting/signals/dma_gated_fgi/types.py)
 fgi_ema_current  # unused variable (src/services/backtesting/signals/dma_gated_fgi/types.py)
-outer_dma_asset  # unused variable (src/services/backtesting/domain.py:22) - used via dataclasses.replace() in eth_btc_rotation.py
+outer_dma_asset  # unused variable (src/services/backtesting/domain.py:22) - used via dataclasses.replace()
 
 # ============================================================================
 # Saved Strategy Config - composition framework & admin API
@@ -561,13 +561,8 @@ _ = v3_strategy.set_default_saved_strategy_config  # noqa: F841
 # Public params Pydantic model fields - accessed dynamically via getattr() in _nested_to_flat()
 from src.services.backtesting.public_params import (
     DmaGatedFgiPublicParams as _DmaGatedFgiPublicParams,
-    EthBtcRotationPublicParams as _EthBtcRotationPublicParams,
 )
 
 _ = _DmaGatedFgiPublicParams.buy_gate  # noqa: F841
 _ = _DmaGatedFgiPublicParams.trade_quota  # noqa: F841
 _ = _DmaGatedFgiPublicParams.top_escape  # noqa: F841
-_ = _EthBtcRotationPublicParams.buy_gate  # noqa: F841
-_ = _EthBtcRotationPublicParams.trade_quota  # noqa: F841
-_ = _EthBtcRotationPublicParams.top_escape  # noqa: F841
-_ = _EthBtcRotationPublicParams.rotation  # noqa: F841

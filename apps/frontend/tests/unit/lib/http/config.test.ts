@@ -36,3 +36,23 @@ describe('HTTP_CONFIG', () => {
     expect(HTTP_CONFIG.timeout).toBe(15000);
   });
 });
+
+describe('API_ENDPOINTS behavior', () => {
+  it('analyticsEngine is a string value', () => {
+    expect(typeof API_ENDPOINTS.analyticsEngine).toBe('string');
+  });
+
+  it('accountApi is a string value', () => {
+    expect(typeof API_ENDPOINTS.accountApi).toBe('string');
+  });
+});
+
+describe('HTTP_CONFIG retry behavior', () => {
+  it('retries is exactly 1 to avoid request storms', () => {
+    expect(HTTP_CONFIG.retries).toBe(1);
+  });
+
+  it('retryDelay is 2000ms to allow server to recover', () => {
+    expect(HTTP_CONFIG.retryDelay).toBe(2000);
+  });
+});

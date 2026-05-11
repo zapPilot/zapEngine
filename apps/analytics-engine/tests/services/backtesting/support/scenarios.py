@@ -84,8 +84,8 @@ def compare_request(
         "configs": configs
         or [
             BacktestCompareConfigV3(
-                config_id="eth_rotation_runtime",
-                strategy_id="eth_btc_rotation",
+                config_id="portfolio_rules_runtime",
+                strategy_id="dma_fgi_portfolio_rules",
                 params={},
             )
         ],

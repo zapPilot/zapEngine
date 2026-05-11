@@ -9,7 +9,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+
+from src.services.backtesting.portfolio_rules import RULE_NAMES
 
 if TYPE_CHECKING:
     from src.services.backtesting.strategy_registry import StrategyRecipe
@@ -20,12 +22,6 @@ class _SignalPublicParams(BaseModel):
 
     cross_cooldown_days: int = Field(default=30, ge=0, strict=True)
     cross_on_touch: bool = Field(default=True)
-
-
-class _EthBtcSignalPublicParams(_SignalPublicParams):
-    ratio_cross_cooldown_days: int = Field(default=30, ge=0, strict=True)
-    rotation_neutral_band: float = Field(default=0.05, ge=0.0)
-    rotation_max_deviation: float = Field(default=0.20, gt=0.0)
 
 
 class _PacingPublicParams(BaseModel):
@@ -59,13 +55,6 @@ class _TopEscapePublicParams(BaseModel):
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
-class _RotationPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    drift_threshold: float = Field(default=0.03, ge=0.0, le=0.20)
-    cooldown_days: int = Field(default=14, ge=0, strict=True)
-
-
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -76,19 +65,19 @@ class DmaGatedFgiPublicParams(BaseModel):
         default_factory=_TradeQuotaPublicParams
     )
     top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
+    disabled_rules: list[str] = Field(default_factory=list)
+    enabled_rules: list[str] | None = Field(default=None)
 
-
-class EthBtcRotationPublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    signal: _EthBtcSignalPublicParams = Field(default_factory=_EthBtcSignalPublicParams)
-    pacing: _PacingPublicParams = Field(default_factory=_PacingPublicParams)
-    buy_gate: _BuyGatePublicParams = Field(default_factory=_BuyGatePublicParams)
-    trade_quota: _TradeQuotaPublicParams = Field(
-        default_factory=_TradeQuotaPublicParams
-    )
-    top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
-    rotation: _RotationPublicParams = Field(default_factory=_RotationPublicParams)
+    @field_validator("disabled_rules", "enabled_rules")
+    @classmethod
+    def validate_rule_names(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        invalid_rules = sorted(set(value) - RULE_NAMES)
+        if invalid_rules:
+            joined = ", ".join(invalid_rules)
+            raise ValueError(f"Unsupported portfolio rule names: {joined}")
+        return value
 
 
 def _get_recipe(strategy_id: str) -> StrategyRecipe:
@@ -120,59 +109,63 @@ def normalize_nested_public_params(
     return cast(dict[str, JsonValue], normalized.model_dump(mode="json"))
 
 
-_DMA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
-    # (flat_key, nested_section, nested_key)
-    ("cross_cooldown_days", "signal", "cross_cooldown_days"),
-    ("cross_on_touch", "signal", "cross_on_touch"),
-    ("pacing_k", "pacing", "k"),
-    ("pacing_r_max", "pacing", "r_max"),
-    ("buy_sideways_window_days", "buy_gate", "window_days"),
-    ("buy_sideways_max_range", "buy_gate", "sideways_max_range"),
-    ("buy_leg_caps", "buy_gate", "leg_caps"),
-    ("min_trade_interval_days", "trade_quota", "min_trade_interval_days"),
-    ("max_trades_7d", "trade_quota", "max_trades_7d"),
-    ("max_trades_30d", "trade_quota", "max_trades_30d"),
-    ("dma_overextension_threshold", "top_escape", "dma_overextension_threshold"),
-    ("fgi_slope_reversal_threshold", "top_escape", "fgi_slope_reversal_threshold"),
-    ("fgi_slope_recovery_threshold", "top_escape", "fgi_slope_recovery_threshold"),
+_DMA_FIELD_MAPPING: Final[list[tuple[str, tuple[str, ...]]]] = [
+    # (flat_key, public_param_path)
+    ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
+    ("cross_on_touch", ("signal", "cross_on_touch")),
+    ("pacing_k", ("pacing", "k")),
+    ("pacing_r_max", ("pacing", "r_max")),
+    ("buy_sideways_window_days", ("buy_gate", "window_days")),
+    ("buy_sideways_max_range", ("buy_gate", "sideways_max_range")),
+    ("buy_leg_caps", ("buy_gate", "leg_caps")),
+    ("min_trade_interval_days", ("trade_quota", "min_trade_interval_days")),
+    ("max_trades_7d", ("trade_quota", "max_trades_7d")),
+    ("max_trades_30d", ("trade_quota", "max_trades_30d")),
+    ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
+    ("fgi_slope_reversal_threshold", ("top_escape", "fgi_slope_reversal_threshold")),
+    ("fgi_slope_recovery_threshold", ("top_escape", "fgi_slope_recovery_threshold")),
+    ("disabled_rules", ("disabled_rules",)),
+    ("enabled_rules", ("enabled_rules",)),
 ]
 
-_ROTATION_EXTRA_FIELD_MAPPING: Final[list[tuple[str, str, str]]] = [
-    ("ratio_cross_cooldown_days", "signal", "ratio_cross_cooldown_days"),
-    ("rotation_neutral_band", "signal", "rotation_neutral_band"),
-    ("rotation_max_deviation", "signal", "rotation_max_deviation"),
-    ("rotation_drift_threshold", "rotation", "drift_threshold"),
-    ("rotation_cooldown_days", "rotation", "cooldown_days"),
-]
+
+def _json_ready_value(value: Any) -> Any:
+    if isinstance(value, frozenset | set):
+        return sorted(value)
+    if isinstance(value, list):
+        return list(value)
+    return value
 
 
 def _nested_to_flat(
     nested: BaseModel,
-    field_mapping: list[tuple[str, str, str]],
+    field_mapping: list[tuple[str, tuple[str, ...]]],
 ) -> dict[str, Any]:
     """Extract flat runtime params from a nested public params model."""
     flat: dict[str, Any] = {}
-    for flat_key, section, nested_key in field_mapping:
-        section_model = getattr(nested, section)
-        value = getattr(section_model, nested_key)
-        if isinstance(value, list):
-            value = list(value)
-        flat[flat_key] = value
+    for flat_key, path in field_mapping:
+        if len(path) == 1:
+            value = getattr(nested, path[0])
+        else:
+            section_model = getattr(nested, path[0])
+            value = getattr(section_model, path[1])
+        flat[flat_key] = _json_ready_value(value)
     return flat
 
 
 def _flat_to_nested(
     resolved: BaseModel,
-    field_mapping: list[tuple[str, str, str]],
-) -> dict[str, dict[str, Any]]:
+    field_mapping: list[tuple[str, tuple[str, ...]]],
+) -> dict[str, Any]:
     """Group flat runtime params into nested section dicts."""
-    sections: dict[str, dict[str, Any]] = {}
-    for flat_key, section, nested_key in field_mapping:
-        value = getattr(resolved, flat_key)
-        if isinstance(value, list):
-            value = list(value)
-        sections.setdefault(section, {})[nested_key] = value
-    return sections
+    nested: dict[str, Any] = {}
+    for flat_key, path in field_mapping:
+        value = _json_ready_value(getattr(resolved, flat_key))
+        if len(path) == 1:
+            nested[path[0]] = value
+        else:
+            nested.setdefault(path[0], {})[path[1]] = value
+    return nested
 
 
 def public_params_to_runtime_params(
@@ -199,30 +192,6 @@ def public_params_to_runtime_params(
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
-    if recipe.param_family == "eth_btc_rotation":
-        from src.services.backtesting.strategies.eth_btc_rotation import (
-            EthBtcRotationParams,
-        )
-
-        nested_rotation = EthBtcRotationPublicParams.model_validate(normalized)
-        flat = _nested_to_flat(
-            nested_rotation, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        return EthBtcRotationParams.from_public_params(flat).to_public_params()
-
-    if recipe.param_family == "hierarchical":
-        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
-            HierarchicalPairRotationParams,
-        )
-
-        nested_hierarchical = EthBtcRotationPublicParams.model_validate(normalized)
-        flat = _nested_to_flat(
-            nested_hierarchical, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        return HierarchicalPairRotationParams.from_public_params(
-            flat
-        ).to_public_params()
-
     return normalized
 
 
@@ -248,52 +217,10 @@ def runtime_params_to_public_params(
             buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
             trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
             top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
+            disabled_rules=sections.get("disabled_rules", []),
+            enabled_rules=sections.get("enabled_rules"),
         )
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
-
-    if recipe.param_family == "eth_btc_rotation":
-        from src.services.backtesting.strategies.eth_btc_rotation import (
-            EthBtcRotationParams,
-        )
-
-        resolved_rotation = EthBtcRotationParams.from_public_params(raw_params)
-        sections = _flat_to_nested(
-            resolved_rotation, _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING
-        )
-        rotation_model = EthBtcRotationPublicParams(
-            signal=_EthBtcSignalPublicParams(**sections.get("signal", {})),
-            pacing=_PacingPublicParams(**sections.get("pacing", {})),
-            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
-            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
-            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
-            rotation=_RotationPublicParams(**sections.get("rotation", {})),
-        )
-        return cast(dict[str, JsonValue], rotation_model.model_dump(mode="json"))
-
-    if recipe.param_family == "hierarchical":
-        from src.services.backtesting.strategies.spy_crypto_hierarchical_rotation import (
-            HierarchicalPairRotationParams,
-        )
-
-        resolved_hierarchical = HierarchicalPairRotationParams.from_public_params(
-            raw_params
-        )
-        sections = _flat_to_nested(
-            resolved_hierarchical,
-            _DMA_FIELD_MAPPING + _ROTATION_EXTRA_FIELD_MAPPING,
-        )
-        hierarchical_model = EthBtcRotationPublicParams(
-            signal=_EthBtcSignalPublicParams(**sections.get("signal", {})),
-            pacing=_PacingPublicParams(**sections.get("pacing", {})),
-            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
-            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
-            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
-            rotation=_RotationPublicParams(**sections.get("rotation", {})),
-        )
-        return cast(
-            dict[str, JsonValue],
-            hierarchical_model.model_dump(mode="json"),
-        )
 
     return cast(dict[str, JsonValue], raw_params)
 
@@ -325,7 +252,6 @@ def normalize_saved_strategy_public_params(
 
 __all__ = [
     "DmaGatedFgiPublicParams",
-    "EthBtcRotationPublicParams",
     "get_default_public_params",
     "get_nested_public_params_schema",
     "normalize_nested_public_params",

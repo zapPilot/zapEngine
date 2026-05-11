@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DCA_CLASSIC_STRATEGY_ID,
   DEFAULT_DAYS,
   DEFAULT_TOTAL_CAPITAL,
-  ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-  ETH_BTC_ROTATION_STRATEGY_ID,
+  DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
 } from '@/components/wallet/portfolio/views/backtesting/constants';
 import {
   buildCompareConfigForStrategyId,
@@ -14,6 +15,12 @@ import {
 } from '@/components/wallet/portfolio/views/backtesting/hooks/backtestConfigurationBuilders';
 import type { BacktestStrategyCatalogEntryV3 } from '@/types/backtesting';
 import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
+
+const DCA_BASELINE_CONFIG = {
+  config_id: DCA_CLASSIC_STRATEGY_ID,
+  strategy_id: DCA_CLASSIC_STRATEGY_ID,
+  params: {},
+};
 
 function createPreset(
   overrides: Partial<StrategyPreset> & { config_id: string },
@@ -48,8 +55,8 @@ describe('buildDefaultPayloadFromPresets', () => {
         params: { pacing: { k: 3, r_max: 0.8 } },
       }),
       createPreset({
-        config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         is_default: true,
         params: { pacing: { k: 5, r_max: 1 } },
       }),
@@ -61,9 +68,10 @@ describe('buildDefaultPayloadFromPresets', () => {
       days: 365,
       total_capital: 50000,
       configs: [
+        DCA_BASELINE_CONFIG,
         {
-          config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-          saved_config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
+          config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+          saved_config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
         },
       ],
     });
@@ -73,29 +81,31 @@ describe('buildDefaultPayloadFromPresets', () => {
     const presets = [
       createPreset({
         config_id: 'shared_config',
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         is_default: true,
       }),
       createPreset({
         config_id: 'shared_config',
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         is_default: false,
       }),
     ];
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('shared_config');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('shared_config');
   });
 
-  it('falls back to the canonical rotation payload when no presets are available', () => {
+  it('falls back to the canonical portfolio-rules payload when no presets are available', () => {
     const result = buildDefaultPayloadFromPresets([], TEST_DEFAULTS);
 
     expect(result.configs).toEqual([
+      DCA_BASELINE_CONFIG,
       {
-        config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         params: {},
       },
     ]);
@@ -105,15 +115,16 @@ describe('buildDefaultPayloadFromPresets', () => {
     const presets = [
       createPreset({
         config_id: 'only_one',
-        strategy_id: 'eth_btc_rotation',
+        strategy_id: 'dma_fgi_portfolio_rules',
         params: { pacing: { k: 2 } },
       }),
     ];
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]).toEqual({
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
       config_id: 'only_one',
       saved_config_id: 'only_one',
     });
@@ -128,15 +139,16 @@ describe('buildDefaultPayloadFromPresets', () => {
       }),
       createPreset({
         config_id: 'second_non_default',
-        strategy_id: 'eth_btc_rotation',
+        strategy_id: 'dma_fgi_portfolio_rules',
         params: { pacing: { k: 2 } },
       }),
     ];
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('first_non_default');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('first_non_default');
   });
 
   it('promotes the default preset to first even when it is in the middle of the input', () => {
@@ -147,7 +159,7 @@ describe('buildDefaultPayloadFromPresets', () => {
       }),
       createPreset({
         config_id: 'the_default',
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         is_default: true,
       }),
       createPreset({
@@ -158,15 +170,16 @@ describe('buildDefaultPayloadFromPresets', () => {
 
     const result = buildDefaultPayloadFromPresets(presets, TEST_DEFAULTS);
 
-    expect(result.configs).toHaveLength(1);
-    expect(result.configs[0]?.config_id).toBe('the_default');
+    expect(result.configs).toHaveLength(2);
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.config_id).toBe('the_default');
   });
 
   it('uses days and total_capital from the provided defaults, not the preset', () => {
     const presets = [
       createPreset({
         config_id: 'x',
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
         is_default: true,
       }),
     ];
@@ -190,12 +203,12 @@ describe('buildDefaultPayloadFromStrategies', () => {
     expect(result.total_capital).toBe(DEFAULT_TOTAL_CAPITAL);
   });
 
-  it('includes default_params from ethBtcRotation strategy when found', () => {
+  it('includes default_params from portfolio-rules strategy when found', () => {
     const strategies: BacktestStrategyCatalogEntryV3[] = [
       {
-        strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
-        display_name: 'ETH/BTC Rotation',
-        description: 'Rotates between ETH and BTC',
+        strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+        display_name: 'DMA/FGI Portfolio Rules',
+        description: 'Rule-based portfolio strategy',
         param_schema: {},
         default_params: { ratio: 0.5 },
         supports_daily_suggestion: false,
@@ -204,14 +217,15 @@ describe('buildDefaultPayloadFromStrategies', () => {
 
     const result = buildDefaultPayloadFromStrategies(strategies);
 
-    expect(result.configs[0]).toEqual({
-      config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-      strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
+      config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+      strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
       params: { ratio: 0.5 },
     });
   });
 
-  it('uses empty object for params when ethBtcRotation is not found', () => {
+  it('uses empty object for params when portfolio rules is not found', () => {
     const strategies: BacktestStrategyCatalogEntryV3[] = [
       {
         strategy_id: 'dma_gated_fgi',
@@ -225,9 +239,10 @@ describe('buildDefaultPayloadFromStrategies', () => {
 
     const result = buildDefaultPayloadFromStrategies(strategies);
 
-    expect(result.configs[0]).toEqual({
-      config_id: ETH_BTC_ROTATION_DEFAULT_CONFIG_ID,
-      strategy_id: ETH_BTC_ROTATION_STRATEGY_ID,
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]).toEqual({
+      config_id: DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
+      strategy_id: DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
       params: {},
     });
   });
@@ -235,7 +250,8 @@ describe('buildDefaultPayloadFromStrategies', () => {
   it('handles null strategies array by using empty params', () => {
     const result = buildDefaultPayloadFromStrategies(null);
 
-    expect(result.configs[0]?.params).toEqual({});
+    expect(result.configs[0]).toEqual(DCA_BASELINE_CONFIG);
+    expect(result.configs[1]?.params).toEqual({});
   });
 });
 

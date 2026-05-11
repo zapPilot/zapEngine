@@ -3,17 +3,14 @@ import { z } from 'zod';
 import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
+
 // ── Zod Schemas ──────────────────────────────────────────────────────
 
 const signalParamsSchema = z
   .object({
     cross_cooldown_days: z.coerce.number().int().nonnegative().optional(),
     cross_on_touch: z.boolean().optional(),
-    ratio_cross_cooldown_days: z.coerce.number().int().nonnegative().optional(),
-  })
-  .extend({
-    rotation_neutral_band: z.coerce.number().nonnegative().optional(),
-    rotation_max_deviation: z.coerce.number().positive().optional(),
   })
   .strict();
 
@@ -44,13 +41,6 @@ const tradeQuotaParamsSchema = z
   })
   .strict();
 
-const rotationParamsSchema = z
-  .object({
-    drift_threshold: z.coerce.number().nonnegative().optional(),
-    cooldown_days: z.coerce.number().int().nonnegative().optional(),
-  })
-  .strict();
-
 const topEscapeParamsSchema = z
   .object({
     dma_overextension_threshold: z.coerce.number().nonnegative().optional(),
@@ -66,7 +56,6 @@ const backtestParamsSchema = z
     buy_gate: buyGateParamsSchema.optional(),
     trade_quota: tradeQuotaParamsSchema.optional(),
     top_escape: topEscapeParamsSchema.optional(),
-    rotation: rotationParamsSchema.optional(),
   })
   .strict();
 
@@ -134,6 +123,9 @@ export function validateConfigsStrategyIdsAgainstCatalog(
     return null;
   }
   const allowed = new Set(strategies.map((entry) => entry.strategy_id));
+  // DCA Classic is always permitted as a baseline reference even when the
+  // catalog omits benchmark entries.
+  allowed.add(DCA_CLASSIC_STRATEGY_ID);
   for (let index = 0; index < configs.length; index += 1) {
     const config = configs[index];
     if (!config) {

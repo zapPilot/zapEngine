@@ -1,5 +1,5 @@
-// Regression guard: ConfigEditor must source strategies from /v3/strategy/configs,
-// not a hardcoded list. See plan declarative-jingling-cake.md.
+// Regression guard: ConfigEditor must source portfolio-rule metadata from
+// /v3/strategy/configs, with a local fallback only for old backend payloads.
 //
 // If this test fails, someone has reverted the dynamic wiring back to a hardcoded
 // STRATEGY_IDS map (or similar). Fix the component, do not silence this test.
@@ -26,18 +26,20 @@ const baseFormState: ConfigEditorFormState = {
   description: '',
   strategyId: '',
   primaryAsset: '',
+  disabledRules: new Set<string>(),
   supportsDailySuggestion: false,
   paramsJson: '{}',
   compositionJson: '{}',
 };
 
 describe('ConfigEditorStructuredFields contract', () => {
-  it('subscribes to useStrategyConfigs (deletion guard)', () => {
+  it('subscribes to useStrategyConfigs for portfolio-rule metadata', () => {
     useStrategyConfigsSpy.mockReturnValue({
       data: {
         strategies: [],
         presets: [],
         backtest_defaults: { days: 500, total_capital: 10000 },
+        portfolio_rules: [],
       },
       isLoading: false,
       isError: false,

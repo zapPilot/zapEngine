@@ -184,11 +184,11 @@ class Episode {
         _readRequiredString(json, 'createdAt', 'created_at'),
       ).toLocal(),
       listened: json['listened'] as bool? ?? false,
-      likeCount: _readInt(json, 'likeCount', 'like_count'),
+      likeCount: json_utils.readIntFromJson(json, 'likeCount', 'like_count'),
       script: json['script'] as String?,
       audioTracks: _readAudioTracks(json),
       languageClassrooms: _readLanguageClassrooms(json),
-      lastPositionSeconds: _readInt(
+      lastPositionSeconds: json_utils.readIntFromJson(
         json,
         'lastPositionSeconds',
         'last_position_seconds',
@@ -250,10 +250,6 @@ String? _readNullableString(
 ) {
   final value = _readOptionalString(json, camelKey, snakeKey).trim();
   return value.isEmpty ? null : value;
-}
-
-int _readInt(Map<String, dynamic> json, String camelKey, String snakeKey) {
-  return json_utils.readIntFromJson(json, camelKey, snakeKey);
 }
 
 List<AudioTrack> _readAudioTracks(Map<String, dynamic> json) {

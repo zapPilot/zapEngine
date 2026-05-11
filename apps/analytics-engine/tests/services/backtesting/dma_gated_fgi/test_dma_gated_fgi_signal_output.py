@@ -101,7 +101,7 @@ def test_runtime_reset_clears_cooldown_and_zone_state() -> None:
 def test_above_dma_extreme_greed_sells() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=55_000, dma_200=50_000, fgi=90),
+        _context(price=55_000, dma_200=50_000, fgi=90, label="extreme_greed"),
     )
 
     assert signal.metadata["reason"] == "above_extreme_greed_sell"
@@ -125,7 +125,7 @@ def test_above_dma_non_greed_holds() -> None:
 def test_below_dma_extreme_fear_buys() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=45_000, dma_200=50_000, fgi=10),
+        _context(price=45_000, dma_200=50_000, fgi=10, label="extreme_fear"),
     )
 
     assert signal.metadata["reason"] == "below_extreme_fear_buy"
@@ -192,7 +192,7 @@ def test_runtime_emits_cooldown_signal_after_cross_commit() -> None:
 def test_above_dma_greed_sells_with_partial_score() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=55_000, dma_200=50_000, fgi=70),
+        _context(price=55_000, dma_200=50_000, fgi=70, label="greed"),
     )
 
     assert signal.metadata["reason"] == "above_greed_sell"
@@ -218,6 +218,7 @@ def test_below_dma_extreme_fear_beats_ath_fallback() -> None:
             price=45_000,
             dma_200=50_000,
             fgi=10,
+            label="extreme_fear",
             ath_event="token_ath",
         ),
     )
@@ -235,6 +236,7 @@ def test_above_dma_greed_beats_ath_fallback() -> None:
             price=55_000,
             dma_200=50_000,
             fgi=70,
+            label="greed",
             ath_event="both_ath",
         ),
     )
@@ -251,6 +253,7 @@ def test_above_dma_extreme_greed_beats_ath_fallback() -> None:
             price=55_000,
             dma_200=50_000,
             fgi=90,
+            label="extreme_greed",
             ath_event="portfolio_ath",
         ),
     )
@@ -308,6 +311,30 @@ def test_label_only_extreme_fear_buy_has_full_confidence() -> None:
     assert signal.metadata["fgi_regime"] == "extreme_fear"
     assert signal.metadata["reason"] == "below_extreme_fear_buy"
     assert signal.confidence == pytest.approx(1.0)
+
+
+def test_crypto_value_no_longer_triggers_regime_without_label() -> None:
+    signal = _emit_signal_output(
+        _make_runtime(),
+        _context(price=45_000, dma_200=50_000, fgi=10),
+    )
+
+    assert signal.metadata["fgi_value"] == 10
+    assert signal.metadata["fgi_regime"] == "neutral"
+    assert signal.metadata["reason"] == "regime_no_signal"
+    assert signal.metadata["allocation_intent"]["hold"] is True
+
+
+def test_crypto_label_overrides_conflicting_numeric_value() -> None:
+    signal = _emit_signal_output(
+        _make_runtime(),
+        _context(price=45_000, dma_200=50_000, fgi=10, label="fear"),
+    )
+
+    assert signal.metadata["fgi_value"] == 10
+    assert signal.metadata["fgi_regime"] == "fear"
+    assert signal.metadata["reason"] == "regime_no_signal"
+    assert signal.metadata["allocation_intent"]["hold"] is True
 
 
 def test_missing_fgi_holds_with_zero_confidence() -> None:
@@ -486,7 +513,13 @@ def test_after_cross_down_below_side_extreme_fear_buy_allowed() -> None:
 
     signal = _emit_signal_output(
         runtime,
-        _context(price=44_000, dma_200=50_000, fgi=10, day=date(2025, 6, 3)),
+        _context(
+            price=44_000,
+            dma_200=50_000,
+            fgi=10,
+            label="extreme_fear",
+            day=date(2025, 6, 3),
+        ),
     )
 
     assert signal.metadata["reason"] == "below_extreme_fear_buy"
@@ -544,7 +577,13 @@ def test_cooldown_expiry_resumes_regime_gating() -> None:
 
     signal = _emit_signal_output(
         runtime,
-        _context(price=55_000, dma_200=50_000, fgi=70, day=date(2025, 6, 5)),
+        _context(
+            price=55_000,
+            dma_200=50_000,
+            fgi=70,
+            label="greed",
+            day=date(2025, 6, 5),
+        ),
     )
 
     assert signal.metadata["reason"] == "above_greed_sell"
@@ -624,7 +663,7 @@ def test_cooldown_remaining_days_countdown() -> None:
 def test_signal_metadata_contains_expected_dma_fields() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=45_000, dma_200=50_000, fgi=30),
+        _context(price=45_000, dma_200=50_000, fgi=30, label="fear"),
     )
 
     assert signal.metadata["price_above_dma"] is False
@@ -637,7 +676,7 @@ def test_signal_metadata_contains_expected_dma_fields() -> None:
 def test_signal_source_and_regime_match_market_state() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=55_000, dma_200=50_000, fgi=80),
+        _context(price=55_000, dma_200=50_000, fgi=80, label="extreme_greed"),
     )
 
     assert signal.source == "dma_gated_fgi"
@@ -648,7 +687,7 @@ def test_signal_source_and_regime_match_market_state() -> None:
 def test_signal_output_does_not_include_execution_fields() -> None:
     signal = _emit_signal_output(
         _make_runtime(),
-        _context(price=45_000, dma_200=50_000, fgi=10),
+        _context(price=45_000, dma_200=50_000, fgi=10, label="extreme_fear"),
     )
 
     assert "event" not in signal.metadata

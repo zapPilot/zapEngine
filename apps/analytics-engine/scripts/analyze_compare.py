@@ -12,9 +12,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from scripts._summarize import render_summary
-from src.services.backtesting.strategies.hierarchical_attribution import (
-    HIERARCHICAL_ATTRIBUTION_VARIANTS,
-)
 from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
 from src.services.backtesting.validation.event_runner import (
     ConstraintValidationFailed,
@@ -29,7 +26,7 @@ EnrichMode = Literal["auto", "never", "required"]
 
 DEFAULT_ENDPOINT = "http://localhost:8001"
 DEFAULT_COMPARE_PATH = "/api/v3/backtesting/compare"
-DEFAULT_SAVED_CONFIG_ID = "eth_btc_rotation_default"
+DEFAULT_SAVED_CONFIG_ID = "dma_fgi_portfolio_rules_default"
 DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_STATEFUL_DATE_LOOKBACK_DAYS = 400
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -1727,15 +1724,8 @@ def _optional_upper(value: Any) -> str | None:
 
 
 def _build_active_tactics(strategy_id: str) -> dict[str, Any]:
-    variant = HIERARCHICAL_ATTRIBUTION_VARIANTS.get(strategy_id)
-    if variant is None:
-        return {}
-    return {
-        "adaptive_crypto_dma_reference": variant.adaptive_crypto_dma_reference,
-        "spy_cross_up_latch": variant.spy_cross_up_latch,
-        "disabled_rules": sorted(variant.disabled_rules),
-        "dma_buy_strength_floor": variant.dma_buy_strength_floor,
-    }
+    del strategy_id
+    return {}
 
 
 def _render_text_context(context: dict[str, Any] | None) -> list[str]:

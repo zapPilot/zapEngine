@@ -4,6 +4,10 @@ import type {
 } from '@/types/backtesting';
 
 import { getBacktestTransferDirection } from '../backtestBuckets';
+import {
+  DCA_BASELINE_SPARSE_STRIDE,
+  DCA_CLASSIC_STRATEGY_ID,
+} from '../constants';
 import { getBacktestSpotAssetColor } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
 
@@ -27,6 +31,16 @@ export interface SignalConfig {
     | 'star'
     | 'triangle'
     | 'wye';
+}
+
+export interface BacktestChartPoint extends Record<string, unknown> {
+  date: string;
+  buySpotSignal: number | null;
+  sellSpotSignal: number | null;
+  switchToEthSignal: number | null;
+  switchToBtcSignal: number | null;
+  switchToSpySignal: number | null;
+  eventStrategies: Record<SignalKey, string[]>;
 }
 
 /** Unified signal configuration */
@@ -69,13 +83,6 @@ export const CHART_SIGNALS: SignalConfig[] = [
 ];
 
 const SIGNAL_FIELDS = CHART_SIGNALS.map((s) => s.field);
-const SENTIMENT_INDEX_MAP: Record<string, number> = {
-  extreme_fear: 0,
-  fear: 25,
-  neutral: 50,
-  greed: 75,
-  extreme_greed: 100,
-};
 const MS_PER_DAY = 86_400_000;
 const DEFAULT_Y_DOMAIN: [number, number] = [0, 1000];
 const Y_AXIS_PADDING_FACTOR = 0.05;
@@ -88,6 +95,11 @@ interface SignalAccumulator {
 type BacktestStrategy = NonNullable<
   BacktestTimelinePoint['strategies'][string]
 >;
+
+interface SparseContext {
+  pointIndex: number;
+  totalPoints: number;
+}
 
 function classifyTransfer(
   from: BacktestBucket,
@@ -157,6 +169,10 @@ function forEachActiveStrategy(
   callback: (strategyId: string, strategy: BacktestStrategy) => void,
 ): void {
   for (const strategyId of strategyIds) {
+    if (strategyId === DCA_CLASSIC_STRATEGY_ID) {
+      continue;
+    }
+
     const strategy = point.strategies[strategyId];
     if (!strategy) {
       continue;
@@ -173,6 +189,7 @@ function processStrategyTransfers(
 ): void {
   forEachActiveStrategy(point, strategyIds, (strategyId, strategy) => {
     const displayName = getStrategyDisplayName(strategyId);
+
     for (const transfer of getTransfers(strategy)) {
       const signalKey = classifyTransfer(
         transfer.from_bucket,
@@ -217,41 +234,6 @@ function getPointValues(
   return values;
 }
 
-function getPrimaryDma(
-  point: BacktestTimelinePoint,
-  strategyIds: string[],
-): number | null {
-  for (const strategyId of strategyIds) {
-    const signal = point.strategies[strategyId]?.signal;
-    const details = signal?.details;
-    const dmaDetails =
-      details && typeof details === 'object' && 'dma' in details
-        ? (details.dma as { dma_200?: number | null } | null | undefined)
-        : null;
-    const dma = dmaDetails?.dma_200;
-    if (typeof dma === 'number') {
-      return dma;
-    }
-  }
-
-  return null;
-}
-
-function getMacroFearGreedScore(point: BacktestTimelinePoint): number | null {
-  const score = point.market.macro_fear_greed?.score;
-  return typeof score === 'number' ? score : null;
-}
-
-export function sentimentLabelToIndex(
-  label: string | null | undefined,
-): number | null {
-  if (!label) {
-    return null;
-  }
-
-  return SENTIMENT_INDEX_MAP[label] ?? null;
-}
-
 export function calculateYAxisDomain(
   chartData: Record<string, unknown>[],
   strategyIds: string[],
@@ -290,55 +272,85 @@ export function calculateActualDays(timeline: BacktestTimelinePoint[]): number {
 }
 
 export function getPrimaryStrategyId(sortedIds: string[]): string | null {
-  return sortedIds[0] ?? null;
+  return (
+    sortedIds.find((id) => id !== DCA_CLASSIC_STRATEGY_ID) ??
+    sortedIds[0] ??
+    null
+  );
 }
 
 /**
- * Filters sorted strategy IDs to only include the primary displayed strategy.
- * This prevents the chart/tooltip from showing all strategies when the API returns many.
+ * Filters sorted strategy IDs to the DCA baseline plus the primary strategy.
  *
  * @param sortedIds - Strategy IDs already sorted by `sortStrategyIds`
- * @returns Array with at most 1 ID: [primaryStrategy]
- * @example
- * ```ts
- * filterToActiveStrategies(["dma_fgi_hierarchical_minimum", "eth_btc_rotation"])
- * // => ["dma_fgi_hierarchical_minimum"]
- * ```
+ * @returns Array with at most 2 IDs: [dca_classic, primaryStrategy]
  */
 export function filterToActiveStrategies(sortedIds: string[]): string[] {
   const primary = getPrimaryStrategyId(sortedIds);
-  return primary ? [primary] : sortedIds;
+  if (!primary) return sortedIds;
+
+  const result: string[] = [];
+  if (sortedIds.includes(DCA_CLASSIC_STRATEGY_ID)) {
+    result.push(DCA_CLASSIC_STRATEGY_ID);
+  }
+  if (primary !== DCA_CLASSIC_STRATEGY_ID) {
+    result.push(primary);
+  }
+
+  return result;
 }
 
 export function sortStrategyIds(ids: string[]): string[] {
-  return [...ids].sort((a, b) =>
-    getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b)),
-  );
+  const dca: string[] = [];
+  if (ids.includes(DCA_CLASSIC_STRATEGY_ID)) {
+    dca.push(DCA_CLASSIC_STRATEGY_ID);
+  }
+
+  const others = ids
+    .filter((id) => id !== DCA_CLASSIC_STRATEGY_ID)
+    .sort((a, b) =>
+      getStrategyDisplayName(a).localeCompare(getStrategyDisplayName(b)),
+    );
+
+  return [...dca, ...others];
 }
 
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {
+  sparseContext?: SparseContext,
+): BacktestChartPoint {
+  const data: BacktestChartPoint = {
     date: point.market.date,
-    market: point.market,
-    strategies: point.strategies,
+    buySpotSignal: null,
+    sellSpotSignal: null,
+    switchToEthSignal: null,
+    switchToBtcSignal: null,
+    switchToSpySignal: null,
+    eventStrategies: {
+      buy_spot: [],
+      sell_spot: [],
+      switch_to_eth: [],
+      switch_to_btc: [],
+      switch_to_spy: [],
+    },
   };
 
   for (const id of strategyIds) {
     const strategy = point.strategies[id];
     if (strategy) {
-      data[`${id}_value`] = strategy.portfolio.total_value;
+      const shouldSparseDca =
+        id === DCA_CLASSIC_STRATEGY_ID &&
+        sparseContext !== undefined &&
+        sparseContext.pointIndex !== 0 &&
+        sparseContext.pointIndex !== sparseContext.totalPoints - 1 &&
+        sparseContext.pointIndex % DCA_BASELINE_SPARSE_STRIDE !== 0;
+
+      data[`${id}_value`] = shouldSparseDca
+        ? null
+        : strategy.portfolio.total_value;
     }
   }
-
-  data['btc_price'] = point.market.token_price['btc'] ?? null;
-  data['dma_200'] = getPrimaryDma(point, strategyIds);
-  data['sentiment'] =
-    point.market.sentiment ??
-    sentimentLabelToIndex(point.market.sentiment_label);
-  data['macro_fear_greed'] = getMacroFearGreedScore(point);
 
   const acc = createSignalAccumulator();
   processStrategyTransfers(point, strategyIds, acc);

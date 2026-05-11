@@ -258,9 +258,9 @@ describe('TelegramService', () => {
 
       await service.sendDailySuggestion('user-1', {
         as_of: '2025-01-01',
-        config_id: 'eth_btc_rotation_default',
+        config_id: 'dma_fgi_portfolio_rules_default',
         config_display_name: 'Test Config',
-        strategy_id: 'eth_btc_rotation',
+        strategy_id: 'dma_fgi_portfolio_rules',
         action: {
           status: 'action_required',
           required: true,
@@ -327,7 +327,7 @@ describe('TelegramService', () => {
                 {
                   text: '☑️ Done',
                   callback_data:
-                    'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+                    'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
                 },
               ],
             ],
@@ -396,7 +396,7 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: {
-          data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+          data: 'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
         },
         answerCbQuery: vi.fn().mockResolvedValue(undefined),
         editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
@@ -404,7 +404,7 @@ describe('TelegramService', () => {
 
       await (service as any).handleDailySuggestionDoneCallback(
         ctx,
-        'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+        'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
       );
 
       expect(ctx.answerCbQuery).toHaveBeenCalledWith(
@@ -431,7 +431,7 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: {
-          data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+          data: 'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
         },
         answerCbQuery: vi.fn().mockResolvedValue(undefined),
         editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
@@ -439,7 +439,7 @@ describe('TelegramService', () => {
 
       await (service as any).handleDailySuggestionDoneCallback(
         ctx,
-        'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+        'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
       );
 
       expect(queryBuilder.insert).not.toHaveBeenCalled();
@@ -480,7 +480,7 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: {
-          data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+          data: 'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
         },
         answerCbQuery: vi.fn().mockResolvedValue(undefined),
         editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),
@@ -488,7 +488,7 @@ describe('TelegramService', () => {
 
       await (service as any).handleDailySuggestionDoneCallback(
         ctx,
-        'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+        'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
       );
 
       expect(dbMock.serviceRole.queryBuilder.insert).not.toHaveBeenCalled();
@@ -979,7 +979,7 @@ describe('TelegramService', () => {
       const ctx = {
         chat: { id: 12345 },
         callbackQuery: {
-          data: 'dsdone|eth_btc_rotation_default|eth_btc_rotation',
+          data: 'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
         },
         answerCbQuery: vi.fn().mockResolvedValue(undefined),
         editMessageReplyMarkup: vi.fn().mockResolvedValue(undefined),

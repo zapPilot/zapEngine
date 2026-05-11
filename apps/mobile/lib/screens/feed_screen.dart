@@ -232,7 +232,8 @@ class _FeedScreenState extends State<FeedScreen> {
               SliverToBoxAdapter(
                 child: ContinueListeningCard(
                   episode: heroEpisode,
-                  allCompleted: groups.unfinished.isEmpty,
+                  allCompleted:
+                      groups.inProgress.isEmpty && groups.unplayed.isEmpty,
                   isPlaying: playback.isEpisodePlaying(heroEpisode.id),
                   isLoading: playback.loadingEpisodeId == heroEpisode.id,
                   onPlay: () => _handleSmartPlay(heroEpisode),
@@ -348,8 +349,6 @@ class _EpisodeGroups {
   final List<Episode> inProgress;
   final List<Episode> unplayed;
   final List<Episode> completed;
-
-  List<Episode> get unfinished => [...inProgress, ...unplayed];
 }
 
 class _EpisodeSliverList extends StatelessWidget {

@@ -28,13 +28,11 @@ def format_decision_log_line(
         "reason": str(decision.get("reason", "")),
         "score": _round_number(details.get("decision_score"), digits=4),
         "signals": _signals_consulted(details),
+        "rule_matches": _rule_matches(details),
         "target_diff": _target_diff(prior_target or {}, target),
         "target": _target_name(details),
         "executed": _executed(point),
     }
-    sizing_meta = _sizing_meta(details)
-    if sizing_meta:
-        payload["sizing_meta"] = sizing_meta
     return json.dumps(payload, sort_keys=False, separators=(",", ":"))
 
 
@@ -150,15 +148,33 @@ def _signals_consulted(details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _sizing_meta(details: dict[str, Any]) -> dict[str, Any]:
-    raw = details.get("sizing_meta")
-    if not isinstance(raw, dict):
-        return {}
-    return {
-        str(key): value
-        for key, value in ((key, _json_value(value)) for key, value in raw.items())
-        if isinstance(key, str) and value is not None
-    }
+def _rule_matches(details: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = details.get("portfolio_rule_matches")
+    if not isinstance(raw, list):
+        return []
+    matches: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        rule_name = item.get("rule_name")
+        matched = item.get("matched")
+        if not isinstance(rule_name, str) or not isinstance(matched, bool):
+            continue
+        would_have_acted_action = item.get("would_have_acted_action")
+        suppressed_by = item.get("suppressed_by")
+        matches.append(
+            {
+                "rule_name": rule_name,
+                "matched": matched,
+                "would_have_acted_action": would_have_acted_action
+                if isinstance(would_have_acted_action, str)
+                else None,
+                "suppressed_by": suppressed_by
+                if isinstance(suppressed_by, str)
+                else None,
+            }
+        )
+    return matches
 
 
 def _executed(point: dict[str, Any]) -> bool:
@@ -173,24 +189,6 @@ def _json_scalar(value: Any) -> Any:
             return _round_number(value, digits=6)
         return value
     return str(value)
-
-
-def _json_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            str(key): nested
-            for key, nested in (
-                (key, _json_value(nested)) for key, nested in value.items()
-            )
-            if isinstance(key, str) and nested is not None
-        }
-    if isinstance(value, list | tuple):
-        return [
-            nested
-            for nested in (_json_value(item) for item in value)
-            if nested is not None
-        ]
-    return _json_scalar(value)
 
 
 def _round_number(value: Any, *, digits: int) -> float:

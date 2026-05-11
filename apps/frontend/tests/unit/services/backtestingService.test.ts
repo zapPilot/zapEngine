@@ -3,22 +3,46 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { httpUtils } from '@/lib/http';
 import {
   _sampleTimelineData as sampleTimelineData,
+  CHART_POINT_LIMIT,
   getBacktestingStrategiesV3,
-  MAX_CHART_POINTS,
-  MIN_CHART_POINTS,
   runBacktest,
 } from '@/services/backtestingService';
 import type {
+  BacktestExecution,
   BacktestRequest,
   BacktestTimelinePoint,
 } from '@/types/backtesting';
 
+type DecisionAction =
+  BacktestTimelinePoint['strategies'][string]['decision']['action'];
+
+const PRIMARY_STRATEGY_ID = 'dma_gated_fgi_default';
+
+function noActionExecution(): BacktestExecution {
+  return {
+    event: null,
+    transfers: [],
+    blocked_reason: null,
+    status: 'no_action',
+    action_required: false,
+    step_count: 0,
+    steps_remaining: 0,
+    interval_days: 0,
+    diagnostics: {
+      plugins: {},
+    },
+  };
+}
+
 function createTimelinePoint(
   index: number,
-  opts?: { withTransfers?: boolean },
+  opts?: { withTransfers?: boolean; actionWithoutTransfers?: DecisionAction },
 ): BacktestTimelinePoint {
   const date = new Date('2024-01-01');
   date.setDate(date.getDate() + index);
+  const action = opts?.withTransfers
+    ? 'buy'
+    : (opts?.actionWithoutTransfers ?? 'hold');
 
   return {
     market: {
@@ -70,31 +94,40 @@ function createTimelinePoint(
         },
         signal: null,
         decision: {
-          action: opts?.withTransfers ? 'buy' : 'hold',
+          action,
           reason: 'dma_fgi',
-          rule_group: opts?.withTransfers ? 'dma_fgi' : 'none',
+          rule_group: action === 'hold' ? 'none' : 'dma_fgi',
           target_allocation: {
             spot: 0.6,
             stable: 0.4,
           },
           immediate: false,
         },
-        execution: {
-          event: opts?.withTransfers ? 'rebalance' : null,
-          transfers: opts?.withTransfers
-            ? [
+        execution: opts?.withTransfers
+          ? {
+              event: 'rebalance',
+              transfers: [
                 {
                   from_bucket: 'stable',
                   to_bucket: 'spot',
                   amount_usd: 123,
                 },
-              ]
-            : [],
-          blocked_reason: null,
-          step_count: opts?.withTransfers ? 1 : 0,
-          steps_remaining: 0,
-          interval_days: 3,
-        },
+              ],
+              blocked_reason: null,
+              step_count: 1,
+              steps_remaining: 0,
+              interval_days: 3,
+            }
+          : opts?.actionWithoutTransfers
+            ? noActionExecution()
+            : {
+                event: null,
+                transfers: [],
+                blocked_reason: null,
+                step_count: 0,
+                steps_remaining: 0,
+                interval_days: 3,
+              },
       },
     },
   };
@@ -172,22 +205,24 @@ describe('backtestingService', () => {
         configs: [{ config_id: 'dca_classic', strategy_id: 'dca_classic' }],
       });
 
-      expect(result.timeline.length).toBeLessThanOrEqual(MAX_CHART_POINTS);
+      expect(result.timeline.length).toBeLessThanOrEqual(CHART_POINT_LIMIT);
     });
   });
 
   describe('sampleTimelineData', () => {
     it('returns empty array for undefined or empty timeline', () => {
-      expect(sampleTimelineData(undefined)).toEqual([]);
-      expect(sampleTimelineData([])).toEqual([]);
+      expect(sampleTimelineData(undefined, PRIMARY_STRATEGY_ID)).toEqual([]);
+      expect(sampleTimelineData([], PRIMARY_STRATEGY_ID)).toEqual([]);
     });
 
     it('returns the timeline unchanged when it is already small enough', () => {
-      const timeline = Array.from({ length: MIN_CHART_POINTS }, (_, i) =>
+      const timeline = Array.from({ length: CHART_POINT_LIMIT }, (_, i) =>
         createTimelinePoint(i),
       );
 
-      expect(sampleTimelineData(timeline)).toEqual(timeline);
+      expect(sampleTimelineData(timeline, PRIMARY_STRATEGY_ID)).toEqual(
+        timeline,
+      );
     });
 
     it('preserves first, last, and transfer points', () => {
@@ -196,7 +231,7 @@ describe('backtestingService', () => {
         createTimelinePoint(i, { withTransfers: transferIndices.includes(i) }),
       );
 
-      const result = sampleTimelineData(timeline);
+      const result = sampleTimelineData(timeline, PRIMARY_STRATEGY_ID);
       const dates = new Set(result.map((point) => point.market.date));
 
       expect(dates.has(timeline[0]?.market.date ?? '')).toBe(true);
@@ -206,6 +241,22 @@ describe('backtestingService', () => {
       for (const index of transferIndices) {
         expect(dates.has(timeline[index]?.market.date ?? '')).toBe(true);
       }
+    });
+
+    it('does not preserve no-action intent points without transfers', () => {
+      const noActionIntentIndex = 7;
+      const timeline = Array.from({ length: 30 }, (_, i) =>
+        createTimelinePoint(i, {
+          actionWithoutTransfers: i === noActionIntentIndex ? 'sell' : 'hold',
+        }),
+      );
+
+      const result = sampleTimelineData(timeline, PRIMARY_STRATEGY_ID, 6);
+      const dates = new Set(result.map((point) => point.market.date));
+
+      expect(dates.has(timeline[noActionIntentIndex]?.market.date ?? '')).toBe(
+        false,
+      );
     });
 
     it('does not treat DCA-only activity as a critical event', () => {
@@ -228,9 +279,12 @@ describe('backtestingService', () => {
         },
       }));
 
-      const result = sampleTimelineData(timeline as BacktestTimelinePoint[]);
+      const result = sampleTimelineData(
+        timeline as BacktestTimelinePoint[],
+        PRIMARY_STRATEGY_ID,
+      );
 
-      expect(result.length).toBeLessThanOrEqual(MAX_CHART_POINTS);
+      expect(result.length).toBeLessThanOrEqual(CHART_POINT_LIMIT);
       expect(result.length).toBeLessThan(timeline.length);
     });
   });

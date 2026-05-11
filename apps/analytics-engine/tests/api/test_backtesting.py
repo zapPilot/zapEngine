@@ -93,57 +93,6 @@ def _dma_runtime_params() -> dict[str, object]:
     }
 
 
-def _eth_rotation_params() -> dict[str, object]:
-    return {
-        "signal": {
-            "cross_cooldown_days": 30,
-            "cross_on_touch": True,
-            "ratio_cross_cooldown_days": 30,
-            "rotation_neutral_band": 0.05,
-            "rotation_max_deviation": 0.20,
-        },
-        "pacing": {
-            "k": 5.0,
-            "r_max": 1.0,
-        },
-        "buy_gate": {
-            "window_days": 5,
-            "sideways_max_range": 0.04,
-            "leg_caps": [0.05, 0.10, 0.20],
-        },
-        "trade_quota": {
-            "min_trade_interval_days": 1,
-            "max_trades_7d": None,
-            "max_trades_30d": None,
-        },
-        "rotation": {
-            "drift_threshold": 0.03,
-            "cooldown_days": 14,
-        },
-    }
-
-
-def _eth_rotation_runtime_params() -> dict[str, object]:
-    return {
-        "cross_cooldown_days": 30,
-        "cross_on_touch": True,
-        "ratio_cross_cooldown_days": 30,
-        "rotation_neutral_band": 0.05,
-        "rotation_max_deviation": 0.20,
-        "pacing_k": 5.0,
-        "pacing_r_max": 1.0,
-        "buy_sideways_window_days": 5,
-        "buy_sideways_max_range": 0.04,
-        "buy_leg_caps": [0.05, 0.10, 0.20],
-        "dma_overextension_threshold": 0.3,
-        "fgi_slope_reversal_threshold": -0.05,
-        "fgi_slope_recovery_threshold": 0.05,
-        "min_trade_interval_days": 1,
-        "rotation_drift_threshold": 0.03,
-        "rotation_cooldown_days": 14,
-    }
-
-
 def _compare_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "token_symbol": "BTC",
@@ -387,7 +336,7 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
     strategy_ids = [entry.strategy_id for entry in catalog.strategies]
     expected_strategy_ids = [recipe.strategy_id for recipe in list_strategy_recipes()]
     assert strategy_ids == expected_strategy_ids
-    assert "eth_btc_rotation" in strategy_ids
+    assert "dma_fgi_portfolio_rules" in strategy_ids
     assert "dma_fgi_portfolio_rules" in strategy_ids
     assert "dma_gated_fgi_btc_asset_control" not in strategy_ids
     assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
@@ -403,7 +352,7 @@ async def test_backtesting_strategies_v3_returns_recipe_catalog(
         == 30
     )
     assert "signal" in dma_entry.param_schema["properties"]
-    assert dma_entry.supports_daily_suggestion is False
+    assert dma_entry.supports_daily_suggestion is True
 
     configs_response = await client.get("/api/v3/strategy/configs")
     assert configs_response.status_code == 200
@@ -468,7 +417,7 @@ async def test_backtesting_compare_v3_returns_shared_snapshot_response(
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_accepts_nested_eth_btc_rotation_params(
+async def test_backtesting_compare_v3_accepts_nested_dma_fgi_portfolio_rules_params(
     client: AsyncClient,
 ) -> None:
     service = MockBacktestingService(response=_response())
@@ -480,9 +429,9 @@ async def test_backtesting_compare_v3_accepts_nested_eth_btc_rotation_params(
             "days": 30,
             "configs": [
                 {
-                    "config_id": "eth_btc_rotation_default",
-                    "strategy_id": "eth_btc_rotation",
-                    "params": _eth_rotation_params(),
+                    "config_id": "dma_fgi_portfolio_rules_default",
+                    "strategy_id": "dma_fgi_portfolio_rules",
+                    "params": _dma_params(),
                 }
             ],
         },
@@ -491,11 +440,11 @@ async def test_backtesting_compare_v3_accepts_nested_eth_btc_rotation_params(
 
     assert response.status_code == 200
     assert service.last_request is not None
-    assert service.last_request.configs[0].params == _eth_rotation_runtime_params()
+    assert service.last_request.configs[0].params == _dma_runtime_params()
 
 
 @pytest.mark.asyncio
-async def test_backtesting_compare_v3_rejects_flat_eth_btc_rotation_params(
+async def test_backtesting_compare_v3_rejects_flat_dma_fgi_portfolio_rules_params(
     client: AsyncClient,
 ) -> None:
     response = await _post_compare(
@@ -506,8 +455,8 @@ async def test_backtesting_compare_v3_rejects_flat_eth_btc_rotation_params(
             "days": 30,
             "configs": [
                 {
-                    "config_id": "eth_btc_rotation_default",
-                    "strategy_id": "eth_btc_rotation",
+                    "config_id": "dma_fgi_portfolio_rules_default",
+                    "strategy_id": "dma_fgi_portfolio_rules",
                     "params": {
                         "cross_cooldown_days": 30,
                         "rotation_cooldown_days": 7,
@@ -552,8 +501,8 @@ async def test_backtesting_compare_v3_maps_value_error_to_400(
         payload=_compare_payload(
             configs=[
                 {
-                    "config_id": "eth_rotation",
-                    "strategy_id": "eth_btc_rotation",
+                    "config_id": "portfolio_rules",
+                    "strategy_id": "dma_fgi_portfolio_rules",
                     "params": {},
                 }
             ]

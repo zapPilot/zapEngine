@@ -37,24 +37,6 @@ def _dma_public_params(**overrides: object) -> dict[str, object]:
     return params
 
 
-def _eth_public_params(**overrides: object) -> dict[str, object]:
-    params = _dma_public_params(
-        signal={
-            "cross_cooldown_days": 30,
-            "cross_on_touch": True,
-            "ratio_cross_cooldown_days": 30,
-            "rotation_neutral_band": 0.05,
-            "rotation_max_deviation": 0.20,
-        },
-        rotation={
-            "drift_threshold": 0.03,
-            "cooldown_days": 7,
-        },
-    )
-    params.update(overrides)
-    return params
-
-
 # ---------------------------------------------------------------------------
 # BacktestCompareConfigV3 saved_config_id branch coverage (lines 166, 168, 173)
 # ---------------------------------------------------------------------------
@@ -67,8 +49,8 @@ def test_compare_config_rejects_saved_config_id_combined_with_strategy_id() -> N
     ):
         BacktestCompareConfigV3(
             config_id="combo",
-            saved_config_id="eth_btc_rotation_default",
-            strategy_id="eth_btc_rotation",
+            saved_config_id="dma_fgi_portfolio_rules_default",
+            strategy_id="dma_fgi_portfolio_rules",
         )
 
 
@@ -79,7 +61,7 @@ def test_compare_config_rejects_saved_config_id_combined_with_params() -> None:
     ):
         BacktestCompareConfigV3(
             config_id="combo_params",
-            saved_config_id="eth_btc_rotation_default",
+            saved_config_id="dma_fgi_portfolio_rules_default",
             params=_dma_public_params(),
         )
 
@@ -132,10 +114,10 @@ def test_compare_request_requires_unique_config_ids() -> None:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="dup", strategy_id="eth_btc_rotation", params={}
+                    config_id="dup", strategy_id="dma_fgi_portfolio_rules", params={}
                 ),
                 BacktestCompareConfigV3(
-                    config_id="dup", strategy_id="eth_btc_rotation", params={}
+                    config_id="dup", strategy_id="dma_fgi_portfolio_rules", params={}
                 ),
             ],
         )
@@ -206,37 +188,33 @@ def test_compare_config_accepts_trade_quota_params() -> None:
     assert config.params["max_trades_30d"] == 8
 
 
-def test_compare_config_rejects_unknown_eth_btc_rotation_params() -> None:
+def test_compare_config_rejects_unknown_dma_fgi_portfolio_rules_params() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         BacktestCompareConfigV3(
-            config_id="eth_rotation_bad",
-            strategy_id="eth_btc_rotation",
+            config_id="portfolio_rules_bad",
+            strategy_id="dma_fgi_portfolio_rules",
             params={"foo": "bar"},
         )
 
 
-def test_compare_config_accepts_eth_btc_rotation_empty_params() -> None:
+def test_compare_config_accepts_dma_fgi_portfolio_rules_empty_params() -> None:
     config = BacktestCompareConfigV3(
-        config_id="eth_rotation_ok",
-        strategy_id="eth_btc_rotation",
+        config_id="portfolio_rules_ok",
+        strategy_id="dma_fgi_portfolio_rules",
         params={},
     )
     assert config.params["cross_cooldown_days"] == 30
-    assert config.params["ratio_cross_cooldown_days"] == 30
     assert config.params["buy_leg_caps"] == [0.05, 0.1, 0.2]
 
 
-def test_compare_config_accepts_eth_btc_rotation_nested_params() -> None:
+def test_compare_config_accepts_dma_fgi_portfolio_rules_nested_params() -> None:
     config = BacktestCompareConfigV3(
-        config_id="eth_rotation_dma",
-        strategy_id="eth_btc_rotation",
-        params=_eth_public_params(
+        config_id="portfolio_rules_custom",
+        strategy_id="dma_fgi_portfolio_rules",
+        params=_dma_public_params(
             signal={
                 "cross_cooldown_days": 12,
                 "cross_on_touch": False,
-                "ratio_cross_cooldown_days": 9,
-                "rotation_neutral_band": 0.05,
-                "rotation_max_deviation": 0.20,
             },
             pacing={
                 "k": 4.0,
@@ -250,7 +228,6 @@ def test_compare_config_accepts_eth_btc_rotation_nested_params() -> None:
         ),
     )
     assert config.params["cross_cooldown_days"] == 12
-    assert config.params["ratio_cross_cooldown_days"] == 9
     assert config.params["buy_leg_caps"] == [0.04, 0.08]
 
 
@@ -263,8 +240,8 @@ def test_compare_request_rejects_invalid_date_range() -> None:
             total_capital=10_000.0,
             configs=[
                 BacktestCompareConfigV3(
-                    config_id="eth_rotation",
-                    strategy_id="eth_btc_rotation",
+                    config_id="portfolio_rules",
+                    strategy_id="dma_fgi_portfolio_rules",
                     params={},
                 )
             ],
@@ -282,13 +259,15 @@ def test_compare_request_requires_non_empty_configs() -> None:
         )
 
 
-def test_compare_request_accepts_portfolio_rules_and_eth_rotation_configs() -> None:
+def test_compare_request_accepts_multiple_portfolio_rules_configs() -> None:
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="eth_rotation", strategy_id="eth_btc_rotation", params={}
+                config_id="portfolio_rules_default",
+                strategy_id="dma_fgi_portfolio_rules",
+                params={},
             ),
             BacktestCompareConfigV3(
                 config_id="portfolio_rules_runtime",

@@ -14,52 +14,12 @@ ALLOCATION_STATES = {
     "neutral_start": {"spot": 0.5, "stable": 0.5},
 }
 
-STRATEGY_ETH_BTC_ROTATION = "eth_btc_rotation"
-STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL = "dma_fgi_hierarchical_control"
-STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM = "dma_fgi_hierarchical_minimum"
+STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING = (
-    "dma_fgi_portfolio_rules_minus_adaptive_sizing"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT = (
-    "dma_fgi_portfolio_rules_minus_cross_down_exit"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT = (
-    "dma_fgi_portfolio_rules_minus_cross_up_eq_weight"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY = (
-    "dma_fgi_portfolio_rules_minus_extreme_fear_buy"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL = (
-    "dma_fgi_portfolio_rules_minus_overextension_sell"
-)
-STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL = (
-    "dma_fgi_portfolio_rules_minus_fgi_downshift_sell"
-)
 
 STRATEGY_DISPLAY_NAMES = {
-    STRATEGY_ETH_BTC_ROTATION: "ETH/BTC Relative Strength Rotation",
-    STRATEGY_DMA_FGI_HIERARCHICAL_CONTROL: "84% Hierarchical Attribution Control",
-    STRATEGY_DMA_FGI_HIERARCHICAL_MINIMUM: "Hierarchical Minimum",
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES: "[RESEARCH] Portfolio Rules",
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_ADAPTIVE_SIZING: (
-        "[RESEARCH] Portfolio Rules - Adaptive Sizing"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_DOWN_EXIT: (
-        "[RESEARCH] Portfolio Rules - Cross-Down Exit"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_CROSS_UP_EQ_WEIGHT: (
-        "[RESEARCH] Portfolio Rules - Cross-Up Equal Weight"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_EXTREME_FEAR_BUY: (
-        "[RESEARCH] Portfolio Rules - Extreme-Fear Buy"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_OVEREXTENSION_SELL: (
-        "[RESEARCH] Portfolio Rules - Overextension Sell"
-    ),
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES_MINUS_FGI_DOWNSHIFT_SELL: (
-        "[RESEARCH] Portfolio Rules - FGI Downshift Sell"
-    ),
+    STRATEGY_DCA_CLASSIC: "DCA Classic",
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES: "DMA/FGI Portfolio Rules",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {

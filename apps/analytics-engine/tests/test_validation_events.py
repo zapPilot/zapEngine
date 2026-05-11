@@ -34,15 +34,17 @@ def validation_timelines_by_event() -> dict[str, dict[str, list[dict[str, Any]]]
     timelines_by_event: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for event in EVENTS:
         prices, sentiments, start, end = _synthetic_market_history(event=event)
+        strategy_ids = event.applicable_strategies or KEPT_STRATEGIES
         payload = _run_validation_compare(
             prices=prices,
             sentiments=sentiments,
             start=start,
             end=end,
+            strategy_ids=strategy_ids,
         )
         timelines_by_event[event.id] = {
             strategy_id: _normalized_strategy_timeline(payload, strategy_id)
-            for strategy_id in KEPT_STRATEGIES
+            for strategy_id in strategy_ids
         }
     return timelines_by_event
 
@@ -53,6 +55,7 @@ def _run_validation_compare(
     sentiments: dict[date, dict[str, Any]],
     start: date,
     end: date,
+    strategy_ids: tuple[str, ...],
 ) -> dict[str, Any]:
     request = BacktestCompareRequestV3(
         token_symbol="BTC",
@@ -65,7 +68,7 @@ def _run_validation_compare(
                 strategy_id=strategy_id,
                 params={},
             )
-            for strategy_id in KEPT_STRATEGIES
+            for strategy_id in strategy_ids
         ],
     )
     result = run_compare_v3_on_data(
@@ -142,7 +145,15 @@ def _shape_event_market(
 ) -> None:
     event_date = date.fromisoformat(event.event_date)
     previous_date = event_date - timedelta(days=1)
-    if event.event_type == "crypto_cross_down":
+    if event.id == "greed_sell_suppression_2024_12_02":
+        _shape_greed_sell_suppression(rows, sentiments, event_date)
+    elif event.id == "dma_stable_gating_2025_03_13":
+        _shape_dma_stable_gating(rows, sentiments, dates)
+    elif event.id == "eth_btc_deviation_dca_to_eth_2025_04_07":
+        _shape_eth_btc_deviation_dca(rows, dates)
+    elif event.id == "spy_latch_absorb_fresh_stable_2026_04_16":
+        _shape_spy_latch_absorption(rows, sentiments, dates, event_date)
+    elif event.event_type == "crypto_cross_down":
         _shape_crypto_cross_down(rows, event_date, event.reference_asset or "BTC")
     elif event.event_type == "crypto_cross_up":
         _shape_crypto_cross_up(rows, dates, event_date, event.reference_asset or "BTC")
@@ -161,6 +172,67 @@ def _shape_event_market(
         _shape_ratio_cross(rows, dates, event_date, previous_ratio=1.2, event_ratio=0.8)
     elif event.id == "cooldown_period_2025_03_24":
         _shape_cooldown_event(rows, dates, event_date)
+
+
+def _shape_greed_sell_suppression(
+    rows: dict[date, dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    event_date: date,
+) -> None:
+    rows[event_date]["price"] = 150.0
+    rows[event_date]["prices"]["btc"] = 150.0
+    sentiments[event_date] = {
+        "label": "extreme_greed",
+        "value": 90,
+        "timestamp": event_date.isoformat(),
+    }
+
+
+def _shape_dma_stable_gating(
+    rows: dict[date, dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    dates: list[date],
+) -> None:
+    for current in dates:
+        _set_crypto_zone(rows, current, "BTC", above=False)
+        _set_crypto_zone(rows, current, "ETH", above=False)
+        sentiments[current] = {
+            "label": "fear",
+            "value": 25,
+            "timestamp": current.isoformat(),
+        }
+
+
+def _shape_eth_btc_deviation_dca(
+    rows: dict[date, dict[str, Any]],
+    dates: list[date],
+) -> None:
+    for current in dates:
+        _set_ratio(rows, current, ratio=0.55)
+
+
+def _shape_spy_latch_absorption(
+    rows: dict[date, dict[str, Any]],
+    sentiments: dict[date, dict[str, Any]],
+    dates: list[date],
+    event_date: date,
+) -> None:
+    activation_date = event_date - timedelta(days=1)
+    for current in dates:
+        _set_crypto_zone(rows, current, "BTC", above=False)
+        _set_crypto_zone(rows, current, "ETH", above=False)
+        _set_spy_zone(rows, current, above=False)
+    for symbol in ("BTC", "ETH"):
+        _set_crypto_zone(rows, activation_date, symbol, above=True)
+    _set_spy_zone(rows, activation_date, above=True)
+    _set_spy_zone(rows, event_date, above=True)
+    for symbol in ("BTC", "ETH"):
+        _set_crypto_zone(rows, event_date, symbol, above=False)
+    sentiments[event_date] = {
+        "label": "fear",
+        "value": 25,
+        "timestamp": event_date.isoformat(),
+    }
 
 
 def _shape_crypto_cross_down(

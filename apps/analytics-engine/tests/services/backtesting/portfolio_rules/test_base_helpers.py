@@ -22,7 +22,6 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
         ("cross_up_equal_weight", 20),
         ("eth_btc_ratio_rotation", 21),
         ("dma_overextension_dca_sell", 30),
-        ("extreme_fear_dca_buy", 40),
         ("fgi_downshift_dca_sell", 50),
     ]
 
@@ -89,7 +88,7 @@ def test_cross_down_cooldown_normalizes_symbol_case() -> None:
 def test_cross_down_cooldown_custom_override() -> None:
     rule = CrossDownExitRule(
         cross_down_cooldown_days_per_symbol={"SPY": 14, "BTC": 21},
-        default_cross_down_cooldown_days=10,
+        cooldown_days=10,
     )
 
     assert rule.cooldown_days_for("SPY") == 14

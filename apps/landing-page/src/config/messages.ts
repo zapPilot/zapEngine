@@ -1,3 +1,21 @@
+import {
+  formatMetricPercent,
+  formatPercentagePoint,
+  getBacktestSnapshot,
+} from '@/data/snapshot';
+
+const BACKTEST_SNAPSHOT = getBacktestSnapshot();
+const DCA_CLASSIC_BASELINE = {
+  roiPercent: -14.36,
+  maxDrawdownPercent: -43.02,
+  calmarRatio: -0.25,
+  sharpeRatio: -0.17,
+  tradeCount: 500,
+} as const;
+const ROI_VS_DCA_PP = formatPercentagePoint(
+  BACKTEST_SNAPSHOT.raw.roiPercent - DCA_CLASSIC_BASELINE.roiPercent,
+);
+
 export const MESSAGES = {
   // Common / Brand info
   common: {
@@ -31,12 +49,10 @@ export const MESSAGES = {
   hero: {
     badge: 'Disciplined Portfolio Autopilot',
     title: {
-      primary: 'Trade with discipline. Yield is the icing.',
-      line1: 'Trade with discipline.',
-      line2: 'Yield is the icing.',
+      primary: 'BlackRock in your wallet.',
     },
     subtitle:
-      'A rules engine that earns from trades, not yield. ~90% of the return comes from buying weakness and defending in greed across S&P500, BTC/ETH, and stables. We deliver the bundle; you sign it from your own wallet.',
+      'Rules-based across S&P500, BTC/ETH, and stables — bundled into one signature you keep.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
     ctaSecondary: 'See the Backtest',
   },
@@ -150,51 +166,55 @@ export const MESSAGES = {
   // Backtest proof section
   backtest: {
     title: 'Trades drove the return.',
-    subtitle:
-      '500-day strategy snapshot pinned to 2026-04-15. Minimum hierarchical production candidate vs DCA Classic, daily signal evaluation, 85 executed trades.',
+    subtitle: `${BACKTEST_SNAPSHOT.windowDays}-day strategy snapshot pinned to ${BACKTEST_SNAPSHOT.referenceDate}. ${BACKTEST_SNAPSHOT.displayName} vs DCA Classic, daily signal evaluation, ${BACKTEST_SNAPSHOT.tradeCount} executed trades.`,
     stats: [
       {
         label: 'ROI vs DCA',
-        value: '+135.8pp',
-        sublabel: '121.44% strategy vs -14.36% DCA',
+        value: ROI_VS_DCA_PP,
+        sublabel: `${BACKTEST_SNAPSHOT.roiPercent} strategy vs ${formatMetricPercent(
+          DCA_CLASSIC_BASELINE.roiPercent,
+        )} DCA`,
       },
       {
         label: 'Strategy ROI',
-        value: '121.44%',
-        sublabel: '500-day window',
+        value: BACKTEST_SNAPSHOT.roiPercent,
+        sublabel: `${BACKTEST_SNAPSHOT.windowDays}-day window`,
       },
       {
         label: 'Calmar Ratio',
-        value: '4.50',
-        sublabel: 'vs DCA: -0.25',
+        value: BACKTEST_SNAPSHOT.calmarRatio,
+        sublabel: `vs DCA: ${DCA_CLASSIC_BASELINE.calmarRatio}`,
       },
       {
         label: 'Sharpe Ratio',
-        value: '1.91',
-        sublabel: 'vs DCA: -0.17',
+        value: BACKTEST_SNAPSHOT.sharpeRatio,
+        sublabel: `vs DCA: ${DCA_CLASSIC_BASELINE.sharpeRatio}`,
       },
       {
         label: 'Max Drawdown',
-        value: '-17.46%',
-        sublabel: 'vs DCA: -43.02%',
+        value: BACKTEST_SNAPSHOT.maxDrawdownPercent,
+        sublabel: `vs DCA: ${formatMetricPercent(
+          DCA_CLASSIC_BASELINE.maxDrawdownPercent,
+        )}`,
       },
     ],
     comparison: [
       {
         label: 'Strategy',
-        roi: '121.44%',
-        maxDrawdown: '-17.46%',
-        trades: '85',
+        roi: BACKTEST_SNAPSHOT.roiPercent,
+        maxDrawdown: BACKTEST_SNAPSHOT.maxDrawdownPercent,
+        trades: BACKTEST_SNAPSHOT.tradeCount,
       },
       {
         label: 'DCA Classic',
-        roi: '-14.36%',
-        maxDrawdown: '-43.02%',
-        trades: '500',
+        roi: formatMetricPercent(DCA_CLASSIC_BASELINE.roiPercent),
+        maxDrawdown: formatMetricPercent(
+          DCA_CLASSIC_BASELINE.maxDrawdownPercent,
+        ),
+        trades: String(DCA_CLASSIC_BASELINE.tradeCount),
       },
     ],
-    disclaimer:
-      'Past performance does not guarantee future results. Backtest window: 2024-12-02 to 2026-04-15, reference date pinned to 2026-04-15.',
+    disclaimer: `Past performance does not guarantee future results. Backtest window: ${BACKTEST_SNAPSHOT.windowStart} to ${BACKTEST_SNAPSHOT.windowEnd}, reference date pinned to ${BACKTEST_SNAPSHOT.referenceDate}.`,
     ctaText: 'Read methodology',
     ctaLink: '/docs#backtest',
   },

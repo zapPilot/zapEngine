@@ -492,6 +492,12 @@ class StrategyDailySuggestionService:
                 getattr(_execution, "diagnostics", None), "plugins", None
             ),
         )
+        if (
+            effective_block_reason is None
+            and serialized.decision.action == "hold"
+            and str(serialized.decision.reason).startswith("trade_quota_")
+        ):
+            effective_block_reason = serialized.decision.reason
 
         if transfers:
             action_status = "action_required"
@@ -557,9 +563,32 @@ class StrategyDailySuggestionService:
             if isinstance(plugin, TradeHistoryAwareExecutionPlugin)
             and plugin.history_lookback_days > 0
         ]
-        if not history_plugins:
+        decision_policy = getattr(strategy, "decision_policy", None)
+        risk_guards = getattr(decision_policy, "risk_guards", ())
+        trade_quota_guards = [
+            guard
+            for guard in risk_guards
+            if any(
+                getattr(guard, attr, None) is not None
+                for attr in (
+                    "min_trade_interval_days",
+                    "max_trades_7d",
+                    "max_trades_30d",
+                )
+            )
+        ]
+        lookback_days = [plugin.history_lookback_days for plugin in history_plugins]
+        for guard in trade_quota_guards:
+            min_interval = getattr(guard, "min_trade_interval_days", None)
+            if isinstance(min_interval, int):
+                lookback_days.append(min_interval)
+            if getattr(guard, "max_trades_7d", None) is not None:
+                lookback_days.append(7)
+            if getattr(guard, "max_trades_30d", None) is not None:
+                lookback_days.append(30)
+        if not lookback_days:
             return
-        max_lookback = max(plugin.history_lookback_days for plugin in history_plugins)
+        max_lookback = max(lookback_days)
         start_date = current_date - timedelta(days=max(max_lookback - 1, 0))
         trade_dates = self.trade_history_store.list_trade_dates(
             user_id,
@@ -568,6 +597,25 @@ class StrategyDailySuggestionService:
         )
         for plugin in history_plugins:
             plugin.load_trade_dates(trade_dates)
+        if trade_quota_guards and execution_engine is not None:
+            existing_dates = list(getattr(execution_engine, "trade_dates", []))
+            seeded_dates = sorted({*existing_dates, *trade_dates})
+            seed_trade_dates = getattr(execution_engine, "seed_trade_dates", None)
+            if callable(seed_trade_dates):
+                seed_trade_dates(seeded_dates)
+            elif hasattr(execution_engine, "trade_dates"):
+                execution_engine.trade_dates = seeded_dates
+            if not callable(seed_trade_dates) and hasattr(
+                execution_engine, "last_trade_date"
+            ):
+                execution_engine.last_trade_date = max(
+                    (
+                        trade_date
+                        for trade_date in seeded_dates
+                        if trade_date <= current_date
+                    ),
+                    default=None,
+                )
 
     @staticmethod
     def _build_price_map(

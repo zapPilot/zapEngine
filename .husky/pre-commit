@@ -8,6 +8,10 @@ set -eu
 pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
 
 #Run some config and script drifts checkings
+# Auto-sync strategy snapshot mirror (analytics-engine fixture -> landing-page data)
+# so the strict drift check in lint:repo will pass.
+pnpm lint:snapshot-sync:fix
+git add apps/landing-page/src/data/strategy-snapshot.json
 pnpm lint:repo
 
 # 🎯 Auto-fix and re-stage files that are about to be committed

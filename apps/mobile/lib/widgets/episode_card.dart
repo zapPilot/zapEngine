@@ -7,8 +7,8 @@ import '../models/episode_status.dart';
 import '../screens/episode_detail_screen.dart';
 import '../theme/colors.dart';
 import '../utils/date_format.dart';
+import 'bookmark_button.dart';
 import 'episode_status_badge.dart';
-import 'like_button.dart';
 import 'play_pause_button.dart';
 import 'share_button.dart';
 
@@ -19,10 +19,14 @@ class EpisodeCard extends StatelessWidget {
     required this.isPlaying,
     required this.isLoading,
     required this.onPlay,
+    this.onDelete,
+    this.deleteLabel = 'Delete',
   });
 
   final Episode episode;
   final VoidCallback onPlay;
+  final VoidCallback? onDelete;
+  final String? deleteLabel;
   final bool isPlaying;
   final bool isLoading;
 
@@ -76,7 +80,7 @@ class EpisodeCard extends StatelessWidget {
                             formatEpisodeDate(episode.createdAt),
                             style: theme.textTheme.bodySmall,
                           ),
-                          LikeButton(episode: episode, compact: true),
+                          BookmarkButton(episode: episode, compact: true),
                           ShareButton(episode: episode, compact: true),
                         ],
                       ),
@@ -132,6 +136,21 @@ class EpisodeCard extends StatelessWidget {
                   );
                 },
               ),
+              if (onDelete != null)
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.redAccent,
+                  ),
+                  title: Text(
+                    deleteLabel ?? 'Delete',
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onDelete!();
+                  },
+                ),
               const SizedBox(height: 8),
             ],
           ),

@@ -1,7 +1,10 @@
 import type { BacktestRequest } from '@/types/backtesting';
 import type { StrategyPreset } from '@/types/strategy';
 
-import { getDefaultConfigIdForStrategyId } from '../constants';
+import {
+  DCA_CLASSIC_STRATEGY_ID,
+  getDefaultConfigIdForStrategyId,
+} from '../constants';
 
 function parseJsonObject(json: string): Record<string, unknown> | null {
   try {
@@ -119,25 +122,40 @@ export function parseConfigStrategyIdWithPresets(
     return fallback;
   }
 
-  const first = configs[0] as Record<string, unknown> | undefined;
-  const strategyId = first?.['strategy_id'];
-  if (typeof strategyId === 'string') {
-    return strategyId;
+  let firstResolvedStrategyId: string | null = null;
+
+  for (const entry of configs) {
+    const config = entry as Record<string, unknown> | undefined;
+    let resolvedStrategyId: string | undefined;
+
+    const strategyId = config?.['strategy_id'];
+    if (typeof strategyId === 'string') {
+      resolvedStrategyId = strategyId;
+    }
+
+    const savedConfigId = config?.['saved_config_id'];
+    if (!resolvedStrategyId && typeof savedConfigId === 'string') {
+      const preset = presets.find((item) => item.config_id === savedConfigId);
+      resolvedStrategyId = preset?.strategy_id;
+    }
+
+    const configId = config?.['config_id'];
+    if (!resolvedStrategyId && typeof configId === 'string') {
+      const preset = presets.find((item) => item.config_id === configId);
+      resolvedStrategyId = preset?.strategy_id;
+    }
+
+    if (!resolvedStrategyId) {
+      continue;
+    }
+
+    firstResolvedStrategyId ??= resolvedStrategyId;
+    if (resolvedStrategyId !== DCA_CLASSIC_STRATEGY_ID) {
+      return resolvedStrategyId;
+    }
   }
 
-  const savedConfigId = first?.['saved_config_id'];
-  if (typeof savedConfigId === 'string') {
-    const preset = presets.find((entry) => entry.config_id === savedConfigId);
-    return preset?.strategy_id ?? fallback;
-  }
-
-  const configId = first?.['config_id'];
-  if (typeof configId === 'string') {
-    const preset = presets.find((entry) => entry.config_id === configId);
-    return preset?.strategy_id ?? fallback;
-  }
-
-  return fallback;
+  return firstResolvedStrategyId ?? fallback;
 }
 
 /**
@@ -152,7 +170,7 @@ export function parseConfigStrategyIdWithPresets(
  * ```ts
  * updateConfigStrategy(
  *   '{"configs":[{"config_id":"x","strategy_id":"old"}]}',
- *   { config_id: "eth_btc_rotation_default", saved_config_id: "eth_btc_rotation_default" }
+ *   { config_id: "dma_fgi_portfolio_rules_default", saved_config_id: "dma_fgi_portfolio_rules_default" }
  * )
  * ```
  */

@@ -25,7 +25,7 @@
   },
   {
     "app": "podcast-pipeline",
-    "secret_name": "FLY_API_TOKEN_PODCAST",
+    "secret_name": "FLY_API_TOKEN_MOBILE",
     "fly_config": "apps/podcast-pipeline/fly.toml",
     "verify_package_script": "",
     "capture_release_metadata": true,

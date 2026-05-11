@@ -370,4 +370,234 @@ describe('RebalancePanel', () => {
     expect(screen.getByText('BTC')).toBeDefined();
     expect(screen.getByText('STABLE -> BTC')).toBeDefined();
   });
+
+  it('renders SPY bucket label when transfer targets spy bucket', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          transfers: [
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'spy' as const,
+              amount_usd: 200,
+            },
+          ],
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('SPY')).toBeDefined();
+    expect(screen.getByText('STABLE -> SPY')).toBeDefined();
+  });
+
+  it('handles multiple transfers correctly', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          transfers: [
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'btc' as const,
+              amount_usd: 100,
+            },
+            {
+              from_bucket: 'eth' as const,
+              to_bucket: 'stable' as const,
+              amount_usd: 50,
+            },
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'eth' as const,
+              amount_usd: 75,
+            },
+          ],
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('BTC')).toBeDefined();
+    expect(screen.getAllByText(/STABLE/)).toHaveLength(3);
+    expect(screen.getAllByText('Add')).toHaveLength(2);
+    expect(screen.getAllByText('Reduce')).toHaveLength(1);
+  });
+
+  it('renders when target_spot_asset is btc', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        context: {
+          ...mockSuggestionData.context,
+          strategy: {
+            ...mockSuggestionData.context.strategy,
+            details: {
+              target_spot_asset: 'btc',
+            },
+          },
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('Portfolio Health')).toBeDefined();
+  });
+
+  it('renders when target_spot_asset is spy', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        context: {
+          ...mockSuggestionData.context,
+          strategy: {
+            ...mockSuggestionData.context.strategy,
+            details: {
+              target_spot_asset: 'spy',
+            },
+          },
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('Portfolio Health')).toBeDefined();
+  });
+
+  it('handles sentiment label casing correctly', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        context: {
+          ...mockSuggestionData.context,
+          market: {
+            ...mockSuggestionData.context.market,
+            sentiment_label: 'NEUTRAL',
+          },
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+  });
+
+  it('handles different regime contexts', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        context: {
+          ...mockSuggestionData.context,
+          signal: {
+            ...mockSuggestionData.context.signal,
+            regime: 'neutral',
+          },
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('Portfolio Health')).toBeDefined();
+  });
+
+  it('handles action with no_required false', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          required: false,
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('Portfolio Health')).toBeDefined();
+  });
+
+  it('renders correctly with large transfer amounts', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          transfers: [
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'eth' as const,
+              amount_usd: 1000000,
+            },
+          ],
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('$1000000.00')).toBeDefined();
+  });
+
+  it('handles single transfer scenario', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          transfers: [
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'eth' as const,
+              amount_usd: 500,
+            },
+          ],
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    expect(screen.getByText('Add')).toBeDefined();
+    expect(screen.queryByText('Reduce')).toBeNull();
+  });
+
+  it('renders action dots correctly for multiple transfers', () => {
+    vi.mocked(useDailySuggestion).mockReturnValue({
+      data: {
+        ...mockSuggestionData,
+        action: {
+          ...mockSuggestionData.action,
+          transfers: [
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'eth' as const,
+              amount_usd: 100,
+            },
+            {
+              from_bucket: 'eth' as const,
+              to_bucket: 'stable' as const,
+              amount_usd: 100,
+            },
+            {
+              from_bucket: 'stable' as const,
+              to_bucket: 'btc' as const,
+              amount_usd: 100,
+            },
+          ],
+        },
+      },
+    } as ReturnType<typeof useDailySuggestion>);
+
+    render(<RebalancePanel userId="0xabc" />);
+
+    const { container } = render(<RebalancePanel userId="0xabc" />);
+    expect(container.querySelectorAll('.rounded-full.w-2.h-2')).toHaveLength(3);
+  });
 });

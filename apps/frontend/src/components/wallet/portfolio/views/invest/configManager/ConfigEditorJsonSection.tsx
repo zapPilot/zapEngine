@@ -78,6 +78,12 @@ export function ConfigEditorJsonSection({
         </div>
 
         <div className="p-4">
+          {activeJsonTab === 'params' && (
+            <p className="mb-3 text-xs text-gray-500">
+              disabled_rules is controlled by the Portfolio Rules checkboxes;
+              values entered here are overwritten on save.
+            </p>
+          )}
           <JsonEditorPanel {...activeJsonEditor} disabled={isBenchmark} />
         </div>
       </div>

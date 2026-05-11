@@ -29,6 +29,12 @@ ALLOCATION_KEY_BY_SYMBOL: dict[str, str] = {
 SYMBOL_BY_ALLOCATION_KEY: dict[str, str] = {
     value: key for key, value in ALLOCATION_KEY_BY_SYMBOL.items()
 }
+DIAG_MATCHED_RULE_NAME = "matched_rule_name"
+DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS = "portfolio_rule_trigger_assets"
+DIAG_PORTFOLIO_RULE_COOLDOWN_KEY = "portfolio_rule_cooldown_key"
+DIAG_COOLDOWN_SKIPPED_RULES = "cooldown_skipped_rules"
+DIAG_SIGNALS_CONSULTED = "signals_consulted"
+DIAG_PORTFOLIO_RULE_MATCHES = "portfolio_rule_matches"
 _EPSILON = 1e-12
 
 if TYPE_CHECKING:
@@ -165,27 +171,6 @@ def current_fgi_regime_for_symbol(
     )
 
 
-def current_fgi_value_for_symbol(
-    snapshot: PortfolioSnapshot,
-    symbol: str,
-) -> float | None:
-    normalized_symbol = normalize_symbol(symbol)
-    state = snapshot.assets.get(normalized_symbol)
-    if normalized_symbol == "SPY":
-        if snapshot.macro_fgi_value is not None:
-            return snapshot.macro_fgi_value
-        if state is None:
-            return None
-        if state.macro_fear_greed_value is not None:
-            return state.macro_fear_greed_value
-        return state.fgi_value
-    if snapshot.crypto_fgi_value is not None:
-        return snapshot.crypto_fgi_value
-    if state is None:
-        return None
-    return state.fgi_value
-
-
 def portfolio_target_intent(
     *,
     action: DecisionAction,
@@ -196,7 +181,6 @@ def portfolio_target_intent(
     assets: list[str],
     immediate: bool = False,
     signals_consulted: Mapping[str, Any] | None = None,
-    sizing_meta: Mapping[str, Any] | None = None,
 ) -> AllocationIntent:
     intent = target_intent(
         action=action,
@@ -210,44 +194,8 @@ def portfolio_target_intent(
         "portfolio_rule_assets": [normalize_symbol(asset) for asset in assets]
     }
     if signals_consulted:
-        diagnostics["signals_consulted"] = dict(signals_consulted)
-    if sizing_meta:
-        diagnostics["sizing_meta"] = dict(sizing_meta)
+        diagnostics[DIAG_SIGNALS_CONSULTED] = dict(signals_consulted)
     return replace(intent, diagnostics=diagnostics)
-
-
-def sizing_meta_for_symbol(
-    *,
-    sizing: SizingStrategy,
-    base_step: float,
-    adjusted_step: float,
-    snapshot: PortfolioSnapshot,
-    asset: str,
-) -> dict[str, Any]:
-    return {
-        "strategy": sizing.name,
-        "base": float(base_step),
-        "adjusted": float(adjusted_step),
-        "fgi": current_fgi_value_for_symbol(snapshot, asset),
-    }
-
-
-def combine_sizing_meta(
-    sizing_meta_by_symbol: Mapping[str, Mapping[str, Any]],
-) -> dict[str, Any]:
-    if len(sizing_meta_by_symbol) == 1:
-        return dict(next(iter(sizing_meta_by_symbol.values())))
-    if not sizing_meta_by_symbol:
-        return {}
-    values = [dict(value) for value in sizing_meta_by_symbol.values()]
-    strategies = {str(value.get("strategy")) for value in values}
-    return {
-        "strategy": values[0].get("strategy") if len(strategies) == 1 else "mixed",
-        "assets": {
-            normalize_symbol(symbol).lower(): dict(meta)
-            for symbol, meta in sizing_meta_by_symbol.items()
-        },
-    }
 
 
 def signals_consulted_for_symbols(
@@ -325,7 +273,6 @@ def build_dca_sell_intent(
     emit_signals_consulted: bool,
 ) -> AllocationIntent:
     target = current_target(snapshot)
-    sizing_meta_by_symbol: dict[str, dict[str, object]] = {}
     for symbol in matching_symbols:
         adjusted_sell_step = max(
             0.0,
@@ -336,13 +283,6 @@ def build_dca_sell_intent(
                     asset=symbol,
                 )
             ),
-        )
-        sizing_meta_by_symbol[symbol] = sizing_meta_for_symbol(
-            sizing=sizing,
-            base_step=sell_step,
-            adjusted_step=adjusted_sell_step,
-            snapshot=snapshot,
-            asset=symbol,
         )
         key = allocation_key_for_symbol(symbol)
         sold = min(adjusted_sell_step, max(0.0, float(target.get(key, 0.0))))
@@ -361,12 +301,17 @@ def build_dca_sell_intent(
         )
         if emit_signals_consulted
         else None,
-        sizing_meta=combine_sizing_meta(sizing_meta_by_symbol),
     )
 
 
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
+    "DIAG_COOLDOWN_SKIPPED_RULES",
+    "DIAG_MATCHED_RULE_NAME",
+    "DIAG_PORTFOLIO_RULE_MATCHES",
+    "DIAG_PORTFOLIO_RULE_COOLDOWN_KEY",
+    "DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS",
+    "DIAG_SIGNALS_CONSULTED",
     "PORTFOLIO_RULE_SYMBOLS",
     "SYMBOL_BY_ALLOCATION_KEY",
     "PortfolioRule",
@@ -376,9 +321,7 @@ __all__ = [
     "add_stable",
     "allocation_key_for_symbol",
     "build_dca_sell_intent",
-    "combine_sizing_meta",
     "current_fgi_regime_for_symbol",
-    "current_fgi_value_for_symbol",
     "current_target",
     "cross_down_cooldown_days_for",
     "normalize_regime",
@@ -387,6 +330,5 @@ __all__ = [
     "ratio_signals_consulted",
     "rule_cooldown_remaining_days",
     "signals_consulted_for_symbols",
-    "sizing_meta_for_symbol",
     "symbols_for_snapshot",
 ]

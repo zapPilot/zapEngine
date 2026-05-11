@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../config/share_config.dart';
 import '../models/episode.dart';
 import '../theme/colors.dart';
 
@@ -27,8 +28,9 @@ class ShareButton extends StatelessWidget {
           color: AppColors.textSecondary,
         ),
         onPressed: () {
+          final shareUrl = ShareConfig.episodeUri(_episode.id).toString();
           Share.share(
-            '${_episode.title} - ${_episode.hlsUrl}',
+            '${_episode.title}\n$shareUrl',
             subject: _episode.title,
           );
         },

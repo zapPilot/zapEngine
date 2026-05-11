@@ -62,15 +62,7 @@ def test_extreme_fear_buy_uses_macro_fgi_for_spy() -> None:
     assert intent.target_allocation == pytest.approx(
         {"btc": 0.0, "eth": 0.0, "spy": 0.01, "stable": 0.99, "alt": 0.0}
     )
-    assert intent.diagnostics == {
-        "portfolio_rule_assets": ["SPY"],
-        "sizing_meta": {
-            "strategy": "flat",
-            "base": 0.01,
-            "adjusted": 0.01,
-            "fgi": 50.0,
-        },
-    }
+    assert intent.diagnostics == {"portfolio_rule_assets": ["SPY"]}
 
 
 def test_extreme_fear_buy_uses_crypto_fgi_for_btc_and_eth() -> None:
@@ -99,7 +91,6 @@ def test_extreme_fear_buy_uses_crypto_fgi_for_btc_and_eth() -> None:
     )
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC", "ETH"]
-    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"
 
 
 def test_extreme_fear_buy_caps_by_available_stable() -> None:
@@ -148,7 +139,6 @@ def test_extreme_fear_buy_includes_above_dma_assets() -> None:
     assert intent.action == "buy"
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["SPY"]
-    assert intent.diagnostics["sizing_meta"]["strategy"] == "flat"
 
 
 def test_extreme_fear_buy_excludes_non_extreme_fear_assets() -> None:

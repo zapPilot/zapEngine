@@ -1,9 +1,8 @@
 import type {
   BacktestAssetAllocation,
   BacktestStrategyPoint,
+  BacktestTimelinePoint,
 } from '@/types/backtesting';
-
-import type { IndicatorKey } from '../components/backtestChartLegendData';
 
 export interface TooltipItem {
   name: string;
@@ -14,12 +13,6 @@ export interface TooltipItem {
 export interface EventItem {
   name: string;
   strategies: string[];
-  color: string;
-}
-
-export interface SignalItem {
-  name: string;
-  value: string | number;
   color: string;
 }
 
@@ -65,7 +58,6 @@ export interface ParsedTooltipData {
   sections: {
     strategies: TooltipItem[];
     events: EventItem[];
-    signals: SignalItem[];
     decision: DecisionSummary | null;
     allocations: AllocationBlock[];
   };
@@ -84,7 +76,6 @@ export type EventStrategiesRecord = Record<string, string[]>;
 export interface TooltipSections {
   strategies: TooltipItem[];
   events: EventItem[];
-  signals: SignalItem[];
   decision: DecisionSummary | null;
 }
 
@@ -92,6 +83,7 @@ export interface ParsedTooltipSource {
   payload: BacktestTooltipPayloadEntry[];
   label: string | number | undefined;
   sortedStrategyIds: string[] | undefined;
+  chartDataIndex?: Map<string, BacktestTimelinePoint> | undefined;
 }
 
 export interface BacktestTooltipProps {
@@ -99,5 +91,5 @@ export interface BacktestTooltipProps {
   payload?: BacktestTooltipPayloadEntry[];
   label?: string | number;
   sortedStrategyIds?: string[];
-  activeIndicators?: Set<IndicatorKey>;
+  chartDataIndex?: Map<string, BacktestTimelinePoint> | undefined;
 }

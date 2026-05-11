@@ -114,6 +114,28 @@ def test_signal_engine_extracts_macro_fear_greed_state() -> None:
     assert market_state.macro_fear_greed_regime == "extreme_fear"
 
 
+def test_signal_engine_uses_macro_label_not_score_threshold() -> None:
+    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+
+    market_state = engine.build_market_state(
+        _context(
+            day=2,
+            price=45_000.0,
+            sentiment={"label": "neutral", "value": 50},
+            extra_data={
+                "macro_fear_greed": {
+                    "score": 4.0,
+                    "label": "Fear",
+                },
+            },
+        )
+    )
+
+    assert market_state.macro_fear_greed_value == pytest.approx(4.0)
+    assert market_state.macro_fear_greed_regime == "fear"
+    assert market_state.macro_fear_greed_regime_source == "label"
+
+
 def test_decision_resolver_prioritizes_dma_fgi_over_ath_fallback() -> None:
     buy_state = _market_state(
         zone="below",

@@ -5,20 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
-from pydantic import JsonValue
-
-from src.config.strategy_presets import resolve_strategy_default_runtime_params
 from src.models.strategy_config import (
     SavedStrategyConfig,
-    StrategyComponentRef,
-    StrategyComposition,
 )
 from src.services.backtesting.capabilities import (
     PortfolioBucketMapper,
     RuntimePortfolioMode,
-    map_portfolio_to_eth_btc_stable_buckets,
+    map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
 from src.services.backtesting.composition_types import (
@@ -26,7 +21,7 @@ from src.services.backtesting.composition_types import (
     StatefulSignalComponent,
 )
 from src.services.backtesting.constants import (
-    STRATEGY_ETH_BTC_ROTATION,
+    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
 )
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
     DmaBuyGateExecutionPlugin,
@@ -35,17 +30,16 @@ from src.services.backtesting.execution.pacing import FgiExponentialPacingPolicy
 from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
 )
-from src.services.backtesting.public_params import runtime_params_to_public_params
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    DmaGatedFgiDecisionPolicy,
-    DmaGatedFgiParams,
-    DmaGatedFgiSignalComponent,
+from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+    PORTFOLIO_RULES_SIGNAL_ID,
+    DmaFgiPortfolioRulesDecisionPolicy,
 )
-from src.services.backtesting.strategies.eth_btc_rotation import (
-    EthBtcRelativeStrengthSignalComponent,
-    EthBtcRotationDecisionPolicy,
-    EthBtcRotationParams,
+from src.services.backtesting.strategies.dma_gated_fgi import (
+    DmaGatedFgiParams,
+)
+from src.services.backtesting.strategies.minimum import (
+    FlatMinimumSignalComponent,
 )
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from src.services.backtesting.utils import (
@@ -69,49 +63,19 @@ BenchmarkStrategyBuilderFactory = Callable[
 ]
 
 
-def _build_dma_gated_fgi_signal_component(
+def _build_portfolio_rules_signal_component(
     params: Mapping[str, Any],
-) -> DmaGatedFgiSignalComponent:
-    """Build DMA-gated FGI signal component from params."""
+) -> FlatMinimumSignalComponent:
+    """Build the portfolio-rule signal component from saved-config params."""
     normalized = coerce_params(
         params,
         {"cross_cooldown_days": coerce_int, "cross_on_touch": coerce_bool},
         prefix="signal.",
     )
-    return DmaGatedFgiSignalComponent(
-        config=DmaGatedFgiParams(
-            cross_cooldown_days=normalized.get("cross_cooldown_days", 30),
-            cross_on_touch=normalized.get("cross_on_touch", True),
-        ).build_signal_config()
+    return FlatMinimumSignalComponent(
+        config=DmaGatedFgiParams(**normalized).build_signal_config(),
+        signal_id=PORTFOLIO_RULES_SIGNAL_ID,
     )
-
-
-def _build_eth_btc_rs_signal_component(
-    params: Mapping[str, Any],
-) -> EthBtcRelativeStrengthSignalComponent:
-    """Build ETH/BTC relative strength signal component from params."""
-    config_kwargs = coerce_params(
-        params,
-        {"cross_cooldown_days": coerce_int, "cross_on_touch": coerce_bool},
-        prefix="signal.",
-    )
-    signal_kwargs: dict[str, Any] = {}
-    if config_kwargs:
-        signal_kwargs["config"] = DmaGatedFgiParams(
-            **config_kwargs
-        ).build_signal_config()
-    signal_kwargs.update(
-        coerce_params(
-            params,
-            {
-                "ratio_cross_cooldown_days": coerce_int,
-                "rotation_neutral_band": coerce_float,
-                "rotation_max_deviation": coerce_float,
-            },
-            prefix="signal.",
-        )
-    )
-    return EthBtcRelativeStrengthSignalComponent(**signal_kwargs)
 
 
 def _build_decision_policy(
@@ -171,113 +135,6 @@ def _build_trade_quota_guard_plugin(
         prefix="plugins.trade_quota_guard.",
     )
     return TradeQuotaGuardExecutionPlugin(**normalized)
-
-
-def _build_composed_saved_config_from_legacy(
-    config_id: str,
-    params: Mapping[str, Any],
-    *,
-    strategy_id: str,
-    params_class: type[DmaGatedFgiParams],
-    signal_component_id: str,
-    decision_component_id: str,
-    default_runtime_params: Mapping[str, Any] | None = None,
-    bucket_mapper_id: str = "two_bucket_spot_stable",
-    signal_extra_params: Mapping[str, Any] | None = None,
-) -> SavedStrategyConfig:
-    merged_params = {
-        **({} if default_runtime_params is None else dict(default_runtime_params)),
-        **dict(params),
-    }
-    resolved_params = params_class.from_public_params(merged_params)
-    signal_params: dict[str, JsonValue] = {
-        "cross_cooldown_days": resolved_params.cross_cooldown_days,
-        "cross_on_touch": resolved_params.cross_on_touch,
-    }
-    if signal_extra_params:
-        signal_params.update(
-            {key: cast(JsonValue, value) for key, value in signal_extra_params.items()}
-        )
-    return SavedStrategyConfig(
-        config_id=config_id,
-        display_name=config_id,
-        description="Legacy compare adapter config.",
-        strategy_id=strategy_id,
-        primary_asset="BTC",
-        params=runtime_params_to_public_params(
-            strategy_id,
-            resolved_params.to_public_params(),
-        ),
-        composition=StrategyComposition(
-            kind="composed",
-            bucket_mapper_id=bucket_mapper_id,
-            signal=StrategyComponentRef(
-                component_id=signal_component_id,
-                params=signal_params,
-            ),
-            decision_policy=StrategyComponentRef(
-                component_id=decision_component_id,
-                params={},
-            ),
-            pacing_policy=StrategyComponentRef(
-                component_id="fgi_exponential",
-                params={
-                    "k": resolved_params.pacing_k,
-                    "r_max": resolved_params.pacing_r_max,
-                },
-            ),
-            execution_profile=StrategyComponentRef(
-                component_id="two_bucket_rebalance",
-                params={},
-            ),
-            plugins=[
-                StrategyComponentRef(
-                    component_id="dma_buy_gate",
-                    params={
-                        "window_days": resolved_params.buy_sideways_window_days,
-                        "sideways_max_range": resolved_params.buy_sideways_max_range,
-                        "leg_caps": list(resolved_params.buy_leg_caps),
-                    },
-                ),
-                StrategyComponentRef(
-                    component_id="trade_quota_guard",
-                    params=resolved_params.build_trade_quota_plugin_params(),
-                ),
-            ],
-        ),
-        supports_daily_suggestion=True,
-        is_default=False,
-        is_benchmark=False,
-    )
-
-
-def _build_eth_btc_saved_config_from_legacy(
-    config_id: str,
-    params: Mapping[str, Any],
-) -> SavedStrategyConfig:
-    default_runtime_params = resolve_strategy_default_runtime_params(
-        STRATEGY_ETH_BTC_ROTATION
-    )
-    merged_params = {
-        **default_runtime_params,
-        **params,
-    }
-    resolved_params = EthBtcRotationParams.from_public_params(merged_params)
-    return _build_composed_saved_config_from_legacy(
-        config_id,
-        params,
-        strategy_id=STRATEGY_ETH_BTC_ROTATION,
-        params_class=EthBtcRotationParams,
-        signal_component_id="eth_btc_rs_signal",
-        decision_component_id="eth_btc_rotation_policy",
-        default_runtime_params=default_runtime_params,
-        bucket_mapper_id="eth_btc_stable",
-        signal_extra_params={
-            "ratio_cross_cooldown_days": resolved_params.ratio_cross_cooldown_days,
-            "rotation_neutral_band": resolved_params.rotation_neutral_band,
-            "rotation_max_deviation": resolved_params.rotation_max_deviation,
-        },
-    )
 
 
 @dataclass(frozen=True)
@@ -430,15 +287,13 @@ def _resolve_factory(
 def build_default_composition_catalog() -> CompositionCatalog:
     return CompositionCatalog(
         signal_components={
-            "dma_gated_fgi_signal": _build_dma_gated_fgi_signal_component,
-            "eth_btc_rs_signal": _build_eth_btc_rs_signal_component,
+            PORTFOLIO_RULES_SIGNAL_ID: _build_portfolio_rules_signal_component,
         },
         decision_policies={
-            "dma_fgi_policy": lambda p: _build_decision_policy(
-                DmaGatedFgiDecisionPolicy, p, "dma_fgi_policy"
-            ),
-            "eth_btc_rotation_policy": lambda p: _build_decision_policy(
-                EthBtcRotationDecisionPolicy, p, "eth_btc_rotation_policy"
+            "dma_fgi_portfolio_rules_policy": lambda p: _build_decision_policy(
+                DmaFgiPortfolioRulesDecisionPolicy,
+                p,
+                "dma_fgi_portfolio_rules_policy",
             ),
         },
         pacing_policies={
@@ -453,18 +308,16 @@ def build_default_composition_catalog() -> CompositionCatalog:
         },
         bucket_mappers={
             "two_bucket_spot_stable": map_portfolio_to_two_buckets,
-            "eth_btc_stable": map_portfolio_to_eth_btc_stable_buckets,
+            "spy_eth_btc_stable": map_portfolio_to_spy_eth_btc_stable_buckets,
         },
         strategy_families={
-            STRATEGY_ETH_BTC_ROTATION: StrategyFamilySpec(
-                strategy_id=STRATEGY_ETH_BTC_ROTATION,
+            STRATEGY_DMA_FGI_PORTFOLIO_RULES: StrategyFamilySpec(
+                strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
                 composition_kind="composed",
                 mutable_via_admin=True,
                 runtime_portfolio_mode="asset",
-                required_slots=frozenset(
-                    {"signal", "decision_policy", "pacing_policy", "execution_profile"}
-                ),
-                legacy_saved_config_builder=_build_eth_btc_saved_config_from_legacy,
+                required_slots=frozenset({"signal", "decision_policy"}),
+                supports_plugins=False,
             ),
         },
     )

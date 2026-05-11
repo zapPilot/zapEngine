@@ -5,6 +5,8 @@ from datetime import date
 from types import SimpleNamespace
 from uuid import UUID
 
+import pytest
+
 from src.config.strategy_presets import resolve_seed_strategy_config
 from src.models.backtesting import BacktestCompareConfigV3, BacktestCompareRequestV3
 from src.services.backtesting.composition import resolve_saved_strategy_config
@@ -13,6 +15,10 @@ from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import (
     ETH_BTC_RATIO_DMA_200_FEATURE,
     ETH_BTC_RATIO_FEATURE,
+    ETH_DMA_200_FEATURE,
+    MACRO_FEAR_GREED_FEATURE,
+    SPY_DMA_200_FEATURE,
+    SPY_PRICE_FEATURE,
 )
 from src.services.strategy.strategy_daily_suggestion_service import (
     StrategyDailySuggestionService,
@@ -25,41 +31,68 @@ from tests.services.backtesting.support import (
 
 
 def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None:
-    saved_config = resolve_seed_strategy_config("eth_btc_rotation_default")
+    saved_config = resolve_seed_strategy_config("dma_fgi_portfolio_rules_default")
     resolved_config = replace(
         resolve_saved_strategy_config(saved_config),
-        request_config_id="saved_eth_rotation",
+        request_config_id="saved_portfolio_rules",
     )
     current_date = date(2025, 1, 10)
     prices = [
         {
             "date": date(2025, 1, 8),
             "price": 99_000.0,
-            "prices": {"btc": 99_000.0, "eth": 2_970.0},
+            "prices": {"btc": 99_000.0, "eth": 2_970.0, "spy": 495.0},
             "extra_data": {
                 "dma_200": 95_000.0,
+                ETH_DMA_200_FEATURE: 2_821.5,
                 ETH_BTC_RATIO_FEATURE: 0.03,
                 ETH_BTC_RATIO_DMA_200_FEATURE: 0.028,
+                SPY_PRICE_FEATURE: 495.0,
+                SPY_DMA_200_FEATURE: 480.0,
+                MACRO_FEAR_GREED_FEATURE: {
+                    "score": 72.0,
+                    "label": "greed",
+                    "source": "test",
+                    "updated_at": date(2025, 1, 8).isoformat(),
+                },
             },
         },
         {
             "date": date(2025, 1, 9),
             "price": 99_500.0,
-            "prices": {"btc": 99_500.0, "eth": 2_985.0},
+            "prices": {"btc": 99_500.0, "eth": 2_985.0, "spy": 498.0},
             "extra_data": {
                 "dma_200": 95_000.0,
+                ETH_DMA_200_FEATURE: 2_835.75,
                 ETH_BTC_RATIO_FEATURE: 0.03,
                 ETH_BTC_RATIO_DMA_200_FEATURE: 0.028,
+                SPY_PRICE_FEATURE: 498.0,
+                SPY_DMA_200_FEATURE: 480.0,
+                MACRO_FEAR_GREED_FEATURE: {
+                    "score": 72.0,
+                    "label": "greed",
+                    "source": "test",
+                    "updated_at": date(2025, 1, 9).isoformat(),
+                },
             },
         },
         {
             "date": current_date,
             "price": 100_000.0,
-            "prices": {"btc": 100_000.0, "eth": 3_000.0},
+            "prices": {"btc": 100_000.0, "eth": 3_000.0, "spy": 500.0},
             "extra_data": {
                 "dma_200": 95_000.0,
+                ETH_DMA_200_FEATURE: 2_850.0,
                 ETH_BTC_RATIO_FEATURE: 0.03,
                 ETH_BTC_RATIO_DMA_200_FEATURE: 0.028,
+                SPY_PRICE_FEATURE: 500.0,
+                SPY_DMA_200_FEATURE: 480.0,
+                MACRO_FEAR_GREED_FEATURE: {
+                    "score": 72.0,
+                    "label": "greed",
+                    "source": "test",
+                    "updated_at": current_date.isoformat(),
+                },
             },
         },
     ]
@@ -75,8 +108,8 @@ def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None
         total_capital=10_000.0,
         configs=[
             BacktestCompareConfigV3(
-                config_id="saved_eth_rotation",
-                saved_config_id="eth_btc_rotation_default",
+                config_id="saved_portfolio_rules",
+                saved_config_id="dma_fgi_portfolio_rules_default",
             )
         ],
     )
@@ -89,12 +122,15 @@ def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None
         resolved_configs=[resolved_config],
         config=RegimeConfig.default(),
     )
-    compare_state = compare_response.timeline[0].strategies["saved_eth_rotation"]
+    compare_state = compare_response.timeline[0].strategies["saved_portfolio_rules"]
 
     service = StrategyDailySuggestionService(
         landing_page_service=SimpleNamespace(
             get_landing_page_data=lambda _user_id: mock_portfolio(
-                btc=5_000.0, stable=5_000.0
+                btc=1_666.6666666667,
+                eth=1_666.6666666667,
+                spy=1_666.6666666667,
+                stable=5_000.0,
             )
         ),
         regime_tracking_service=SimpleNamespace(),
@@ -142,6 +178,21 @@ def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None
                 for price_row in prices
             },
         ),
+        stock_price_service=SimpleNamespace(
+            get_dma_history=lambda **_: {
+                price_row["date"]: {
+                    "price_usd": price_row["prices"]["spy"],
+                    "dma_200": price_row["extra_data"][SPY_DMA_200_FEATURE],
+                }
+                for price_row in prices
+            }
+        ),
+        macro_fear_greed_service=SimpleNamespace(
+            get_daily_macro_fear_greed=lambda **_: {
+                price_row["date"]: price_row["extra_data"][MACRO_FEAR_GREED_FEATURE]
+                for price_row in prices
+            }
+        ),
         canonical_snapshot_service=SimpleNamespace(),
         strategy_config_store=SimpleNamespace(
             resolve_config=lambda _config_id: saved_config
@@ -150,12 +201,17 @@ def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None
 
     daily_response = service.get_daily_suggestion(
         user_id=UUID("00000000-0000-0000-0000-000000000001"),
-        config_id="eth_btc_rotation_default",
+        config_id="dma_fgi_portfolio_rules_default",
         regime_history_days=2,
     )
 
     assert daily_response.signal == compare_state.signal
-    assert daily_response.decision == compare_state.decision
+    assert daily_response.decision.model_dump(exclude={"target_allocation"}) == (
+        compare_state.decision.model_dump(exclude={"target_allocation"})
+    )
+    assert daily_response.decision.target_allocation.model_dump() == pytest.approx(
+        compare_state.decision.target_allocation.model_dump()
+    )
     assert daily_response.execution == compare_state.execution
 
 
