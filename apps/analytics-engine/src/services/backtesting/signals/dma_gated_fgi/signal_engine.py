@@ -27,6 +27,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
     DmaRuntimeDebugState,
+    DmaSignalInputs,
     Zone,
 )
 from src.services.backtesting.signals.dma_gated_fgi.utils import (
@@ -54,16 +55,23 @@ class DmaSignalEngine:
     )
     _last_observed_zone: Zone | None = field(default=None, init=False)
     _last_actionable_zone: Zone | None = field(default=None, init=False)
-    _cooldown_end_date: date | None = field(default=None, init=False)
-    _cooldown_blocked_zone: BlockedZone | None = field(default=None, init=False)
+    _signal_cooldown_end_date: date | None = field(default=None, init=False)
+    _signal_cooldown_blocked_zone: BlockedZone | None = field(
+        default=None,
+        init=False,
+    )
+    _trade_cooldown_end_date: date | None = field(default=None, init=False)
+    _trade_cooldown_blocked_zone: BlockedZone | None = field(default=None, init=False)
     _fgi_ema_prev: float | None = field(default=None, init=False)
     _fgi_ema_current: float | None = field(default=None, init=False)
 
     def reset(self) -> None:
         self._last_observed_zone = None
         self._last_actionable_zone = None
-        self._cooldown_end_date = None
-        self._cooldown_blocked_zone = None
+        self._signal_cooldown_end_date = None
+        self._signal_cooldown_blocked_zone = None
+        self._trade_cooldown_end_date = None
+        self._trade_cooldown_blocked_zone = None
         self._fgi_ema_prev = None
         self._fgi_ema_current = None
 
@@ -95,18 +103,7 @@ class DmaSignalEngine:
         context: SignalContext,
         *,
         require_dma: bool,
-    ) -> tuple[
-        float | None,
-        float | None,
-        str,
-        RegimeSource,
-        AthEvent | None,
-        float,
-        str | None,
-        float | None,
-        str | None,
-        RegimeSource | None,
-    ]:
+    ) -> DmaSignalInputs:
         dma_200 = context.features.indicators.dma_200
         if dma_200 is None:
             dma_200 = extract_non_negative_numeric(context.extra_data, "dma_200")
@@ -124,17 +121,19 @@ class DmaSignalEngine:
         macro_value, macro_regime, macro_regime_source = self._extract_macro_fear_greed(
             context.extra_data
         )
-        return (
-            dma_200,
-            fgi_value,
-            regime,
-            regime_source,
-            ath_event,
-            fgi_slope,
-            _normalize_asset_symbol(context.extra_data.get(DMA_ASSET_FEATURE)),
-            macro_value,
-            macro_regime,
-            macro_regime_source,
+        return DmaSignalInputs(
+            dma_200=dma_200,
+            fgi_value=fgi_value,
+            fgi_regime=regime,
+            regime_source=regime_source,
+            ath_event=ath_event,
+            fgi_slope=fgi_slope,
+            asset_symbol=_normalize_asset_symbol(
+                context.extra_data.get(DMA_ASSET_FEATURE)
+            ),
+            macro_fear_greed_value=macro_value,
+            macro_fear_greed_regime=macro_regime,
+            macro_fear_greed_regime_source=macro_regime_source,
         )
 
     def _extract_macro_fear_greed(
@@ -155,43 +154,24 @@ class DmaSignalEngine:
 
     def warmup(self, context: SignalContext) -> None:
         """Warm runtime state without emitting a decision."""
-        (
-            dma_200,
-            _fgi_value,
-            _regime,
-            _regime_source,
-            _ath_event,
-            _fgi_slope,
-            _asset_symbol,
-            _macro_value,
-            _macro_regime,
-            _macro_regime_source,
-        ) = self._extract_state_inputs(context, require_dma=False)
-        if dma_200 is None or dma_200 == 0.0:
+        inputs = self._extract_state_inputs(context, require_dma=False)
+        if inputs.dma_200 is None or inputs.dma_200 == 0.0:
             return
-        zone = self._classify_zone(context.price, dma_200)
+        zone = self._classify_zone(context.price, inputs.dma_200)
         self._last_observed_zone = zone
         self._last_actionable_zone = zone
 
     def build_market_state(self, context: SignalContext) -> DmaMarketState:
-        (
-            dma_200,
-            fgi_value,
-            regime,
-            regime_source,
-            ath_event,
-            fgi_slope,
-            asset_symbol,
-            macro_value,
-            macro_regime,
-            macro_regime_source,
-        ) = self._extract_state_inputs(context, require_dma=True)
-        assert dma_200 is not None
+        inputs = self._extract_state_inputs(context, require_dma=True)
+        assert inputs.dma_200 is not None
 
-        zone = self._classify_zone(context.price, dma_200)
+        zone = self._classify_zone(context.price, inputs.dma_200)
         observed_cross = self._detect_cross(self._last_observed_zone, zone)
-        cooldown_just_expired = self._release_cooldown_if_expired(context.date)
-        if cooldown_just_expired and observed_cross is None:
+        signal_cooldown_just_expired = self._release_signal_cooldown_if_expired(
+            context.date
+        )
+        self._release_trade_cooldown_if_expired(context.date)
+        if signal_cooldown_just_expired and observed_cross is None:
             self._last_actionable_zone = zone
         actionable_cross = self._detect_cross(self._last_actionable_zone, zone)
         actionable_cross = self._suppress_cooldown_blocked_cross(
@@ -201,21 +181,21 @@ class DmaSignalEngine:
 
         return DmaMarketState(
             signal_id="dma_gated_fgi",
-            dma_200=dma_200,
-            dma_distance=(context.price / dma_200) - 1.0,
+            dma_200=inputs.dma_200,
+            dma_distance=(context.price / inputs.dma_200) - 1.0,
             zone=zone,
             cross_event=observed_cross,
             actionable_cross_event=actionable_cross,
-            cooldown_state=self._cooldown_state(context.date),
-            fgi_value=fgi_value,
-            fgi_slope=fgi_slope,
-            fgi_regime=regime,
-            regime_source=regime_source,
-            ath_event=ath_event,
-            asset_symbol=asset_symbol,
-            macro_fear_greed_value=macro_value,
-            macro_fear_greed_regime=macro_regime,
-            macro_fear_greed_regime_source=macro_regime_source,
+            cooldown_state=self._trade_cooldown_state(context.date),
+            fgi_value=inputs.fgi_value,
+            fgi_slope=inputs.fgi_slope,
+            fgi_regime=inputs.fgi_regime,
+            regime_source=inputs.regime_source,
+            ath_event=inputs.ath_event,
+            asset_symbol=inputs.asset_symbol,
+            macro_fear_greed_value=inputs.macro_fear_greed_value,
+            macro_fear_greed_regime=inputs.macro_fear_greed_regime,
+            macro_fear_greed_regime_source=inputs.macro_fear_greed_regime_source,
         )
 
     def apply_intent(
@@ -229,13 +209,17 @@ class DmaSignalEngine:
         updated_state = market_state
         cooldown_cross_event = forced_cross_event or market_state.actionable_cross_event
         if intent.rule_group == "cross" and cooldown_cross_event is not None:
-            self._start_cooldown(
+            self._start_signal_cooldown(
+                current_date=current_date,
+                cross_event=cooldown_cross_event,
+            )
+            self._start_trade_cooldown(
                 current_date=current_date,
                 cross_event=cooldown_cross_event,
             )
             updated_state = replace(
                 market_state,
-                cooldown_state=self._cooldown_state(current_date),
+                cooldown_state=self._trade_cooldown_state(current_date),
             )
 
         self._finalize_state_transition(
@@ -270,37 +254,77 @@ class DmaSignalEngine:
     def _cross_blocked_zone(cross_event: CrossEvent) -> BlockedZone:
         return "above" if cross_event == "cross_down" else "below"
 
-    def _is_cooldown_active(self, current_date: date) -> bool:
+    def _is_signal_cooldown_active(self, current_date: date) -> bool:
         return (
-            self._cooldown_end_date is not None
-            and self._cooldown_blocked_zone is not None
-            and current_date <= self._cooldown_end_date
+            self._signal_cooldown_end_date is not None
+            and self._signal_cooldown_blocked_zone is not None
+            and current_date <= self._signal_cooldown_end_date
         )
 
-    def _cooldown_remaining_days(self, current_date: date) -> int:
-        if self._cooldown_end_date is None or self._cooldown_blocked_zone is None:
+    def _is_trade_cooldown_active(self, current_date: date) -> bool:
+        return (
+            self._trade_cooldown_end_date is not None
+            and self._trade_cooldown_blocked_zone is not None
+            and current_date <= self._trade_cooldown_end_date
+        )
+
+    def _trade_cooldown_remaining_days(self, current_date: date) -> int:
+        if (
+            self._trade_cooldown_end_date is None
+            or self._trade_cooldown_blocked_zone is None
+        ):
             return 0
-        return max(0, (self._cooldown_end_date - current_date).days)
+        return max(0, (self._trade_cooldown_end_date - current_date).days)
 
-    def _cooldown_state(self, current_date: date) -> DmaCooldownState:
+    def _trade_cooldown_state(self, current_date: date) -> DmaCooldownState:
         return DmaCooldownState(
-            active=self._is_cooldown_active(current_date),
-            remaining_days=self._cooldown_remaining_days(current_date),
-            blocked_zone=self._cooldown_blocked_zone,
+            active=self._is_trade_cooldown_active(current_date),
+            remaining_days=self._trade_cooldown_remaining_days(current_date),
+            blocked_zone=self._trade_cooldown_blocked_zone,
         )
 
-    def _release_cooldown_if_expired(self, current_date: date) -> bool:
-        if self._cooldown_end_date is None or self._cooldown_blocked_zone is None:
+    def _release_signal_cooldown_if_expired(self, current_date: date) -> bool:
+        if (
+            self._signal_cooldown_end_date is None
+            or self._signal_cooldown_blocked_zone is None
+        ):
             return False
-        if current_date <= self._cooldown_end_date:
+        if current_date <= self._signal_cooldown_end_date:
             return False
-        self._cooldown_end_date = None
-        self._cooldown_blocked_zone = None
+        self._signal_cooldown_end_date = None
+        self._signal_cooldown_blocked_zone = None
         return True
 
-    def _start_cooldown(self, *, current_date: date, cross_event: CrossEvent) -> None:
-        self._cooldown_blocked_zone = self._cross_blocked_zone(cross_event)
-        self._cooldown_end_date = current_date + timedelta(
+    def _release_trade_cooldown_if_expired(self, current_date: date) -> None:
+        if (
+            self._trade_cooldown_end_date is None
+            or self._trade_cooldown_blocked_zone is None
+        ):
+            return
+        if current_date <= self._trade_cooldown_end_date:
+            return
+        self._trade_cooldown_end_date = None
+        self._trade_cooldown_blocked_zone = None
+
+    def _start_signal_cooldown(
+        self,
+        *,
+        current_date: date,
+        cross_event: CrossEvent,
+    ) -> None:
+        self._signal_cooldown_blocked_zone = self._cross_blocked_zone(cross_event)
+        self._signal_cooldown_end_date = current_date + timedelta(
+            days=self.config.cross_cooldown_days
+        )
+
+    def _start_trade_cooldown(
+        self,
+        *,
+        current_date: date,
+        cross_event: CrossEvent,
+    ) -> None:
+        self._trade_cooldown_blocked_zone = self._cross_blocked_zone(cross_event)
+        self._trade_cooldown_end_date = current_date + timedelta(
             days=self.config.cross_cooldown_days
         )
 
@@ -310,9 +334,11 @@ class DmaSignalEngine:
         current_date: date,
         actionable_cross: CrossEvent | None,
     ) -> CrossEvent | None:
-        if actionable_cross is None or not self._is_cooldown_active(current_date):
+        if actionable_cross is None or not self._is_signal_cooldown_active(
+            current_date
+        ):
             return actionable_cross
-        if _cross_target_zone(actionable_cross) == self._cooldown_blocked_zone:
+        if _cross_target_zone(actionable_cross) == self._signal_cooldown_blocked_zone:
             return None
         return actionable_cross
 
@@ -325,15 +351,15 @@ class DmaSignalEngine:
         self._last_observed_zone = current_zone
 
         should_freeze_actionable_zone = False
-        if self._cooldown_blocked_zone is not None:
+        if self._signal_cooldown_blocked_zone is not None:
             blocked_cross_zone = (
                 _cross_target_zone(observed_cross)
                 if observed_cross is not None
                 else None
             )
             should_freeze_actionable_zone = (
-                current_zone == self._cooldown_blocked_zone
-                or blocked_cross_zone == self._cooldown_blocked_zone
+                current_zone == self._signal_cooldown_blocked_zone
+                or blocked_cross_zone == self._signal_cooldown_blocked_zone
             )
 
         if not should_freeze_actionable_zone:
@@ -343,8 +369,10 @@ class DmaSignalEngine:
         return DmaRuntimeDebugState(
             last_observed_zone=self._last_observed_zone,
             last_actionable_zone=self._last_actionable_zone,
-            cooldown_end_date=self._cooldown_end_date,
-            cooldown_blocked_zone=self._cooldown_blocked_zone,
+            signal_cooldown_end_date=self._signal_cooldown_end_date,
+            signal_cooldown_blocked_zone=self._signal_cooldown_blocked_zone,
+            trade_cooldown_end_date=self._trade_cooldown_end_date,
+            trade_cooldown_blocked_zone=self._trade_cooldown_blocked_zone,
             fgi_ema_prev=self._fgi_ema_prev,
             fgi_ema_current=self._fgi_ema_current,
         )

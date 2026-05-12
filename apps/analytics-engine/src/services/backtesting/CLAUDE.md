@@ -18,6 +18,7 @@ Active default rules:
 - `cross_down_exit`
 - `cross_up_equal_weight`
 - `eth_btc_ratio_rotation`
+- `eth_btc_deviation_dca`
 - `dma_overextension_dca_sell`
 - `fgi_downshift_dca_sell`
 
@@ -35,8 +36,6 @@ be retuned in a later iteration:
 - `greed_sell_suppression`: suppresses little useful behavior in the current
   flat priority order. See `ITERATION_LOG.md` entries `2026-04-15` and
   `2026-05-09`.
-- `eth_btc_deviation_dca`: thresholds and symmetric ETH-to-BTC coverage need a
-  fresh fixture pass. See `ITERATION_LOG.md` entry `2026-05-09`.
 - `extreme_fear_dca_buy`: disabled in the default rule set pending isolation
   checks against the minimal baseline.
 - `spy_latch`: disabled in the default rule set pending flat-engine

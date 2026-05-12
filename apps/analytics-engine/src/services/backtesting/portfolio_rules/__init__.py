@@ -33,12 +33,12 @@ from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
     EthBtcRatioRotationRule(),
+    EthBtcDeviationDcaRule(),
     CrossUpEqualWeightRule(),
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
 )
 _NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
-    EthBtcDeviationDcaRule(),
     GreedSellSuppressionRule(),
     DmaStableGatingRule(),
     SpyLatchRule(),

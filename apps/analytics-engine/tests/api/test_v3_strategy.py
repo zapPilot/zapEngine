@@ -281,6 +281,10 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     greed_rule = next(
         rule for rule in portfolio_rules if rule["name"] == "greed_sell_suppression"
     )
+    eth_btc_deviation_rule = next(
+        rule for rule in portfolio_rules if rule["name"] == "eth_btc_deviation_dca"
+    )
+    assert eth_btc_deviation_rule["default_enabled"] is True
     assert greed_rule["priority"] == 23
     assert greed_rule["default_enabled"] is False
     assert isinstance(greed_rule["description"], str)

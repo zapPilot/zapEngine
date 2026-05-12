@@ -7,6 +7,56 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-12 - Known-negative rule retune pass
+- **Status**: active
+- **Commit**: pending local change (`known-negative portfolio-rule retune`)
+- **Finding**: Re-ran the 2026-05-09 known-negative rule plan against the current rule-only default. The fresh remove-all-three baseline is now stronger than the old pre-port anchor: `dma_fgi_portfolio_rules` without the three review rules is ROI 69.1371%, Calmar 5.0118, Sharpe 2.2797, MaxDD -9.3248%, 45 trades. Enabling all three old ports together is still harmful at ROI 51.4126%, Calmar 3.7889, Sharpe 2.0475, 39 trades. The only retune with material positive attribution was `eth_btc_deviation_dca` with wider 0.50/0.65 thresholds and 14d/60d cooldowns while keeping symmetric coverage enabled, so it was promoted back into the default rule set. `dma_stable_gating` and `greed_sell_suppression` remain non-default.
+- **Hypothesis results vs demoted default**:
+  | Rule / Hypothesis | ROI | Calmar | Sharpe | Trades | Decision |
+  | --- | ---: | ---: | ---: | ---: | --- |
+  | Demote default / remove all 3 | 69.1371 | 5.0118 | 2.2797 | 45 | baseline |
+  | `dma_stable_gating` current fear trigger | 56.5837 | 4.1504 | 2.0685 | 46 | reject |
+  | `dma_stable_gating` H1.A extreme-fear only | 69.2005 | 5.0161 | 2.2812 | 45 | reject: only +0.0634pp and rule-only delta 0 |
+  | `dma_stable_gating` H1.C fear + negative FGI slope | 56.7962 | 4.1651 | 2.0752 | 49 | reject |
+  | `greed_sell_suppression` current priority 23 | 65.9695 | 4.7947 | 2.1764 | 42 | reject |
+  | `greed_sell_suppression` H2.C positive FGI slope | 67.2185 | 4.8813 | 2.2253 | 43 | reject |
+  | `greed_sell_suppression` H2.A priority after overextension | 67.3677 | 4.8915 | 2.2291 | 42 | reject |
+  | `eth_btc_deviation_dca` current 0.40/0.50, 7d/30d | 66.3992 | 4.8254 | 2.4036 | 44 | reject |
+  | `eth_btc_deviation_dca` H3.A+H3.C 0.50/0.65, 14d/60d | 71.7135 | 5.1864 | 2.4741 | 48 | promote |
+  | `eth_btc_deviation_dca` H3.B ETH-cheap only | 69.1371 | 5.0118 | 2.2797 | 45 | reject: no 500d lift |
+  | `eth_btc_deviation_dca` H3.A+H3.C+H3.B | 69.1371 | 5.0118 | 2.2797 | 45 | reject: no matches |
+- **Snapshot delta vs 2026-05-10 default**: ROI 69.1371% -> 71.7135% (+2.5764pp), Calmar 5.0118 -> 5.1864 (+0.1746), Sharpe 2.2797 -> 2.4741 (+0.1944), MaxDD unchanged at -9.3248%, trades 45 -> 48 (+3). The 500-day snapshot fixture was refreshed after this intentional drift.
+- **Per-rule report**:
+  | Rule | Matches | Wins | Shadowed |
+  | --- | ---: | ---: | ---: |
+  | dma_overextension_dca_sell | 236 | 89 | 6 |
+  | dma_stable_gating | 158 | 0 | 5 |
+  | extreme_fear_dca_buy | 102 | 0 | 4 |
+  | fgi_downshift_dca_sell | 22 | 12 | 7 |
+  | eth_btc_deviation_dca | 19 | 3 | 0 |
+  | greed_sell_suppression | 12 | 0 | 0 |
+  | cross_down_exit | 7 | 5 | 0 |
+  | cross_up_equal_weight | 4 | 4 | 0 |
+  | eth_btc_ratio_rotation | 3 | 3 | 0 |
+  | spy_latch | 0 | 0 | 0 |
+
+  | Shadower | Shadowed | Count |
+  | --- | --- | ---: |
+  | dma_overextension_dca_sell | fgi_downshift_dca_sell | 6 |
+  | cross_down_exit | dma_stable_gating | 3 |
+  | eth_btc_deviation_dca | dma_overextension_dca_sell | 3 |
+  | cross_down_exit | dma_overextension_dca_sell | 2 |
+  | dma_overextension_dca_sell | extreme_fear_dca_buy | 2 |
+  | cross_down_exit | extreme_fear_dca_buy | 1 |
+  | cross_up_equal_weight | dma_stable_gating | 1 |
+  | cross_up_equal_weight | extreme_fear_dca_buy | 1 |
+  | eth_btc_ratio_rotation | dma_overextension_dca_sell | 1 |
+  | eth_btc_ratio_rotation | dma_stable_gating | 1 |
+  | eth_btc_ratio_rotation | fgi_downshift_dca_sell | 1 |
+- **Rule-only sweep**: Initial standalone sweep showed `dma_stable_gating` old trigger ROI -13.3723pp vs minimal baseline, `greed_sell_suppression` 0.0000pp, and `eth_btc_deviation_dca` old trigger +5.6761pp. The promoted ETH/BTC retune improved standalone isolation to ROI 61.9655% (+6.5522pp), Calmar 3.3651 (+1.0645), trades 12 (+3), matches 19. The only positive DMA variant, H1.A, had a 0.0000pp rule-only delta despite 53 matches, so it failed the retention bar.
+- **Validation**: `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed 14/14 validation checks with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, 48 trades. Focused tests passed for `tests/services/backtesting/portfolio_rules/test_eth_btc_deviation_dca.py` and `tests/services/backtesting/strategies/test_dma_fgi_rule_attribution.py`. `tests/api/test_v3_strategy.py` could not run locally because the test Postgres on localhost:5433 was not running; the first failure was connection refused during fixture setup.
+- **Next**: Keep `dma_stable_gating` and `greed_sell_suppression` in non-default attribution diagnostics. If revisiting DMA stable gating, require an event-driven previous-zone field rather than another broad state trigger.
+
 ### 2026-05-10 - Single strategy surface
 - **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` only)
