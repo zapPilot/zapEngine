@@ -10,6 +10,7 @@ import type {
 
 const {
   mockDecodeCursor,
+  mockExtractUnifiedKeywords,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeLocalizationByEpisodeId,
   mockGenerateHls,
@@ -32,6 +33,7 @@ const {
   mockTelegramFetch,
 } = vi.hoisted(() => ({
   mockDecodeCursor: vi.fn(),
+  mockExtractUnifiedKeywords: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
   mockGenerateHls: vi.fn(),
@@ -87,6 +89,7 @@ vi.mock('./services/db.js', () => ({
 }));
 
 vi.mock('./services/llm.js', () => ({
+  extractUnifiedKeywords: mockExtractUnifiedKeywords,
   generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
   generateScriptWithLLM: mockGenerateScriptWithLLM,
 }));
@@ -234,11 +237,19 @@ describe('POST /ingest authorization', () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+    mockExtractUnifiedKeywords.mockResolvedValue({
+      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00003,
+    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -357,6 +368,7 @@ describe('POST /ingest pipeline', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00001,
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
       (_id: string, status: string) => {
@@ -404,6 +416,13 @@ describe('POST /ingest pipeline', () => {
       r2Prefix: 'episodes/e/localizations/zh-Hant',
     });
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+    mockExtractUnifiedKeywords.mockResolvedValue({
+      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00003,
+    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [
         {
@@ -422,6 +441,7 @@ describe('POST /ingest pipeline', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([
       classroomRow({ target_language_code: 'ja' }),
@@ -483,6 +503,7 @@ describe('POST /ingest pipeline', () => {
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
       }),
+      ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
     );
     expect(
       body.languageClassrooms.map((lesson) => lesson.targetLanguageCode),
@@ -506,11 +527,19 @@ describe('POST /telegram/webhook', () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+    mockExtractUnifiedKeywords.mockResolvedValue({
+      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00003,
+    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -592,8 +621,35 @@ describe('POST /telegram/webhook', () => {
     );
     expect(telegramMessageTexts()).toEqual([
       expect.stringContaining('收到'),
-      expect.stringContaining('https://cdn.example.com/playlist.m3u8'),
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+        '💰 $0.00012',
+      ].join('\n'),
     ]);
+  });
+
+  it('omits cost from the Telegram result when no LLM calls run', async () => {
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
+      classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
+      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
+    ]);
+
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'https://example.com/article' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
+    expect(telegramMessageTexts()[1]).toBe(
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+      ].join('\n'),
+    );
+    expect(telegramMessageTexts()[1]).not.toContain('💰');
   });
 
   it('sends a short step-prefixed failure message when ingest fails', async () => {

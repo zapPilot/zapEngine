@@ -130,7 +130,14 @@ app.post('/ingest', async (c) => {
       : c.req.query('language'),
   );
 
+  console.log(`[/ingest] start url=${url} language=${languageCode}`);
+
   const result = await performIngest(url, languageCode);
+
+  console.log(
+    `[/ingest] done episode=${result.episode.id} status=${result.statusCode}`,
+  );
+
   return c.json(result.episode, result.statusCode);
 });
 
@@ -359,6 +366,9 @@ function formatTelegramIngestResult(result: IngestResult): string {
   const lines = [status, `《${result.episode.title}》`];
   if (result.episode.hlsUrl) {
     lines.push(result.episode.hlsUrl);
+  }
+  if (result.costUsd > 0) {
+    lines.push(`💰 $${result.costUsd.toFixed(5)}`);
   }
 
   return lines.join('\n');

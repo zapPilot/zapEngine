@@ -8,6 +8,7 @@ import type {
 } from '../types.js';
 
 const {
+  mockExtractUnifiedKeywords,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeLocalizationByEpisodeId,
   mockGenerateHls,
@@ -24,6 +25,7 @@ const {
   mockUploadHlsToR2,
   mockConvertArticleToZhTW,
 } = vi.hoisted(() => ({
+  mockExtractUnifiedKeywords: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
   mockGenerateHls: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock('./db.js', () => ({
 }));
 
 vi.mock('./llm.js', () => ({
+  extractUnifiedKeywords: mockExtractUnifiedKeywords,
   generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
   generateScriptWithLLM: mockGenerateScriptWithLLM,
 }));
@@ -119,6 +122,7 @@ describe('performIngest failure paths', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00001,
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
       (_id: string, status: string) => {
@@ -175,11 +179,19 @@ describe('performIngest failure paths', () => {
       r2Prefix: 'episodes/e/localizations/zh-Hant',
     });
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+    mockExtractUnifiedKeywords.mockResolvedValue({
+      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00002,
+    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -241,6 +253,7 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(200);
+    expect(result.costUsd).toBe(0.00002);
     expect(result.episode.languageClassrooms).toEqual([]);
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
@@ -251,6 +264,31 @@ describe('performIngest failure paths', () => {
     );
 
     consoleSpy.mockRestore();
+  });
+
+  it('sums LLM costs for a fresh ingest invocation', async () => {
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(201);
+    expect(result.costUsd).toBeCloseTo(0.00012, 10);
+  });
+
+  it('sums LLM costs for cached episodes with missing classrooms', async () => {
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(200);
+    expect(result.costUsd).toBeCloseTo(0.00011, 10);
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
   });
 
   it('refreshes article content when an existing localization is pending', async () => {
@@ -354,6 +392,7 @@ describe('performIngest failure paths', () => {
         sourceLanguageCode: 'en',
         targetLanguageCodes: ['zh-Hant', 'ja'],
       }),
+      ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
     );
   });
 
@@ -408,6 +447,7 @@ describe('performIngest failure paths', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockImplementation(
       (

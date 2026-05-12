@@ -14,6 +14,7 @@ import {
 import {
   buildLanguageClassroomUserMessage,
   buildUserMessage,
+  extractUnifiedKeywords,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
 } from './llm.js';
@@ -164,6 +165,7 @@ describe('generateScriptWithLLM', () => {
       choices: [{ message: { content: '這是生成的講稿內容。' } }],
       provider: 'Cloudflare',
       model: 'mistralai/mistral-7b-instruct-v0.1',
+      usage: { cost: 0.00001 },
     });
 
     mockOpenAIClient(mockCreate);
@@ -174,6 +176,24 @@ describe('generateScriptWithLLM', () => {
     expect(result.provider).toBe('Cloudflare');
     expect(result.model).toBe('mistralai/mistral-7b-instruct-v0.1');
     expect(result.thinkingModel).toBeNull();
+    expect(result.costUsd).toBe(0.00001);
+  });
+
+  it('requests OpenRouter usage accounting', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM('Title', 'Text');
+
+    const callArgs = mockCreate.mock.calls[0]![0] as {
+      extra_body?: { usage?: object };
+    };
+    expect(callArgs.extra_body?.usage).toEqual({ include: true });
   });
 
   it('uses thinking model when configured', async () => {
@@ -191,13 +211,32 @@ describe('generateScriptWithLLM', () => {
 
     expect(mockCreate).toHaveBeenCalled();
     const callArgs = mockCreate.mock.calls[0]![0] as {
-      extra_body?: { thinking?: object };
+      extra_body?: { thinking?: object; usage?: object };
     };
     expect(callArgs.extra_body).toBeDefined();
     expect(callArgs.extra_body?.thinking).toEqual({
       type: 'optimized',
       model: 'anthropic/claude-3-opus',
     });
+    expect(callArgs.extra_body?.usage).toEqual({ include: true });
+  });
+
+  it.each([
+    ['missing usage', undefined],
+    ['non-numeric usage cost', { cost: '0.00001' }],
+  ])('defaults cost to zero for %s', async (_label, usage) => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage,
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateScriptWithLLM('Title', 'Text');
+
+    expect(result.costUsd).toBe(0);
   });
 
   it('returns empty script when API returns no content', async () => {
@@ -311,7 +350,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
                     {
                       term: 'liquidity',
                       reading: null,
-                      meaning: '資金流動性',
+                      meaning: '資金容易進出市場的程度',
                       note: null,
                     },
                   ],
@@ -323,23 +362,32 @@ describe('generateLanguageClassroomsWithLLM', () => {
       ],
       provider: 'Cloudflare',
       model: 'test/model',
+      usage: { cost: 0.00002 },
     });
 
     mockOpenAIClient(mockCreate);
 
-    const result = await generateLanguageClassroomsWithLLM({
-      title: '市場流動性',
-      articleText: '文章內容',
-      script: '講稿內容',
-      sourceLanguageCode: 'zh-Hant',
-      targetLanguageCodes: ['ja', 'en'],
-    });
+    const result = await generateLanguageClassroomsWithLLM(
+      {
+        title: '市場流動性',
+        articleText: '文章內容',
+        script: '講稿內容',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCodes: ['ja', 'en'],
+      },
+      ['流動性'],
+    );
 
     expect(result.lessons).toHaveLength(2);
     expect(result.lessons[0]!.targetLanguageCode).toBe('ja');
     expect(result.lessons[0]!.keywords[0]!.term).toBe('流動性');
     expect(result.lessons[1]!.targetLanguageCode).toBe('en');
+    expect(result.lessons[1]!.keywords[0]!.term).toBe('liquidity');
+    expect(result.lessons[0]!.keywords[0]!.meaning).toBe(
+      result.lessons[1]!.keywords[0]!.meaning,
+    );
     expect(result.provider).toBe('Cloudflare');
+    expect(result.costUsd).toBe(0.00002);
   });
 
   it('parses language classroom lessons from a fenced JSON response', async () => {
@@ -355,17 +403,21 @@ ${validLanguageClassroomPayload()}
       ],
       provider: 'Cloudflare',
       model: 'test/model',
+      usage: { cost: 0.00003 },
     });
 
     mockOpenAIClient(mockCreate);
 
-    const result = await generateLanguageClassroomsWithLLM({
-      title: '市場流動性',
-      articleText: '文章內容',
-      script: '講稿內容',
-      sourceLanguageCode: 'zh-Hant',
-      targetLanguageCodes: ['ja'],
-    });
+    const result = await generateLanguageClassroomsWithLLM(
+      {
+        title: '市場流動性',
+        articleText: '文章內容',
+        script: '講稿內容',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCodes: ['ja'],
+      },
+      ['流動性'],
+    );
 
     expect(result.lessons[0]!.targetLanguageCode).toBe('ja');
   });
@@ -395,13 +447,16 @@ ${validLanguageClassroomPayload()}
       mockOpenAIClient(mockCreate);
 
       await expect(
-        generateLanguageClassroomsWithLLM({
-          title: 'Title',
-          articleText: 'Text',
-          script: 'Script',
-          sourceLanguageCode: 'zh-Hant',
-          targetLanguageCodes: ['ja'],
-        }),
+        generateLanguageClassroomsWithLLM(
+          {
+            title: 'Title',
+            articleText: 'Text',
+            script: 'Script',
+            sourceLanguageCode: 'zh-Hant',
+            targetLanguageCodes: ['ja'],
+          },
+          ['流動性'],
+        ),
       ).rejects.toThrow(message);
     },
   );
@@ -416,17 +471,270 @@ ${validLanguageClassroomPayload()}
     mockOpenAIClient(mockCreate);
 
     await expect(
-      generateLanguageClassroomsWithLLM({
-        title: 'Title',
-        articleText: 'Text',
-        script: 'Script',
-        sourceLanguageCode: 'zh-Hant',
-        targetLanguageCodes: ['ja'],
-      }),
+      generateLanguageClassroomsWithLLM(
+        {
+          title: 'Title',
+          articleText: 'Text',
+          script: 'Script',
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCodes: ['ja'],
+        },
+        ['流動性'],
+      ),
     ).rejects.toThrow(
       'Language classroom response did not contain any valid lessons',
     );
   });
+
+  it('throws when lesson keyword length does not match unifiedKeywords', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              lessons: [
+                {
+                  targetLanguageCode: 'ja',
+                  oneLiner: '一句話',
+                  keywords: [
+                    {
+                      term: '流動性',
+                      reading: 'りゅうどうせい',
+                      meaning: '資金流動性',
+                      note: null,
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage: { cost: 0.00003 },
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateLanguageClassroomsWithLLM(
+        {
+          title: 'Title',
+          articleText: 'Text',
+          script: 'Script',
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCodes: ['ja'],
+        },
+        ['流動性', '市場'],
+      ),
+    ).rejects.toThrow('Lesson for ja has 1 keywords, expected 2');
+  });
+
+  it('throws when meaning differs across languages at the same index', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              lessons: [
+                {
+                  targetLanguageCode: 'ja',
+                  oneLiner: '一句話',
+                  keywords: [
+                    {
+                      term: '流動性',
+                      reading: 'りゅうどうせい',
+                      meaning: '資金流動性 (日文版本)',
+                      note: null,
+                    },
+                  ],
+                },
+                {
+                  targetLanguageCode: 'en',
+                  oneLiner: 'A sentence.',
+                  keywords: [
+                    {
+                      term: 'liquidity',
+                      reading: null,
+                      meaning: '資金流動性 (英文版本)',
+                      note: null,
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateLanguageClassroomsWithLLM(
+        {
+          title: 'Title',
+          articleText: 'Text',
+          script: 'Script',
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCodes: ['ja', 'en'],
+        },
+        ['流動性'],
+      ),
+    ).rejects.toThrow(
+      /Keyword at index 0 has inconsistent "meaning" across languages/,
+    );
+  });
+});
+
+describe('extractUnifiedKeywords', () => {
+  beforeEach(() => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
+    vi.stubEnv('LLM_MODEL', 'test/model');
+    vi.stubEnv('LLM_THINKING_MODEL', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns parsed keywords from JSON response', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              keywords: ['流動性', '市場', '聯準會', '利率'],
+            }),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage: { cost: 0.00003 },
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await extractUnifiedKeywords(
+      '市場流動性',
+      '文章內容',
+      '講稿內容',
+      'zh-Hant',
+    );
+
+    expect(result.keywords).toEqual(['流動性', '市場', '聯準會', '利率']);
+    expect(result.provider).toBe('Cloudflare');
+    expect(result.model).toBe('test/model');
+    expect(result.costUsd).toBe(0.00003);
+  });
+
+  it('parses keywords from fenced JSON response', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: `\`\`\`json
+${JSON.stringify({ keywords: ['流動性', '市場', '聯準會'] })}
+\`\`\``,
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await extractUnifiedKeywords(
+      'Title',
+      'Text',
+      'Script',
+      'zh-Hant',
+    );
+
+    expect(result.keywords).toHaveLength(3);
+  });
+
+  it('trims whitespace from keywords', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              keywords: [' 流動性 ', '市場 ', ' 利率'],
+            }),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await extractUnifiedKeywords(
+      'Title',
+      'Text',
+      'Script',
+      'zh-Hant',
+    );
+
+    expect(result.keywords).toEqual(['流動性', '市場', '利率']);
+  });
+
+  it.each([
+    [
+      'fewer than 3',
+      JSON.stringify({ keywords: ['一', '二'] }),
+      /must contain 3 to 5 keywords, got 2/,
+    ],
+    [
+      'more than 5',
+      JSON.stringify({ keywords: ['一', '二', '三', '四', '五', '六'] }),
+      /must contain 3 to 5 keywords, got 6/,
+    ],
+    [
+      'non-array keywords',
+      JSON.stringify({ keywords: '一,二,三' }),
+      /missing "keywords" array/,
+    ],
+    [
+      'non-string item',
+      JSON.stringify({ keywords: ['一', 2, '三'] }),
+      /at index 1 must be a string/,
+    ],
+    [
+      'empty string item',
+      JSON.stringify({ keywords: ['一', '', '三'] }),
+      /at index 1 must not be empty/,
+    ],
+    [
+      'malformed JSON (array)',
+      '[]',
+      /Unified keywords response must be a JSON object/,
+    ],
+    ['unterminated fence', '```json', /Unexpected token/],
+  ])(
+    'throws for invalid keywords payload: %s',
+    async (_label, content, matcher) => {
+      const mockCreate = vi.fn().mockResolvedValue({
+        choices: [{ message: { content } }],
+        provider: 'Cloudflare',
+        model: 'test/model',
+      });
+
+      mockOpenAIClient(mockCreate);
+
+      await expect(
+        extractUnifiedKeywords('Title', 'Text', 'Script', 'zh-Hant'),
+      ).rejects.toThrow(matcher);
+    },
+  );
 });
 
 function validLanguageClassroomPayload(): string {
