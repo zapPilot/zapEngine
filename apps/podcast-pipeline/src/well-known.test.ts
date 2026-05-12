@@ -31,15 +31,6 @@ describe('Universal Link well-known routes', () => {
     });
   });
 
-  it('redirects episode share links to the App Store placeholder', async () => {
-    const response = await app.request('/e/test-id');
-
-    expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe(
-      'https://apps.apple.com/?utm_source=share',
-    );
-  });
-
   it('serves an empty Android asset links document', async () => {
     const response = await app.request('/.well-known/assetlinks.json');
     const body = await response.json();

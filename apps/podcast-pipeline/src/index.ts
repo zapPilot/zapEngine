@@ -30,6 +30,10 @@ import {
 } from './services/db.js';
 import { type IngestResult, performIngest } from './services/ingest.js';
 import {
+  detectPlatform,
+  renderEpisodeSharePage,
+} from './services/share-page.js';
+import {
   extractUrlFromMessage,
   isAllowedUser,
   sendMessage,
@@ -51,7 +55,10 @@ const TELEGRAM_HELP_TEXT =
 const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 const TELEGRAM_START_TEXT = '收到，開始處理文章。';
-const APP_STORE_SHARE_REDIRECT_URL = 'https://apps.apple.com/?utm_source=share';
+const IOS_APP_STORE_URL =
+  'https://apps.apple.com/app/from-fed-to-chain/id6749248542';
+const ANDROID_AVAILABLE = false;
+const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 // Keep this in sync with the final iOS bundle ID before App Store submission.
 const APPLE_APP_SITE_ASSOCIATION = {
   applinks: {
@@ -76,7 +83,39 @@ app.get('/.well-known/apple-app-site-association', (c) =>
   c.json(APPLE_APP_SITE_ASSOCIATION),
 );
 app.get('/.well-known/assetlinks.json', (c) => c.json([]));
-app.get('/e/:id', (c) => c.redirect(APP_STORE_SHARE_REDIRECT_URL, 302));
+app.get('/e/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!isEpisodeId(id)) {
+    return c.notFound();
+  }
+
+  const languageCode = parsePrimaryLanguageCode(
+    c.req.query('lang') ?? c.req.query('language'),
+  );
+  const localization = await findEpisodeLocalizationByEpisodeId(
+    id,
+    languageCode,
+  );
+
+  if (!localization) {
+    return c.notFound();
+  }
+
+  const html = renderEpisodeSharePage({
+    episode: {
+      id: localization.episode_id,
+      title: localization.title,
+      description: localization.raw_text ?? localization.script ?? '',
+      coverUrl: getLocalizationCoverUrl(localization),
+    },
+    platform: detectPlatform(c.req.header('user-agent')),
+    iosAppStoreUrl: IOS_APP_STORE_URL,
+    androidAvailable: ANDROID_AVAILABLE,
+    canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(id)}`,
+  });
+
+  return c.html(html);
+});
 
 app.post('/ingest', async (c) => {
   requireAdminAuthorization(c.req.header('authorization'));
@@ -388,6 +427,21 @@ function parseInputUrl(value: string): string {
   } catch {
     throw new HTTPException(400, { message: 'Invalid url' });
   }
+}
+
+function getLocalizationCoverUrl(localization: unknown): string {
+  if (!isRecord(localization)) {
+    return '';
+  }
+
+  const coverUrl = localization['cover_url'] ?? localization['coverUrl'];
+  return typeof coverUrl === 'string' ? coverUrl : '';
+}
+
+function isEpisodeId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function parsePrimaryLanguageCode(

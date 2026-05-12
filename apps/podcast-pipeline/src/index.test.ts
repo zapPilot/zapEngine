@@ -123,6 +123,110 @@ describe('health checks', () => {
   });
 });
 
+describe('GET /e/:id share landing page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      localizationRow({
+        title: 'Share <Episode>',
+        raw_text: 'Episode summary for preview cards.',
+      }),
+    );
+  });
+
+  it.each([
+    [
+      'ios',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      'Open in App Store',
+    ],
+    [
+      'android',
+      'Mozilla/5.0 (Linux; Android 13; SM-S918B)',
+      'Android version coming soon',
+    ],
+    [
+      'desktop',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      'Open on iPhone to listen',
+    ],
+  ])(
+    'renders an %s share page with preview metadata',
+    async (_label, ua, cta) => {
+      const response = await app.request(`/e/${episodeRow().id}`, {
+        headers: { 'user-agent': ua },
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/html');
+      expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+        episodeRow().id,
+        'zh-Hant',
+      );
+      expect(html).toContain(
+        'property="og:title" content="Share &lt;Episode&gt;"',
+      );
+      expect(html).toContain(
+        'property="og:description" content="Episode summary for preview cards."',
+      );
+      expect(html).toContain(
+        `property="og:url" content="https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}"`,
+      );
+      expect(html).toContain(cta);
+    },
+  );
+
+  it('returns 404 when the episode localization does not exist', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
+
+    const response = await app.request(
+      '/e/00000000-0000-4000-8000-000000009999',
+      {
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        },
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000009999',
+      'zh-Hant',
+    );
+  });
+
+  it('returns 404 for malformed episode ids before hitting the database', async () => {
+    const response = await app.request('/e/missing-episode', {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+    });
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Apple app site association JSON unchanged', async () => {
+    const response = await app.request(
+      '/.well-known/apple-app-site-association',
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      applinks: {
+        details: [
+          {
+            appIDs: ['LP8CA4MT6U.com.example.fromFedToChainApp'],
+            components: [{ '/': '/e/*' }],
+          },
+        ],
+      },
+    });
+  });
+});
+
 describe('POST /ingest authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
