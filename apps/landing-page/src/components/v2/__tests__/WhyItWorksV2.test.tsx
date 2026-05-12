@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
+import { MESSAGES } from '@/config/messages';
 import { WhyItWorksV2 } from '../WhyItWorksV2';
 
 describe('WhyItWorksV2', () => {
@@ -56,8 +57,9 @@ describe('WhyItWorksV2', () => {
     it('renders impact values', () => {
       render(<WhyItWorksV2 />);
 
-      expect(screen.getByText('-96.96pp ROI')).toBeInTheDocument();
-      expect(screen.getByText('-22.05pp ROI')).toBeInTheDocument();
+      MESSAGES.whyItWorks.items.forEach((item) => {
+        expect(screen.getByText(item.impact)).toBeInTheDocument();
+      });
     });
   });
 
