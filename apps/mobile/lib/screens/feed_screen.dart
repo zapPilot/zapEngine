@@ -13,6 +13,7 @@ import '../state/playback_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/continue_listening_card.dart';
 import '../widgets/episode_card.dart';
+import '../widgets/error_state_widget.dart';
 import '../widgets/listened_section_header.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -220,7 +221,8 @@ class _FeedScreenState extends State<FeedScreen> {
           else if (_error != null)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: _ErrorState(message: _error!, onRetry: _loadFirstPage),
+              child:
+                  ErrorStateWidget(message: _error!, onRetry: _loadFirstPage),
             )
           else if (_episodes.isEmpty)
             const SliverFillRemaining(
@@ -438,44 +440,6 @@ class _LoadMoreStatus extends StatelessWidget {
     }
 
     return SizedBox(height: hasMore ? 24 : 12);
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            color: AppColors.accent,
-            size: 42,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
   }
 }
 

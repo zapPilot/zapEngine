@@ -6,15 +6,15 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from src.services.backtesting.composition_types import (
-    AllocationExecutor,
-    DecisionPolicy,
-    StatefulSignalComponent,
-)
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import ExecutionOutcome, StrategySnapshot
-from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.execution.contracts import (
+    AllocationExecutor,
+    ExecutionHints,
+)
 from src.services.backtesting.features import MarketDataRequirements
+from src.services.backtesting.portfolio_rules.base import DecisionPolicy
+from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.strategies.base import (
     BaseStrategy,
     DailyRecommendationInput,

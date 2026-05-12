@@ -186,7 +186,9 @@ def public_params_to_runtime_params(
     )
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
+        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+            DmaGatedFgiParams,
+        )
 
         nested = DmaGatedFgiPublicParams.model_validate(normalized)
         flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
@@ -207,7 +209,9 @@ def runtime_params_to_public_params(
         return cast(dict[str, JsonValue], raw_params)
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
+        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+            DmaGatedFgiParams,
+        )
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
         sections = _flat_to_nested(resolved, _DMA_FIELD_MAPPING)

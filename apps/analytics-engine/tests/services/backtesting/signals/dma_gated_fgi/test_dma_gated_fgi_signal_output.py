@@ -7,6 +7,9 @@ from datetime import date
 import pytest
 
 from src.services.backtesting.signals.contracts import SignalContext, SignalOutput
+from src.services.backtesting.signals.dma_gated_fgi.component import (
+    _resolve_dma_allocation_intent,
+)
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.constants import (
     BUY_TARGET,
@@ -15,9 +18,6 @@ from src.services.backtesting.signals.dma_gated_fgi.constants import (
 from src.services.backtesting.signals.dma_gated_fgi.metadata import build_signal_output
 from src.services.backtesting.signals.dma_gated_fgi.runtime import (
     DmaGatedFgiSignalRuntime,
-)
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    _resolve_dma_allocation_intent,
 )
 
 

@@ -3,7 +3,7 @@
 import pytest
 
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
-from src.services.backtesting.strategies.dma_gated_fgi import (
+from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaGatedFgiParams,
 )
 

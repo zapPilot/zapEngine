@@ -5,6 +5,9 @@ from typing import cast
 import pytest
 
 from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.signals.dma_gated_fgi.component import (
+    _resolve_dma_allocation_intent,
+)
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     AthEvent,
     BlockedZone,
@@ -12,9 +15,6 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
     Zone,
-)
-from src.services.backtesting.strategies.dma_gated_fgi import (
-    _resolve_dma_allocation_intent,
 )
 from src.services.backtesting.tactics.base import RuleConfig
 from src.services.backtesting.tactics.rules import DEFAULT_RULES

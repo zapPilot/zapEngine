@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.decision_policy import (
+    resolve_portfolio_rules_intent,
+)
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
 from src.services.backtesting.portfolio_rules.greed_sell_suppression import (
     GreedSellSuppressionRule,
-)
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    resolve_portfolio_rules_intent,
 )
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 

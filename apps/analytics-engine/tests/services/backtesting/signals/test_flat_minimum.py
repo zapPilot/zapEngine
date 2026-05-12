@@ -11,8 +11,8 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
+from src.services.backtesting.signals.flat_minimum import FlatMinimumSignalComponent
 from src.services.backtesting.strategies.base import StrategyContext
-from src.services.backtesting.strategies.minimum import FlatMinimumSignalComponent
 
 
 def _context(

@@ -20,6 +20,10 @@ from src.services.backtesting.features import (
 from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
 )
+from src.services.backtesting.portfolio_rules.decision_policy import (
+    DmaFgiPortfolioRulesDecisionPolicy,
+    build_portfolio_rules_for_params,
+)
 from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
     ExtremeFearDcaBuyRule,
 )
@@ -27,16 +31,14 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
 )
+from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from src.services.backtesting.sizing import FlatSizing
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesDecisionPolicy,
     DmaFgiPortfolioRulesStrategy,
-    build_portfolio_rules_for_params,
+    DmaGatedFgiParams,
 )
-from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
-from src.services.backtesting.strategies.minimum import FlatMinimumState
 from tests.services.backtesting.portfolio_rules.helpers import state
 
 
@@ -51,6 +53,24 @@ def test_strategy_params_wire_disabled_rules_into_decision_policy() -> None:
     assert "cross_down_exit" not in [
         rule.name for rule in build_portfolio_rules_for_params(params)
     ]
+
+
+def test_strategy_feature_summary_reflects_default_active_rules() -> None:
+    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+
+    assert strategy.feature_summary() == {
+        "policy": "DmaFgiPortfolioRulesStrategy",
+        "active_features": [
+            "portfolio_level_rules",
+            "cross_down_exit",
+            "cross_up_equal_weight",
+            "eth_btc_ratio_rotation",
+            "dma_overextension_dca_sell",
+            "fgi_downshift_dca_sell",
+        ],
+        "ratio_rotation": True,
+        "research_only": True,
+    }
 
 
 def _context(

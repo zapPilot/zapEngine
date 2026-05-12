@@ -34,9 +34,9 @@ from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
+    DmaGatedFgiParams,
     build_initial_portfolio_rules_asset_allocation,
 )
-from src.services.backtesting.strategies.dma_gated_fgi import DmaGatedFgiParams
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
 ParamFamily = Literal["dma", "none"]

@@ -29,7 +29,7 @@ from src.services.backtesting.execution.allocation_intent_executor import (
 from src.services.backtesting.features import MarketDataRequirements
 from src.services.backtesting.public_params import public_params_to_runtime_params
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.composed_signal import ComposedSignalStrategy
+from src.services.backtesting.strategies.composed import ComposedSignalStrategy
 from src.services.backtesting.strategy_registry import (
     StrategyBuildRequest,
     get_strategy_recipe,

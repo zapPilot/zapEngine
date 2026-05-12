@@ -16,7 +16,6 @@ import {
   getPort,
   getTelegramWebhookSecret,
 } from './lib/env.js';
-import { runIngestPipeline } from './pipeline/runIngest.js';
 import {
   type Cursor,
   decodeCursor,
@@ -29,6 +28,7 @@ import {
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
+import { type IngestResult, performIngest } from './services/ingest.js';
 import {
   extractUrlFromMessage,
   isAllowedUser,
@@ -91,7 +91,7 @@ app.post('/ingest', async (c) => {
       : c.req.query('language'),
   );
 
-  const result = await runIngestPipeline({ url, languageCode });
+  const result = await performIngest(url, languageCode);
   return c.json(result.episode, result.statusCode);
 });
 
@@ -285,7 +285,7 @@ async function runTelegramIngest(
   await sendTelegramNotification(chatId, TELEGRAM_START_TEXT);
 
   try {
-    const result = await runIngestPipeline({ url, languageCode });
+    const result = await performIngest(url, languageCode);
     await sendTelegramNotification(chatId, formatTelegramIngestResult(result));
   } catch (error) {
     await sendTelegramNotification(
@@ -315,9 +315,7 @@ async function sendTelegramNotification(
   }
 }
 
-function formatTelegramIngestResult(
-  result: Awaited<ReturnType<typeof runIngestPipeline>>,
-): string {
+function formatTelegramIngestResult(result: IngestResult): string {
   const status = result.statusCode === 200 ? '✅ 已存在' : '✅ 完成';
   const lines = [status, `《${result.episode.title}》`];
   if (result.episode.hlsUrl) {

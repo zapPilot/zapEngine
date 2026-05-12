@@ -67,3 +67,6 @@ apps/analytics-engine/*.md
 !apps/analytics-engine/README.md
 !apps/analytics-engine/AGENTS.md
 !apps/analytics-engine/GEMINI.md
+
+# podcast-pipeline
+service-account.json

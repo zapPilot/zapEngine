@@ -19,6 +19,19 @@ From inside this directory, drop the `--filter …` prefix: `pnpm dev`, `pnpm te
 - SQL queries live in `src/queries/sql/*.sql` (query registry pattern, not inline strings)
 - Set `DATABASE_READ_ONLY=true` in `.env`
 
+## DB URLs in tests vs snapshot
+
+`test:ci` runs two phases with different DB needs:
+
+| Phase | DB URL | Schema needed |
+| --- | --- | --- |
+| `run-tests-precommit.sh` → pytest | `TEST_DATABASE_URL` / `DATABASE_INTEGRATION_URL` → local pg container | Minimal — bootstrapped by `scripts/db/bootstrap-integration-db.sql` |
+| `test:strategy-snapshot:fast` → `TestClient(app)` POST `/api/v3/backtesting/compare` | `DATABASE_READ_ONLY_URL` (via `settings.effective_database_url`) | Full production `alpha_raw.*` schema + 500-day BTC time-series |
+
+In CI, `DATABASE_READ_ONLY_URL` is a GitHub Actions secret pointing at the Supabase **read-only** replica. The snapshot fixture (`tests/fixtures/strategy_performance_snapshot_500d.json`) is generated from production data, so the snapshot phase only produces matching numbers when run against that same data.
+
+**Required CI secret:** `DATABASE_READ_ONLY_URL` — Supabase read-only role DSN. Without it the `lint-test` job will fail at the snapshot phase.
+
 # Strategy iteration
 
 When working on backtesting strategies (anything under `src/services/backtesting/`), see [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) for the iteration log, attribution conventions, and strategy-related commands.

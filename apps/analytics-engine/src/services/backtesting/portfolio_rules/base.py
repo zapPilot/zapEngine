@@ -97,6 +97,14 @@ class PortfolioRule(Protocol):
     ) -> AllocationIntent: ...
 
 
+class DecisionPolicy(Protocol):
+    """Decision policy that maps a signal snapshot to an allocation intent."""
+
+    decision_policy_id: str
+
+    def decide(self, snapshot: Any) -> AllocationIntent: ...
+
+
 def normalize_symbol(symbol: str) -> str:
     return str(symbol).strip().upper()
 
@@ -314,6 +322,7 @@ __all__ = [
     "DIAG_SIGNALS_CONSULTED",
     "PORTFOLIO_RULE_SYMBOLS",
     "SYMBOL_BY_ALLOCATION_KEY",
+    "DecisionPolicy",
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",

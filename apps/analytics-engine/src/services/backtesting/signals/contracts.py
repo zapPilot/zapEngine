@@ -4,22 +4,55 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, Protocol
 
-from src.services.backtesting.features import MarketFeatureSet
+from src.services.backtesting.decision import AllocationIntent
+from src.services.backtesting.domain import SignalObservation
+from src.services.backtesting.execution.contracts import ExecutionHints
+from src.services.backtesting.features import MarketDataRequirements, MarketFeatureSet
 
 if TYPE_CHECKING:  # pragma: no cover
     from src.services.backtesting.execution.ath_tracker import ATHTracker
     from src.services.backtesting.strategies.base import StrategyContext
 
 
-class AllocationIntent(TypedDict, total=False):
-    """Standardized allocation intent emitted by signal runtimes."""
+class StatefulSignalComponent(Protocol):
+    """Stateful signal component used by composed strategies."""
 
-    target: dict[str, float] | None
-    name: str | None
-    hold: bool
-    immediate: bool
+    signal_id: str
+    market_data_requirements: MarketDataRequirements
+    warmup_lookback_days: int
+
+    def reset(self) -> None: ...
+
+    def initialize(self, context: StrategyContext) -> None: ...
+
+    def warmup(self, context: StrategyContext) -> None: ...
+
+    def observe(self, context: StrategyContext) -> Any: ...
+
+    def apply_intent(
+        self,
+        *,
+        current_date: date,
+        snapshot: Any,
+        intent: AllocationIntent,
+    ) -> Any: ...
+
+    def build_signal_observation(
+        self,
+        *,
+        snapshot: Any,
+        intent: AllocationIntent,
+    ) -> SignalObservation: ...
+
+    def build_execution_hints(
+        self,
+        *,
+        snapshot: Any,
+        intent: AllocationIntent,
+        signal_confidence: float,
+    ) -> ExecutionHints: ...
 
 
 def _resolve_signal_context_extra_data(

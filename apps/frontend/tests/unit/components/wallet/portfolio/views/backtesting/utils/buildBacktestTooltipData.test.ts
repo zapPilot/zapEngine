@@ -866,4 +866,91 @@ describe('buildBacktestTooltipData', () => {
       });
     });
   });
+
+  // ------------------------------------------------------------------
+  // DCA Classic baseline — excluded from strategies list & decision,
+  // but preserved in allocation bars as a reference.
+  // ------------------------------------------------------------------
+
+  describe('DCA Classic baseline filtering', () => {
+    it('excludes DCA Classic from strategies list even when present in payload', () => {
+      const market = makeMarket();
+      const strategies = {
+        dca_classic: makeStrategyPoint({ spot: 5000, stable: 5000 }),
+        dma_fgi_portfolio_rules_default: makeStrategyPoint({
+          spot: 6000,
+          stable: 4000,
+        }),
+      };
+      const payload = attachChartDataIndex(
+        [
+          {
+            name: 'DCA Classic',
+            value: 10000,
+            color: '#4b5563',
+            payload: { date: market.date, eventStrategies: {} },
+          },
+          {
+            name: 'DMA/FGI Portfolio Rules',
+            value: 10500,
+            color: '#3b82f6',
+            payload: { date: market.date, eventStrategies: {} },
+          },
+        ],
+        market,
+        strategies,
+      );
+
+      const result = buildBacktestTooltipData({
+        payload,
+        sortedStrategyIds: ['dca_classic', 'dma_fgi_portfolio_rules_default'],
+      });
+
+      expect(result?.sections.strategies).toEqual([
+        {
+          name: 'DMA/FGI Portfolio Rules',
+          value: 10500,
+          color: '#3b82f6',
+        },
+      ]);
+    });
+
+    it('skips DCA Classic when selecting the active decision strategy', () => {
+      const strategies = {
+        dca_classic: makeStrategyPoint({ spot: 5000, stable: 5000 }),
+        dma_fgi_portfolio_rules_default: makeStrategyPoint({
+          spot: 6000,
+          stable: 4000,
+          decision: {
+            action: 'buy',
+            reason: 'below_extreme_fear_buy',
+            rule_group: 'dma_fgi',
+          },
+        }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['dca_classic', 'dma_fgi_portfolio_rules_default'],
+      });
+
+      expect(result?.sections.decision?.strategyId).toBe(
+        'dma_fgi_portfolio_rules_default',
+      );
+    });
+
+    it('returns null decision when only DCA Classic is present, but keeps it in allocations', () => {
+      const strategies = {
+        dca_classic: makeStrategyPoint({ spot: 5000, stable: 5000 }),
+      };
+      const result = buildBacktestTooltipData({
+        payload: minimalPayload(makeMarket(), strategies),
+        sortedStrategyIds: ['dca_classic'],
+      });
+
+      expect(result?.sections.decision).toBeNull();
+      expect(result?.sections.allocations.map((a) => a.id)).toContain(
+        'dca_classic',
+      );
+    });
+  });
 });

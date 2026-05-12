@@ -7,6 +7,7 @@ import {
   isBacktestTransfer,
   resolveBacktestDisplayAllocation,
 } from '../backtestBuckets';
+import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 import type {
   AllocationBlock,
   BacktestTooltipPayloadEntry,
@@ -21,6 +22,12 @@ import type {
 import { CHART_SIGNALS } from './chartHelpers';
 import { resolveBacktestSpotAsset } from './spotAssetDisplay';
 import { getStrategyDisplayName } from './strategyDisplay';
+
+const DCA_CLASSIC_DISPLAY_NAME = getStrategyDisplayName(
+  DCA_CLASSIC_STRATEGY_ID,
+);
+
+const isDcaClassic = (id: string): boolean => id === DCA_CLASSIC_STRATEGY_ID;
 
 const SIGNAL_EVENT_KEYS = new Set<string>([
   'buy_spot',
@@ -183,14 +190,14 @@ function getActiveDecisionStrategyId(
   orderedIds: string[],
 ): string | null {
   const activeComparisonId = orderedIds.find(
-    (strategyId) => strategies?.[strategyId],
+    (strategyId) => !isDcaClassic(strategyId) && strategies?.[strategyId],
   );
   if (activeComparisonId) {
     return activeComparisonId;
   }
 
   const signaledEntry = Object.entries(strategies ?? {}).find(
-    ([, strategy]) => strategy.signal != null,
+    ([id, strategy]) => !isDcaClassic(id) && strategy.signal != null,
   );
   return signaledEntry?.[0] ?? null;
 }
@@ -266,6 +273,10 @@ export function buildTooltipSections(
 
     const name = String(entry.name ?? '');
     const color = entry.color ?? '#fff';
+
+    if (name === DCA_CLASSIC_DISPLAY_NAME) {
+      continue;
+    }
 
     const eventKey = SIGNAL_TO_EVENT_KEY[name];
     if (eventKey) {

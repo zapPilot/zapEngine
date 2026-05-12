@@ -9,15 +9,17 @@ from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_MATCHES,
 )
 from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
+from src.services.backtesting.portfolio_rules.decision_policy import (
+    DmaFgiPortfolioRulesDecisionPolicy,
+)
 from src.services.backtesting.portfolio_rules.dma_stable_gating import (
     DmaStableGatingRule,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
+from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesDecisionPolicy,
     DmaFgiPortfolioRulesStrategy,
 )
-from src.services.backtesting.strategies.minimum import FlatMinimumState
 from tests.services.backtesting.portfolio_rules.helpers import state
 
 

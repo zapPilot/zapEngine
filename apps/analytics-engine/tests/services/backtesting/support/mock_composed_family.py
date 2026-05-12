@@ -15,7 +15,6 @@ from src.services.backtesting.composition_catalog import (
     StrategyFamilySpec,
     get_default_composition_catalog,
 )
-from src.services.backtesting.composition_types import DecisionPolicy
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import SignalObservation
 from src.services.backtesting.execution.contracts import ExecutionHints
@@ -24,6 +23,7 @@ from src.services.backtesting.execution.pacing.base import (
     RebalancePacingPolicy,
 )
 from src.services.backtesting.features import MarketDataRequirements
+from src.services.backtesting.portfolio_rules.base import DecisionPolicy
 from src.services.backtesting.strategies.base import StrategyContext
 
 MOCK_COMPOSED_STRATEGY_ID = "mock_signal_family"
