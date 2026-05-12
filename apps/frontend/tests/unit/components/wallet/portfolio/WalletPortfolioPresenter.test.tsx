@@ -172,9 +172,9 @@ vi.mock('@/components/wallet/portfolio/components/WalletMenu', () => ({
 }));
 
 // NOTE: WalletManager lazy loading is handled by the global lazyImport mock in
-// tests/setup.ts, which intercepts the import path and renders wallet-manager-modal
-// directly. This module-level mock is unused for the lazy path but kept for
-// any direct (non-lazy) import scenarios.
+// tests/setup/lazy-import-mocks.ts, which intercepts the import path and renders
+// wallet-manager-modal directly. This module-level mock is unused for the lazy
+// path but kept for any direct (non-lazy) import scenarios.
 vi.mock('@/components/WalletManager', () => ({
   WalletManager: ({ isOpen, onClose }: any) =>
     isOpen ? (
@@ -1020,7 +1020,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
   });
 
   describe('Wallet Manager Interaction', () => {
-    // The global lazyImport mock in tests/setup.ts handles WalletManager directly.
+    // The global lazyImport mock in tests/setup/lazy-import-mocks.ts handles WalletManager directly.
     // When isOpen=false it returns null; when isOpen=true it renders wallet-manager-modal
     // with a close-wallet-manager button. The component-level mock above is not used.
 
@@ -1063,7 +1063,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
       );
       expect(screen.getByTestId('wallet-manager-modal')).toBeInTheDocument();
 
-      // Close via the button rendered by the setup.ts WalletManager handler
+      // Close via the button rendered by the lazy import WalletManager handler
       await user.click(screen.getByTestId('close-wallet-manager'));
       expect(
         screen.queryByTestId('wallet-manager-modal'),
@@ -1072,7 +1072,7 @@ describe('WalletPortfolioPresenter - Regime Highlighting', () => {
   });
 
   describe('Invest Tab Sub-navigation', () => {
-    // The global lazyImport mock in setup.ts renders InvestView as a plain div.
+    // The global lazyImport mock renders InvestView as a plain div.
     // We use the __registerDynamicOverride plugin to inject callback trigger
     // buttons for these tests only, then clear the override after each test.
 

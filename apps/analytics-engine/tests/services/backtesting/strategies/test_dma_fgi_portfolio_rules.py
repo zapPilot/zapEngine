@@ -65,6 +65,7 @@ def test_strategy_feature_summary_reflects_default_active_rules() -> None:
             "cross_down_exit",
             "cross_up_equal_weight",
             "eth_btc_ratio_rotation",
+            "eth_btc_deviation_dca",
             "dma_overextension_dca_sell",
             "fgi_downshift_dca_sell",
         ],

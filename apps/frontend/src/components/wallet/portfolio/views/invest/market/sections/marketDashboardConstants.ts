@@ -79,6 +79,8 @@ export interface MarketLineDescriptor {
   defaultActive: boolean;
   /** Data key for the normalized line in chartData. */
   dataKey: string;
+  /** Raw payload field used to format the tooltip. Required for price-axis lines. */
+  rawField?: string;
   /** Optional dash array for dashed lines. */
   strokeDasharray?: string;
   /** Optional custom activeDot (e.g., for FGI regime-colored dot). */
@@ -99,6 +101,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: true,
     dataKey: 'btc_price_normalized',
+    rawField: 'price_usd',
   },
   {
     key: 'btcDma200',
@@ -107,6 +110,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: true,
     dataKey: 'btc_dma_normalized',
+    rawField: 'btc_dma_200',
     strokeDasharray: '5 5',
   },
   {
@@ -116,6 +120,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: true,
     dataKey: 'eth_price_normalized',
+    rawField: 'eth_price_usd',
   },
   {
     key: 'ethDma200',
@@ -124,6 +129,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: true,
     dataKey: 'eth_dma_normalized',
+    rawField: 'eth_dma_200',
     strokeDasharray: '5 5',
   },
   {
@@ -150,6 +156,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: false,
     dataKey: 'sp500_price_normalized',
+    rawField: 'sp500_price_usd',
   },
   {
     key: 'spyDma200',
@@ -158,6 +165,7 @@ export const MARKET_LINES: MarketLineDescriptor[] = [
     axis: 'price',
     defaultActive: false,
     dataKey: 'sp500_dma_normalized',
+    rawField: 'sp500_dma_200',
     strokeDasharray: '5 5',
   },
   {

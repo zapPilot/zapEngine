@@ -172,6 +172,8 @@ interface SnapshotOpts {
   btcDma?: number | null;
   ethPrice?: number;
   ethDma?: number | null;
+  spyPrice?: number;
+  spyDma?: number | null;
   sentiment?: number | null;
   regime?: string | null;
   ethBtcRatio?: number | null;
@@ -222,6 +224,24 @@ function makeSnapshot(opts: SnapshotOpts) {
     values['eth'] = {
       value: opts.ethPrice,
       indicators: ethIndicators,
+      tags: {},
+    };
+  }
+
+  if (opts.spyPrice != null) {
+    const spyIndicators: Record<
+      string,
+      { value: number; is_above: boolean | null }
+    > = {};
+    if (opts.spyDma != null) {
+      spyIndicators['dma_200'] = {
+        value: opts.spyDma,
+        is_above: opts.spyPrice > opts.spyDma,
+      };
+    }
+    values['spy'] = {
+      value: opts.spyPrice,
+      indicators: spyIndicators,
       tags: {},
     };
   }
@@ -283,6 +303,8 @@ const mockData = makeResponse([
     btcDma: 38000,
     ethPrice: 3200,
     ethDma: 3000,
+    spyPrice: 480,
+    spyDma: 455,
     sentiment: 65,
     regime: 'g',
     macroFearGreed: 80,
@@ -296,6 +318,8 @@ const mockData = makeResponse([
     btcDma: 38500,
     ethPrice: 3300,
     ethDma: 3050,
+    spyPrice: 500,
+    spyDma: 460,
     sentiment: 70,
     regime: 'eg',
     macroFearGreed: 61,
@@ -599,32 +623,28 @@ describe('MarketDashboardView', () => {
       return capturedTooltipFormatter!;
     }
 
-    it('formats BTC Price with dollar sign and locale number', async () => {
+    it('formats price-axis tooltips from raw payload values instead of normalized chart values', async () => {
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(95000, 'BTC Price', {});
-      expect(String(formattedValue)).toContain('95,000');
-      expect(label).toBe('BTC Price');
-    });
 
-    it('formats BTC 200 DMA with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(38500, 'BTC 200 DMA', {});
-      expect(String(formattedValue)).toContain('38,500');
-      expect(label).toBe('BTC 200 DMA');
-    });
-
-    it('formats ETH Price with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(3200, 'ETH Price', {});
-      expect(String(formattedValue)).toContain('3,200');
-      expect(label).toBe('ETH Price');
-    });
-
-    it('formats ETH 200 DMA with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(3050, 'ETH 200 DMA', {});
-      expect(String(formattedValue)).toContain('3,050');
-      expect(label).toBe('ETH 200 DMA');
+      expect(fmt(52, 'BTC Price', { payload: { price_usd: 67000 } })).toEqual([
+        '$67,000',
+        'BTC Price',
+      ]);
+      expect(
+        fmt(48, 'BTC 200 DMA', { payload: { btc_dma_200: 63250 } }),
+      ).toEqual(['$63,250', 'BTC 200 DMA']);
+      expect(
+        fmt(34, 'ETH Price', { payload: { eth_price_usd: 3200 } }),
+      ).toEqual(['$3,200', 'ETH Price']);
+      expect(
+        fmt(31, 'ETH 200 DMA', { payload: { eth_dma_200: 3050 } }),
+      ).toEqual(['$3,050', 'ETH 200 DMA']);
+      expect(
+        fmt(65, 'SPY Price', { payload: { sp500_price_usd: 500 } }),
+      ).toEqual(['$500', 'SPY Price']);
+      expect(
+        fmt(58, 'SPY 200 DMA', { payload: { sp500_dma_200: 460 } }),
+      ).toEqual(['$460', 'SPY 200 DMA']);
     });
 
     it('formats ETH/BTC Ratio with fixed decimals', async () => {
@@ -699,10 +719,10 @@ describe('MarketDashboardView', () => {
       expect(label).toBe('Some Other Series');
     });
 
-    it('formats BTC Price with undefined value falling back to 0', async () => {
+    it('shows a placeholder when raw price payload is unavailable', async () => {
       const fmt = await renderAndGetFormatter();
       const [formattedValue, label] = fmt(undefined, 'BTC Price', {});
-      expect(String(formattedValue)).toContain('$0');
+      expect(formattedValue).toBe('---');
       expect(label).toBe('BTC Price');
     });
 

@@ -16,7 +16,7 @@ const TEST_DIRECTORIES = [
   path.join(ROOT, 'tests', 'integration'),
 ];
 const TEST_FILE_PATTERN = /\.(test|spec)\.(js|ts|tsx)$/;
-const SUPPORTED_NODE_MAJOR = 20;
+const SUPPORTED_NODE_MAJOR = 24;
 const DEFAULT_BATCH_SIZE = 3;
 const BATCH_SIZE = Number(
   process.env.VITEST_COVERAGE_BATCH_SIZE || String(DEFAULT_BATCH_SIZE),
