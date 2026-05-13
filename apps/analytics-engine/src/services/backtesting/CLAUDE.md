@@ -33,14 +33,6 @@ be retuned in a later iteration:
 
 - `spy_latch`: disabled in the default rule set pending flat-engine
   attribution.
-- `extreme_fear_dca_buy`: remains disabled in the default rule set after the
-  2026-05-13 size sweep. Standalone N=0/3/5/7 with default `buy_step=0.01` all
-  trailed the disabled baseline (-1.03 to -0.05pp ROI). Increasing
-  `buy_step` to 0.20 / 0.50 made it worse (-7.7 to -27.0pp). Decision-log
-  trace shows the root cause is structural: BTC stays below DMA-200 during
-  bear cycles, so any BTC bought during extreme-fear gets force-sold by
-  `cross_up_equal_weight` when SPY (not BTC) crosses up. See `ITERATION_LOG.md`
-  entry `2026-05-13`.
 
 ## Iteration Discipline
 

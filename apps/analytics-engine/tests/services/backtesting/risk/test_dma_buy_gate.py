@@ -22,12 +22,12 @@ def _buy_intent() -> AllocationIntent:
             "stable": 0.95,
             "alt": 0.0,
         },
-        allocation_name="extreme_fear_dca_buy",
+        allocation_name="test_dca_buy",
         immediate=False,
-        reason="portfolio_extreme_fear_dca_buy",
+        reason="test_dca_buy",
         rule_group="dma_fgi",
         decision_score=1.0,
-        diagnostics={"matched_rule_name": "extreme_fear_dca_buy"},
+        diagnostics={"matched_rule_name": "test_dca_buy"},
     )
 
 
@@ -62,7 +62,7 @@ def _buy_snapshot(*, offset: int = 0, dma_distance: float = -0.15):
     )
 
 
-def test_dma_buy_gate_blocks_extreme_fear_dca_until_sideways_confirmed() -> None:
+def test_dma_buy_gate_blocks_dca_buy_until_sideways_confirmed() -> None:
     guard = DmaBuyGateGuard()
     snap = _buy_snapshot()
     guard.observe(snap, config=PortfolioRuleConfig())

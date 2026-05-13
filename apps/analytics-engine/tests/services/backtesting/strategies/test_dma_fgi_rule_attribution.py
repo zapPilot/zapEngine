@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from datetime import date
 
-from src.services.backtesting.portfolio_rules import (
-    DEFAULT_PORTFOLIO_RULE_NAMES,
-    RULE_NAMES,
-)
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_MATCHES,
 )
@@ -95,14 +91,6 @@ def test_enabled_rules_can_isolate_lower_priority_rule() -> None:
     assert trace["cross_up_equal_weight"]["suppressed_by"] is None
     assert trace["dma_overextension_dca_sell"]["matched"] is True
     assert trace["dma_overextension_dca_sell"]["suppressed_by"] is None
-
-
-def test_strategy_default_enabled_rules_keep_extreme_fear_non_default() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
-
-    assert strategy.decision_policy.enabled_rules == DEFAULT_PORTFOLIO_RULE_NAMES
-    assert "extreme_fear_dca_buy" not in DEFAULT_PORTFOLIO_RULE_NAMES
-    assert "extreme_fear_dca_buy" in RULE_NAMES
 
 
 def test_strategy_enabled_rules_param_activates_default_rule_subset() -> None:

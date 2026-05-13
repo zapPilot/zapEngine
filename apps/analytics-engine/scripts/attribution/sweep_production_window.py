@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from scripts.attribution._helpers import _metric
+from scripts.landing.equity_curve import generate as generate_landing_equity_curve
 from src.config.strategy_presets import get_default_seed_strategy_config
 from src.services.backtesting.constants import STRATEGY_DISPLAY_NAMES
 from src.services.backtesting.strategy_registry import (
@@ -29,6 +30,7 @@ DEFAULT_TOTAL_CAPITAL = 10_000.0
 DEFAULT_SNAPSHOT_PATH = (
     APP_ROOT / "tests/fixtures/strategy_performance_snapshot_500d.json"
 )
+LANDING_EQUITY_CURVE_PATH = APP_ROOT.parent / "landing-page/src/data/equity-curve.json"
 METRIC_KEYS = (
     "roi_percent",
     "calmar_ratio",
@@ -69,6 +71,12 @@ class DriftRow:
     delta: float | None
     tolerance: float
     status: str
+
+
+@dataclass(frozen=True)
+class SnapshotCollection:
+    snapshot: dict[str, Any]
+    compare_payload: dict[str, Any]
 
 
 def _is_excluded_strategy(strategy_id: str) -> bool:
@@ -167,7 +175,7 @@ def _compare_request(
     }
 
 
-def _fetch_summaries(
+def _fetch_compare_payload(
     *,
     client: Any,
     endpoint: str | None,
@@ -201,11 +209,7 @@ def _fetch_summaries(
     ]
     if missing:
         raise ValueError("Compare response missing strategies: " + ", ".join(missing))
-    return {
-        strategy_id: dict(strategies[strategy_id])
-        for strategy_id in strategy_ids
-        if isinstance(strategies[strategy_id], dict)
-    }
+    return payload
 
 
 def _snapshot_strategy_entry(
@@ -229,7 +233,7 @@ def _snapshot_strategy_entry(
     }
 
 
-def collect_snapshot(
+def _collect_snapshot_result(
     *,
     endpoint: str | None,
     client: Any | None = None,
@@ -254,7 +258,7 @@ def collect_snapshot(
         if endpoint is None:
             raise ValueError("endpoint is required when no compare client is supplied")
         with httpx.Client() as http_client:
-            summaries = _fetch_summaries(
+            compare_payload = _fetch_compare_payload(
                 client=http_client,
                 endpoint=endpoint,
                 strategy_ids=strategy_ids,
@@ -263,7 +267,7 @@ def collect_snapshot(
                 total_capital=total_capital,
             )
     else:
-        summaries = _fetch_summaries(
+        compare_payload = _fetch_compare_payload(
             client=client,
             endpoint=endpoint,
             strategy_ids=strategy_ids,
@@ -271,6 +275,12 @@ def collect_snapshot(
             end_date=reference_date.isoformat(),
             total_capital=total_capital,
         )
+    strategies = compare_payload["strategies"]
+    summaries = {
+        strategy_id: dict(strategies[strategy_id])
+        for strategy_id in strategy_ids
+        if isinstance(strategies[strategy_id], dict)
+    }
     default_strategy_id = get_default_seed_strategy_config().strategy_id
     if default_strategy_id not in strategy_ids:
         raise ValueError(
@@ -290,7 +300,51 @@ def collect_snapshot(
             for strategy_id in strategy_ids
         },
     }
-    return snapshot
+    return SnapshotCollection(snapshot=snapshot, compare_payload=compare_payload)
+
+
+def collect_snapshot(
+    *,
+    endpoint: str | None,
+    client: Any | None = None,
+    reference_date: date,
+    window_days: int,
+    total_capital: float,
+    tolerances: dict[str, float],
+    show_progress: bool = True,
+    exclude_deprecated: bool = False,
+) -> dict[str, Any]:
+    return _collect_snapshot_result(
+        endpoint=endpoint,
+        client=client,
+        reference_date=reference_date,
+        window_days=window_days,
+        total_capital=total_capital,
+        tolerances=tolerances,
+        show_progress=show_progress,
+        exclude_deprecated=exclude_deprecated,
+    ).snapshot
+
+
+def _regenerate_landing_equity_curve(
+    *,
+    compare_payload: dict[str, Any],
+    snapshot: dict[str, Any],
+    output_path: Path = LANDING_EQUITY_CURVE_PATH,
+) -> int | None:
+    timeline = compare_payload.get("timeline")
+    if not isinstance(timeline, list):
+        raise ValueError("Compare response must include a timeline array")
+    try:
+        generate_landing_equity_curve(
+            timeline=timeline,
+            snapshot_meta=snapshot,
+            output_path=output_path,
+        )
+    except FileNotFoundError as exc:
+        print(f"Skipped landing-page equity curve: {exc}", file=sys.stderr)
+        return None
+    return len(timeline)
 
 
 def _expected_context(
@@ -532,7 +586,7 @@ def main() -> None:
         from src.main import app
 
         with TestClient(app) as client:
-            actual = collect_snapshot(
+            collection = _collect_snapshot_result(
                 endpoint=None,
                 client=client,
                 reference_date=reference_date,
@@ -543,7 +597,7 @@ def main() -> None:
                 exclude_deprecated=exclude_deprecated,
             )
     else:
-        actual = collect_snapshot(
+        collection = _collect_snapshot_result(
             endpoint=str(args.endpoint),
             reference_date=reference_date,
             window_days=window_days,
@@ -552,10 +606,20 @@ def main() -> None:
             show_progress=not bool(args.no_progress),
             exclude_deprecated=exclude_deprecated,
         )
+    actual = collection.snapshot
     if args.update_snapshot:
         snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
+        point_count = _regenerate_landing_equity_curve(
+            compare_payload=collection.compare_payload,
+            snapshot=snapshot,
+        )
         _write_snapshot(snapshot_path, snapshot)
         print(f"Updated snapshot: {snapshot_path}")
+        if point_count is not None:
+            print(
+                "✓ regenerated landing-page equity-curve.json "
+                f"({point_count} daily points)"
+            )
         return
 
     if expected is None:

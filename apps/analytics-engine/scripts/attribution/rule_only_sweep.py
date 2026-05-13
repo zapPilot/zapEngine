@@ -284,23 +284,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="append",
         help="Candidate rule to test. Repeatable; defaults to all known rules.",
     )
-    parser.add_argument(
-        "--extreme-fear-days",
-        type=int,
-        help=(
-            "Set min_consecutive_extreme_fear_days for the sweep. "
-            "Useful when testing extreme_fear_dca_buy variants."
-        ),
-    )
-    parser.add_argument(
-        "--buy-step",
-        type=float,
-        help=(
-            "Set extreme_fear_buy_step for the sweep (fraction of stable "
-            "deployed per fire, default 0.01). Useful when testing size "
-            "variants of extreme_fear_dca_buy."
-        ),
-    )
     parser.add_argument("--decision-log-dir")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     return parser
@@ -313,14 +296,6 @@ def main(argv: list[str] | None = None) -> int:
     if unknown_rules:
         print("Unknown rules: " + ", ".join(unknown_rules), file=sys.stderr)
         return 2
-    extreme_fear_section: dict[str, float | int] = {}
-    if args.extreme_fear_days is not None:
-        extreme_fear_section["min_consecutive_days"] = args.extreme_fear_days
-    if args.buy_step is not None:
-        extreme_fear_section["buy_step"] = args.buy_step
-    extra_params = (
-        {"extreme_fear": extreme_fear_section} if extreme_fear_section else None
-    )
     if args.in_process:
         from fastapi.testclient import TestClient
 
@@ -333,7 +308,6 @@ def main(argv: list[str] | None = None) -> int:
                 window_days=args.days,
                 total_capital=args.total_capital,
                 candidate_rules=candidate_rules,
-                extra_params=extra_params,
                 client=client,
                 decision_log_dir=args.decision_log_dir,
             )
@@ -344,7 +318,6 @@ def main(argv: list[str] | None = None) -> int:
             window_days=args.days,
             total_capital=args.total_capital,
             candidate_rules=candidate_rules,
-            extra_params=extra_params,
             decision_log_dir=args.decision_log_dir,
         )
     if args.format == "json":

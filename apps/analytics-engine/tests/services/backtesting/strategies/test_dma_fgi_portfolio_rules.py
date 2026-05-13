@@ -24,16 +24,12 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     DmaFgiPortfolioRulesDecisionPolicy,
     build_portfolio_rules_for_params,
 )
-from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
-    ExtremeFearDcaBuyRule,
-)
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
 )
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
-from src.services.backtesting.sizing import FlatSizing
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaFgiPortfolioRulesStrategy,
@@ -539,138 +535,6 @@ def test_strategy_ratio_rotation_cooldown_blocks_second_cross() -> None:
     )
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
-def test_extreme_fear_gated_by_cross_down_cycle() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
-    current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
-
-    pre_cycle = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-    cross_down = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-    open_cycle_dca = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-    cross_up = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="above",
-                dma_distance=0.05,
-                cross_event="cross_up",
-                actionable_cross_event="cross_up",
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-    closed_cycle = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="above",
-                dma_distance=0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-
-    assert pre_cycle.reason == "regime_no_signal"
-    assert cross_down.reason == "portfolio_cross_down_exit"
-    assert open_cycle_dca.reason == "portfolio_extreme_fear_dca_buy"
-    assert cross_up.reason == "portfolio_cross_up_equal_weight"
-    assert closed_cycle.reason == "regime_no_signal"
-
-
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
-def test_crypto_cross_down_opens_peer_cycle_and_blocked_cross_up_does_not_close() -> (
-    None
-):
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
-    current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
-
-    btc_cross_down = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="neutral",
-            ),
-            eth=state(symbol="ETH", zone="above", fgi_regime="neutral"),
-            current=current,
-        )
-    )
-    cooldown_blocked_eth_cross_up = policy.decide(
-        _flat_state(
-            btc=state(symbol="BTC", zone="below", fgi_regime="neutral"),
-            eth=state(
-                symbol="ETH",
-                zone="above",
-                dma_distance=0.05,
-                cross_event="cross_up",
-                actionable_cross_event=None,
-                fgi_regime="neutral",
-                cooldown_state=DmaCooldownState(
-                    active=True,
-                    remaining_days=12,
-                    blocked_zone="above",
-                ),
-            ),
-            current=current,
-        )
-    )
-    eth_extreme_fear_dca = policy.decide(
-        _flat_state(
-            btc=state(symbol="BTC", zone="below", fgi_regime="extreme_fear"),
-            eth=state(
-                symbol="ETH",
-                zone="below",
-                dma_distance=-0.20,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-
-    assert btc_cross_down.reason == "portfolio_cross_down_exit"
-    assert cooldown_blocked_eth_cross_up.reason == "regime_no_signal"
-    assert eth_extreme_fear_dca.reason == "portfolio_extreme_fear_dca_buy"
-    assert eth_extreme_fear_dca.diagnostics is not None
-    assert eth_extreme_fear_dca.diagnostics["portfolio_rule_assets"] == ["BTC", "ETH"]
-
-
 def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.20, "stable": 0.80, "alt": 0.0}
@@ -722,151 +586,19 @@ def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
     assert crypto_extreme_fear.reason == "regime_no_signal"
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
-def test_crypto_cross_up_closes_peer_cycle_for_extreme_fear_dca() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
-    current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
-
-    btc_cross_down = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="neutral",
-            ),
-            eth=state(symbol="ETH", zone="below", fgi_regime="neutral"),
-            current=current,
-        )
-    )
-    open_cycle_dca = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            eth=state(
-                symbol="ETH",
-                zone="below",
-                dma_distance=-0.20,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-    eth_cross_up = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="neutral",
-            ),
-            eth=state(
-                symbol="ETH",
-                zone="above",
-                dma_distance=0.05,
-                cross_event="cross_up",
-                actionable_cross_event="cross_up",
-                fgi_regime="neutral",
-            ),
-            current=current,
-        )
-    )
-    closed_cycle_extreme_fear = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            eth=state(
-                symbol="ETH",
-                zone="below",
-                dma_distance=-0.20,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-        )
-    )
-
-    assert btc_cross_down.reason == "portfolio_cross_down_exit"
-    assert open_cycle_dca.reason == "portfolio_extreme_fear_dca_buy"
-    assert eth_cross_up.reason == "portfolio_cross_up_equal_weight"
-    assert closed_cycle_extreme_fear.reason == "regime_no_signal"
-
-
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
-def test_cross_trade_does_not_block_next_extreme_fear_dca() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
-    current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
-
-    cross_down = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-            current_date=date(2025, 3, 8),
-        )
-    )
-    cooldown_dca = policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
-            ),
-            current=current,
-            current_date=date(2025, 3, 11),
-        )
-    )
-
-    assert cross_down.reason == "portfolio_cross_down_exit"
-    assert cooldown_dca.reason == "portfolio_extreme_fear_dca_buy"
-    assert cooldown_dca.target_allocation is not None
-    assert cooldown_dca.target_allocation["btc"] > current["btc"]
-    assert cooldown_dca.diagnostics is not None
-    assert cooldown_dca.diagnostics["matched_rule_name"] == "extreme_fear_dca_buy"
-
-
 def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy(
-        rules=(ExtremeFearDcaBuyRule(cooldown_days=7),),
+        rules=(CrossUpEqualWeightRule(cooldown_days=7),),
     )
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
-    policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="neutral",
-            ),
-            current=current,
-            current_date=date(2025, 3, 10),
-        )
-    )
     first_buy = policy.decide(
         _flat_state(
             btc=state(
                 symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
             ),
             current=current,
             current_date=date(2025, 3, 11),
@@ -877,7 +609,7 @@ def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
         context=StrategyContext(
             date=date(2025, 3, 11),
             price=100.0,
-            sentiment={"label": "extreme_fear", "value": 15},
+            sentiment={"label": "neutral", "value": 50},
             price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
@@ -901,54 +633,49 @@ def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
         _flat_state(
             btc=state(
                 symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
             ),
             current=current,
             current_date=date(2025, 3, 12),
         )
     )
 
-    assert first_buy.reason == "portfolio_extreme_fear_dca_buy"
+    assert first_buy.reason == "portfolio_cross_up_equal_weight"
     assert skipped_buy.reason == "regime_no_signal"
     assert skipped_buy.diagnostics is not None
     assert skipped_buy.diagnostics["cooldown_skipped_rules"] == [
         {
-            "rule": "extreme_fear_dca_buy",
-            "last_executed_at": "2025-03-11",
+            "rule": "cross_up_equal_weight",
             "cooldown_days": 7,
             "remaining_days": 6,
+            "trigger_symbols": ["BTC"],
+            "symbol_cooldowns": [
+                {
+                    "symbol": "BTC",
+                    "last_executed_at": "2025-03-11",
+                    "remaining_days": 6,
+                }
+            ],
         }
     ]
 
 
 def test_per_rule_cooldown_requires_actual_transfers() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy(
-        rules=(ExtremeFearDcaBuyRule(cooldown_days=7),),
+        rules=(CrossUpEqualWeightRule(cooldown_days=7),),
     )
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
-    policy.decide(
-        _flat_state(
-            btc=state(
-                symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                cross_event="cross_down",
-                actionable_cross_event="cross_down",
-                fgi_regime="neutral",
-            ),
-            current=current,
-            current_date=date(2025, 3, 10),
-        )
-    )
     first_buy = policy.decide(
         _flat_state(
             btc=state(
                 symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
             ),
             current=current,
             current_date=date(2025, 3, 11),
@@ -959,7 +686,7 @@ def test_per_rule_cooldown_requires_actual_transfers() -> None:
         context=StrategyContext(
             date=date(2025, 3, 11),
             price=100.0,
-            sentiment={"label": "extreme_fear", "value": 15},
+            sentiment={"label": "neutral", "value": 50},
             price_history=[100.0],
             portfolio=Portfolio.from_asset_allocation(
                 10_000.0, current, {"btc": 100.0}
@@ -974,17 +701,18 @@ def test_per_rule_cooldown_requires_actual_transfers() -> None:
         _flat_state(
             btc=state(
                 symbol="BTC",
-                zone="below",
-                dma_distance=-0.05,
-                fgi_regime="extreme_fear",
+                zone="above",
+                dma_distance=0.05,
+                cross_event="cross_up",
+                actionable_cross_event="cross_up",
             ),
             current=current,
             current_date=date(2025, 3, 12),
         )
     )
 
-    assert first_buy.reason == "portfolio_extreme_fear_dca_buy"
-    assert second_buy.reason == "portfolio_extreme_fear_dca_buy"
+    assert first_buy.reason == "portfolio_cross_up_equal_weight"
+    assert second_buy.reason == "portfolio_cross_up_equal_weight"
 
 
 @pytest.mark.parametrize(
@@ -1215,20 +943,6 @@ def test_strategy_wires_trade_quota_guard_from_params() -> None:
     ]
 
 
-def test_strategy_can_enable_extreme_fear_rule_on_flat_sizing() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(
-        total_capital=10_000.0,
-        params=DmaGatedFgiParams(enabled_rules=frozenset({"extreme_fear_dca_buy"})),
-    )
-
-    rules_by_name = {rule.name: rule for rule in strategy.decision_policy.rules}
-    extreme_fear_rule = rules_by_name["extreme_fear_dca_buy"]
-
-    assert isinstance(extreme_fear_rule, ExtremeFearDcaBuyRule)
-    assert isinstance(extreme_fear_rule.sizing, FlatSizing)
-    assert strategy.decision_policy.config.emit_signals_consulted is True
-
-
 def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
     strategy = DmaFgiPortfolioRulesStrategy(
         total_capital=10_000.0,
@@ -1357,56 +1071,3 @@ def _step_signal(
         intent=intent,
     )
     return snapshot
-
-
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
-def test_strategy_extreme_fear_dca_executes_after_cross_without_buy_gate() -> None:
-    prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
-    portfolio = Portfolio.from_asset_allocation(
-        10_000.0,
-        {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
-        prices,
-    )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
-    warmup_context = _context(
-        context_date=date(2025, 1, 1),
-        portfolio=portfolio,
-        prices=prices,
-        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
-    )
-    cross_down_context = _context(
-        context_date=date(2025, 1, 2),
-        portfolio=portfolio,
-        prices=prices,
-        dma={"btc": 110.0, "eth": 110.0, "spy": 110.0},
-    )
-    stable_portfolio = Portfolio.from_asset_allocation(
-        10_000.0,
-        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
-        prices,
-    )
-    extreme_fear_fgi: dict[str, object] = {"label": "extreme_fear", "value": 15}
-    extreme_fear_context = _context(
-        context_date=date(2025, 1, 3),
-        portfolio=stable_portfolio,
-        prices=prices,
-        dma={"btc": 90.0, "eth": 110.0, "spy": 110.0},
-        sentiment=extreme_fear_fgi,
-        macro_fgi=extreme_fear_fgi,
-    )
-
-    strategy.initialize(portfolio, None, warmup_context)
-    strategy.warmup_day(warmup_context)
-    cross_down = strategy.on_day(cross_down_context)
-    extreme_fear_dca = strategy.on_day(extreme_fear_context)
-
-    assert cross_down.snapshot.decision.reason == "portfolio_cross_down_exit"
-    assert cross_down.snapshot.signal.dma is not None
-    assert cross_down.snapshot.signal.dma.cooldown_blocked_zone == "above"
-    assert extreme_fear_dca.snapshot.decision.reason == "portfolio_extreme_fear_dca_buy"
-    assert extreme_fear_dca.snapshot.decision.diagnostics is not None
-    assert (
-        extreme_fear_dca.snapshot.decision.diagnostics["matched_rule_name"]
-        == "extreme_fear_dca_buy"
-    )
-    assert extreme_fear_dca.transfers is not None
