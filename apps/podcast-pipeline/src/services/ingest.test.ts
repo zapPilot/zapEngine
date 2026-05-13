@@ -551,7 +551,7 @@ describe('performIngest failure paths', () => {
       'completed',
       expect.objectContaining({
         ttsLanguageCode: 'zh-Hant',
-        ttsVoiceName: '8957c0744def4b5aafb37103fa8c9efb',
+        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
       }),
     );
   });

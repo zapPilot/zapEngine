@@ -32,7 +32,7 @@ describe('TTS provider dispatcher', () => {
     mockFishGetMetadata.mockReturnValue({
       provider: 'fish-audio',
       languageCode: 'zh-Hant',
-      voiceName: '8957c0744def4b5aafb37103fa8c9efb',
+      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
     });
     mockGoogleGetMetadata.mockReturnValue({
       provider: 'google',
@@ -85,7 +85,7 @@ describe('TTS provider dispatcher', () => {
     expect(getTtsMetadata()).toEqual({
       provider: 'fish-audio',
       languageCode: 'zh-Hant',
-      voiceName: '8957c0744def4b5aafb37103fa8c9efb',
+      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
     });
     expect(mockFishGetMetadata).toHaveBeenCalled();
     expect(mockGoogleGetMetadata).not.toHaveBeenCalled();

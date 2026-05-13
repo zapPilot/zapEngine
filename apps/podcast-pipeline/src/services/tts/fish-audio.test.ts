@@ -57,7 +57,7 @@ describe('Fish Audio TTS provider', () => {
     const [, init] = mockFetch.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(init.body)).toEqual({
       text: '哈囉，這是 Fish Audio 測試',
-      reference_id: '8957c0744def4b5aafb37103fa8c9efb',
+      reference_id: 'debb4c1065114ffda03f3a60abdcc421',
       format: 'mp3',
       mp3_bitrate: 128,
       chunk_length: 200,

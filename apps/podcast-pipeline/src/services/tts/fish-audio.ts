@@ -1,7 +1,7 @@
 import type { TtsMetadata } from '../tts.js';
 
 const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
-const DEFAULT_MODEL_ID = '8957c0744def4b5aafb37103fa8c9efb';
+const DEFAULT_MODEL_ID = 'debb4c1065114ffda03f3a60abdcc421';
 const DEFAULT_ENGINE = 's2-pro';
 const DEFAULT_LANGUAGE_CODE = 'zh-Hant';
 const ERROR_BODY_LIMIT = 300;
