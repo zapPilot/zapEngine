@@ -9,7 +9,6 @@ import { PillarsV2 } from '@/components/v2/PillarsV2';
 import { ProtocolsV2 } from '@/components/v2/ProtocolsV2';
 import { RegimeStripV2 } from '@/components/v2/RegimeStripV2';
 import { TrustStripV2 } from '@/components/v2/TrustStripV2';
-import { WhyItWorksV2 } from '@/components/v2/WhyItWorksV2';
 
 export default function LandingPageV2() {
   return (
@@ -21,7 +20,6 @@ export default function LandingPageV2() {
         <HowItWorksV2 />
         <PillarsV2 />
         <BacktestProofV2 />
-        <WhyItWorksV2 />
         <FAQV2 />
         <ProtocolsV2 />
         <CTAV2 />
