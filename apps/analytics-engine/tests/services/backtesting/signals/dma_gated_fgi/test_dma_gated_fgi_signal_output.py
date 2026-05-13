@@ -94,8 +94,10 @@ def test_runtime_reset_clears_cooldown_and_zone_state() -> None:
 
     assert debug_state.last_observed_zone is None
     assert debug_state.last_actionable_zone is None
-    assert debug_state.cooldown_end_date is None
-    assert debug_state.cooldown_blocked_zone is None
+    assert debug_state.signal_cooldown_end_date is None
+    assert debug_state.signal_cooldown_blocked_zone is None
+    assert debug_state.trade_cooldown_end_date is None
+    assert debug_state.trade_cooldown_blocked_zone is None
 
 
 def test_above_dma_extreme_greed_sells() -> None:

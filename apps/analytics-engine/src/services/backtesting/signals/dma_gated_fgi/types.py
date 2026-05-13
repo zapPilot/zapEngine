@@ -18,6 +18,22 @@ SignalId = Literal["dma_gated_fgi"]
 
 
 @dataclass(frozen=True)
+class DmaSignalInputs:
+    """Normalized signal inputs used to build DMA market state."""
+
+    dma_200: float | None
+    fgi_value: float | None
+    fgi_regime: str
+    regime_source: RegimeSource
+    ath_event: AthEvent | None
+    fgi_slope: float
+    asset_symbol: str | None
+    macro_fear_greed_value: float | None
+    macro_fear_greed_regime: str | None
+    macro_fear_greed_regime_source: RegimeSource | None
+
+
+@dataclass(frozen=True)
 class DmaCooldownState:
     """Current cooldown gate state."""
 
@@ -58,8 +74,10 @@ class DmaRuntimeDebugState:
 
     last_observed_zone: Zone | None
     last_actionable_zone: Zone | None
-    cooldown_end_date: date | None
-    cooldown_blocked_zone: BlockedZone | None
+    signal_cooldown_end_date: date | None
+    signal_cooldown_blocked_zone: BlockedZone | None
+    trade_cooldown_end_date: date | None
+    trade_cooldown_blocked_zone: BlockedZone | None
     fgi_ema_prev: float | None
     fgi_ema_current: float | None
 
@@ -71,6 +89,7 @@ __all__ = [
     "DmaCooldownState",
     "DmaMarketState",
     "DmaRuntimeDebugState",
+    "DmaSignalInputs",
     "SignalId",
     "Zone",
 ]

@@ -69,7 +69,7 @@ export default defineConfig({
     maxWorkers: 1,
     globals: true,
     environment: "jsdom",
-    setupFiles: ["./tests/setup.ts"],
+    setupFiles: ["./tests/setup/index.ts"],
     include: [
       "tests/unit/**/*.{test,spec}.{js,ts,tsx}",
       "tests/integration/**/*.{test,spec}.{js,ts,tsx}",
@@ -90,7 +90,7 @@ export default defineConfig({
       include: ["src/**/*.{js,ts,jsx,tsx}"],
       exclude: [
         "node_modules/",
-        "tests/setup.ts",
+        "tests/setup/**",
         "tests/e2e/",
         "**/*.d.ts",
         "**/*.config.*",

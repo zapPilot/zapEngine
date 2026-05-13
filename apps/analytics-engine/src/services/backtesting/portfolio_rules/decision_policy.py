@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any, Protocol, TypeVar, cast
+from typing import Any, Protocol, TypeVar
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.portfolio_rules import (
@@ -26,9 +26,7 @@ from src.services.backtesting.portfolio_rules import (
 from src.services.backtesting.portfolio_rules.base import (
     DIAG_COOLDOWN_SKIPPED_RULES,
     DIAG_MATCHED_RULE_NAME,
-    DIAG_PORTFOLIO_RULE_COOLDOWN_KEY,
     DIAG_PORTFOLIO_RULE_MATCHES,
-    DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     DIAG_SIGNALS_CONSULTED,
     DecisionPolicy,
     PortfolioRule,
@@ -36,9 +34,15 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
     current_fgi_regime_for_symbol,
     current_target,
-    rule_cooldown_remaining_days,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
+)
+from src.services.backtesting.portfolio_rules.cooldown_tracker import (
+    RuleCooldownKey,
+    RuleCooldownTracker,
+)
+from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
+    ExtremeFearDcaBuyRule,
 )
 from src.services.backtesting.risk import (
     RiskGuard,
@@ -53,7 +57,6 @@ PORTFOLIO_RULES_SIGNAL_ID = "dma_fgi_portfolio_rules_signal"
 _RULE_PRIORITY_BY_NAME = RULE_PRIORITIES
 _CRYPTO_CYCLE_SYMBOLS = ("BTC", "ETH")
 _RuleT = TypeVar("_RuleT", bound=PortfolioRule)
-RuleCooldownKey = str | tuple[str, str]
 
 
 class _PortfolioRuleParams(Protocol):
@@ -62,6 +65,8 @@ class _PortfolioRuleParams(Protocol):
     min_trade_interval_days: int | None
     max_trades_7d: int | None
     max_trades_30d: int | None
+    min_consecutive_extreme_fear_days: int
+    extreme_fear_buy_step: float
 
 
 @dataclass(frozen=True)
@@ -91,8 +96,8 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     execution_state_provider: Callable[[], RuleExecutionState] | None = None
     _previous_fgi_regime: dict[str, str] = field(default_factory=dict, init=False)
     _cycle_open_per_symbol: dict[str, bool] = field(default_factory=dict, init=False)
-    _rule_last_executed_at: dict[RuleCooldownKey, date] = field(
-        default_factory=dict,
+    _cooldown_tracker: RuleCooldownTracker = field(
+        default_factory=RuleCooldownTracker,
         init=False,
     )
     _last_trade_date: date | None = field(default=None, init=False)
@@ -105,7 +110,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
     def reset(self) -> None:
         self._previous_fgi_regime = {}
         self._cycle_open_per_symbol = {}
-        self._rule_last_executed_at = {}
+        self._cooldown_tracker.reset()
         self._last_trade_date = None
         self._trade_dates = []
         for component in (*self.rules, *self.risk_guards):
@@ -129,7 +134,7 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
             config=self.config,
             disabled_rules=self.disabled_rules,
             enabled_rules=self.enabled_rules,
-            rule_last_executed_at=self._rule_last_executed_at,
+            rule_last_executed_at=self._cooldown_tracker.last_executed,
         )
         risk_result = _apply_risk_guards(
             intent,
@@ -208,13 +213,11 @@ class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
         matched_rule = _rule_for_name(self.rules, matched_rule_name)
         if matched_rule is None:
             return
-        if _cooldown_keyed_by_trigger_symbol(matched_rule):
-            for symbol in _trigger_symbols_from_intent(intent):
-                self._rule_last_executed_at[(matched_rule.name, symbol)] = context.date
-            return
-        self._rule_last_executed_at[
-            _cooldown_key_from_intent(intent) or matched_rule.name
-        ] = context.date
+        self._cooldown_tracker.record_execution(
+            matched_rule,
+            intent=intent,
+            executed_at=context.date,
+        )
 
 
 def build_portfolio_snapshot(
@@ -251,11 +254,23 @@ def build_portfolio_rules_for_params(
     assert_known_rule_names(params.enabled_rules, field_name="enabled_rules")
     rule_universe = ALL_PORTFOLIO_RULES if include_inactive else DEFAULT_PORTFOLIO_RULES
     rules = [
-        fresh_portfolio_rule(rule)
+        _rule_for_params(fresh_portfolio_rule(rule), params)
         for rule in rule_universe
         if include_inactive or rule.name not in params.disabled_rules
     ]
     return tuple(sorted(rules, key=lambda rule: rule.priority))
+
+
+def _rule_for_params(rule: _RuleT, params: _PortfolioRuleParams) -> _RuleT:
+    if isinstance(rule, ExtremeFearDcaBuyRule):
+        return replace(
+            rule,
+            min_consecutive_extreme_fear_days=(
+                params.min_consecutive_extreme_fear_days
+            ),
+            buy_step=params.extreme_fear_buy_step,
+        )
+    return rule
 
 
 def fresh_portfolio_rule(rule: _RuleT) -> _RuleT:
@@ -406,52 +421,6 @@ def _rule_for_name(
     return None
 
 
-def _cooldown_keyed_by_trigger_symbol(rule: PortfolioRule) -> bool:
-    return bool(getattr(rule, "cooldown_keyed_by_trigger_symbol", False))
-
-
-def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
-    diagnostics = intent.diagnostics or {}
-    raw_symbols = diagnostics.get(DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS)
-    if not isinstance(raw_symbols, list):
-        return []
-    return [symbol for symbol in raw_symbols if isinstance(symbol, str)]
-
-
-def _cooldown_key_from_intent(intent: AllocationIntent) -> RuleCooldownKey | None:
-    diagnostics = intent.diagnostics or {}
-    raw_key = diagnostics.get(DIAG_PORTFOLIO_RULE_COOLDOWN_KEY)
-    if isinstance(raw_key, str):
-        return raw_key
-    if (
-        isinstance(raw_key, tuple)
-        and len(raw_key) == 2
-        and all(isinstance(part, str) for part in raw_key)
-    ):
-        return cast(tuple[str, str], raw_key)
-    if (
-        isinstance(raw_key, list)
-        and len(raw_key) == 2
-        and all(isinstance(part, str) for part in raw_key)
-    ):
-        return (raw_key[0], raw_key[1])
-    return None
-
-
-def _trigger_symbols_for_cooldown(
-    rule: PortfolioRule,
-    snapshot: PortfolioSnapshot,
-) -> list[str]:
-    if rule.name != "cross_up_equal_weight":
-        return []
-    return [
-        symbol
-        for symbol in symbols_for_snapshot(snapshot)
-        if snapshot.assets[symbol].actionable_cross_event == "cross_up"
-        and snapshot.assets[symbol].zone == "above"
-    ]
-
-
 def resolve_portfolio_rules_intent(
     snapshot: PortfolioSnapshot,
     *,
@@ -462,7 +431,7 @@ def resolve_portfolio_rules_intent(
     rule_last_executed_at: Mapping[RuleCooldownKey, date] | None = None,
 ) -> AllocationIntent:
     resolved_config = config or PortfolioRuleConfig()
-    last_executed = dict(rule_last_executed_at or {})
+    cooldown_tracker = RuleCooldownTracker(rule_last_executed_at)
     cooldown_skipped_rules: list[dict[str, object]] = []
     raw_outcomes: list[RuleMatchOutcome] = []
     winning_rule_name: str | None = None
@@ -490,11 +459,10 @@ def resolve_portfolio_rules_intent(
             enabled_rules=enabled_rules,
         ):
             continue
-        cooldown = _cooldown_diagnostic_for_rule(
+        cooldown = cooldown_tracker.is_cooled_off(
             rule,
             snapshot=snapshot,
             config=resolved_config,
-            last_executed=last_executed,
         )
         if cooldown is not None:
             cooldown_skipped_rules.append(cooldown)
@@ -543,36 +511,6 @@ def resolve_portfolio_rules_intent(
     )
 
 
-def _cooldown_diagnostic_for_rule(
-    rule: PortfolioRule,
-    *,
-    snapshot: PortfolioSnapshot,
-    config: PortfolioRuleConfig,
-    last_executed: Mapping[RuleCooldownKey, date],
-) -> dict[str, object] | None:
-    if _cooldown_keyed_by_trigger_symbol(rule):
-        return _trigger_symbol_cooldown_diagnostic(
-            rule,
-            snapshot=snapshot,
-            last_executed=last_executed,
-        )
-    return _rule_cooldown_diagnostic(
-        rule,
-        snapshot=snapshot,
-        cooldown_key=_rule_cooldown_key(
-            rule,
-            snapshot=snapshot,
-            config=config,
-        ),
-        cooldown_days=_rule_cooldown_days(
-            rule,
-            snapshot=snapshot,
-            config=config,
-        ),
-        last_executed=last_executed,
-    )
-
-
 def _apply_shadowing(
     outcomes: list[RuleMatchOutcome],
     *,
@@ -609,121 +547,6 @@ def _rule_match_outcome_dicts(
         }
         for outcome in outcomes
     ]
-
-
-def _rule_cooldown_diagnostic(
-    rule: PortfolioRule,
-    *,
-    snapshot: PortfolioSnapshot,
-    cooldown_key: RuleCooldownKey,
-    cooldown_days: int,
-    last_executed: Mapping[RuleCooldownKey, date],
-) -> dict[str, object] | None:
-    cooldown = _cooldown_entry(
-        cooldown_key=cooldown_key,
-        cooldown_days=cooldown_days,
-        current_date=snapshot.current_date,
-        last_executed=last_executed,
-    )
-    if cooldown is None:
-        return None
-    return {"rule": rule.name, **cooldown}
-
-
-def _cooldown_entry(
-    *,
-    cooldown_key: RuleCooldownKey,
-    cooldown_days: int,
-    current_date: date | None,
-    last_executed: Mapping[RuleCooldownKey, date],
-) -> dict[str, object] | None:
-    last_executed_at = last_executed.get(cooldown_key)
-    remaining_days = rule_cooldown_remaining_days(
-        cooldown_days=cooldown_days,
-        last_executed_at=last_executed_at,
-        current_date=current_date,
-    )
-    if remaining_days <= 0 or last_executed_at is None:
-        return None
-    return {
-        "last_executed_at": last_executed_at.isoformat(),
-        "cooldown_days": max(0, int(cooldown_days)),
-        "remaining_days": remaining_days,
-    }
-
-
-def _rule_cooldown_key(
-    rule: PortfolioRule,
-    *,
-    snapshot: PortfolioSnapshot,
-    config: PortfolioRuleConfig,
-) -> RuleCooldownKey:
-    cooldown_key = getattr(rule, "cooldown_key", None)
-    if not callable(cooldown_key):
-        return rule.name
-    raw_key = cooldown_key(snapshot, config=config)
-    if isinstance(raw_key, str):
-        return raw_key
-    if (
-        isinstance(raw_key, tuple)
-        and len(raw_key) == 2
-        and all(isinstance(part, str) for part in raw_key)
-    ):
-        return cast(tuple[str, str], raw_key)
-    return rule.name
-
-
-def _rule_cooldown_days(
-    rule: PortfolioRule,
-    *,
-    snapshot: PortfolioSnapshot,
-    config: PortfolioRuleConfig,
-) -> int:
-    cooldown_days_for_snapshot = getattr(rule, "cooldown_days_for_snapshot", None)
-    if callable(cooldown_days_for_snapshot):
-        return int(cooldown_days_for_snapshot(snapshot, config=config))
-    return int(rule.cooldown_days)
-
-
-def _trigger_symbol_cooldown_diagnostic(
-    rule: PortfolioRule,
-    *,
-    snapshot: PortfolioSnapshot,
-    last_executed: Mapping[RuleCooldownKey, date],
-) -> dict[str, object] | None:
-    trigger_symbols = _trigger_symbols_for_cooldown(rule, snapshot)
-    if not trigger_symbols:
-        return None
-    symbol_entries: list[tuple[str, dict[str, object]]] = []
-    for symbol in trigger_symbols:
-        cooldown = _cooldown_entry(
-            cooldown_key=(rule.name, symbol),
-            cooldown_days=rule.cooldown_days,
-            current_date=snapshot.current_date,
-            last_executed=last_executed,
-        )
-        if cooldown is not None:
-            symbol_entries.append((symbol, cooldown))
-    if len(symbol_entries) != len(trigger_symbols):
-        return None
-    remaining_values = [
-        cast(int, cooldown["remaining_days"]) for _, cooldown in symbol_entries
-    ]
-    symbol_cooldowns = [
-        {
-            "symbol": symbol,
-            "last_executed_at": cooldown["last_executed_at"],
-            "remaining_days": cooldown["remaining_days"],
-        }
-        for symbol, cooldown in symbol_entries
-    ]
-    return {
-        "rule": rule.name,
-        "cooldown_days": max(0, int(rule.cooldown_days)),
-        "remaining_days": max(remaining_values),
-        "trigger_symbols": trigger_symbols,
-        "symbol_cooldowns": symbol_cooldowns,
-    }
 
 
 def _assets_from_flat_state(snapshot: FlatMinimumState) -> dict[str, DmaMarketState]:

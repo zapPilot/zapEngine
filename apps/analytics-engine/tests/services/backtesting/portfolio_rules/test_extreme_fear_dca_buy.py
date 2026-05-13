@@ -220,8 +220,8 @@ def test_extreme_fear_buy_per_asset_gate() -> None:
     assert "ETH" not in diagnostics_assets
 
 
-def test_extreme_fear_buy_delay_zero_uses_immediate_path() -> None:
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=0)
+def test_extreme_fear_buy_zero_consecutive_days_uses_immediate_path() -> None:
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=0)
     rule_snapshot = _delay_snapshot(
         current_date=date(2026, 1, 1),
         btc_regime="extreme_fear",
@@ -241,16 +241,16 @@ def test_extreme_fear_buy_delay_zero_uses_immediate_path() -> None:
     assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
 
 
-def test_extreme_fear_buy_delay_waits_until_delay_elapses() -> None:
+def test_extreme_fear_buy_waits_until_consecutive_days_elapse() -> None:
     detected_at = date(2026, 1, 1)
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     detection_snapshot = _delay_snapshot(
         current_date=detected_at,
         btc_regime="extreme_fear",
     )
     day_two_snapshot = _delay_snapshot(
         current_date=detected_at + timedelta(days=2),
-        btc_regime="neutral",
+        btc_regime="extreme_fear",
     )
 
     rule.observe(detection_snapshot, config=PortfolioRuleConfig())
@@ -260,9 +260,9 @@ def test_extreme_fear_buy_delay_waits_until_delay_elapses() -> None:
     assert not rule.matches(day_two_snapshot, config=PortfolioRuleConfig())
 
 
-def test_extreme_fear_buy_delay_fires_after_delay_even_if_fgi_recovers() -> None:
+def test_extreme_fear_buy_consecutive_days_resets_when_fgi_recovers() -> None:
     detected_at = date(2026, 1, 1)
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     detection_snapshot = _delay_snapshot(
         current_date=detected_at,
         btc_regime="extreme_fear",
@@ -275,18 +275,13 @@ def test_extreme_fear_buy_delay_fires_after_delay_even_if_fgi_recovers() -> None
     rule.observe(detection_snapshot, config=PortfolioRuleConfig())
     rule.observe(recovered_snapshot, config=PortfolioRuleConfig())
 
-    assert rule.matches(recovered_snapshot, config=PortfolioRuleConfig())
-    intent = rule.build_intent(recovered_snapshot, config=PortfolioRuleConfig())
-    assert intent.target_allocation == pytest.approx(
-        {"btc": 0.11, "eth": 0.20, "spy": 0.0, "stable": 0.69, "alt": 0.0}
-    )
-    assert intent.diagnostics is not None
-    assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
+    assert "BTC" not in rule._detection_dates
+    assert not rule.matches(recovered_snapshot, config=PortfolioRuleConfig())
 
 
-def test_extreme_fear_buy_delay_drops_detection_when_cycle_closes() -> None:
+def test_extreme_fear_buy_consecutive_days_drop_detection_when_cycle_closes() -> None:
     detected_at = date(2026, 1, 1)
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     detection_snapshot = _delay_snapshot(
         current_date=detected_at,
         btc_regime="extreme_fear",
@@ -308,16 +303,16 @@ def test_extreme_fear_buy_delay_drops_detection_when_cycle_closes() -> None:
     assert not rule.matches(recovered_snapshot, config=PortfolioRuleConfig())
 
 
-def test_extreme_fear_buy_delay_clears_detection_after_fire() -> None:
+def test_extreme_fear_buy_consecutive_days_clear_detection_after_fire() -> None:
     detected_at = date(2026, 1, 1)
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     detection_snapshot = _delay_snapshot(
         current_date=detected_at,
         btc_regime="extreme_fear",
     )
     fire_snapshot = _delay_snapshot(
         current_date=detected_at + timedelta(days=3),
-        btc_regime="neutral",
+        btc_regime="extreme_fear",
     )
 
     rule.observe(detection_snapshot, config=PortfolioRuleConfig())
@@ -328,9 +323,9 @@ def test_extreme_fear_buy_delay_clears_detection_after_fire() -> None:
     assert "BTC" not in rule._detection_dates
 
 
-def test_extreme_fear_buy_delay_tracks_each_symbol_independently() -> None:
+def test_extreme_fear_buy_consecutive_days_track_each_symbol_independently() -> None:
     detected_at = date(2026, 1, 1)
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     btc_detection_snapshot = _delay_snapshot(
         current_date=detected_at,
         btc_regime="extreme_fear",
@@ -338,15 +333,19 @@ def test_extreme_fear_buy_delay_tracks_each_symbol_independently() -> None:
     )
     eth_detection_snapshot = _delay_snapshot(
         current_date=detected_at + timedelta(days=2),
+        btc_regime="extreme_fear",
         eth_regime="extreme_fear",
         eth_open=True,
     )
     btc_fire_snapshot = _delay_snapshot(
         current_date=detected_at + timedelta(days=3),
+        btc_regime="extreme_fear",
+        eth_regime="extreme_fear",
         eth_open=True,
     )
     eth_fire_snapshot = _delay_snapshot(
         current_date=detected_at + timedelta(days=5),
+        eth_regime="extreme_fear",
         eth_open=True,
     )
 
@@ -366,8 +365,8 @@ def test_extreme_fear_buy_delay_tracks_each_symbol_independently() -> None:
     assert eth_intent.diagnostics["portfolio_rule_assets"] == ["ETH"]
 
 
-def test_extreme_fear_buy_delay_reset_clears_detection_state() -> None:
-    rule = ExtremeFearDcaBuyRule(buy_delay_days=3)
+def test_extreme_fear_buy_consecutive_days_reset_clears_detection_state() -> None:
+    rule = ExtremeFearDcaBuyRule(min_consecutive_extreme_fear_days=3)
     rule_snapshot = _delay_snapshot(
         current_date=date(2026, 1, 1),
         btc_regime="extreme_fear",

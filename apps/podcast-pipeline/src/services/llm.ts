@@ -15,6 +15,7 @@ export interface ScriptResult {
   model: string;
   thinkingModel: string | null;
   provider: string;
+  costUsd: number;
 }
 
 export interface LanguageClassroomResult {
@@ -22,6 +23,7 @@ export interface LanguageClassroomResult {
   model: string;
   thinkingModel: string | null;
   provider: string;
+  costUsd: number;
 }
 
 export interface LanguageClassroomInput {
@@ -94,6 +96,7 @@ function getOpenRouterConfig(): {
 type OpenRouterParams = OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & {
   extra_body?: {
     thinking?: { type: 'optimized'; model: string };
+    usage?: { include: boolean };
   };
 };
 
@@ -101,11 +104,16 @@ function withThinkingModel(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
 ): OpenRouterParams {
+  const extraBody: NonNullable<OpenRouterParams['extra_body']> = {
+    usage: { include: true },
+  };
+  if (thinkingModel) {
+    extraBody.thinking = { type: 'optimized', model: thinkingModel };
+  }
+
   return {
     ...params,
-    ...(thinkingModel && {
-      extra_body: { thinking: { type: 'optimized', model: thinkingModel } },
-    }),
+    extra_body: extraBody,
   };
 }
 
@@ -113,11 +121,15 @@ function completionMetadata(
   completion: OpenAI.Chat.ChatCompletion & { provider?: string | null },
   fallbackModel: string,
   thinkingModel: string | null,
-): Pick<ScriptResult, 'model' | 'thinkingModel' | 'provider'> {
+): Pick<ScriptResult, 'model' | 'thinkingModel' | 'provider' | 'costUsd'> {
+  const usage = completion.usage as { cost?: unknown } | undefined;
+  const costUsd = typeof usage?.cost === 'number' ? usage.cost : 0;
+
   return {
     model: completion.model || fallbackModel,
     thinkingModel,
     provider: completion.provider || 'unknown',
+    costUsd,
   };
 }
 
@@ -205,17 +217,21 @@ export async function generateLanguageClassroomsWithLLM(
 }
 
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
-  return `你是語言小教室編輯。請根據文章產生給 ${sourceLanguageCode} 使用者的外語學習卡片。
+  return `你是語言小教室編輯。請根據文章標題為 ${sourceLanguageCode} 使用者產生外語學習卡片。
+
+工作流程：
+1. 先把原始文章標題直接翻譯成目標語言，作為 oneLiner。
+2. 從翻譯後的 oneLiner 中挑 3 到 5 個最關鍵的詞彙作為 keywords。
 
 請只輸出有效 JSON，不要 Markdown，不要註解。格式：
 {
   "lessons": [
     {
       "targetLanguageCode": "ja",
-      "oneLiner": "用目標語言寫一句可用來介紹整篇文章的話。",
+      "oneLiner": "原文標題在目標語言的直譯",
       "keywords": [
         {
-          "term": "目標語言單字",
+          "term": "出現在 oneLiner 中的關鍵字",
           "reading": "日文假名讀音；英文請用 null",
           "meaning": "用主語言解釋意思",
           "note": "用主語言給初學者的簡短提醒；沒有就 null"
@@ -227,10 +243,11 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 
 規則：
 - 每個 targetLanguageCode 都要回傳一筆 lesson。
-- oneLiner 必須使用目標語言，最多 140 字元。
-- keywords 選 3 到 5 個最能理解文章的詞，term 必須使用目標語言。
-- meaning 和 note 使用主語言 ${sourceLanguageCode}。
-- 不要翻完整篇文章，只做一句話和重點單字。`;
+- oneLiner 必須是原始文章標題在目標語言的直譯，盡量保留原意，不要自行擴寫成描述句。
+- keywords 必須來自 oneLiner（必須是 oneLiner 中的子字串或主要詞彙），選 3 到 5 個最重要的。
+- meaning 和 note 一律使用主語言 ${sourceLanguageCode}。
+- reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。
+- 不要翻完整篇文章，只做標題的直譯與其中的重點單字。`;
 }
 
 function parseLanguageClassroomLessons(
@@ -238,7 +255,7 @@ function parseLanguageClassroomLessons(
   sourceLanguageCode: string,
   targetLanguageCodes: LanguageClassroomLanguageCode[],
 ): LanguageClassroomLesson[] {
-  const payload = parseJsonObject(content);
+  const payload = parseJsonObject(content, 'Language classroom response');
   const rawLessons = Array.isArray(payload['lessons'])
     ? payload['lessons']
     : [];
@@ -275,13 +292,16 @@ function parseLanguageClassroomLessons(
   return ordered;
 }
 
-function parseJsonObject(content: string): Record<string, unknown> {
+function parseJsonObject(
+  content: string,
+  context: string,
+): Record<string, unknown> {
   const trimmed = content.trim();
   const rawJson = stripJsonFence(trimmed);
   const parsed = JSON.parse(rawJson) as unknown;
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Language classroom response must be a JSON object');
+    throw new Error(`${context} must be a JSON object`);
   }
 
   return parsed as Record<string, unknown>;

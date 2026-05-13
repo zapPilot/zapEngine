@@ -50,42 +50,44 @@ class _SyncedTranscriptState extends State<SyncedTranscript> {
       });
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Transcript',
-            style: Theme.of(context).textTheme.titleMedium,
+    return SelectionArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Transcript',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(height: 1),
-        ),
-        if (segments.isEmpty)
-          _PlainTranscript(script: widget.episode.script)
-        else if (!canSync)
-          _PlainTranscript(script: widget.episode.script)
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            itemCount: segments.length,
-            itemBuilder: (context, index) {
-              final segment = segments[index];
-              return _TranscriptLine(
-                key: _rowKeys[index],
-                segment: segment,
-                state: _lineState(index, currentIndex),
-                onTap: () => _seekToSegment(context, segment),
-              );
-            },
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(height: 1),
           ),
-      ],
+          if (segments.isEmpty)
+            _PlainTranscript(script: widget.episode.script)
+          else if (!canSync)
+            _PlainTranscript(script: widget.episode.script)
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              itemCount: segments.length,
+              itemBuilder: (context, index) {
+                final segment = segments[index];
+                return _TranscriptLine(
+                  key: _rowKeys[index],
+                  segment: segment,
+                  state: _lineState(index, currentIndex),
+                  onTap: () => _seekToSegment(context, segment),
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 

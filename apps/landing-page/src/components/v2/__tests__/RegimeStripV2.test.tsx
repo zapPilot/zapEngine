@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
+import { MESSAGES } from '@/config/messages';
 import { RegimeStripV2 } from '../RegimeStripV2';
 
 describe('RegimeStripV2', () => {
@@ -54,7 +55,12 @@ describe('RegimeStripV2', () => {
 
     it('renders 200MA delta value', () => {
       render(<RegimeStripV2 />);
-      expect(screen.getByText('+14.2%')).toBeInTheDocument();
+      const dmaItem = MESSAGES.regimeTelemetry.items.find(
+        (item) => item.label === '200MA Δ',
+      );
+
+      expect(dmaItem).toBeDefined();
+      expect(screen.getByText(dmaItem!.value)).toBeInTheDocument();
     });
 
     it('renders next rebalance time', () => {

@@ -76,7 +76,8 @@ vi.mock('./hls.js', () => ({
   generateHls: mockGenerateHls,
 }));
 
-vi.mock('./tts.js', () => ({
+vi.mock('./tts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./tts.js')>()),
   textToSpeech: mockTextToSpeech,
 }));
 
@@ -119,6 +120,7 @@ describe('performIngest failure paths', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00001,
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
       (_id: string, status: string) => {
@@ -180,6 +182,7 @@ describe('performIngest failure paths', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -241,6 +244,7 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(200);
+    expect(result.costUsd).toBe(0);
     expect(result.episode.languageClassrooms).toEqual([]);
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
@@ -251,6 +255,31 @@ describe('performIngest failure paths', () => {
     );
 
     consoleSpy.mockRestore();
+  });
+
+  it('sums LLM costs for a fresh ingest invocation', async () => {
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(201);
+    expect(result.costUsd).toBeCloseTo(0.0001, 10);
+  });
+
+  it('sums LLM costs for cached episodes with missing classrooms', async () => {
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(200);
+    expect(result.costUsd).toBeCloseTo(0.00009, 10);
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
   });
 
   it('refreshes article content when an existing localization is pending', async () => {
@@ -408,6 +437,7 @@ describe('performIngest failure paths', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockImplementation(
       (
@@ -510,7 +540,7 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses default TTS metadata when env vars are blank', async () => {
+  it('uses default Fish Audio TTS metadata when env vars are blank', async () => {
     vi.stubEnv('GOOGLE_TTS_LANGUAGE_CODE', '');
     vi.stubEnv('GOOGLE_TTS_VOICE_NAME', '');
 
@@ -520,8 +550,8 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
       }),
     );
   });

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
+import '../config/share_config.dart';
 import '../models/episode.dart';
 import '../models/episode_status.dart';
 import '../screens/episode_detail_screen.dart';
@@ -122,19 +123,23 @@ class EpisodeCard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.ios_share_rounded,
-                  color: AppColors.textSecondary,
+              Builder(
+                builder: (tileContext) => ListTile(
+                  leading: const Icon(
+                    Icons.ios_share_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: const Text('Share'),
+                  onTap: () async {
+                    final sharePositionOrigin =
+                        _sharePositionOrigin(tileContext);
+                    Navigator.pop(sheetContext);
+                    await _shareEpisode(
+                      context,
+                      sharePositionOrigin: sharePositionOrigin,
+                    );
+                  },
                 ),
-                title: const Text('Share'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  Share.share(
-                    '${episode.title} - ${episode.hlsUrl}',
-                    subject: episode.title,
-                  );
-                },
               ),
               if (onDelete != null)
                 ListTile(
@@ -157,5 +162,38 @@ class EpisodeCard extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _shareEpisode(
+    BuildContext context, {
+    required Rect? sharePositionOrigin,
+  }) async {
+    final shareUrl = ShareConfig.episodeUri(episode.id).toString();
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: '${episode.title}\n$shareUrl',
+          subject: episode.title,
+          sharePositionOrigin: sharePositionOrigin,
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to share episode ${episode.id}: $error\n$stackTrace');
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('分享失敗，請稍後再試')),
+      );
+    }
+  }
+
+  Rect? _sharePositionOrigin(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return null;
+    }
+
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 }

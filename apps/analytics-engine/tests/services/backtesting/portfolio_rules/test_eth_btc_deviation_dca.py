@@ -39,7 +39,7 @@ def _ratio_state(deviation: float) -> EthBtcRatioState:
 
 
 def test_below_threshold_does_not_match() -> None:
-    rule_snapshot = snapshot(eth_btc_ratio_state=_ratio_state(-0.39))
+    rule_snapshot = snapshot(eth_btc_ratio_state=_ratio_state(-0.49))
 
     assert (
         EthBtcDeviationDcaRule().matches(
@@ -53,7 +53,7 @@ def test_below_threshold_does_not_match() -> None:
 def test_dca_tier_moves_25_percent_btc_to_eth() -> None:
     rule_snapshot = snapshot(
         current={"btc": 0.40, "eth": 0.10, "spy": 0.20, "stable": 0.30, "alt": 0.0},
-        eth_btc_ratio_state=_ratio_state(-0.45),
+        eth_btc_ratio_state=_ratio_state(-0.55),
     )
 
     intent = EthBtcDeviationDcaRule().build_intent(
@@ -77,7 +77,7 @@ def test_dca_tier_moves_25_percent_btc_to_eth() -> None:
 def test_large_tier_moves_75_percent_btc_to_eth() -> None:
     rule_snapshot = snapshot(
         current={"btc": 0.40, "eth": 0.10, "spy": 0.20, "stable": 0.30, "alt": 0.0},
-        eth_btc_ratio_state=_ratio_state(-0.55),
+        eth_btc_ratio_state=_ratio_state(-0.70),
     )
 
     intent = EthBtcDeviationDcaRule().build_intent(
@@ -98,8 +98,8 @@ def test_large_tier_moves_75_percent_btc_to_eth() -> None:
 @pytest.mark.parametrize(
     ("deviation", "allocation_name", "expected_btc", "expected_eth"),
     [
-        (0.45, "portfolio_eth_btc_deviation_dca_to_btc", 0.20, 0.30),
-        (0.55, "portfolio_eth_btc_deviation_large_to_btc", 0.40, 0.10),
+        (0.55, "portfolio_eth_btc_deviation_dca_to_btc", 0.20, 0.30),
+        (0.70, "portfolio_eth_btc_deviation_large_to_btc", 0.40, 0.10),
     ],
 )
 def test_symmetric_upper_tiers_move_eth_to_btc(
@@ -126,7 +126,7 @@ def test_symmetric_upper_tiers_move_eth_to_btc(
 def test_dca_cooldown_does_not_block_large_tier() -> None:
     rule_snapshot = snapshot(
         current={"btc": 0.40, "eth": 0.10, "spy": 0.20, "stable": 0.30, "alt": 0.0},
-        eth_btc_ratio_state=_ratio_state(-0.55),
+        eth_btc_ratio_state=_ratio_state(-0.70),
         current_date=date(2025, 5, 8),
     )
 
@@ -142,3 +142,31 @@ def test_dca_cooldown_does_not_block_large_tier() -> None:
     assert intent.allocation_name == "portfolio_eth_btc_deviation_large_to_eth"
     assert intent.diagnostics is not None
     assert "cooldown_skipped_rules" not in intent.diagnostics
+
+
+@pytest.mark.parametrize(
+    ("deviation", "cooldown_suffix", "expected_days"),
+    [
+        (-0.55, "dca_to_eth", 14),
+        (-0.70, "large_to_eth", 60),
+    ],
+)
+def test_tuned_cooldown_days_by_tier(
+    deviation: float,
+    cooldown_suffix: str,
+    expected_days: int,
+) -> None:
+    rule = EthBtcDeviationDcaRule()
+    rule_snapshot = snapshot(eth_btc_ratio_state=_ratio_state(deviation))
+
+    assert rule.cooldown_key(
+        rule_snapshot,
+        config=PortfolioRuleConfig(),
+    ) == ("eth_btc_deviation_dca", cooldown_suffix)
+    assert (
+        rule.cooldown_days_for_snapshot(
+            rule_snapshot,
+            config=PortfolioRuleConfig(),
+        )
+        == expected_days
+    )

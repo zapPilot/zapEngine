@@ -164,6 +164,7 @@ describe('generateScriptWithLLM', () => {
       choices: [{ message: { content: '這是生成的講稿內容。' } }],
       provider: 'Cloudflare',
       model: 'mistralai/mistral-7b-instruct-v0.1',
+      usage: { cost: 0.00001 },
     });
 
     mockOpenAIClient(mockCreate);
@@ -174,6 +175,24 @@ describe('generateScriptWithLLM', () => {
     expect(result.provider).toBe('Cloudflare');
     expect(result.model).toBe('mistralai/mistral-7b-instruct-v0.1');
     expect(result.thinkingModel).toBeNull();
+    expect(result.costUsd).toBe(0.00001);
+  });
+
+  it('requests OpenRouter usage accounting', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM('Title', 'Text');
+
+    const callArgs = mockCreate.mock.calls[0]![0] as {
+      extra_body?: { usage?: object };
+    };
+    expect(callArgs.extra_body?.usage).toEqual({ include: true });
   });
 
   it('uses thinking model when configured', async () => {
@@ -191,13 +210,32 @@ describe('generateScriptWithLLM', () => {
 
     expect(mockCreate).toHaveBeenCalled();
     const callArgs = mockCreate.mock.calls[0]![0] as {
-      extra_body?: { thinking?: object };
+      extra_body?: { thinking?: object; usage?: object };
     };
     expect(callArgs.extra_body).toBeDefined();
     expect(callArgs.extra_body?.thinking).toEqual({
       type: 'optimized',
       model: 'anthropic/claude-3-opus',
     });
+    expect(callArgs.extra_body?.usage).toEqual({ include: true });
+  });
+
+  it.each([
+    ['missing usage', undefined],
+    ['non-numeric usage cost', { cost: '0.00001' }],
+  ])('defaults cost to zero for %s', async (_label, usage) => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage,
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateScriptWithLLM('Title', 'Text');
+
+    expect(result.costUsd).toBe(0);
   });
 
   it('returns empty script when API returns no content', async () => {
@@ -311,7 +349,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
                     {
                       term: 'liquidity',
                       reading: null,
-                      meaning: '資金流動性',
+                      meaning: '資金容易進出市場的程度',
                       note: null,
                     },
                   ],
@@ -323,6 +361,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
       ],
       provider: 'Cloudflare',
       model: 'test/model',
+      usage: { cost: 0.00002 },
     });
 
     mockOpenAIClient(mockCreate);
@@ -339,7 +378,9 @@ describe('generateLanguageClassroomsWithLLM', () => {
     expect(result.lessons[0]!.targetLanguageCode).toBe('ja');
     expect(result.lessons[0]!.keywords[0]!.term).toBe('流動性');
     expect(result.lessons[1]!.targetLanguageCode).toBe('en');
+    expect(result.lessons[1]!.keywords[0]!.term).toBe('liquidity');
     expect(result.provider).toBe('Cloudflare');
+    expect(result.costUsd).toBe(0.00002);
   });
 
   it('parses language classroom lessons from a fenced JSON response', async () => {
@@ -355,6 +396,7 @@ ${validLanguageClassroomPayload()}
       ],
       provider: 'Cloudflare',
       model: 'test/model',
+      usage: { cost: 0.00003 },
     });
 
     mockOpenAIClient(mockCreate);

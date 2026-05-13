@@ -13,18 +13,17 @@ export const BacktestSignalParamsV3Schema = z
   .object({
     cross_cooldown_days: z.number().optional(),
     cross_on_touch: z.boolean().optional(),
-    ratio_cross_cooldown_days: z.number().optional(),
-    rotation_neutral_band: z.number().optional(),
-    rotation_max_deviation: z.number().optional(),
   })
-  .partial();
+  .partial()
+  .strict();
 
 export const BacktestPacingParamsV3Schema = z
   .object({
     k: z.number().optional(),
     r_max: z.number().optional(),
   })
-  .partial();
+  .partial()
+  .strict();
 
 export const BacktestBuyGateParamsV3Schema = z
   .object({
@@ -32,7 +31,8 @@ export const BacktestBuyGateParamsV3Schema = z
     sideways_max_range: z.number().optional(),
     leg_caps: z.array(z.number()).optional(),
   })
-  .partial();
+  .partial()
+  .strict();
 
 export const BacktestTradeQuotaParamsV3Schema = z
   .object({
@@ -40,14 +40,8 @@ export const BacktestTradeQuotaParamsV3Schema = z
     max_trades_7d: z.number().nullable().optional(),
     max_trades_30d: z.number().nullable().optional(),
   })
-  .partial();
-
-export const BacktestRotationParamsV3Schema = z
-  .object({
-    drift_threshold: z.number().optional(),
-    cooldown_days: z.number().optional(),
-  })
-  .partial();
+  .partial()
+  .strict();
 
 export const BacktestTopEscapeParamsV3Schema = z
   .object({
@@ -55,7 +49,16 @@ export const BacktestTopEscapeParamsV3Schema = z
     fgi_slope_reversal_threshold: z.number().optional(),
     fgi_slope_recovery_threshold: z.number().optional(),
   })
-  .partial();
+  .partial()
+  .strict();
+
+export const BacktestExtremeFearParamsV3Schema = z
+  .object({
+    min_consecutive_days: z.number().optional(),
+    buy_step: z.number().optional(),
+  })
+  .partial()
+  .strict();
 
 export const BacktestCompareParamsV3Schema = z
   .object({
@@ -64,16 +67,17 @@ export const BacktestCompareParamsV3Schema = z
     buy_gate: BacktestBuyGateParamsV3Schema.optional(),
     trade_quota: BacktestTradeQuotaParamsV3Schema.optional(),
     top_escape: BacktestTopEscapeParamsV3Schema.optional(),
-    rotation: BacktestRotationParamsV3Schema.optional(),
+    extreme_fear: BacktestExtremeFearParamsV3Schema.optional(),
     disabled_rules: z.array(z.string()).optional(),
+    enabled_rules: z.array(z.string()).optional(),
   })
-  .catchall(JsonValueSchema);
+  .strict();
 
 export const BacktestCompareConfigV3Schema = z.object({
   config_id: z.string(),
   saved_config_id: z.string().nullable().optional(),
   strategy_id: z.string().nullable().optional(),
-  params: BacktestCompareParamsV3Schema.optional(),
+  params: JsonObjectSchema.optional(),
 });
 
 export const BacktestRequestSchema = z.object({
@@ -246,7 +250,7 @@ export const BacktestStrategyCatalogEntryV3Schema = z.object({
   display_name: z.string(),
   description: z.string().nullable().optional(),
   param_schema: JsonObjectSchema,
-  default_params: BacktestCompareParamsV3Schema,
+  default_params: JsonObjectSchema,
   supports_daily_suggestion: z.boolean(),
 });
 
@@ -267,8 +271,8 @@ export type BacktestBuyGateParamsV3 = z.infer<
 export type BacktestTradeQuotaParamsV3 = z.infer<
   typeof BacktestTradeQuotaParamsV3Schema
 >;
-export type BacktestRotationParamsV3 = z.infer<
-  typeof BacktestRotationParamsV3Schema
+export type BacktestExtremeFearParamsV3 = z.infer<
+  typeof BacktestExtremeFearParamsV3Schema
 >;
 export type BacktestCompareParamsV3 = z.infer<
   typeof BacktestCompareParamsV3Schema

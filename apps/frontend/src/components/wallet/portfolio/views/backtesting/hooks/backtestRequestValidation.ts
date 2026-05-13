@@ -49,6 +49,13 @@ const topEscapeParamsSchema = z
   })
   .strict();
 
+const extremeFearParamsSchema = z
+  .object({
+    min_consecutive_days: z.coerce.number().int().nonnegative().optional(),
+    buy_step: z.coerce.number().nonnegative().max(1).optional(),
+  })
+  .strict();
+
 const backtestParamsSchema = z
   .object({
     signal: signalParamsSchema.optional(),
@@ -56,6 +63,9 @@ const backtestParamsSchema = z
     buy_gate: buyGateParamsSchema.optional(),
     trade_quota: tradeQuotaParamsSchema.optional(),
     top_escape: topEscapeParamsSchema.optional(),
+    extreme_fear: extremeFearParamsSchema.optional(),
+    disabled_rules: z.array(z.string()).optional(),
+    enabled_rules: z.array(z.string()).optional(),
   })
   .strict();
 

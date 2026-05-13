@@ -23,11 +23,11 @@
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "DMA/FGI Portfolio Rules",
-      "calmar_ratio": 5.0118,
-      "sharpe_ratio": 2.2797,
+      "calmar_ratio": 5.1864,
+      "sharpe_ratio": 2.4741,
       "max_drawdown_percent": -9.3248,
-      "roi_percent": 69.1371,
-      "trade_count": 45
+      "roi_percent": 71.7135,
+      "trade_count": 48
     }
   }
 }

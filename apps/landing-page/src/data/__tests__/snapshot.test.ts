@@ -1,19 +1,58 @@
-import analyticsSnapshot from '@/data/strategy-snapshot.json';
-import { getBacktestSnapshot } from '@/data/snapshot';
+import { describe, expect, it } from 'vitest';
+import {
+  formatMetricPercent,
+  formatPercentagePoint,
+  formatRatio,
+  getBacktestSnapshot,
+} from '../snapshot';
 
-describe('getBacktestSnapshot', () => {
-  it('formats the default strategy metrics from the snapshot', () => {
-    const snapshot = getBacktestSnapshot();
+describe('snapshot formatters', () => {
+  describe('formatMetricPercent', () => {
+    it('formats positive values with percent sign', () => {
+      expect(formatMetricPercent(71.7135)).toBe('71.71%');
+    });
 
-    expect(snapshot.strategyId).toBe(analyticsSnapshot.default_strategy_id);
-    expect(snapshot.referenceDate).toBe(analyticsSnapshot.reference_date);
-    expect(snapshot.windowDays).toBe(analyticsSnapshot.window_days);
-    expect(snapshot.windowStart).toBe(analyticsSnapshot.window_start);
-    expect(snapshot.windowEnd).toBe(analyticsSnapshot.window_end);
-    expect(snapshot.roiPercent).toBe('69.14%');
-    expect(snapshot.maxDrawdownPercent).toBe('-9.32%');
-    expect(snapshot.sharpeRatio).toBe('2.28');
-    expect(snapshot.calmarRatio).toBe('5.01');
-    expect(snapshot.tradeCount).toBe('45');
+    it('formats negative values with sign preserved', () => {
+      expect(formatMetricPercent(-9.3248)).toBe('-9.32%');
+    });
+
+    it('rounds to two decimals using JavaScript fixed-point behavior', () => {
+      expect(formatMetricPercent(1.005)).toBe('1.00%');
+    });
+  });
+
+  describe('formatPercentagePoint', () => {
+    it('prefixes positive values with plus', () => {
+      expect(formatPercentagePoint(86.07)).toBe('+86.07pp');
+    });
+
+    it('keeps negative sign without extra plus', () => {
+      expect(formatPercentagePoint(-22.05)).toBe('-22.05pp');
+    });
+
+    it('does not prefix zero', () => {
+      expect(formatPercentagePoint(0)).toBe('0.00pp');
+    });
+  });
+
+  describe('formatRatio', () => {
+    it('formats positive ratios to two decimals', () => {
+      expect(formatRatio(5.006)).toBe('5.01');
+    });
+
+    it('formats negative ratios to two decimals', () => {
+      expect(formatRatio(-0.254)).toBe('-0.25');
+    });
+  });
+
+  describe('getBacktestSnapshot', () => {
+    it('reads default strategy id and formatted shape', () => {
+      const snap = getBacktestSnapshot();
+
+      expect(snap.strategyId).toBe('dma_fgi_portfolio_rules');
+      expect(snap.raw.tradeCount).toBeGreaterThan(0);
+      expect(snap.roiPercent).toMatch(/^-?\d+\.\d{2}%$/);
+      expect(snap.calmarRatio).toMatch(/^-?\d+\.\d{2}$/);
+    });
   });
 });

@@ -1,15 +1,24 @@
-import { type JSX, useMemo, useState } from 'react';
+import { type JSX, useCallback, useMemo } from 'react';
 
 import { LoadingState } from '@/components/ui';
 import { useMarketDashboardQuery } from '@/hooks/queries/market/useMarketDashboardQuery';
-import { useToggleSet } from '@/hooks/ui';
 import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
+import {
+  buildMarketDashboardSearchParams,
+  type MarketDashboardRouteStatePatch,
+  readMarketDashboardRouteState,
+} from '@/lib/portfolio/marketDashboardRouteState';
+import {
+  buildPathWithSearchParams,
+  useAppPathname,
+  useAppRouter,
+  useAppSearchParams,
+} from '@/lib/routing';
 import type { MarketDashboardPoint } from '@/services';
 
 import { MarketOverviewChart } from './MarketOverviewChart';
 import { ChartLegendToggle, TimeframePicker } from './sections';
 import {
-  DEFAULT_ACTIVE_LINES,
   formatRatioValue,
   getRegimeColor,
   getRegimeLabel,
@@ -71,9 +80,44 @@ function sliceSnapshots(
 }
 
 export function MarketDashboardView(): JSX.Element {
-  const [timeframe, setTimeframe] = useState<Timeframe>('MAX');
-  const { activeSet: activeLines, toggle: handleToggleLine } =
-    useToggleSet<MarketLineKey>({ initialValue: DEFAULT_ACTIVE_LINES });
+  const router = useAppRouter();
+  const pathname = useAppPathname();
+  const searchParams = useAppSearchParams();
+  const { timeframe, activeLines } = useMemo(
+    () => readMarketDashboardRouteState(searchParams),
+    [searchParams],
+  );
+  const syncRouteState = useCallback(
+    (patch: MarketDashboardRouteStatePatch) => {
+      const nextSearchParams = buildMarketDashboardSearchParams(
+        searchParams,
+        patch,
+      );
+
+      router.replace(buildPathWithSearchParams(pathname, nextSearchParams), {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
+  const setTimeframe = useCallback(
+    (tf: Timeframe) => syncRouteState({ timeframe: tf }),
+    [syncRouteState],
+  );
+  const handleToggleLine = useCallback(
+    (key: MarketLineKey) => {
+      const nextActiveLines = new Set(activeLines);
+
+      if (nextActiveLines.has(key)) {
+        nextActiveLines.delete(key);
+      } else {
+        nextActiveLines.add(key);
+      }
+
+      syncRouteState({ activeLines: nextActiveLines });
+    },
+    [activeLines, syncRouteState],
+  );
 
   const { data: dashboardData, isLoading } =
     useMarketDashboardQuery(MARKET_VIEW_MAX_DAYS);

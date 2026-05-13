@@ -193,6 +193,7 @@ def test_signal_engine_cooldown_transition_blocks_opposite_side() -> None:
         market_state=cross_state,
         intent=cross_intent,
     )
+    committed_debug_state = engine.debug_state()
 
     blocked_state = engine.build_market_state(
         _context(
@@ -205,6 +206,10 @@ def test_signal_engine_cooldown_transition_blocks_opposite_side() -> None:
     blocked_intent = _resolve_dma_allocation_intent(blocked_state)
 
     assert committed_cross_state.cooldown_state.blocked_zone == "above"
+    assert committed_debug_state.signal_cooldown_blocked_zone == "above"
+    assert committed_debug_state.trade_cooldown_blocked_zone == "above"
+    assert committed_debug_state.signal_cooldown_end_date == date(2025, 2, 1)
+    assert committed_debug_state.trade_cooldown_end_date == date(2025, 2, 1)
     assert blocked_intent.reason == "above_side_cooldown_active"
     assert blocked_intent.rule_group == "cooldown"
 

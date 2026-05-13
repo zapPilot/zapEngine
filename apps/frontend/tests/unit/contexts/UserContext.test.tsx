@@ -6,8 +6,8 @@ import { useCurrentUser } from '../../../src/hooks/queries/wallet/useUserQuery';
 import { logger } from '../../../src/utils/logger';
 import { render, screen, waitFor } from '../../test-utils';
 
-// UNMOCK the global mock from setup.ts by importing actual
-// We use the alias path because that's likely how setup.ts mocked it
+// UNMOCK the global setup context mock by importing actual.
+// We use the alias path because that's how setup/context-mocks.ts mocked it.
 vi.mock('@/contexts/UserContext', async () => {
   return await vi.importActual('../../../src/contexts/UserContext');
 });

@@ -15,6 +15,27 @@ class _CustomPublicParams(BaseModel):
     foo: int = 1
 
 
+def _public_param_paths(model: type[BaseModel]) -> set[tuple[str, ...]]:
+    paths: set[tuple[str, ...]] = set()
+    for field_name, field_info in model.model_fields.items():
+        annotation = field_info.annotation
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            paths.update(
+                (field_name, nested_field_name)
+                for nested_field_name in annotation.model_fields
+            )
+            continue
+        paths.add((field_name,))
+    return paths
+
+
+def test_dma_field_mapping_covers_all_public_params() -> None:
+    expected_paths = _public_param_paths(public_params.DmaGatedFgiPublicParams)
+    mapped_paths = {path for _, path in public_params._DMA_FIELD_MAPPING}
+
+    assert mapped_paths == expected_paths
+
+
 def test_unknown_strategy_public_param_helpers_return_raw_params() -> None:
     raw = {"free_form": "kept"}
 
@@ -42,6 +63,7 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
             "dma_overextension_threshold": 0.25,
             "fgi_slope_reversal_threshold": -0.07,
             "fgi_slope_recovery_threshold": 0.06,
+            "min_consecutive_extreme_fear_days": 3,
             "disabled_rules": ["cross_down_exit"],
         },
     )
@@ -57,23 +79,24 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
         "fgi_slope_reversal_threshold": -0.07,
         "fgi_slope_recovery_threshold": 0.06,
     }
+    assert nested["extreme_fear"] == {"min_consecutive_days": 3, "buy_step": 0.01}
     assert nested["disabled_rules"] == ["cross_down_exit"]
 
 
 def test_dma_public_params_round_trip_disabled_portfolio_rules() -> None:
     runtime = public_params.public_params_to_runtime_params(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        {"disabled_rules": ["greed_sell_suppression"]},
+        {"disabled_rules": ["extreme_fear_dca_buy"]},
     )
 
-    assert runtime["disabled_rules"] == ["greed_sell_suppression"]
+    assert runtime["disabled_rules"] == ["extreme_fear_dca_buy"]
 
     nested = public_params.runtime_params_to_public_params(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         runtime,
     )
 
-    assert nested["disabled_rules"] == ["greed_sell_suppression"]
+    assert nested["disabled_rules"] == ["extreme_fear_dca_buy"]
 
 
 def test_normalize_saved_strategy_public_params_rejects_unknown_portfolio_rule() -> (

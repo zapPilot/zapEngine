@@ -14,17 +14,6 @@ export function getBaseAssets(d: MarketDashboardPoint) {
   };
 }
 
-function toNumeric(
-  v: string | number | readonly (string | number)[] | undefined,
-): number | null {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  if (typeof v === 'string') {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
-
 function getMinMax(arr: number[]): { min: number; max: number } {
   if (arr.length === 0) return { min: 0, max: 1 };
   const min = Math.min(...arr);
@@ -72,10 +61,11 @@ export function collectAssetRanges(data: MarketDashboardPoint[]): {
 }
 
 const DOLLAR_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
-  MARKET_LINES.filter((l) => l.axis === 'price').map((l) => {
-    const rawKey = l.dataKey.replace('_normalized', '');
-    return [l.label, rawKey];
-  }),
+  MARKET_LINES.flatMap((line) =>
+    line.axis === 'price' && line.rawField != null
+      ? [[line.label, line.rawField]]
+      : [],
+  ),
 );
 
 export function formatTooltipValue(
@@ -88,12 +78,12 @@ export function formatTooltipValue(
 
   const dollarField = DOLLAR_FORMAT_LABELS[labelName];
   if (dollarField != null) {
-    const rawValue =
-      (payload as Record<string, unknown>)?.[dollarField] ?? toNumeric(value);
-    return [
-      rawValue != null ? `$${rawValue.toLocaleString()}` : '$0',
-      labelName,
-    ];
+    const rawValue = payload?.[dollarField];
+    const num =
+      typeof rawValue === 'number' && Number.isFinite(rawValue)
+        ? rawValue
+        : null;
+    return [num != null ? `$${num.toLocaleString()}` : '---', labelName];
   }
 
   if (labelName === 'ETH/BTC Ratio' || labelName === 'ETH/BTC 200 DMA') {

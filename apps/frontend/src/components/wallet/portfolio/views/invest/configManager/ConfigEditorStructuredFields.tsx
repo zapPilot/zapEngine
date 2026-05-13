@@ -10,6 +10,7 @@ import {
   type ConfigEditorFormState,
   type ConfigEditorMode,
   LOCKED_STRATEGY_ID,
+  normalizeRuleNames,
 } from './configEditorShared';
 
 interface ConfigEditorStructuredFieldsProps {
@@ -37,12 +38,11 @@ function updateRuleEnabled(
   enabled: boolean,
 ): void {
   setFormState((previous) => {
-    const disabledRules = new Set(previous.disabledRules);
-    if (enabled) {
-      disabledRules.delete(ruleName);
-    } else {
-      disabledRules.add(ruleName);
-    }
+    const disabledRules = enabled
+      ? previous.disabledRules.filter(
+          (disabledRule) => disabledRule !== ruleName,
+        )
+      : normalizeRuleNames([...previous.disabledRules, ruleName]);
     return {
       ...previous,
       disabledRules,
@@ -56,7 +56,7 @@ function resetRulesToDefaults(
 ): void {
   setFormState((previous) => ({
     ...previous,
-    disabledRules: new Set(
+    disabledRules: normalizeRuleNames(
       rules.filter((rule) => !rule.defaultEnabled).map((rule) => rule.name),
     ),
   }));
@@ -170,9 +170,7 @@ export function ConfigEditorStructuredFields({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() =>
-                updateField(setFormState, 'disabledRules', new Set<string>())
-              }
+              onClick={() => updateField(setFormState, 'disabledRules', [])}
               disabled={isBenchmark}
               className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -191,7 +189,7 @@ export function ConfigEditorStructuredFields({
 
         <div className="divide-y divide-gray-800">
           {rules.map((rule) => {
-            const checked = !formState.disabledRules.has(rule.name);
+            const checked = !formState.disabledRules.includes(rule.name);
             return (
               <label
                 key={rule.name}

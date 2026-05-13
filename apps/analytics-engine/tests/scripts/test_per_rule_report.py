@@ -22,7 +22,7 @@ def test_summarize_rule_matches_counts_wins_and_shadowing() -> None:
                         "suppressed_by": None,
                     },
                     {
-                        "rule_name": "dma_stable_gating",
+                        "rule_name": "dma_overextension_dca_sell",
                         "matched": True,
                         "would_have_acted_action": "sell",
                         "suppressed_by": "cross_down_exit",
@@ -36,7 +36,7 @@ def test_summarize_rule_matches_counts_wins_and_shadowing() -> None:
                 "rule": "regime_no_signal_hold",
                 "rule_matches": [
                     {
-                        "rule_name": "dma_stable_gating",
+                        "rule_name": "dma_overextension_dca_sell",
                         "matched": False,
                         "would_have_acted_action": None,
                         "suppressed_by": None,
@@ -50,9 +50,11 @@ def test_summarize_rule_matches_counts_wins_and_shadowing() -> None:
 
     assert report.rules["cross_down_exit"].match_count == 1
     assert report.rules["cross_down_exit"].win_count == 1
-    assert report.rules["dma_stable_gating"].match_count == 1
-    assert report.rules["dma_stable_gating"].shadowed_count == 1
-    assert report.shadowing_matrix[("cross_down_exit", "dma_stable_gating")] == 1
+    assert report.rules["dma_overextension_dca_sell"].match_count == 1
+    assert report.rules["dma_overextension_dca_sell"].shadowed_count == 1
+    assert (
+        report.shadowing_matrix[("cross_down_exit", "dma_overextension_dca_sell")] == 1
+    )
 
 
 def test_render_markdown_report_includes_shadowing_matrix() -> None:
@@ -64,7 +66,7 @@ def test_render_markdown_report_includes_shadowing_matrix() -> None:
                     "rule": "cross_down_exit",
                     "rule_matches": [
                         {
-                            "rule_name": "dma_stable_gating",
+                            "rule_name": "dma_overextension_dca_sell",
                             "matched": True,
                             "would_have_acted_action": "sell",
                             "suppressed_by": "cross_down_exit",
@@ -78,4 +80,4 @@ def test_render_markdown_report_includes_shadowing_matrix() -> None:
     rendered = render_markdown_report(report)
 
     assert "| Rule | Matches | Wins | Shadowed |" in rendered
-    assert "| cross_down_exit | dma_stable_gating | 1 |" in rendered
+    assert "| cross_down_exit | dma_overextension_dca_sell | 1 |" in rendered

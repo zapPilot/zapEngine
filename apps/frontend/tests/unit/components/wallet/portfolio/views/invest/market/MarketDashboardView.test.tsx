@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
+import { type Location, MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDashboardView } from '@/components/wallet/portfolio/views/invest/market/MarketDashboardView';
@@ -172,6 +173,8 @@ interface SnapshotOpts {
   btcDma?: number | null;
   ethPrice?: number;
   ethDma?: number | null;
+  spyPrice?: number;
+  spyDma?: number | null;
   sentiment?: number | null;
   regime?: string | null;
   ethBtcRatio?: number | null;
@@ -222,6 +225,24 @@ function makeSnapshot(opts: SnapshotOpts) {
     values['eth'] = {
       value: opts.ethPrice,
       indicators: ethIndicators,
+      tags: {},
+    };
+  }
+
+  if (opts.spyPrice != null) {
+    const spyIndicators: Record<
+      string,
+      { value: number; is_above: boolean | null }
+    > = {};
+    if (opts.spyDma != null) {
+      spyIndicators['dma_200'] = {
+        value: opts.spyDma,
+        is_above: opts.spyPrice > opts.spyDma,
+      };
+    }
+    values['spy'] = {
+      value: opts.spyPrice,
+      indicators: spyIndicators,
       tags: {},
     };
   }
@@ -283,6 +304,8 @@ const mockData = makeResponse([
     btcDma: 38000,
     ethPrice: 3200,
     ethDma: 3000,
+    spyPrice: 480,
+    spyDma: 455,
     sentiment: 65,
     regime: 'g',
     macroFearGreed: 80,
@@ -296,6 +319,8 @@ const mockData = makeResponse([
     btcDma: 38500,
     ethPrice: 3300,
     ethDma: 3050,
+    spyPrice: 500,
+    spyDma: 460,
     sentiment: 70,
     regime: 'eg',
     macroFearGreed: 61,
@@ -305,14 +330,38 @@ const mockData = makeResponse([
   }),
 ]);
 
-function createWrapper() {
+interface WrapperOptions {
+  initialEntries?: string[];
+  onLocationChange?: (location: Location) => void;
+}
+
+function LocationCapture({
+  onLocationChange,
+}: {
+  onLocationChange?: (location: Location) => void;
+}) {
+  const location = useLocation();
+  onLocationChange?.(location);
+  return null;
+}
+
+function createWrapper(options: WrapperOptions = {}) {
+  const {
+    initialEntries = ['/bundle?userId=user-1&tab=invest&invest=market'],
+    onLocationChange,
+  } = options;
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
     },
   });
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <MemoryRouter initialEntries={initialEntries}>
+      <QueryClientProvider client={queryClient}>
+        <LocationCapture onLocationChange={onLocationChange} />
+        {children}
+      </QueryClientProvider>
+    </MemoryRouter>
   );
   Wrapper.displayName = 'TestQueryWrapper';
   return Wrapper;
@@ -352,6 +401,91 @@ describe('MarketDashboardView', () => {
     expect(screen.getByTestId('btc-tf-MAX')).toBeDefined();
     expect(screen.queryByTestId('btc-tf-1M')).toBeNull();
     expect(screen.queryByTestId('btc-tf-3M')).toBeNull();
+  });
+
+  it('reads timeframe from ?tf= URL param', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: ['/bundle?tab=invest&invest=market&tf=1Y'],
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('btc-tf-1Y'));
+
+    expect(screen.getByTestId('btc-tf-1Y')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('btc-tf-MAX')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('reads visible lines from ?lines= URL param and filters invalid keys', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: [
+          '/bundle?tab=invest&invest=market&lines=btcPrice,bogus',
+        ],
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
+
+    expect(screen.getByTestId('line-toggle-btcPrice')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('line-toggle-btcDma200')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByTestId('line-toggle-fgi')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('writes ?tf and ?lines on user interaction while preserving bundle params', async () => {
+    let currentLocation: Location | null = null;
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: [
+          '/bundle?userId=user-1&walletId=wallet-1&tab=invest&invest=market',
+        ],
+        onLocationChange: (location) => {
+          currentLocation = location;
+        },
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('btc-tf-1Y'));
+
+    fireEvent.click(screen.getByTestId('btc-tf-1Y'));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(currentLocation?.search);
+      expect(params.get('tf')).toBe('1Y');
+      expect(params.get('userId')).toBe('user-1');
+      expect(params.get('walletId')).toBe('wallet-1');
+      expect(params.get('tab')).toBe('invest');
+      expect(params.get('invest')).toBe('market');
+    });
+
+    fireEvent.click(screen.getByTestId('line-toggle-btcPrice'));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(currentLocation?.search);
+      const lineKeys = params.get('lines')?.split(',') ?? [];
+      expect(params.get('tf')).toBe('1Y');
+      expect(lineKeys).not.toContain('btcPrice');
+      expect(lineKeys).toContain('btcDma200');
+      expect(lineKeys).toContain('macro_fear_greed');
+    });
   });
 
   it('calls getMarketDashboardData with 1900 days exactly once on mount', async () => {
@@ -599,32 +733,28 @@ describe('MarketDashboardView', () => {
       return capturedTooltipFormatter!;
     }
 
-    it('formats BTC Price with dollar sign and locale number', async () => {
+    it('formats price-axis tooltips from raw payload values instead of normalized chart values', async () => {
       const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(95000, 'BTC Price', {});
-      expect(String(formattedValue)).toContain('95,000');
-      expect(label).toBe('BTC Price');
-    });
 
-    it('formats BTC 200 DMA with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(38500, 'BTC 200 DMA', {});
-      expect(String(formattedValue)).toContain('38,500');
-      expect(label).toBe('BTC 200 DMA');
-    });
-
-    it('formats ETH Price with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(3200, 'ETH Price', {});
-      expect(String(formattedValue)).toContain('3,200');
-      expect(label).toBe('ETH Price');
-    });
-
-    it('formats ETH 200 DMA with dollar sign and locale number', async () => {
-      const fmt = await renderAndGetFormatter();
-      const [formattedValue, label] = fmt(3050, 'ETH 200 DMA', {});
-      expect(String(formattedValue)).toContain('3,050');
-      expect(label).toBe('ETH 200 DMA');
+      expect(fmt(52, 'BTC Price', { payload: { price_usd: 67000 } })).toEqual([
+        '$67,000',
+        'BTC Price',
+      ]);
+      expect(
+        fmt(48, 'BTC 200 DMA', { payload: { btc_dma_200: 63250 } }),
+      ).toEqual(['$63,250', 'BTC 200 DMA']);
+      expect(
+        fmt(34, 'ETH Price', { payload: { eth_price_usd: 3200 } }),
+      ).toEqual(['$3,200', 'ETH Price']);
+      expect(
+        fmt(31, 'ETH 200 DMA', { payload: { eth_dma_200: 3050 } }),
+      ).toEqual(['$3,050', 'ETH 200 DMA']);
+      expect(
+        fmt(65, 'SPY Price', { payload: { sp500_price_usd: 500 } }),
+      ).toEqual(['$500', 'SPY Price']);
+      expect(
+        fmt(58, 'SPY 200 DMA', { payload: { sp500_dma_200: 460 } }),
+      ).toEqual(['$460', 'SPY 200 DMA']);
     });
 
     it('formats ETH/BTC Ratio with fixed decimals', async () => {
@@ -699,10 +829,10 @@ describe('MarketDashboardView', () => {
       expect(label).toBe('Some Other Series');
     });
 
-    it('formats BTC Price with undefined value falling back to 0', async () => {
+    it('shows a placeholder when raw price payload is unavailable', async () => {
       const fmt = await renderAndGetFormatter();
       const [formattedValue, label] = fmt(undefined, 'BTC Price', {});
-      expect(String(formattedValue)).toContain('$0');
+      expect(formattedValue).toBe('---');
       expect(label).toBe('BTC Price');
     });
 

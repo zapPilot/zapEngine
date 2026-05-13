@@ -42,6 +42,8 @@ export function TimeframePicker({
       {timeframes.map((tf) => (
         <button
           key={`${keyPrefix}${tf.id}`}
+          type="button"
+          aria-pressed={value === tf.id}
           onClick={() => onChange(tf.id)}
           data-testid={`${testIdPrefix}${tf.id}`}
           className={`${buttonSize} font-medium rounded-md transition-colors ${

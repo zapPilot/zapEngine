@@ -1,16 +1,14 @@
 import { z } from 'zod';
 
-import {
-  BacktestCompareParamsV3Schema,
-  BacktestStrategyCatalogEntryV3Schema,
-} from './backtesting.js';
+import { BacktestStrategyCatalogEntryV3Schema } from './backtesting.js';
+import { JsonObjectSchema } from './json.js';
 
 export const StrategyPresetSchema = z.object({
   config_id: z.string(),
   display_name: z.string(),
   description: z.string().nullable(),
   strategy_id: z.string(),
-  params: BacktestCompareParamsV3Schema,
+  params: JsonObjectSchema,
   is_default: z.boolean(),
   is_benchmark: z.boolean(),
 });

@@ -65,6 +65,7 @@ def test_strategy_feature_summary_reflects_default_active_rules() -> None:
             "cross_down_exit",
             "cross_up_equal_weight",
             "eth_btc_ratio_rotation",
+            "eth_btc_deviation_dca",
             "dma_overextension_dca_sell",
             "fgi_downshift_dca_sell",
         ],
@@ -538,7 +539,7 @@ def test_strategy_ratio_rotation_cooldown_blocks_second_cross() -> None:
     )
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
+@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
 def test_extreme_fear_gated_by_cross_down_cycle() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
@@ -610,7 +611,7 @@ def test_extreme_fear_gated_by_cross_down_cycle() -> None:
     assert closed_cycle.reason == "regime_no_signal"
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
+@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
 def test_crypto_cross_down_opens_peer_cycle_and_blocked_cross_up_does_not_close() -> (
     None
 ):
@@ -721,7 +722,7 @@ def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
     assert crypto_extreme_fear.reason == "regime_no_signal"
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
+@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
 def test_crypto_cross_up_closes_peer_cycle_for_extreme_fear_dca() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
@@ -800,7 +801,7 @@ def test_crypto_cross_up_closes_peer_cycle_for_extreme_fear_dca() -> None:
     assert closed_cycle_extreme_fear.reason == "regime_no_signal"
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
+@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
 def test_cross_trade_does_not_block_next_extreme_fear_dca() -> None:
     policy = DmaFgiPortfolioRulesDecisionPolicy()
     current = {"btc": 0.05, "eth": 0.0, "spy": 0.0, "stable": 0.95, "alt": 0.0}
@@ -1214,9 +1215,11 @@ def test_strategy_wires_trade_quota_guard_from_params() -> None:
     ]
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
-def test_strategy_keeps_extreme_fear_rule_on_flat_sizing() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+def test_strategy_can_enable_extreme_fear_rule_on_flat_sizing() -> None:
+    strategy = DmaFgiPortfolioRulesStrategy(
+        total_capital=10_000.0,
+        params=DmaGatedFgiParams(enabled_rules=frozenset({"extreme_fear_dca_buy"})),
+    )
 
     rules_by_name = {rule.name: rule for rule in strategy.decision_policy.rules}
     extreme_fear_rule = rules_by_name["extreme_fear_dca_buy"]
@@ -1356,7 +1359,7 @@ def _step_signal(
     return snapshot
 
 
-@pytest.mark.skip(reason="extreme_fear_dca_buy rule is temporarily disabled")
+@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")
 def test_strategy_extreme_fear_dca_executes_after_cross_without_buy_gate() -> None:
     prices = {"btc": 100.0, "eth": 100.0, "spy": 100.0}
     portfolio = Portfolio.from_asset_allocation(

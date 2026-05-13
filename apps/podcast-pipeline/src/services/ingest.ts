@@ -28,17 +28,19 @@ import {
 import { convertArticleToZhTW } from './opencc.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadHlsToR2 } from './storage.js';
-import { textToSpeech } from './tts.js';
+import { getTtsMetadata, textToSpeech } from './tts.js';
 
 export interface IngestResult {
   episode: EpisodeResponse;
   statusCode: 200 | 201;
+  costUsd: number;
 }
 
 export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
 ): Promise<IngestResult> {
+  let totalCostUsd = 0;
   let episode = await step('findEpisodeBySourceUrl', () =>
     findEpisodeBySourceUrl(url),
   );
@@ -56,10 +58,11 @@ export async function performIngest(
     (localization.status === 'audio_generated' ||
       localization.status === 'completed')
   ) {
-    const classrooms = await ensureLanguageClassrooms(
+    const { rows: classrooms, costUsd } = await ensureLanguageClassrooms(
       localization,
       languageCode,
     );
+    totalCostUsd += costUsd;
     return {
       episode: toEpisodeResponseFromLocalization(
         episode,
@@ -67,6 +70,7 @@ export async function performIngest(
         classrooms,
       ),
       statusCode: 200,
+      costUsd: totalCostUsd,
     };
   }
 
@@ -144,6 +148,7 @@ export async function performIngest(
     const generated = await step('generateScript', () =>
       generateScriptWithLLM(article.title, article.text),
     );
+    totalCostUsd += generated.costUsd;
     localization = await step(
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
@@ -181,10 +186,11 @@ export async function performIngest(
     );
   }
 
-  const classrooms = await ensureLanguageClassrooms(
+  const { rows: classrooms, costUsd } = await ensureLanguageClassrooms(
     localization!,
     languageCode,
   );
+  totalCostUsd += costUsd;
   return {
     episode: toEpisodeResponseFromLocalization(
       episode,
@@ -192,10 +198,12 @@ export async function performIngest(
       classrooms,
     ),
     statusCode: 201,
+    costUsd: totalCostUsd,
   };
 }
 
 async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  console.log(`[/ingest] step: ${name}`);
   try {
     return await fn();
   } catch (e) {
@@ -231,17 +239,19 @@ function getTtsMetadataForLanguage(languageCode: string): {
     };
   }
 
+  const metadata = getTtsMetadata();
   return {
-    languageCode: process.env['GOOGLE_TTS_LANGUAGE_CODE'] || 'cmn-TW',
-    voiceName: process.env['GOOGLE_TTS_VOICE_NAME'] || 'cmn-TW-Wavenet-A',
+    languageCode: metadata.languageCode,
+    voiceName: metadata.voiceName,
   };
 }
 
 async function ensureLanguageClassrooms(
   localization: EpisodeLocalizationRow,
   sourceLanguageCode: LanguageClassroomLanguageCode,
-): Promise<LanguageClassroomRow[]> {
+): Promise<{ rows: LanguageClassroomRow[]; costUsd: number }> {
   let existing: LanguageClassroomRow[] = [];
+  let costUsd = 0;
 
   try {
     existing = await step('listLanguageClassroomsByLocalizationId', () =>
@@ -256,7 +266,10 @@ async function ensureLanguageClassrooms(
     ).filter((targetLanguageCode) => !existingTargets.has(targetLanguageCode));
 
     if (missingTargets.length === 0) {
-      return orderLanguageClassrooms(existing, sourceLanguageCode);
+      return {
+        rows: orderLanguageClassrooms(existing, sourceLanguageCode),
+        costUsd,
+      };
     }
 
     const generated = await step('generateLanguageClassrooms', () =>
@@ -268,6 +281,7 @@ async function ensureLanguageClassrooms(
         targetLanguageCodes: missingTargets,
       }),
     );
+    costUsd += generated.costUsd;
 
     const persisted = await step('upsertLanguageClassrooms', () =>
       upsertLanguageClassrooms(
@@ -292,10 +306,13 @@ async function ensureLanguageClassrooms(
       (row) => !persistedTargets.has(row.target_language_code),
     );
 
-    return orderLanguageClassrooms(
-      [...retainedExisting, ...persisted],
-      sourceLanguageCode,
-    );
+    return {
+      rows: orderLanguageClassrooms(
+        [...retainedExisting, ...persisted],
+        sourceLanguageCode,
+      ),
+      costUsd,
+    };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     console.error('[/ingest] language classroom generation failed:', {
@@ -305,7 +322,10 @@ async function ensureLanguageClassrooms(
       stack: err.stack,
       cause: err.cause,
     });
-    return orderLanguageClassrooms(existing, sourceLanguageCode);
+    return {
+      rows: orderLanguageClassrooms(existing, sourceLanguageCode),
+      costUsd,
+    };
   }
 }
 

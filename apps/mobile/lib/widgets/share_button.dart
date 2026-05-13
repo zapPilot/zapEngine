@@ -18,23 +18,51 @@ class ShareButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Share ${_episode.title}',
-      child: IconButton(
-        tooltip: 'Share',
-        visualDensity:
-            _compact ? VisualDensity.compact : VisualDensity.standard,
-        icon: Icon(
-          Icons.ios_share_rounded,
-          size: _compact ? 18 : 20,
-          color: AppColors.textSecondary,
+      child: Builder(
+        builder: (buttonContext) => IconButton(
+          tooltip: 'Share',
+          visualDensity:
+              _compact ? VisualDensity.compact : VisualDensity.standard,
+          icon: Icon(
+            Icons.ios_share_rounded,
+            size: _compact ? 18 : 20,
+            color: AppColors.textSecondary,
+          ),
+          onPressed: () => _shareEpisode(buttonContext),
         ),
-        onPressed: () {
-          final shareUrl = ShareConfig.episodeUri(_episode.id).toString();
-          Share.share(
-            '${_episode.title}\n$shareUrl',
-            subject: _episode.title,
-          );
-        },
       ),
     );
+  }
+
+  Future<void> _shareEpisode(BuildContext context) async {
+    final shareUrl = ShareConfig.episodeUri(_episode.id).toString();
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: '${_episode.title}\n$shareUrl',
+          subject: _episode.title,
+          sharePositionOrigin: _sharePositionOrigin(context),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Failed to share episode ${_episode.id}: $error\n$stackTrace',
+      );
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('分享失敗，請稍後再試')),
+      );
+    }
+  }
+
+  Rect? _sharePositionOrigin(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return null;
+    }
+
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 }

@@ -103,7 +103,8 @@ vi.mock('./services/hls.js', () => ({
   generateHls: mockGenerateHls,
 }));
 
-vi.mock('./services/tts.js', () => ({
+vi.mock('./services/tts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/tts.js')>()),
   textToSpeech: mockTextToSpeech,
 }));
 
@@ -123,6 +124,110 @@ describe('health checks', () => {
   });
 });
 
+describe('GET /e/:id share landing page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      localizationRow({
+        title: 'Share <Episode>',
+        raw_text: 'Episode summary for preview cards.',
+      }),
+    );
+  });
+
+  it.each([
+    [
+      'ios',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      'Open in App Store',
+    ],
+    [
+      'android',
+      'Mozilla/5.0 (Linux; Android 13; SM-S918B)',
+      'Android version coming soon',
+    ],
+    [
+      'desktop',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      'Open on iPhone to listen',
+    ],
+  ])(
+    'renders an %s share page with preview metadata',
+    async (_label, ua, cta) => {
+      const response = await app.request(`/e/${episodeRow().id}`, {
+        headers: { 'user-agent': ua },
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/html');
+      expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+        episodeRow().id,
+        'zh-Hant',
+      );
+      expect(html).toContain(
+        'property="og:title" content="Share &lt;Episode&gt;"',
+      );
+      expect(html).toContain(
+        'property="og:description" content="Episode summary for preview cards."',
+      );
+      expect(html).toContain(
+        `property="og:url" content="https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}"`,
+      );
+      expect(html).toContain(cta);
+    },
+  );
+
+  it('returns 404 when the episode localization does not exist', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
+
+    const response = await app.request(
+      '/e/00000000-0000-4000-8000-000000009999',
+      {
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        },
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000009999',
+      'zh-Hant',
+    );
+  });
+
+  it('returns 404 for malformed episode ids before hitting the database', async () => {
+    const response = await app.request('/e/missing-episode', {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+    });
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Apple app site association JSON unchanged', async () => {
+    const response = await app.request(
+      '/.well-known/apple-app-site-association',
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      applinks: {
+        details: [
+          {
+            appIDs: ['LP8CA4MT6U.com.example.fromFedToChainApp'],
+            components: [{ '/': '/e/*' }],
+          },
+        ],
+      },
+    });
+  });
+});
+
 describe('POST /ingest authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -135,6 +240,7 @@ describe('POST /ingest authorization', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -253,6 +359,7 @@ describe('POST /ingest pipeline', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00001,
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
       (_id: string, status: string) => {
@@ -318,6 +425,7 @@ describe('POST /ingest pipeline', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([
       classroomRow({ target_language_code: 'ja' }),
@@ -370,8 +478,8 @@ describe('POST /ingest pipeline', () => {
         hlsUrl:
           'https://cdn.example.com/episodes/e/localizations/zh-Hant/playlist.m3u8',
         r2Prefix: 'episodes/e/localizations/zh-Hant',
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
@@ -383,6 +491,29 @@ describe('POST /ingest pipeline', () => {
     expect(
       body.languageClassrooms.map((lesson) => lesson.targetLanguageCode),
     ).toEqual(['ja', 'en']);
+  });
+
+  it('persists Google TTS metadata when TTS_PROVIDER=google', async () => {
+    vi.stubEnv('TTS_PROVIDER', 'google');
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.objectContaining({
+        ttsLanguageCode: 'cmn-TW',
+        ttsVoiceName: 'cmn-TW-Wavenet-A',
+      }),
+    );
   });
 });
 
@@ -407,6 +538,7 @@ describe('POST /telegram/webhook', () => {
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
+      costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
   });
@@ -488,8 +620,35 @@ describe('POST /telegram/webhook', () => {
     );
     expect(telegramMessageTexts()).toEqual([
       expect.stringContaining('收到'),
-      expect.stringContaining('https://cdn.example.com/playlist.m3u8'),
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+        '💰 $0.00009',
+      ].join('\n'),
     ]);
+  });
+
+  it('omits cost from the Telegram result when no LLM calls run', async () => {
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
+      classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
+      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
+    ]);
+
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'https://example.com/article' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
+    expect(telegramMessageTexts()[1]).toBe(
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+      ].join('\n'),
+    );
+    expect(telegramMessageTexts()[1]).not.toContain('💰');
   });
 
   it('sends a short step-prefixed failure message when ingest fails', async () => {

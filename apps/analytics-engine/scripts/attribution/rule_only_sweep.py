@@ -39,6 +39,8 @@ class RuleOnlySweepRow:
     roi_delta: float
     calmar_ratio: float
     calmar_delta: float
+    sharpe_ratio: float
+    sharpe_delta: float
     trade_count: int
     trade_count_delta: int
     match_count: int
@@ -52,11 +54,14 @@ def build_rule_only_compare_request(
     baseline_rules: frozenset[str],
     candidate_rules: tuple[str, ...],
     decision_log_dir: str,
+    extra_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    resolved_extra_params = dict(extra_params or {})
     configs = [
         _compare_config(
             config_id="baseline",
             enabled_rules=baseline_rules,
+            extra_params=resolved_extra_params,
         )
     ]
     for rule_name in candidate_rules:
@@ -64,6 +69,7 @@ def build_rule_only_compare_request(
             _compare_config(
                 config_id=f"baseline_plus_{rule_name}",
                 enabled_rules=frozenset({*baseline_rules, rule_name}),
+                extra_params=resolved_extra_params,
             )
         )
     return {
@@ -79,12 +85,13 @@ def build_rule_only_compare_request(
 
 def collect_rule_only_sweep(
     *,
-    endpoint: str,
+    endpoint: str | None,
     reference_date_raw: str,
     window_days: int,
     total_capital: float,
     baseline_rules: frozenset[str] = MINIMAL_BASELINE_PORTFOLIO_RULE_NAMES,
     candidate_rules: tuple[str, ...] | None = None,
+    extra_params: dict[str, Any] | None = None,
     client: Any | None = None,
     decision_log_dir: str | None = None,
 ) -> list[RuleOnlySweepRow]:
@@ -101,6 +108,7 @@ def collect_rule_only_sweep(
         baseline_rules=baseline_rules,
         candidate_rules=resolved_candidate_rules,
         decision_log_dir=resolved_log_dir,
+        extra_params=extra_params,
     )
     if client is None:
         with httpx.Client() as http_client:
@@ -119,14 +127,15 @@ def collect_rule_only_sweep(
 
 def render_markdown_rows(rows: list[RuleOnlySweepRow]) -> str:
     lines = [
-        "| Config | Added Rule | ROI | ROI Delta | Calmar | Calmar Delta | Trades | Trade Delta | Matches |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Config | Added Rule | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Sharpe Delta | Trades | Trade Delta | Matches |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
             f"| {row.config_id} | {row.added_rule or '-'} | "
             f"{row.roi_percent:.4f} | {row.roi_delta:.4f} | "
             f"{row.calmar_ratio:.4f} | {row.calmar_delta:.4f} | "
+            f"{row.sharpe_ratio:.4f} | {row.sharpe_delta:.4f} | "
             f"{row.trade_count} | {row.trade_count_delta} | {row.match_count} |"
         )
     return "\n".join(lines)
@@ -141,6 +150,8 @@ def rows_to_jsonable(rows: list[RuleOnlySweepRow]) -> list[dict[str, Any]]:
             "roi_delta": row.roi_delta,
             "calmar_ratio": row.calmar_ratio,
             "calmar_delta": row.calmar_delta,
+            "sharpe_ratio": row.sharpe_ratio,
+            "sharpe_delta": row.sharpe_delta,
             "trade_count": row.trade_count,
             "trade_count_delta": row.trade_count_delta,
             "match_count": row.match_count,
@@ -153,21 +164,22 @@ def _compare_config(
     *,
     config_id: str,
     enabled_rules: frozenset[str],
+    extra_params: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "config_id": config_id,
         "strategy_id": STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        "params": {"enabled_rules": sorted(enabled_rules)},
+        "params": {**extra_params, "enabled_rules": sorted(enabled_rules)},
     }
 
 
 def _post_compare(
     *,
     client: Any,
-    endpoint: str,
+    endpoint: str | None,
     request: dict[str, Any],
 ) -> dict[str, Any]:
-    compare_url = f"{endpoint.rstrip('/')}{COMPARE_PATH}"
+    compare_url = COMPARE_PATH if endpoint is None else f"{endpoint.rstrip('/')}{COMPARE_PATH}"
     response = client.post(compare_url, json=request, timeout=600.0)
     response.raise_for_status()
     payload = response.json()
@@ -228,6 +240,10 @@ def _row_for_config(
     baseline_calmar = float(
         _metric(baseline_summary, "calmar_ratio", round_digits=4)
     )
+    sharpe = float(_metric(summary, "sharpe_ratio", round_digits=4))
+    baseline_sharpe = float(
+        _metric(baseline_summary, "sharpe_ratio", round_digits=4)
+    )
     trades = int(_metric(summary, "trade_count", integer_keys=("trade_count",)))
     baseline_trades = int(
         _metric(baseline_summary, "trade_count", integer_keys=("trade_count",))
@@ -239,6 +255,8 @@ def _row_for_config(
         roi_delta=round(roi - baseline_roi, 4),
         calmar_ratio=calmar,
         calmar_delta=round(calmar - baseline_calmar, 4),
+        sharpe_ratio=sharpe,
+        sharpe_delta=round(sharpe - baseline_sharpe, 4),
         trade_count=trades,
         trade_count_delta=trades - baseline_trades,
         match_count=match_count,
@@ -252,6 +270,11 @@ def _default_candidate_rules() -> tuple[str, ...]:
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="Use FastAPI TestClient instead of requiring a running HTTP server.",
+    )
     parser.add_argument("--reference-date", default=DEFAULT_REFERENCE_DATE)
     parser.add_argument("--days", type=int, default=DEFAULT_WINDOW_DAYS)
     parser.add_argument("--total-capital", type=float, default=DEFAULT_TOTAL_CAPITAL)
@@ -260,6 +283,23 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         dest="rules",
         action="append",
         help="Candidate rule to test. Repeatable; defaults to all known rules.",
+    )
+    parser.add_argument(
+        "--extreme-fear-days",
+        type=int,
+        help=(
+            "Set min_consecutive_extreme_fear_days for the sweep. "
+            "Useful when testing extreme_fear_dca_buy variants."
+        ),
+    )
+    parser.add_argument(
+        "--buy-step",
+        type=float,
+        help=(
+            "Set extreme_fear_buy_step for the sweep (fraction of stable "
+            "deployed per fire, default 0.01). Useful when testing size "
+            "variants of extreme_fear_dca_buy."
+        ),
     )
     parser.add_argument("--decision-log-dir")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
@@ -273,14 +313,40 @@ def main(argv: list[str] | None = None) -> int:
     if unknown_rules:
         print("Unknown rules: " + ", ".join(unknown_rules), file=sys.stderr)
         return 2
-    rows = collect_rule_only_sweep(
-        endpoint=args.endpoint,
-        reference_date_raw=args.reference_date,
-        window_days=args.days,
-        total_capital=args.total_capital,
-        candidate_rules=candidate_rules,
-        decision_log_dir=args.decision_log_dir,
+    extreme_fear_section: dict[str, float | int] = {}
+    if args.extreme_fear_days is not None:
+        extreme_fear_section["min_consecutive_days"] = args.extreme_fear_days
+    if args.buy_step is not None:
+        extreme_fear_section["buy_step"] = args.buy_step
+    extra_params = (
+        {"extreme_fear": extreme_fear_section} if extreme_fear_section else None
     )
+    if args.in_process:
+        from fastapi.testclient import TestClient
+
+        from src.main import app
+
+        with TestClient(app) as client:
+            rows = collect_rule_only_sweep(
+                endpoint=None,
+                reference_date_raw=args.reference_date,
+                window_days=args.days,
+                total_capital=args.total_capital,
+                candidate_rules=candidate_rules,
+                extra_params=extra_params,
+                client=client,
+                decision_log_dir=args.decision_log_dir,
+            )
+    else:
+        rows = collect_rule_only_sweep(
+            endpoint=args.endpoint,
+            reference_date_raw=args.reference_date,
+            window_days=args.days,
+            total_capital=args.total_capital,
+            candidate_rules=candidate_rules,
+            extra_params=extra_params,
+            decision_log_dir=args.decision_log_dir,
+        )
     if args.format == "json":
         print(json.dumps(rows_to_jsonable(rows), indent=2, sort_keys=True))
     else:

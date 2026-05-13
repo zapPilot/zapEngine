@@ -21,6 +21,7 @@ def test_default_rule_priorities_leave_room_for_new_rule_layers() -> None:
         ("cross_down_exit", 10),
         ("cross_up_equal_weight", 20),
         ("eth_btc_ratio_rotation", 21),
+        ("eth_btc_deviation_dca", 22),
         ("dma_overextension_dca_sell", 30),
         ("fgi_downshift_dca_sell", 50),
     ]

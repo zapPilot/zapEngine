@@ -15,6 +15,6 @@ See @README.md for project overview and @package.json for available scripts.
 
 # Gotchas
 
-- Dev/build may OOM on large machines: use `cross-env NODE_OPTIONS=--max-old-space-size=3072`
+- Dev/build may OOM on large machines: use `cross-env NODE_OPTIONS=--max-old-space-size=1024`
 - Analytics API field is `daily_values`, not `daily_totals`
 - All client-side env vars must have `VITE_` prefix

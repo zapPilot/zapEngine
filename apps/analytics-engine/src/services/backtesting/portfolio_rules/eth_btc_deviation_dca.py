@@ -29,12 +29,12 @@ class EthBtcDeviationDcaRule:
     description: str = (
         "Mean-revert BTC/ETH allocation when ETH/BTC ratio is far from its 200-day DMA."
     )
-    dca_deviation_threshold: float = 0.40
-    large_deviation_threshold: float = 0.50
+    dca_deviation_threshold: float = 0.50
+    large_deviation_threshold: float = 0.65
     dca_rotation_fraction: float = 0.25
     large_rotation_fraction: float = 0.75
-    dca_cooldown_days: int = 7
-    large_cooldown_days: int = 30
+    dca_cooldown_days: int = 14
+    large_cooldown_days: int = 60
     symmetric_enabled: bool = True
 
     def matches(

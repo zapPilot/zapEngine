@@ -45,7 +45,7 @@ export function formatMetricPercent(value: number): string {
   return `${value.toFixed(2)}%`;
 }
 
-function formatRatio(value: number): string {
+export function formatRatio(value: number): string {
   return value.toFixed(2);
 }
 

@@ -10,6 +10,15 @@ export interface AppRouterLike {
   replace: (href: string, options?: AppRouterNavigateOptions) => void;
 }
 
+export function buildPathWithSearchParams(
+  pathname: string,
+  nextSearchParams: URLSearchParams,
+): string {
+  const queryString = nextSearchParams.toString();
+
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
 function maybeScrollToTop(scroll: boolean | undefined): void {
   if (scroll === false || typeof window === 'undefined') {
     return;

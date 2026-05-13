@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
+import { MESSAGES } from '@/config/messages';
 import { BacktestProofV2 } from '../BacktestProofV2';
 
 describe('BacktestProofV2', () => {
@@ -41,12 +42,9 @@ describe('BacktestProofV2', () => {
     it('renders stat values', () => {
       render(<BacktestProofV2 />);
 
-      expect(screen.getByText('+83.50pp')).toBeInTheDocument();
-      expect(screen.getByText('69.14%')).toBeInTheDocument();
-      expect(screen.getByText('5.01')).toBeInTheDocument();
-      expect(screen.getByText('2.28')).toBeInTheDocument();
-      expect(screen.getByText('-9.32%')).toBeInTheDocument();
-      expect(screen.getByText(/45 executed trades/)).toBeInTheDocument();
+      MESSAGES.backtest.stats.forEach((stat) => {
+        expect(screen.getByText(stat.value)).toBeInTheDocument();
+      });
     });
   });
 
