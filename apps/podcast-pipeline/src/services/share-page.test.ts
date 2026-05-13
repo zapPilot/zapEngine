@@ -8,6 +8,10 @@ describe('detectPlatform', () => {
     ['Mozilla/5.0 (Linux; Android 13; SM-S918B)', 'android'],
     ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'desktop'],
     [undefined, 'desktop'],
+    [
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      'ios',
+    ],
   ] as const)('returns %s for %s', (userAgent, platform) => {
     expect(detectPlatform(userAgent)).toBe(platform);
   });
