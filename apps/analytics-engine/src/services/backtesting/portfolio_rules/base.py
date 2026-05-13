@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import (
@@ -39,6 +40,14 @@ _EPSILON = 1e-12
 
 if TYPE_CHECKING:
     from src.services.backtesting.sizing.base import SizingStrategy
+
+
+class FgiRegime(str, Enum):
+    EXTREME_FEAR = "extreme_fear"
+    FEAR = "fear"
+    NEUTRAL = "neutral"
+    GREED = "greed"
+    EXTREME_GREED = "extreme_greed"
 
 
 @dataclass(frozen=True)
@@ -155,17 +164,24 @@ def rule_cooldown_remaining_days(
     return max(0, days - elapsed_days)
 
 
-def normalize_regime(regime: str | None) -> str | None:
+def normalize_regime(regime: str | None) -> FgiRegime | None:
     if regime is None:
         return None
+    if isinstance(regime, FgiRegime):
+        return regime
     normalized = str(regime).strip().lower().replace(" ", "_")
-    return normalized or None
+    if not normalized:
+        return None
+    try:
+        return FgiRegime(normalized)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported FGI regime '{regime}'") from exc
 
 
 def current_fgi_regime_for_symbol(
     snapshot: PortfolioSnapshot,
     symbol: str,
-) -> str | None:
+) -> FgiRegime | None:
     normalized_symbol = normalize_symbol(symbol)
     state = snapshot.assets.get(normalized_symbol)
     if normalized_symbol == "SPY":
@@ -312,6 +328,134 @@ def build_dca_sell_intent(
     )
 
 
+def build_dca_buy_intent(
+    *,
+    snapshot: PortfolioSnapshot,
+    matching_symbols: list[str],
+    sizing: SizingStrategy,
+    buy_step: float,
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    emit_signals_consulted: bool,
+) -> AllocationIntent:
+    target = current_target(snapshot)
+    stable_available = max(0.0, float(target.get("stable", 0.0)))
+    adjusted_step_by_symbol: dict[str, float] = {}
+    if matching_symbols and stable_available > 0.0:
+        for symbol in matching_symbols:
+            adjusted_step = sizing.adjust_step(
+                buy_step,
+                snapshot=snapshot,
+                asset=symbol,
+            )
+            adjusted_step_by_symbol[symbol] = max(0.0, float(adjusted_step))
+        total_desired = sum(adjusted_step_by_symbol.values())
+        stable_scale = (
+            min(1.0, stable_available / total_desired) if total_desired > 0.0 else 0.0
+        )
+        for symbol in matching_symbols:
+            key = allocation_key_for_symbol(symbol)
+            per_asset_buy = adjusted_step_by_symbol[symbol] * stable_scale
+            target[key] = max(0.0, float(target.get(key, 0.0))) + per_asset_buy
+        target["stable"] = max(
+            0.0,
+            stable_available - sum(adjusted_step_by_symbol.values()) * stable_scale,
+        )
+    return portfolio_target_intent(
+        action="buy",
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=reason,
+        rule_group=rule_group,
+        assets=matching_symbols,
+        signals_consulted=signals_consulted_for_symbols(
+            snapshot,
+            tuple(matching_symbols),
+        )
+        if emit_signals_consulted
+        else None,
+    )
+
+
+class DcaSellRuleBase:
+    allocation_name: str
+    reason: str
+    rule_group: RuleGroup
+    sell_step: float
+    sizing: SizingStrategy
+
+    def matches(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> bool:
+        del config
+        return bool(self._matching_symbols(snapshot))
+
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        return build_dca_sell_intent(
+            snapshot=snapshot,
+            matching_symbols=self._matching_symbols(snapshot),
+            sizing=self.sizing,
+            sell_step=self.sell_step,
+            proceeds_handler=self.proceeds_handler,
+            allocation_name=self.allocation_name,
+            reason=self.reason,
+            rule_group=self.rule_group,
+            emit_signals_consulted=config.emit_signals_consulted,
+        )
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        raise NotImplementedError
+
+    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
+        raise NotImplementedError
+
+
+class DcaBuyRuleBase:
+    allocation_name: str
+    buy_step: float
+    reason: str
+    rule_group: RuleGroup
+    sizing: SizingStrategy
+
+    def matches(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> bool:
+        del config
+        return bool(self._matching_symbols(snapshot))
+
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        return build_dca_buy_intent(
+            snapshot=snapshot,
+            matching_symbols=self._matching_symbols(snapshot),
+            sizing=self.sizing,
+            buy_step=self.buy_step,
+            allocation_name=self.allocation_name,
+            reason=self.reason,
+            rule_group=self.rule_group,
+            emit_signals_consulted=config.emit_signals_consulted,
+        )
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        raise NotImplementedError
+
+
 __all__ = [
     "ALLOCATION_KEY_BY_SYMBOL",
     "DIAG_COOLDOWN_SKIPPED_RULES",
@@ -320,15 +464,19 @@ __all__ = [
     "DIAG_PORTFOLIO_RULE_COOLDOWN_KEY",
     "DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS",
     "DIAG_SIGNALS_CONSULTED",
+    "DcaBuyRuleBase",
+    "DcaSellRuleBase",
     "PORTFOLIO_RULE_SYMBOLS",
     "SYMBOL_BY_ALLOCATION_KEY",
     "DecisionPolicy",
+    "FgiRegime",
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
     "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",
+    "build_dca_buy_intent",
     "build_dca_sell_intent",
     "current_fgi_regime_for_symbol",
     "current_target",

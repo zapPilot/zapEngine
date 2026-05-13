@@ -74,6 +74,17 @@ class CrossUpEqualWeightRule:
         diagnostics[DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS] = trigger_symbols
         return replace(intent, diagnostics=diagnostics)
 
+    def trigger_symbols_for_cooldown(
+        self,
+        snapshot: PortfolioSnapshot,
+    ) -> list[str]:
+        return [
+            symbol
+            for symbol in symbols_for_snapshot(snapshot)
+            if _is_cross_up_signal(snapshot, symbol)
+            and snapshot.assets[symbol].zone == "above"
+        ]
+
 
 def _has_cross_up(
     snapshot: PortfolioSnapshot,

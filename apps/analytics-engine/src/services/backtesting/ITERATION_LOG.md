@@ -7,6 +7,43 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-13 - Extreme-fear buy_step sweep and structural root cause
+- **Status**: active
+- **Commit**: pending local change (`extreme-fear buy_step variant sweep`)
+- **Plumbed**: added `buy_step` to `_ExtremeFearPublicParams` and `DmaGatedFgiParams`, wired it through `decision_policy._rule_for_params`, and added `--buy-step` to `scripts/attribution/rule_only_sweep.py` so sizing of `extreme_fear_dca_buy` can be tested without code edits.
+- **User hypothesis**: 2026-02-06 BTC $62,854 and 2025-11-22 BTC $85,052 were local lows in extreme-fear cycles, so increasing `buy_step` from 0.01 to 0.20 / 0.50 with `min_consecutive_extreme_fear_days=5..7` should let the rule capture them and turn the standalone delta positive.
+- **Size sweep vs minimal-baseline standalone**:
+  | N | buy_step | ROI | ROI Delta | Calmar | Sharpe | Matches | Decision |
+  | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+  | disabled baseline | - | 55.4133 | 0.0000 | 2.3006 | 1.2962 | 0 | baseline |
+  | 7 | 0.01 | 55.3616 | -0.0517 | 2.2986 | 1.2948 | 21 | reject |
+  | 7 | 0.20 | 47.7208 | -7.6925 | 1.3727 | 1.0550 | 21 | reject |
+  | 7 | 0.50 | 36.7060 | -18.7073 | 0.8795 | 0.8183 | 16 | reject |
+  | 5 | 0.20 | 42.8776 | -12.5357 | 1.1545 | 0.9794 | 34 | reject |
+  | 5 | 0.50 | 28.4453 | -26.9680 | 0.6143 | 0.6907 | 27 | reject |
+- **Decision-log trace (full default, 2026-01-01 to 2026-04-15)**: the only executed buy is `cross_up_equal_weight` on 2026-04-08 routing 100% into SPY. BTC stays at 0% throughout 2026. All sell-side trades are `dma_overextension_dca_sell` trickling SPY into stable plus a 2026-03-20 `cross_down_exit` cleanup before the SPY redeploy.
+- **Supabase price verification**: BTC stays below DMA-200 from 2025-10 through 2026-05-12. DMA glides from $108k to $82k while spot drops from $94k to $80k. The 2026-04-08 `cross_up_equal_weight` is driven by SPY (not BTC) regaining its own DMA; `cross_up_equal_weight` then weights only above-DMA assets, force-rotating any held BTC into SPY at $71,975.
+- **Root cause**: scaling sizing makes the rule worse because increasing `buy_step` deploys more capital into BTC during persistent below-DMA periods, and the next portfolio-level cross_up forces those BTC bags to liquidate at a loss into SPY. Example: 2025-11-22 N=7 entry at $85,052 → 2026-04-08 forced sale at $71,975 ≈ -15.4% on the deployed slice, dominating the small +2.0%/+6.5% wins from the 2026-02 cycle entries. As of 2026-05-12, BTC at $80,791 is still below the 2025-11 entry, so even holding through 2026-05 does not recover the loss.
+- **Cleanup**: `buy_step` plumbing and `--buy-step` flag stay in place for future hybrid-trigger work (e.g., FGI + price drawdown gate). Rule remains in `_NON_DEFAULT_PORTFOLIO_RULES`; integration tests covering the rule remain `@pytest.mark.skip(reason="extreme_fear_dca_buy rule is not default-enabled")`.
+- **Validation**: `pnpm --filter @zapengine/analytics-engine type-check` passes (202 source files). `uv run pytest tests/services/backtesting tests/scripts tests/api/test_v3_strategy.py` passes 668 / skips 5. Snapshot fixture is unchanged. No `--update-snapshot`.
+- **Next**: if revisiting extreme-fear entries, change the trigger entirely (e.g., require BTC's own DMA distance to be deep below + price drawdown threshold) rather than tuning N or sizing. Alternatively, redesign `cross_up_equal_weight` so it does not force-liquidate below-DMA assets when an unrelated asset (SPY) crosses up — that would unblock holding BTC purchases through a bear cycle.
+
+### 2026-05-12 - Delete demoted rules and reject extreme-fear consecutive-day promotion
+- **Status**: active
+- **Commit**: pending local change (`delete demoted portfolio rules`)
+- **Deleted rules**: removed the demoted stable-gating and greed-suppression rule implementations, their dedicated unit tests, registry exports, API/frontend metadata references, validation-event shaping hooks, and current assistant context entries. Historical log rows remain as audit history only.
+- **Semantic change tested**: `extreme_fear_dca_buy` now tracks `min_consecutive_extreme_fear_days` instead of first-detection age; leaving `extreme_fear` resets the per-symbol detection window before eligibility.
+- **Rule-only sweep vs disabled standalone baseline**:
+  | N consecutive days | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Sharpe Delta | Trades | Trade Delta | Matches | Decision |
+  | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+  | disabled baseline | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 0.0000 | 9 | 0 | 0 | baseline |
+  | 0 | 54.3826 | -1.0307 | 2.2601 | -0.0405 | 1.2769 | -0.0193 | 20 | 11 | 102 | reject |
+  | 3 | 54.8814 | -0.5319 | 2.2797 | -0.0209 | 1.2866 | -0.0096 | 17 | 8 | 61 | reject |
+  | 5 | 55.0940 | -0.3193 | 2.2881 | -0.0125 | 1.2903 | -0.0059 | 17 | 8 | 37 | reject |
+  | 7 | 55.3616 | -0.0517 | 2.2986 | -0.0020 | 1.2948 | -0.0014 | 17 | 8 | 21 | reject |
+- **Decision**: user intuition was not confirmed. The best variant, N=7, still failed the +0.5pp ROI bar and slightly trailed disabled on Calmar and Sharpe, so `extreme_fear_dca_buy` remains non-default and the default snapshot should not be refreshed for this rule.
+- **Validation**: focused affected tests passed (97 passed, 5 skipped), `pnpm --filter @zapengine/analytics-engine type-check` passed, `pnpm --filter @zapengine/analytics-engine lint` passed, `pnpm --filter @zapengine/analytics-engine deadcode` passed, and `pnpm --filter @zapengine/analytics-engine test` passed with 2420 tests plus zero 500-day snapshot drift. `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed 14/14 validation checks with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, and 48 trades.
+
 ### 2026-05-12 - Known-negative rule retune pass
 - **Status**: active
 - **Commit**: pending local change (`known-negative portfolio-rule retune`)

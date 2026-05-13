@@ -55,6 +55,13 @@ class _TopEscapePublicParams(BaseModel):
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
+class _ExtremeFearPublicParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    min_consecutive_days: int = Field(default=0, ge=0, strict=True)
+    buy_step: float = Field(default=0.01, ge=0.0, le=1.0)
+
+
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -65,6 +72,9 @@ class DmaGatedFgiPublicParams(BaseModel):
         default_factory=_TradeQuotaPublicParams
     )
     top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
+    extreme_fear: _ExtremeFearPublicParams = Field(
+        default_factory=_ExtremeFearPublicParams
+    )
     disabled_rules: list[str] = Field(default_factory=list)
     enabled_rules: list[str] | None = Field(default=None)
 
@@ -124,6 +134,14 @@ _DMA_FIELD_MAPPING: Final[list[tuple[str, tuple[str, ...]]]] = [
     ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
     ("fgi_slope_reversal_threshold", ("top_escape", "fgi_slope_reversal_threshold")),
     ("fgi_slope_recovery_threshold", ("top_escape", "fgi_slope_recovery_threshold")),
+    (
+        "min_consecutive_extreme_fear_days",
+        ("extreme_fear", "min_consecutive_days"),
+    ),
+    (
+        "extreme_fear_buy_step",
+        ("extreme_fear", "buy_step"),
+    ),
     ("disabled_rules", ("disabled_rules",)),
     ("enabled_rules", ("enabled_rules",)),
 ]
@@ -221,6 +239,7 @@ def runtime_params_to_public_params(
             buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
             trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
             top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
+            extreme_fear=_ExtremeFearPublicParams(**sections.get("extreme_fear", {})),
             disabled_rules=sections.get("disabled_rules", []),
             enabled_rules=sections.get("enabled_rules"),
         )
