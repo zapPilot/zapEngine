@@ -1,5 +1,11 @@
-import * as fishAudio from './tts/fish-audio.js';
-import * as google from './tts/google.js';
+import {
+  getMetadata as getFishAudioMetadata,
+  synthesize as synthesizeWithFishAudio,
+} from './tts/fish-audio.js';
+import {
+  getMetadata as getGoogleMetadata,
+  synthesize as synthesizeWithGoogle,
+} from './tts/google.js';
 
 export type TtsProvider = 'fish-audio' | 'google';
 
@@ -29,9 +35,15 @@ function getProviderName(): TtsProvider {
 function getProvider(): TtsProviderModule {
   switch (getProviderName()) {
     case 'fish-audio':
-      return fishAudio;
+      return {
+        getMetadata: getFishAudioMetadata,
+        synthesize: synthesizeWithFishAudio,
+      };
     case 'google':
-      return google;
+      return {
+        getMetadata: getGoogleMetadata,
+        synthesize: synthesizeWithGoogle,
+      };
   }
 }
 

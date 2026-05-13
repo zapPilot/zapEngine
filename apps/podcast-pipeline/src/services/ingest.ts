@@ -203,6 +203,7 @@ export async function performIngest(
 }
 
 async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  console.log(`[/ingest] step: ${name}`);
   try {
     return await fn();
   } catch (e) {
