@@ -15,6 +15,7 @@ import {
   readPortfolioRouteState,
 } from '@/lib/portfolio/portfolioRouteState';
 import {
+  buildPathWithSearchParams,
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
@@ -123,16 +124,6 @@ function buildBundleUrlFromSearchResult(params: {
   }
 
   return `/bundle?${searchParams.toString()}`;
-}
-
-function buildPathWithSearchParams(
-  pathname: string,
-  nextSearchParams: URLSearchParams,
-): string {
-  const queryString = nextSearchParams.toString();
-
-  // v8 ignore next -- queryString is always non-empty when called via syncRouteState
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 export function WalletPortfolioPresenter({

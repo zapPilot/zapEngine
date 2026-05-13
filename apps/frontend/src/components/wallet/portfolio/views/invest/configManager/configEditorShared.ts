@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 
+import { DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID } from '@/components/wallet/portfolio/views/backtesting/constants';
 import type {
   BacktestCompareParamsV3,
   SavedStrategyConfig,
@@ -17,7 +18,7 @@ export interface ConfigEditorViewProps {
 
 export const CONFIG_ID_PATTERN = /^[a-z0-9_]+$/;
 export const JSON_TABS = ['params', 'composition'] as const;
-export const LOCKED_STRATEGY_ID = 'dma_fgi_portfolio_rules';
+export const LOCKED_STRATEGY_ID = DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID;
 
 export type JsonTab = (typeof JSON_TABS)[number];
 export type ConfigEditorMode = ConfigEditorViewProps['mode'];
@@ -33,7 +34,7 @@ export interface ConfigEditorFormState {
   description: string;
   strategyId: string;
   primaryAsset: string;
-  disabledRules: Set<string>;
+  disabledRules: string[];
   supportsDailySuggestion: boolean;
   paramsJson: string;
   compositionJson: string;
@@ -63,11 +64,17 @@ const INITIAL_FORM_STATE: ConfigEditorFormState = {
   description: '',
   strategyId: LOCKED_STRATEGY_ID,
   primaryAsset: '',
-  disabledRules: new Set<string>(),
+  disabledRules: [],
   supportsDailySuggestion: false,
   paramsJson: '{}',
   compositionJson: '{}',
 };
+
+export function normalizeRuleNames(ruleNames: string[]): string[] {
+  return [...new Set(ruleNames)]
+    .filter((ruleName) => ruleName.length > 0)
+    .sort((left, right) => left.localeCompare(right));
+}
 
 export function tryParseJson<T>(value: string): ParsedJsonResult<T> {
   try {
@@ -80,7 +87,7 @@ export function tryParseJson<T>(value: string): ParsedJsonResult<T> {
 export function getInitialFormState(): ConfigEditorFormState {
   return {
     ...INITIAL_FORM_STATE,
-    disabledRules: new Set(INITIAL_FORM_STATE.disabledRules),
+    disabledRules: [...INITIAL_FORM_STATE.disabledRules],
   };
 }
 
@@ -99,11 +106,13 @@ export function getSeededFormState(
   if (!seedConfig) {
     return getInitialFormState();
   }
-  const disabledRules = Array.isArray(seedConfig.params.disabled_rules)
-    ? seedConfig.params.disabled_rules.filter(
-        (ruleName): ruleName is string => typeof ruleName === 'string',
-      )
-    : [];
+  const disabledRules = normalizeRuleNames(
+    Array.isArray(seedConfig.params.disabled_rules)
+      ? seedConfig.params.disabled_rules.filter(
+          (ruleName): ruleName is string => typeof ruleName === 'string',
+        )
+      : [],
+  );
 
   return {
     configIdInput: mode === 'edit' ? seedConfig.config_id : '',
@@ -114,7 +123,7 @@ export function getSeededFormState(
     description: seedConfig.description ?? '',
     strategyId: LOCKED_STRATEGY_ID,
     primaryAsset: seedConfig.primary_asset,
-    disabledRules: new Set(disabledRules),
+    disabledRules,
     supportsDailySuggestion: seedConfig.supports_daily_suggestion,
     paramsJson: JSON.stringify(seedConfig.params, null, 2),
     compositionJson: JSON.stringify(seedConfig.composition, null, 2),
@@ -134,9 +143,7 @@ export function buildFieldsPayload(
   params: BacktestCompareParamsV3,
   composition: StrategyComposition,
 ): ConfigFieldsPayload {
-  const disabledRules = [...formState.disabledRules].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const disabledRules = normalizeRuleNames(formState.disabledRules);
   const mergedParams: BacktestCompareParamsV3 = { ...params };
   if (disabledRules.length > 0) {
     mergedParams.disabled_rules = disabledRules;

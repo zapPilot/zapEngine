@@ -7,13 +7,15 @@ import type { SavedStrategyConfig } from '@/types';
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
 const mockState = vi.hoisted(() => ({
+  createConfig: vi.fn(),
   createMutateAsync: vi.fn(),
   existingConfig: null as SavedStrategyConfig | null,
+  getStrategyAdminConfig: vi.fn(),
+  getStrategyConfigs: vi.fn(),
   isLoading: false,
   showToast: vi.fn(),
+  updateConfig: vi.fn(),
   updateMutateAsync: vi.fn(),
-  createIsPending: false,
-  updateIsPending: false,
   strategyConfigsData: {
     strategies: [
       {
@@ -43,10 +45,10 @@ const mockState = vi.hoisted(() => ({
         default_enabled: true,
       },
       {
-        name: 'greed_sell_suppression',
-        priority: 23,
-        description: 'Suppress greed sells while another rule has precedence.',
-        default_enabled: true,
+        name: 'extreme_fear_dca_buy',
+        priority: 40,
+        description: 'DCA buy assets when their relevant FGI is extreme fear.',
+        default_enabled: false,
       },
     ],
   },
@@ -64,7 +66,7 @@ const baseConfig: SavedStrategyConfig = {
   is_default: false,
   is_benchmark: false,
   params: {
-    disabled_rules: ['greed_sell_suppression'],
+    disabled_rules: ['extreme_fear_dca_buy'],
     signal: { cross_cooldown_days: 12 },
   },
   composition: {
@@ -78,37 +80,17 @@ const baseConfig: SavedStrategyConfig = {
   },
 };
 
-vi.mock('@/hooks/queries/strategyAdmin', () => ({
-  useStrategyAdminConfig: () => ({
-    data: mockState.existingConfig,
-    isLoading: mockState.isLoading,
-  }),
-}));
+vi.mock('@/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services')>();
 
-vi.mock(
-  '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs',
-  () => ({
-    useStrategyConfigs: () => ({
-      data:
-        mockState.strategyConfigsIsError || mockState.strategyConfigsIsLoading
-          ? undefined
-          : mockState.strategyConfigsData,
-      isLoading: mockState.strategyConfigsIsLoading,
-      isError: mockState.strategyConfigsIsError,
-    }),
-  }),
-);
-
-vi.mock('@/hooks/mutations/useStrategyAdminMutations', () => ({
-  useCreateStrategyConfig: () => ({
-    mutateAsync: mockState.createMutateAsync,
-    isPending: mockState.createIsPending,
-  }),
-  useUpdateStrategyConfig: () => ({
-    mutateAsync: mockState.updateMutateAsync,
-    isPending: mockState.updateIsPending,
-  }),
-}));
+  return {
+    ...actual,
+    createStrategyConfig: mockState.createConfig,
+    getStrategyAdminConfig: mockState.getStrategyAdminConfig,
+    getStrategyConfigs: mockState.getStrategyConfigs,
+    updateStrategyConfig: mockState.updateConfig,
+  };
+});
 
 vi.mock('@/providers/ToastProvider', async (importOriginal) => {
   const actual =
@@ -148,6 +130,28 @@ function renderConfigEditorView(
   };
 }
 
+function pendingPromise(): Promise<never> {
+  return new Promise<never>((resolve) => {
+    void resolve;
+  });
+}
+
+async function renderLoadedEditConfig(
+  overrides: Partial<ComponentProps<typeof ConfigEditorView>> = {},
+) {
+  const result = renderConfigEditorView({
+    configId: baseConfig.config_id,
+    mode: 'edit',
+    ...overrides,
+  });
+
+  await screen.findByDisplayValue(
+    mockState.existingConfig?.display_name ?? baseConfig.display_name,
+  );
+
+  return result;
+}
+
 function fillRequiredCreateFields(): void {
   fireEvent.change(screen.getByPlaceholderText('my_strategy_config'), {
     target: { value: 'my_strategy_config' },
@@ -164,12 +168,35 @@ describe('ConfigEditorView', () => {
   beforeEach(() => {
     mockState.existingConfig = null;
     mockState.isLoading = false;
-    mockState.createIsPending = false;
-    mockState.updateIsPending = false;
     mockState.strategyConfigsIsLoading = false;
     mockState.strategyConfigsIsError = false;
+    mockState.createConfig.mockReset();
+    mockState.createConfig.mockImplementation((body) =>
+      mockState.createMutateAsync(body),
+    );
     mockState.createMutateAsync.mockReset();
     mockState.createMutateAsync.mockResolvedValue(undefined);
+    mockState.getStrategyAdminConfig.mockReset();
+    mockState.getStrategyAdminConfig.mockImplementation(() => {
+      if (mockState.isLoading) {
+        return pendingPromise();
+      }
+      return Promise.resolve({ config: mockState.existingConfig });
+    });
+    mockState.getStrategyConfigs.mockReset();
+    mockState.getStrategyConfigs.mockImplementation(() => {
+      if (mockState.strategyConfigsIsLoading) {
+        return pendingPromise();
+      }
+      if (mockState.strategyConfigsIsError) {
+        return Promise.reject(new Error('Failed to load strategy configs'));
+      }
+      return Promise.resolve(mockState.strategyConfigsData);
+    });
+    mockState.updateConfig.mockReset();
+    mockState.updateConfig.mockImplementation((configId, body) =>
+      mockState.updateMutateAsync({ configId, body }),
+    );
     mockState.updateMutateAsync.mockReset();
     mockState.updateMutateAsync.mockResolvedValue(undefined);
     mockState.showToast.mockReset();
@@ -187,9 +214,9 @@ describe('ConfigEditorView', () => {
       ).toBeInTheDocument();
     });
 
-    it("shows 'Edit Configuration' in edit mode", () => {
+    it("shows 'Edit Configuration' in edit mode", async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(
         screen.getByRole('heading', { name: 'Edit Configuration' }),
       ).toBeInTheDocument();
@@ -330,13 +357,13 @@ describe('ConfigEditorView', () => {
       expect(screen.getByText('dma_fgi_portfolio_rules')).toBeInTheDocument();
     });
 
-    it('renders portfolio rule checkboxes from strategy bootstrap metadata', () => {
+    it('renders portfolio rule checkboxes from strategy bootstrap metadata', async () => {
       renderConfigEditorView();
 
       expect(
-        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+        await screen.findByRole('checkbox', { name: /extreme_fear_dca_buy/i }),
       ).toBeChecked();
-      expect(screen.getByText('P23')).toBeInTheDocument();
+      expect(screen.getByText('P40')).toBeInTheDocument();
     });
   });
 
@@ -345,9 +372,9 @@ describe('ConfigEditorView', () => {
   // ---------------------------------------------------------------------------
 
   describe('edit mode form seeding', () => {
-    it('shows config_id as read-only badge (not an input) in edit mode', () => {
+    it('shows config_id as read-only badge (not an input) in edit mode', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       // There should be no editable config-id input
       expect(
         screen.queryByPlaceholderText('my_strategy_config'),
@@ -356,31 +383,31 @@ describe('ConfigEditorView', () => {
       expect(screen.getAllByText('momentum_bot').length).toBeGreaterThan(0);
     });
 
-    it('seeds display name from existing config in edit mode', () => {
+    it('seeds display name from existing config in edit mode', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(screen.getByPlaceholderText('My Strategy Config')).toHaveValue(
         'Momentum Bot',
       );
     });
 
-    it('seeds description from existing config in edit mode', () => {
+    it('seeds description from existing config in edit mode', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(
         screen.getByPlaceholderText('Optional description...'),
       ).toHaveValue('Trades with market momentum');
     });
 
-    it('seeds primary asset from existing config in edit mode', () => {
+    it('seeds primary asset from existing config in edit mode', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(screen.getByPlaceholderText('BTC')).toHaveValue('BTC');
     });
 
-    it('seeds supports_daily_suggestion toggle from existing config', () => {
+    it('seeds supports_daily_suggestion toggle from existing config', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(screen.getByRole('switch')).toHaveAttribute(
         'aria-checked',
         'true',
@@ -496,9 +523,9 @@ describe('ConfigEditorView', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('shows composition tab JSON after switching', () => {
+    it('shows composition tab JSON after switching', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       const compositionTab = screen.getByRole('button', {
         name: 'composition',
       });
@@ -602,7 +629,9 @@ describe('ConfigEditorView', () => {
         },
       });
       fireEvent.click(
-        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+        await screen.findByRole('checkbox', {
+          name: /extreme_fear_dca_buy/i,
+        }),
       );
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -610,7 +639,7 @@ describe('ConfigEditorView', () => {
         expect(mockState.createMutateAsync).toHaveBeenCalledWith(
           expect.objectContaining({
             params: {
-              disabled_rules: ['greed_sell_suppression'],
+              disabled_rules: ['extreme_fear_dca_buy'],
               signal: { cross_cooldown_days: 9 },
             },
           }),
@@ -679,10 +708,7 @@ describe('ConfigEditorView', () => {
   describe('save — edit mode', () => {
     it('updates a config with correct payload', async () => {
       mockState.existingConfig = baseConfig;
-      const { onSaved } = renderConfigEditorView({
-        configId: baseConfig.config_id,
-        mode: 'edit',
-      });
+      const { onSaved } = await renderLoadedEditConfig();
 
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -696,7 +722,7 @@ describe('ConfigEditorView', () => {
             primary_asset: 'BTC',
             supports_daily_suggestion: true,
             params: {
-              disabled_rules: ['greed_sell_suppression'],
+              disabled_rules: ['extreme_fear_dca_buy'],
               signal: { cross_cooldown_days: 12 },
             },
             composition: baseConfig.composition,
@@ -715,10 +741,7 @@ describe('ConfigEditorView', () => {
     it("shows error toast with 'Update failed' title when update mutation throws", async () => {
       mockState.existingConfig = baseConfig;
       mockState.updateMutateAsync.mockRejectedValue(new Error('Save error'));
-      renderConfigEditorView({
-        configId: baseConfig.config_id,
-        mode: 'edit',
-      });
+      await renderLoadedEditConfig();
 
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -737,27 +760,37 @@ describe('ConfigEditorView', () => {
   // ---------------------------------------------------------------------------
 
   describe('saving pending state', () => {
-    it("shows 'Saving...' text on save button when create is pending", () => {
-      mockState.createIsPending = true;
+    it("shows 'Saving...' text on save button when create is pending", async () => {
+      mockState.createMutateAsync.mockReturnValue(pendingPromise());
       renderConfigEditorView();
+      fillRequiredCreateFields();
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
       expect(
-        screen.getByRole('button', { name: /saving/i }),
+        await screen.findByRole('button', { name: /saving/i }),
       ).toBeInTheDocument();
     });
 
-    it("shows 'Saving...' text on save button when update is pending", () => {
+    it("shows 'Saving...' text on save button when update is pending", async () => {
       mockState.existingConfig = baseConfig;
-      mockState.updateIsPending = true;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      mockState.updateMutateAsync.mockReturnValue(pendingPromise());
+      await renderLoadedEditConfig();
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
       expect(
-        screen.getByRole('button', { name: /saving/i }),
+        await screen.findByRole('button', { name: /saving/i }),
       ).toBeInTheDocument();
     });
 
-    it('disables Cancel button while saving', () => {
-      mockState.createIsPending = true;
+    it('disables Cancel button while saving', async () => {
+      mockState.createMutateAsync.mockReturnValue(pendingPromise());
       renderConfigEditorView();
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+      fillRequiredCreateFields();
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+      });
     });
   });
 
@@ -786,16 +819,13 @@ describe('ConfigEditorView', () => {
   // ---------------------------------------------------------------------------
 
   describe('benchmark mode', () => {
-    it('renders benchmark configs as read-only in edit mode', () => {
+    it('renders benchmark configs as read-only in edit mode', async () => {
       mockState.existingConfig = {
         ...baseConfig,
         is_benchmark: true,
       };
 
-      renderConfigEditorView({
-        configId: baseConfig.config_id,
-        mode: 'edit',
-      });
+      await renderLoadedEditConfig();
 
       expect(
         screen.getByText(
@@ -810,9 +840,9 @@ describe('ConfigEditorView', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('disables all inputs in benchmark mode', () => {
+    it('disables all inputs in benchmark mode', async () => {
       mockState.existingConfig = { ...baseConfig, is_benchmark: true };
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
 
       const inputs = screen.getAllByRole('textbox');
       for (const input of inputs) {
@@ -820,15 +850,15 @@ describe('ConfigEditorView', () => {
       }
     });
 
-    it('disables toggle in benchmark mode', () => {
+    it('disables toggle in benchmark mode', async () => {
       mockState.existingConfig = { ...baseConfig, is_benchmark: true };
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       expect(screen.getByRole('switch')).toBeDisabled();
     });
 
     it('does not call handleSave for a benchmark config even if Save were invoked programmatically', async () => {
       mockState.existingConfig = { ...baseConfig, is_benchmark: true };
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
       // Save button is not rendered — mutations should never be called
       expect(mockState.updateMutateAsync).not.toHaveBeenCalled();
     });
@@ -839,21 +869,19 @@ describe('ConfigEditorView', () => {
   // ---------------------------------------------------------------------------
 
   describe('duplicate button in edit mode', () => {
-    it('duplicates from the loaded config in edit mode', () => {
+    it('duplicates from the loaded config in edit mode', async () => {
       mockState.existingConfig = baseConfig;
-      const { onDuplicate } = renderConfigEditorView({
-        configId: baseConfig.config_id,
-        mode: 'edit',
-      });
+      const { onDuplicate } = await renderLoadedEditConfig();
 
       fireEvent.click(screen.getByRole('button', { name: /duplicate/i }));
 
       expect(onDuplicate).toHaveBeenCalledWith(baseConfig);
     });
 
-    it('does not show Duplicate button when existingConfig is null in edit mode', () => {
+    it('does not show Duplicate button when existingConfig is null in edit mode', async () => {
       mockState.existingConfig = null;
       renderConfigEditorView({ configId: 'missing_id', mode: 'edit' });
+      await screen.findByRole('heading', { name: 'Edit Configuration' });
       expect(
         screen.queryByRole('button', { name: /duplicate/i }),
       ).not.toBeInTheDocument();
@@ -872,30 +900,31 @@ describe('ConfigEditorView', () => {
       expect(screen.getByText('dma_fgi_portfolio_rules')).toBeInTheDocument();
     });
 
-    it('seeds disabled rule checkboxes from an existing config', () => {
+    it('seeds disabled rule checkboxes from an existing config', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
 
       expect(
-        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+        await screen.findByRole('checkbox', { name: /extreme_fear_dca_buy/i }),
       ).not.toBeChecked();
       expect(
         screen.getByRole('checkbox', { name: /cross_down_exit/i }),
       ).toBeChecked();
     });
 
-    it('enable all clears disabled rule selections', () => {
+    it('enable all clears disabled rule selections', async () => {
       mockState.existingConfig = baseConfig;
-      renderConfigEditorView({ configId: baseConfig.config_id, mode: 'edit' });
+      await renderLoadedEditConfig();
+      await screen.findByRole('checkbox', { name: /extreme_fear_dca_buy/i });
 
       fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
 
       expect(
-        screen.getByRole('checkbox', { name: /greed_sell_suppression/i }),
+        screen.getByRole('checkbox', { name: /extreme_fear_dca_buy/i }),
       ).toBeChecked();
     });
 
-    it('reset to defaults restores default rule selections', () => {
+    it('reset to defaults restores default rule selections', async () => {
       mockState.strategyConfigsData = {
         ...mockState.strategyConfigsData,
         portfolio_rules: [
@@ -909,6 +938,7 @@ describe('ConfigEditorView', () => {
         ],
       };
       renderConfigEditorView();
+      await screen.findByRole('checkbox', { name: /experimental_rule/i });
 
       fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
       fireEvent.click(

@@ -649,7 +649,7 @@ describe('useBacktestConfiguration', () => {
     );
   });
 
-  it('includes portfolio-rules signal and top_escape public params when provided', () => {
+  it('includes portfolio-rules nested public params when provided', () => {
     mockPendingDefaults();
 
     const { result } = renderHook(() => useBacktestConfiguration(), {
@@ -674,6 +674,12 @@ describe('useBacktestConfiguration', () => {
                   fgi_slope_reversal_threshold: -0.05,
                   fgi_slope_recovery_threshold: 0.05,
                 },
+                extreme_fear: {
+                  min_consecutive_days: 3,
+                  buy_step: 0.02,
+                },
+                disabled_rules: ['extreme_fear_dca_buy'],
+                enabled_rules: ['cross_down_exit', 'cross_up_equal_weight'],
               },
             },
           ],
@@ -700,6 +706,12 @@ describe('useBacktestConfiguration', () => {
                 fgi_slope_reversal_threshold: -0.05,
                 fgi_slope_recovery_threshold: 0.05,
               },
+              extreme_fear: {
+                min_consecutive_days: 3,
+                buy_step: 0.02,
+              },
+              disabled_rules: ['extreme_fear_dca_buy'],
+              enabled_rules: ['cross_down_exit', 'cross_up_equal_weight'],
             },
           }),
         ],

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
+import { type Location, MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDashboardView } from '@/components/wallet/portfolio/views/invest/market/MarketDashboardView';
@@ -329,14 +330,38 @@ const mockData = makeResponse([
   }),
 ]);
 
-function createWrapper() {
+interface WrapperOptions {
+  initialEntries?: string[];
+  onLocationChange?: (location: Location) => void;
+}
+
+function LocationCapture({
+  onLocationChange,
+}: {
+  onLocationChange?: (location: Location) => void;
+}) {
+  const location = useLocation();
+  onLocationChange?.(location);
+  return null;
+}
+
+function createWrapper(options: WrapperOptions = {}) {
+  const {
+    initialEntries = ['/bundle?userId=user-1&tab=invest&invest=market'],
+    onLocationChange,
+  } = options;
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
     },
   });
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <MemoryRouter initialEntries={initialEntries}>
+      <QueryClientProvider client={queryClient}>
+        <LocationCapture onLocationChange={onLocationChange} />
+        {children}
+      </QueryClientProvider>
+    </MemoryRouter>
   );
   Wrapper.displayName = 'TestQueryWrapper';
   return Wrapper;
@@ -376,6 +401,91 @@ describe('MarketDashboardView', () => {
     expect(screen.getByTestId('btc-tf-MAX')).toBeDefined();
     expect(screen.queryByTestId('btc-tf-1M')).toBeNull();
     expect(screen.queryByTestId('btc-tf-3M')).toBeNull();
+  });
+
+  it('reads timeframe from ?tf= URL param', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: ['/bundle?tab=invest&invest=market&tf=1Y'],
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('btc-tf-1Y'));
+
+    expect(screen.getByTestId('btc-tf-1Y')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('btc-tf-MAX')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('reads visible lines from ?lines= URL param and filters invalid keys', async () => {
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: [
+          '/bundle?tab=invest&invest=market&lines=btcPrice,bogus',
+        ],
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('line-toggle-btcPrice'));
+
+    expect(screen.getByTestId('line-toggle-btcPrice')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('line-toggle-btcDma200')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(screen.getByTestId('line-toggle-fgi')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('writes ?tf and ?lines on user interaction while preserving bundle params', async () => {
+    let currentLocation: Location | null = null;
+    mockGetMarketDashboardData.mockResolvedValue(mockData);
+    render(<MarketDashboardView />, {
+      wrapper: createWrapper({
+        initialEntries: [
+          '/bundle?userId=user-1&walletId=wallet-1&tab=invest&invest=market',
+        ],
+        onLocationChange: (location) => {
+          currentLocation = location;
+        },
+      }),
+    });
+
+    await waitFor(() => screen.getByTestId('btc-tf-1Y'));
+
+    fireEvent.click(screen.getByTestId('btc-tf-1Y'));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(currentLocation?.search);
+      expect(params.get('tf')).toBe('1Y');
+      expect(params.get('userId')).toBe('user-1');
+      expect(params.get('walletId')).toBe('wallet-1');
+      expect(params.get('tab')).toBe('invest');
+      expect(params.get('invest')).toBe('market');
+    });
+
+    fireEvent.click(screen.getByTestId('line-toggle-btcPrice'));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(currentLocation?.search);
+      const lineKeys = params.get('lines')?.split(',') ?? [];
+      expect(params.get('tf')).toBe('1Y');
+      expect(lineKeys).not.toContain('btcPrice');
+      expect(lineKeys).toContain('btcDma200');
+      expect(lineKeys).toContain('macro_fear_greed');
+    });
   });
 
   it('calls getMarketDashboardData with 1900 days exactly once on mount', async () => {
