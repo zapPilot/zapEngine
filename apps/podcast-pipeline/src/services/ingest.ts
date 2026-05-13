@@ -16,6 +16,7 @@ import {
   insertEpisodeLocalization,
   listLanguageClassroomsByLocalizationId,
   toEpisodeResponseFromLocalization,
+  toLanguageClassroomLesson,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
   upsertLanguageClassrooms,
@@ -26,9 +27,11 @@ import {
   generateScriptWithLLM,
 } from './llm.js';
 import { convertArticleToZhTW } from './opencc.js';
+import { synthesizeClassroomAudio } from './podcast/classroom-audio.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadHlsToR2 } from './storage.js';
 import { getTtsMetadata, textToSpeech } from './tts.js';
+import { concatMp3Buffers } from './tts/audio-concat.js';
 
 export interface IngestResult {
   episode: EpisodeResponse;
@@ -165,13 +168,37 @@ export async function performIngest(
     throw new Error('Failed to retrieve episode localization');
   }
 
+  let classroomRows: LanguageClassroomRow[] | null = null;
+
   if (
     localization.status !== 'audio_generated' &&
     localization.status !== 'completed'
   ) {
+    const ensuredClassrooms = await ensureLanguageClassrooms(
+      localization,
+      languageCode,
+    );
+    classroomRows = ensuredClassrooms.rows;
+    totalCostUsd += ensuredClassrooms.costUsd;
+
     const script = localization.script ?? '';
-    const audio = await step('textToSpeech', () => textToSpeech(script));
-    const { files } = await step('generateHls', () => generateHls(audio));
+    const mainAudio = await step('textToSpeech', () => textToSpeech(script));
+    const classroomAudios = await synthesizeClassroomAudios(
+      episode.id,
+      classroomRows,
+    );
+    const publishAudio = await combineMainAndClassroomAudio(
+      mainAudio,
+      classroomAudios,
+      {
+        episodeId: episode.id,
+        localizationId: localization.id,
+        languageCode,
+      },
+    );
+    const { files } = await step('generateHls', () =>
+      generateHls(publishAudio),
+    );
     const uploaded = await step('uploadHlsToR2', () =>
       uploadHlsToR2(files, episode.id, languageCode),
     );
@@ -186,16 +213,20 @@ export async function performIngest(
     );
   }
 
-  const { rows: classrooms, costUsd } = await ensureLanguageClassrooms(
-    localization!,
-    languageCode,
-  );
-  totalCostUsd += costUsd;
+  if (!classroomRows) {
+    const ensuredClassrooms = await ensureLanguageClassrooms(
+      localization!,
+      languageCode,
+    );
+    classroomRows = ensuredClassrooms.rows;
+    totalCostUsd += ensuredClassrooms.costUsd;
+  }
+
   return {
     episode: toEpisodeResponseFromLocalization(
       episode,
       localization!,
-      classrooms,
+      classroomRows,
     ),
     statusCode: 201,
     costUsd: totalCostUsd,
@@ -244,6 +275,54 @@ function getTtsMetadataForLanguage(languageCode: string): {
     languageCode: metadata.languageCode,
     voiceName: metadata.voiceName,
   };
+}
+
+async function synthesizeClassroomAudios(
+  episodeId: string,
+  classrooms: LanguageClassroomRow[],
+): Promise<Buffer[]> {
+  const audioBuffers: Buffer[] = [];
+
+  for (const classroom of classrooms) {
+    const audio = await synthesizeClassroomAudio(
+      toLanguageClassroomLesson(classroom),
+      { episodeId },
+    );
+    if (audio) {
+      audioBuffers.push(audio);
+    }
+  }
+
+  return audioBuffers;
+}
+
+async function combineMainAndClassroomAudio(
+  mainAudio: Buffer,
+  classroomAudios: Buffer[],
+  context: {
+    episodeId: string;
+    localizationId: string;
+    languageCode: LanguageClassroomLanguageCode;
+  },
+): Promise<Buffer> {
+  if (classroomAudios.length === 0) {
+    return mainAudio;
+  }
+
+  try {
+    return await step('concatEpisodeClassroomAudio', () =>
+      concatMp3Buffers([mainAudio, ...classroomAudios]),
+    );
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[/ingest] classroom audio concat failed:', {
+      ...context,
+      message: err.message,
+      stack: err.stack,
+      cause: err.cause,
+    });
+    return mainAudio;
+  }
 }
 
 async function ensureLanguageClassrooms(

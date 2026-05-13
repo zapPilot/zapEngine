@@ -1,4 +1,8 @@
 import {
+  DEFAULT_LANGUAGE_CODE,
+  type LanguageClassroomLanguageCode,
+} from '../types.js';
+import {
   getMetadata as getFishAudioMetadata,
   synthesize as synthesizeWithFishAudio,
 } from './tts/fish-audio.js';
@@ -15,9 +19,13 @@ export interface TtsMetadata {
   voiceName: string;
 }
 
+export interface TtsSynthesizeOptions {
+  languageCode: LanguageClassroomLanguageCode;
+}
+
 interface TtsProviderModule {
-  synthesize(text: string): Promise<Buffer>;
-  getMetadata(): TtsMetadata;
+  synthesize(text: string, opts: TtsSynthesizeOptions): Promise<Buffer>;
+  getMetadata(opts: TtsSynthesizeOptions): TtsMetadata;
 }
 
 function getProviderName(): TtsProvider {
@@ -47,10 +55,23 @@ function getProvider(): TtsProviderModule {
   }
 }
 
-export async function textToSpeech(text: string): Promise<Buffer> {
-  return getProvider().synthesize(text);
+function normalizeTtsOptions(opts?: {
+  languageCode?: LanguageClassroomLanguageCode;
+}): TtsSynthesizeOptions {
+  return {
+    languageCode: opts?.languageCode ?? DEFAULT_LANGUAGE_CODE,
+  };
 }
 
-export function getTtsMetadata(): TtsMetadata {
-  return getProvider().getMetadata();
+export async function textToSpeech(
+  text: string,
+  opts?: { languageCode?: LanguageClassroomLanguageCode },
+): Promise<Buffer> {
+  return getProvider().synthesize(text, normalizeTtsOptions(opts));
+}
+
+export function getTtsMetadata(opts?: {
+  languageCode?: LanguageClassroomLanguageCode;
+}): TtsMetadata {
+  return getProvider().getMetadata(normalizeTtsOptions(opts));
 }

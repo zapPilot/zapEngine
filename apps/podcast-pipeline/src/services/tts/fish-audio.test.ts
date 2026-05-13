@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getMetadata, synthesize } from './fish-audio.js';
+import { FISH_AUDIO_MODELS } from './fish-audio-models.js';
 
 function responseFromArray(bytes: Uint8Array): Response {
   return {
@@ -39,7 +40,9 @@ describe('Fish Audio TTS provider', () => {
     vi.stubGlobal('fetch', mockFetch);
     vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
 
-    const result = await synthesize('哈囉，這是 Fish Audio 測試');
+    const result = await synthesize('哈囉，這是 Fish Audio 測試', {
+      languageCode: 'zh-Hant',
+    });
 
     expect(result).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
     expect(mockFetch).toHaveBeenCalledWith(
@@ -71,7 +74,9 @@ describe('Fish Audio TTS provider', () => {
     vi.stubGlobal('fetch', mockFetch);
     vi.stubEnv('FISH_AUDIO_API_KEY', '');
 
-    await expect(synthesize('缺少金鑰')).rejects.toThrow(
+    await expect(
+      synthesize('缺少金鑰', { languageCode: 'zh-Hant' }),
+    ).rejects.toThrow(
       'FISH_AUDIO_API_KEY is required when TTS_PROVIDER=fish-audio',
     );
     expect(mockFetch).not.toHaveBeenCalled();
@@ -87,7 +92,7 @@ describe('Fish Audio TTS provider', () => {
 
     let error: unknown;
     try {
-      await synthesize('服務錯誤');
+      await synthesize('服務錯誤', { languageCode: 'zh-Hant' });
     } catch (caught) {
       error = caught;
     }
@@ -100,14 +105,28 @@ describe('Fish Audio TTS provider', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('builds metadata from Fish Audio env vars', () => {
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'custom-reference-id');
-    vi.stubEnv('FISH_AUDIO_LANGUAGE_CODE', 'ja');
+  it('defines initial Fish Audio model config for every classroom language', () => {
+    expect(FISH_AUDIO_MODELS).toEqual({
+      'zh-Hant': {
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
+      ja: {
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
+      en: {
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
+    });
+  });
 
-    expect(getMetadata()).toEqual({
+  it('builds metadata from typed Fish Audio model config', () => {
+    expect(getMetadata({ languageCode: 'ja' })).toEqual({
       provider: 'fish-audio',
       languageCode: 'ja',
-      voiceName: 'custom-reference-id',
+      voiceName: FISH_AUDIO_MODELS.ja.modelId,
     });
   });
 });
