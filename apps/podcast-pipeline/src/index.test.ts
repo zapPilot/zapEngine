@@ -10,7 +10,6 @@ import type {
 
 const {
   mockDecodeCursor,
-  mockExtractUnifiedKeywords,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeLocalizationByEpisodeId,
   mockGenerateHls,
@@ -33,7 +32,6 @@ const {
   mockTelegramFetch,
 } = vi.hoisted(() => ({
   mockDecodeCursor: vi.fn(),
-  mockExtractUnifiedKeywords: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
   mockGenerateHls: vi.fn(),
@@ -89,7 +87,6 @@ vi.mock('./services/db.js', () => ({
 }));
 
 vi.mock('./services/llm.js', () => ({
-  extractUnifiedKeywords: mockExtractUnifiedKeywords,
   generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
   generateScriptWithLLM: mockGenerateScriptWithLLM,
 }));
@@ -106,7 +103,8 @@ vi.mock('./services/hls.js', () => ({
   generateHls: mockGenerateHls,
 }));
 
-vi.mock('./services/tts.js', () => ({
+vi.mock('./services/tts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/tts.js')>()),
   textToSpeech: mockTextToSpeech,
 }));
 
@@ -237,13 +235,6 @@ describe('POST /ingest authorization', () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
-    mockExtractUnifiedKeywords.mockResolvedValue({
-      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
-      model: 'test-model',
-      thinkingModel: null,
-      provider: 'test-provider',
-      costUsd: 0.00003,
-    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
@@ -416,13 +407,6 @@ describe('POST /ingest pipeline', () => {
       r2Prefix: 'episodes/e/localizations/zh-Hant',
     });
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
-    mockExtractUnifiedKeywords.mockResolvedValue({
-      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
-      model: 'test-model',
-      thinkingModel: null,
-      provider: 'test-provider',
-      costUsd: 0.00003,
-    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [
         {
@@ -494,8 +478,8 @@ describe('POST /ingest pipeline', () => {
         hlsUrl:
           'https://cdn.example.com/episodes/e/localizations/zh-Hant/playlist.m3u8',
         r2Prefix: 'episodes/e/localizations/zh-Hant',
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: '8957c0744def4b5aafb37103fa8c9efb',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
@@ -503,11 +487,33 @@ describe('POST /ingest pipeline', () => {
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
       }),
-      ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
     );
     expect(
       body.languageClassrooms.map((lesson) => lesson.targetLanguageCode),
     ).toEqual(['ja', 'en']);
+  });
+
+  it('persists Google TTS metadata when TTS_PROVIDER=google', async () => {
+    vi.stubEnv('TTS_PROVIDER', 'google');
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.objectContaining({
+        ttsLanguageCode: 'cmn-TW',
+        ttsVoiceName: 'cmn-TW-Wavenet-A',
+      }),
+    );
   });
 });
 
@@ -527,13 +533,6 @@ describe('POST /telegram/webhook', () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
-    mockExtractUnifiedKeywords.mockResolvedValue({
-      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
-      model: 'test-model',
-      thinkingModel: null,
-      provider: 'test-provider',
-      costUsd: 0.00003,
-    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
@@ -625,7 +624,7 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 $0.00012',
+        '💰 $0.00009',
       ].join('\n'),
     ]);
   });

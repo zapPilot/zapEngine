@@ -8,7 +8,6 @@ import type {
 } from '../types.js';
 
 const {
-  mockExtractUnifiedKeywords,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeLocalizationByEpisodeId,
   mockGenerateHls,
@@ -25,7 +24,6 @@ const {
   mockUploadHlsToR2,
   mockConvertArticleToZhTW,
 } = vi.hoisted(() => ({
-  mockExtractUnifiedKeywords: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
   mockGenerateHls: vi.fn(),
@@ -62,7 +60,6 @@ vi.mock('./db.js', () => ({
 }));
 
 vi.mock('./llm.js', () => ({
-  extractUnifiedKeywords: mockExtractUnifiedKeywords,
   generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
   generateScriptWithLLM: mockGenerateScriptWithLLM,
 }));
@@ -79,7 +76,8 @@ vi.mock('./hls.js', () => ({
   generateHls: mockGenerateHls,
 }));
 
-vi.mock('./tts.js', () => ({
+vi.mock('./tts.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./tts.js')>()),
   textToSpeech: mockTextToSpeech,
 }));
 
@@ -179,13 +177,6 @@ describe('performIngest failure paths', () => {
       r2Prefix: 'episodes/e/localizations/zh-Hant',
     });
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
-    mockExtractUnifiedKeywords.mockResolvedValue({
-      keywords: ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
-      model: 'test-model',
-      thinkingModel: null,
-      provider: 'test-provider',
-      costUsd: 0.00002,
-    });
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [],
       model: 'test-model',
@@ -253,7 +244,7 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(200);
-    expect(result.costUsd).toBe(0.00002);
+    expect(result.costUsd).toBe(0);
     expect(result.episode.languageClassrooms).toEqual([]);
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
@@ -273,7 +264,7 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(201);
-    expect(result.costUsd).toBeCloseTo(0.00012, 10);
+    expect(result.costUsd).toBeCloseTo(0.0001, 10);
   });
 
   it('sums LLM costs for cached episodes with missing classrooms', async () => {
@@ -287,7 +278,7 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(200);
-    expect(result.costUsd).toBeCloseTo(0.00011, 10);
+    expect(result.costUsd).toBeCloseTo(0.00009, 10);
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
   });
 
@@ -392,7 +383,6 @@ describe('performIngest failure paths', () => {
         sourceLanguageCode: 'en',
         targetLanguageCodes: ['zh-Hant', 'ja'],
       }),
-      ['關鍵詞一', '關鍵詞二', '關鍵詞三'],
     );
   });
 
@@ -550,7 +540,7 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses default TTS metadata when env vars are blank', async () => {
+  it('uses default Fish Audio TTS metadata when env vars are blank', async () => {
     vi.stubEnv('GOOGLE_TTS_LANGUAGE_CODE', '');
     vi.stubEnv('GOOGLE_TTS_VOICE_NAME', '');
 
@@ -560,8 +550,8 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: '8957c0744def4b5aafb37103fa8c9efb',
       }),
     );
   });

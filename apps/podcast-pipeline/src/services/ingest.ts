@@ -22,14 +22,13 @@ import {
 } from './db.js';
 import { generateHls } from './hls.js';
 import {
-  extractUnifiedKeywords,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
 } from './llm.js';
 import { convertArticleToZhTW } from './opencc.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadHlsToR2 } from './storage.js';
-import { textToSpeech } from './tts.js';
+import { getTtsMetadata, textToSpeech } from './tts.js';
 
 export interface IngestResult {
   episode: EpisodeResponse;
@@ -239,9 +238,10 @@ function getTtsMetadataForLanguage(languageCode: string): {
     };
   }
 
+  const metadata = getTtsMetadata();
   return {
-    languageCode: process.env['GOOGLE_TTS_LANGUAGE_CODE'] || 'cmn-TW',
-    voiceName: process.env['GOOGLE_TTS_VOICE_NAME'] || 'cmn-TW-Wavenet-A',
+    languageCode: metadata.languageCode,
+    voiceName: metadata.voiceName,
   };
 }
 
@@ -271,28 +271,14 @@ async function ensureLanguageClassrooms(
       };
     }
 
-    const unifiedKeywordsResult = await step('extractUnifiedKeywords', () =>
-      extractUnifiedKeywords(
-        localization.title,
-        localization.raw_text ?? '',
-        localization.script ?? '',
-        sourceLanguageCode,
-      ),
-    );
-    costUsd += unifiedKeywordsResult.costUsd;
-    const unifiedKeywords = unifiedKeywordsResult.keywords;
-
     const generated = await step('generateLanguageClassrooms', () =>
-      generateLanguageClassroomsWithLLM(
-        {
-          title: localization.title,
-          articleText: localization.raw_text ?? '',
-          script: localization.script ?? '',
-          sourceLanguageCode,
-          targetLanguageCodes: missingTargets,
-        },
-        unifiedKeywords,
-      ),
+      generateLanguageClassroomsWithLLM({
+        title: localization.title,
+        articleText: localization.raw_text ?? '',
+        script: localization.script ?? '',
+        sourceLanguageCode,
+        targetLanguageCodes: missingTargets,
+      }),
     );
     costUsd += generated.costUsd;
 

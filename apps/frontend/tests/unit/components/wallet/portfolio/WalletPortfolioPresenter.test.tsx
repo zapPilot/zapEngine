@@ -103,6 +103,13 @@ vi.mock('@/lib/routing', () => ({
   }),
   useAppSearchParams: () => currentSearchParams,
   useAppPathname: () => '/bundle',
+  buildPathWithSearchParams: (
+    pathname: string,
+    searchParams: URLSearchParams,
+  ) => {
+    const searchString = searchParams.toString();
+    return searchString ? `${pathname}?${searchString}` : pathname;
+  },
 }));
 
 // Mock useToast hook

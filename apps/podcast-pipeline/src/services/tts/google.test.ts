@@ -60,9 +60,9 @@ import {
   concatenateAudioChunks,
   getClientOptions,
   splitTextIntoChunks,
+  synthesize as textToSpeech,
   synthesizeChunk,
-  textToSpeech,
-} from './tts.js';
+} from './google.js';
 
 describe('Google credentials', () => {
   afterEach(() => {
@@ -307,7 +307,7 @@ describe('concatenateAudioChunks', () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(200));
 
-    const { concatenateAudioChunks: concat } = await import('./tts.js');
+    const { concatenateAudioChunks: concat } = await import('./google.js');
     const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
     const result = await concat(chunks);
     expect(result).toBeInstanceOf(Buffer);
@@ -320,7 +320,7 @@ describe('concatenateAudioChunks', () => {
       throw new Error('unlink input file error');
     });
 
-    const { concatenateAudioChunks: concat } = await import('./tts.js');
+    const { concatenateAudioChunks: concat } = await import('./google.js');
     const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
     const result = await concat(chunks);
     expect(result).toBeInstanceOf(Buffer);
@@ -340,7 +340,7 @@ describe('concatenateAudioChunks', () => {
       throw new Error('unlink output file error');
     });
 
-    const { concatenateAudioChunks: concat } = await import('./tts.js');
+    const { concatenateAudioChunks: concat } = await import('./google.js');
     const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
     const result = await concat(chunks);
     expect(result).toBeInstanceOf(Buffer);
@@ -350,7 +350,7 @@ describe('concatenateAudioChunks', () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(400));
 
-    const { concatenateAudioChunks: concat } = await import('./tts.js');
+    const { concatenateAudioChunks: concat } = await import('./google.js');
     const chunks = [
       Buffer.alloc(100, 0x01),
       Buffer.alloc(100, 0x02),

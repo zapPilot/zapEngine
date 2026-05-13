@@ -600,8 +600,7 @@ class _KeywordChip extends StatelessWidget {
             children: [
               Text(
                 keyword.term,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                softWrap: true,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w800,
@@ -610,8 +609,7 @@ class _KeywordChip extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 supporting,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                softWrap: true,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                       height: 1.25,
