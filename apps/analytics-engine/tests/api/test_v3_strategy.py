@@ -273,20 +273,15 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         "eth_btc_deviation_dca",
         "spy_latch",
         "dma_overextension_dca_sell",
-        "extreme_fear_dca_buy",
         "fgi_downshift_dca_sell",
     ]
     spy_latch_rule = next(
         rule for rule in portfolio_rules if rule["name"] == "spy_latch"
     )
-    extreme_fear_rule = next(
-        rule for rule in portfolio_rules if rule["name"] == "extreme_fear_dca_buy"
-    )
     eth_btc_deviation_rule = next(
         rule for rule in portfolio_rules if rule["name"] == "eth_btc_deviation_dca"
     )
     assert eth_btc_deviation_rule["default_enabled"] is True
-    assert extreme_fear_rule["default_enabled"] is False
     assert spy_latch_rule["priority"] == 25
     assert spy_latch_rule["default_enabled"] is False
     assert isinstance(spy_latch_rule["description"], str)

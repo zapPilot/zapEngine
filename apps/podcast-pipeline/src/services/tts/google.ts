@@ -1,11 +1,7 @@
-import { randomUUID } from 'node:crypto';
-import { unlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
-import { ffmpeg } from '../../lib/ffmpeg.js';
-import type { TtsMetadata } from '../tts.js';
+import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
+import { concatMp3Buffers } from './audio-concat.js';
 
 type TextToSpeechClientOptions = ConstructorParameters<
   typeof TextToSpeechClient
@@ -133,49 +129,7 @@ export async function synthesizeChunk(text: string): Promise<Buffer> {
 export async function concatenateAudioChunks(
   chunks: Buffer[],
 ): Promise<Buffer> {
-  if (chunks.length === 1) {
-    return chunks[0]!;
-  }
-
-  const tempDir = tmpdir();
-  const inputFiles: string[] = [];
-  const outputFile = `${tempDir}/tts_${randomUUID()}.mp3`;
-
-  try {
-    for (const chunk of chunks) {
-      const inputFile = `${tempDir}/chunk_${randomUUID()}.mp3`;
-      writeFileSync(inputFile, chunk);
-      inputFiles.push(inputFile);
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      let command = ffmpeg();
-      inputFiles.forEach((file) => (command = command.input(file)));
-      const filterExpr = 'concat=n=' + inputFiles.length + ':v=0:a=1';
-      command
-        .complexFilter(filterExpr)
-        .on('end', () => resolve())
-        .on('error', (err: Error) => reject(err))
-        .save(outputFile);
-    });
-
-    const { readFileSync } = await import('node:fs');
-    const result = readFileSync(outputFile);
-    return result;
-  } finally {
-    for (const file of inputFiles) {
-      try {
-        unlinkSync(file);
-      } catch {
-        /* ignore */
-      }
-    }
-    try {
-      unlinkSync(outputFile);
-    } catch {
-      /* ignore */
-    }
-  }
+  return concatMp3Buffers(chunks);
 }
 
 export function getMetadata(): TtsMetadata {
@@ -186,6 +140,10 @@ export function getMetadata(): TtsMetadata {
   };
 }
 
+export function synthesize(
+  text: string,
+  opts?: TtsSynthesizeOptions,
+): Promise<Buffer>;
 export async function synthesize(text: string): Promise<Buffer> {
   const chunks = splitTextIntoChunks(text, MAX_BYTES);
 
@@ -200,5 +158,5 @@ export async function synthesize(text: string): Promise<Buffer> {
   const audioBuffers = await Promise.all(
     chunks.map((chunk) => synthesizeChunk(chunk)),
   );
-  return concatenateAudioChunks(audioBuffers);
+  return concatMp3Buffers(audioBuffers);
 }

@@ -19,6 +19,15 @@ describe('PillarsV2', () => {
       const heading = screen.getByRole('heading', { level: 2 });
       expect(heading).toHaveTextContent(/What the engine trades into/);
     });
+
+    it('renders the example allocation disclaimer', () => {
+      render(<PillarsV2 />);
+      expect(
+        screen.getByText(
+          'Example regime-based allocation. Actual weights shift with the live regime.',
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('pillars', () => {

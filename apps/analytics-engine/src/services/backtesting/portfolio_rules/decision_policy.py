@@ -2,7 +2,7 @@
 
 Rules are evaluated first-match-wins by explicit priority:
 cross-down exit, cross-up equal-weight, ETH/BTC ratio rotation,
-DMA overextension DCA sell, extreme-fear DCA buy, then FGI downshift DCA sell.
+DMA overextension DCA sell, then FGI downshift DCA sell.
 If different assets emit cross-up and cross-down on the same day, cross-down
 exits win and the cross-up rebalance can be reconsidered on the next eligible
 day.
@@ -41,9 +41,6 @@ from src.services.backtesting.portfolio_rules.cooldown_tracker import (
     RuleCooldownKey,
     RuleCooldownTracker,
 )
-from src.services.backtesting.portfolio_rules.extreme_fear_dca_buy import (
-    ExtremeFearDcaBuyRule,
-)
 from src.services.backtesting.risk import (
     RiskGuard,
     RiskGuardResult,
@@ -65,8 +62,6 @@ class _PortfolioRuleParams(Protocol):
     min_trade_interval_days: int | None
     max_trades_7d: int | None
     max_trades_30d: int | None
-    min_consecutive_extreme_fear_days: int
-    extreme_fear_buy_step: float
 
 
 @dataclass(frozen=True)
@@ -262,14 +257,7 @@ def build_portfolio_rules_for_params(
 
 
 def _rule_for_params(rule: _RuleT, params: _PortfolioRuleParams) -> _RuleT:
-    if isinstance(rule, ExtremeFearDcaBuyRule):
-        return replace(
-            rule,
-            min_consecutive_extreme_fear_days=(
-                params.min_consecutive_extreme_fear_days
-            ),
-            buy_step=params.extreme_fear_buy_step,
-        )
+    del params
     return rule
 
 

@@ -88,11 +88,6 @@ export const MESSAGES = {
         value: '+14.2%',
         detail: 'Above trend',
       },
-      {
-        label: 'Next rebal',
-        value: '02:14:00',
-        detail: 'Queued check',
-      },
     ],
   },
 
@@ -252,29 +247,6 @@ export const MESSAGES = {
         meta: 'EIP-7702 · multicall3',
         description:
           'Telegram delivers a pre-built bundle. EIP-7702 batch on supported wallets, multicall3 fallback. One signature, your keys.',
-      },
-    ],
-  },
-
-  // V2 feature attribution section
-  whyItWorks: {
-    title: 'What happens if we remove a feature?',
-    subtitle:
-      'Two leave-one-out ablations from the 500-day snapshot explain why this is a trading strategy first.',
-    source:
-      'Source: leave-one-out backtests, 500-day window, snapshot fixture pinned 2026-04-15.',
-    items: [
-      {
-        feature: 'DMA stable gating',
-        impact: '-96.96pp ROI',
-        description:
-          'Stops buying when crypto crosses below the 200-day moving average. It prevents the DCA-into-a-falling-knife failure mode.',
-      },
-      {
-        feature: 'Greed Sell Suppression',
-        impact: '-22.05pp ROI',
-        description:
-          'Holds through extreme-greed peaks instead of forcing early de-risking. It removes the emotional sell bias.',
       },
     ],
   },

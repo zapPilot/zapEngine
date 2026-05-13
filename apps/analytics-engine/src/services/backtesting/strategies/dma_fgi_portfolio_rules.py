@@ -89,8 +89,6 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "dma_overextension_threshold",
         "fgi_slope_reversal_threshold",
         "fgi_slope_recovery_threshold",
-        "min_consecutive_extreme_fear_days",
-        "extreme_fear_buy_step",
         "disabled_rules",
         "enabled_rules",
     }
@@ -110,8 +108,6 @@ _DMA_COERCION_SPEC: dict[str, Any] = {
     "dma_overextension_threshold": coerce_float,
     "fgi_slope_reversal_threshold": coerce_float,
     "fgi_slope_recovery_threshold": coerce_float,
-    "min_consecutive_extreme_fear_days": coerce_int,
-    "extreme_fear_buy_step": coerce_float,
 }
 
 
@@ -207,22 +203,6 @@ class DmaGatedFgiParams(BaseModel):
         default=0.05,
         ge=0.0,
         description="FGI slope threshold above which fear-recovery buy triggers.",
-    )
-    min_consecutive_extreme_fear_days: int = Field(
-        default=0,
-        ge=0,
-        description=(
-            "Consecutive extreme-fear days required before the extreme-fear "
-            "DCA buy rule can fire."
-        ),
-    )
-    extreme_fear_buy_step: float = Field(
-        default=0.01,
-        ge=0.0,
-        le=1.0,
-        description=(
-            "Fraction of available stable to allocate per extreme-fear DCA buy fire."
-        ),
     )
     disabled_rules: frozenset[str] = Field(
         default_factory=frozenset,

@@ -29,16 +29,18 @@ describe('TTS provider dispatcher', () => {
     vi.clearAllMocks();
     mockFishSynthesize.mockResolvedValue(Buffer.from('fish-audio'));
     mockGoogleSynthesize.mockResolvedValue(Buffer.from('google'));
-    mockFishGetMetadata.mockReturnValue({
-      provider: 'fish-audio',
-      languageCode: 'zh-Hant',
-      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
-    });
-    mockGoogleGetMetadata.mockReturnValue({
+    mockFishGetMetadata.mockImplementation(
+      (opts?: { languageCode?: string }) => ({
+        provider: 'fish-audio',
+        languageCode: opts?.languageCode ?? 'zh-Hant',
+        voiceName: 'debb4c1065114ffda03f3a60abdcc421',
+      }),
+    );
+    mockGoogleGetMetadata.mockImplementation(() => ({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
-    });
+    }));
   });
 
   afterEach(() => {
@@ -49,7 +51,9 @@ describe('TTS provider dispatcher', () => {
     const result = await textToSpeech('測試文字');
 
     expect(result).toEqual(Buffer.from('fish-audio'));
-    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字');
+    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
+      languageCode: 'zh-Hant',
+    });
     expect(mockGoogleSynthesize).not.toHaveBeenCalled();
   });
 
@@ -59,7 +63,9 @@ describe('TTS provider dispatcher', () => {
     await expect(textToSpeech('測試文字')).resolves.toEqual(
       Buffer.from('fish-audio'),
     );
-    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字');
+    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
+      languageCode: 'zh-Hant',
+    });
     expect(mockGoogleSynthesize).not.toHaveBeenCalled();
   });
 
@@ -69,8 +75,20 @@ describe('TTS provider dispatcher', () => {
     await expect(textToSpeech('測試文字')).resolves.toEqual(
       Buffer.from('google'),
     );
-    expect(mockGoogleSynthesize).toHaveBeenCalledWith('測試文字');
+    expect(mockGoogleSynthesize).toHaveBeenCalledWith('測試文字', {
+      languageCode: 'zh-Hant',
+    });
     expect(mockFishSynthesize).not.toHaveBeenCalled();
+  });
+
+  it('passes requested language code to the selected provider', async () => {
+    await expect(
+      textToSpeech('market liquidity', { languageCode: 'en' }),
+    ).resolves.toEqual(Buffer.from('fish-audio'));
+
+    expect(mockFishSynthesize).toHaveBeenCalledWith('market liquidity', {
+      languageCode: 'en',
+    });
   });
 
   it('throws for unsupported providers', async () => {
@@ -89,6 +107,15 @@ describe('TTS provider dispatcher', () => {
     });
     expect(mockFishGetMetadata).toHaveBeenCalled();
     expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
+  });
+
+  it('returns metadata for a requested provider language', () => {
+    expect(getTtsMetadata({ languageCode: 'en' })).toEqual({
+      provider: 'fish-audio',
+      languageCode: 'en',
+      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
+    });
+    expect(mockFishGetMetadata).toHaveBeenCalledWith({ languageCode: 'en' });
   });
 
   it('returns Google metadata when TTS_PROVIDER=google', () => {

@@ -38,9 +38,9 @@ def _intent(target: dict[str, float]) -> AllocationIntent:
     return AllocationIntent(
         action="buy",
         target_allocation=target,
-        allocation_name="portfolio_extreme_fear_dca_buy",
+        allocation_name="test_portfolio_rebalance_buy",
         immediate=False,
-        reason="portfolio_extreme_fear_dca_buy",
+        reason="test_portfolio_rebalance_buy",
         rule_group="dma_fgi",
         decision_score=1.0,
     )

@@ -615,7 +615,7 @@
 
 .v2-root .regime-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.025);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -667,6 +667,11 @@
   line-height: 1.45;
 }
 
+.v2-root .regime-strip-item.is-loading {
+  opacity: 0.58;
+  transition: opacity 180ms ease;
+}
+
 .v2-root .v2-section {
   padding: 92px 40px;
 }
@@ -678,6 +683,7 @@
 
 .v2-root .section-kicker,
 .v2-root .pillar-tag,
+.v2-root .pillar-disclaimer,
 .v2-root .proof-disclaimer,
 .v2-root .protocol-card,
 .v2-root .equity-curve,
@@ -733,6 +739,15 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-top: 38px;
+}
+
+.v2-root .pillar-disclaimer {
+  max-width: 620px;
+  margin: 18px 0 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .v2-root .how-step-grid {
@@ -1548,20 +1563,8 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .v2-root .regime-strip {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .v2-root .protocol-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .v2-root .regime-strip-item:nth-child(2) {
-    border-right: 0;
-  }
-
-  .v2-root .regime-strip-item:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--line);
   }
 }
 
@@ -1638,7 +1641,7 @@
     border-right: 0;
   }
 
-  .v2-root .regime-strip-item:nth-child(3) {
+  .v2-root .regime-strip-item:not(:last-child) {
     border-bottom: 1px solid var(--line);
   }
 

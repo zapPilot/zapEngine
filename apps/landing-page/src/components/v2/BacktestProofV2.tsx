@@ -26,6 +26,7 @@ const CHART_PADDING = {
 const PLOT_WIDTH = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
 const PLOT_HEIGHT = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
 const EQUITY_SERIES = equityCurve.series as EquitySeries[];
+const Y_TICKS = [50, 100, 150, 200];
 const ALL_VALUES = EQUITY_SERIES.flatMap((series) =>
   series.values.map((point) => point.value),
 );
@@ -33,8 +34,8 @@ const DOMAIN_MIN =
   Math.floor(
     Math.min(...ALL_VALUES, 100 + equityCurve.drawdownBand.dcaPercent) / 10,
   ) * 10;
-const DOMAIN_MAX = Math.ceil(Math.max(...ALL_VALUES) / 10) * 10 + 10;
-const Y_TICKS = [50, 100, 150, 200];
+const DOMAIN_MAX =
+  Math.ceil(Math.max(...ALL_VALUES, ...Y_TICKS) / 10) * 10 + 10;
 
 function xForPoint(index: number, totalPoints: number) {
   if (totalPoints <= 1) {

@@ -219,6 +219,20 @@ describe('textToSpeech', () => {
     expect(result).toBeInstanceOf(Buffer);
   });
 
+  it('accepts a classroom language option while using the current Google voice mapping', async () => {
+    const result = await textToSpeech('こんにちは', { languageCode: 'ja' });
+
+    expect(result).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalledWith({
+      input: { text: 'こんにちは' },
+      voice: expect.objectContaining({
+        languageCode: 'cmn-TW',
+        name: 'cmn-TW-Wavenet-A',
+      }),
+      audioConfig: { audioEncoding: 'MP3' },
+    });
+  });
+
   it('splits text into multiple chunks when needed', async () => {
     const longText =
       '第一章內容。這是第二章內容。這是第三章內容。這是第四章內容。這是第五章內容。';

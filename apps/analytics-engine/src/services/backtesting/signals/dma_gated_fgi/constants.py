@@ -34,7 +34,6 @@ SCORE_BY_REASON = {
     "ath_sell": -1.0,
     "portfolio_cross_down_exit": -1.0,
     "portfolio_cross_up_equal_weight": 1.0,
-    "portfolio_extreme_fear_dca_buy": 1.0,
     "portfolio_dma_overextension_dca_sell": -0.8,
     "portfolio_fgi_downshift_dca_sell": -0.6,
 }

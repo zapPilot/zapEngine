@@ -10,6 +10,7 @@ import type {
 const {
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeLocalizationByEpisodeId,
+  mockConcatMp3Buffers,
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
@@ -17,6 +18,7 @@ const {
   mockInsertEpisodeLocalization,
   mockListLanguageClassroomsByLocalizationId,
   mockScrapeArticle,
+  mockSynthesizeClassroomAudio,
   mockTextToSpeech,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
@@ -26,6 +28,7 @@ const {
 } = vi.hoisted(() => ({
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
+  mockConcatMp3Buffers: vi.fn(),
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
@@ -33,6 +36,7 @@ const {
   mockInsertEpisodeLocalization: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockScrapeArticle: vi.fn(),
+  mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
@@ -48,6 +52,12 @@ vi.mock('./db.js', () => ({
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
+  toLanguageClassroomLesson: (row: LanguageClassroomRow) => ({
+    sourceLanguageCode: row.source_language_code,
+    targetLanguageCode: row.target_language_code,
+    oneLiner: row.one_liner,
+    keywords: row.keywords,
+  }),
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
     localization: EpisodeLocalizationRow,
@@ -74,6 +84,14 @@ vi.mock('./storage.js', () => ({
 
 vi.mock('./hls.js', () => ({
   generateHls: mockGenerateHls,
+}));
+
+vi.mock('./tts/audio-concat.js', () => ({
+  concatMp3Buffers: mockConcatMp3Buffers,
+}));
+
+vi.mock('./podcast/classroom-audio.js', () => ({
+  synthesizeClassroomAudio: mockSynthesizeClassroomAudio,
 }));
 
 vi.mock('./tts.js', async (importOriginal) => ({
@@ -185,6 +203,8 @@ describe('performIngest failure paths', () => {
       costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
+    mockSynthesizeClassroomAudio.mockResolvedValue(null);
+    mockConcatMp3Buffers.mockResolvedValue(Buffer.from('combined-audio'));
   });
 
   afterEach(() => {
@@ -265,6 +285,134 @@ describe('performIngest failure paths', () => {
 
     expect(result.statusCode).toBe(201);
     expect(result.costUsd).toBeCloseTo(0.0001, 10);
+  });
+
+  it('publishes a single HLS playlist from main audio followed by generated classroom audio', async () => {
+    const lessons = [
+      {
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'ja',
+        oneLiner: 'Japanese lesson',
+        keywords: [],
+      },
+      {
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'en',
+        oneLiner: 'English lesson',
+        keywords: [],
+      },
+    ];
+    mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
+      lessons,
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00009,
+    });
+    mockUpsertLanguageClassrooms.mockResolvedValue([
+      classroomRow({
+        id: 'classroom-ja',
+        target_language_code: 'ja',
+        one_liner: 'Japanese lesson',
+      }),
+      classroomRow({
+        id: 'classroom-en',
+        target_language_code: 'en',
+        one_liner: 'English lesson',
+      }),
+    ]);
+    mockSynthesizeClassroomAudio
+      .mockResolvedValueOnce(Buffer.from('ja-classroom'))
+      .mockResolvedValueOnce(Buffer.from('en-classroom'));
+
+    await performIngest('https://example.com/article', 'zh-Hant');
+
+    expect(mockSynthesizeClassroomAudio).toHaveBeenCalledTimes(2);
+    expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
+      expect.objectContaining({ targetLanguageCode: 'ja' }),
+      { episodeId: episodeRow().id },
+    );
+    expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
+      expect.objectContaining({ targetLanguageCode: 'en' }),
+      { episodeId: episodeRow().id },
+    );
+    expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(1);
+    expect(mockConcatMp3Buffers).toHaveBeenCalledWith([
+      Buffer.from('audio'),
+      Buffer.from('ja-classroom'),
+      Buffer.from('en-classroom'),
+    ]);
+    expect(mockGenerateHls).toHaveBeenCalledTimes(1);
+    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('combined-audio'));
+  });
+
+  it('publishes main audio only when classroom LLM generation fails before HLS generation', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockGenerateLanguageClassroomsWithLLM.mockRejectedValue(
+      new Error('LLM timeout'),
+    );
+
+    await performIngest('https://example.com/article', 'zh-Hant');
+
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
+    expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
+    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[/ingest] language classroom generation failed:',
+      expect.objectContaining({
+        episodeLocalizationId: localizationRow().id,
+        sourceLanguageCode: 'zh-Hant',
+        message: '[step:generateLanguageClassrooms] LLM timeout',
+      }),
+    );
+  });
+
+  it('skips only the classroom audio item that fails synthesis', async () => {
+    mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
+      lessons: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'Japanese lesson',
+          keywords: [],
+        },
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'en',
+          oneLiner: 'English lesson',
+          keywords: [],
+        },
+      ],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00009,
+    });
+    mockUpsertLanguageClassrooms.mockResolvedValue([
+      classroomRow({
+        id: 'classroom-ja',
+        target_language_code: 'ja',
+        one_liner: 'Japanese lesson',
+      }),
+      classroomRow({
+        id: 'classroom-en',
+        target_language_code: 'en',
+        one_liner: 'English lesson',
+      }),
+    ]);
+    mockSynthesizeClassroomAudio
+      .mockResolvedValueOnce(Buffer.from('ja-classroom'))
+      .mockResolvedValueOnce(null);
+
+    await performIngest('https://example.com/article', 'zh-Hant');
+
+    expect(mockConcatMp3Buffers).toHaveBeenCalledWith([
+      Buffer.from('audio'),
+      Buffer.from('ja-classroom'),
+    ]);
+    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('combined-audio'));
   });
 
   it('sums LLM costs for cached episodes with missing classrooms', async () => {

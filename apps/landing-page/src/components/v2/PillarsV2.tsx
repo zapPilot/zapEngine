@@ -32,6 +32,10 @@ export function PillarsV2() {
       kicker="Three-pillar allocator"
     >
       <h2 id="pillars-title">What the engine trades into.</h2>
+      <p className="pillar-disclaimer">
+        Example regime-based allocation. Actual weights shift with the live
+        regime.
+      </p>
       <div className="pillar-card-grid">
         {PILLARS.map((pillar) => (
           <article className="pillar-card" key={pillar.name}>

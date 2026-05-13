@@ -63,7 +63,6 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
             "dma_overextension_threshold": 0.25,
             "fgi_slope_reversal_threshold": -0.07,
             "fgi_slope_recovery_threshold": 0.06,
-            "min_consecutive_extreme_fear_days": 3,
             "disabled_rules": ["cross_down_exit"],
         },
     )
@@ -79,24 +78,23 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
         "fgi_slope_reversal_threshold": -0.07,
         "fgi_slope_recovery_threshold": 0.06,
     }
-    assert nested["extreme_fear"] == {"min_consecutive_days": 3, "buy_step": 0.01}
     assert nested["disabled_rules"] == ["cross_down_exit"]
 
 
 def test_dma_public_params_round_trip_disabled_portfolio_rules() -> None:
     runtime = public_params.public_params_to_runtime_params(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        {"disabled_rules": ["extreme_fear_dca_buy"]},
+        {"disabled_rules": ["spy_latch"]},
     )
 
-    assert runtime["disabled_rules"] == ["extreme_fear_dca_buy"]
+    assert runtime["disabled_rules"] == ["spy_latch"]
 
     nested = public_params.runtime_params_to_public_params(
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
         runtime,
     )
 
-    assert nested["disabled_rules"] == ["extreme_fear_dca_buy"]
+    assert nested["disabled_rules"] == ["spy_latch"]
 
 
 def test_normalize_saved_strategy_public_params_rejects_unknown_portfolio_rule() -> (

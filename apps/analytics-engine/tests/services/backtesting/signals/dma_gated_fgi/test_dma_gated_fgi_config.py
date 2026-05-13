@@ -65,21 +65,21 @@ def test_dma_params_validate_disabled_rule_names() -> None:
 
 def test_dma_params_public_serialization_sorts_disabled_rules() -> None:
     params = DmaGatedFgiParams.from_public_params(
-        {"disabled_rules": ["extreme_fear_dca_buy", "cross_down_exit"]}
+        {"disabled_rules": ["spy_latch", "cross_down_exit"]}
     )
 
     assert params.to_public_params()["disabled_rules"] == [
         "cross_down_exit",
-        "extreme_fear_dca_buy",
+        "spy_latch",
     ]
 
 
 def test_dma_params_public_serialization_sorts_enabled_portfolio_rules() -> None:
     params = DmaGatedFgiParams.from_public_params(
-        {"enabled_rules": ["extreme_fear_dca_buy", "cross_down_exit"]}
+        {"enabled_rules": ["spy_latch", "cross_down_exit"]}
     )
 
     assert params.to_public_params()["enabled_rules"] == [
         "cross_down_exit",
-        "extreme_fear_dca_buy",
+        "spy_latch",
     ]

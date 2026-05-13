@@ -23,6 +23,7 @@ const {
   mockMarkEpisodeListened,
   mockScrapeArticle,
   mockServe,
+  mockSynthesizeClassroomAudio,
   mockTextToSpeech,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
@@ -45,6 +46,7 @@ const {
   mockMarkEpisodeListened: vi.fn(),
   mockScrapeArticle: vi.fn(),
   mockServe: vi.fn(),
+  mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
@@ -75,6 +77,12 @@ vi.mock('./services/db.js', () => ({
     row: EpisodeListRow,
     languageClassrooms?: LanguageClassroomRow[],
   ) => episodeListResponse(row, languageClassrooms),
+  toLanguageClassroomLesson: (row: LanguageClassroomRow) => ({
+    sourceLanguageCode: row.source_language_code,
+    targetLanguageCode: row.target_language_code,
+    oneLiner: row.one_liner,
+    keywords: row.keywords,
+  }),
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
     localization: EpisodeLocalizationRow,
@@ -101,6 +109,10 @@ vi.mock('./services/storage.js', () => ({
 
 vi.mock('./services/hls.js', () => ({
   generateHls: mockGenerateHls,
+}));
+
+vi.mock('./services/podcast/classroom-audio.js', () => ({
+  synthesizeClassroomAudio: mockSynthesizeClassroomAudio,
 }));
 
 vi.mock('./services/tts.js', async (importOriginal) => ({
@@ -391,6 +403,7 @@ describe('POST /ingest pipeline', () => {
       },
     );
     mockTextToSpeech.mockResolvedValue(Buffer.from('audio'));
+    mockSynthesizeClassroomAudio.mockResolvedValue(null);
     mockGenerateHls.mockResolvedValue({
       files: [
         {

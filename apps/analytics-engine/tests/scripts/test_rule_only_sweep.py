@@ -9,27 +9,27 @@ def test_build_rule_only_compare_request_adds_baseline_and_rule_variants() -> No
         end_date="2026-04-15",
         total_capital=1_000.0,
         baseline_rules=frozenset({"cross_down_exit", "cross_up_equal_weight"}),
-        candidate_rules=("extreme_fear_dca_buy", "cross_down_exit"),
+        candidate_rules=("spy_latch", "dma_overextension_dca_sell"),
         decision_log_dir="/tmp/rules",
-        extra_params={"extreme_fear": {"min_consecutive_days": 3}},
+        extra_params={"trade_quota": {"min_trade_interval_days": 3}},
     )
 
     assert request["emit_decision_log"] is True
     assert request["decision_log_dir"] == "/tmp/rules"
     assert [config["config_id"] for config in request["configs"]] == [
         "baseline",
-        "baseline_plus_extreme_fear_dca_buy",
-        "baseline_plus_cross_down_exit",
+        "baseline_plus_spy_latch",
+        "baseline_plus_dma_overextension_dca_sell",
     ]
     assert request["configs"][0]["params"]["enabled_rules"] == [
         "cross_down_exit",
         "cross_up_equal_weight",
     ]
-    assert request["configs"][0]["params"]["extreme_fear"] == {
-        "min_consecutive_days": 3
+    assert request["configs"][0]["params"]["trade_quota"] == {
+        "min_trade_interval_days": 3
     }
     assert request["configs"][1]["params"]["enabled_rules"] == [
         "cross_down_exit",
         "cross_up_equal_weight",
-        "extreme_fear_dca_buy",
+        "spy_latch",
     ]
