@@ -212,22 +212,43 @@ describe('textToSpeech', () => {
     expect(result).toBeInstanceOf(Buffer);
   });
 
-  it('uses custom language code from env', async () => {
-    vi.stubEnv('GOOGLE_TTS_LANGUAGE_CODE', 'en-US');
-    vi.stubEnv('GOOGLE_TTS_VOICE_NAME', 'en-US-Wavenet-A');
-    const result = await textToSpeech('Hello world');
+  it('uses custom Google voice options from resolved language config', async () => {
+    const result = await textToSpeech('Hello world', {
+      languageCode: 'en',
+      config: {
+        provider: 'google',
+        languageCode: 'en-US',
+        voiceName: 'en-US-Wavenet-A',
+      },
+    });
+
     expect(result).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalledWith({
+      input: { text: 'Hello world' },
+      voice: {
+        languageCode: 'en-US',
+        name: 'en-US-Wavenet-A',
+      },
+      audioConfig: { audioEncoding: 'MP3' },
+    });
   });
 
-  it('accepts a classroom language option while using the current Google voice mapping', async () => {
-    const result = await textToSpeech('こんにちは', { languageCode: 'ja' });
+  it('accepts a classroom language option with its configured Google voice mapping', async () => {
+    const result = await textToSpeech('こんにちは', {
+      languageCode: 'ja',
+      config: {
+        provider: 'google',
+        languageCode: 'ja-JP',
+        voiceName: 'ja-JP-Wavenet-A',
+      },
+    });
 
     expect(result).toBeInstanceOf(Buffer);
     expect(mockSynthesize).toHaveBeenCalledWith({
       input: { text: 'こんにちは' },
       voice: expect.objectContaining({
-        languageCode: 'cmn-TW',
-        name: 'cmn-TW-Wavenet-A',
+        languageCode: 'ja-JP',
+        name: 'ja-JP-Wavenet-A',
       }),
       audioConfig: { audioEncoding: 'MP3' },
     });

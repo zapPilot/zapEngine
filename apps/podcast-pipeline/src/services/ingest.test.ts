@@ -108,8 +108,6 @@ const { performIngest } = await import('./ingest.js');
 describe('performIngest failure paths', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv('GOOGLE_TTS_LANGUAGE_CODE', 'cmn-TW');
-    vi.stubEnv('GOOGLE_TTS_VOICE_NAME', 'cmn-TW-Wavenet-A');
     mockFindEpisodeBySourceUrl.mockResolvedValue(null);
     mockScrapeArticle.mockResolvedValue({
       title: '软件更新',
@@ -239,7 +237,9 @@ describe('performIngest failure paths', () => {
       performIngest('https://example.com/article', 'zh-Hant'),
     ).rejects.toThrow('[step:uploadHlsToR2] R2 upload failed');
 
-    expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script');
+    expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
+      languageCode: 'zh-Hant',
+    });
     expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
       localizationRow().id,
@@ -327,6 +327,9 @@ describe('performIngest failure paths', () => {
 
     await performIngest('https://example.com/article', 'zh-Hant');
 
+    expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
+      languageCode: 'zh-Hant',
+    });
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledTimes(2);
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
       expect.objectContaining({ targetLanguageCode: 'ja' }),
@@ -517,13 +520,13 @@ describe('performIngest failure paths', () => {
     expect(mockScrapeArticle).not.toHaveBeenCalled();
     expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
-    expect(mockTextToSpeech).toHaveBeenCalledWith('');
+    expect(mockTextToSpeech).toHaveBeenCalledWith('', { languageCode: 'en' });
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'en',
-        ttsVoiceName: '',
+        ttsLanguageCode: 'en-US',
+        ttsVoiceName: 'en-US-Wavenet-A',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
@@ -644,7 +647,7 @@ describe('performIngest failure paths', () => {
     expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
   });
 
-  it('uses empty voice name for non-default language TTS', async () => {
+  it('uses per-language provider metadata for non-default language TTS', async () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
       localizationRow({
@@ -661,7 +664,8 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsVoiceName: '',
+        ttsLanguageCode: 'ja-JP',
+        ttsVoiceName: 'ja-JP-Wavenet-A',
       }),
     );
   });
@@ -688,10 +692,7 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses default Fish Audio TTS metadata when env vars are blank', async () => {
-    vi.stubEnv('GOOGLE_TTS_LANGUAGE_CODE', '');
-    vi.stubEnv('GOOGLE_TTS_VOICE_NAME', '');
-
+  it('uses default Fish Audio TTS metadata for zh-Hant', async () => {
     await performIngest('https://example.com/article', 'zh-Hant');
 
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(

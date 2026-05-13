@@ -13,6 +13,7 @@ zapEngine/
 │   ├── frontend            # React 19 + Vite — dashboard SPA
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── mobile              # Flutter — From Fed to Chain podcast app
+│   ├── pitch-deck          # Static Reveal.js — Markdown pitch deck (port 3010)
 │   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
     ├── design-tokens       # Shared Zap Pilot brand tokens for web + Flutter
@@ -31,6 +32,7 @@ zapEngine/
 | frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
 | landing-page     | TypeScript   | Next.js 15        | Vercel                 |
 | mobile           | Dart         | Flutter           | App Store / Play Store |
+| pitch-deck       | HTML/Markdown| Reveal.js         | GitHub Pages           |
 | podcast-pipeline | TypeScript   | Hono 4.10         | Fly.io                 |
 
 ## Prerequisites
@@ -66,6 +68,9 @@ pnpm dev
 
 # Start landing page only
 pnpm dev:landing
+
+# Start pitch deck only
+pnpm --filter @zapengine/pitch-deck dev
 
 # Run the mobile app
 pnpm --filter @zapengine/mobile dev

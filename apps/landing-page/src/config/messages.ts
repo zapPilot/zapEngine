@@ -49,7 +49,7 @@ export const MESSAGES = {
   hero: {
     badge: 'Disciplined Portfolio Autopilot',
     title: {
-      primary: 'BlackRock in your wallet.',
+      primary: 'A Non-Custodial BlackRock in Your Wallet.',
     },
     subtitle:
       'Rules-based across S&P500, BTC/ETH, and stables — bundled into one signature you keep.',

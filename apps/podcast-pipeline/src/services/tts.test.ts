@@ -30,73 +30,73 @@ describe('TTS provider dispatcher', () => {
     mockFishSynthesize.mockResolvedValue(Buffer.from('fish-audio'));
     mockGoogleSynthesize.mockResolvedValue(Buffer.from('google'));
     mockFishGetMetadata.mockImplementation(
-      (opts?: { languageCode?: string }) => ({
+      (opts?: { languageCode?: string; config?: { modelId?: string } }) => ({
         provider: 'fish-audio',
         languageCode: opts?.languageCode ?? 'zh-Hant',
-        voiceName: 'debb4c1065114ffda03f3a60abdcc421',
+        voiceName: opts?.config?.modelId ?? 'debb4c1065114ffda03f3a60abdcc421',
       }),
     );
-    mockGoogleGetMetadata.mockImplementation(() => ({
-      provider: 'google',
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
-    }));
+    mockGoogleGetMetadata.mockImplementation(
+      (opts?: { config?: { languageCode?: string; voiceName?: string } }) => ({
+        provider: 'google',
+        languageCode: opts?.config?.languageCode ?? 'cmn-TW',
+        voiceName: opts?.config?.voiceName ?? 'cmn-TW-Wavenet-A',
+      }),
+    );
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to Fish Audio when TTS_PROVIDER is unset', async () => {
+  it('defaults zh-Hant to Fish Audio when no language is specified', async () => {
     const result = await textToSpeech('測試文字');
 
     expect(result).toEqual(Buffer.from('fish-audio'));
     expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
       languageCode: 'zh-Hant',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
     });
     expect(mockGoogleSynthesize).not.toHaveBeenCalled();
   });
 
-  it('routes to Fish Audio when TTS_PROVIDER=fish-audio', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+  it('routes classroom target languages to Google by default', async () => {
+    await expect(
+      textToSpeech('market liquidity', { languageCode: 'en' }),
+    ).resolves.toEqual(Buffer.from('google'));
 
-    await expect(textToSpeech('測試文字')).resolves.toEqual(
-      Buffer.from('fish-audio'),
-    );
-    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
-      languageCode: 'zh-Hant',
-    });
-    expect(mockGoogleSynthesize).not.toHaveBeenCalled();
-  });
-
-  it('routes to Google when TTS_PROVIDER=google', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'google');
-
-    await expect(textToSpeech('測試文字')).resolves.toEqual(
-      Buffer.from('google'),
-    );
-    expect(mockGoogleSynthesize).toHaveBeenCalledWith('測試文字', {
-      languageCode: 'zh-Hant',
+    expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
+      languageCode: 'en',
+      config: {
+        provider: 'google',
+        languageCode: 'en-US',
+        voiceName: 'en-US-Wavenet-A',
+      },
     });
     expect(mockFishSynthesize).not.toHaveBeenCalled();
   });
 
-  it('passes requested language code to the selected provider', async () => {
+  it('ignores TTS env overrides when routing because config is code-owned', async () => {
+    vi.stubEnv('TTS_EN_PROVIDER', 'fish-audio');
+    vi.stubEnv('TTS_EN_MODEL_ID', 'custom-en-model');
+
     await expect(
       textToSpeech('market liquidity', { languageCode: 'en' }),
-    ).resolves.toEqual(Buffer.from('fish-audio'));
+    ).resolves.toEqual(Buffer.from('google'));
 
-    expect(mockFishSynthesize).toHaveBeenCalledWith('market liquidity', {
+    expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
       languageCode: 'en',
+      config: {
+        provider: 'google',
+        languageCode: 'en-US',
+        voiceName: 'en-US-Wavenet-A',
+      },
     });
-  });
-
-  it('throws for unsupported providers', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'elevenlabs');
-
-    await expect(textToSpeech('測試文字')).rejects.toThrow(
-      'Unsupported TTS_PROVIDER "elevenlabs". Expected "fish-audio" or "google".',
-    );
+    expect(mockFishSynthesize).not.toHaveBeenCalled();
   });
 
   it('returns Fish Audio metadata by default', () => {
@@ -105,28 +105,49 @@ describe('TTS provider dispatcher', () => {
       languageCode: 'zh-Hant',
       voiceName: 'debb4c1065114ffda03f3a60abdcc421',
     });
-    expect(mockFishGetMetadata).toHaveBeenCalled();
+    expect(mockFishGetMetadata).toHaveBeenCalledWith({
+      languageCode: 'zh-Hant',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
+    });
     expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
   });
 
-  it('returns metadata for a requested provider language', () => {
+  it('returns metadata for a requested classroom language', () => {
     expect(getTtsMetadata({ languageCode: 'en' })).toEqual({
-      provider: 'fish-audio',
-      languageCode: 'en',
-      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
+      provider: 'google',
+      languageCode: 'en-US',
+      voiceName: 'en-US-Wavenet-A',
     });
-    expect(mockFishGetMetadata).toHaveBeenCalledWith({ languageCode: 'en' });
+    expect(mockGoogleGetMetadata).toHaveBeenCalledWith({
+      languageCode: 'en',
+      config: {
+        provider: 'google',
+        languageCode: 'en-US',
+        voiceName: 'en-US-Wavenet-A',
+      },
+    });
   });
 
-  it('returns Google metadata when TTS_PROVIDER=google', () => {
-    vi.stubEnv('TTS_PROVIDER', 'google');
+  it('ignores TTS env overrides when returning metadata', () => {
+    vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'google');
 
     expect(getTtsMetadata()).toEqual({
-      provider: 'google',
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
+      provider: 'fish-audio',
+      languageCode: 'zh-Hant',
+      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
     });
-    expect(mockGoogleGetMetadata).toHaveBeenCalled();
-    expect(mockFishGetMetadata).not.toHaveBeenCalled();
+    expect(mockFishGetMetadata).toHaveBeenCalledWith({
+      languageCode: 'zh-Hant',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'debb4c1065114ffda03f3a60abdcc421',
+        engine: 's2-pro',
+      },
+    });
+    expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
   });
 });

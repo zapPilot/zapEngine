@@ -10,8 +10,13 @@ import {
   getMetadata as getGoogleMetadata,
   synthesize as synthesizeWithGoogle,
 } from './tts/google.js';
+import {
+  getTtsConfig,
+  type TtsLanguageConfig,
+  type TtsProvider,
+} from './tts/tts-config.js';
 
-export type TtsProvider = 'fish-audio' | 'google';
+export type { TtsLanguageConfig, TtsProvider } from './tts/tts-config.js';
 
 export interface TtsMetadata {
   provider: TtsProvider;
@@ -21,6 +26,7 @@ export interface TtsMetadata {
 
 export interface TtsSynthesizeOptions {
   languageCode: LanguageClassroomLanguageCode;
+  config: TtsLanguageConfig;
 }
 
 interface TtsProviderModule {
@@ -28,20 +34,8 @@ interface TtsProviderModule {
   getMetadata(opts: TtsSynthesizeOptions): TtsMetadata;
 }
 
-function getProviderName(): TtsProvider {
-  const provider = process.env['TTS_PROVIDER']?.trim() || 'fish-audio';
-
-  if (provider === 'fish-audio' || provider === 'google') {
-    return provider;
-  }
-
-  throw new Error(
-    `Unsupported TTS_PROVIDER "${provider}". Expected "fish-audio" or "google".`,
-  );
-}
-
-function getProvider(): TtsProviderModule {
-  switch (getProviderName()) {
+function getProvider(config: TtsLanguageConfig): TtsProviderModule {
+  switch (config.provider) {
     case 'fish-audio':
       return {
         getMetadata: getFishAudioMetadata,
@@ -58,8 +52,11 @@ function getProvider(): TtsProviderModule {
 function normalizeTtsOptions(opts?: {
   languageCode?: LanguageClassroomLanguageCode;
 }): TtsSynthesizeOptions {
+  const languageCode = opts?.languageCode ?? DEFAULT_LANGUAGE_CODE;
+
   return {
-    languageCode: opts?.languageCode ?? DEFAULT_LANGUAGE_CODE,
+    languageCode,
+    config: getTtsConfig(languageCode),
   };
 }
 
@@ -67,11 +64,13 @@ export async function textToSpeech(
   text: string,
   opts?: { languageCode?: LanguageClassroomLanguageCode },
 ): Promise<Buffer> {
-  return getProvider().synthesize(text, normalizeTtsOptions(opts));
+  const ttsOptions = normalizeTtsOptions(opts);
+  return getProvider(ttsOptions.config).synthesize(text, ttsOptions);
 }
 
 export function getTtsMetadata(opts?: {
   languageCode?: LanguageClassroomLanguageCode;
 }): TtsMetadata {
-  return getProvider().getMetadata(normalizeTtsOptions(opts));
+  const ttsOptions = normalizeTtsOptions(opts);
+  return getProvider(ttsOptions.config).getMetadata(ttsOptions);
 }

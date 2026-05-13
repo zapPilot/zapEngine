@@ -526,6 +526,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/design-tokens
 
+  apps/pitch-deck: {}
+
   apps/podcast-pipeline:
     dependencies:
       '@aws-sdk/client-s3':

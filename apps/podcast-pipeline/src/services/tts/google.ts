@@ -15,6 +15,15 @@ function getClient(): TextToSpeechClient {
 }
 
 const MAX_BYTES = 4800;
+const DEFAULT_GOOGLE_VOICE = {
+  languageCode: 'cmn-TW',
+  voiceName: 'cmn-TW-Wavenet-A',
+} as const;
+
+interface GoogleVoiceOptions {
+  languageCode: string;
+  voiceName: string;
+}
 
 export function getClientOptions(): TextToSpeechClientOptions | undefined {
   const rawCredentials = process.env['GOOGLE_APPLICATION_CREDENTIALS_BASE64'];
@@ -109,13 +118,16 @@ function splitOversizedSentence(sentence: string, maxBytes: number): string[] {
   return chunks;
 }
 
-export async function synthesizeChunk(text: string): Promise<Buffer> {
-  const languageCode = process.env['GOOGLE_TTS_LANGUAGE_CODE'] || 'cmn-TW';
-  const name = process.env['GOOGLE_TTS_VOICE_NAME'] || 'cmn-TW-Wavenet-A';
-
+export async function synthesizeChunk(
+  text: string,
+  voiceOptions: GoogleVoiceOptions = DEFAULT_GOOGLE_VOICE,
+): Promise<Buffer> {
   const [response] = await getClient().synthesizeSpeech({
     input: { text },
-    voice: { languageCode, name },
+    voice: {
+      languageCode: voiceOptions.languageCode,
+      name: voiceOptions.voiceName,
+    },
     audioConfig: { audioEncoding: 'MP3' },
   });
 
@@ -132,11 +144,12 @@ export async function concatenateAudioChunks(
   return concatMp3Buffers(chunks);
 }
 
-export function getMetadata(): TtsMetadata {
+export function getMetadata(opts?: TtsSynthesizeOptions): TtsMetadata {
+  const voiceOptions = getGoogleVoiceOptions(opts);
   return {
     provider: 'google',
-    languageCode: process.env['GOOGLE_TTS_LANGUAGE_CODE'] || 'cmn-TW',
-    voiceName: process.env['GOOGLE_TTS_VOICE_NAME'] || 'cmn-TW-Wavenet-A',
+    languageCode: voiceOptions.languageCode,
+    voiceName: voiceOptions.voiceName,
   };
 }
 
@@ -144,7 +157,11 @@ export function synthesize(
   text: string,
   opts?: TtsSynthesizeOptions,
 ): Promise<Buffer>;
-export async function synthesize(text: string): Promise<Buffer> {
+export async function synthesize(
+  text: string,
+  opts?: TtsSynthesizeOptions,
+): Promise<Buffer> {
+  const voiceOptions = getGoogleVoiceOptions(opts);
   const chunks = splitTextIntoChunks(text, MAX_BYTES);
 
   if (chunks.length === 0) {
@@ -152,11 +169,30 @@ export async function synthesize(text: string): Promise<Buffer> {
   }
 
   if (chunks.length === 1) {
-    return synthesizeChunk(chunks[0]!);
+    return synthesizeChunk(chunks[0]!, voiceOptions);
   }
 
   const audioBuffers = await Promise.all(
-    chunks.map((chunk) => synthesizeChunk(chunk)),
+    chunks.map((chunk) => synthesizeChunk(chunk, voiceOptions)),
   );
   return concatMp3Buffers(audioBuffers);
+}
+
+function getGoogleVoiceOptions(
+  opts?: TtsSynthesizeOptions,
+): GoogleVoiceOptions {
+  if (!opts) {
+    return DEFAULT_GOOGLE_VOICE;
+  }
+
+  if (opts.config.provider !== 'google') {
+    throw new Error(
+      `Google TTS received ${opts.config.provider} language config`,
+    );
+  }
+
+  return {
+    languageCode: opts.config.languageCode,
+    voiceName: opts.config.voiceName,
+  };
 }

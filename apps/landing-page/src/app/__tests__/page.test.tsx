@@ -8,7 +8,7 @@ describe('LandingPageV2', () => {
       const { container } = render(<LandingPageV2 />);
       const content = container.textContent || '';
 
-      expect(content).toMatch(/BlackRock in your wallet/);
+      expect(content).toMatch(/A Non-Custodial BlackRock in Your Wallet/);
       expect(content).toMatch(/Three steps/);
       expect(content).toMatch(/What the engine trades into/);
       expect(content).toMatch(/Trades drove the return/);
@@ -45,7 +45,9 @@ describe('LandingPageV2', () => {
       const { container } = render(<LandingPageV2 />);
       const content = container.textContent || '';
 
-      const heroIndex = content.indexOf('BlackRock in your wallet');
+      const heroIndex = content.indexOf(
+        'A Non-Custodial BlackRock in Your Wallet',
+      );
       const howItWorksIndex = content.indexOf('Three steps');
       const faqIndex = content.indexOf('Before you connect a wallet');
       const protocolsIndex = content.indexOf('Where idle capital parks');

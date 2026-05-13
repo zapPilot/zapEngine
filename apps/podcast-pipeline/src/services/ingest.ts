@@ -182,7 +182,9 @@ export async function performIngest(
     totalCostUsd += ensuredClassrooms.costUsd;
 
     const script = localization.script ?? '';
-    const mainAudio = await step('textToSpeech', () => textToSpeech(script));
+    const mainAudio = await step('textToSpeech', () =>
+      textToSpeech(script, { languageCode }),
+    );
     const classroomAudios = await synthesizeClassroomAudios(
       episode.id,
       classroomRows,
@@ -259,18 +261,13 @@ function normalizeArticleForLanguage(
   return convertArticleToZhTW(article);
 }
 
-function getTtsMetadataForLanguage(languageCode: string): {
+function getTtsMetadataForLanguage(
+  languageCode: LanguageClassroomLanguageCode,
+): {
   languageCode: string;
   voiceName: string;
 } {
-  if (languageCode !== DEFAULT_LANGUAGE_CODE) {
-    return {
-      languageCode,
-      voiceName: '',
-    };
-  }
-
-  const metadata = getTtsMetadata();
+  const metadata = getTtsMetadata({ languageCode });
   return {
     languageCode: metadata.languageCode,
     voiceName: metadata.voiceName,

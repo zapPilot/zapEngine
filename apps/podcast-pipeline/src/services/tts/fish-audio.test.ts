@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getMetadata, synthesize } from './fish-audio.js';
-import { FISH_AUDIO_MODELS } from './fish-audio-models.js';
 
 function responseFromArray(bytes: Uint8Array): Response {
   return {
@@ -42,6 +41,11 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('哈囉，這是 Fish Audio 測試', {
       languageCode: 'zh-Hant',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-model-id',
+        engine: 'speech-1.6',
+      },
     });
 
     expect(result).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
@@ -52,7 +56,7 @@ describe('Fish Audio TTS provider', () => {
         headers: {
           authorization: 'Bearer fish-test-key',
           'content-type': 'application/json',
-          model: 's2-pro',
+          model: 'speech-1.6',
         },
       }),
     );
@@ -60,7 +64,7 @@ describe('Fish Audio TTS provider', () => {
     const [, init] = mockFetch.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(init.body)).toEqual({
       text: '哈囉，這是 Fish Audio 測試',
-      reference_id: 'debb4c1065114ffda03f3a60abdcc421',
+      reference_id: 'custom-model-id',
       format: 'mp3',
       mp3_bitrate: 128,
       chunk_length: 200,
@@ -75,10 +79,15 @@ describe('Fish Audio TTS provider', () => {
     vi.stubEnv('FISH_AUDIO_API_KEY', '');
 
     await expect(
-      synthesize('缺少金鑰', { languageCode: 'zh-Hant' }),
-    ).rejects.toThrow(
-      'FISH_AUDIO_API_KEY is required when TTS_PROVIDER=fish-audio',
-    );
+      synthesize('缺少金鑰', {
+        languageCode: 'zh-Hant',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('FISH_AUDIO_API_KEY is required for Fish Audio TTS');
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -92,7 +101,14 @@ describe('Fish Audio TTS provider', () => {
 
     let error: unknown;
     try {
-      await synthesize('服務錯誤', { languageCode: 'zh-Hant' });
+      await synthesize('服務錯誤', {
+        languageCode: 'zh-Hant',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      });
     } catch (caught) {
       error = caught;
     }
@@ -105,28 +121,20 @@ describe('Fish Audio TTS provider', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('defines initial Fish Audio model config for every classroom language', () => {
-    expect(FISH_AUDIO_MODELS).toEqual({
-      'zh-Hant': {
-        modelId: 'debb4c1065114ffda03f3a60abdcc421',
-        engine: 's2-pro',
-      },
-      ja: {
-        modelId: 'debb4c1065114ffda03f3a60abdcc421',
-        engine: 's2-pro',
-      },
-      en: {
-        modelId: 'debb4c1065114ffda03f3a60abdcc421',
-        engine: 's2-pro',
-      },
-    });
-  });
-
-  it('builds metadata from typed Fish Audio model config', () => {
-    expect(getMetadata({ languageCode: 'ja' })).toEqual({
+  it('builds metadata from the resolved Fish Audio language config', () => {
+    expect(
+      getMetadata({
+        languageCode: 'ja',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-ja-model',
+          engine: 's2-pro',
+        },
+      }),
+    ).toEqual({
       provider: 'fish-audio',
       languageCode: 'ja',
-      voiceName: FISH_AUDIO_MODELS.ja.modelId,
+      voiceName: 'custom-ja-model',
     });
   });
 });

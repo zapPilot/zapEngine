@@ -1,0 +1,30 @@
+{
+  "name": "@zapengine/pitch-deck",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "Static Markdown pitch deck for Zap Pilot.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "preview": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/check-site.mjs",
+    "lint:fix": "node scripts/check-site.mjs",
+    "type-check": "node scripts/check-site.mjs",
+    "format": "node scripts/check-site.mjs",
+    "format:check": "node scripts/check-site.mjs",
+    "test": "node scripts/check-site.mjs",
+    "test:ci": "node scripts/check-site.mjs",
+    "test:coverage": "node scripts/check-site.mjs",
+    "test:watch": "node scripts/check-site.mjs",
+    "deadcode": "node scripts/check-site.mjs",
+    "deadcode:fix": "node scripts/check-site.mjs",
+    "security:audit": "node scripts/check-site.mjs",
+    "clean": "node scripts/clean.mjs"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

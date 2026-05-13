@@ -506,8 +506,8 @@ describe('POST /ingest pipeline', () => {
     ).toEqual(['ja', 'en']);
   });
 
-  it('persists Google TTS metadata when TTS_PROVIDER=google', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'google');
+  it('persists code-owned Fish Audio metadata even when TTS env overrides are present', async () => {
+    vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'google');
 
     const response = await app.request('/ingest', {
       method: 'POST',
@@ -523,8 +523,8 @@ describe('POST /ingest pipeline', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
       }),
     );
   });
