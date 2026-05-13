@@ -27,6 +27,7 @@ describe('renderEpisodeSharePage', () => {
         coverUrl: 'https://cdn.example.com/cover.jpg?x=1&y=2',
       },
       platform: 'desktop',
+      iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1?x=1&y=2',
@@ -44,25 +45,38 @@ describe('renderEpisodeSharePage', () => {
     expect(html).not.toContain('<script>alert("x")</script>');
   });
 
-  it('renders an App Store redirect and button for iOS', () => {
+  it('renders Smart App Banner metadata and manual iOS actions', () => {
     const html = renderEpisodeSharePage({
       episode: shareEpisode(),
       platform: 'ios',
-      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      iosAppId: '6749248542',
+      iosAppStoreUrl:
+        'https://apps.apple.com/app/from-fed-to-chain/id6749248542',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
     });
 
     expect(html).toContain(
-      '<meta http-equiv="refresh" content="1;url=https://apps.apple.com/app/id123">',
+      '<meta name="apple-itunes-app" content="app-id=6749248542, app-argument=https://example.com/e/episode-1">',
     );
-    expect(html).toContain('Open in App Store');
+    expect(html).not.toContain('<meta http-equiv="refresh"');
+    expect(html).toContain(
+      '<a class="button" href="https://example.com/e/episode-1">Open in App</a>',
+    );
+    expect(html).toContain(
+      '<a class="button button-secondary" href="https://apps.apple.com/app/from-fed-to-chain/id6749248542">Get the app</a>',
+    );
+    expect(html).toContain('id="cancel-app-redirect"');
+    expect(html).toContain('window.setTimeout');
+    expect(html).toContain('4000');
+    expect(html).toContain('window.location.replace');
   });
 
   it('does not auto-redirect Android users before the Android app ships', () => {
     const html = renderEpisodeSharePage({
       episode: shareEpisode(),
       platform: 'android',
+      iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',

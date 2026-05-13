@@ -25,29 +25,47 @@ void main() {
   testWidgets('loads and pushes the episode detail for supported links', (
     tester,
   ) async {
-    final navigatorKey = GlobalKey<NavigatorState>();
-    final service = DeepLinkService(
-      navigatorKey: navigatorKey,
-      loadEpisode: (id) async => _episode(id),
-      episodeDetailBuilder: (episode) => Scaffold(
-        body: Text('detail:${episode.id}'),
-      ),
-    );
+    final debugMessages = <String>[];
+    final originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) {
+        debugMessages.add(message);
+      }
+    };
 
-    await tester.pumpWidget(
-      MaterialApp(
+    try {
+      final navigatorKey = GlobalKey<NavigatorState>();
+      final service = DeepLinkService(
         navigatorKey: navigatorKey,
-        home: const SizedBox.shrink(),
-      ),
-    );
+        loadEpisode: (id) async => _episode(id),
+        episodeDetailBuilder: (episode) => Scaffold(
+          body: Text('detail:${episode.id}'),
+        ),
+      );
 
-    final opened = await service.openEpisodeUri(
-      Uri.parse('https://from-fed-to-chain-api.fly.dev/e/episode-42'),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const SizedBox.shrink(),
+        ),
+      );
 
-    expect(opened, isTrue);
-    expect(find.text('detail:episode-42'), findsOneWidget);
+      final opened = await service.openEpisodeUri(
+        Uri.parse('https://from-fed-to-chain-api.fly.dev/e/episode-42'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(opened, isTrue);
+      expect(find.text('detail:episode-42'), findsOneWidget);
+      expect(
+        debugMessages,
+        contains(
+          '[DeepLink] openEpisodeUri uri=https://from-fed-to-chain-api.fly.dev/e/episode-42 parsedEpisodeId=episode-42 episodeFound=true navigated=true',
+        ),
+      );
+    } finally {
+      debugPrint = originalDebugPrint;
+    }
   });
 }
 

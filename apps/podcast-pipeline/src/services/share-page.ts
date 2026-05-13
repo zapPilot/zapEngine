@@ -10,6 +10,7 @@ export interface SharePageEpisode {
 export interface RenderEpisodeSharePageInput {
   episode: SharePageEpisode;
   platform: SharePagePlatform;
+  iosAppId: string;
   iosAppStoreUrl: string;
   androidAvailable: boolean;
   canonicalUrl: string;
@@ -53,11 +54,11 @@ export function renderEpisodeSharePage(
       coverUrl,
     },
   });
-  const refreshMeta =
+  const appleSmartBannerMeta =
     input.platform === 'ios'
-      ? `<meta http-equiv="refresh" content="1;url=${htmlEscape(
-          input.iosAppStoreUrl,
-        )}">`
+      ? `<meta name="apple-itunes-app" content="app-id=${htmlEscape(
+          input.iosAppId,
+        )}, app-argument=${htmlEscape(input.canonicalUrl)}">`
       : '';
 
   return `<!doctype html>
@@ -77,7 +78,7 @@ export function renderEpisodeSharePage(
   <meta name="twitter:title" content="${htmlEscape(title)}">
   <meta name="twitter:description" content="${htmlEscape(description)}">
   <meta name="twitter:image" content="${htmlEscape(coverUrl)}">
-  ${refreshMeta}
+  ${appleSmartBannerMeta}
   <style>
     :root {
       color-scheme: light dark;
@@ -173,6 +174,32 @@ export function renderEpisodeSharePage(
       color: #1e3a8a;
     }
 
+    a.button.button-secondary {
+      background: #eef2f7;
+      color: #171717;
+    }
+
+    .redirect-note {
+      margin-top: 14px;
+      font-size: 0.9rem;
+    }
+
+    button.link-button {
+      display: none;
+      margin: 10px 0 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #0f766e;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    button.link-button.is-visible {
+      display: inline;
+    }
+
     @media (max-width: 560px) {
       body {
         padding: 22px 14px;
@@ -222,6 +249,15 @@ export function renderEpisodeSharePage(
         background: #faf7f1;
         color: #171717;
       }
+
+      a.button.button-secondary {
+        background: #2f3642;
+        color: #faf7f1;
+      }
+
+      button.link-button {
+        color: #5eead4;
+      }
     }
   </style>
 </head>
@@ -244,8 +280,29 @@ export function renderEpisodeSharePage(
 function renderPlatformContent(input: RenderEpisodeSharePageInput): string {
   if (input.platform === 'ios') {
     return `<div class="actions">
-          <a class="button" href="${htmlEscape(input.iosAppStoreUrl)}">Open in App Store</a>
-        </div>`;
+          <a class="button" href="${htmlEscape(input.canonicalUrl)}">Open in App</a>
+          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get the app</a>
+        </div>
+        <p class="redirect-note">If nothing happens, this page will open the App Store shortly.</p>
+        <button class="link-button" id="cancel-app-redirect" type="button">Cancel App Store redirect</button>
+        <script>
+          (() => {
+            const appStoreUrl = ${jsStringLiteral(input.iosAppStoreUrl)};
+            const cancelButton = document.getElementById('cancel-app-redirect');
+            const redirectTimer = window.setTimeout(() => {
+              window.location.replace(appStoreUrl);
+            }, 4000);
+
+            window.setTimeout(() => {
+              cancelButton?.classList.add('is-visible');
+            }, 500);
+
+            cancelButton?.addEventListener('click', () => {
+              window.clearTimeout(redirectTimer);
+              cancelButton.remove();
+            });
+          })();
+        </script>`;
   }
 
   if (input.platform === 'android' && !input.androidAvailable) {
@@ -280,4 +337,13 @@ function htmlEscape(value: string): string {
     .replaceAll("'", '&#39;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
+}
+
+function jsStringLiteral(value: string): string {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll('>', '\\u003e')
+    .replaceAll('&', '\\u0026')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
 }

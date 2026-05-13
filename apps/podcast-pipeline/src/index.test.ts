@@ -151,7 +151,7 @@ describe('GET /e/:id share landing page', () => {
     [
       'ios',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
-      'Open in App Store',
+      'Open in App',
     ],
     [
       'android',
