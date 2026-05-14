@@ -7,6 +7,7 @@ translates it to the flat runtime params consumed by the strategy classes.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
@@ -247,6 +248,7 @@ def runtime_params_to_public_params(
     return cast(dict[str, JsonValue], raw_params)
 
 
+@lru_cache(maxsize=32)
 def get_nested_public_params_schema(strategy_id: str) -> dict[str, JsonValue]:
     recipe = _get_recipe(strategy_id)
     return cast(dict[str, JsonValue], recipe.public_params_model.model_json_schema())
