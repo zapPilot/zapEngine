@@ -1,0 +1,340 @@
+import { act } from '@testing-library/react';
+import type { DepositPlan } from '@zapengine/types/api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useInvestStrategy } from '@/hooks/useInvestStrategy';
+
+import { renderHook } from '../../test-utils';
+
+const USER = '0x1111111111111111111111111111111111111111';
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const mocks = vi.hoisted(() => {
+  const walletClient = {
+    account: { address: '0x1111111111111111111111111111111111111111' },
+    sendTransaction: vi.fn(),
+  };
+
+  return {
+    useWalletProvider: vi.fn(),
+    getDepositPlan: vi.fn(),
+    getWalletClient: vi.fn(),
+    switchChain: vi.fn(),
+    signTypedData: vi.fn(),
+    getExecutionStrategy: vi.fn(),
+    executeWithEIP7702: vi.fn(),
+    encodePermitCall: vi.fn(),
+    wrapPermitAndCallsInMulticall3: vi.fn(),
+    getPublicClient: vi.fn(),
+    waitForTransactionReceipt: vi.fn(),
+    getBridgeStatus: vi.fn(),
+    walletClient,
+  };
+});
+
+vi.mock('@/providers/WalletProvider', () => ({
+  useWalletProvider: mocks.useWalletProvider,
+}));
+
+vi.mock('@/services/depositService', () => ({
+  getDepositPlan: mocks.getDepositPlan,
+}));
+
+vi.mock('@/services/intentClient', () => ({
+  getBridgeStatus: mocks.getBridgeStatus,
+  getPublicClient: mocks.getPublicClient,
+  intentEngine: {
+    getExecutionStrategy: mocks.getExecutionStrategy,
+    executeWithEIP7702: mocks.executeWithEIP7702,
+    execution: {
+      permit: {
+        encodePermitCall: mocks.encodePermitCall,
+        wrapPermitAndCallsInMulticall3: mocks.wrapPermitAndCallsInMulticall3,
+      },
+    },
+  },
+}));
+
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    createContextLogger: () => ({
+      info: vi.fn(),
+      error: vi.fn(),
+    }),
+  },
+}));
+
+const approveTx = {
+  to: BASE_USDC,
+  data: '0xaaaa',
+  value: '0',
+  chainId: 8453,
+  gasLimit: '50000',
+  meta: { intentType: 'ERC20_APPROVE' },
+} as const;
+
+const supplyTx = {
+  to: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+  data: '0x1111',
+  value: '0',
+  chainId: 8453,
+  gasLimit: '300000',
+  meta: { intentType: 'SUPPLY' },
+} as const;
+
+const ethereumBridgeTx = {
+  to: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+  data: '0x2222',
+  value: '0',
+  chainId: 8453,
+  gasLimit: '450000',
+  meta: { intentType: 'BRIDGE' },
+} as const;
+
+const arbitrumBridgeTx = {
+  to: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+  data: '0x3333',
+  value: '0',
+  chainId: 8453,
+  gasLimit: '450000',
+  meta: { intentType: 'BRIDGE' },
+} as const;
+
+const permitRequest = {
+  token: BASE_USDC,
+  owner: USER,
+  spender: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+  value: '10000',
+  nonce: '7',
+  deadline: '2000000000',
+  typedData: {
+    domain: {
+      name: 'USD Coin',
+      version: '2',
+      chainId: 8453,
+      verifyingContract: BASE_USDC,
+    },
+    types: {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    },
+    primaryType: 'Permit',
+    message: {
+      owner: USER,
+      spender: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+      value: '10000',
+      nonce: '7',
+      deadline: '2000000000',
+    },
+  },
+} as const;
+
+const plan: DepositPlan = {
+  legs: [
+    {
+      chainId: 8453,
+      kind: 'supply',
+      protocol: 'morpho',
+      toToken: BASE_USDC,
+      fromAmount: '6000',
+      toAmountMin: '6000',
+      gasUsd: '0.10',
+      durationSec: 12,
+    },
+    {
+      chainId: 1,
+      kind: 'bridge',
+      toToken: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+      fromAmount: '2000',
+      toAmountMin: '2000',
+      bridge: 'across',
+      gasUsd: '0.20',
+      durationSec: 3,
+    },
+    {
+      chainId: 42161,
+      kind: 'bridge',
+      toToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+      fromAmount: '2000',
+      toAmountMin: '2000',
+      bridge: 'relaydepository',
+      gasUsd: '0.20',
+      durationSec: 1,
+    },
+  ],
+  approvals: [approveTx],
+  permitRequest,
+  calls: [supplyTx, ethereumBridgeTx, arbitrumBridgeTx],
+  totalGasUsd: '0.5',
+  sourceChainId: 8453,
+};
+
+describe('useInvestStrategy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 8453 },
+      switchChain: mocks.switchChain,
+      getWalletClient: mocks.getWalletClient,
+      signTypedData: mocks.signTypedData,
+    });
+    mocks.getWalletClient.mockResolvedValue(mocks.walletClient);
+    mocks.getDepositPlan.mockResolvedValue(plan);
+    mocks.getPublicClient.mockReturnValue({
+      waitForTransactionReceipt: mocks.waitForTransactionReceipt,
+    });
+    mocks.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      transactionHash: '0xsource',
+    });
+    mocks.getBridgeStatus.mockResolvedValue({ status: 'DONE' });
+  });
+
+  it('executes backend-provided approvals and three leg calls as one EIP-7702 bundle', async () => {
+    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: true,
+      callsId: '0xbundle',
+    });
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
+    });
+
+    expect(mocks.getDepositPlan).toHaveBeenCalledWith({
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '10000',
+      sourceChainId: 8453,
+    });
+    expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
+      [approveTx, supplyTx, ethereumBridgeTx, arbitrumBridgeTx],
+      mocks.walletClient,
+    );
+    expect(result.current.tier).toBe('eip7702');
+    expect(result.current.lastCallsId).toBe('0xbundle');
+    expect(result.current.legs.map((leg) => leg.status)).toEqual([
+      'submitted',
+      'submitted',
+      'submitted',
+    ]);
+  });
+
+  it('uses one permit signature inside one Multicall3 transaction when EIP-7702 is unavailable', async () => {
+    const permitTx = {
+      to: BASE_USDC,
+      data: '0x4444',
+      value: '0',
+      chainId: 8453,
+      meta: { intentType: 'ERC20_PERMIT' },
+    };
+    const multicallTx = {
+      to: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      data: '0x5555',
+      value: '0',
+      chainId: 8453,
+      gasLimit: '400000',
+      meta: { intentType: 'MULTICALL3_BATCH' },
+    };
+    mocks.getExecutionStrategy.mockResolvedValue('multicall3');
+    mocks.signTypedData.mockResolvedValue('0xsignature');
+    mocks.encodePermitCall.mockReturnValue(permitTx);
+    mocks.wrapPermitAndCallsInMulticall3.mockReturnValue(multicallTx);
+    mocks.walletClient.sendTransaction.mockResolvedValue('0xtxhash');
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
+    });
+
+    expect(mocks.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryType: 'Permit',
+        message: expect.objectContaining({
+          value: 10000n,
+          nonce: 7n,
+          deadline: 2_000_000_000n,
+        }),
+      }),
+    );
+    expect(mocks.encodePermitCall).toHaveBeenCalledWith(BASE_USDC, {
+      ...permitRequest,
+      signature: '0xsignature',
+    });
+    expect(mocks.wrapPermitAndCallsInMulticall3).toHaveBeenCalledWith(
+      permitTx,
+      [supplyTx, ethereumBridgeTx, arbitrumBridgeTx],
+    );
+    expect(mocks.walletClient.sendTransaction).toHaveBeenCalledWith({
+      account: mocks.walletClient.account,
+      to: multicallTx.to,
+      data: multicallTx.data,
+      value: 0n,
+      chainId: 8453,
+      gas: 400000n,
+    });
+    expect(result.current.tier).toBe('permit-multicall3');
+    expect(result.current.lastTxHash).toBe('0xtxhash');
+  });
+
+  it('falls back to sequential approval then three leg transactions when permit batching is unavailable', async () => {
+    mocks.getExecutionStrategy.mockResolvedValue('multicall3');
+    mocks.getDepositPlan.mockResolvedValue({
+      ...plan,
+      permitRequest: undefined,
+    });
+    mocks.walletClient.sendTransaction
+      .mockResolvedValueOnce('0xapprovehash')
+      .mockResolvedValueOnce('0xsupplyhash')
+      .mockResolvedValueOnce('0xethbridgehash')
+      .mockResolvedValueOnce('0xarbbridgehash');
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
+    });
+
+    expect(mocks.walletClient.sendTransaction).toHaveBeenCalledTimes(4);
+    expect(mocks.waitForTransactionReceipt).toHaveBeenCalledTimes(4);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHashes).toEqual([
+      '0xapprovehash',
+      '0xsupplyhash',
+      '0xethbridgehash',
+      '0xarbbridgehash',
+    ]);
+  });
+
+  it('throws instead of switching chains when the connected wallet is not on Base', async () => {
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 1 },
+      switchChain: mocks.switchChain,
+      getWalletClient: mocks.getWalletClient,
+      signTypedData: mocks.signTypedData,
+    });
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await expect(
+        result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' }),
+      ).rejects.toThrow(
+        'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
+      );
+    });
+
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.getDepositPlan).not.toHaveBeenCalled();
+  });
+});

@@ -1,14 +1,82 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TransactionPanel } from '@/components/wallet/portfolio/views/invest/trading/components/TransactionPanel';
 
 // Mock hooks and providers
 const mockSetValue = vi.fn();
 const mockHandleSubmit = vi.fn();
+const walletProviderMocks = vi.hoisted(() => ({
+  useWalletProvider: vi.fn(() => ({ isConnected: true, chain: { id: 8453 } })),
+}));
+const investStrategyMocks = vi.hoisted(() => {
+  const run = vi.fn();
+
+  return {
+    run,
+    useInvestStrategy: vi.fn(() => ({
+      run,
+      pending: false,
+      lastError: null,
+      tier: 'eip7702',
+      lastCallsId: '0xabcdef1234567890',
+      lastTxHash: null,
+      lastTxHashes: [],
+      lastPlan: {
+        legs: [
+          {
+            protocol: 'morpho',
+            chainId: 8453,
+            kind: 'supply',
+            toToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+            fromAmount: '60000000',
+            toAmountMin: '60000000',
+            gasUsd: '0.12',
+            durationSec: 12,
+          },
+          {
+            chainId: 1,
+            kind: 'bridge',
+            toToken: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+            fromAmount: '20000000',
+            toAmountMin: '20000000',
+            bridge: 'across',
+            gasUsd: '0.20',
+            durationSec: 3,
+          },
+          {
+            chainId: 42161,
+            kind: 'bridge',
+            toToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+            fromAmount: '20000000',
+            toAmountMin: '20000000',
+            bridge: 'relaydepository',
+            gasUsd: '0.20',
+            durationSec: 1,
+          },
+        ],
+        approvals: [],
+        calls: [],
+        totalGasUsd: '0.52',
+        sourceChainId: 8453,
+      },
+      legs: [
+        { chainId: 8453, kind: 'supply', status: 'submitted' },
+        { chainId: 1, kind: 'bridge', status: 'bridgePending' },
+        { chainId: 42161, kind: 'bridge', status: 'destinationConfirmed' },
+      ],
+      getErrorMessage: (error: unknown) =>
+        error instanceof Error ? error.message : String(error),
+    })),
+  };
+});
 
 vi.mock('@/providers/WalletProvider', () => ({
-  useWalletProvider: vi.fn(() => ({ isConnected: true })),
+  useWalletProvider: walletProviderMocks.useWalletProvider,
+}));
+
+vi.mock('@/hooks/useInvestStrategy', () => ({
+  useInvestStrategy: investStrategyMocks.useInvestStrategy,
 }));
 
 vi.mock(
@@ -20,7 +88,7 @@ vi.mock(
       setValue: mockSetValue,
       handleSubmit: vi.fn((cb) => () => cb()),
       watch: vi.fn((field: string) => {
-        if (field === 'chainId') return 1;
+        if (field === 'chainId') return 8453;
         if (field === 'tokenAddress') return '0x123';
         if (field === 'amount') return '100';
         return '';
@@ -35,13 +103,37 @@ vi.mock(
     useWatchedTransactionData: vi.fn(() => ({
       amount: '100',
       transactionData: {
-        selectedToken: { symbol: 'USDC', address: '0x123' },
+        selectedToken: {
+          symbol: 'USDC',
+          address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          name: 'USD Coin',
+          chainId: 8453,
+          decimals: 6,
+        },
         tokenQuery: {
           isLoading: false,
           data: [
-            { symbol: 'USDC', address: '0x123' },
-            { symbol: 'USDT', address: '0x456' },
-            { symbol: 'DAI', address: '0x789' },
+            {
+              symbol: 'USDC',
+              address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+              name: 'USD Coin',
+              chainId: 8453,
+              decimals: 6,
+            },
+            {
+              symbol: 'USDT',
+              address: '0x456',
+              name: 'Tether',
+              chainId: 8453,
+              decimals: 6,
+            },
+            {
+              symbol: 'DAI',
+              address: '0x789',
+              name: 'Dai',
+              chainId: 8453,
+              decimals: 18,
+            },
           ],
         },
       },
@@ -115,6 +207,15 @@ vi.mock(
 );
 
 describe('TransactionPanel', () => {
+  beforeEach(() => {
+    mockSetValue.mockClear();
+    mockHandleSubmit.mockClear();
+    walletProviderMocks.useWalletProvider.mockReturnValue({
+      isConnected: true,
+      chain: { id: 8453 },
+    });
+  });
+
   it('renders deposit mode with correct subtitle', () => {
     render(<TransactionPanel mode="deposit" />);
 
@@ -176,6 +277,36 @@ describe('TransactionPanel', () => {
     render(<TransactionPanel mode="withdraw" />);
 
     expect(screen.getByText('Review Withdrawal')).toBeDefined();
+  });
+
+  it('renders the backend deposit strategy result in the deposit debug panel', () => {
+    render(<TransactionPanel mode="deposit" />);
+
+    expect(
+      screen.getByText('Invest deposit route · Base source'),
+    ).toBeDefined();
+    expect(screen.getByText('Tier: EIP-7702')).toBeDefined();
+    expect(screen.getByText(/Supply · Base · 60,000,000/)).toBeDefined();
+    expect(screen.getByText(/Bridge · Ethereum · 20,000,000/)).toBeDefined();
+    expect(screen.getByText(/Bridge · Arbitrum · 20,000,000/)).toBeDefined();
+    expect(screen.getByText('0xabcd...7890')).toBeDefined();
+  });
+
+  it('disables the invest strategy button when the wallet is not on Base', () => {
+    walletProviderMocks.useWalletProvider.mockReturnValue({
+      isConnected: true,
+      chain: { id: 1 },
+    });
+
+    render(<TransactionPanel mode="deposit" />);
+
+    const button = screen.getByRole('button', { name: 'Connect to Base' });
+    expect(button).toBeDisabled();
+    expect(
+      screen.getByText(
+        'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
+      ),
+    ).toBeDefined();
   });
 
   it('opens review modal on button click', () => {

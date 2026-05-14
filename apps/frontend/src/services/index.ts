@@ -105,6 +105,9 @@ export {
   type StrategyPreset,
 } from './strategyService';
 
+// Deposit planning
+export { getDepositPlan } from './depositService';
+
 // Strategy Admin
 export {
   createStrategyConfig,

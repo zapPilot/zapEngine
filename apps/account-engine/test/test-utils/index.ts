@@ -152,6 +152,9 @@ export function createMockConfigService(
     ANALYTICS_ENGINE_URL: 'http://localhost:8001',
     ALPHA_ETL_URL: 'http://localhost:8002',
     ALPHA_ETL_WEBHOOK_SECRET: 'test-etl-secret',
+    LIFI_INTEGRATOR: 'zapengine-test',
+    LIFI_API_KEY: 'test-lifi-key',
+    BASE_RPC_URL: 'https://mainnet.base.org',
     EMAIL_HOST: 'smtp.test.com',
     EMAIL_USER: 'test@test.com',
     // eslint-disable-next-line sonarjs/no-hardcoded-passwords

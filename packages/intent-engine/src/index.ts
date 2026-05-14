@@ -24,6 +24,7 @@ export {
 export {
   buildSwapTx,
   buildSupplyTx,
+  buildBridgeTx,
   buildWithdrawTx,
   buildRotateTx,
 } from './builders/index.js';
@@ -43,9 +44,27 @@ export {
   detectEIP7702Support,
   determineExecutionStrategy,
   encodeMulticall3,
+  buildPermitTypedData,
+  buildPermitRequest,
+  encodePermitCall,
   executeWithEIP7702,
+  wrapPermitAndCallsInMulticall3,
   waitForEIP7702Confirmation,
 } from './execution/index.js';
+
+export {
+  SUPPORTED_CHAINS,
+  USDC_ADDRESS,
+  NATIVE_TOKEN as DEPOSIT_NATIVE_TOKEN,
+  LIFI_DIAMOND_ADDRESS,
+} from './registry/chains.js';
+export {
+  VAULT_REGISTRY,
+  getVaultForBucket,
+  type Bucket,
+  type VaultEntry,
+} from './registry/vaults.js';
+export { composeDeposit } from './strategies/composeDeposit.js';
 
 // Protocol constants
 export {
@@ -95,6 +114,10 @@ import {
   determineExecutionStrategy,
   type ExecutionStrategy,
 } from './execution/capability.detector.js';
+import {
+  encodePermitCall,
+  wrapPermitAndCallsInMulticall3,
+} from './execution/permit.js';
 import { encodeMulticall3 } from './execution/multicall3.executor.js';
 import { executeWithEIP7702 } from './execution/eip7702.executor.js';
 import type {
@@ -165,6 +188,13 @@ export interface IntentEngine {
     txs: PreparedTransaction[],
     wallet: WalletClient,
   ): Promise<ExecutionResult>;
+
+  readonly execution: {
+    readonly permit: {
+      encodePermitCall: typeof encodePermitCall;
+      wrapPermitAndCallsInMulticall3: typeof wrapPermitAndCallsInMulticall3;
+    };
+  };
 }
 
 /**
@@ -224,6 +254,13 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
 
     async executeWithEIP7702(txs: PreparedTransaction[], wallet: WalletClient) {
       return executeWithEIP7702(txs, wallet);
+    },
+
+    execution: {
+      permit: {
+        encodePermitCall,
+        wrapPermitAndCallsInMulticall3,
+      },
     },
   };
 }

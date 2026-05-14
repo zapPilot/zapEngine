@@ -1,9 +1,16 @@
+import { LiFiAdapter } from '@zapengine/intent-engine';
+
 import { ActivityTracker } from './common/interceptors';
 import { AlphaEtlHttpService } from './common/services';
 import { ConfigService } from './config/config.service';
 import { AppEnv, loadEnv } from './config/env';
 import { DatabaseService } from './database/database.service';
 import { UserValidationService } from './database/user-validation.service';
+import {
+  createDepositPlanService,
+  createDepositPublicClients,
+  type DepositPlanService,
+} from './modules/deposit/depositPlanService';
 import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
@@ -38,6 +45,7 @@ export interface AppServices {
   weeklyReportProcessor: WeeklyReportProcessor;
   dailySuggestionProcessor: DailySuggestionProcessor;
   activityTracker: ActivityTracker;
+  depositPlanService: DepositPlanService;
 }
 
 export function createContainer(
@@ -92,6 +100,14 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
+  const depositPlanService = createDepositPlanService({
+    analyticsClientService,
+    adapter: new LiFiAdapter({
+      integrator: env.LIFI_INTEGRATOR,
+      ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
+    }),
+    publicClientsForDeposit: createDepositPublicClients(configService),
+  });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
   jobProcessorService.registerProcessor(dailySuggestionProcessor);
@@ -116,6 +132,7 @@ export function createContainer(
     weeklyReportProcessor,
     dailySuggestionProcessor,
     activityTracker,
+    depositPlanService,
   };
 }
 

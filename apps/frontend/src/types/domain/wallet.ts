@@ -1,3 +1,5 @@
+import type { Account, Chain, Hex, Transport, WalletClient } from 'viem';
+
 /**
  * Simplified Wallet Types
  *
@@ -18,6 +20,15 @@
  * } from '@/config/chains';
  */
 
+export type ConnectedWalletClient = WalletClient<Transport, Chain, Account>;
+
+export interface WalletTypedData {
+  domain: Record<string, unknown>;
+  types: Record<string, { name: string; type: string }[]>;
+  primaryType: string;
+  message: Record<string, unknown>;
+}
+
 export interface WalletProviderInterface {
   account: {
     address: string;
@@ -32,7 +43,16 @@ export interface WalletProviderInterface {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   switchChain(chainId: number): Promise<void>;
+  sendTransaction(tx: {
+    to: `0x${string}`;
+    data?: `0x${string}`;
+    value?: bigint;
+    chainId: number;
+    gas?: bigint;
+  }): Promise<`0x${string}`>;
+  getWalletClient(): Promise<ConnectedWalletClient>;
   signMessage(message: string): Promise<string>;
+  signTypedData(typedData: WalletTypedData): Promise<Hex>;
   isConnected: boolean;
   isConnecting: boolean;
   isDisconnecting: boolean;

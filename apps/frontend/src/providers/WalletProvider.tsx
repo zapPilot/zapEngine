@@ -15,9 +15,12 @@ import {
   useConnectors,
   useDisconnect,
   useSignMessage,
+  useSignTypedData,
   useSwitchChain,
 } from 'wagmi';
+import { getWalletClient as getWagmiWalletClient } from 'wagmi/actions';
 
+import { wagmiConfig } from '@/config/wagmi';
 import {
   buildWalletAccount,
   buildWalletChain,
@@ -26,7 +29,11 @@ import {
   type SimplifiedWalletAccount,
   type WalletError,
 } from '@/providers/walletProviderUtils';
-import type { WalletProviderInterface } from '@/types';
+import type {
+  ConnectedWalletClient,
+  WalletProviderInterface,
+  WalletTypedData,
+} from '@/types';
 import { walletLogger } from '@/utils';
 
 type WalletContextValue = WalletProviderInterface;
@@ -52,6 +59,7 @@ export function WalletProvider({
     useDisconnect();
   const { mutateAsync: switchChainAsync } = useSwitchChain();
   const { mutateAsync: signMessageAsync } = useSignMessage();
+  const { mutateAsync: signTypedDataAsync } = useSignTypedData();
   const balance = useBalance({
     address,
     chainId: chain?.id,
@@ -164,11 +172,93 @@ export function WalletProvider({
     [address, signMessageAsync],
   );
 
+  const signTypedData = useCallback(
+    async (typedData: WalletTypedData): Promise<`0x${string}`> => {
+      if (!address) {
+        throw new Error('No account connected');
+      }
+
+      try {
+        return await signTypedDataAsync(typedData as never);
+      } catch (err) {
+        walletLogger.error('Failed to sign typed data:', err);
+        throw err;
+      }
+    },
+    [address, signTypedDataAsync],
+  );
+
+  const getActiveWalletClient =
+    useCallback(async (): Promise<ConnectedWalletClient> => {
+      if (!address) {
+        throw new Error('No account connected');
+      }
+
+      return getWagmiWalletClient(wagmiConfig);
+    }, [address]);
+
+  const sendTransaction = useCallback(
+    async (tx: {
+      to: `0x${string}`;
+      data?: `0x${string}`;
+      value?: bigint;
+      chainId: number;
+      gas?: bigint;
+    }): Promise<`0x${string}`> => {
+      walletLogger.info('[sendTransaction] start', {
+        currentChainId: chain?.id,
+        targetChainId: tx.chainId,
+        address,
+        to: tx.to,
+      });
+
+      if (!address) {
+        throw new Error('Wallet not connected (no address from useConnection)');
+      }
+
+      if (chain?.id !== tx.chainId) {
+        walletLogger.info('[sendTransaction] switching chain', {
+          from: chain?.id,
+          to: tx.chainId,
+        });
+        await switchChainAsync({ chainId: tx.chainId });
+      }
+
+      const walletClient = await getWagmiWalletClient(wagmiConfig, {
+        chainId: tx.chainId,
+      });
+      if (!walletClient) {
+        throw new Error(
+          'Wallet not connected (getWalletClient returned null after chain switch)',
+        );
+      }
+
+      walletLogger.info('[sendTransaction] dispatching to wallet', {
+        clientChainId: walletClient.chain?.id,
+        dataBytes: tx.data ? (tx.data.length - 2) / 2 : 0,
+        value: tx.value?.toString() ?? '0',
+      });
+
+      const hash = await walletClient.sendTransaction({
+        to: tx.to,
+        ...(tx.data === undefined ? {} : { data: tx.data }),
+        ...(tx.value === undefined ? {} : { value: tx.value }),
+        ...(tx.gas === undefined ? {} : { gas: tx.gas }),
+      });
+
+      walletLogger.info('[sendTransaction] hash', hash);
+      return hash;
+    },
+    [address, chain?.id, switchChainAsync],
+  );
+
   const contextValue = useMemo<WalletContextValue>(
     () => ({
       account: walletAccount,
       chain: walletChain,
       switchChain: handleSwitchChain,
+      sendTransaction,
+      getWalletClient: getActiveWalletClient,
       connect: handleConnect,
       disconnect: handleDisconnect,
       isConnecting: isConnectingState,
@@ -177,6 +267,7 @@ export function WalletProvider({
       error,
       clearError,
       signMessage,
+      signTypedData,
       connectedWallets: walletList,
       switchActiveWallet: handleSwitchActiveWallet,
       hasMultipleWallets: walletList.length > 1,
@@ -185,6 +276,8 @@ export function WalletProvider({
       walletAccount,
       walletChain,
       handleSwitchChain,
+      sendTransaction,
+      getActiveWalletClient,
       handleConnect,
       handleDisconnect,
       isConnectingState,
@@ -193,6 +286,7 @@ export function WalletProvider({
       error,
       clearError,
       signMessage,
+      signTypedData,
       walletList,
       handleSwitchActiveWallet,
     ],
