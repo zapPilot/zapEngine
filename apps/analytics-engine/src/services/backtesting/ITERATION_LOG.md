@@ -7,6 +7,14 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-14 - R1/R2 cross-up cleanup after R4 promotion
+- **Status**: active
+- **Commit**: pending local change (`cleanup R1/R2 cross-up research plumbing`)
+- **Finding**: R4-aggressive is now the production default, and the earlier R1/R2 cross-up experiments remained opt-in null-result plumbing. Per the same cleanup rule used for previous dead research params, keeping disabled knobs creates false optionality without a validated path to promotion.
+- **Removed symbols**: deleted `CrossUpEqualWeightRule.fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; removed `DmaMarketState.peak_distance_60d` and `DmaSignalInputs.peak_distance_60d`; removed nested public `cross_up` params and flat runtime keys `cross_up_fgi_slope_min`, `cross_up_drawdown_amplifier_alpha`, and `cross_up_drawdown_amplifier_threshold`; removed matching `rule_only_sweep.py` CLI flags and R1/R2 tests.
+- **Kept**: `StrategyContext.price_history_map` and `FlatMinimumSignalComponent` asset-specific history routing remain core infrastructure, independent of R2. Historical R1/R2 evidence remains in the 2026-05-13 entry below.
+- **Validation**: `pnpm --filter @zapengine/analytics-engine type-check` passed. `pnpm --filter @zapengine/analytics-engine lint` passed. `uv run pytest tests/services/backtesting tests/scripts tests/api` passed 855 tests. `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` reported zero drift. `uv run vulture src/ vulture_whitelist.py --min-confidence 80` passed with no output.
+
 ### 2026-05-14 - Promote R4-aggressive DMA overextension sentiment multipliers
 - **Status**: active
 - **Commit**: pending local change (`promote R4-aggressive overextension defaults`)

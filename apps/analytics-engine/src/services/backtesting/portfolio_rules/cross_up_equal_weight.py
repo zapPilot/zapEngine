@@ -10,7 +10,6 @@ from src.services.backtesting.portfolio_rules.base import (
     DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
     PortfolioRuleConfig,
     PortfolioSnapshot,
-    allocation_key_for_symbol,
     portfolio_target_intent,
     signals_consulted_for_symbols,
     symbols_for_snapshot,
@@ -27,9 +26,6 @@ class CrossUpEqualWeightRule:
     rule_group: RuleGroup = "cross"
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
     applicable_symbols: frozenset[str] | None = None
-    fgi_slope_min: float | None = None
-    drawdown_amplifier_alpha: float | None = None
-    drawdown_amplifier_threshold: float = 0.20
 
     def matches(
         self,
@@ -55,9 +51,10 @@ class CrossUpEqualWeightRule:
             if _is_cross_up_signal(snapshot, symbol, rule=self)
         ]
         target = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
-        target.update(
-            _target_weights_for_eligible_symbols(snapshot, eligible_symbols, self)
-        )
+        if eligible_symbols:
+            per_asset = 1.0 / len(eligible_symbols)
+            for symbol in eligible_symbols:
+                target[ALLOCATION_KEY_BY_SYMBOL[symbol]] = per_asset
         intent = portfolio_target_intent(
             action="buy",
             target=normalize_target_allocation(target),
@@ -124,64 +121,8 @@ def _is_cross_up_signal(
     *,
     rule: CrossUpEqualWeightRule,
 ) -> bool:
-    return snapshot.assets[
-        symbol
-    ].actionable_cross_event == "cross_up" and _passes_fgi_slope_filter(
-        snapshot, symbol, rule=rule
-    )
-
-
-def _passes_fgi_slope_filter(
-    snapshot: PortfolioSnapshot,
-    symbol: str,
-    *,
-    rule: CrossUpEqualWeightRule,
-) -> bool:
-    if rule.fgi_slope_min is None:
-        return True
-    return snapshot.assets[symbol].fgi_slope >= rule.fgi_slope_min
-
-
-def _target_weights_for_eligible_symbols(
-    snapshot: PortfolioSnapshot,
-    eligible_symbols: list[str],
-    rule: CrossUpEqualWeightRule,
-) -> dict[str, float]:
-    if not eligible_symbols:
-        return {}
-    if rule.drawdown_amplifier_alpha is None:
-        per_asset = 1.0 / len(eligible_symbols)
-        return {
-            allocation_key_for_symbol(symbol): per_asset for symbol in eligible_symbols
-        }
-
-    raw_weights = {
-        symbol: _drawdown_amplified_weight(snapshot, symbol, rule=rule)
-        for symbol in eligible_symbols
-    }
-    total = sum(raw_weights.values())
-    return {
-        allocation_key_for_symbol(symbol): weight / total
-        for symbol, weight in raw_weights.items()
-    }
-
-
-def _drawdown_amplified_weight(
-    snapshot: PortfolioSnapshot,
-    symbol: str,
-    *,
-    rule: CrossUpEqualWeightRule,
-) -> float:
-    weight = 1.0
-    peak_distance = snapshot.assets[symbol].peak_distance_60d
-    if (
-        peak_distance is not None
-        and peak_distance < -rule.drawdown_amplifier_threshold
-        and rule.drawdown_amplifier_alpha is not None
-    ):
-        excess = -peak_distance - rule.drawdown_amplifier_threshold
-        weight *= 1.0 + rule.drawdown_amplifier_alpha * excess
-    return weight
+    del rule
+    return snapshot.assets[symbol].actionable_cross_event == "cross_up"
 
 
 def _is_reentry_cooldown_active(snapshot: PortfolioSnapshot, symbol: str) -> bool:

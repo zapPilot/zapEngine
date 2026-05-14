@@ -68,7 +68,6 @@ from src.services.backtesting.utils import (
     coerce_float,
     coerce_float_list,
     coerce_int,
-    coerce_nullable_float,
     coerce_nullable_int,
     coerce_params,
 )
@@ -92,9 +91,6 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "overextension_threshold_multiplier_extreme_greed",
         "fgi_slope_reversal_threshold",
         "fgi_slope_recovery_threshold",
-        "cross_up_fgi_slope_min",
-        "cross_up_drawdown_amplifier_alpha",
-        "cross_up_drawdown_amplifier_threshold",
         "disabled_rules",
         "enabled_rules",
     }
@@ -116,9 +112,6 @@ _DMA_COERCION_SPEC: dict[str, Any] = {
     "overextension_threshold_multiplier_extreme_greed": coerce_float,
     "fgi_slope_reversal_threshold": coerce_float,
     "fgi_slope_recovery_threshold": coerce_float,
-    "cross_up_fgi_slope_min": coerce_nullable_float,
-    "cross_up_drawdown_amplifier_alpha": coerce_nullable_float,
-    "cross_up_drawdown_amplifier_threshold": coerce_float,
 }
 
 
@@ -228,28 +221,6 @@ class DmaGatedFgiParams(BaseModel):
         default=0.05,
         ge=0.0,
         description="FGI slope threshold above which fear-recovery buy triggers.",
-    )
-    cross_up_fgi_slope_min: float | None = Field(
-        default=None,
-        description=(
-            "Optional minimum FGI slope required for cross_up_equal_weight to fire."
-        ),
-    )
-    cross_up_drawdown_amplifier_alpha: float | None = Field(
-        default=None,
-        description=(
-            "Optional multiplier strength for peak-distance drawdown sizing "
-            "inside cross_up_equal_weight."
-        ),
-    )
-    cross_up_drawdown_amplifier_threshold: float = Field(
-        default=0.20,
-        ge=0.0,
-        le=1.0,
-        description=(
-            "Peak-distance drawdown threshold beyond which cross_up_equal_weight "
-            "amplifies relative weights."
-        ),
     )
     disabled_rules: frozenset[str] = Field(
         default_factory=frozenset,

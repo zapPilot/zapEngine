@@ -65,9 +65,6 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
             "overextension_threshold_multiplier_extreme_greed": 0.50,
             "fgi_slope_reversal_threshold": -0.07,
             "fgi_slope_recovery_threshold": 0.06,
-            "cross_up_fgi_slope_min": 0.0,
-            "cross_up_drawdown_amplifier_alpha": 0.5,
-            "cross_up_drawdown_amplifier_threshold": 0.15,
             "disabled_rules": ["cross_down_exit"],
         },
     )
@@ -85,40 +82,7 @@ def test_dma_runtime_params_to_public_params_groups_sections() -> None:
         "fgi_slope_reversal_threshold": -0.07,
         "fgi_slope_recovery_threshold": 0.06,
     }
-    assert nested["cross_up"] == {
-        "fgi_slope_min": 0.0,
-        "drawdown_amplifier_alpha": 0.5,
-        "drawdown_amplifier_threshold": 0.15,
-    }
     assert nested["disabled_rules"] == ["cross_down_exit"]
-
-
-def test_dma_public_params_round_trip_cross_up_filters() -> None:
-    runtime = public_params.public_params_to_runtime_params(
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        {
-            "cross_up": {
-                "fgi_slope_min": 0.05,
-                "drawdown_amplifier_alpha": 1.0,
-                "drawdown_amplifier_threshold": 0.25,
-            }
-        },
-    )
-
-    assert runtime["cross_up_fgi_slope_min"] == 0.05
-    assert runtime["cross_up_drawdown_amplifier_alpha"] == 1.0
-    assert runtime["cross_up_drawdown_amplifier_threshold"] == 0.25
-
-    nested = public_params.runtime_params_to_public_params(
-        STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        runtime,
-    )
-
-    assert nested["cross_up"] == {
-        "fgi_slope_min": 0.05,
-        "drawdown_amplifier_alpha": 1.0,
-        "drawdown_amplifier_threshold": 0.25,
-    }
 
 
 def test_dma_public_params_round_trip_overextension_multipliers() -> None:

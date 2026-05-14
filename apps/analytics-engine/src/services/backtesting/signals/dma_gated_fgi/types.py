@@ -28,7 +28,6 @@ class DmaSignalInputs:
     ath_event: AthEvent | None
     fgi_slope: float
     asset_symbol: str | None
-    peak_distance_60d: float | None
     macro_fear_greed_value: float | None
     macro_fear_greed_regime: str | None
     macro_fear_greed_regime_source: RegimeSource | None
@@ -60,7 +59,6 @@ class DmaMarketState:
     regime_source: RegimeSource
     ath_event: AthEvent | None
     asset_symbol: str | None = None
-    peak_distance_60d: float | None = None
     macro_fear_greed_value: float | None = None
     macro_fear_greed_regime: str | None = None
     macro_fear_greed_regime_source: RegimeSource | None = None

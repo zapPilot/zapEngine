@@ -92,7 +92,6 @@ def _dma_runtime_params() -> dict[str, object]:
         "overextension_threshold_multiplier_extreme_greed": 0.33,
         "fgi_slope_reversal_threshold": -0.05,
         "fgi_slope_recovery_threshold": 0.05,
-        "cross_up_drawdown_amplifier_threshold": 0.2,
     }
 
 

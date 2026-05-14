@@ -41,9 +41,6 @@ from src.services.backtesting.portfolio_rules.cooldown_tracker import (
     RuleCooldownKey,
     RuleCooldownTracker,
 )
-from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
-    CrossUpEqualWeightRule,
-)
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
@@ -68,9 +65,6 @@ class _PortfolioRuleParams(Protocol):
     min_trade_interval_days: int | None
     max_trades_7d: int | None
     max_trades_30d: int | None
-    cross_up_fgi_slope_min: float | None
-    cross_up_drawdown_amplifier_alpha: float | None
-    cross_up_drawdown_amplifier_threshold: float
     overextension_threshold_multiplier_greed: float
     overextension_threshold_multiplier_extreme_greed: float
 
@@ -268,13 +262,6 @@ def build_portfolio_rules_for_params(
 
 
 def _rule_for_params(rule: _RuleT, params: _PortfolioRuleParams) -> _RuleT:
-    if isinstance(rule, CrossUpEqualWeightRule):
-        return replace(
-            rule,
-            fgi_slope_min=params.cross_up_fgi_slope_min,
-            drawdown_amplifier_alpha=params.cross_up_drawdown_amplifier_alpha,
-            drawdown_amplifier_threshold=params.cross_up_drawdown_amplifier_threshold,
-        )
     if isinstance(rule, DmaOverextensionDcaSellRule):
         return replace(
             rule,

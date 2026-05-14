@@ -286,8 +286,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--decision-log-dir")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--cross-up-fgi-slope-min", type=float, default=None)
-    parser.add_argument("--cross-up-drawdown-alpha", type=float, default=None)
     parser.add_argument("--overextension-multiplier-greed", type=float, default=None)
     parser.add_argument(
         "--overextension-multiplier-extreme-greed",
@@ -299,14 +297,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def _extra_params(args: argparse.Namespace) -> dict[str, Any]:
     extra_params: dict[str, Any] = {}
-    cross_up_params: dict[str, float] = {}
-    if args.cross_up_fgi_slope_min is not None:
-        cross_up_params["fgi_slope_min"] = args.cross_up_fgi_slope_min
-    if args.cross_up_drawdown_alpha is not None:
-        cross_up_params["drawdown_amplifier_alpha"] = args.cross_up_drawdown_alpha
-    if cross_up_params:
-        extra_params["cross_up"] = cross_up_params
-
     top_escape_params: dict[str, float] = {}
     if args.overextension_multiplier_greed is not None:
         top_escape_params["overextension_threshold_multiplier_greed"] = (

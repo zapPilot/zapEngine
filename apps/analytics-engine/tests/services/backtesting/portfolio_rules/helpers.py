@@ -26,7 +26,6 @@ def state(
     macro_fear_greed_regime: str | None = None,
     fgi_value: float | None = 50.0,
     fgi_slope: float = 0.0,
-    peak_distance_60d: float | None = None,
     macro_fear_greed_value: float | None = None,
     cooldown_state: DmaCooldownState | None = None,
 ) -> DmaMarketState:
@@ -49,7 +48,6 @@ def state(
         regime_source="label",
         ath_event=cast(AthEvent | None, None),
         asset_symbol=symbol,
-        peak_distance_60d=peak_distance_60d,
         macro_fear_greed_value=macro_fear_greed_value,
         macro_fear_greed_regime=macro_fear_greed_regime,
         macro_fear_greed_regime_source="label"
