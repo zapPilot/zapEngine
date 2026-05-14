@@ -31,6 +31,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1?x=1&y=2',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
     });
 
     expect(html).toContain(
@@ -54,14 +55,15 @@ describe('renderEpisodeSharePage', () => {
         'https://apps.apple.com/app/from-fed-to-chain/id6749248542',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
     });
 
     expect(html).toContain(
-      '<meta name="apple-itunes-app" content="app-id=6749248542, app-argument=https://example.com/e/episode-1">',
+      '<meta name="apple-itunes-app" content="app-id=6749248542, app-argument=fromfedtochain://e/episode-1">',
     );
     expect(html).not.toContain('<meta http-equiv="refresh"');
     expect(html).toContain(
-      '<a class="button" href="https://example.com/e/episode-1">Open in App</a>',
+      '<a class="button" href="fromfedtochain://e/episode-1">Open in App</a>',
     );
     expect(html).toContain(
       '<a class="button button-secondary" href="https://apps.apple.com/app/from-fed-to-chain/id6749248542">Get the app</a>',
@@ -80,6 +82,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
     });
 
     expect(html).not.toContain('http-equiv="refresh"');

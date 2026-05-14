@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DeepLinkService.episodeIdFromUri', () {
-    test('returns the episode id for /e/:id links', () {
+    test('returns the episode id for production /e/:id links', () {
       final id = DeepLinkService.episodeIdFromUri(
         Uri.parse('https://from-fed-to-chain-api.fly.dev/e/abc123'),
       );
@@ -13,9 +13,41 @@ void main() {
       expect(id, 'abc123');
     });
 
+    test('returns the episode id for custom scheme /e/:id links', () {
+      final id = DeepLinkService.episodeIdFromUri(
+        Uri.parse('fromfedtochain://e/abc123'),
+      );
+
+      expect(id, 'abc123');
+    });
+
+    test('returns the episode id for legacy custom scheme audio links', () {
+      final id = DeepLinkService.episodeIdFromUri(
+        Uri.parse('fromfedtochain://audio/abc123'),
+      );
+
+      expect(id, 'abc123');
+    });
+
+    test('returns null for unsupported hosts', () {
+      final id = DeepLinkService.episodeIdFromUri(
+        Uri.parse('https://example.com/e/abc123'),
+      );
+
+      expect(id, isNull);
+    });
+
     test('returns null for unsupported paths', () {
       final id = DeepLinkService.episodeIdFromUri(
         Uri.parse('https://from-fed-to-chain-api.fly.dev/episodes/abc123'),
+      );
+
+      expect(id, isNull);
+    });
+
+    test('returns null for legacy audio paths on the production host', () {
+      final id = DeepLinkService.episodeIdFromUri(
+        Uri.parse('https://from-fed-to-chain-api.fly.dev/audio/abc123'),
       );
 
       expect(id, isNull);

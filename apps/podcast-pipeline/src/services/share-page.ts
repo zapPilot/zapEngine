@@ -14,6 +14,7 @@ export interface RenderEpisodeSharePageInput {
   iosAppStoreUrl: string;
   androidAvailable: boolean;
   canonicalUrl: string;
+  appDeepLinkUrl: string;
 }
 
 const APP_NAME = 'From Fed to Chain';
@@ -58,7 +59,7 @@ export function renderEpisodeSharePage(
     input.platform === 'ios'
       ? `<meta name="apple-itunes-app" content="app-id=${htmlEscape(
           input.iosAppId,
-        )}, app-argument=${htmlEscape(input.canonicalUrl)}">`
+        )}, app-argument=${htmlEscape(input.appDeepLinkUrl)}">`
       : '';
 
   return `<!doctype html>
@@ -280,7 +281,7 @@ export function renderEpisodeSharePage(
 function renderPlatformContent(input: RenderEpisodeSharePageInput): string {
   if (input.platform === 'ios') {
     return `<div class="actions">
-          <a class="button" href="${htmlEscape(input.canonicalUrl)}">Open in App</a>
+          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in App</a>
           <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get the app</a>
         </div>
         <p class="redirect-note">If nothing happens, this page will open the App Store shortly.</p>

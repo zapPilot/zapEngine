@@ -26,6 +26,10 @@ describe('Universal Link well-known routes', () => {
             appIDs: ['LP8CA4MT6U.com.example.fromFedToChainApp'],
             components: [{ '/': '/e/*' }],
           },
+          {
+            appID: 'LP8CA4MT6U.com.example.fromFedToChainApp',
+            paths: ['/e/*'],
+          },
         ],
       },
     });

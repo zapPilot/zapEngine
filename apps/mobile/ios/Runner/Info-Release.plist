@@ -60,5 +60,18 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>fromfedtochain.deep-links</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fromfedtochain</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

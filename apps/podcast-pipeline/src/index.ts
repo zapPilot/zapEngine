@@ -60,13 +60,19 @@ const IOS_APP_STORE_URL =
 const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
 const ANDROID_AVAILABLE = false;
 const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
+const IOS_CUSTOM_SCHEME = 'fromfedtochain';
 // Keep this in sync with the final iOS bundle ID before App Store submission.
+const APPLE_APP_ID = 'LP8CA4MT6U.com.example.fromFedToChainApp';
 const APPLE_APP_SITE_ASSOCIATION = {
   applinks: {
     details: [
       {
-        appIDs: ['LP8CA4MT6U.com.example.fromFedToChainApp'],
+        appIDs: [APPLE_APP_ID],
         components: [{ '/': '/e/*' }],
+      },
+      {
+        appID: APPLE_APP_ID,
+        paths: ['/e/*'],
       },
     ],
   },
@@ -114,6 +120,7 @@ app.get('/e/:id', async (c) => {
     iosAppStoreUrl: IOS_APP_STORE_URL,
     androidAvailable: ANDROID_AVAILABLE,
     canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(id)}`,
+    appDeepLinkUrl: `${IOS_CUSTOM_SCHEME}://e/${encodeURIComponent(id)}`,
   });
 
   return c.html(html);
