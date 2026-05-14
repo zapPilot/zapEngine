@@ -29,13 +29,39 @@ class DeepLinkService {
   AppLinks? _appLinks;
   StreamSubscription<Uri>? _subscription;
 
+  static const _shareHost = 'from-fed-to-chain-api.fly.dev';
+  static const _customScheme = 'fromfedtochain';
+  static const _episodeRoute = 'e';
+  static const _legacyAudioRoute = 'audio';
+
   static String? episodeIdFromUri(Uri uri) {
-    final pathSegments = uri.pathSegments;
-    if (pathSegments.length != 2 || pathSegments.first != 'e') {
+    if (uri.scheme == 'https' && uri.host == _shareHost) {
+      return _episodeIdFromEpisodePath(uri.pathSegments);
+    }
+
+    if (uri.scheme == _customScheme) {
+      if (uri.host == _episodeRoute || uri.host == _legacyAudioRoute) {
+        return _episodeIdFromCustomSchemePath(uri);
+      }
       return null;
     }
 
+    return null;
+  }
+
+  static String? _episodeIdFromEpisodePath(List<String> pathSegments) {
+    if (pathSegments.length != 2 || pathSegments.first != _episodeRoute) {
+      return null;
+    }
     final episodeId = pathSegments[1].trim();
+    return episodeId.isEmpty ? null : episodeId;
+  }
+
+  static String? _episodeIdFromCustomSchemePath(Uri uri) {
+    if (uri.pathSegments.length != 1) {
+      return null;
+    }
+    final episodeId = uri.pathSegments.first.trim();
     return episodeId.isEmpty ? null : episodeId;
   }
 
