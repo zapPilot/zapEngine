@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.services.backtesting.decision import RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
@@ -39,6 +39,21 @@ class DmaOverextensionDcaSellRule(DcaSellRuleBase):
     )
     overextension_threshold_multiplier_greed: float = 0.50
     overextension_threshold_multiplier_extreme_greed: float = 0.33
+
+    @classmethod
+    def public_params_section(cls) -> str | None:
+        return "top_escape"
+
+    @classmethod
+    def with_public_params(cls, section: Any) -> DmaOverextensionDcaSellRule:
+        return cls(
+            overextension_threshold_multiplier_greed=(
+                section.overextension_threshold_multiplier_greed
+            ),
+            overextension_threshold_multiplier_extreme_greed=(
+                section.overextension_threshold_multiplier_extreme_greed
+            ),
+        )
 
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         return [

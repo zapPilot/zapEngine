@@ -29,11 +29,44 @@ def _public_param_paths(model: type[BaseModel]) -> set[tuple[str, ...]]:
     return paths
 
 
-def test_dma_field_mapping_covers_all_public_params() -> None:
+def test_dma_field_mapping_is_derived_from_public_params_model() -> None:
     expected_paths = _public_param_paths(public_params.DmaGatedFgiPublicParams)
-    mapped_paths = {path for _, path in public_params._DMA_FIELD_MAPPING}
+    derived_mapping = public_params._dma_field_mapping()
+    mapped_paths = {path for _, path in derived_mapping}
 
     assert mapped_paths == expected_paths
+    assert derived_mapping == [
+        ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
+        ("cross_on_touch", ("signal", "cross_on_touch")),
+        ("pacing_k", ("pacing", "k")),
+        ("pacing_r_max", ("pacing", "r_max")),
+        ("buy_sideways_window_days", ("buy_gate", "window_days")),
+        ("buy_sideways_max_range", ("buy_gate", "sideways_max_range")),
+        ("buy_leg_caps", ("buy_gate", "leg_caps")),
+        ("min_trade_interval_days", ("trade_quota", "min_trade_interval_days")),
+        ("max_trades_7d", ("trade_quota", "max_trades_7d")),
+        ("max_trades_30d", ("trade_quota", "max_trades_30d")),
+        ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
+        (
+            "overextension_threshold_multiplier_greed",
+            ("top_escape", "overextension_threshold_multiplier_greed"),
+        ),
+        (
+            "overextension_threshold_multiplier_extreme_greed",
+            ("top_escape", "overextension_threshold_multiplier_extreme_greed"),
+        ),
+        (
+            "fgi_slope_reversal_threshold",
+            ("top_escape", "fgi_slope_reversal_threshold"),
+        ),
+        (
+            "fgi_slope_recovery_threshold",
+            ("top_escape", "fgi_slope_recovery_threshold"),
+        ),
+        ("disabled_rules", ("disabled_rules",)),
+        ("enabled_rules", ("enabled_rules",)),
+    ]
+    assert not hasattr(public_params, "_DMA_FIELD_MAPPING")
 
 
 def test_unknown_strategy_public_param_helpers_return_raw_params() -> None:

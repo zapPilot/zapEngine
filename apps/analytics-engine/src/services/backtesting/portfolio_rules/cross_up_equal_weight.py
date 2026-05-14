@@ -27,6 +27,10 @@ class CrossUpEqualWeightRule:
     description: str = "Equal-weight all currently above-DMA risk assets on a cross-up."
     applicable_symbols: frozenset[str] | None = None
 
+    @classmethod
+    def public_params_section(cls) -> str | None:
+        return None
+
     def matches(
         self,
         snapshot: PortfolioSnapshot,

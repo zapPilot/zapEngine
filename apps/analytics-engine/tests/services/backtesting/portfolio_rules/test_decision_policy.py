@@ -7,6 +7,7 @@ behavior is covered by per-rule test files in this directory.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import cast
 
 from src.services.backtesting.decision import (
@@ -19,10 +20,16 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
 )
+from src.services.backtesting.portfolio_rules.cooldown_tracker import (
+    RuleCooldownTracker,
+)
 from src.services.backtesting.portfolio_rules.decision_policy import (
+    RuleExecutionContext,
+    RulesEvaluator,
     resolve_portfolio_rules_intent,
 )
-from tests.services.backtesting.portfolio_rules.helpers import snapshot
+from src.services.backtesting.signals.flat_minimum import FlatMinimumState
+from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
 
 
 class _FakeRule:
@@ -39,11 +46,13 @@ class _FakeRule:
         priority: int = 10,
         matches_value: bool = True,
         action: DecisionAction = "buy",
+        cooldown_days: int = 0,
     ) -> None:
         self._name: str = name
         self._priority: int = priority
         self._matches: bool = matches_value
         self._action: DecisionAction = action
+        self._cooldown_days: int = cooldown_days
 
     @property
     def name(self) -> str:
@@ -55,7 +64,7 @@ class _FakeRule:
 
     @property
     def cooldown_days(self) -> int:
-        return 0
+        return self._cooldown_days
 
     @property
     def rule_group(self) -> RuleGroup:
@@ -154,6 +163,49 @@ def test_enabled_rules_acts_as_allowlist() -> None:
 
     assert intent.diagnostics is not None
     assert intent.diagnostics["matched_rule_name"] == "beta"
+
+
+def test_resolver_uses_injected_cooldown_tracker() -> None:
+    intent = resolve_portfolio_rules_intent(
+        snapshot(current_date=date(2025, 5, 8)),
+        rules=_as_rules(_FakeRule(name="alpha", cooldown_days=7)),
+        cooldown_tracker=RuleCooldownTracker({"alpha": date(2025, 5, 7)}),
+    )
+
+    assert intent.reason == "regime_no_signal"
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["cooldown_skipped_rules"] == [
+        {
+            "rule": "alpha",
+            "last_executed_at": "2025-05-07",
+            "cooldown_days": 7,
+            "remaining_days": 6,
+        }
+    ]
+
+
+def test_rules_evaluator_isolated_from_policy_state_mutation() -> None:
+    ctx = RuleExecutionContext(previous_fgi_regime={"BTC": "greed"})
+    evaluator = RulesEvaluator(rules=_as_rules(_FakeRule(name="alpha")))
+
+    intent = evaluator.evaluate(
+        FlatMinimumState(
+            spy_dma_state=None,
+            btc_dma_state=state(symbol="BTC", fgi_regime="neutral"),
+            eth_dma_state=None,
+            current_asset_allocation={
+                "btc": 0.0,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 1.0,
+                "alt": 0.0,
+            },
+        ),
+        ctx,
+    )
+
+    assert intent.reason == "fake_alpha_reason"
+    assert ctx.previous_fgi_regime == {"BTC": "greed"}
 
 
 def test_rule_trace_records_all_outcomes_including_non_matches() -> None:

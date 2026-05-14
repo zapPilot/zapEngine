@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
 
 from src.services.backtesting.decision import (
     AllocationIntent,
@@ -104,6 +104,15 @@ class PortfolioRule(Protocol):
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent: ...
+
+
+@runtime_checkable
+class HasPublicParams(Protocol):
+    @classmethod
+    def public_params_section(cls) -> str | None: ...
+
+    @classmethod
+    def with_public_params(cls, section: Any) -> Self: ...
 
 
 class DecisionPolicy(Protocol):
@@ -470,6 +479,7 @@ __all__ = [
     "SYMBOL_BY_ALLOCATION_KEY",
     "DecisionPolicy",
     "FgiRegime",
+    "HasPublicParams",
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",

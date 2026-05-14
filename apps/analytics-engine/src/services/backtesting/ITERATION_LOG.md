@@ -7,6 +7,34 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-14 - R5/R6 null-result cleanup
+- **Status**: rejected and cleaned up
+- **Commit**: pending local change (`record R5/R6 null sweep cleanup`)
+- **Finding**: R5 slope-scaled `fgi_downshift_dca_sell` sizing and R6 252d cross-up drawdown amplification both produced zero metric movement across the proposed 500-day rule-only variants. Per the no-false-optionality maintenance rule, the opt-in plumbing was removed in the same change instead of leaving dead research params.
+- **Implemented then removed (R5)**: tested `FgiSlopeScaledSizing`, nested `fgi_downshift` public params, flat runtime keys, decision-policy injection, and `rule_only_sweep.py` flags. All proposed step variants were identical to the neutral 5%/5% baseline, so the sizing strategy, params, flags, and tests were removed; `fgi_downshift_dca_sell` remains on `FlatSizing`.
+- **Implemented then removed (R6)**: tested `peak_distance_252d`, drawdown-only `cross_up` public params, `CrossUpEqualWeightRule.drawdown_amplifier_alpha` / `drawdown_amplifier_threshold`, decision-policy injection, and sweep flags. Alpha variants, including the loose 10% threshold, were identical to the neutral baseline, so the 252d signal/rule/params/flags/tests were removed.
+
+**R5 - fgi_downshift slope-scaled sizing sweep**:
+| Variant | step_mid | step_strong | ROI | ROI Delta vs neutral | Calmar | Sharpe | Trades | Matches |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 0.05 | 0.05 | 62.7121 | 0.0000 | 3.1839 | 1.5816 | 23 | 22 |
+| R5-mild | 0.07 | 0.10 | 62.7121 | 0.0000 | 3.1839 | 1.5816 | 23 | 22 |
+| R5-recommended | 0.10 | 0.15 | 62.7121 | 0.0000 | 3.1839 | 1.5816 | 23 | 22 |
+| R5-aggressive | 0.10 | 0.20 | 62.7121 | 0.0000 | 3.1839 | 1.5816 | 23 | 22 |
+
+**R6 - cross_up 252d drawdown amplifier sweep**:
+| Variant | alpha | threshold | ROI | ROI Delta vs neutral | Calmar | Sharpe | Trades | Matches |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | - | - | 55.4133 | 0.0000 | 2.3006 | 1.2962 | 9 | 4 |
+| R6-alpha0.5 | 0.5 | 0.20 | 55.4133 | 0.0000 | 2.3006 | 1.2962 | 9 | 4 |
+| R6-alpha1.0 | 1.0 | 0.20 | 55.4133 | 0.0000 | 2.3006 | 1.2962 | 9 | 4 |
+| R6-loose-threshold | 1.0 | 0.10 | 55.4133 | 0.0000 | 2.3006 | 1.2962 | 9 | 4 |
+
+- **Wiring verification**: the requested liveness commands executed successfully, but neither `--fgi-downshift-step-strong 0.20` nor `--cross-up-drawdown-amplifier-alpha 1.0 --cross-up-drawdown-amplifier-threshold 0.10` changed the relevant standalone row. This is a null-result signal, not a promotion candidate.
+- **Decision (R5)**: reject and clean up immediately. The 22 downshift matches did not respond to the proposed slope thresholds in this window.
+- **Decision (R6)**: reject and clean up immediately. The 4 cross-up matches still do not receive a measurable cycle-aware drawdown boost, even at the looser 10% threshold.
+- **Validation**: targeted red-green tests passed before cleanup (`70 passed`). After cleanup, `pnpm type-check` passed, `pnpm lint` passed, `uv run pytest tests/services/backtesting tests/scripts tests/api` passed `855` tests, `pnpm test:strategy-snapshot:fast` reported zero drift, `uv run vulture src/ vulture_whitelist.py --min-confidence 80` passed with no output, and `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed `14/14` validation checks.
+
 ### 2026-05-14 - R1/R2 cross-up cleanup after R4 promotion
 - **Status**: active
 - **Commit**: pending local change (`cleanup R1/R2 cross-up research plumbing`)

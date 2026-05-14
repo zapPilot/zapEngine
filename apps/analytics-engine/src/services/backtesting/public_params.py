@@ -7,7 +7,7 @@ translates it to the flat runtime params consumed by the strategy classes.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
@@ -27,16 +27,28 @@ class _SignalPublicParams(BaseModel):
 class _PacingPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    k: float = Field(default=5.0)
-    r_max: float = Field(default=1.0)
+    k: float = Field(default=5.0, serialization_alias="pacing_k")
+    r_max: float = Field(default=1.0, serialization_alias="pacing_r_max")
 
 
 class _BuyGatePublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    window_days: int = Field(default=5, ge=1, strict=True)
-    sideways_max_range: float = Field(default=0.04, ge=0.0)
-    leg_caps: list[float] = Field(default_factory=lambda: [0.05, 0.10, 0.20])
+    window_days: int = Field(
+        default=5,
+        ge=1,
+        strict=True,
+        serialization_alias="buy_sideways_window_days",
+    )
+    sideways_max_range: float = Field(
+        default=0.04,
+        ge=0.0,
+        serialization_alias="buy_sideways_max_range",
+    )
+    leg_caps: list[float] = Field(
+        default_factory=lambda: [0.05, 0.10, 0.20],
+        serialization_alias="buy_leg_caps",
+    )
 
 
 class _TradeQuotaPublicParams(BaseModel):
@@ -119,32 +131,26 @@ def normalize_nested_public_params(
     return cast(dict[str, JsonValue], normalized.model_dump(mode="json"))
 
 
-_DMA_FIELD_MAPPING: Final[list[tuple[str, tuple[str, ...]]]] = [
-    # (flat_key, public_param_path)
-    ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
-    ("cross_on_touch", ("signal", "cross_on_touch")),
-    ("pacing_k", ("pacing", "k")),
-    ("pacing_r_max", ("pacing", "r_max")),
-    ("buy_sideways_window_days", ("buy_gate", "window_days")),
-    ("buy_sideways_max_range", ("buy_gate", "sideways_max_range")),
-    ("buy_leg_caps", ("buy_gate", "leg_caps")),
-    ("min_trade_interval_days", ("trade_quota", "min_trade_interval_days")),
-    ("max_trades_7d", ("trade_quota", "max_trades_7d")),
-    ("max_trades_30d", ("trade_quota", "max_trades_30d")),
-    ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
-    (
-        "overextension_threshold_multiplier_greed",
-        ("top_escape", "overextension_threshold_multiplier_greed"),
-    ),
-    (
-        "overextension_threshold_multiplier_extreme_greed",
-        ("top_escape", "overextension_threshold_multiplier_extreme_greed"),
-    ),
-    ("fgi_slope_reversal_threshold", ("top_escape", "fgi_slope_reversal_threshold")),
-    ("fgi_slope_recovery_threshold", ("top_escape", "fgi_slope_recovery_threshold")),
-    ("disabled_rules", ("disabled_rules",)),
-    ("enabled_rules", ("enabled_rules",)),
-]
+def _flat_key(field_name: str, field_info: Any) -> str:
+    serialization_alias = getattr(field_info, "serialization_alias", None)
+    return serialization_alias if isinstance(serialization_alias, str) else field_name
+
+
+def _dma_field_mapping() -> list[tuple[str, tuple[str, ...]]]:
+    mapping: list[tuple[str, tuple[str, ...]]] = []
+    for field_name, field_info in DmaGatedFgiPublicParams.model_fields.items():
+        annotation = field_info.annotation
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            for nested_name, nested_info in annotation.model_fields.items():
+                mapping.append(
+                    (
+                        _flat_key(nested_name, nested_info),
+                        (field_name, nested_name),
+                    )
+                )
+            continue
+        mapping.append((_flat_key(field_name, field_info), (field_name,)))
+    return mapping
 
 
 def _json_ready_value(value: Any) -> Any:
@@ -155,13 +161,10 @@ def _json_ready_value(value: Any) -> Any:
     return value
 
 
-def _nested_to_flat(
-    nested: BaseModel,
-    field_mapping: list[tuple[str, tuple[str, ...]]],
-) -> dict[str, Any]:
+def _nested_to_flat(nested: BaseModel) -> dict[str, Any]:
     """Extract flat runtime params from a nested public params model."""
     flat: dict[str, Any] = {}
-    for flat_key, path in field_mapping:
+    for flat_key, path in _dma_field_mapping():
         if len(path) == 1:
             value = getattr(nested, path[0])
         else:
@@ -171,13 +174,10 @@ def _nested_to_flat(
     return flat
 
 
-def _flat_to_nested(
-    resolved: BaseModel,
-    field_mapping: list[tuple[str, tuple[str, ...]]],
-) -> dict[str, Any]:
+def _flat_to_nested(resolved: BaseModel) -> dict[str, Any]:
     """Group flat runtime params into nested section dicts."""
     nested: dict[str, Any] = {}
-    for flat_key, path in field_mapping:
+    for flat_key, path in _dma_field_mapping():
         value = _json_ready_value(getattr(resolved, flat_key))
         if len(path) == 1:
             nested[path[0]] = value
@@ -209,7 +209,7 @@ def public_params_to_runtime_params(
         )
 
         nested = DmaGatedFgiPublicParams.model_validate(normalized)
-        flat = _nested_to_flat(nested, _DMA_FIELD_MAPPING)
+        flat = _nested_to_flat(nested)
         return DmaGatedFgiParams.from_public_params(flat).to_public_params()
 
     return normalized
@@ -232,7 +232,7 @@ def runtime_params_to_public_params(
         )
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
-        sections = _flat_to_nested(resolved, _DMA_FIELD_MAPPING)
+        sections = _flat_to_nested(resolved)
         dma_model = DmaGatedFgiPublicParams(
             signal=_SignalPublicParams(**sections.get("signal", {})),
             pacing=_PacingPublicParams(**sections.get("pacing", {})),

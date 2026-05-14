@@ -6,7 +6,23 @@ from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
+from src.services.backtesting.public_params import DmaGatedFgiPublicParams
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
+
+
+def test_overextension_rule_declares_and_binds_public_params_section() -> None:
+    params = DmaGatedFgiPublicParams(
+        top_escape={
+            "overextension_threshold_multiplier_greed": 0.67,
+            "overextension_threshold_multiplier_extreme_greed": 0.50,
+        }
+    )
+
+    rule = DmaOverextensionDcaSellRule.with_public_params(params.top_escape)
+
+    assert DmaOverextensionDcaSellRule.public_params_section() == "top_escape"
+    assert rule.overextension_threshold_multiplier_greed == 0.67
+    assert rule.overextension_threshold_multiplier_extreme_greed == 0.50
 
 
 def test_btc_overextension_routes_50_50_spy_stable() -> None:

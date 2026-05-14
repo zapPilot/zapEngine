@@ -6,6 +6,9 @@ from typing import cast
 import pytest
 
 from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.cooldown_tracker import (
+    RuleCooldownTracker,
+)
 from src.services.backtesting.portfolio_rules.decision_policy import (
     resolve_portfolio_rules_intent,
 )
@@ -134,9 +137,9 @@ def test_dca_cooldown_does_not_block_large_tier() -> None:
         rule_snapshot,
         rules=(EthBtcDeviationDcaRule(),),
         config=PortfolioRuleConfig(),
-        rule_last_executed_at={
-            ("eth_btc_deviation_dca", "dca_to_eth"): date(2025, 5, 7)
-        },
+        cooldown_tracker=RuleCooldownTracker(
+            {("eth_btc_deviation_dca", "dca_to_eth"): date(2025, 5, 7)}
+        ),
     )
 
     assert intent.allocation_name == "portfolio_eth_btc_deviation_large_to_eth"
