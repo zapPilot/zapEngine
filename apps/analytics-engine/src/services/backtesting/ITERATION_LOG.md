@@ -7,6 +7,52 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-14 - Promote R4-aggressive DMA overextension sentiment multipliers
+- **Status**: active
+- **Commit**: pending local change (`promote R4-aggressive overextension defaults`)
+- **Promoted**: `dma_overextension_dca_sell` now defaults to `overextension_threshold_multiplier_greed=0.50` and `overextension_threshold_multiplier_extreme_greed=0.33` across the rule dataclass, `DmaGatedFgiParams`, and nested public `top_escape` params. Explicit saved config values still override these defaults.
+- **Production-window gate**: `scripts/attribution/sweep_production_window.py` passed the promotion bar before snapshot refresh. Full-default `dma_fgi_portfolio_rules` moved from ROI `71.7135%` to `76.8826%` (`+5.1691pp`), Calmar `5.1864` to `5.7841` (`+0.5977`), and Sharpe `2.4741` to `2.6274` (`+0.1533`). Current refreshed snapshot trade count is `53`; max drawdown is `-8.9254%`.
+- **Per-rule report**: `dma_overextension_dca_sell` is now `295` matches, `108` wins, `7` shadowed. Other active rules: `fgi_downshift_dca_sell` `22/10/7`, `eth_btc_deviation_dca` `19/3/0`, `cross_down_exit` `7/5/0`, `cross_up_equal_weight` `4/4/0`, `eth_btc_ratio_rotation` `3/3/0`, `spy_latch` `0/0/0`.
+- **Shadowing check**: `dma_overextension_dca_sell` shadows `fgi_downshift_dca_sell` `6` times; it is shadowed by `eth_btc_deviation_dca` `3`, `cross_down_exit` `2`, `cross_up_equal_weight` `1`, and `eth_btc_ratio_rotation` `1`. No adverse crowd-out showed up in the production gate because ROI, Calmar, and Sharpe all improved.
+- **Validation**: hierarchical validation events passed `14/14` with no fixture updates. `test_dma_overextension_dca_sell.py` was updated red-first so the new default greed threshold behavior is covered. `sweep_production_window.py --update-snapshot` refreshed `tests/fixtures/strategy_performance_snapshot_500d.json` and regenerated the landing-page equity curve.
+
+### 2026-05-13 - R4 sentiment-modulated DMA overextension threshold
+- **Status**: active
+- **Commit**: pending local change (`dma_overextension_dca_sell R4 opt-in multipliers`)
+- **Implemented**: added opt-in `top_escape` public params for `overextension_threshold_multiplier_greed` and `overextension_threshold_multiplier_extreme_greed`, wired them through `DmaGatedFgiParams`, `decision_policy._rule_for_params`, and `rule_only_sweep.py` CLI flags. `DmaOverextensionDcaSellRule` now multiplies the asset-specific DMA overextension threshold only in `greed` and `extreme_greed`; all other regimes use the existing threshold.
+- **Behavior guard**: both multipliers default to `1.0`, so default `dma_overextension_dca_sell` behavior and the 500-day snapshot fixture are unchanged.
+- **500-day rule-only sweep vs current overextension baseline**:
+  | Variant | Greed mult | Extreme greed mult | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Sharpe Delta | Trades | Matches | Decision |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+  | baseline | 1.00 | 1.00 | 66.7972 | 0.0000 | 4.4323 | 0.0000 | 1.9653 | 0.0000 | 38 | 236 | baseline |
+  | R4-mild | 0.80 | 0.67 | 68.1024 | 1.3052 | 4.5134 | 0.0811 | 1.9664 | 0.0011 | 44 | 262 | pass |
+  | R4-recommended | 0.67 | 0.50 | 68.4751 | 1.6779 | 4.7206 | 0.2883 | 1.9138 | -0.0515 | 47 | 281 | pass |
+  | R4-aggressive | 0.50 | 0.33 | 71.9107 | 5.1135 | 4.9435 | 0.5112 | 2.0451 | 0.0798 | 49 | 296 | promote in follow-up |
+  | R4-greed-only | 0.67 | 1.00 | 66.7564 | -0.0408 | 4.6094 | 0.1771 | 1.9408 | -0.0245 | 47 | 274 | reject |
+  | R4-extreme-only | 1.00 | 0.50 | 71.3075 | 4.5103 | 4.7121 | 0.2798 | 1.9462 | -0.0191 | 39 | 243 | pass but dominated |
+- **Decision**: sentiment + overextension are not collinear at the threshold level. The response is monotonic across mild -> recommended -> aggressive, and R4-aggressive clears the +1pp ROI bar while improving Sharpe. Per the implementation scope, defaults remain `1.0` in this change; promote `0.50` / `0.33` in a separate default-change plus snapshot-refresh commit if accepted.
+- **Wiring note**: `--overextension-multiplier-extreme-greed 0.5` changed ROI from 66.7972% to 71.3075% in the extreme-only run, proving the CLI/public-param/decision-policy/rule path is live.
+- **Validation**: targeted red-green tests passed (`43 passed` after implementation). `pnpm --filter @zapengine/analytics-engine type-check` passed. `pnpm --filter @zapengine/analytics-engine lint` passed. `uv run pytest tests/services/backtesting tests/scripts tests/api` passed 865 tests. `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` reported zero 500-day snapshot drift. No `--update-snapshot`.
+
+### 2026-05-13 - Cross-up sentiment filter and drawdown amplifier opt-in
+- **Status**: active
+- **Commit**: pending local change (`cross_up_equal_weight R1/R2 opt-in params`)
+- **Implemented**: added `peak_distance_60d` to `DmaMarketState`, computed from asset-specific `SignalContext.price_history[-60:]`; added `StrategyContext.price_history_map` so flat SPY/BTC/ETH signals do not reuse BTC history for SPY/ETH; added opt-in `cross_up` public params for `fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; wired them through `DmaGatedFgiParams`, `decision_policy._rule_for_params`, and `rule_only_sweep.py` CLI flags.
+- **Behavior guard**: with `fgi_slope_min=None` and `drawdown_amplifier_alpha=None`, `cross_up_equal_weight` keeps the old equal-weight behavior. The drawdown threshold is inert unless alpha is set.
+- **500-day rule-only sweep vs current cross_up baseline**:
+  | Variant | fgi_slope_min | drawdown_alpha | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Trades | Matches | Decision |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+  | baseline | - | - | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 9 | 4 | baseline |
+  | R1 slope >= 0 | 0.0 | - | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 9 | 4 | reject: no effect |
+  | R1 slope >= 0.05 | 0.05 | - | 31.1461 | -24.2672 | 0.9893 | -1.3113 | 0.7604 | 4 | 0 | reject: too tight |
+  | R2 alpha=0.5 | - | 0.5 | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 9 | 4 | reject: no effect |
+  | R2 alpha=1.0 | - | 1.0 | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 9 | 4 | reject: no effect |
+  | R1+R2 | 0.0 | 0.5 | 55.4133 | 0.0000 | 2.3006 | 0.0000 | 1.2962 | 9 | 4 | reject: no effect |
+- **Decision**: do not promote either enhancement to default. R1 with threshold 0.0 is redundant with the observed cross-up events in this window; 0.05 suppresses all four matches and damages performance. R2 is wired but behavior-neutral at the default 20% drawdown threshold, so the eligible cross-up assets do not get amplified in this window.
+- **Wiring note**: the requested `--cross-up-fgi-slope-min 0.0` live check did not produce different metrics because all four baseline cross-up matches already pass that threshold. `--cross-up-fgi-slope-min 0.05` changed results, proving R1 wiring is live. R2 unit coverage proves sizing changes when `peak_distance_60d` breaches threshold, but the 500-day production window did not breach the 20% threshold on eligible assets.
+- **Validation**: `pnpm --filter @zapengine/analytics-engine type-check` passed. `pnpm --filter @zapengine/analytics-engine lint` passed. `uv run pytest tests/services/backtesting tests/scripts tests/api` passed 857 tests. `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` reported zero 500-day snapshot drift. No `--update-snapshot`.
+- **Next**: keep R1/R2 as opt-in research params only. If revisiting R2, test a lower drawdown threshold or different peak-distance window before promoting any default.
+
 ### 2026-05-13 - Extreme-fear buy_step sweep and structural root cause
 - **Status**: active
 - **Commit**: pending local change (`extreme-fear buy_step variant sweep`)

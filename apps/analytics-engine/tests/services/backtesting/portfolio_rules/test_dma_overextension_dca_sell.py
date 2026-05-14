@@ -72,3 +72,66 @@ def test_spy_overextension_self_rebuys_half() -> None:
     )
     assert intent.diagnostics is not None
     assert intent.diagnostics["portfolio_rule_assets"] == ["SPY"]
+
+
+def test_default_greed_multiplier_tightens_btc_overextension_threshold() -> None:
+    rule = DmaOverextensionDcaSellRule()
+    rule_snapshot = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.15,
+                fgi_regime="greed",
+            )
+        },
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+
+
+def test_greed_multiplier_tightens_btc_overextension_threshold() -> None:
+    rule = DmaOverextensionDcaSellRule(overextension_threshold_multiplier_greed=0.67)
+    rule_snapshot = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.15,
+                fgi_regime="greed",
+            )
+        },
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert intent.reason == "portfolio_dma_overextension_dca_sell"
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]
+
+
+def test_extreme_greed_multiplier_tightens_btc_overextension_threshold() -> None:
+    rule = DmaOverextensionDcaSellRule(
+        overextension_threshold_multiplier_extreme_greed=0.50
+    )
+    rule_snapshot = snapshot(
+        assets={
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.11,
+                fgi_regime="extreme_greed",
+            )
+        },
+        current={"btc": 0.40, "eth": 0.0, "spy": 0.0, "stable": 0.60, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert intent.reason == "portfolio_dma_overextension_dca_sell"
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["portfolio_rule_assets"] == ["BTC"]

@@ -51,8 +51,26 @@ class _TopEscapePublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     dma_overextension_threshold: float = Field(default=0.30, ge=0.0, le=1.0)
+    overextension_threshold_multiplier_greed: float = Field(
+        default=0.50,
+        ge=0.0,
+        le=2.0,
+    )
+    overextension_threshold_multiplier_extreme_greed: float = Field(
+        default=0.33,
+        ge=0.0,
+        le=2.0,
+    )
     fgi_slope_reversal_threshold: float = Field(default=-0.05, le=0.0)
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
+
+
+class _CrossUpFilterPublicParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fgi_slope_min: float | None = None
+    drawdown_amplifier_alpha: float | None = None
+    drawdown_amplifier_threshold: float = Field(default=0.20, ge=0.0, le=1.0)
 
 
 class DmaGatedFgiPublicParams(BaseModel):
@@ -65,6 +83,9 @@ class DmaGatedFgiPublicParams(BaseModel):
         default_factory=_TradeQuotaPublicParams
     )
     top_escape: _TopEscapePublicParams = Field(default_factory=_TopEscapePublicParams)
+    cross_up: _CrossUpFilterPublicParams = Field(
+        default_factory=_CrossUpFilterPublicParams
+    )
     disabled_rules: list[str] = Field(default_factory=list)
     enabled_rules: list[str] | None = Field(default=None)
 
@@ -122,8 +143,25 @@ _DMA_FIELD_MAPPING: Final[list[tuple[str, tuple[str, ...]]]] = [
     ("max_trades_7d", ("trade_quota", "max_trades_7d")),
     ("max_trades_30d", ("trade_quota", "max_trades_30d")),
     ("dma_overextension_threshold", ("top_escape", "dma_overextension_threshold")),
+    (
+        "overextension_threshold_multiplier_greed",
+        ("top_escape", "overextension_threshold_multiplier_greed"),
+    ),
+    (
+        "overextension_threshold_multiplier_extreme_greed",
+        ("top_escape", "overextension_threshold_multiplier_extreme_greed"),
+    ),
     ("fgi_slope_reversal_threshold", ("top_escape", "fgi_slope_reversal_threshold")),
     ("fgi_slope_recovery_threshold", ("top_escape", "fgi_slope_recovery_threshold")),
+    ("cross_up_fgi_slope_min", ("cross_up", "fgi_slope_min")),
+    (
+        "cross_up_drawdown_amplifier_alpha",
+        ("cross_up", "drawdown_amplifier_alpha"),
+    ),
+    (
+        "cross_up_drawdown_amplifier_threshold",
+        ("cross_up", "drawdown_amplifier_threshold"),
+    ),
     ("disabled_rules", ("disabled_rules",)),
     ("enabled_rules", ("enabled_rules",)),
 ]
@@ -221,6 +259,7 @@ def runtime_params_to_public_params(
             buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
             trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
             top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
+            cross_up=_CrossUpFilterPublicParams(**sections.get("cross_up", {})),
             disabled_rules=sections.get("disabled_rules", []),
             enabled_rules=sections.get("enabled_rules"),
         )

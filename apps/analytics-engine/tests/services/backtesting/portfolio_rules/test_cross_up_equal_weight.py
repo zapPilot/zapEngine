@@ -288,3 +288,123 @@ def test_cross_up_equal_weight_emits_trigger_assets_diagnostic() -> None:
         "portfolio_rule_assets": ["SPY", "BTC", "ETH"],
         "portfolio_rule_trigger_assets": ["ETH"],
     }
+
+
+def test_cross_up_equal_weight_filters_cross_up_when_fgi_slope_is_too_low() -> None:
+    rule = CrossUpEqualWeightRule(fgi_slope_min=0.0)
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                actionable_cross_event="cross_up",
+                fgi_slope=-0.01,
+            ),
+            "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig()) is False
+
+
+def test_cross_up_equal_weight_allows_cross_up_at_fgi_slope_threshold() -> None:
+    rule = CrossUpEqualWeightRule(fgi_slope_min=0.05)
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                actionable_cross_event="cross_up",
+                fgi_slope=0.05,
+            ),
+            "ETH": state(symbol="ETH", zone="below", dma_distance=-0.05),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+    )
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+
+
+def test_cross_up_equal_weight_amplifies_deeper_drawdown_weights() -> None:
+    rule = CrossUpEqualWeightRule(
+        drawdown_amplifier_alpha=1.0,
+        drawdown_amplifier_threshold=0.20,
+    )
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                actionable_cross_event="cross_up",
+                peak_distance_60d=-0.30,
+            ),
+            "ETH": state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.03,
+                peak_distance_60d=-0.10,
+            ),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert intent.target_allocation == pytest.approx(
+        {
+            "btc": 1.1 / 2.1,
+            "eth": 1.0 / 2.1,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        }
+    )
+
+
+def test_cross_up_equal_weight_combines_fgi_filter_and_drawdown_amplifier() -> None:
+    rule = CrossUpEqualWeightRule(
+        fgi_slope_min=0.0,
+        drawdown_amplifier_alpha=0.5,
+        drawdown_amplifier_threshold=0.20,
+    )
+    rule_snapshot = snapshot(
+        assets={
+            "SPY": state(symbol="SPY", zone="below", dma_distance=-0.05),
+            "BTC": state(
+                symbol="BTC",
+                zone="above",
+                dma_distance=0.05,
+                actionable_cross_event="cross_up",
+                fgi_slope=0.02,
+                peak_distance_60d=-0.40,
+            ),
+            "ETH": state(
+                symbol="ETH",
+                zone="above",
+                dma_distance=0.03,
+                fgi_slope=-0.20,
+                peak_distance_60d=None,
+            ),
+        },
+        current={"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0},
+    )
+
+    intent = rule.build_intent(rule_snapshot, config=PortfolioRuleConfig())
+
+    assert rule.matches(rule_snapshot, config=PortfolioRuleConfig())
+    assert intent.target_allocation == pytest.approx(
+        {
+            "btc": 1.1 / 2.1,
+            "eth": 1.0 / 2.1,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        }
+    )

@@ -27,6 +27,7 @@ def _context(
     dma_200: float | None = 50_000.0,
     ath_event: str | None = None,
     extra_data: dict[str, object] | None = None,
+    price_history: list[float] | None = None,
 ) -> SignalContext:
     resolved_extra_data = dict(extra_data or {})
     if dma_200 is not None:
@@ -35,7 +36,7 @@ def _context(
         date=date(2025, 1, day),
         price=price,
         sentiment=sentiment,
-        price_history=[50_000.0, price],
+        price_history=price_history or [50_000.0, price],
         portfolio_value=10_000.0,
         ath_event=ath_event,
         extra_data=resolved_extra_data,
@@ -112,6 +113,38 @@ def test_signal_engine_extracts_macro_fear_greed_state() -> None:
     assert market_state.asset_symbol == "SPY"
     assert market_state.macro_fear_greed_value == pytest.approx(4.0)
     assert market_state.macro_fear_greed_regime == "extreme_fear"
+
+
+def test_signal_engine_computes_peak_distance_60d_from_price_history() -> None:
+    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+
+    market_state = engine.build_market_state(
+        _context(
+            day=2,
+            price=80.0,
+            sentiment={"label": "fear", "value": 30},
+            dma_200=75.0,
+            price_history=[90.0] * 58 + [100.0, 80.0],
+        )
+    )
+
+    assert market_state.peak_distance_60d == pytest.approx(-0.20)
+
+
+def test_signal_engine_returns_no_peak_distance_before_60d_warmup() -> None:
+    engine = DmaSignalEngine(config=DmaGatedFgiConfig())
+
+    market_state = engine.build_market_state(
+        _context(
+            day=2,
+            price=80.0,
+            sentiment={"label": "fear", "value": 30},
+            dma_200=75.0,
+            price_history=[90.0] * 57 + [100.0, 80.0],
+        )
+    )
+
+    assert market_state.peak_distance_60d is None
 
 
 def test_signal_engine_uses_macro_label_not_score_threshold() -> None:

@@ -78,6 +78,7 @@ class _MarketDaySnapshot:
 class _EngineRunState:
     timeline: list[TimelinePoint] = field(default_factory=list)
     price_history: list[float] = field(default_factory=list)
+    price_history_map: dict[str, list[float]] = field(default_factory=dict)
     benchmark_daily_prices: list[float] = field(default_factory=list)
 
 
@@ -121,6 +122,12 @@ class StrategyEngine:
         for price_data in prices:
             snapshot = self._build_market_day_snapshot(price_data, sentiments)
             run_state.price_history.append(snapshot.price)
+            _append_price_history_map(
+                run_state.price_history_map,
+                price_map=snapshot.price_map,
+                fallback_key=token_symbol.lower(),
+                fallback_price=snapshot.price,
+            )
             flags = _DayFlags(
                 record_point=user_start_date is None
                 or snapshot.current_date >= user_start_date,
@@ -324,6 +331,7 @@ class StrategyEngine:
                 price_history=run_state.price_history,
                 portfolio=portfolio,
                 price_map=dict(snapshot.price_map),
+                price_history_map=run_state.price_history_map,
                 extra_data=dict(snapshot.extra_data),
             )
             if day_flags.is_warmup:
@@ -438,3 +446,19 @@ class StrategyEngine:
             return portfolio.resolve_spot_price(price_map)
         except ValueError:
             return fallback_price
+
+
+def _append_price_history_map(
+    price_history_map: dict[str, list[float]],
+    *,
+    price_map: dict[str, float],
+    fallback_key: str,
+    fallback_price: float,
+) -> None:
+    seen_keys: set[str] = set()
+    for key, price in price_map.items():
+        normalized_key = key.lower()
+        price_history_map.setdefault(normalized_key, []).append(price)
+        seen_keys.add(normalized_key)
+    if fallback_key not in seen_keys and fallback_price > 0.0:
+        price_history_map.setdefault(fallback_key, []).append(float(fallback_price))

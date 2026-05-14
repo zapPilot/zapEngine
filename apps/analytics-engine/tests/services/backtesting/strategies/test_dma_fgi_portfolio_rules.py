@@ -24,6 +24,9 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     DmaFgiPortfolioRulesDecisionPolicy,
     build_portfolio_rules_for_params,
 )
+from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
+    DmaOverextensionDcaSellRule,
+)
 from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
@@ -49,6 +52,44 @@ def test_strategy_params_wire_disabled_rules_into_decision_policy() -> None:
     assert "cross_down_exit" not in [
         rule.name for rule in build_portfolio_rules_for_params(params)
     ]
+
+
+def test_strategy_params_wire_cross_up_filters_into_rule() -> None:
+    params = DmaGatedFgiParams.from_public_params(
+        {
+            "cross_up_fgi_slope_min": 0.05,
+            "cross_up_drawdown_amplifier_alpha": 0.5,
+            "cross_up_drawdown_amplifier_threshold": 0.25,
+        }
+    )
+
+    cross_up_rule = next(
+        rule
+        for rule in build_portfolio_rules_for_params(params, include_inactive=True)
+        if isinstance(rule, CrossUpEqualWeightRule)
+    )
+
+    assert cross_up_rule.fgi_slope_min == 0.05
+    assert cross_up_rule.drawdown_amplifier_alpha == 0.5
+    assert cross_up_rule.drawdown_amplifier_threshold == 0.25
+
+
+def test_strategy_params_wire_overextension_multipliers_into_rule() -> None:
+    params = DmaGatedFgiParams.from_public_params(
+        {
+            "overextension_threshold_multiplier_greed": 0.67,
+            "overextension_threshold_multiplier_extreme_greed": 0.50,
+        }
+    )
+
+    overextension_rule = next(
+        rule
+        for rule in build_portfolio_rules_for_params(params, include_inactive=True)
+        if isinstance(rule, DmaOverextensionDcaSellRule)
+    )
+
+    assert overextension_rule.overextension_threshold_multiplier_greed == 0.67
+    assert overextension_rule.overextension_threshold_multiplier_extreme_greed == 0.50
 
 
 def test_strategy_feature_summary_reflects_default_active_rules() -> None:

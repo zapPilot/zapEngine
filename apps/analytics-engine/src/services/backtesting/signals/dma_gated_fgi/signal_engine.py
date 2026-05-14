@@ -131,6 +131,10 @@ class DmaSignalEngine:
             asset_symbol=_normalize_asset_symbol(
                 context.extra_data.get(DMA_ASSET_FEATURE)
             ),
+            peak_distance_60d=_peak_distance_60d(
+                price=context.price,
+                price_history=context.price_history,
+            ),
             macro_fear_greed_value=macro_value,
             macro_fear_greed_regime=macro_regime,
             macro_fear_greed_regime_source=macro_regime_source,
@@ -193,6 +197,7 @@ class DmaSignalEngine:
             regime_source=inputs.regime_source,
             ath_event=inputs.ath_event,
             asset_symbol=inputs.asset_symbol,
+            peak_distance_60d=inputs.peak_distance_60d,
             macro_fear_greed_value=inputs.macro_fear_greed_value,
             macro_fear_greed_regime=inputs.macro_fear_greed_regime,
             macro_fear_greed_regime_source=inputs.macro_fear_greed_regime_source,
@@ -389,6 +394,19 @@ def _normalize_asset_symbol(raw_value: object) -> str | None:
         return None
     normalized = raw_value.strip().upper()
     return normalized or None
+
+
+def _peak_distance_60d(
+    *,
+    price: float,
+    price_history: list[float],
+) -> float | None:
+    if len(price_history) < 60:
+        return None
+    peak = max(price_history[-60:])
+    if peak <= 0.0:
+        return None
+    return (price / peak) - 1.0
 
 
 __all__ = ["DmaSignalEngine"]

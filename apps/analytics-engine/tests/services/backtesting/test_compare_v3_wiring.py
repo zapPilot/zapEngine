@@ -64,6 +64,22 @@ def _dma_public_params(
     }
 
 
+def _price_row(
+    snapshot_date: date,
+    btc_price: float,
+    *,
+    dma_200: float = 100_000.0,
+    eth_price: float = 3_000.0,
+    spy_price: float = 500.0,
+) -> dict[str, object]:
+    return {
+        "date": snapshot_date,
+        "price": btc_price,
+        "prices": {"btc": btc_price, "eth": eth_price, "spy": spy_price},
+        "extra_data": {"dma_200": dma_200},
+    }
+
+
 def _build_dma_long_run_inputs(
     days: int,
 ) -> tuple[
@@ -165,16 +181,8 @@ def test_run_compare_v3_on_data_supports_portfolio_rules_mode() -> None:
 
     result = run_compare_v3_on_data(
         prices=[
-            {
-                "date": date(2025, 1, 1),
-                "price": 110_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
-            {
-                "date": date(2025, 1, 2),
-                "price": 111_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
+            _price_row(date(2025, 1, 1), 109_000.0),
+            _price_row(date(2025, 1, 2), 109_500.0),
         ],
         sentiments={
             date(2025, 1, 1): {"label": "greed", "value": 72},
@@ -239,16 +247,8 @@ def test_run_compare_v3_on_data_writes_decision_log(tmp_path: Path) -> None:
 
     result = run_compare_v3_on_data(
         prices=[
-            {
-                "date": date(2025, 1, 1),
-                "price": 110_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
-            {
-                "date": date(2025, 1, 2),
-                "price": 90_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
+            _price_row(date(2025, 1, 1), 110_000.0),
+            _price_row(date(2025, 1, 2), 90_000.0),
         ],
         sentiments={
             date(2025, 1, 1): {"label": "greed", "value": 72},
@@ -454,26 +454,10 @@ def test_run_compare_v3_on_data_attaches_window_and_respects_effective_start() -
 
     result = run_compare_v3_on_data(
         prices=[
-            {
-                "date": date(2025, 1, 1),
-                "price": 108_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
-            {
-                "date": date(2025, 1, 2),
-                "price": 107_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
-            {
-                "date": date(2025, 1, 3),
-                "price": 109_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
-            {
-                "date": date(2025, 1, 4),
-                "price": 110_000.0,
-                "extra_data": {"dma_200": 100_000.0},
-            },
+            _price_row(date(2025, 1, 1), 108_000.0),
+            _price_row(date(2025, 1, 2), 107_000.0),
+            _price_row(date(2025, 1, 3), 109_000.0),
+            _price_row(date(2025, 1, 4), 110_000.0),
         ],
         sentiments={
             date(2025, 1, 1): {"label": "neutral", "value": 50},
@@ -606,11 +590,7 @@ def _build_greed_fading_inputs() -> tuple[
     fgi_values = [80, 75, 65, 58, 50]
     fgi_labels = ["greed", "greed", "greed", "greed", "neutral"]
     prices = [
-        {
-            "date": start + timedelta(days=offset),
-            "price": btc_price,
-            "extra_data": {"dma_200": 100_000.0},
-        }
+        _price_row(start + timedelta(days=offset), btc_price)
         for offset in range(len(fgi_values))
     ]
     sentiments = {
