@@ -19,6 +19,7 @@ from src.services.backtesting.utils.coercion import (
     coerce_float,
     coerce_float_list,
     coerce_int,
+    coerce_nullable_float,
     coerce_to_date,
 )
 
@@ -31,6 +32,7 @@ def test_utils_init():
         "coerce_float",
         "coerce_float_list",
         "coerce_int",
+        "coerce_nullable_float",
         "coerce_nullable_int",
         "coerce_params",
         "coerce_to_date",
@@ -55,6 +57,14 @@ def test_coerce_int_rejects_non_integer_float() -> None:
 def test_coerce_float_rejects_bool() -> None:
     with pytest.raises(ValueError, match="must be a number"):
         coerce_float(True, field_name="x")
+
+
+def test_coerce_nullable_float_allows_none() -> None:
+    assert coerce_nullable_float(None, field_name="x") is None
+
+
+def test_coerce_nullable_float_coerces_numbers() -> None:
+    assert coerce_nullable_float(1, field_name="x") == 1.0
 
 
 def test_coerce_bool_rejects_non_bool() -> None:

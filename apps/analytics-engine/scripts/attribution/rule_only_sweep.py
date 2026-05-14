@@ -286,7 +286,30 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--decision-log-dir")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    parser.add_argument("--overextension-multiplier-greed", type=float, default=None)
+    parser.add_argument(
+        "--overextension-multiplier-extreme-greed",
+        type=float,
+        default=None,
+    )
     return parser
+
+
+def _extra_params(args: argparse.Namespace) -> dict[str, Any]:
+    extra_params: dict[str, Any] = {}
+    top_escape_params: dict[str, float] = {}
+    if args.overextension_multiplier_greed is not None:
+        top_escape_params["overextension_threshold_multiplier_greed"] = (
+            args.overextension_multiplier_greed
+        )
+    if args.overextension_multiplier_extreme_greed is not None:
+        top_escape_params["overextension_threshold_multiplier_extreme_greed"] = (
+            args.overextension_multiplier_extreme_greed
+        )
+    if top_escape_params:
+        extra_params["top_escape"] = top_escape_params
+
+    return extra_params
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -308,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
                 window_days=args.days,
                 total_capital=args.total_capital,
                 candidate_rules=candidate_rules,
+                extra_params=_extra_params(args),
                 client=client,
                 decision_log_dir=args.decision_log_dir,
             )
@@ -318,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
             window_days=args.days,
             total_capital=args.total_capital,
             candidate_rules=candidate_rules,
+            extra_params=_extra_params(args),
             decision_log_dir=args.decision_log_dir,
         )
     if args.format == "json":

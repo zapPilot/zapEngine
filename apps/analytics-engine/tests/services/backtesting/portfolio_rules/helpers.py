@@ -25,6 +25,7 @@ def state(
     fgi_regime: str = "neutral",
     macro_fear_greed_regime: str | None = None,
     fgi_value: float | None = 50.0,
+    fgi_slope: float = 0.0,
     macro_fear_greed_value: float | None = None,
     cooldown_state: DmaCooldownState | None = None,
 ) -> DmaMarketState:
@@ -42,7 +43,7 @@ def state(
             blocked_zone=cast(BlockedZone | None, None),
         ),
         fgi_value=fgi_value,
-        fgi_slope=0.0,
+        fgi_slope=fgi_slope,
         fgi_regime=fgi_regime,
         regime_source="label",
         ath_event=cast(AthEvent | None, None),

@@ -44,10 +44,12 @@ class DeepLinkService {
 
     final appLinks = _appLinks ??= AppLinks();
     _subscription = appLinks.uriLinkStream.listen((uri) {
+      debugPrint('[DeepLink] stream uri=$uri');
       unawaited(openEpisodeUri(uri));
     });
 
     final initialUri = await appLinks.getInitialLink();
+    debugPrint('[DeepLink] initialUri=${initialUri?.toString() ?? 'null'}');
     if (initialUri != null) {
       await openEpisodeUri(initialUri);
     }
@@ -55,20 +57,28 @@ class DeepLinkService {
 
   Future<bool> openEpisodeUri(Uri uri) async {
     final episodeId = episodeIdFromUri(uri);
-    if (episodeId == null) return false;
+    Episode? episode;
+    var navigated = false;
 
-    final episode = await _loadEpisode(episodeId);
-    final navigator = _navigatorKey.currentState;
-    if (episode == null || navigator == null) return false;
+    if (episodeId != null) {
+      episode = await _loadEpisode(episodeId);
+      final navigator = _navigatorKey.currentState;
+      if (episode != null && navigator != null) {
+        unawaited(
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => _episodeDetailBuilder(episode!),
+            ),
+          ),
+        );
+        navigated = true;
+      }
+    }
 
-    unawaited(
-      navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => _episodeDetailBuilder(episode),
-        ),
-      ),
+    debugPrint(
+      '[DeepLink] openEpisodeUri uri=$uri parsedEpisodeId=${episodeId ?? 'null'} episodeFound=${episode != null} navigated=$navigated',
     );
-    return true;
+    return navigated;
   }
 
   Future<void> dispose() async {

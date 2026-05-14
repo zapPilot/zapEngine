@@ -74,6 +74,27 @@ describe('synthesizeClassroomAudio', () => {
       }),
     );
   });
+
+  it('handles non-Error thrown values when synthesizing', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockTextToSpeech.mockRejectedValue('string error');
+
+    const result = await synthesizeClassroomAudio(classroomLesson(), {
+      episodeId: 'episode-1',
+    });
+
+    expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[classroom-audio] synthesis failed:',
+      expect.objectContaining({
+        episodeId: 'episode-1',
+        targetLanguageCode: 'ja',
+        message: 'string error',
+      }),
+    );
+  });
 });
 
 function classroomLesson(): LanguageClassroomLesson {

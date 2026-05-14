@@ -27,6 +27,7 @@ def _context(
     dma_200: float | None = 50_000.0,
     ath_event: str | None = None,
     extra_data: dict[str, object] | None = None,
+    price_history: list[float] | None = None,
 ) -> SignalContext:
     resolved_extra_data = dict(extra_data or {})
     if dma_200 is not None:
@@ -35,7 +36,7 @@ def _context(
         date=date(2025, 1, day),
         price=price,
         sentiment=sentiment,
-        price_history=[50_000.0, price],
+        price_history=price_history or [50_000.0, price],
         portfolio_value=10_000.0,
         ath_event=ath_event,
         extra_data=resolved_extra_data,

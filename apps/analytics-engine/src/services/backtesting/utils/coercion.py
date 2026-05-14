@@ -88,3 +88,10 @@ def coerce_nullable_int(value: Any, *, field_name: str) -> int | None:
     if value is None:
         return None
     return coerce_int(value, field_name=field_name)
+
+
+def coerce_nullable_float(value: Any, *, field_name: str) -> float | None:
+    """Coerce a value to float, allowing None pass-through."""
+    if value is None:
+        return None
+    return coerce_float(value, field_name=field_name)

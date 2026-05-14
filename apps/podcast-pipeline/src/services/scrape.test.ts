@@ -143,4 +143,21 @@ describe('scrapeArticle', () => {
       }),
     });
   });
+
+  it('handles JSDOM console errors without a message property', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const html = `<html><head><title>Test</title><style>:root {}</style></head><body><p>Content</p></body></html>`;
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(html, { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await scrapeArticle('https://example.com/test');
+
+    expect(result.title).toBe('Test');
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
 });

@@ -88,6 +88,8 @@ def _dma_runtime_params() -> dict[str, object]:
         "buy_sideways_max_range": 0.04,
         "buy_leg_caps": [0.05, 0.10, 0.20],
         "dma_overextension_threshold": 0.3,
+        "overextension_threshold_multiplier_greed": 0.50,
+        "overextension_threshold_multiplier_extreme_greed": 0.33,
         "fgi_slope_reversal_threshold": -0.05,
         "fgi_slope_recovery_threshold": 0.05,
     }

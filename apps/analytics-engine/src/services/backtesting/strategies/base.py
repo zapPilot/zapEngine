@@ -91,6 +91,7 @@ class StrategyContext:
     price_history: list[float]
     portfolio: Portfolio
     price_map: dict[str, float] = field(default_factory=dict)
+    price_history_map: dict[str, list[float]] = field(default_factory=dict)
     extra_data: dict[str, Any] = field(default_factory=dict)
 
     @property

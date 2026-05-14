@@ -87,6 +87,8 @@ DMA_GATED_FGI_PUBLIC_PARAM_KEYS = frozenset(
         "max_trades_7d",
         "max_trades_30d",
         "dma_overextension_threshold",
+        "overextension_threshold_multiplier_greed",
+        "overextension_threshold_multiplier_extreme_greed",
         "fgi_slope_reversal_threshold",
         "fgi_slope_recovery_threshold",
         "disabled_rules",
@@ -106,6 +108,8 @@ _DMA_COERCION_SPEC: dict[str, Any] = {
     "max_trades_7d": coerce_nullable_int,
     "max_trades_30d": coerce_nullable_int,
     "dma_overextension_threshold": coerce_float,
+    "overextension_threshold_multiplier_greed": coerce_float,
+    "overextension_threshold_multiplier_extreme_greed": coerce_float,
     "fgi_slope_reversal_threshold": coerce_float,
     "fgi_slope_recovery_threshold": coerce_float,
 }
@@ -193,6 +197,20 @@ class DmaGatedFgiParams(BaseModel):
         ge=0.0,
         le=1.0,
         description="DMA distance threshold above which overextension sell triggers.",
+    )
+    overextension_threshold_multiplier_greed: float = Field(
+        default=0.50,
+        ge=0.0,
+        le=2.0,
+        description="Multiplier applied to overextension sell thresholds in greed.",
+    )
+    overextension_threshold_multiplier_extreme_greed: float = Field(
+        default=0.33,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "Multiplier applied to overextension sell thresholds in extreme greed."
+        ),
     )
     fgi_slope_reversal_threshold: float = Field(
         default=-0.05,

@@ -418,6 +418,7 @@ def _build_asset_dma_context(
     return replace(
         context,
         price=float(price),
+        price_history=_asset_price_history(context=context, spec=spec),
         extra_data={
             **context.extra_data,
             DMA_200_FEATURE: float(dma_value),
@@ -437,6 +438,19 @@ def _resolve_asset_price(
     if spec.price_key == "btc" and context.price > 0.0:
         return float(context.price)
     return None
+
+
+def _asset_price_history(
+    *,
+    context: StrategyContext,
+    spec: FlatMinimumAssetSpec,
+) -> list[float]:
+    mapped_history = context.price_history_map.get(spec.price_key)
+    if mapped_history:
+        return list(mapped_history)
+    if spec.price_key == "btc":
+        return list(context.price_history)
+    return []
 
 
 def _price_above_dma(
