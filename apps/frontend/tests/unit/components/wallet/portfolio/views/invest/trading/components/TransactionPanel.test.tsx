@@ -292,7 +292,7 @@ describe('TransactionPanel', () => {
     expect(screen.getByText('0xabcd...7890')).toBeDefined();
   });
 
-  it('disables the invest strategy button when the wallet is not on Base', () => {
+  it('lets the invest strategy button trigger Base switching when the wallet is not on Base', () => {
     walletProviderMocks.useWalletProvider.mockReturnValue({
       isConnected: true,
       chain: { id: 1 },
@@ -300,13 +300,18 @@ describe('TransactionPanel', () => {
 
     render(<TransactionPanel mode="deposit" />);
 
-    const button = screen.getByRole('button', { name: 'Connect to Base' });
-    expect(button).toBeDisabled();
+    const button = screen.getByRole('button', {
+      name: 'Switch to Base & Invest',
+    });
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+
+    expect(investStrategyMocks.run).toHaveBeenCalled();
     expect(
-      screen.getByText(
+      screen.queryByText(
         'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
       ),
-    ).toBeDefined();
+    ).toBeNull();
   });
 
   it('opens review modal on button click', () => {

@@ -70,7 +70,7 @@ function initialLegProgress(plan: DepositPlan): InvestLegProgress[] {
 }
 
 export function useInvestStrategy() {
-  const { account, chain, getWalletClient } = useWalletProvider();
+  const { account, chain, getWalletClient, switchChain } = useWalletProvider();
   const [pending, setPending] = useState(false);
   const [lastError, setLastError] = useState<unknown>(null);
   const [tier, setTier] = useState<InvestExecutionTier | null>(null);
@@ -173,10 +173,14 @@ export function useInvestStrategy() {
           throw new Error('Connect wallet first');
         }
 
-        if (sourceChainId !== base.id || chain?.id !== base.id) {
+        if (sourceChainId !== base.id) {
           throw new Error(
             'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
           );
+        }
+
+        if (chain?.id !== base.id) {
+          await switchChain(base.id);
         }
 
         const plan = await getDepositPlan({
@@ -249,6 +253,7 @@ export function useInvestStrategy() {
       markAllCallsSubmitted,
       pollBridgeStatus,
       sendAndWait,
+      switchChain,
       updateLeg,
     ],
   );

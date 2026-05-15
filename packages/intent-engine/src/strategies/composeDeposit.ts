@@ -15,7 +15,6 @@ import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
 import {
-  LIFI_DIAMOND_ADDRESS,
   NATIVE_TOKEN,
   SUPPORTED_CHAINS,
   USDC_ADDRESS,
@@ -51,8 +50,70 @@ export interface ComposeDepositDeps {
   publicClients: Record<number, PublicClient>;
 }
 
+interface ApprovalRequirement {
+  tokenAddress: Address;
+  spenderAddress: Address;
+  amount: bigint;
+}
+
 function isNativeToken(chainId: number, token: Address): boolean {
   return token.toLowerCase() === NATIVE_TOKEN[chainId]?.toLowerCase();
+}
+
+function approvalRequirementKey(params: {
+  tokenAddress: Address;
+  spenderAddress: Address;
+}): string {
+  return `${params.tokenAddress.toLowerCase()}:${params.spenderAddress.toLowerCase()}`;
+}
+
+function addApprovalRequirement(
+  requirements: Map<string, ApprovalRequirement>,
+  approval:
+    | {
+        tokenAddress: Address;
+        spenderAddress: Address;
+        amount: string;
+      }
+    | undefined,
+): void {
+  if (!approval) return;
+
+  const amount = BigInt(approval.amount);
+  if (amount <= 0n) return;
+
+  const key = approvalRequirementKey(approval);
+  const existing = requirements.get(key);
+
+  if (existing) {
+    existing.amount += amount;
+    return;
+  }
+
+  requirements.set(key, {
+    tokenAddress: approval.tokenAddress,
+    spenderAddress: approval.spenderAddress,
+    amount,
+  });
+}
+
+async function needsApproval(params: {
+  publicClient: PublicClient;
+  owner: Address;
+  requirement: ApprovalRequirement;
+}): Promise<boolean> {
+  try {
+    const allowance = (await params.publicClient.readContract({
+      address: params.requirement.tokenAddress,
+      abi: erc20Abi,
+      functionName: 'allowance',
+      args: [params.owner, params.requirement.spenderAddress],
+    })) as bigint;
+
+    return allowance < params.requirement.amount;
+  } catch {
+    return true;
+  }
 }
 
 function buildApproveTx(params: {
@@ -169,6 +230,7 @@ export async function composeDeposit(
   const legs: DepositLeg[] = [];
   const calls: PreparedTransaction[] = [];
   const quotes: TransactionQuote[] = [];
+  const approvalRequirements = new Map<string, ApprovalRequirement>();
 
   for (const allocation of allocations) {
     if (allocation.chainId === input.sourceChainId) {
@@ -195,6 +257,18 @@ export async function composeDeposit(
 
       quotes.push(quote);
       calls.push(quote.transaction);
+      if (
+        !isNativeToken(input.sourceChainId, input.fromToken) &&
+        input.fromToken.toLowerCase() === stableVault.asset.toLowerCase()
+      ) {
+        addApprovalRequirement(approvalRequirements, {
+          tokenAddress: input.fromToken,
+          spenderAddress: stableVault.vault,
+          amount: allocation.amount,
+        });
+      } else {
+        addApprovalRequirement(approvalRequirements, quote.approval);
+      }
       legs.push({
         chainId: allocation.chainId,
         kind: 'supply',
@@ -229,6 +303,7 @@ export async function composeDeposit(
 
     quotes.push(quote);
     calls.push(quote.transaction);
+    addApprovalRequirement(approvalRequirements, quote.approval);
     legs.push({
       chainId: allocation.chainId,
       kind: 'bridge',
@@ -241,22 +316,25 @@ export async function composeDeposit(
     });
   }
 
-  const stableVault = getVaultForBucket(input.sourceChainId, 'stable');
-  const depositSpender = stableVault?.vault ?? LIFI_DIAMOND_ADDRESS;
-
-  const approvalAmount = allocations
-    .reduce((sum, allocation) => sum + BigInt(allocation.amount), 0n)
-    .toString();
-  const approvals = isNativeToken(input.sourceChainId, input.fromToken)
-    ? []
-    : [
+  const approvals: PreparedTransaction[] = [];
+  for (const requirement of approvalRequirements.values()) {
+    if (
+      await needsApproval({
+        publicClient: sourceClient,
+        owner: input.userAddress,
+        requirement,
+      })
+    ) {
+      approvals.push(
         buildApproveTx({
-          token: input.fromToken,
-          spender: depositSpender,
-          amount: approvalAmount,
+          token: requirement.tokenAddress,
+          spender: requirement.spenderAddress,
+          amount: requirement.amount.toString(),
           chainId: input.sourceChainId,
         }),
-      ];
+      );
+    }
+  }
 
   return DepositPlanSchema.parse({
     legs,

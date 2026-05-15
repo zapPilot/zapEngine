@@ -140,6 +140,7 @@ describe('useInvestStrategy', () => {
       getWalletClient: mocks.getWalletClient,
     });
     mocks.getWalletClient.mockResolvedValue(mocks.walletClient);
+    mocks.switchChain.mockResolvedValue(undefined);
     mocks.getDepositPlan.mockResolvedValue(plan);
     mocks.getPublicClient.mockReturnValue({
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
@@ -208,7 +209,7 @@ describe('useInvestStrategy', () => {
     ]);
   });
 
-  it('throws instead of switching chains when the connected wallet is not on Base', async () => {
+  it('switches to Base before fetching the plan when the connected wallet is on another chain', async () => {
     mocks.useWalletProvider.mockReturnValue({
       account: { address: USER },
       chain: { id: 1 },
@@ -219,14 +220,38 @@ describe('useInvestStrategy', () => {
     const { result } = renderHook(() => useInvestStrategy());
 
     await act(async () => {
-      await expect(
-        result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' }),
-      ).rejects.toThrow(
-        'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
-      );
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
     });
 
-    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.switchChain).toHaveBeenCalledWith(8453);
+    expect(mocks.getDepositPlan).toHaveBeenCalledWith({
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '10000',
+      sourceChainId: 8453,
+    });
+  });
+
+  it('does not fetch a plan or submit transactions when switching to Base fails', async () => {
+    const switchError = new Error('User rejected chain switch');
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 1 },
+      switchChain: mocks.switchChain,
+      getWalletClient: mocks.getWalletClient,
+    });
+    mocks.switchChain.mockRejectedValueOnce(switchError);
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await expect(
+        result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' }),
+      ).rejects.toThrow('User rejected chain switch');
+    });
+
     expect(mocks.getDepositPlan).not.toHaveBeenCalled();
+    expect(mocks.walletClient.sendTransaction).not.toHaveBeenCalled();
+    expect(result.current.lastError).toBe(switchError);
   });
 });

@@ -202,14 +202,7 @@ function InvestStrategyButton({
         : null;
   const resultId = lastCallsId ?? lastTxHash;
   const disabled =
-    pending ||
-    !isOnBase ||
-    !selectedToken ||
-    !amount ||
-    parseFloat(amount) <= 0;
-  const disabledReason = !isOnBase
-    ? 'Connect to Base - Ethereum/Arbitrum legs route through Base in v1'
-    : null;
+    pending || !selectedToken || !amount || parseFloat(amount) <= 0;
   const progressByLeg = new Map(
     legs.map((leg) => [`${leg.kind}-${leg.chainId}`, leg]),
   );
@@ -223,20 +216,14 @@ function InvestStrategyButton({
         type="button"
         onClick={() => void handleRun()}
         disabled={disabled}
-        title={disabledReason ?? undefined}
         className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50"
       >
-        {!isOnBase
-          ? 'Connect to Base'
-          : pending
-            ? 'Running...'
+        {pending
+          ? 'Running...'
+          : !isOnBase
+            ? 'Switch to Base & Invest'
             : 'Invest strategy'}
       </button>
-      {disabledReason ? (
-        <div className="mt-2 text-amber-700 dark:text-amber-300">
-          {disabledReason}
-        </div>
-      ) : null}
       {tierLabel ? (
         <div className="mt-2 text-amber-700 dark:text-amber-300">
           Tier: {tierLabel}

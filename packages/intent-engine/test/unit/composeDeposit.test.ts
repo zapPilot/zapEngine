@@ -138,10 +138,22 @@ function makeAdapter() {
   };
 }
 
-function makePublicClients() {
+function makePublicClients({
+  allowance = 0n,
+  failAllowanceRead = false,
+}: {
+  allowance?: bigint;
+  failAllowanceRead?: boolean;
+} = {}) {
   const readContract = vi.fn().mockImplementation(({ functionName }) => {
     if (functionName === 'asset') {
       return Promise.resolve(BASE_USDC);
+    }
+    if (functionName === 'allowance') {
+      if (failAllowanceRead) {
+        return Promise.reject(new Error('allowance rpc failed'));
+      }
+      return Promise.resolve(allowance);
     }
     if (functionName === 'name') {
       return Promise.resolve('USD Coin');
@@ -213,6 +225,12 @@ describe('composeDeposit', () => {
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
+    expect(readContract).toHaveBeenCalledWith({
+      address: BASE_USDC,
+      abi: erc20Abi,
+      functionName: 'allowance',
+      args: [USER, MORPHO_BASE_USDC],
+    });
     expect(getContractCallQuote).not.toHaveBeenCalled();
     expect(getQuote).not.toHaveBeenCalled();
 
@@ -226,6 +244,71 @@ describe('composeDeposit', () => {
     expect(decodedApproval.args).toEqual([MORPHO_BASE_USDC, 10000n]);
 
     expect(plan).not.toHaveProperty('permitRequest');
+  });
+
+  it('skips ERC20 approval when allowance already covers the deposit amount', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients({ allowance: 10000n });
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '10000',
+        sourceChainId: 8453,
+        userAddress: USER,
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.approvals).toEqual([]);
+  });
+
+  it('approves the full required amount when existing allowance is insufficient', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients({ allowance: 9999n });
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '10000',
+        sourceChainId: 8453,
+        userAddress: USER,
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.approvals).toHaveLength(1);
+    const decodedApproval = decodeFunctionData({
+      abi: erc20Abi,
+      data: plan.approvals[0]!.data as `0x${string}`,
+    });
+    expect(decodedApproval.functionName).toBe('approve');
+    expect(decodedApproval.args).toEqual([MORPHO_BASE_USDC, 10000n]);
+  });
+
+  it('creates approval when allowance lookup fails', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients, readContract } = makePublicClients({
+      failAllowanceRead: true,
+    });
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '10000',
+        sourceChainId: 8453,
+        userAddress: USER,
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(readContract).toHaveBeenCalledWith({
+      address: BASE_USDC,
+      abi: erc20Abi,
+      functionName: 'allowance',
+      args: [USER, MORPHO_BASE_USDC],
+    });
+    expect(plan.approvals).toHaveLength(1);
   });
 
   it('assigns rounding dust to the final leg so split amounts sum exactly', async () => {
