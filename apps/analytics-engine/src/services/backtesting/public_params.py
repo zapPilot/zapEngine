@@ -137,7 +137,8 @@ def _flat_key(field_name: str, field_info: Any) -> str:
     return serialization_alias if isinstance(serialization_alias, str) else field_name
 
 
-def _dma_field_mapping() -> list[tuple[str, tuple[str, ...]]]:
+@lru_cache(maxsize=1)
+def _dma_field_mapping() -> tuple[tuple[str, tuple[str, ...]], ...]:
     mapping: list[tuple[str, tuple[str, ...]]] = []
     for field_name, field_info in DmaGatedFgiPublicParams.model_fields.items():
         annotation = field_info.annotation
@@ -151,14 +152,12 @@ def _dma_field_mapping() -> list[tuple[str, tuple[str, ...]]]:
                 )
             continue
         mapping.append((_flat_key(field_name, field_info), (field_name,)))
-    return mapping
+    return tuple(mapping)
 
 
 def _json_ready_value(value: Any) -> Any:
     if isinstance(value, frozenset | set):
         return sorted(value)
-    if isinstance(value, list):
-        return list(value)
     return value
 
 
@@ -234,15 +233,7 @@ def runtime_params_to_public_params(
 
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
         sections = _flat_to_nested(resolved)
-        dma_model = DmaGatedFgiPublicParams(
-            signal=_SignalPublicParams(**sections.get("signal", {})),
-            pacing=_PacingPublicParams(**sections.get("pacing", {})),
-            buy_gate=_BuyGatePublicParams(**sections.get("buy_gate", {})),
-            trade_quota=_TradeQuotaPublicParams(**sections.get("trade_quota", {})),
-            top_escape=_TopEscapePublicParams(**sections.get("top_escape", {})),
-            disabled_rules=sections.get("disabled_rules", []),
-            enabled_rules=sections.get("enabled_rules"),
-        )
+        dma_model = DmaGatedFgiPublicParams.model_validate(sections)
         return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
 
     return cast(dict[str, JsonValue], raw_params)

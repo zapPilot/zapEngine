@@ -8,15 +8,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
     "./types": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js"
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.js"
     },
     "./morpho": {
       "types": "./dist/protocols/morpho/index.d.ts",
-      "import": "./dist/protocols/morpho/index.js"
+      "import": "./dist/protocols/morpho/index.js",
+      "require": "./dist/protocols/morpho/index.js"
     }
   },
   "scripts": {

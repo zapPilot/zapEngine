@@ -11,7 +11,7 @@ Playwright.
 ## Setup
 
 ```bash
-nvm use            # Node 22+
+nvm use            # Node 24 (matches root .nvmrc)
 pnpm install
 # env lives at the monorepo root — `cp .env.example .env` at repo root if you haven't
 pnpm dev           # http://localhost:3000
