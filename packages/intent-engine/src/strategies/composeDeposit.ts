@@ -25,10 +25,11 @@ import { getVaultForBucket } from '../registry/vaults.js';
 import type { TransactionQuote } from '../types/transaction.types.js';
 
 const DEFAULT_PERMIT_TTL_SECONDS = 30 * 60;
+// TODO(lifi): restore the 60/20/20 split once LI.FI bridge quotes are reliable.
+// For now we deposit 100% on the source chain so the EIP-7702 + permit-multicall3
+// path can be tested against a known-working Morpho ERC4626 deposit.
 const DEFAULT_SPLIT: ChainSplit = {
-  [SUPPORTED_CHAINS.BASE]: 0.6,
-  [SUPPORTED_CHAINS.ETHEREUM]: 0.2,
-  [SUPPORTED_CHAINS.ARBITRUM]: 0.2,
+  [SUPPORTED_CHAINS.BASE]: 1.0,
 };
 const DEFAULT_CHAIN_ORDER = [
   SUPPORTED_CHAINS.BASE,
@@ -247,6 +248,9 @@ export async function composeDeposit(
     });
   }
 
+  const stableVault = getVaultForBucket(input.sourceChainId, 'stable');
+  const depositSpender = stableVault?.vault ?? LIFI_DIAMOND_ADDRESS;
+
   const approvalAmount = allocations
     .reduce((sum, allocation) => sum + BigInt(allocation.amount), 0n)
     .toString();
@@ -255,7 +259,7 @@ export async function composeDeposit(
     : [
         buildApproveTx({
           token: input.fromToken,
-          spender: LIFI_DIAMOND_ADDRESS,
+          spender: depositSpender,
           amount: approvalAmount,
           chainId: input.sourceChainId,
         }),
@@ -267,7 +271,7 @@ export async function composeDeposit(
       permitRequest = await buildPermitTypedData({
         token: input.fromToken,
         owner: input.userAddress,
-        spender: LIFI_DIAMOND_ADDRESS,
+        spender: depositSpender,
         value: approvalAmount,
         deadline: deadlineFromNow(deps.now ?? Date.now),
         publicClient: sourceClient,

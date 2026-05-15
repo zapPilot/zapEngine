@@ -45,7 +45,6 @@ export {
   determineExecutionStrategy,
   encodeMulticall3,
   buildPermitTypedData,
-  buildPermitRequest,
   encodePermitCall,
   executeWithEIP7702,
   wrapPermitAndCallsInMulticall3,

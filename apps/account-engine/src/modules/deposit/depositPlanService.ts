@@ -80,8 +80,6 @@ export function createDepositPublicClients(
   return () => publicClients;
 }
 
-export const createDepositPublicClientForChain = createDepositPublicClients;
-
 export function createDepositPlanService({
   adapter,
   publicClientsForDeposit,

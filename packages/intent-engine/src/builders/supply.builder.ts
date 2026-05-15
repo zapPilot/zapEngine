@@ -17,10 +17,11 @@ import { validateSupplyIntent } from '../validators/intent.validator.js';
  * it works for any ERC-4626 vault regardless of whether LI.FI has indexed it:
  *   1. Read the vault's underlying asset via `vault.asset()`
  *   2. Encode `deposit(assets, receiver)` calldata
- *   3. Ask LI.FI to route `fromToken → vaultAsset` and invoke the deposit
+ *   3. If `fromToken === vaultAsset`, return the deposit call directly
+ *   4. Otherwise ask LI.FI to route `fromToken → vaultAsset` and invoke it
  *
- * When `fromToken` already equals `vault.asset()`, LI.FI returns a
- * no-swap route that directly calls the vault.
+ * Direct asset deposits intentionally avoid LI.FI so the ERC-4626 path keeps
+ * working when quote infrastructure is unavailable.
  */
 export async function buildSupplyTx(
   intent: SupplyIntentInput,
@@ -39,6 +40,35 @@ export async function buildSupplyTx(
     BigInt(validated.fromAmount),
     validated.fromAddress as Address,
   );
+
+  const isDirectDeposit =
+    validated.fromToken.toLowerCase() === vaultAsset.toLowerCase();
+
+  if (isDirectDeposit) {
+    return {
+      transaction: {
+        to: validated.vaultAddress as Address,
+        data: depositCalldata,
+        value: '0',
+        chainId: validated.chainId,
+        gasLimit: MORPHO_GAS_ESTIMATES.deposit,
+        meta: {
+          intentType: 'SUPPLY',
+          estimatedGas: MORPHO_GAS_ESTIMATES.deposit,
+          estimatedDuration: 0,
+          route: { tool: 'direct' },
+        },
+      },
+      estimate: {
+        fromAmount: validated.fromAmount,
+        toAmount: validated.fromAmount,
+        toAmountMin: validated.fromAmount,
+        gasCostUsd: '0',
+        executionDuration: 0,
+      },
+      route: { tool: 'direct' },
+    };
+  }
 
   return adapter.getContractCallQuote({
     fromChain: validated.chainId,

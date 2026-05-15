@@ -137,14 +137,13 @@ describe('buildSwapTx', () => {
 });
 
 describe('buildSupplyTx', () => {
-  it('reads vault.asset() and encodes a Morpho deposit call for the LI.FI quote', async () => {
+  it('encodes a direct Morpho deposit when the source token is the vault asset', async () => {
     const { adapter, getContractCallQuote } = makeAdapterMock();
-    getContractCallQuote.mockResolvedValueOnce(makeStubQuote());
 
     const readContract = vi.fn().mockResolvedValueOnce(BASE_USDC); // vault.asset()
     const publicClient = { readContract } as unknown as PublicClient;
 
-    await buildSupplyTx(
+    const result = await buildSupplyTx(
       {
         type: 'SUPPLY',
         fromAddress: FROM_ADDRESS,
@@ -163,11 +162,67 @@ describe('buildSupplyTx', () => {
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+
+    expect(result.transaction.to).toBe(BASE_MOONWELL_USDC);
+    expect(result.transaction.data.slice(0, 10)).toBe(DEPOSIT_SELECTOR);
+    expect(result.transaction.value).toBe('0');
+    expect(result.transaction.chainId).toBe(8453);
+    expect(result.transaction.gasLimit).toBe('150000');
+    expect(result.transaction.meta).toMatchObject({
+      intentType: 'SUPPLY',
+      estimatedGas: '150000',
+      estimatedDuration: 0,
+      route: { tool: 'direct' },
+    });
+    expect(result.estimate).toEqual({
+      fromAmount: '5000000',
+      toAmount: '5000000',
+      toAmountMin: '5000000',
+      gasCostUsd: '0',
+      executionDuration: 0,
+    });
+    expect(result.route).toEqual({ tool: 'direct' });
+
+    const decoded = decodeFunctionData({
+      abi: MORPHO_VAULT_ABI,
+      data: result.transaction.data as `0x${string}`,
+    });
+    expect(decoded.functionName).toBe('deposit');
+    expect(decoded.args).toEqual([5_000_000n, FROM_ADDRESS]);
+  });
+
+  it('reads vault.asset() and encodes a Morpho deposit call for the LI.FI quote when a swap is needed', async () => {
+    const { adapter, getContractCallQuote } = makeAdapterMock();
+    getContractCallQuote.mockResolvedValueOnce(makeStubQuote());
+
+    const readContract = vi.fn().mockResolvedValueOnce(BASE_USDC); // vault.asset()
+    const publicClient = { readContract } as unknown as PublicClient;
+
+    await buildSupplyTx(
+      {
+        type: 'SUPPLY',
+        fromAddress: FROM_ADDRESS,
+        chainId: 8453,
+        fromToken: BASE_WETH,
+        fromAmount: '5000000',
+        vaultAddress: BASE_MOONWELL_USDC,
+        protocol: 'morpho',
+      },
+      adapter,
+      publicClient,
+    );
+
+    expect(readContract).toHaveBeenCalledWith({
+      address: BASE_MOONWELL_USDC,
+      abi: MORPHO_VAULT_ABI,
+      functionName: 'asset',
+    });
 
     const args = getContractCallQuote.mock.calls[0]?.[0];
     expect(args.fromChain).toBe(8453);
     expect(args.toChain).toBe(8453);
-    expect(args.fromToken).toBe(BASE_USDC);
+    expect(args.fromToken).toBe(BASE_WETH);
     expect(args.toToken).toBe(BASE_USDC);
     expect(args.toAmount).toBe('5000000');
 

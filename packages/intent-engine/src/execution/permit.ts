@@ -139,8 +139,6 @@ export async function buildPermitTypedData({
   };
 }
 
-export const buildPermitRequest = buildPermitTypedData;
-
 export function encodePermitCall(
   token: Address,
   permit: SignedPermit,

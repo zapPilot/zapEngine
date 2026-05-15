@@ -171,7 +171,7 @@ function makePublicClients() {
 }
 
 describe('composeDeposit', () => {
-  it('builds the Base 60 / Ethereum 20 / Arbitrum 20 deposit plan with one approval and one permit', async () => {
+  it('builds a Base-only direct Morpho deposit plan with vault approval and permit spender', async () => {
     const { adapter, getContractCallQuote, getQuote } = makeAdapter();
     const { publicClients, readContract } = makePublicClients();
 
@@ -196,81 +196,26 @@ describe('composeDeposit', () => {
         kind: 'supply',
         protocol: 'morpho',
         toToken: BASE_USDC,
-        fromAmount: '6000',
-        toAmountMin: '6000',
-        gasUsd: '0.10',
-        durationSec: 12,
-      },
-      {
-        chainId: 1,
-        kind: 'bridge',
-        toToken: ETHEREUM_USDC,
-        fromAmount: '2000',
-        toAmountMin: '2000',
-        bridge: 'across',
-        gasUsd: '0.20',
-        durationSec: 3,
-      },
-      {
-        chainId: 42161,
-        kind: 'bridge',
-        toToken: ARBITRUM_USDC,
-        fromAmount: '2000',
-        toAmountMin: '2000',
-        bridge: 'relaydepository',
-        gasUsd: '0.20',
-        durationSec: 1,
+        fromAmount: '10000',
+        toAmountMin: '10000',
+        gasUsd: '0',
+        durationSec: 0,
       },
     ]);
-    expect(plan.calls).toHaveLength(3);
+    expect(plan.calls).toHaveLength(1);
     expect(plan.calls.every((call) => call.chainId === 8453)).toBe(true);
-    expect(plan.totalGasUsd).toBe('0.5');
+    expect(plan.calls[0]!.to).toBe(MORPHO_BASE_USDC);
+    expect(plan.calls[0]!.value).toBe('0');
+    expect(plan.calls[0]!.gasLimit).toBe('150000');
+    expect(plan.totalGasUsd).toBe('0');
 
     expect(readContract).toHaveBeenCalledWith({
       address: MORPHO_BASE_USDC,
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
-    expect(getContractCallQuote).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fromChain: 8453,
-        toChain: 8453,
-        fromToken: BASE_USDC,
-        toToken: BASE_USDC,
-        fromAddress: USER,
-        contractCalls: [
-          expect.objectContaining({
-            fromAmount: '6000',
-            fromTokenAddress: BASE_USDC,
-            toContractAddress: MORPHO_BASE_USDC,
-          }),
-        ],
-      }),
-    );
-    expect(getQuote).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        fromChain: 8453,
-        toChain: 1,
-        fromToken: BASE_USDC,
-        toToken: ETHEREUM_USDC,
-        fromAmount: '2000',
-        fromAddress: USER,
-        toAddress: USER,
-      }),
-    );
-    expect(getQuote).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        fromChain: 8453,
-        toChain: 42161,
-        fromToken: BASE_USDC,
-        toToken: ARBITRUM_USDC,
-        fromAmount: '2000',
-        fromAddress: USER,
-        toAddress: USER,
-      }),
-    );
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    expect(getQuote).not.toHaveBeenCalled();
 
     expect(plan.approvals).toHaveLength(1);
     const decodedApproval = decodeFunctionData({
@@ -279,13 +224,13 @@ describe('composeDeposit', () => {
     });
     expect(plan.approvals[0]!.to).toBe(BASE_USDC);
     expect(decodedApproval.functionName).toBe('approve');
-    expect(decodedApproval.args).toEqual([LIFI_DIAMOND, 10000n]);
+    expect(decodedApproval.args).toEqual([MORPHO_BASE_USDC, 10000n]);
 
     const permit = plan.permitRequest as PermitRequest;
     expect(permit).toMatchObject({
       token: BASE_USDC,
       owner: USER,
-      spender: LIFI_DIAMOND,
+      spender: MORPHO_BASE_USDC,
       value: '10000',
       nonce: '7',
       deadline: '1700001800',
@@ -308,6 +253,11 @@ describe('composeDeposit', () => {
         fromAmount: '10001',
         sourceChainId: 8453,
         userAddress: USER,
+        split: {
+          8453: 0.6,
+          1: 0.2,
+          42161: 0.2,
+        },
       },
       { adapter, publicClients: publicClients as never },
     );
@@ -317,6 +267,18 @@ describe('composeDeposit', () => {
       '2000',
       '2001',
     ]);
+    expect(plan.legs[1]).toMatchObject({
+      chainId: 1,
+      kind: 'bridge',
+      toToken: ETHEREUM_USDC,
+      bridge: 'across',
+    });
+    expect(plan.legs[2]).toMatchObject({
+      chainId: 42161,
+      kind: 'bridge',
+      toToken: ARBITRUM_USDC,
+      bridge: 'relaydepository',
+    });
     expect(
       plan.legs.reduce((sum, leg) => sum + BigInt(leg.fromAmount), 0n),
     ).toBe(10001n);
@@ -338,14 +300,15 @@ describe('composeDeposit', () => {
 
     expect(plan.approvals).toEqual([]);
     expect(plan.permitRequest).toBeUndefined();
+    expect(plan.legs).toHaveLength(1);
+    expect(plan.legs[0]).toMatchObject({
+      chainId: 8453,
+      kind: 'supply',
+      fromAmount: '10000000000000000',
+    });
     expect(getContractCallQuote).toHaveBeenCalledWith(
       expect.objectContaining({ fromToken: NATIVE_ETH }),
     );
-    expect(getQuote).toHaveBeenCalledWith(
-      expect.objectContaining({ fromToken: NATIVE_ETH, toChain: 1 }),
-    );
-    expect(getQuote).toHaveBeenCalledWith(
-      expect.objectContaining({ fromToken: NATIVE_ETH, toChain: 42161 }),
-    );
+    expect(getQuote).not.toHaveBeenCalled();
   });
 });

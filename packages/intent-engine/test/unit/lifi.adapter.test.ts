@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PreparedTransactionSchema } from '@zapengine/types/api';
 import { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
 import { QuoteError } from '../../src/errors/intent.errors.js';
 import * as lifiSdk from '@lifi/sdk';
@@ -42,8 +43,8 @@ describe('LiFiAdapter', () => {
         transactionRequest: {
           to: '0x123',
           data: '0xdata',
-          value: '0',
-          gasLimit: '100000',
+          value: '0x0',
+          gasLimit: '0x186a0', // 100000 decimal
         },
       } as unknown as never);
 
@@ -102,8 +103,8 @@ describe('LiFiAdapter', () => {
         transactionRequest: {
           to: '0xdef',
           data: '0xdata',
-          value: '10',
-          gasLimit: '200000',
+          value: '0xa', // 10 decimal
+          gasLimit: '0x30d40', // 200000 decimal
         },
       };
 
@@ -138,6 +139,56 @@ describe('LiFiAdapter', () => {
       await expect(adapter.getSwapQuote(params)).rejects.toThrow(
         'Failed to get swap quote from LI.FI',
       );
+    });
+
+    it('normalizes hex-string value/gasLimit from LI.FI into base-unit decimal strings', async () => {
+      const lifiHexQuote = {
+        id: 'q-hex',
+        type: 'lifi',
+        tool: 'across',
+        action: {
+          fromChainId: 8453,
+          toChainId: 8453,
+          fromToken: { address: '0x1', symbol: 'A', decimals: 18 },
+          toToken: { address: '0x2', symbol: 'B', decimals: 18 },
+          fromAmount: '100000000000000000',
+        },
+        estimate: {
+          fromAmount: '100000000000000000',
+          toAmount: '99000000000000000',
+          toAmountMin: '98500000000000000',
+          executionDuration: 30,
+          gasCosts: [{ amountUSD: '0.42' }],
+        },
+        transactionRequest: {
+          to: '0x0000000000000000000000000000000000000abc',
+          data: '0xdeadbeef',
+          value: '0x16345785d8a0000', // hex form of 100000000000000000
+          gasLimit: '0x186a0', // hex form of 100000
+        },
+      };
+
+      vi.mocked(lifiSdk.getQuote).mockResolvedValue(
+        lifiHexQuote as unknown as never,
+      );
+
+      const result = await adapter.getSwapQuote({
+        fromChain: 8453,
+        toChain: 8453,
+        fromToken: '0x0000000000000000000000000000000000000001' as const,
+        toToken: '0x0000000000000000000000000000000000000002' as const,
+        fromAmount: '100000000000000000',
+        fromAddress: '0x000000000000000000000000000000000000abcd' as const,
+      });
+
+      expect(result.transaction.value).toBe('100000000000000000');
+      expect(result.transaction.gasLimit).toBe('100000');
+      expect(result.transaction.meta.estimatedGas).toBe('100000');
+
+      // Regression lock: the resulting transaction must satisfy the shared schema.
+      expect(() =>
+        PreparedTransactionSchema.parse(result.transaction),
+      ).not.toThrow();
     });
   });
 
@@ -176,8 +227,8 @@ describe('LiFiAdapter', () => {
         transactionRequest: {
           to: '0xdef',
           data: '0xcalldata',
-          value: '0',
-          gasLimit: '300000',
+          value: '0x0',
+          gasLimit: '0x493e0', // 300000 decimal
         },
       };
 

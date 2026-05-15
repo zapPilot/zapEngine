@@ -8,7 +8,6 @@ export { encodeMulticall3 } from './multicall3.executor.js';
 
 export {
   buildPermitTypedData,
-  buildPermitRequest,
   encodePermitCall,
   wrapPermitAndCallsInMulticall3,
   type BuildPermitTypedDataInput,

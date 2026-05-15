@@ -1,6 +1,7 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
+  entry: ['src/main.ts'],
   project: ['src/**/*.ts'],
   ignore: [
     '**/*.spec.ts',
@@ -12,7 +13,7 @@ export default defineKnipConfig({
     'nest-cli.json',
     'src/types/database.types.ts',
   ],
-  ignoreDependencies: ['@zapengine/types'],
+  ignoreDependencies: ['@zapengine/intent-engine', '@zapengine/types'],
   includeEntryExports: true,
   vitest: {
     config: ['vitest.config.ts'],

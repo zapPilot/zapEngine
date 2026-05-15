@@ -54,6 +54,16 @@ function isNativeTokenAddress(address: string): boolean {
   );
 }
 
+// Normalize an EVM JSON-RPC quantity (hex `0x186a0`, decimal `100000`, or
+// empty/missing) into a base-unit decimal-integer string. Returns `undefined`
+// for empty/missing input so optional schema fields stay absent.
+function toBaseUnitString(input: string | undefined): string | undefined {
+  if (input === undefined || input === '' || input === '0x') {
+    return undefined;
+  }
+  return BigInt(input).toString(10);
+}
+
 export class LiFiAdapter {
   private initialized = false;
 
@@ -95,7 +105,6 @@ export class LiFiAdapter {
         toAddress: params.toAddress ?? params.fromAddress,
         slippage: (params.slippageBps ?? 50) / 10000, // Convert bps to decimal
       };
-
       const quote = await getLiFiQuote(request);
       return this.mapQuoteToTransaction(
         quote as unknown as LiFiQuoteResponse,
@@ -211,12 +220,12 @@ export class LiFiAdapter {
     const transaction: PreparedTransaction = {
       to: tx.to as Address,
       data: tx.data as `0x${string}`,
-      value: (tx.value ?? '0').toString(),
+      value: toBaseUnitString(tx.value) ?? '0',
       chainId: quote.action.fromChainId,
-      gasLimit: tx.gasLimit,
+      gasLimit: toBaseUnitString(tx.gasLimit),
       meta: {
         intentType,
-        estimatedGas: tx.gasLimit,
+        estimatedGas: toBaseUnitString(tx.gasLimit),
         estimatedDuration: executionDuration,
         route: quote,
       },
