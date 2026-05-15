@@ -175,4 +175,63 @@ describe('Fish Audio TTS provider', () => {
       voiceName: 'custom-ja-model',
     });
   });
+
+  it('throws when response.text() throws during error body reading', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: vi.fn().mockRejectedValue(new Error('text extraction failed')),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('Fish Audio TTS failed: 500 Internal Server Error');
+  });
+
+  it('throws with status and short (untruncated) body when error response body is short', async () => {
+    const shortBody = 'rate limit exceeded';
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(errorResponse(429, '', shortBody));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('Fish Audio TTS failed: 429: rate limit exceeded');
+  });
+
+  it('throws when getFishAudioConfig detects wrong provider', async () => {
+    const mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        config: {
+          provider: 'google',
+          modelId: 'wrong-provider',
+          voiceName: 'some-voice',
+        } as never,
+      }),
+    ).rejects.toThrow('Fish Audio TTS received google language config');
+  });
 });

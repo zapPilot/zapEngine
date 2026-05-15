@@ -56,4 +56,38 @@ describe('buildClassroomSegments', () => {
       },
     ]);
   });
+
+  it('throws when targetLanguageCode is not a supported language classroom code', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'fr',
+      oneLiner: 'Bonjour le monde',
+      keywords: [],
+    };
+
+    expect(() => buildClassroomSegments(lesson)).toThrow(
+      'Unsupported language classroom code: fr',
+    );
+  });
+
+  it('returns empty segment when oneLiner is only whitespace', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: '   ',
+      keywords: [],
+    };
+
+    const segments = buildClassroomSegments(lesson);
+    expect(segments).toEqual([
+      {
+        text: '接下來是日文小教室。',
+        languageCode: 'zh-Hant',
+      },
+      {
+        text: '',
+        languageCode: 'ja',
+      },
+    ]);
+  });
 });

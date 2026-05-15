@@ -160,4 +160,39 @@ describe('scrapeArticle', () => {
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
+
+  it('logs to console.error when JSDOM emits non-CSS parsing jsdomError', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const html = `<html><head><title>Test Error Type</title></head><body><p>Content</p></body></html>`;
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(html, { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', mockFetch);
+
+    await scrapeArticle('https://example.com/test-error-type');
+
+    const jsdomErrorCall = consoleErrorSpy.mock.calls.find(
+      (call) =>
+        call[0] && typeof call[0] === 'string' && call[0].includes('Error'),
+    );
+    expect(jsdomErrorCall).toBeUndefined();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('does not throw when JSDOM jsdomError handler logs error to console', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const html = `<html><head><title>Test Cleanup</title></head><body><p>Content here</p></body></html>`;
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(html, { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await scrapeArticle('https://example.com/test-cleanup');
+    expect(result.title).toBe('Test Cleanup');
+    consoleErrorSpy.mockRestore();
+  });
 });

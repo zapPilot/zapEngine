@@ -311,6 +311,35 @@ describe('textToSpeech', () => {
       'Google TTS returned empty audio content',
     );
   });
+
+  it('synthesizes multiple chunks via Promise.all and concatenates', async () => {
+    vi.mocked(mockSynthesize).mockResolvedValue([
+      { audioContent: new Uint8Array(512) },
+    ]);
+
+    const longText = '这是测试文本。'.repeat(2000);
+    const result = await textToSpeech(longText);
+
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalled();
+    const callCount = mockSynthesize.mock.calls.length;
+    expect(callCount).toBeGreaterThan(1);
+  });
+});
+
+describe('getGoogleVoiceOptions', () => {
+  it('throws when opts.config.provider is not google', async () => {
+    await expect(
+      textToSpeech('test', {
+        languageCode: 'ja',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model',
+          engine: 's1',
+        } as never,
+      }),
+    ).rejects.toThrow('Google TTS received fish-audio language config');
+  });
 });
 
 describe('buildGoogleCostLine', () => {
