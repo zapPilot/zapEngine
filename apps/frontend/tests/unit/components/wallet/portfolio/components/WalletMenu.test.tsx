@@ -35,8 +35,14 @@ vi.mock('wagmi', () => ({
   useConnect: () => ({
     mutateAsync: mockConnectAsync,
     isPending: false,
+    variables: undefined,
+    error: null,
   }),
-  useConnectors: () => [{ id: 'injected', name: 'MetaMask' }],
+  useConnectors: () => [
+    { id: 'injected', uid: 'legacy-injected', name: 'Injected' },
+    { id: 'io.rabby', uid: 'rabby-uid', name: 'Rabby' },
+    { id: 'io.metamask', uid: 'metamask-uid', name: 'MetaMask' },
+  ],
 }));
 
 vi.mock('@/providers/WalletProvider', () => ({
@@ -98,11 +104,17 @@ describe('WalletMenu Component', () => {
       expect(button).toBeInTheDocument();
     });
 
-    it('calls connect when not connected', () => {
+    it('opens wallet picker when not connected', () => {
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
       const button = screen.getByTestId('unified-wallet-menu-button');
       fireEvent.click(button);
-      expect(mockConnectAsync).toHaveBeenCalled();
+      expect(mockConnectAsync).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('heading', {
+          name: WALLET_LABELS.SELECT_WALLET_TITLE,
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Rabby/ })).toBeInTheDocument();
     });
 
     it('matches snapshot - disconnected state', () => {
