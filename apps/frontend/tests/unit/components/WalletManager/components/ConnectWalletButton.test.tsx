@@ -12,7 +12,6 @@ import { WALLET_LABELS } from '@/constants/wallet';
 
 // Mock wagmi hooks
 const mockConnect = vi.fn();
-const mockConnectAsync = vi.fn();
 const mockUseConnection = vi.fn();
 const mockUseConnect = vi.fn();
 const mockUseConnectors = vi.fn();
@@ -32,19 +31,11 @@ describe('ConnectWalletButton', () => {
       address: undefined,
       isConnected: false,
     });
-    mockUseConnectors.mockReturnValue([
-      { id: 'injected', uid: 'legacy-injected', name: 'Injected' },
-      { id: 'io.rabby', uid: 'rabby-uid', name: 'Rabby' },
-      { id: 'io.metamask', uid: 'metamask-uid', name: 'MetaMask' },
-    ]);
+    mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
     mockUseConnect.mockReturnValue({
       mutate: mockConnect,
-      mutateAsync: mockConnectAsync,
       isPending: false,
-      variables: undefined,
-      error: null,
     });
-    mockConnectAsync.mockResolvedValue(undefined);
   });
 
   it('renders connect button when not connected', () => {
@@ -55,37 +46,32 @@ describe('ConnectWalletButton', () => {
     ).toBeInTheDocument();
   });
 
-  it('opens wallet picker instead of connecting the first connector on click', () => {
+  it('calls connect with first connector on click', () => {
     render(<ConnectWalletButton />);
 
     fireEvent.click(
       screen.getByRole('button', { name: WALLET_LABELS.CONNECT }),
     );
 
-    expect(mockConnect).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole('heading', { name: WALLET_LABELS.SELECT_WALLET_TITLE }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Rabby/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /MetaMask/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /Injected/ }),
-    ).not.toBeInTheDocument();
+    expect(mockConnect).toHaveBeenCalledWith({
+      connector: { id: 'injected', name: 'MetaMask' },
+    });
   });
 
-  it('connects the selected wallet from the picker', async () => {
+  it("shows 'Connecting...' when connection is pending", () => {
+    mockUseConnect.mockReturnValue({
+      mutate: mockConnect,
+      isPending: true,
+    });
+
     render(<ConnectWalletButton />);
 
-    fireEvent.click(
-      screen.getByRole('button', { name: WALLET_LABELS.CONNECT }),
-    );
-    fireEvent.click(screen.getByRole('button', { name: /Rabby/ }));
-
-    expect(mockConnectAsync).toHaveBeenCalledWith({
-      connector: { id: 'io.rabby', uid: 'rabby-uid', name: 'Rabby' },
-    });
+    expect(
+      screen.getByRole('button', { name: 'Connecting...' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Connecting...' }),
+    ).toBeDisabled();
   });
 
   it('shows shortened address when connected', () => {
@@ -111,10 +97,7 @@ describe('ConnectWalletButton', () => {
     mockUseConnectors.mockReturnValue([]);
     mockUseConnect.mockReturnValue({
       mutate: mockConnect,
-      mutateAsync: mockConnectAsync,
       isPending: false,
-      variables: undefined,
-      error: null,
     });
 
     render(<ConnectWalletButton />);
@@ -124,11 +107,5 @@ describe('ConnectWalletButton', () => {
     );
 
     expect(mockConnect).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(WALLET_LABELS.NO_WALLET_DETECTED),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(WALLET_LABELS.INSTALL_WALLET_CTA),
-    ).toBeInTheDocument();
   });
 });

@@ -40,7 +40,7 @@ export interface WalletProviderInterface {
     name: string;
     symbol: string;
   } | null;
-  connect(connectorId: string): Promise<void>;
+  connect(): Promise<void>;
   disconnect(): Promise<void>;
   switchChain(chainId: number): Promise<void>;
   sendTransaction(tx: {

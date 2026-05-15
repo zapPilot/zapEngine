@@ -1,9 +1,6 @@
-import { useState } from 'react';
-import { useConnection } from 'wagmi';
+import { useConnect, useConnection, useConnectors } from 'wagmi';
 
 import { WALLET_LABELS } from '@/constants/wallet';
-
-import { WalletPickerModal } from './WalletPickerModal';
 
 interface ConnectWalletButtonProps {
   className?: string;
@@ -17,10 +14,14 @@ export function ConnectWalletButton({
   className = '',
 }: ConnectWalletButtonProps) {
   const { address, isConnected } = useConnection();
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const connectors = useConnectors();
+  const { mutate: connect, isPending } = useConnect();
 
   const handleConnect = () => {
-    setIsPickerOpen(true);
+    const connector = connectors[0];
+    if (connector) {
+      connect({ connector });
+    }
   };
 
   return (
@@ -35,6 +36,7 @@ export function ConnectWalletButton({
       ) : (
         <button
           onClick={handleConnect}
+          disabled={isPending}
           className="w-full px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer transition-all duration-200 hover:opacity-90"
           style={{
             background:
@@ -42,13 +44,9 @@ export function ConnectWalletButton({
             border: '1px solid rgba(168, 85, 247, 0.3)',
           }}
         >
-          {WALLET_LABELS.CONNECT}
+          {isPending ? 'Connecting...' : WALLET_LABELS.CONNECT}
         </button>
       )}
-      <WalletPickerModal
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-      />
     </div>
   );
 }

@@ -1,8 +1,7 @@
 import { AnimatePresence } from 'framer-motion';
 import { type ReactElement, useRef, useState } from 'react';
-import { useConnect } from 'wagmi';
+import { useConnect, useConnectors } from 'wagmi';
 
-import { WalletPickerModal } from '@/components/WalletManager/components/WalletPickerModal';
 import { useClickOutside } from '@/hooks/ui/useClickOutside';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { copyTextToClipboard } from '@/utils';
@@ -29,10 +28,10 @@ export function WalletMenu({
     disconnect,
   } = useWalletProvider();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { isPending: isConnecting } = useConnect();
+  const connectors = useConnectors();
+  const { mutateAsync: connectAsync, isPending: isConnecting } = useConnect();
 
   const closeMenu = (): void => {
     setIsMenuOpen(false);
@@ -45,7 +44,10 @@ export function WalletMenu({
   useClickOutside(menuRef, closeMenu, isMenuOpen);
 
   const handleConnectClick = async (): Promise<void> => {
-    setIsPickerOpen(true);
+    const connector = connectors[0];
+    if (connector) {
+      await connectAsync({ connector });
+    }
   };
 
   const copyAddress = async (address: string): Promise<void> => {
@@ -93,11 +95,6 @@ export function WalletMenu({
           onDisconnect={handleDisconnect}
         />
       </AnimatePresence>
-
-      <WalletPickerModal
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-      />
     </div>
   );
 }

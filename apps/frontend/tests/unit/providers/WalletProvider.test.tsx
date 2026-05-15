@@ -110,11 +110,7 @@ describe('WalletProvider', () => {
       isConnecting: false,
       chain: undefined,
     });
-    mockUseConnectors.mockReturnValue([
-      { id: 'injected', uid: 'legacy-injected', name: 'Injected' },
-      { id: 'io.rabby', uid: 'rabby-uid', name: 'Rabby' },
-      { id: 'io.metamask', uid: 'metamask-uid', name: 'MetaMask' },
-    ]);
+    mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
     mockUseBalance.mockReturnValue({ data: undefined, isLoading: false });
     mockConnectAsync.mockResolvedValue(undefined);
     mockDisconnectAsync.mockResolvedValue(undefined);
@@ -394,41 +390,17 @@ describe('WalletProvider', () => {
   });
 
   describe('Connect function', () => {
-    it('should call connectAsync with the requested connector uid', async () => {
+    it('should call connectAsync with first connector', async () => {
       const { result } = renderHook(() => useWalletProvider(), {
         wrapper: ({ children }: { children: ReactNode }) => (
           <WalletProvider>{children}</WalletProvider>
         ),
       });
 
-      await invokeWalletProviderAction(() =>
-        result.current.connect('rabby-uid'),
-      );
+      await invokeWalletProviderAction(() => result.current.connect());
 
       expect(mockConnectAsync).toHaveBeenCalledWith({
-        connector: { id: 'io.rabby', uid: 'rabby-uid', name: 'Rabby' },
-      });
-    });
-
-    it('should set error state when requested connector uid is unavailable', async () => {
-      const { result } = renderHook(() => useWalletProvider(), {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <WalletProvider>{children}</WalletProvider>
-        ),
-      });
-
-      const { error } = await invokeWalletProviderAction(() =>
-        result.current.connect('missing-uid'),
-      );
-
-      expect(error).toBeUndefined();
-      expect(mockConnectAsync).not.toHaveBeenCalled();
-      await waitFor(() => {
-        expect(result.current.error).toEqual({
-          message:
-            'Wallet connector not available. Please retry from the connect dialog.',
-          code: 'NO_WALLET',
-        });
+        connector: { id: 'injected', name: 'MetaMask' },
       });
     });
 
@@ -442,7 +414,7 @@ describe('WalletProvider', () => {
       });
 
       const { error } = await invokeWalletProviderAction(() =>
-        result.current.connect('metamask-uid'),
+        result.current.connect(),
       );
 
       expect(error).toBeInstanceOf(Error);
@@ -469,15 +441,13 @@ describe('WalletProvider', () => {
 
       // First attempt fails
       const firstAttempt = await invokeWalletProviderAction(() =>
-        result.current.connect('metamask-uid'),
+        result.current.connect(),
       );
       expect(firstAttempt.error).toBeInstanceOf(Error);
       expect(result.current.error).toBeDefined();
 
       // Second attempt succeeds
-      await invokeWalletProviderAction(() =>
-        result.current.connect('metamask-uid'),
-      );
+      await invokeWalletProviderAction(() => result.current.connect());
       expect(result.current.error).toBeNull();
     });
   });
@@ -662,7 +632,7 @@ describe('WalletProvider', () => {
 
       // Trigger an error
       const { error } = await invokeWalletProviderAction(() =>
-        result.current.connect('metamask-uid'),
+        result.current.connect(),
       );
       expect(error).toBeInstanceOf(Error);
       expect(result.current.error).toBeDefined();

@@ -102,36 +102,30 @@ export function WalletProvider({
     setError(null);
   }, []);
 
-  const handleConnect = useCallback(
-    async (connectorId: string) => {
-      const connector = connectors.find(
-        (candidateConnector) => candidateConnector.uid === connectorId,
+  const handleConnect = useCallback(async () => {
+    const connector = connectors[0];
+    if (!connector) {
+      setError({
+        message:
+          'No wallet detected. Please install MetaMask or another wallet extension.',
+        code: 'NO_WALLET',
+      });
+      return;
+    }
+
+    try {
+      setError(null);
+      await connectAsync({ connector });
+    } catch (err) {
+      handleWalletOperationError(
+        setError,
+        err,
+        'Failed to connect wallet',
+        'CONNECT_ERROR',
+        'Failed to connect wallet:',
       );
-
-      if (!connector) {
-        setError({
-          message:
-            'Wallet connector not available. Please retry from the connect dialog.',
-          code: 'NO_WALLET',
-        });
-        return;
-      }
-
-      try {
-        setError(null);
-        await connectAsync({ connector });
-      } catch (err) {
-        handleWalletOperationError(
-          setError,
-          err,
-          'Failed to connect wallet',
-          'CONNECT_ERROR',
-          'Failed to connect wallet:',
-        );
-      }
-    },
-    [connectAsync, connectors],
-  );
+    }
+  }, [connectAsync, connectors]);
 
   const handleDisconnect = useCallback(async () => {
     try {
