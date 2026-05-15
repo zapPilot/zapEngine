@@ -1,5 +1,6 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
+import type { UsageCostLine } from '../cost.js';
 import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
 
@@ -15,6 +16,7 @@ function getClient(): TextToSpeechClient {
 }
 
 const MAX_BYTES = 4800;
+const GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER = 4 / 1_000_000;
 const DEFAULT_GOOGLE_VOICE = {
   languageCode: 'cmn-TW',
   voiceName: 'cmn-TW-Wavenet-A',
@@ -153,14 +155,13 @@ export function getMetadata(opts?: TtsSynthesizeOptions): TtsMetadata {
   };
 }
 
-export function synthesize(
-  text: string,
-  opts?: TtsSynthesizeOptions,
-): Promise<Buffer>;
 export async function synthesize(
   text: string,
   opts?: TtsSynthesizeOptions,
-): Promise<Buffer> {
+): Promise<{
+  audio: Buffer;
+  cost: UsageCostLine[];
+}> {
   const voiceOptions = getGoogleVoiceOptions(opts);
   const chunks = splitTextIntoChunks(text, MAX_BYTES);
 
@@ -169,13 +170,19 @@ export async function synthesize(
   }
 
   if (chunks.length === 1) {
-    return synthesizeChunk(chunks[0]!, voiceOptions);
+    return {
+      audio: await synthesizeChunk(chunks[0]!, voiceOptions),
+      cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
+    };
   }
 
   const audioBuffers = await Promise.all(
     chunks.map((chunk) => synthesizeChunk(chunk, voiceOptions)),
   );
-  return concatMp3Buffers(audioBuffers);
+  return {
+    audio: await concatenateAudioChunks(audioBuffers),
+    cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
+  };
 }
 
 function getGoogleVoiceOptions(
@@ -195,4 +202,32 @@ function getGoogleVoiceOptions(
     languageCode: opts.config.languageCode,
     voiceName: opts.config.voiceName,
   };
+}
+
+export function buildGoogleCostLine(
+  chunks: string[],
+  voiceOptions: GoogleVoiceOptions = DEFAULT_GOOGLE_VOICE,
+  opts?: TtsSynthesizeOptions,
+): UsageCostLine {
+  const characters = chunks.reduce(
+    (sum, chunk) => sum + countUnicodeCharacters(chunk),
+    0,
+  );
+
+  return {
+    category: 'tts',
+    label: opts?.costLabel ?? 'TTS audio',
+    provider: 'google',
+    model: voiceOptions.voiceName,
+    costUsd: characters * GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER,
+    usage: {
+      unit: 'characters',
+      quantity: characters,
+      unitPriceUsd: GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER,
+    },
+  };
+}
+
+function countUnicodeCharacters(text: string): number {
+  return [...text].length;
 }

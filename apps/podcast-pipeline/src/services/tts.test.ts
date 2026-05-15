@@ -27,8 +27,30 @@ import { getTtsMetadata, textToSpeech } from './tts.js';
 describe('TTS provider dispatcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFishSynthesize.mockResolvedValue(Buffer.from('fish-audio'));
-    mockGoogleSynthesize.mockResolvedValue(Buffer.from('google'));
+    mockFishSynthesize.mockResolvedValue({
+      audio: Buffer.from('fish-audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00001,
+        },
+      ],
+    });
+    mockGoogleSynthesize.mockResolvedValue({
+      audio: Buffer.from('google'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'google',
+          model: 'en-US-Wavenet-A',
+          costUsd: 0.00002,
+        },
+      ],
+    });
     mockFishGetMetadata.mockImplementation(
       (opts?: { languageCode?: string; config?: { modelId?: string } }) => ({
         provider: 'fish-audio',
@@ -52,7 +74,18 @@ describe('TTS provider dispatcher', () => {
   it('defaults zh-Hant to Fish Audio when no language is specified', async () => {
     const result = await textToSpeech('測試文字');
 
-    expect(result).toEqual(Buffer.from('fish-audio'));
+    expect(result).toEqual({
+      audio: Buffer.from('fish-audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00001,
+        },
+      ],
+    });
     expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
       languageCode: 'zh-Hant',
       config: {
@@ -60,6 +93,7 @@ describe('TTS provider dispatcher', () => {
         modelId: 'debb4c1065114ffda03f3a60abdcc421',
         engine: 's2-pro',
       },
+      costLabel: 'TTS audio',
     });
     expect(mockGoogleSynthesize).not.toHaveBeenCalled();
   });
@@ -67,7 +101,18 @@ describe('TTS provider dispatcher', () => {
   it('routes classroom target languages to Google by default', async () => {
     await expect(
       textToSpeech('market liquidity', { languageCode: 'en' }),
-    ).resolves.toEqual(Buffer.from('google'));
+    ).resolves.toEqual({
+      audio: Buffer.from('google'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'google',
+          model: 'en-US-Wavenet-A',
+          costUsd: 0.00002,
+        },
+      ],
+    });
 
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
       languageCode: 'en',
@@ -76,6 +121,7 @@ describe('TTS provider dispatcher', () => {
         languageCode: 'en-US',
         voiceName: 'en-US-Wavenet-A',
       },
+      costLabel: 'TTS audio',
     });
     expect(mockFishSynthesize).not.toHaveBeenCalled();
   });
@@ -86,7 +132,18 @@ describe('TTS provider dispatcher', () => {
 
     await expect(
       textToSpeech('market liquidity', { languageCode: 'en' }),
-    ).resolves.toEqual(Buffer.from('google'));
+    ).resolves.toEqual({
+      audio: Buffer.from('google'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'google',
+          model: 'en-US-Wavenet-A',
+          costUsd: 0.00002,
+        },
+      ],
+    });
 
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
       languageCode: 'en',
@@ -95,6 +152,7 @@ describe('TTS provider dispatcher', () => {
         languageCode: 'en-US',
         voiceName: 'en-US-Wavenet-A',
       },
+      costLabel: 'TTS audio',
     });
     expect(mockFishSynthesize).not.toHaveBeenCalled();
   });
@@ -112,6 +170,7 @@ describe('TTS provider dispatcher', () => {
         modelId: 'debb4c1065114ffda03f3a60abdcc421',
         engine: 's2-pro',
       },
+      costLabel: 'TTS audio',
     });
     expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
   });
@@ -129,6 +188,7 @@ describe('TTS provider dispatcher', () => {
         languageCode: 'en-US',
         voiceName: 'en-US-Wavenet-A',
       },
+      costLabel: 'TTS audio',
     });
   });
 
@@ -147,6 +207,7 @@ describe('TTS provider dispatcher', () => {
         modelId: 'debb4c1065114ffda03f3a60abdcc421',
         engine: 's2-pro',
       },
+      costLabel: 'TTS audio',
     });
     expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
   });

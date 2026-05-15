@@ -1,7 +1,7 @@
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 
 export type TtsProvider = 'fish-audio' | 'google';
-export type FishAudioEngine = 's2-pro' | 'speech-1.6' | 'speech-1.5';
+export type FishAudioEngine = 's2-pro' | 's1';
 
 export interface FishAudioTtsLanguageConfig {
   provider: 'fish-audio';

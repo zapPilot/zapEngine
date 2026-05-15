@@ -406,8 +406,19 @@ describe('POST /ingest pipeline', () => {
         return Promise.resolve(null);
       },
     );
-    mockTextToSpeech.mockResolvedValue(Buffer.from('audio'));
-    mockSynthesizeClassroomAudio.mockResolvedValue(null);
+    mockTextToSpeech.mockResolvedValue({
+      audio: Buffer.from('audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS main audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00006,
+        },
+      ],
+    });
+    mockSynthesizeClassroomAudio.mockResolvedValue({ audio: null, cost: [] });
     mockGenerateHls.mockResolvedValue({
       files: [
         {
@@ -641,7 +652,9 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 $0.00009',
+        '💰 Total $0.00009',
+        'Breakdown',
+        '- LLM classrooms (test-provider/test-model): $0.00009',
       ].join('\n'),
     ]);
   });

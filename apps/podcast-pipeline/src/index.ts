@@ -1,10 +1,10 @@
+import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 
 import dotenv from 'dotenv';
 
 const envPath = path.resolve(process.cwd(), '../../.env');
 dotenv.config({ path: envPath });
-import { timingSafeEqual } from 'node:crypto';
 
 import { serve } from '@hono/node-server';
 import { type Context, Hono } from 'hono';
@@ -16,6 +16,11 @@ import {
   getPort,
   getTelegramWebhookSecret,
 } from './lib/env.js';
+import {
+  compactUsageCostLines,
+  nonZeroUsageCostLines,
+  type UsageCostLine,
+} from './services/cost.js';
 import {
   type Cursor,
   decodeCursor,
@@ -376,11 +381,41 @@ function formatTelegramIngestResult(result: IngestResult): string {
   if (result.episode.hlsUrl) {
     lines.push(result.episode.hlsUrl);
   }
-  if (result.costUsd > 0) {
-    lines.push(`💰 $${result.costUsd.toFixed(5)}`);
+
+  const costLines = compactUsageCostLines(
+    nonZeroUsageCostLines(result.costDetails.breakdown),
+  );
+  if (result.costDetails.totalUsd > 0 && costLines.length > 0) {
+    lines.push(`💰 Total $${formatUsd(result.costDetails.totalUsd)}`);
+    lines.push('Breakdown');
+    lines.push(...costLines.map(formatCostLine));
   }
 
   return lines.join('\n');
+}
+
+function formatCostLine(line: UsageCostLine): string {
+  const usage = line.usage ? `, ${formatUsage(line.usage)}` : '';
+  return `- ${line.label} (${line.provider}/${line.model}${usage}): $${formatUsd(
+    line.costUsd,
+  )}`;
+}
+
+function formatUsage(usage: NonNullable<UsageCostLine['usage']>): string {
+  let unitLabel = usage.unit;
+  if (usage.unit === 'utf8_bytes') {
+    unitLabel = 'UTF-8 bytes';
+  } else if (usage.unit === 'characters') {
+    unitLabel = 'chars';
+  }
+
+  return `${usage.quantity} ${unitLabel} @ $${formatUsd(
+    usage.unitPriceUsd * 1_000_000,
+  )}/M`;
+}
+
+function formatUsd(value: number): string {
+  return value.toFixed(5);
 }
 
 function publicTelegramErrorMessage(error: unknown): string {

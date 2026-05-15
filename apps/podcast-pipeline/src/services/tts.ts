@@ -2,6 +2,7 @@ import {
   DEFAULT_LANGUAGE_CODE,
   type LanguageClassroomLanguageCode,
 } from '../types.js';
+import type { UsageCostLine } from './cost.js';
 import {
   getMetadata as getFishAudioMetadata,
   synthesize as synthesizeWithFishAudio,
@@ -27,10 +28,19 @@ export interface TtsMetadata {
 export interface TtsSynthesizeOptions {
   languageCode: LanguageClassroomLanguageCode;
   config: TtsLanguageConfig;
+  costLabel?: string;
+}
+
+export interface TtsSynthesisResult {
+  audio: Buffer;
+  cost: UsageCostLine[];
 }
 
 interface TtsProviderModule {
-  synthesize(text: string, opts: TtsSynthesizeOptions): Promise<Buffer>;
+  synthesize(
+    text: string,
+    opts: TtsSynthesizeOptions,
+  ): Promise<TtsSynthesisResult>;
   getMetadata(opts: TtsSynthesizeOptions): TtsMetadata;
 }
 
@@ -51,19 +61,24 @@ function getProvider(config: TtsLanguageConfig): TtsProviderModule {
 
 function normalizeTtsOptions(opts?: {
   languageCode?: LanguageClassroomLanguageCode;
+  costLabel?: string;
 }): TtsSynthesizeOptions {
   const languageCode = opts?.languageCode ?? DEFAULT_LANGUAGE_CODE;
 
   return {
     languageCode,
     config: getTtsConfig(languageCode),
+    costLabel: opts?.costLabel ?? 'TTS audio',
   };
 }
 
 export async function textToSpeech(
   text: string,
-  opts?: { languageCode?: LanguageClassroomLanguageCode },
-): Promise<Buffer> {
+  opts?: {
+    languageCode?: LanguageClassroomLanguageCode;
+    costLabel?: string;
+  },
+): Promise<TtsSynthesisResult> {
   const ttsOptions = normalizeTtsOptions(opts);
   return getProvider(ttsOptions.config).synthesize(text, ttsOptions);
 }

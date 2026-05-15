@@ -177,7 +177,23 @@ describe('performIngest failure paths', () => {
         return Promise.resolve(null);
       },
     );
-    mockTextToSpeech.mockResolvedValue(Buffer.from('audio'));
+    mockTextToSpeech.mockResolvedValue({
+      audio: Buffer.from('audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS main audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00006,
+          usage: {
+            unit: 'utf8_bytes',
+            quantity: 4,
+            unitPriceUsd: 0.000015,
+          },
+        },
+      ],
+    });
     mockGenerateHls.mockResolvedValue({
       files: [
         {
@@ -201,7 +217,7 @@ describe('performIngest failure paths', () => {
       costUsd: 0.00009,
     });
     mockUpsertLanguageClassrooms.mockResolvedValue([]);
-    mockSynthesizeClassroomAudio.mockResolvedValue(null);
+    mockSynthesizeClassroomAudio.mockResolvedValue({ audio: null, cost: [] });
     mockConcatMp3Buffers.mockResolvedValue(Buffer.from('combined-audio'));
   });
 
@@ -239,6 +255,7 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
+      costLabel: 'TTS main audio',
     });
     expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
@@ -284,7 +301,24 @@ describe('performIngest failure paths', () => {
     );
 
     expect(result.statusCode).toBe(201);
-    expect(result.costUsd).toBeCloseTo(0.0001, 10);
+    expect(result.costUsd).toBeCloseTo(0.00016, 10);
+    expect(result.costDetails.breakdown).toEqual([
+      expect.objectContaining({
+        category: 'llm',
+        label: 'LLM script',
+        costUsd: 0.00001,
+      }),
+      expect.objectContaining({
+        category: 'llm',
+        label: 'LLM classrooms',
+        costUsd: 0.00009,
+      }),
+      expect.objectContaining({
+        category: 'tts',
+        label: 'TTS main audio',
+        costUsd: 0.00006,
+      }),
+    ]);
   });
 
   it('publishes a single HLS playlist from main audio followed by generated classroom audio', async () => {
@@ -322,14 +356,62 @@ describe('performIngest failure paths', () => {
       }),
     ]);
     mockSynthesizeClassroomAudio
-      .mockResolvedValueOnce(Buffer.from('ja-classroom'))
-      .mockResolvedValueOnce(Buffer.from('en-classroom'));
+      .mockResolvedValueOnce({
+        audio: Buffer.from('ja-classroom'),
+        cost: [
+          {
+            category: 'tts',
+            label: 'TTS classroom audio',
+            provider: 'google',
+            model: 'ja-JP-Wavenet-A',
+            costUsd: 0.00003,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        audio: Buffer.from('en-classroom'),
+        cost: [
+          {
+            category: 'tts',
+            label: 'TTS classroom audio',
+            provider: 'google',
+            model: 'en-US-Wavenet-A',
+            costUsd: 0.00004,
+          },
+        ],
+      });
 
-    await performIngest('https://example.com/article', 'zh-Hant');
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
+      costLabel: 'TTS main audio',
     });
+    expect(result.costUsd).toBeCloseTo(0.00023, 10);
+    expect(result.costDetails.breakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'LLM script', costUsd: 0.00001 }),
+        expect.objectContaining({
+          label: 'LLM classrooms',
+          costUsd: 0.00009,
+        }),
+        expect.objectContaining({
+          label: 'TTS main audio',
+          costUsd: 0.00006,
+        }),
+        expect.objectContaining({
+          label: 'TTS classroom audio',
+          costUsd: 0.00003,
+        }),
+        expect.objectContaining({
+          label: 'TTS classroom audio',
+          costUsd: 0.00004,
+        }),
+      ]),
+    );
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledTimes(2);
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
       expect.objectContaining({ targetLanguageCode: 'ja' }),
@@ -406,8 +488,19 @@ describe('performIngest failure paths', () => {
       }),
     ]);
     mockSynthesizeClassroomAudio
-      .mockResolvedValueOnce(Buffer.from('ja-classroom'))
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce({
+        audio: Buffer.from('ja-classroom'),
+        cost: [
+          {
+            category: 'tts',
+            label: 'TTS classroom audio',
+            provider: 'google',
+            model: 'ja-JP-Wavenet-A',
+            costUsd: 0.00003,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ audio: null, cost: [] });
 
     await performIngest('https://example.com/article', 'zh-Hant');
 
@@ -520,7 +613,10 @@ describe('performIngest failure paths', () => {
     expect(mockScrapeArticle).not.toHaveBeenCalled();
     expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
-    expect(mockTextToSpeech).toHaveBeenCalledWith('', { languageCode: 'en' });
+    expect(mockTextToSpeech).toHaveBeenCalledWith('', {
+      languageCode: 'en',
+      costLabel: 'TTS main audio',
+    });
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',

@@ -57,6 +57,7 @@ vi.mock('crypto', () => ({
 }));
 
 import {
+  buildGoogleCostLine,
   concatenateAudioChunks,
   getClientOptions,
   splitTextIntoChunks,
@@ -196,20 +197,34 @@ describe('textToSpeech', () => {
 
   it('synthesizes single chunk directly', async () => {
     const result = await textToSpeech('短文字');
-    expect(result).toBeInstanceOf(Buffer);
-    expect(result.length).toBeGreaterThan(0);
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(result.audio.length).toBeGreaterThan(0);
+    expect(result.cost).toEqual([
+      {
+        category: 'tts',
+        label: 'TTS audio',
+        provider: 'google',
+        model: 'cmn-TW-Wavenet-A',
+        costUsd: 0.000012,
+        usage: {
+          unit: 'characters',
+          quantity: 3,
+          unitPriceUsd: 0.000004,
+        },
+      },
+    ]);
   });
 
   it('handles Chinese text with period punctuation', async () => {
     const result = await textToSpeech(
       '這是一段很長的文字內容。這是第二句話。這是第三句話。',
     );
-    expect(result).toBeInstanceOf(Buffer);
+    expect(result.audio).toBeInstanceOf(Buffer);
   });
 
   it('handles mixed ASCII and CJK characters', async () => {
     const result = await textToSpeech('Hello 你好 World 世界 123。');
-    expect(result).toBeInstanceOf(Buffer);
+    expect(result.audio).toBeInstanceOf(Buffer);
   });
 
   it('uses custom Google voice options from resolved language config', async () => {
@@ -220,9 +235,17 @@ describe('textToSpeech', () => {
         languageCode: 'en-US',
         voiceName: 'en-US-Wavenet-A',
       },
+      costLabel: 'TTS main audio',
     });
 
-    expect(result).toBeInstanceOf(Buffer);
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(result.cost).toEqual([
+      expect.objectContaining({
+        label: 'TTS main audio',
+        provider: 'google',
+        model: 'en-US-Wavenet-A',
+      }),
+    ]);
     expect(mockSynthesize).toHaveBeenCalledWith({
       input: { text: 'Hello world' },
       voice: {
@@ -241,9 +264,17 @@ describe('textToSpeech', () => {
         languageCode: 'ja-JP',
         voiceName: 'ja-JP-Wavenet-A',
       },
+      costLabel: 'TTS classroom audio',
     });
 
-    expect(result).toBeInstanceOf(Buffer);
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(result.cost).toEqual([
+      expect.objectContaining({
+        label: 'TTS classroom audio',
+        provider: 'google',
+        model: 'ja-JP-Wavenet-A',
+      }),
+    ]);
     expect(mockSynthesize).toHaveBeenCalledWith({
       input: { text: 'こんにちは' },
       voice: expect.objectContaining({
@@ -254,12 +285,24 @@ describe('textToSpeech', () => {
     });
   });
 
-  it('splits text into multiple chunks when needed', async () => {
-    const longText =
-      '第一章內容。這是第二章內容。這是第三章內容。這是第四章內容。這是第五章內容。';
+  it('splits text into multiple chunks and sums character cost', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(200));
+
+    const longText = 'a'.repeat(6000);
     const result = await textToSpeech(longText);
-    expect(result).toBeInstanceOf(Buffer);
-    expect(mockSynthesize).toHaveBeenCalled();
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalledTimes(2);
+    expect(result.cost[0]).toEqual(
+      expect.objectContaining({
+        costUsd: 0.024,
+        usage: {
+          unit: 'characters',
+          quantity: 6000,
+          unitPriceUsd: 0.000004,
+        },
+      }),
+    );
   });
 
   it('throws when synthesize returns empty audio content', async () => {
@@ -267,6 +310,28 @@ describe('textToSpeech', () => {
     await expect(textToSpeech('Test')).rejects.toThrow(
       'Google TTS returned empty audio content',
     );
+  });
+});
+
+describe('buildGoogleCostLine', () => {
+  it('estimates Wavenet cost from Unicode character count across chunks', () => {
+    expect(
+      buildGoogleCostLine(['Hello', '世界'], {
+        languageCode: 'en-US',
+        voiceName: 'en-US-Wavenet-A',
+      }),
+    ).toEqual({
+      category: 'tts',
+      label: 'TTS audio',
+      provider: 'google',
+      model: 'en-US-Wavenet-A',
+      costUsd: 0.000028,
+      usage: {
+        unit: 'characters',
+        quantity: 7,
+        unitPriceUsd: 0.000004,
+      },
+    });
   });
 });
 
