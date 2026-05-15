@@ -404,6 +404,51 @@ describe('WalletProvider', () => {
       });
     });
 
+    it('should use the first connector when multiple connectors are available', async () => {
+      const connectors = [
+        { id: 'io.rabby', name: 'Rabby' },
+        { id: 'io.metamask', name: 'MetaMask' },
+      ];
+      mockUseConnectors.mockReturnValue(connectors);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      await invokeWalletProviderAction(() => result.current.connect());
+
+      expect(mockConnectAsync).toHaveBeenCalledWith({
+        connector: connectors[0],
+      });
+      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it('should set NO_WALLET when no connectors are available', async () => {
+      mockUseConnectors.mockReturnValue([]);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      const { error } = await invokeWalletProviderAction(() =>
+        result.current.connect(),
+      );
+
+      expect(error).toBeUndefined();
+      expect(mockConnectAsync).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(result.current.error).toEqual({
+          message:
+            'No wallet detected. Please install MetaMask or another wallet extension.',
+          code: 'NO_WALLET',
+        });
+      });
+    });
+
     it('should set error state on connection failure', async () => {
       mockConnectAsync.mockRejectedValue(new Error('User rejected'));
 

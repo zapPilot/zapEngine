@@ -7,6 +7,7 @@ import { WALLET_LABELS } from '@/constants/wallet';
 // Mock providers and hooks
 const mockConnectAsync = vi.fn();
 const mockDisconnect = vi.fn();
+const mockUseConnectors = vi.fn();
 
 // Create mutable mock state for different test scenarios
 function createMockWalletProvider(
@@ -36,7 +37,7 @@ vi.mock('wagmi', () => ({
     mutateAsync: mockConnectAsync,
     isPending: false,
   }),
-  useConnectors: () => [{ id: 'injected', name: 'MetaMask' }],
+  useConnectors: () => mockUseConnectors(),
 }));
 
 vi.mock('@/providers/WalletProvider', () => ({
@@ -78,6 +79,7 @@ describe('WalletMenu Component', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mockWalletProviderState = createMockWalletProvider();
+    mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
   });
 
   afterEach(() => {
@@ -98,11 +100,20 @@ describe('WalletMenu Component', () => {
       expect(button).toBeInTheDocument();
     });
 
-    it('calls connect when not connected', () => {
+    it('calls connect with the first connector when not connected', () => {
+      const connectors = [
+        { id: 'io.rabby', name: 'Rabby' },
+        { id: 'io.metamask', name: 'MetaMask' },
+      ];
+      mockUseConnectors.mockReturnValue(connectors);
+
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
       const button = screen.getByTestId('unified-wallet-menu-button');
       fireEvent.click(button);
-      expect(mockConnectAsync).toHaveBeenCalled();
+      expect(mockConnectAsync).toHaveBeenCalledWith({
+        connector: connectors[0],
+      });
+      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
     });
 
     it('matches snapshot - disconnected state', () => {
