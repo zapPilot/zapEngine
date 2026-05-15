@@ -304,6 +304,76 @@ describe('LiFiAdapter', () => {
     });
   });
 
+  describe('getQuote', () => {
+    it('can request a LI.FI Earn vault quote with exact source amount', async () => {
+      const mockQuote = {
+        id: 'quote-earn',
+        type: 'lifi',
+        tool: 'composer',
+        action: {
+          fromChainId: 8453,
+          toChainId: 8453,
+          fromToken: {
+            address: '0x0000000000000000000000000000000000000000',
+            symbol: 'ETH',
+            decimals: 18,
+          },
+          toToken: {
+            address: '0x7bfa7c4f149e7415b73bdedfe609237e29cbf34a',
+            symbol: 'sparkUSDC',
+            decimals: 18,
+          },
+          fromAmount: '1000000000000000',
+        },
+        estimate: {
+          fromAmount: '1000000000000000',
+          toAmount: '2318396521802239673',
+          toAmountMin: '2306804539193228474',
+          executionDuration: 0,
+          gasCosts: [{ amountUSD: '0.0193' }],
+        },
+        transactionRequest: {
+          to: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+          data: '0xdeadbeef',
+          value: '0x38d7ea4c68000',
+          gasLimit: '0x223722',
+        },
+      };
+
+      vi.mocked(lifiSdk.getQuote).mockResolvedValue(
+        mockQuote as unknown as never,
+      );
+
+      const result = await adapter.getQuote({
+        fromChain: 8453,
+        toChain: 8453,
+        fromToken: '0x0000000000000000000000000000000000000000',
+        toToken: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+        fromAmount: '1000000000000000',
+        fromAddress: '0x000000000000000000000000000000000000abcd',
+        intentType: 'SUPPLY',
+      });
+
+      expect(lifiSdk.getQuote).toHaveBeenCalledWith({
+        fromChain: 8453,
+        toChain: 8453,
+        fromToken: '0x0000000000000000000000000000000000000000',
+        toToken: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+        fromAmount: '1000000000000000',
+        fromAddress: '0x000000000000000000000000000000000000abcd',
+        toAddress: '0x000000000000000000000000000000000000abcd',
+        slippage: 0.005,
+      });
+      expect(result.transaction.to).toBe(
+        '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+      );
+      expect(result.transaction.value).toBe('1000000000000000');
+      expect(result.transaction.meta.intentType).toBe('SUPPLY');
+      expect(result.estimate.toAmountMin).toBe('2306804539193228474');
+      expect(result.approval).toBeUndefined();
+    });
+  });
+
   describe('getContractCallQuote', () => {
     const params = {
       fromChain: 1,

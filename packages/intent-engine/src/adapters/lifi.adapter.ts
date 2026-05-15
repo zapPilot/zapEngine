@@ -130,7 +130,7 @@ export class LiFiAdapter {
     fromAddress: Address;
     toAddress?: Address;
     slippageBps?: number;
-    intentType?: 'SWAP' | 'BRIDGE';
+    intentType?: 'SWAP' | 'BRIDGE' | 'SUPPLY';
   }): Promise<TransactionQuote> {
     this.ensureInitialized();
 
@@ -163,33 +163,37 @@ export class LiFiAdapter {
    * Get quote with custom contract calls
    * Use this for complex protocol interactions
    */
-  async getContractCallQuote(params: {
-    fromChain: number;
-    toChain: number;
-    fromToken: Address;
-    toToken: Address;
-    toAmount: string;
-    fromAddress: Address;
-    contractCalls: Array<{
-      fromAmount: string;
-      fromTokenAddress: Address;
-      toContractAddress: Address;
-      toContractCallData: `0x${string}`;
-      toContractGasLimit: string;
-    }>;
-  }): Promise<TransactionQuote> {
+  async getContractCallQuote(
+    params: {
+      fromChain: number;
+      toChain: number;
+      fromToken: Address;
+      toToken: Address;
+      fromAddress: Address;
+      contractCalls: Array<{
+        fromAmount: string;
+        fromTokenAddress: Address;
+        toContractAddress: Address;
+        toContractCallData: `0x${string}`;
+        toContractGasLimit: string;
+      }>;
+    } & ({ fromAmount: string } | { toAmount: string }),
+  ): Promise<TransactionQuote> {
     this.ensureInitialized();
 
     try {
-      const request: ContractCallsQuoteRequest = {
+      const baseRequest = {
         fromChain: params.fromChain,
         toChain: params.toChain,
         fromToken: params.fromToken,
         toToken: params.toToken,
-        toAmount: params.toAmount,
         fromAddress: params.fromAddress,
         contractCalls: params.contractCalls,
       };
+      const request: ContractCallsQuoteRequest =
+        'fromAmount' in params
+          ? { ...baseRequest, fromAmount: params.fromAmount }
+          : { ...baseRequest, toAmount: params.toAmount };
 
       const quote = await getContractCallsQuote(request);
       return this.mapQuoteToTransaction(

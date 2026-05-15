@@ -110,19 +110,22 @@ function makeAdapter() {
         toToken,
         toChain,
         fromAmount,
+        intentType,
       }: {
         fromToken: Address;
         toToken: Address;
         toChain: number;
         fromAmount: string;
+        intentType?: 'SUPPLY' | 'BRIDGE';
       }) =>
         Promise.resolve(
           makeQuote({
-            kind: 'BRIDGE',
+            kind: intentType ?? 'BRIDGE',
             fromAmount,
             toAmountMin: fromAmount,
-            gasCostUsd: '0.20',
-            executionDuration: toChain === 1 ? 3 : 1,
+            gasCostUsd: intentType === 'SUPPLY' ? '0.10' : '0.20',
+            executionDuration:
+              intentType === 'SUPPLY' ? 12 : toChain === 1 ? 3 : 1,
             toChainId: toChain,
             bridge: toChain === 1 ? 'across' : 'relaydepository',
             fromToken,
@@ -374,9 +377,42 @@ describe('composeDeposit', () => {
       kind: 'supply',
       fromAmount: '10000000000000000',
     });
-    expect(getContractCallQuote).toHaveBeenCalledWith(
-      expect.objectContaining({ fromToken: NATIVE_ETH }),
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    expect(getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromToken: NATIVE_ETH,
+        fromAmount: '10000000000000000',
+        toToken: MORPHO_BASE_USDC,
+        intentType: 'SUPPLY',
+      }),
     );
-    expect(getQuote).not.toHaveBeenCalled();
+  });
+
+  it('uses LI.FI Earn quote for non-vault-asset source deposits', async () => {
+    const { adapter, getContractCallQuote, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: NATIVE_ETH,
+        fromAmount: '10000000000000000',
+        sourceChainId: 8453,
+        userAddress: USER,
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.calls[0]?.to).toBe(LIFI_DIAMOND);
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    expect(getQuote).toHaveBeenCalledWith({
+      fromChain: 8453,
+      toChain: 8453,
+      fromToken: NATIVE_ETH,
+      toToken: MORPHO_BASE_USDC,
+      fromAmount: '10000000000000000',
+      fromAddress: USER,
+      slippageBps: 50,
+      intentType: 'SUPPLY',
+    });
   });
 });
