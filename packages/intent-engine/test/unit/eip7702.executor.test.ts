@@ -63,6 +63,7 @@ describe('EIP-7702 Executor', () => {
 
       const result = await executeWithEIP7702(mockTxs, mockWalletClient);
 
+      expect(sendCalls).toHaveBeenCalledTimes(1);
       expect(sendCalls).toHaveBeenCalledWith(mockWalletClient, {
         account: mockWalletClient.account,
         calls: [
@@ -72,8 +73,10 @@ describe('EIP-7702 Executor', () => {
         forceAtomic: true,
       });
 
-      expect(result.success).toBe(true);
-      expect(result.callsId).toBe('calls-123');
+      expect(result).toEqual({
+        success: true,
+        callsId: 'calls-123',
+      });
     });
 
     it('returns error result when sendCalls fails', async () => {

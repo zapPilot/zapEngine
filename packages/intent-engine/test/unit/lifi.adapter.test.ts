@@ -26,6 +26,60 @@ describe('LiFiAdapter', () => {
     adapter = new LiFiAdapter(config);
   });
 
+  function makeQuoteWithTransactionRequest(transactionRequest: {
+    to: string;
+    data: string;
+    value?: string;
+    gasLimit?: string;
+  }) {
+    return {
+      id: 'quote-quantity',
+      type: 'lifi',
+      tool: 'test',
+      action: {
+        fromChainId: 8453,
+        toChainId: 8453,
+        fromToken: {
+          address: '0x0000000000000000000000000000000000000001',
+          symbol: 'A',
+          decimals: 18,
+        },
+        toToken: {
+          address: '0x0000000000000000000000000000000000000002',
+          symbol: 'B',
+          decimals: 18,
+        },
+        fromAmount: '100000',
+      },
+      estimate: {
+        fromAmount: '100000',
+        toAmount: '99000',
+        toAmountMin: '98000',
+      },
+      transactionRequest,
+    };
+  }
+
+  async function getSwapQuoteWithTransactionRequest(transactionRequest: {
+    to: string;
+    data: string;
+    value?: string;
+    gasLimit?: string;
+  }) {
+    vi.mocked(lifiSdk.getQuote).mockResolvedValueOnce(
+      makeQuoteWithTransactionRequest(transactionRequest) as unknown as never,
+    );
+
+    return adapter.getSwapQuote({
+      fromChain: 8453,
+      toChain: 8453,
+      fromToken: '0x0000000000000000000000000000000000000001',
+      toToken: '0x0000000000000000000000000000000000000002',
+      fromAmount: '100000',
+      fromAddress: '0x000000000000000000000000000000000000abcd',
+    });
+  }
+
   describe('Initialization', () => {
     it('should initialize the SDK only once on first call', async () => {
       vi.mocked(lifiSdk.getQuote).mockResolvedValue({
@@ -186,6 +240,64 @@ describe('LiFiAdapter', () => {
       expect(result.transaction.meta.estimatedGas).toBe('100000');
 
       // Regression lock: the resulting transaction must satisfy the shared schema.
+      expect(() =>
+        PreparedTransactionSchema.parse(result.transaction),
+      ).not.toThrow();
+    });
+
+    it.each([
+      { value: '', expectedValue: '0', label: 'empty string' },
+      { value: '0x', expectedValue: '0', label: 'empty hex quantity' },
+      { value: undefined, expectedValue: '0', label: 'missing value' },
+    ])(
+      'normalizes $label LI.FI value to the schema default zero',
+      async ({ value, expectedValue }) => {
+        const result = await getSwapQuoteWithTransactionRequest({
+          to: '0x0000000000000000000000000000000000000abc',
+          data: '0xdeadbeef',
+          value,
+          gasLimit: '',
+        });
+
+        expect(result.transaction.value).toBe(expectedValue);
+        expect(result.transaction.gasLimit).toBeUndefined();
+        expect(result.transaction.meta.estimatedGas).toBeUndefined();
+        expect(() =>
+          PreparedTransactionSchema.parse(result.transaction),
+        ).not.toThrow();
+      },
+    );
+
+    it('passes decimal-string quantities through unchanged', async () => {
+      const result = await getSwapQuoteWithTransactionRequest({
+        to: '0x0000000000000000000000000000000000000abc',
+        data: '0xdeadbeef',
+        value: '100000',
+        gasLimit: '300000',
+      });
+
+      expect(result.transaction.value).toBe('100000');
+      expect(result.transaction.gasLimit).toBe('300000');
+      expect(result.transaction.meta.estimatedGas).toBe('300000');
+      expect(() =>
+        PreparedTransactionSchema.parse(result.transaction),
+      ).not.toThrow();
+    });
+
+    it('normalizes large hex quantities without precision loss', async () => {
+      const largeHex = '0xffffffffffffffffffffffffffffffffffffffff';
+      const expectedLargeDecimal = BigInt(largeHex).toString(10);
+
+      const result = await getSwapQuoteWithTransactionRequest({
+        to: '0x0000000000000000000000000000000000000abc',
+        data: '0xdeadbeef',
+        value: largeHex,
+        gasLimit: largeHex,
+      });
+
+      expect(result.transaction.value).toBe(expectedLargeDecimal);
+      expect(result.transaction.gasLimit).toBe(expectedLargeDecimal);
+      expect(result.transaction.meta.estimatedGas).toBe(expectedLargeDecimal);
       expect(() =>
         PreparedTransactionSchema.parse(result.transaction),
       ).not.toThrow();

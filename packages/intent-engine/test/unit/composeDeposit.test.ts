@@ -235,6 +235,13 @@ describe('composeDeposit', () => {
       nonce: '7',
       deadline: '1700001800',
     });
+    expect(permit.typedData.message).toMatchObject({
+      owner: USER,
+      spender: MORPHO_BASE_USDC,
+      value: '10000',
+      nonce: '7',
+      deadline: '1700001800',
+    });
     expect(permit.typedData.domain).toEqual({
       name: 'USD Coin',
       version: '2',

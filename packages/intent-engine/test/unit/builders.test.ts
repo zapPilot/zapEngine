@@ -138,7 +138,7 @@ describe('buildSwapTx', () => {
 
 describe('buildSupplyTx', () => {
   it('encodes a direct Morpho deposit when the source token is the vault asset', async () => {
-    const { adapter, getContractCallQuote } = makeAdapterMock();
+    const { adapter, getSwapQuote, getContractCallQuote } = makeAdapterMock();
 
     const readContract = vi.fn().mockResolvedValueOnce(BASE_USDC); // vault.asset()
     const publicClient = { readContract } as unknown as PublicClient;
@@ -163,6 +163,7 @@ describe('buildSupplyTx', () => {
       functionName: 'asset',
     });
     expect(getContractCallQuote).not.toHaveBeenCalled();
+    expect(getSwapQuote).not.toHaveBeenCalled();
 
     expect(result.transaction.to).toBe(BASE_MOONWELL_USDC);
     expect(result.transaction.data.slice(0, 10)).toBe(DEPOSIT_SELECTOR);
@@ -175,6 +176,7 @@ describe('buildSupplyTx', () => {
       estimatedDuration: 0,
       route: { tool: 'direct' },
     });
+    expect(result.transaction.meta.route).toEqual({ tool: 'direct' });
     expect(result.estimate).toEqual({
       fromAmount: '5000000',
       toAmount: '5000000',
