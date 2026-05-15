@@ -73,14 +73,6 @@ async function main() {
     chainId: withdrawTx.chainId,
   });
 
-  // Example 4: Batch multiple transactions with Multicall3
-  // (useful when EIP-7702 is not supported)
-  const batchedTx = engine.batchTransactions([withdrawTx]);
-  console.log('Batched transaction:', {
-    to: batchedTx.to,
-    intentType: batchedTx.meta.intentType,
-  });
-
   console.log('\nIntent engine ready!');
   console.log('Supported chains:', Object.keys(MORPHO_VAULTS));
 }

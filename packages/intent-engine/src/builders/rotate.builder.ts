@@ -29,7 +29,7 @@ import { validateRotateIntent } from '../validators/intent.validator.js';
  * The estimate is optimistic — the actual `redeem` output on execution may
  * drift slightly (vault share price moves), which is why LI.FI's slippage
  * protection matters. Execution layer decides atomic (EIP-7702) vs
- * sequential (Multicall3 + approval).
+ * sequential approval plus execution transactions.
  *
  * Steps returned: `[redeemTx, lifiSupplyTx]`. If the LI.FI quote carries
  * an approval, it is attached to the plan as `approval` for the execution

@@ -197,11 +197,9 @@ function InvestStrategyButton({
   const tierLabel =
     tier === 'eip7702'
       ? 'EIP-7702'
-      : tier === 'permit-multicall3'
-        ? 'Permit + Multicall3'
-        : tier === 'sequential'
-          ? 'Sequential'
-          : null;
+      : tier === 'sequential'
+        ? 'Sequential'
+        : null;
   const resultId = lastCallsId ?? lastTxHash;
   const disabled =
     pending ||

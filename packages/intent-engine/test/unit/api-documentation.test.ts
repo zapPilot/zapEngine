@@ -18,9 +18,6 @@ describe('API Documentation Consistency', () => {
       expect(intentEngine.determineExecutionStrategy).toBeDefined();
       expect(typeof intentEngine.determineExecutionStrategy).toBe('function');
 
-      expect(intentEngine.encodeMulticall3).toBeDefined();
-      expect(typeof intentEngine.encodeMulticall3).toBe('function');
-
       expect(intentEngine.executeWithEIP7702).toBeDefined();
       expect(typeof intentEngine.executeWithEIP7702).toBe('function');
 

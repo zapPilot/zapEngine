@@ -1,7 +1,7 @@
 import type { WalletClient } from 'viem';
 import { getCapabilities } from 'viem/actions';
 
-export type ExecutionStrategy = 'eip7702' | 'multicall3' | 'sequential';
+export type ExecutionStrategy = 'eip7702' | 'sequential';
 
 /**
  * Detect if wallet supports EIP-7702 / atomic batching on a given chain.
@@ -10,7 +10,7 @@ export type ExecutionStrategy = 'eip7702' | 'multicall3' | 'sequential';
  * expose `atomic.status: 'supported' | 'ready' | 'unsupported'`:
  *   - `supported` → wallet can sign and broadcast an atomic bundle
  *   - `ready`     → EOA is already EIP-7702-delegated, ready to batch
- *   - `unsupported` → fall back to Multicall3
+ *   - `unsupported` → fall back to sequential EOA transactions
  *
  * Returns false on any request failure so callers fall back cleanly.
  *
@@ -33,7 +33,7 @@ export async function detectEIP7702Support(
 /**
  * Determine the best execution strategy for a wallet on a given chain.
  *
- * @param wallet - Viem wallet client (optional). When absent, returns 'multicall3'.
+ * @param wallet - Viem wallet client (optional). When absent, returns 'sequential'.
  * @param chainId - Chain to execute on. Required when a wallet is provided.
  */
 export async function determineExecutionStrategy(
@@ -41,9 +41,9 @@ export async function determineExecutionStrategy(
   chainId?: number,
 ): Promise<ExecutionStrategy> {
   if (!wallet || chainId === undefined) {
-    return 'multicall3';
+    return 'sequential';
   }
 
   const supportsAtomicBatch = await detectEIP7702Support(wallet, chainId);
-  return supportsAtomicBatch ? 'eip7702' : 'multicall3';
+  return supportsAtomicBatch ? 'eip7702' : 'sequential';
 }

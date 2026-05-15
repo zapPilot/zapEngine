@@ -1,4 +1,4 @@
-import type { DepositPlan, PermitRequest } from '@zapengine/types/api';
+import type { DepositPlan } from '@zapengine/types/api';
 import { describe, expect, it, vi } from 'vitest';
 import { decodeFunctionData, erc20Abi, type Address } from 'viem';
 
@@ -171,7 +171,7 @@ function makePublicClients() {
 }
 
 describe('composeDeposit', () => {
-  it('builds a Base-only direct Morpho deposit plan with vault approval and permit spender', async () => {
+  it('builds a Base-only direct Morpho deposit plan with vault approval', async () => {
     const { adapter, getContractCallQuote, getQuote } = makeAdapter();
     const { publicClients, readContract } = makePublicClients();
 
@@ -185,7 +185,6 @@ describe('composeDeposit', () => {
       {
         adapter,
         publicClients: publicClients as never,
-        now: () => 1_700_000_000_000,
       },
     );
 
@@ -226,28 +225,7 @@ describe('composeDeposit', () => {
     expect(decodedApproval.functionName).toBe('approve');
     expect(decodedApproval.args).toEqual([MORPHO_BASE_USDC, 10000n]);
 
-    const permit = plan.permitRequest as PermitRequest;
-    expect(permit).toMatchObject({
-      token: BASE_USDC,
-      owner: USER,
-      spender: MORPHO_BASE_USDC,
-      value: '10000',
-      nonce: '7',
-      deadline: '1700001800',
-    });
-    expect(permit.typedData.message).toMatchObject({
-      owner: USER,
-      spender: MORPHO_BASE_USDC,
-      value: '10000',
-      nonce: '7',
-      deadline: '1700001800',
-    });
-    expect(permit.typedData.domain).toEqual({
-      name: 'USD Coin',
-      version: '2',
-      chainId: 8453,
-      verifyingContract: BASE_USDC,
-    });
+    expect(plan).not.toHaveProperty('permitRequest');
   });
 
   it('assigns rounding dust to the final leg so split amounts sum exactly', async () => {
@@ -291,7 +269,7 @@ describe('composeDeposit', () => {
     ).toBe(10001n);
   });
 
-  it('does not create ERC20 approvals or permit data for native ETH source deposits', async () => {
+  it('does not create ERC20 approvals for native ETH source deposits', async () => {
     const { adapter, getContractCallQuote, getQuote } = makeAdapter();
     const { publicClients } = makePublicClients();
 
@@ -306,7 +284,7 @@ describe('composeDeposit', () => {
     );
 
     expect(plan.approvals).toEqual([]);
-    expect(plan.permitRequest).toBeUndefined();
+    expect(plan).not.toHaveProperty('permitRequest');
     expect(plan.legs).toHaveLength(1);
     expect(plan.legs[0]).toMatchObject({
       chainId: 8453,

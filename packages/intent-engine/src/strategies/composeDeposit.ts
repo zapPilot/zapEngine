@@ -14,7 +14,6 @@ import {
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
-import { buildPermitTypedData } from '../execution/permit.js';
 import {
   LIFI_DIAMOND_ADDRESS,
   NATIVE_TOKEN,
@@ -24,10 +23,9 @@ import {
 import { getVaultForBucket } from '../registry/vaults.js';
 import type { TransactionQuote } from '../types/transaction.types.js';
 
-const DEFAULT_PERMIT_TTL_SECONDS = 30 * 60;
 // TODO(lifi): restore the 60/20/20 split once LI.FI bridge quotes are reliable.
-// For now we deposit 100% on the source chain so the EIP-7702 + permit-multicall3
-// path can be tested against a known-working Morpho ERC4626 deposit.
+// For now we deposit 100% on the source chain so the EIP-7702 and sequential
+// paths can be tested against a known-working Morpho ERC4626 deposit.
 const DEFAULT_SPLIT: ChainSplit = {
   [SUPPORTED_CHAINS.BASE]: 1.0,
 };
@@ -51,15 +49,10 @@ export interface ComposeDepositInput {
 export interface ComposeDepositDeps {
   adapter: LiFiAdapter;
   publicClients: Record<number, PublicClient>;
-  now?: () => number;
 }
 
 function isNativeToken(chainId: number, token: Address): boolean {
   return token.toLowerCase() === NATIVE_TOKEN[chainId]?.toLowerCase();
-}
-
-function deadlineFromNow(now: () => number): string {
-  return Math.floor(now() / 1000 + DEFAULT_PERMIT_TTL_SECONDS).toString();
 }
 
 function buildApproveTx(params: {
@@ -265,26 +258,9 @@ export async function composeDeposit(
         }),
       ];
 
-  let permitRequest: DepositPlan['permitRequest'];
-  if (approvals.length > 0) {
-    try {
-      permitRequest = await buildPermitTypedData({
-        token: input.fromToken,
-        owner: input.userAddress,
-        spender: depositSpender,
-        value: approvalAmount,
-        deadline: deadlineFromNow(deps.now ?? Date.now),
-        publicClient: sourceClient,
-      });
-    } catch {
-      permitRequest = undefined;
-    }
-  }
-
   return DepositPlanSchema.parse({
     legs,
     approvals,
-    ...(permitRequest ? { permitRequest } : {}),
     calls,
     totalGasUsd: totalGasUsd(quotes),
     sourceChainId: input.sourceChainId,

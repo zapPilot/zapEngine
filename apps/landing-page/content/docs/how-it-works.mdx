@@ -39,9 +39,9 @@ The engine is a **first-match-wins priority stack** of six rule types in two out
 
 ### Sign
 
-A pre-built transaction bundle is delivered to you (today: via Telegram). You review it, sign it once from your own wallet, and the rebalance is done. Two execution paths exist; the right one is selected automatically based on what your wallet supports:
+A pre-built transaction bundle is delivered to you (today: via Telegram). You review it from your own wallet, and the rebalance is executed through the safest path your wallet supports:
 
-<Tabs items={['EIP-7702 (preferred)', 'Multicall3 (fallback)']}>
+<Tabs items={['EIP-7702 (preferred)', 'Sequential fallback']}>
 
 <Tab>
 
@@ -53,15 +53,15 @@ Implementation: `packages/intent-engine/src/execution/eip7702.executor.ts`.
 
 <Tab>
 
-Wallets without atomic capability fall back to a single transaction whose calldata is `aggregate3` (or `aggregate3Value` when ETH value is involved) against the standard Multicall3 contract. Still one signature, still one transaction — atomicity comes from Multicall3's own revert semantics.
+Wallets without atomic capability send the same plan as sequential EOA transactions: approval first when required, then each prepared execution transaction. This preserves the caller identity that LI.FI and ERC-4626 vaults expect.
 
-Implementation: `packages/intent-engine/src/execution/multicall3.executor.ts`.
+Implementation: `apps/frontend/src/hooks/useInvestStrategy.ts`.
 
 </Tab>
 
 </Tabs>
 
-Capability detection — and the EIP-7702 → Multicall3 fallback decision — is handled by `packages/intent-engine/src/execution/capability.detector.ts`.
+Capability detection — and the EIP-7702 → sequential fallback decision — is handled by `packages/intent-engine/src/execution/capability.detector.ts`.
 
 </Step>
 
@@ -107,7 +107,7 @@ When no rule's trigger conditions are met on a given day, the engine **holds** �
 <Callout type="warn" title="What changes vs. what stays">
   Strategy parameters — thresholds, target weights, cooldown lengths, and the
   specific yield venues used between trades — are tuned in
-  `apps/analytics-engine` and change between releases. The execution model (one
-  signature, EIP-7702 first with Multicall3 fallback) and the signal categories
-  (200MA, Fear & Greed, ETH/BTC RS) are stable.
+  `apps/analytics-engine` and change between releases. The execution model
+  (atomic EIP-7702 where supported, sequential wallet transactions otherwise)
+  and the signal categories (200MA, Fear & Greed, ETH/BTC RS) are stable.
 </Callout>

@@ -40,43 +40,6 @@ export const PreparedTransactionSchema = z.object({
     .passthrough(),
 });
 
-const typedDataFieldSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-});
-
-export const PermitTypedDataSchema = z.object({
-  domain: z.object({
-    name: z.string(),
-    version: z.string(),
-    chainId: z.number().int().positive(),
-    verifyingContract: AddressSchema,
-  }),
-  types: z
-    .object({
-      Permit: z.array(typedDataFieldSchema),
-    })
-    .passthrough(),
-  primaryType: z.literal('Permit'),
-  message: z.object({
-    owner: AddressSchema,
-    spender: AddressSchema,
-    value: decimalStringSchema,
-    nonce: decimalStringSchema,
-    deadline: decimalStringSchema,
-  }),
-});
-
-export const PermitRequestSchema = z.object({
-  token: AddressSchema,
-  owner: AddressSchema,
-  spender: AddressSchema,
-  value: decimalStringSchema,
-  nonce: decimalStringSchema,
-  deadline: decimalStringSchema,
-  typedData: PermitTypedDataSchema,
-});
-
 export const DepositLegSchema = z.object({
   chainId: z.number().int().positive(),
   kind: z.enum(['supply', 'bridge']),
@@ -92,7 +55,6 @@ export const DepositLegSchema = z.object({
 export const DepositPlanSchema = z.object({
   legs: z.array(DepositLegSchema),
   approvals: z.array(PreparedTransactionSchema),
-  permitRequest: PermitRequestSchema.optional(),
   calls: z.array(PreparedTransactionSchema),
   totalGasUsd: z.string(),
   sourceChainId: z.number().int().positive(),
@@ -130,8 +92,6 @@ export const DepositRequestSchema = z
   });
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
-export type PermitTypedData = z.infer<typeof PermitTypedDataSchema>;
-export type PermitRequest = z.infer<typeof PermitRequestSchema>;
 export type DepositLeg = z.infer<typeof DepositLegSchema>;
 export type DepositPlan = z.infer<typeof DepositPlanSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;

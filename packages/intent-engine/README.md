@@ -49,7 +49,6 @@ interface IntentEngineConfig {
 | `buildRotate(intent, publicClient)`       | Build a rotate transaction plan            |
 | `simulateTx(tx)`                          | Simulate a transaction before execution    |
 | `getExecutionStrategy(wallet?, chainId?)` | Determine best execution strategy          |
-| `batchTransactions(txs)`                  | Batch transactions for atomic execution    |
 | `executeWithEIP7702(txs, wallet)`         | Execute batched transactions with EIP-7702 |
 
 ## Exports
@@ -99,7 +98,6 @@ interface IntentEngineConfig {
 | `detectEIP7702Support`       | Check if wallet/network supports EIP-7702  |
 | `determineExecutionStrategy` | Determine best execution approach          |
 | `ExecutionStrategy`          | Execution strategy type                    |
-| `encodeMulticall3`           | Encode transactions for multicall3         |
 | `executeWithEIP7702`         | Execute transactions with EIP-7702         |
 | `waitForEIP7702Confirmation` | Wait for EIP-7702 transaction confirmation |
 

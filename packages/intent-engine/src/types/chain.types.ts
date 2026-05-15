@@ -28,7 +28,3 @@ export const TOKENS = {
     USDbC: '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA' as Address, // Bridged USDC
   },
 } as const;
-
-// Multicall3 contract address (same on all EVM chains)
-export const MULTICALL3_ADDRESS =
-  '0xcA11bde05977b3631167028862bE2a173976CA11' as Address;

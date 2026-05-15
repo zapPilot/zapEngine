@@ -1,7 +1,6 @@
 import type {
   DepositLeg,
   DepositPlan,
-  PermitRequest,
   PreparedTransaction,
 } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
@@ -15,13 +14,9 @@ import {
   getPublicClient,
   intentEngine,
 } from '@/services/intentClient';
-import type { WalletTypedData } from '@/types';
 import { logger } from '@/utils/logger';
 
-export type InvestExecutionTier =
-  | 'eip7702'
-  | 'permit-multicall3'
-  | 'sequential';
+export type InvestExecutionTier = 'eip7702' | 'sequential';
 
 export type InvestLegStatus =
   | 'pending'
@@ -41,7 +36,6 @@ export interface InvestLegProgress {
 
 export type InvestStrategyResult =
   | { kind: 'eip7702'; callsId: string }
-  | { kind: 'permit-multicall3'; hash: Hash }
   | { kind: 'sequential'; hashes: Hash[] };
 
 interface RunInvestStrategyInput {
@@ -54,22 +48,6 @@ const investStrategyLogger = logger.createContextLogger('InvestStrategy');
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function toWalletTypedData(permit: PermitRequest): WalletTypedData {
-  return {
-    domain: permit.typedData.domain,
-    types: {
-      Permit: permit.typedData.types.Permit,
-    },
-    primaryType: permit.typedData.primaryType,
-    message: {
-      ...permit.typedData.message,
-      value: BigInt(permit.typedData.message.value),
-      nonce: BigInt(permit.typedData.message.nonce),
-      deadline: BigInt(permit.typedData.message.deadline),
-    },
-  };
 }
 
 function txRequest(tx: PreparedTransaction, account: Account) {
@@ -92,8 +70,7 @@ function initialLegProgress(plan: DepositPlan): InvestLegProgress[] {
 }
 
 export function useInvestStrategy() {
-  const { account, chain, getWalletClient, signTypedData } =
-    useWalletProvider();
+  const { account, chain, getWalletClient } = useWalletProvider();
   const [pending, setPending] = useState(false);
   const [lastError, setLastError] = useState<unknown>(null);
   const [tier, setTier] = useState<InvestExecutionTier | null>(null);
@@ -236,46 +213,6 @@ export function useInvestStrategy() {
           return { kind: 'eip7702', callsId: result.callsId };
         }
 
-        if (strategy === 'multicall3' && plan.permitRequest) {
-          investStrategyLogger.info(
-            '[invest-strategy] executing Permit + Multicall3',
-          );
-          const signature = await signTypedData(
-            toWalletTypedData(plan.permitRequest),
-          );
-          const permitTx = intentEngine.execution.permit.encodePermitCall(
-            plan.permitRequest.token as Address,
-            {
-              ...plan.permitRequest,
-              signature: signature as Hex,
-            },
-          );
-
-          const batchedTx =
-            intentEngine.execution.permit.wrapPermitAndCallsInMulticall3(
-              permitTx,
-              plan.calls,
-            );
-          const hash = await sendPreparedTransaction(batchedTx);
-
-          setTier('permit-multicall3');
-          setLastTxHash(hash);
-          setLastTxHashes([hash]);
-          setLegs((current) =>
-            current.map((leg) => ({
-              ...leg,
-              sourceTxHash: hash,
-              status: 'sourceConfirmed',
-            })),
-          );
-          for (const [index, leg] of plan.legs.entries()) {
-            if (leg.kind === 'bridge') {
-              void pollBridgeStatus(leg, hash, index);
-            }
-          }
-          return { kind: 'permit-multicall3', hash };
-        }
-
         investStrategyLogger.info('[invest-strategy] executing sequentially');
         const hashes: Hash[] = [];
         for (const tx of plan.approvals) {
@@ -312,8 +249,6 @@ export function useInvestStrategy() {
       markAllCallsSubmitted,
       pollBridgeStatus,
       sendAndWait,
-      sendPreparedTransaction,
-      signTypedData,
       updateLeg,
     ],
   );

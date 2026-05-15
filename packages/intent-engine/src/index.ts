@@ -43,11 +43,7 @@ export {
 export {
   detectEIP7702Support,
   determineExecutionStrategy,
-  encodeMulticall3,
-  buildPermitTypedData,
-  encodePermitCall,
   executeWithEIP7702,
-  wrapPermitAndCallsInMulticall3,
   waitForEIP7702Confirmation,
 } from './execution/index.js';
 
@@ -113,11 +109,6 @@ import {
   determineExecutionStrategy,
   type ExecutionStrategy,
 } from './execution/capability.detector.js';
-import {
-  encodePermitCall,
-  wrapPermitAndCallsInMulticall3,
-} from './execution/permit.js';
-import { encodeMulticall3 } from './execution/multicall3.executor.js';
 import { executeWithEIP7702 } from './execution/eip7702.executor.js';
 import type {
   SwapIntentInput,
@@ -179,21 +170,11 @@ export interface IntentEngine {
     chainId?: number,
   ): Promise<ExecutionStrategy>;
 
-  /** Batch transactions for atomic execution */
-  batchTransactions(txs: PreparedTransaction[]): PreparedTransaction;
-
   /** Execute batched transactions with EIP-7702 */
   executeWithEIP7702(
     txs: PreparedTransaction[],
     wallet: WalletClient,
   ): Promise<ExecutionResult>;
-
-  readonly execution: {
-    readonly permit: {
-      encodePermitCall: typeof encodePermitCall;
-      wrapPermitAndCallsInMulticall3: typeof wrapPermitAndCallsInMulticall3;
-    };
-  };
 }
 
 /**
@@ -247,19 +228,8 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return determineExecutionStrategy(wallet, chainId);
     },
 
-    batchTransactions(txs: PreparedTransaction[]) {
-      return encodeMulticall3(txs);
-    },
-
     async executeWithEIP7702(txs: PreparedTransaction[], wallet: WalletClient) {
       return executeWithEIP7702(txs, wallet);
-    },
-
-    execution: {
-      permit: {
-        encodePermitCall,
-        wrapPermitAndCallsInMulticall3,
-      },
     },
   };
 }

@@ -6,7 +6,7 @@ description: A product-level view — what you can do, how funds flow, what prot
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
 
-Zap Pilot sits between you and the DeFi market as a disciplined autopilot. You stay in control of your wallet; Zap Pilot watches the market, prepares moves, and asks for one signature when it's time to act.
+Zap Pilot sits between you and the DeFi market as a disciplined autopilot. You stay in control of your wallet; Zap Pilot watches the market, prepares moves, and asks you to sign when it's time to act.
 
 ## What you can do
 
@@ -70,9 +70,9 @@ Applies the regime rules — long-term trend, sentiment, ETH/BTC relative streng
 
 <Tab>
 
-**Turns the target into a single signed transaction.**
+**Turns the target into wallet-signed execution.**
 
-When the target diverges from your current allocation, the execution layer prepares one bundled transaction that performs the entire rebalance. You sign it from your own wallet; the bundle either fully succeeds or fully reverts — no half-applied state.
+When the target diverges from your current allocation, the execution layer prepares the required wallet transactions. Wallets with atomic-batch support sign one all-or-nothing bundle; wallets without it approve and execute the prepared calls sequentially.
 
 </Tab>
 
@@ -102,7 +102,7 @@ Risk is isolated by design:
 
 **Wallets you already use.**
 
-Any standard externally-owned account works. Wallets that support modern atomic-batch standards get a single-signature, all-or-nothing rebalance; wallets without that support fall back to a single bundled transaction that achieves the same end result.
+Any standard externally-owned account works. Wallets that support modern atomic-batch standards get a single-signature, all-or-nothing rebalance; wallets without that support fall back to sequential approval and execution transactions from the same EOA.
 
 </Tab>
 
