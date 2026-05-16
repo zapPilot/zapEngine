@@ -73,12 +73,20 @@ interface IntentEngineConfig {
 
 ### Builders
 
-| Export            | Description                |
-| ----------------- | -------------------------- |
-| `buildSwapTx`     | Build swap transaction     |
-| `buildSupplyTx`   | Build supply transaction   |
-| `buildWithdrawTx` | Build withdraw transaction |
-| `buildRotateTx`   | Build rotate transaction   |
+| Export               | Description                        |
+| -------------------- | ---------------------------------- |
+| `buildSwapTx`        | Build swap transaction             |
+| `buildSupplyTx`      | Build supply transaction           |
+| `buildBridgeTx`      | Build bridge transaction           |
+| `buildWithdrawTx`    | Build withdraw transaction         |
+| `buildRotateTx`      | Build rotate transaction           |
+| `buildGmxV2SupplyTx` | Build GMX v2 GM-market supply plan |
+
+### Strategies
+
+| Export           | Description                                                                |
+| ---------------- | -------------------------------------------------------------------------- |
+| `composeDeposit` | Compose a multi-step deposit `DepositPlan` (approval + bridge/supply legs) |
 
 ### Adapters
 
@@ -135,6 +143,7 @@ interface IntentEngineConfig {
 | `@zapengine/intent-engine`        | Core routing and validation |
 | `@zapengine/intent-engine/types`  | Type definitions            |
 | `@zapengine/intent-engine/morpho` | Morpho protocol adapter     |
+| `@zapengine/intent-engine/gmx-v2` | GMX v2 protocol adapter     |
 
 ## Build
 
