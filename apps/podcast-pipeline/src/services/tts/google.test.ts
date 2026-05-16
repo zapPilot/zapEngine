@@ -20,7 +20,7 @@ vi.mock('fluent-ffmpeg', () => {
     complexFilter: vi.fn().mockReturnThis(),
     on: vi.fn().mockImplementation((event: string, cb: () => void) => {
       if (event === 'end' || event === 'error') {
-        setTimeout(cb, 0);
+        queueMicrotask(cb);
       }
       return chain;
     }),

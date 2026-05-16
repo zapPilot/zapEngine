@@ -106,11 +106,13 @@ export function splitTextIntoTranslationChunks(
 
   const chunks: string[] = [];
   let currentChunk = '';
+  let currentChunkCharacters = 0;
 
   for (const segment of splitSentenceSegments(text)) {
-    const testChunk = currentChunk + segment;
-    if (countUnicodeCharacters(testChunk) <= maxCharacters) {
-      currentChunk = testChunk;
+    const segmentCharacters = countUnicodeCharacters(segment);
+    if (currentChunkCharacters + segmentCharacters <= maxCharacters) {
+      currentChunk += segment;
+      currentChunkCharacters += segmentCharacters;
       continue;
     }
 
@@ -118,12 +120,14 @@ export function splitTextIntoTranslationChunks(
       chunks.push(currentChunk);
     }
 
-    if (countUnicodeCharacters(segment) > maxCharacters) {
+    if (segmentCharacters > maxCharacters) {
       const oversizedChunks = splitOversizedText(segment, maxCharacters);
       chunks.push(...oversizedChunks.slice(0, -1));
       currentChunk = oversizedChunks.at(-1) ?? '';
+      currentChunkCharacters = countUnicodeCharacters(currentChunk);
     } else {
       currentChunk = segment;
+      currentChunkCharacters = segmentCharacters;
     }
   }
 
@@ -195,14 +199,16 @@ function splitSentenceSegments(text: string): string[] {
 function splitOversizedText(text: string, maxCharacters: number): string[] {
   const chunks: string[] = [];
   let currentChunk = '';
+  let currentChunkCharacters = 0;
 
   for (const char of text) {
-    const testChunk = currentChunk + char;
-    if (countUnicodeCharacters(testChunk) > maxCharacters) {
+    if (currentChunkCharacters + 1 > maxCharacters) {
       chunks.push(currentChunk);
       currentChunk = char;
+      currentChunkCharacters = 1;
     } else {
-      currentChunk = testChunk;
+      currentChunk += char;
+      currentChunkCharacters += 1;
     }
   }
 

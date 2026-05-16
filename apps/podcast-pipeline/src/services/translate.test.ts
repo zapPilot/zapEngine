@@ -60,17 +60,28 @@ describe('translateChineseText', () => {
 
   it('splits oversized input into lossless sentence-aware chunks', async () => {
     const sentence = `${'句'.repeat(10)}。`;
-    const longText = sentence.repeat(4000);
+    const longText = sentence.repeat(5);
+    const maxCharactersPerRequest = 25;
 
-    const result = await translateChineseText(longText, 'ja');
+    const result = await translateChineseText(
+      longText,
+      'ja',
+      maxCharactersPerRequest,
+    );
 
-    expect(mockTranslate.mock.calls.length).toBeGreaterThan(1);
-    const joinedInput = mockTranslate.mock.calls
-      .map((call) => call[0] as string)
-      .join('');
-    expect(joinedInput).toBe(longText);
+    const translatedInputs = mockTranslate.mock.calls.map(
+      (call) => call[0] as string,
+    );
+    expect(translatedInputs).toEqual([
+      sentence.repeat(2),
+      sentence.repeat(2),
+      sentence,
+    ]);
+    expect(translatedInputs.join('')).toBe(longText);
     for (const call of mockTranslate.mock.calls) {
-      expect([...(call[0] as string)].length).toBeLessThanOrEqual(28000);
+      expect([...(call[0] as string)].length).toBeLessThanOrEqual(
+        maxCharactersPerRequest,
+      );
       expect(call[1]).toEqual({ from: 'zh-TW', to: 'ja' });
     }
     expect(result.cost[0]?.usage?.quantity).toBe([...longText].length);
