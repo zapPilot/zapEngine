@@ -1,3 +1,4 @@
+import { isMember } from '@/lib/portfolio/routeStateShared';
 import {
   INVEST_SUB_TAB_IDS,
   type InvestSubTab,
@@ -21,13 +22,6 @@ const DEFAULT_ROUTE_STATE: PortfolioRouteState = {
   tab: 'dashboard',
   invest: 'trading',
 };
-
-function isMember<TValue extends string>(
-  values: readonly TValue[],
-  value: string | null,
-): value is TValue {
-  return value !== null && values.includes(value as TValue);
-}
 
 function parseTab(value: string | null): TabType {
   return isMember(PORTFOLIO_TAB_IDS, value) ? value : DEFAULT_ROUTE_STATE.tab;

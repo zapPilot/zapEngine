@@ -17,6 +17,10 @@ export const marketDashboardResponseSchema = MarketDashboardResponseSchema;
 
 export interface DrawdownAnalysis {
   enhanced?: {
+    drawdown_data?: {
+      date?: string;
+      portfolio_value?: number;
+    }[];
     summary?: {
       max_drawdown_pct?: number;
       max_drawdown_date?: string;
@@ -27,6 +31,7 @@ export interface DrawdownAnalysis {
     underwater_data?: {
       drawdown_pct?: number;
       date?: string;
+      portfolio_value?: number;
     }[];
   };
 }

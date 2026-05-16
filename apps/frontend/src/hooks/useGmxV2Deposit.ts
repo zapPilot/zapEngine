@@ -4,9 +4,11 @@ import type {
   PreparedTransaction,
 } from '@zapengine/intent-engine';
 import { useCallback, useState } from 'react';
-import type { Account, Address, Hash, Hex } from 'viem';
+import type { Address, Hash } from 'viem';
 import { arbitrum } from 'viem/chains';
 
+import { extractErrorMessage } from '@/lib/errors';
+import { txRequest } from '@/lib/wallet/txRequest';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { buildGmxV2Deposit, getPublicClient } from '@/services/intentClient';
 import { logger } from '@/utils/logger';
@@ -30,21 +32,6 @@ export interface GmxV2DepositResult {
 }
 
 const gmxV2DepositLogger = logger.createContextLogger('GmxV2Deposit');
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function txRequest(tx: PreparedTransaction, account: Account) {
-  return {
-    account,
-    to: tx.to as Address,
-    data: tx.data as Hex,
-    value: BigInt(tx.value),
-    chainId: tx.chainId,
-    ...(tx.gasLimit ? { gas: BigInt(tx.gasLimit) } : {}),
-  };
-}
 
 function initialSteps(plan: GmxV2SupplyPlan): GmxV2DepositStepProgress[] {
   return [...plan.approvals, ...plan.steps].map((tx, index) => ({
@@ -156,6 +143,7 @@ export function useGmxV2Deposit() {
     lastTxHashes,
     lastPlan,
     steps,
-    getErrorMessage,
+    getErrorMessage: (error: unknown) =>
+      extractErrorMessage(error, 'Unexpected error'),
   };
 }

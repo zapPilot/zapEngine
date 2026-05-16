@@ -50,7 +50,45 @@ interface TrendValue {
 }
 
 function getPositivePortfolioValues(dailyValues: TrendValue[]): number[] {
-  return dailyValues.map((d) => d.total_value_usd ?? 0).filter((v) => v > 0);
+  return dailyValues
+    .map((d) => d.total_value_usd ?? 0)
+    .filter((v) => Number.isFinite(v) && v > 0);
+}
+
+function getDrawdownPortfolioValues(
+  dashboard: UnifiedDashboardResponse | undefined,
+): TrendValue[] {
+  const drawdownValues =
+    dashboard?.drawdown_analysis?.enhanced?.drawdown_data ??
+    dashboard?.drawdown_analysis?.underwater_recovery?.underwater_data ??
+    [];
+
+  return drawdownValues.flatMap((value) => {
+    const portfolioValue = value.portfolio_value;
+
+    if (
+      typeof portfolioValue !== 'number' ||
+      !Number.isFinite(portfolioValue)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        ...(value.date ? { date: value.date } : {}),
+        total_value_usd: portfolioValue,
+      },
+    ];
+  });
+}
+
+function getPerformanceChartValues(
+  dashboard: UnifiedDashboardResponse | undefined,
+): TrendValue[] {
+  const dailyValues = dashboard?.trends?.daily_values ?? [];
+  return dailyValues.length > 0
+    ? dailyValues
+    : getDrawdownPortfolioValues(dashboard);
 }
 
 // ============================================================================
@@ -63,7 +101,7 @@ function getPositivePortfolioValues(dailyValues: TrendValue[]): number[] {
 export function transformToPerformanceChart(
   dashboard: UnifiedDashboardResponse | undefined,
 ): PerformanceChartData {
-  const dailyValues = dashboard?.trends?.daily_values ?? [];
+  const dailyValues = getPerformanceChartValues(dashboard);
 
   if (dailyValues.length === 0) {
     return { points: [], ...buildDateRange(dailyValues) };
@@ -86,7 +124,7 @@ export function transformToPerformanceChart(
     const normalizedPortfolio = normalizeToScale(value, min, range);
 
     return {
-      x: (idx / (dailyValues.length - 1)) * 100,
+      x: dailyValues.length === 1 ? 0 : (idx / (dailyValues.length - 1)) * 100,
       portfolio: normalizedPortfolio,
       date: dateKey ?? d.date ?? new Date().toISOString(),
       portfolioValue: value,

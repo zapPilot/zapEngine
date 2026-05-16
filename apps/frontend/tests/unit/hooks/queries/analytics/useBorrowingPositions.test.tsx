@@ -165,7 +165,7 @@ describe('useBorrowingPositions', () => {
 
     rerender({ enabled: false });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await Promise.resolve();
 
     expect(getBorrowingPositions).not.toHaveBeenCalled();
   });

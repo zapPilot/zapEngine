@@ -4,9 +4,11 @@ import type {
   PreparedTransaction,
 } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
-import type { Account, Address, Hash, Hex } from 'viem';
+import type { Address, Hash } from 'viem';
 import { base } from 'viem/chains';
 
+import { extractErrorMessage } from '@/lib/errors';
+import { txRequest } from '@/lib/wallet/txRequest';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { getDepositPlan } from '@/services/depositService';
 import {
@@ -45,21 +47,6 @@ interface RunInvestStrategyInput {
 }
 
 const investStrategyLogger = logger.createContextLogger('InvestStrategy');
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function txRequest(tx: PreparedTransaction, account: Account) {
-  return {
-    account,
-    to: tx.to as Address,
-    data: tx.data as Hex,
-    value: BigInt(tx.value),
-    chainId: tx.chainId,
-    ...(tx.gasLimit ? { gas: BigInt(tx.gasLimit) } : {}),
-  };
-}
 
 function initialLegProgress(plan: DepositPlan): InvestLegProgress[] {
   return plan.legs.map((leg) => ({
@@ -268,6 +255,7 @@ export function useInvestStrategy() {
     lastCallsId,
     lastPlan,
     legs,
-    getErrorMessage,
+    getErrorMessage: (error: unknown) =>
+      extractErrorMessage(error, 'Unexpected error'),
   };
 }

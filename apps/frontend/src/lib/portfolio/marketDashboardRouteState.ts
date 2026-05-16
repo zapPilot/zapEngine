@@ -5,6 +5,7 @@ import {
   type MarketLineKey,
   type Timeframe,
 } from '@/components/wallet/portfolio/views/invest/market/sections/marketDashboardConstants';
+import { isMember } from '@/lib/portfolio/routeStateShared';
 
 export interface MarketDashboardRouteState {
   timeframe: Timeframe;
@@ -20,13 +21,6 @@ type SearchParamsLike = Pick<URLSearchParams, 'get' | 'has' | 'toString'>;
 
 const DEFAULT_TIMEFRAME: Timeframe = 'MAX';
 const MARKET_VIEW_TIMEFRAME_IDS = MARKET_VIEW_TIMEFRAMES.map((tf) => tf.id);
-
-function isMember<TValue extends string>(
-  values: readonly TValue[],
-  value: string | null,
-): value is TValue {
-  return value !== null && values.includes(value as TValue);
-}
 
 function parseTimeframe(value: string | null): Timeframe {
   return isMember(MARKET_VIEW_TIMEFRAME_IDS, value) ? value : DEFAULT_TIMEFRAME;

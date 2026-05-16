@@ -646,11 +646,12 @@ describe('useLandingPageData - Loading and Errors', () => {
 
   it('shows loading state while fetching', async () => {
     const mockResponse = createMockLandingPageResponse(3);
+    let resolveLandingPageData!: (value: LandingPageResponse) => void;
 
     vi.mocked(analyticsService.getLandingPagePortfolioData).mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve(mockResponse), 100);
+          resolveLandingPageData = resolve;
         }),
     );
 
@@ -660,6 +661,8 @@ describe('useLandingPageData - Loading and Errors', () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.data).toBeUndefined();
+
+    resolveLandingPageData(mockResponse);
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
