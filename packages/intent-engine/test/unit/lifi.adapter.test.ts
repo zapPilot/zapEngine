@@ -10,6 +10,7 @@ vi.mock('@lifi/sdk', () => {
     createConfig: vi.fn(),
     getQuote: vi.fn(),
     getContractCallsQuote: vi.fn(),
+    getToken: vi.fn(),
   };
 });
 
@@ -371,6 +372,39 @@ describe('LiFiAdapter', () => {
       expect(result.transaction.meta.intentType).toBe('SUPPLY');
       expect(result.estimate.toAmountMin).toBe('2306804539193228474');
       expect(result.approval).toBeUndefined();
+    });
+  });
+
+  describe('getTokenPrice', () => {
+    it('returns token price metadata from LI.FI getToken', async () => {
+      vi.mocked(lifiSdk.getToken).mockResolvedValueOnce({
+        chainId: 8453,
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        decimals: 18,
+        priceUSD: '3210.42',
+      } as unknown as never);
+
+      const result = await adapter.getTokenPrice(
+        8453,
+        '0x0000000000000000000000000000000000000000',
+      );
+
+      expect(lifiSdk.createConfig).toHaveBeenCalledWith({
+        integrator: config.integrator,
+        apiKey: config.apiKey,
+      });
+      expect(lifiSdk.getToken).toHaveBeenCalledWith(
+        8453,
+        '0x0000000000000000000000000000000000000000',
+      );
+      expect(result).toEqual({
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'ETH',
+        decimals: 18,
+        priceUSD: '3210.42',
+      });
     });
   });
 

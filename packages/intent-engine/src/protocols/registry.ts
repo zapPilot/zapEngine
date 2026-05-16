@@ -3,11 +3,12 @@ import { z } from 'zod';
 import type { Address } from 'viem';
 
 import { CHAIN_IDS, TOKENS, type ChainId } from '../types/chain.types.js';
+import { GMX_V2_MARKETS, GMX_V2_TOKENS } from './gmx-v2/index.js';
 import { MORPHO_VAULTS } from './morpho/morpho.constants.js';
 
 const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 
-export const ProtocolIdSchema = z.enum(['morpho']);
+export const ProtocolIdSchema = z.enum(['morpho', 'gmx-v2']);
 export type ProtocolId = z.infer<typeof ProtocolIdSchema>;
 
 export const ProtocolCapabilitySchema = z.enum([
@@ -55,6 +56,11 @@ const MORPHO_CAPABILITIES = [
   'withdraw',
   'vault',
   'erc4626',
+] as const satisfies readonly ProtocolCapability[];
+
+const GMX_V2_CAPABILITIES = [
+  'supply',
+  'vault',
 ] as const satisfies readonly ProtocolCapability[];
 
 export const MORPHO_VAULT_CATALOG: readonly VaultMeta[] = [
@@ -110,7 +116,27 @@ export const morphoVaultCatalogSource: VaultCatalogSource = {
   listVaults: () => MORPHO_VAULT_CATALOG,
 };
 
-export const DEFAULT_VAULT_REGISTRY: VaultRegistry = [morphoVaultCatalogSource];
+export const GMX_V2_VAULT_CATALOG: readonly VaultMeta[] = Object.values(
+  GMX_V2_MARKETS,
+).map((market) => ({
+  protocol: 'gmx-v2',
+  chainId: 42161,
+  vaultAddress: market.marketToken,
+  assetAddress: GMX_V2_TOKENS.USDC.address,
+  assetSymbol: 'USDC',
+  name: market.name,
+  capabilities: GMX_V2_CAPABILITIES,
+}));
+
+export const gmxV2VaultCatalogSource: VaultCatalogSource = {
+  protocol: 'gmx-v2',
+  listVaults: () => GMX_V2_VAULT_CATALOG,
+};
+
+export const DEFAULT_VAULT_REGISTRY: VaultRegistry = [
+  morphoVaultCatalogSource,
+  gmxV2VaultCatalogSource,
+];
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase();

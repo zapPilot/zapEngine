@@ -6,6 +6,7 @@ import {
   findVaultByAddress,
   DEFAULT_VAULT_REGISTRY,
   MORPHO_VAULT_CATALOG,
+  GMX_V2_VAULT_CATALOG,
   type VaultMeta,
 } from '../../src/protocols/registry.js';
 import { CHAIN_IDS } from '../../src/types/chain.types.js';
@@ -189,9 +190,11 @@ describe('findVaultByAddress', () => {
 });
 
 describe('DEFAULT_VAULT_REGISTRY', () => {
-  it('contains morpho catalog', () => {
-    expect(DEFAULT_VAULT_REGISTRY).toHaveLength(1);
-    expect(DEFAULT_VAULT_REGISTRY[0].protocol).toBe('morpho');
+  it('contains morpho and gmx-v2 catalogs', () => {
+    expect(DEFAULT_VAULT_REGISTRY.map((source) => source.protocol)).toEqual([
+      'morpho',
+      'gmx-v2',
+    ]);
   });
 });
 
@@ -213,5 +216,15 @@ describe('MORPHO_VAULT_CATALOG', () => {
       expect(vault.capabilities.length).toBeGreaterThan(0);
       expect(vault.capabilities).toContain('vault');
     }
+  });
+});
+
+describe('GMX_V2_VAULT_CATALOG', () => {
+  it('includes the four Arbitrum GM markets', () => {
+    expect(GMX_V2_VAULT_CATALOG).toHaveLength(4);
+    expect(GMX_V2_VAULT_CATALOG.every((v) => v.chainId === 42161)).toBe(true);
+    expect(GMX_V2_VAULT_CATALOG.every((v) => v.protocol === 'gmx-v2')).toBe(
+      true,
+    );
   });
 });

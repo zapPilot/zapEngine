@@ -2,6 +2,7 @@ import {
   createConfig,
   getQuote as getLiFiQuote,
   getContractCallsQuote,
+  getToken as getLiFiToken,
   type QuoteRequest,
   type ContractCallsQuoteRequest,
 } from '@lifi/sdk';
@@ -44,6 +45,19 @@ interface LiFiQuoteResponse {
 export interface LiFiAdapterConfig {
   integrator: string;
   apiKey?: string;
+}
+
+/**
+ * Lightweight token metadata + spot USD price, sourced from LI.FI's
+ * `getToken` endpoint. Used for valuing wallet balances without
+ * requiring a swap/route quote.
+ */
+export interface LiFiTokenInfo {
+  address: string;
+  symbol: string;
+  decimals: number;
+  /** Spot price in USD, as a decimal string (LI.FI native format) */
+  priceUSD: string;
 }
 
 function isNativeTokenAddress(address: string): boolean {
@@ -202,6 +216,38 @@ export class LiFiAdapter {
       );
     } catch (error) {
       throw new QuoteError('Failed to get contract call quote from LI.FI', {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Fetch token metadata and spot USD price from LI.FI.
+   *
+   * Unlike the quote methods this performs no routing — it is a cheap
+   * single lookup intended for valuing wallet balances. Stablecoins
+   * (e.g. USDC) resolve to ~$1 from the same call, so no special-casing
+   * is required by callers.
+   */
+  async getTokenPrice(
+    chainId: number,
+    tokenAddress: string,
+  ): Promise<LiFiTokenInfo> {
+    this.ensureInitialized();
+
+    try {
+      const token = await getLiFiToken(
+        chainId as Parameters<typeof getLiFiToken>[0],
+        tokenAddress,
+      );
+      return {
+        address: token.address,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        priceUSD: token.priceUSD,
+      };
+    } catch (error) {
+      throw new QuoteError('Failed to get token price from LI.FI', {
         cause: error,
       });
     }

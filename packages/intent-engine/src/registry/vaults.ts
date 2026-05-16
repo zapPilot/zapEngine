@@ -5,7 +5,7 @@ import { SUPPORTED_CHAINS, USDC_ADDRESS } from './chains.js';
 export type Bucket = 'btc' | 'eth' | 'spy' | 'stable' | 'alt';
 
 export interface VaultEntry {
-  protocol: 'morpho';
+  protocol: 'morpho' | 'gmx-v2';
   vault: Address;
   asset: Address;
 }

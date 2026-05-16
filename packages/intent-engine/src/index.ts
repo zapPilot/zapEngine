@@ -27,12 +27,16 @@ export {
   buildBridgeTx,
   buildWithdrawTx,
   buildRotateTx,
+  buildGmxV2SupplyTx,
+  type BuildGmxV2SupplyTxInput,
+  type GmxV2SupplyPlan,
 } from './builders/index.js';
 
 // Adapters
 export {
   LiFiAdapter,
   type LiFiAdapterConfig,
+  type LiFiTokenInfo,
   type SimulationAdapter,
   TenderlySimulationAdapter,
   type TenderlyConfig,
@@ -66,8 +70,16 @@ export {
   DEFAULT_VAULT_REGISTRY,
   MORPHO_VAULTS,
   MORPHO_VAULT_CATALOG,
+  GMX_V2_VAULT_CATALOG,
   MORPHO_VAULT_ABI,
   MORPHO_GAS_ESTIMATES,
+  GMX_V2_ADDRESSES,
+  GMX_V2_ARBITRUM_CHAIN_ID,
+  GMX_V2_EXCHANGE_ROUTER_ABI,
+  GMX_V2_EXECUTION_FEE_WEI,
+  GMX_V2_GAS_ESTIMATES,
+  GMX_V2_MARKETS,
+  GMX_V2_TOKENS,
   ProtocolCapabilitySchema,
   ProtocolIdSchema,
   VaultMetaSchema,
@@ -75,10 +87,19 @@ export {
   encodeMint,
   encodeWithdraw,
   encodeRedeem,
+  encodeGmxV2CreateDeposit,
+  encodeGmxV2CreateDepositMulticall,
+  encodeGmxV2SendTokens,
+  encodeGmxV2SendWnt,
   findVaultByAddress,
+  getGmxV2Market,
+  gmxV2VaultCatalogSource,
   lookupVault,
   morphoVaultCatalogSource,
   type AprSource,
+  type GmxV2FundedSide,
+  type GmxV2Market,
+  type GmxV2MarketKey,
   type ProtocolCapability,
   type ProtocolId,
   type TvlSource,
@@ -96,6 +117,7 @@ import type { PublicClient, WalletClient } from 'viem';
 import {
   LiFiAdapter,
   type LiFiAdapterConfig,
+  type LiFiTokenInfo,
 } from './adapters/lifi.adapter.js';
 import {
   NoopSimulationAdapter,
@@ -105,6 +127,11 @@ import { buildSwapTx } from './builders/swap.builder.js';
 import { buildSupplyTx } from './builders/supply.builder.js';
 import { buildWithdrawTx } from './builders/withdraw.builder.js';
 import { buildRotateTx } from './builders/rotate.builder.js';
+import {
+  buildGmxV2SupplyTx,
+  type BuildGmxV2SupplyTxInput,
+  type GmxV2SupplyPlan as BuiltGmxV2SupplyPlan,
+} from './builders/gmx-v2-supply.builder.js';
 import {
   determineExecutionStrategy,
   type ExecutionStrategy,
@@ -161,6 +188,11 @@ export interface IntentEngine {
     publicClient: PublicClient,
   ): Promise<RotateTransactionPlan>;
 
+  /** Build a GMX v2 GM market supply plan for the dev-only Arbitrum path */
+  buildGmxV2Supply(
+    intent: BuildGmxV2SupplyTxInput,
+  ): Promise<BuiltGmxV2SupplyPlan>;
+
   /** Simulate a transaction before execution */
   simulateTx(tx: PreparedTransaction): Promise<SimulationResult>;
 
@@ -169,6 +201,9 @@ export interface IntentEngine {
     wallet?: WalletClient,
     chainId?: number,
   ): Promise<ExecutionStrategy>;
+
+  /** Fetch token metadata + spot USD price (for valuing balances) */
+  getTokenPrice(chainId: number, tokenAddress: string): Promise<LiFiTokenInfo>;
 
   /** Execute batched transactions with EIP-7702 */
   executeWithEIP7702(
@@ -220,12 +255,20 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return buildRotateTx(intent, lifiAdapter, publicClient);
     },
 
+    async buildGmxV2Supply(intent: BuildGmxV2SupplyTxInput) {
+      return buildGmxV2SupplyTx(intent, lifiAdapter);
+    },
+
     async simulateTx(tx: PreparedTransaction) {
       return simulationAdapter.simulate(tx);
     },
 
     async getExecutionStrategy(wallet?: WalletClient, chainId?: number) {
       return determineExecutionStrategy(wallet, chainId);
+    },
+
+    async getTokenPrice(chainId: number, tokenAddress: string) {
+      return lifiAdapter.getTokenPrice(chainId, tokenAddress);
     },
 
     async executeWithEIP7702(txs: PreparedTransaction[], wallet: WalletClient) {

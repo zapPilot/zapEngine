@@ -77,10 +77,14 @@ function addApprovalRequirement(
       }
     | undefined,
 ): void {
-  if (!approval) return;
+  if (!approval) {
+    return;
+  }
 
   const amount = BigInt(approval.amount);
-  if (amount <= 0n) return;
+  if (amount <= 0n) {
+    return;
+  }
 
   const key = approvalRequirementKey(approval);
   const existing = requirements.get(key);
@@ -238,6 +242,11 @@ export async function composeDeposit(
       if (!stableVault) {
         throw new Error(
           `No stable deposit vault configured for chain ${allocation.chainId}`,
+        );
+      }
+      if (stableVault.protocol !== 'morpho') {
+        throw new Error(
+          `Unsupported stable deposit protocol ${stableVault.protocol}`,
         );
       }
 
