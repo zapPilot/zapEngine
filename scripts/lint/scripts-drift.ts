@@ -25,6 +25,7 @@ const ALLOWED_DUP_CHECKS = new Set([
   EXPECTED_DUP_CHECK,
   'node ../../scripts/lint/run-jscpd.mjs lib',
 ]);
+const ALLOWED_REAL_TEST_PACKAGES = new Set(['@zapengine/types']);
 
 function findPackageJson(dir: string): string[] {
   const results: string[] = [];
@@ -106,7 +107,11 @@ function main() {
       (s) => s.startsWith('test:') || s === 'test',
     );
 
-    if (name.includes('types') && testScripts.length > 0) {
+    if (
+      name.includes('types') &&
+      !ALLOWED_REAL_TEST_PACKAGES.has(name) &&
+      testScripts.length > 0
+    ) {
       const isPlaceholder = testScripts.every((s) =>
         scripts[s]?.includes('echo'),
       );

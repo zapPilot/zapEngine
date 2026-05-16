@@ -36,10 +36,10 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "type-check": "tsc --noEmit",
-    "test": "echo '(@zapengine/types has no tests)'",
-    "test:ci": "echo '(@zapengine/types has no tests)'",
-    "test:watch": "echo '(@zapengine/types has no tests)'",
-    "test:coverage": "echo '(@zapengine/types has no tests)'",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "deadcode": "knip",
     "deadcode:fix": "knip --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src"
@@ -51,10 +51,12 @@
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": "24.x"

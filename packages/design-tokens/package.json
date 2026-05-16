@@ -36,21 +36,23 @@
     "deadcode": "knip",
     "deadcode:fix": "knip --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
-    "test": "echo '(@zapengine/design-tokens has no tests)'",
-    "test:ci": "echo '(@zapengine/design-tokens has no tests)'",
-    "test:watch": "echo '(@zapengine/design-tokens has no tests)'",
-    "test:coverage": "echo '(@zapengine/design-tokens has no tests)'"
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": "24.x"

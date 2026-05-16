@@ -273,11 +273,7 @@ def normalize_saved_strategy_public_params(
     keep their existing free-form params to avoid breaking test-only extension
     families that are validated through the composition catalog instead.
     """
-    raw_params = _copy_params(params)
-    recipe = _resolve_recipe(strategy_id)
-    if recipe is None:
-        return _as_json_params(raw_params)
-    return _normalize_recipe_params(recipe, raw_params)
+    return normalize_nested_public_params(strategy_id, params)
 
 
 __all__ = [

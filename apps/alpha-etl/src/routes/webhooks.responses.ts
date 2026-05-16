@@ -1,6 +1,9 @@
-import type { EtlError, EtlJobStatus } from '@zapengine/types/etl';
+import {
+  type EtlError,
+  type EtlJobStatus,
+  EtlJobStatusSchema,
+} from '@zapengine/types/etl';
 
-import { EtlJobStatusSchema } from '../schemas/etl.js';
 import type { ETLJob, ETLJobResult, ETLProcessResult } from '../types/index.js';
 
 /** Response type for job status endpoint */

@@ -170,8 +170,19 @@ class DashboardService(CacheKeyMixin):
             dashboard, normalized_metrics, snapshot_date
         )
 
-        # Store in cache with conditional TTL (set by _wallet_cache_config above)
-        analytics_cache.set(cache_key, dashboard, ttl=timedelta(hours=ttl_hours))
+        # Store only fully successful dashboards. Partial failures are useful
+        # responses, but caching them can keep transient service errors alive.
+        if dashboard["_metadata"]["error_count"] == 0:
+            analytics_cache.set(cache_key, dashboard, ttl=timedelta(hours=ttl_hours))
+        else:
+            logger.info(
+                "Dashboard partial failure not cached",
+                extra={
+                    "user_id": str(user_id),
+                    "cache_key": cache_key,
+                    "error_count": dashboard["_metadata"]["error_count"],
+                },
+            )
 
         logger.info(
             "Dashboard aggregation completed",

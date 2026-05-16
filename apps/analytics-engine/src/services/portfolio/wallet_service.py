@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -15,6 +16,28 @@ from src.services.shared.value_objects import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _empty_wallet_aggregate() -> WalletAggregate:
+    return WalletAggregate(categories=create_empty_category_breakdown())
+
+
+def _apply_category_row(
+    aggregate: WalletAggregate,
+    row: Mapping[str, Any],
+) -> None:
+    category = str(row["category"])
+    category_value = float(row["category_value"])
+    token_count = int(row["token_count"])
+    percentage = float(row.get("percentage") or 0.0)
+
+    breakdown = aggregate.categories.get(category)
+    if breakdown is not None:
+        breakdown.value = category_value
+        breakdown.percentage = percentage
+
+    aggregate.total_value += category_value
+    aggregate.token_count += token_count
 
 
 class WalletService:
@@ -82,31 +105,11 @@ class WalletService:
             {"wallet_address": wallet_address.lower()},
         )
 
-        categories = create_empty_category_breakdown()
-
-        total_value = 0.0
-        total_tokens = 0
-
-        # Process category data
+        aggregate = _empty_wallet_aggregate()
         for row in category_rows:
-            category = row["category"]
-            category_value = float(row["category_value"])
-            token_count = int(row["token_count"])
-            percentage = float(row.get("percentage") or 0.0)
+            _apply_category_row(aggregate, row)
 
-            breakdown = categories.get(category)
-            if breakdown is not None:
-                breakdown.value = category_value
-                breakdown.percentage = percentage
-
-            total_value += category_value
-            total_tokens += token_count
-
-        return WalletAggregate(
-            total_value=total_value,
-            token_count=total_tokens,
-            categories=categories,
-        )
+        return aggregate
 
     def get_wallet_token_summaries_batch(
         self, db: Session, wallet_addresses: list[str]
@@ -128,7 +131,6 @@ class WalletService:
         if not wallet_addresses:
             return {}
 
-        # Normalize inputs to lowercase
         wallet_addresses = [w.lower() for w in wallet_addresses]
 
         # Get category data for all wallets in one query
@@ -145,42 +147,15 @@ class WalletService:
             (time.time() - t1) * 1000,
         )
 
-        # Group results by wallet address
-        wallet_data: dict[str, dict[str, Any]] = {}
-        for address in wallet_addresses:
-            wallet_data[address] = {
-                "categories": create_empty_category_breakdown(),
-                "total_value": 0.0,
-                "total_tokens": 0,
-            }
+        wallet_data = {
+            address: _empty_wallet_aggregate() for address in wallet_addresses
+        }
 
-        # Process category data
         for row in category_rows:
             wallet_address = row["wallet_address"].lower()
-            category = row["category"]
-            category_value = float(row["category_value"])
-            token_count = int(row["token_count"])
-            percentage = float(row.get("percentage") or 0.0)
-
-            if wallet_address in wallet_data:
-                data = wallet_data[wallet_address]
-                breakdown = data["categories"].get(category)
-                if breakdown is not None:
-                    breakdown.value = category_value
-                    breakdown.percentage = percentage
-
-                data["total_value"] += category_value
-                data["total_tokens"] += token_count
-
-        # Convert to WalletAggregate objects
-        result = {
-            address: WalletAggregate(
-                total_value=data["total_value"],
-                token_count=data["total_tokens"],
-                categories=data["categories"],
-            )
-            for address, data in wallet_data.items()
-        }
+            aggregate = wallet_data.get(wallet_address)
+            if aggregate is not None:
+                _apply_category_row(aggregate, row)
 
         logger.info(
             "PERF: [%s] Total: %.2fms",
@@ -188,4 +163,4 @@ class WalletService:
             (time.time() - start_time) * 1000,
         )
 
-        return result
+        return wallet_data

@@ -231,6 +231,32 @@ class TestGetPortfolioDashboard:
         assert metadata["error_count"] == 1
         assert metadata["success_rate"] == pytest.approx(7 / 8, rel=0.01)
 
+    async def test_partial_failure_is_not_cached(
+        self,
+        dashboard_service,
+        sample_user_id,
+        mock_trend_service,
+    ):
+        """A transient partial failure must not poison the dashboard cache."""
+        mock_trend_service.get_portfolio_trend.side_effect = [
+            ValueError("Database connection failed"),
+            {
+                "user_id": str(sample_user_id),
+                "period_days": 30,
+                "data_points": 1,
+                "daily_values": [{"date": "2025-01-01", "total_value_usd": 1000.0}],
+            },
+        ]
+
+        first_result = await dashboard_service.get_portfolio_dashboard(sample_user_id)
+        second_result = await dashboard_service.get_portfolio_dashboard(sample_user_id)
+
+        assert first_result["trends"]["error"] is True
+        assert first_result["_metadata"]["error_count"] == 1
+        assert second_result["trends"]["data_points"] == 1
+        assert second_result["_metadata"]["error_count"] == 0
+        assert mock_trend_service.get_portfolio_trend.call_count == 2
+
     async def test_multiple_services_failing_simultaneously(
         self,
         dashboard_service,
