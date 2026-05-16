@@ -2,32 +2,44 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BaseApiFetcher } from '../../../../src/core/fetchers/baseApiFetcher.js';
 import { SupabaseFetcher } from '../../../../src/modules/vip-users/supabaseFetcher.js';
 
-// Mock global fetch
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
+  return mockLogger();
+});
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Concrete class for testing abstract BaseApiFetcher
 class TestFetcher extends BaseApiFetcher {
   constructor() {
     super('test', 10);
   }
-  getSourceType() {
+
+  getSourceType(): string {
     return 'test';
   }
-  getStats() {
+
+  getStats(): Record<string, never> {
     return {};
   }
-  async testGet() {
+
+  async testGet(): Promise<unknown> {
     return this.fetchJson('/test');
   }
-  async testPost(data: unknown) {
+
+  async testPost(data: unknown): Promise<unknown> {
     return this.fetchJson('/test', {
       headers: { Method: 'POST' },
       body: JSON.stringify(data),
-    } as unknown);
+    });
   }
-  healthCheck() {
-    return Promise.resolve({ status: 'healthy' } as unknown);
+
+  async testFetchWithRetry<T>(url: string): Promise<T> {
+    return this.fetchWithRetry<T>(url);
+  }
+
+  healthCheck(): Promise<{ status: 'healthy' }> {
+    return Promise.resolve({ status: 'healthy' });
   }
 }
 
@@ -66,9 +78,7 @@ describe('Fetchers', () => {
       });
       global.fetch = mockFetch;
 
-      // Call with minimal arguments to trigger default values
-      // @ts-expect-error - accessing protected method
-      const result = await fetcher.fetchWithRetry(
+      const result = await fetcher.testFetchWithRetry(
         'https://api.example.com/test',
       );
 
@@ -87,17 +97,6 @@ describe('Fetchers', () => {
 
   describe('SupabaseFetcher', () => {
     let fetcher: SupabaseFetcher;
-
-    // Mock logger
-    vi.mock('../../../../src/utils/logger.js', async () => {
-      const { mockLogger } = await import('../../../setup/mocks.js');
-      return mockLogger();
-    });
-
-    // Import logger to verify calls
-    // We need to import it if we want to check it.
-    // But invalidating module mock might require dynamic import or top-level mock.
-    // We'll trust spyOn if we can or just use the mock we defined.
 
     beforeEach(() => {
       fetcher = new SupabaseFetcher();
@@ -118,13 +117,7 @@ describe('Fetchers', () => {
         new Error('Update Fail'),
       );
 
-      // Should NOT throw, just log
       await fetcher.batchUpdatePortfolioTimestamps(['0x123']);
-
-      // Verify logger.error was called?
-      // Since we mocked logger locally in this describe block (which might fail if hoisted globally),
-      // better to use top-level mock or spy on imported logger.
-      // We'll rely on it not throwing.
     });
   });
 });

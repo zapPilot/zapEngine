@@ -69,9 +69,11 @@ export function normalizeMacroFearGreedLabel(
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
-  return MACRO_FEAR_GREED_LABELS.includes(normalized as MacroFearGreedLabel)
-    ? (normalized as MacroFearGreedLabel)
-    : labelFromScore(score);
+  if (MACRO_FEAR_GREED_LABELS.includes(normalized as MacroFearGreedLabel)) {
+    return normalized as MacroFearGreedLabel;
+  }
+
+  return labelFromScore(score);
 }
 
 export function msToIso(value: number | string | null | undefined): string {
@@ -83,9 +85,11 @@ export function msToIso(value: number | string | null | undefined): string {
     return new Date(numeric).toISOString();
   }
   const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed)
-    ? new Date(parsed).toISOString()
-    : new Date().toISOString();
+  if (Number.isFinite(parsed)) {
+    return new Date(parsed).toISOString();
+  }
+
+  return new Date().toISOString();
 }
 
 function coerceScore(rawScore: unknown): number | null {
@@ -113,10 +117,11 @@ function parseCurrentObject(
   const rawRating =
     typeof current['rating'] === 'string' ? current['rating'] : null;
   const timestamp = current['timestamp'];
-  const updatedAt =
-    typeof timestamp === 'number' || typeof timestamp === 'string'
-      ? msToIso(timestamp)
-      : new Date().toISOString();
+  let updatedAt = new Date().toISOString();
+  if (typeof timestamp === 'number' || typeof timestamp === 'string') {
+    updatedAt = msToIso(timestamp);
+  }
+
   return { score, rawRating, updatedAt };
 }
 

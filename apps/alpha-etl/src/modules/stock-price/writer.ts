@@ -153,15 +153,6 @@ export class StockPriceWriter extends BaseWriter<
     symbol: string = StockPriceWriter.DEFAULT_SYMBOL,
     source = 'yahoo-finance',
   ): Promise<string[]> {
-    return this.queryStockDatesInRange(startDate, endDate, symbol, source);
-  }
-
-  private queryStockDatesInRange(
-    startDate: Date,
-    endDate: Date,
-    symbol: string,
-    source: string,
-  ): Promise<string[]> {
     return this.queryEntitySnapshotDatesForDates(
       this.getSnapshotsTableName(),
       'symbol',

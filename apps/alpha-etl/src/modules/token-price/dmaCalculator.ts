@@ -169,10 +169,19 @@ export function computeRollingDmaMetrics(
     const daysAvailable = window.length;
     const dma = calculateDma(window, daysAvailable, windowSize);
 
+    if (dma === null) {
+      return {
+        dma200: null,
+        ratioVsDma: null,
+        isAboveDma: null,
+        daysAvailable,
+      };
+    }
+
     return {
       dma200: dma,
-      ratioVsDma: dma !== null ? row.value / dma : null,
-      isAboveDma: dma !== null ? row.value > dma : null,
+      ratioVsDma: row.value / dma,
+      isAboveDma: row.value > dma,
       daysAvailable,
     };
   });
