@@ -14,6 +14,7 @@ COPY apps/account-engine/package.json apps/account-engine/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/types/package.json packages/types/package.json
+COPY packages/intent-engine/package.json packages/intent-engine/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
 RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/account-engine... --store-dir=/pnpm/store

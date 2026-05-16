@@ -32,7 +32,6 @@
 
 apps/frontend/dist
 apps/frontend
-packages/intent-engine
 
 apps/account-engine/__mocks__
 apps/account-engine/test
