@@ -45,6 +45,7 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('哈囉，這是 Fish Audio 測試', {
       languageCode: 'zh-Hant',
+      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -89,6 +90,7 @@ describe('Fish Audio TTS provider', () => {
   it('estimates cost from UTF-8 input bytes', () => {
     const cost = buildFishAudioCostLine('測試', {
       languageCode: 'zh-Hant',
+      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -119,6 +121,7 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('缺少金鑰', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -141,6 +144,7 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('服務錯誤', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -163,6 +167,7 @@ describe('Fish Audio TTS provider', () => {
     expect(
       getMetadata({
         languageCode: 'ja',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-ja-model',
@@ -189,6 +194,7 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -209,6 +215,7 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -226,6 +233,7 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'google',
           modelId: 'wrong-provider',

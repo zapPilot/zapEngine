@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildUsageCostDetails,
   compactUsageCostLines,
   nonZeroUsageCostLines,
   sumUsageCostLines,
@@ -116,5 +117,23 @@ describe('sumUsageCostLines', () => {
     ];
 
     expect(sumUsageCostLines(lines)).toBe(0.06);
+  });
+});
+
+describe('translate cost category', () => {
+  it('sums a translate line into the total', () => {
+    const details = buildUsageCostDetails([
+      {
+        category: 'translate' as const,
+        label: 'Translation ja',
+        provider: 'google',
+        model: 'nmt',
+        costUsd: 0.0123,
+        usage: { unit: 'characters', quantity: 615, unitPriceUsd: 0.00002 },
+      },
+    ]);
+
+    expect(details.totalUsd).toBeCloseTo(0.0123, 10);
+    expect(details.breakdown[0]?.category).toBe('translate');
   });
 });

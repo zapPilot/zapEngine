@@ -20,6 +20,7 @@ const {
   mockScrapeArticle,
   mockSynthesizeClassroomAudio,
   mockTextToSpeech,
+  mockTranslateCanonicalScript,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
   mockUpsertLanguageClassrooms,
@@ -38,6 +39,7 @@ const {
   mockScrapeArticle: vi.fn(),
   mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
+  mockTranslateCanonicalScript: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
@@ -103,6 +105,10 @@ vi.mock('./opencc.js', () => ({
   convertArticleToZhTW: mockConvertArticleToZhTW,
 }));
 
+vi.mock('./translate.js', () => ({
+  translateCanonicalScript: mockTranslateCanonicalScript,
+}));
+
 const { performIngest } = await import('./ingest.js');
 
 describe('performIngest failure paths', () => {
@@ -137,6 +143,24 @@ describe('performIngest failure paths', () => {
       thinkingModel: null,
       provider: 'test-provider',
       costUsd: 0.00001,
+    });
+    mockTranslateCanonicalScript.mockResolvedValue({
+      title: 'Translated title',
+      script: 'Translated script',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation en',
+          provider: 'google',
+          model: 'nmt',
+          costUsd: 0.0001,
+          usage: {
+            unit: 'characters',
+            quantity: 5,
+            unitPriceUsd: 0.00002,
+          },
+        },
+      ],
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
       (_id: string, status: string) => {
@@ -255,6 +279,7 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
+      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
@@ -388,6 +413,7 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
+      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(result.costUsd).toBeCloseTo(0.00023, 10);
@@ -597,24 +623,40 @@ describe('performIngest failure paths', () => {
     );
   });
 
-  it('can continue from an existing script and non-default language metadata', async () => {
+  it('can continue from an existing secondary script without retranslating', async () => {
+    const chineseLocalization = localizationRow({
+      language_code: 'zh-Hant',
+      title: '中文標題',
+      script: '中文腳本',
+      status: 'script_generated',
+    });
+    const englishLocalization = localizationRow({
+      language_code: 'en',
+      status: 'script_generated',
+      script: 'English script',
+    });
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
-      localizationRow({
-        language_code: 'en',
-        status: 'script_generated',
-        script: null,
-      }),
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) => {
+        if (languageCode === 'zh-Hant') {
+          return Promise.resolve(chineseLocalization);
+        }
+        if (languageCode === 'en') {
+          return Promise.resolve(englishLocalization);
+        }
+        return Promise.resolve(null);
+      },
     );
 
     const result = await performIngest('https://example.com/article', 'en');
 
     expect(result.statusCode).toBe(201);
     expect(mockScrapeArticle).not.toHaveBeenCalled();
-    expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
-    expect(mockTextToSpeech).toHaveBeenCalledWith('', {
+    expect(mockTranslateCanonicalScript).not.toHaveBeenCalled();
+    expect(mockTextToSpeech).toHaveBeenCalledWith('English script', {
       languageCode: 'en',
+      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
@@ -731,16 +773,102 @@ describe('performIngest failure paths', () => {
     expect(classroomTargets).toContain('ko');
   });
 
-  it('does not convert article to zh-TW when language is non-default', async () => {
+  it('builds the canonical Chinese script before a secondary localization when missing', async () => {
+    const englishPendingLocalization = localizationRow({
+      id: 'en-localization',
+      language_code: 'en',
+      title: '',
+      raw_text: '',
+      script: '',
+      llm_model: 'test-model',
+      llm_provider: 'test-provider',
+      status: 'pending',
+    });
+    const englishScriptLocalization = localizationRow({
+      ...englishPendingLocalization,
+      title: 'Translated title',
+      script: 'Translated script',
+      status: 'script_generated',
+    });
+
     mockFindEpisodeBySourceUrl.mockResolvedValue(null);
     mockScrapeArticle.mockResolvedValue({
       title: 'Software Update',
       text: 'Mouse and bicycle market',
     });
+    mockConvertArticleToZhTW.mockReturnValue({
+      title: '軟體更新',
+      text: '滑鼠和腳踏車市場',
+    });
+    mockInsertEpisodeLocalization.mockImplementation(
+      (localization: { languageCode: string }) =>
+        Promise.resolve(
+          localization.languageCode === 'en'
+            ? englishPendingLocalization
+            : localizationRow({
+                title: '軟體更新',
+                raw_text: '滑鼠和腳踏車市場',
+                hls_url: '',
+                script: '',
+                llm_model: '',
+                llm_provider: '',
+                status: 'scraped',
+              }),
+        ),
+    );
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (id: string, status: string) => {
+        if (status === 'script_generated' && id !== 'en-localization') {
+          return Promise.resolve(
+            localizationRow({
+              title: '軟體更新',
+              raw_text: '滑鼠和腳踏車市場',
+              script: 'Generated script',
+              status: 'script_generated',
+            }),
+          );
+        }
+        if (id === 'en-localization' && status === 'script_generated') {
+          return Promise.resolve(englishScriptLocalization);
+        }
+        if (id === 'en-localization' && status === 'completed') {
+          return Promise.resolve(
+            localizationRow({
+              ...englishScriptLocalization,
+              hls_url:
+                'https://cdn.example.com/episodes/e/localizations/en/playlist.m3u8',
+              status: 'completed',
+            }),
+          );
+        }
+        return Promise.resolve(null);
+      },
+    );
 
     await performIngest('https://example.com/article', 'en');
 
-    expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
+    expect(mockConvertArticleToZhTW).toHaveBeenCalledWith({
+      title: 'Software Update',
+      text: 'Mouse and bicycle market',
+    });
+    expect(mockInsertEpisodeLocalization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        languageCode: 'zh-Hant',
+        title: '軟體更新',
+        rawText: '滑鼠和腳踏車市場',
+        status: 'scraped',
+      }),
+    );
+    expect(mockGenerateScriptWithLLM).toHaveBeenCalledWith(
+      '軟體更新',
+      '滑鼠和腳踏車市場',
+    );
+    expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
+      title: '軟體更新',
+      script: 'Generated script',
+      targetLanguageCode: 'en',
+    });
   });
 
   it('uses per-language provider metadata for non-default language TTS', async () => {
@@ -763,6 +891,149 @@ describe('performIngest failure paths', () => {
         ttsLanguageCode: 'ja-JP',
         ttsVoiceName: 'ja-JP-Wavenet-A',
       }),
+    );
+  });
+
+  it('creates a secondary localization by translating the committed Chinese script before TTS', async () => {
+    const chineseLocalization = localizationRow({
+      id: 'zh-localization',
+      language_code: 'zh-Hant',
+      title: '中文標題',
+      raw_text: '中文原文',
+      script: '中文腳本',
+      llm_model: 'script-model',
+      llm_thinking_model: 'thinking-model',
+      llm_provider: 'openrouter',
+      status: 'script_generated',
+    });
+    const jaPendingLocalization = localizationRow({
+      id: 'ja-localization',
+      language_code: 'ja',
+      title: '',
+      raw_text: '',
+      script: '',
+      llm_model: 'script-model',
+      llm_thinking_model: 'thinking-model',
+      llm_provider: 'openrouter',
+      status: 'pending',
+    });
+    const jaScriptLocalization = localizationRow({
+      ...jaPendingLocalization,
+      title: '日本語タイトル',
+      script: '日本語スクリプト',
+      status: 'script_generated',
+    });
+
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) => {
+        if (languageCode === 'zh-Hant') {
+          return Promise.resolve(chineseLocalization);
+        }
+        if (languageCode === 'ja') {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(null);
+      },
+    );
+    mockInsertEpisodeLocalization.mockResolvedValue(jaPendingLocalization);
+    mockTranslateCanonicalScript.mockResolvedValue({
+      title: '日本語タイトル',
+      script: '日本語スクリプト',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation ja',
+          provider: 'google',
+          model: 'nmt',
+          costUsd: 0.0001,
+          usage: {
+            unit: 'characters',
+            quantity: 5,
+            unitPriceUsd: 0.00002,
+          },
+        },
+      ],
+    });
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (id: string, status: string) => {
+        if (id === 'ja-localization' && status === 'script_generated') {
+          return Promise.resolve(jaScriptLocalization);
+        }
+        if (id === 'ja-localization' && status === 'completed') {
+          return Promise.resolve(
+            localizationRow({
+              ...jaScriptLocalization,
+              hls_url:
+                'https://cdn.example.com/episodes/e/localizations/ja/playlist.m3u8',
+              status: 'completed',
+            }),
+          );
+        }
+        return Promise.resolve(null);
+      },
+    );
+    mockUploadHlsToR2.mockResolvedValue({
+      hlsUrl:
+        'https://cdn.example.com/episodes/e/localizations/ja/playlist.m3u8',
+      r2Prefix: 'episodes/e/localizations/ja',
+    });
+
+    const result = await performIngest('https://example.com/article', 'ja');
+
+    expect(result.statusCode).toBe(201);
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
+      title: '中文標題',
+      script: '中文腳本',
+      targetLanguageCode: 'ja',
+    });
+    expect(mockInsertEpisodeLocalization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        episodeId: episodeRow().id,
+        languageCode: 'ja',
+        title: '',
+        rawText: '',
+        script: '',
+        llmModel: 'script-model',
+        llmThinkingModel: 'thinking-model',
+        llmProvider: 'openrouter',
+        status: 'pending',
+      }),
+    );
+    expect(mockUpdateEpisodeLocalizationArticleContent).toHaveBeenCalledWith(
+      'ja-localization',
+      {
+        title: '日本語タイトル',
+        text: '',
+      },
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      'ja-localization',
+      'script_generated',
+      expect.objectContaining({
+        script: '日本語スクリプト',
+        llmModel: 'script-model',
+        llmThinkingModel: 'thinking-model',
+        llmProvider: 'openrouter',
+      }),
+    );
+    expect(
+      mockUpdateEpisodeLocalizationStatus.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockTextToSpeech.mock.invocationCallOrder[0]!);
+    expect(mockTextToSpeech).toHaveBeenCalledWith('日本語スクリプト', {
+      languageCode: 'ja',
+      usage: 'main',
+      costLabel: 'TTS main audio',
+    });
+    expect(result.costDetails.breakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'translate',
+          provider: 'google',
+          costUsd: 0.0001,
+        }),
+      ]),
     );
   });
 

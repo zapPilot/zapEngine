@@ -25,6 +25,7 @@ const {
   mockServe,
   mockSynthesizeClassroomAudio,
   mockTextToSpeech,
+  mockTranslateCanonicalScript,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
   mockUpsertLanguageClassrooms,
@@ -48,6 +49,7 @@ const {
   mockServe: vi.fn(),
   mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
+  mockTranslateCanonicalScript: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
@@ -122,6 +124,10 @@ vi.mock('./services/tts.js', async (importOriginal) => ({
 
 vi.mock('./services/opencc.js', () => ({
   convertArticleToZhTW: mockConvertArticleToZhTW,
+}));
+
+vi.mock('./services/translate.js', () => ({
+  translateCanonicalScript: mockTranslateCanonicalScript,
 }));
 
 const app = (await import('./index.js')).default;
@@ -329,7 +335,17 @@ describe('POST /ingest authorization', () => {
     );
   });
 
-  it('rejects unsupported primary languages in v1', async () => {
+  it('accepts secondary ingest languages', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) =>
+        Promise.resolve(
+          localizationRow({
+            language_code: languageCode,
+            status: 'completed',
+          }),
+        ),
+    );
+
     const response = await app.request('/ingest?language=ja', {
       method: 'POST',
       headers: {
@@ -339,7 +355,11 @@ describe('POST /ingest authorization', () => {
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'ja',
+    );
   });
 });
 

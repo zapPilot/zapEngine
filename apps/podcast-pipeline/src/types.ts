@@ -9,6 +9,8 @@ export const LEGACY_LANGUAGE_ALIASES = {
 } as const;
 export const SUPPORTED_PRIMARY_LANGUAGE_CODES = [
   DEFAULT_LANGUAGE_CODE,
+  'ja',
+  'en',
 ] as const;
 export const LANGUAGE_CLASSROOM_LANGUAGE_CODES = [
   DEFAULT_LANGUAGE_CODE,

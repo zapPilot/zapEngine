@@ -54,19 +54,35 @@ describe('synthesizeClassroomAudio', () => {
     expect(mockTextToSpeech.mock.calls).toEqual([
       [
         '接下來是日文小教室。',
-        { languageCode: 'zh-Hant', costLabel: 'TTS classroom audio' },
+        {
+          languageCode: 'zh-Hant',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
       ],
       [
         'この記事は市場流動性を説明します。',
-        { languageCode: 'ja', costLabel: 'TTS classroom audio' },
+        {
+          languageCode: 'ja',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
       ],
       [
         '流動性，りゅうどうせい。',
-        { languageCode: 'ja', costLabel: 'TTS classroom audio' },
+        {
+          languageCode: 'ja',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
       ],
       [
         '意思是資金容易進出市場的程度。',
-        { languageCode: 'zh-Hant', costLabel: 'TTS classroom audio' },
+        {
+          languageCode: 'zh-Hant',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
       ],
     ]);
     expect(mockConcatMp3Buffers).toHaveBeenCalledWith([

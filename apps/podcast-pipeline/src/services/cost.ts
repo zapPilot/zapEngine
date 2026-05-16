@@ -1,4 +1,4 @@
-export type UsageCostCategory = 'llm' | 'tts';
+export type UsageCostCategory = 'llm' | 'tts' | 'translate';
 
 export interface UsageCostUsage {
   unit: string;

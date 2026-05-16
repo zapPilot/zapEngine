@@ -1,29 +1,63 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getTtsConfig } from './tts-config.js';
+import {
+  CLASSROOM_TTS_CONFIG,
+  getTtsConfig,
+  MAIN_TTS_CONFIG,
+  type TtsUsage,
+} from './tts-config.js';
 
 describe('TTS language config', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to Fish Audio for Traditional Chinese and Google for classroom target languages', () => {
-    expect(getTtsConfig('zh-Hant')).toEqual({
+  it('declares main-body and classroom routing in named config maps', () => {
+    expect(MAIN_TTS_CONFIG['zh-Hant']).toEqual({
       provider: 'fish-audio',
       modelId: 'debb4c1065114ffda03f3a60abdcc421',
       engine: 's2-pro',
     });
-    expect(getTtsConfig('ja')).toEqual({
+    expect(MAIN_TTS_CONFIG.ja).toEqual({
       provider: 'google',
       languageCode: 'ja-JP',
       voiceName: 'ja-JP-Wavenet-A',
     });
-    expect(getTtsConfig('en')).toEqual({
+    expect(MAIN_TTS_CONFIG.en).toEqual({
+      provider: 'google',
+      languageCode: 'en-US',
+      voiceName: 'en-US-Wavenet-A',
+    });
+    expect(CLASSROOM_TTS_CONFIG['zh-Hant']).toEqual({
+      provider: 'google',
+      languageCode: 'cmn-TW',
+      voiceName: 'cmn-TW-Wavenet-A',
+    });
+    expect(CLASSROOM_TTS_CONFIG.ja).toEqual({
+      provider: 'google',
+      languageCode: 'ja-JP',
+      voiceName: 'ja-JP-Wavenet-A',
+    });
+    expect(CLASSROOM_TTS_CONFIG.en).toEqual({
       provider: 'google',
       languageCode: 'en-US',
       voiceName: 'en-US-Wavenet-A',
     });
   });
+
+  it.each([
+    ['main', 'zh-Hant', 'fish-audio'],
+    ['main', 'ja', 'google'],
+    ['main', 'en', 'google'],
+    ['classroom', 'zh-Hant', 'google'],
+    ['classroom', 'ja', 'google'],
+    ['classroom', 'en', 'google'],
+  ] as const)(
+    'routes %s %s audio to %s',
+    (usage: TtsUsage, languageCode, provider) => {
+      expect(getTtsConfig(usage, languageCode).provider).toBe(provider);
+    },
+  );
 
   it('ignores TTS env overrides because model config is code-owned', () => {
     vi.stubEnv('TTS_ZH_HANT_MODEL_ID', 'custom-zh-model');
@@ -32,17 +66,22 @@ describe('TTS language config', () => {
     vi.stubEnv('TTS_EN_PROVIDER', 'fish-audio');
     vi.stubEnv('TTS_JA_PROVIDER', 'elevenlabs');
 
-    expect(getTtsConfig('zh-Hant')).toEqual({
+    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
       provider: 'fish-audio',
       modelId: 'debb4c1065114ffda03f3a60abdcc421',
       engine: 's2-pro',
     });
-    expect(getTtsConfig('ja')).toEqual({
+    expect(getTtsConfig('main', 'ja')).toEqual({
       provider: 'google',
       languageCode: 'ja-JP',
       voiceName: 'ja-JP-Wavenet-A',
     });
-    expect(getTtsConfig('en')).toEqual({
+    expect(getTtsConfig('classroom', 'zh-Hant')).toEqual({
+      provider: 'google',
+      languageCode: 'cmn-TW',
+      voiceName: 'cmn-TW-Wavenet-A',
+    });
+    expect(getTtsConfig('main', 'en')).toEqual({
       provider: 'google',
       languageCode: 'en-US',
       voiceName: 'en-US-Wavenet-A',

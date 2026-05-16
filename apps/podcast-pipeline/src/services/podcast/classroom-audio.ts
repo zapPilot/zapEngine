@@ -26,6 +26,7 @@ export async function synthesizeClassroomAudio(
     for (const segment of segments) {
       const synthesized = await textToSpeech(segment.text, {
         languageCode: segment.languageCode,
+        usage: 'classroom',
         costLabel: 'TTS classroom audio',
       });
       audioBuffers.push(synthesized.audio);
