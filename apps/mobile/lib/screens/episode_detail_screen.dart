@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
-import '../config/app_config.dart';
 import '../models/episode.dart';
+import '../services/episode_service.dart';
+import '../state/content_language_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/bookmark_button.dart';
@@ -15,16 +16,23 @@ import '../widgets/share_button.dart';
 import '../widgets/synced_transcript.dart';
 
 class EpisodeDetailScreen extends StatefulWidget {
-  const EpisodeDetailScreen({super.key, required this.episode});
+  const EpisodeDetailScreen({
+    super.key,
+    required this.episode,
+    EpisodeService? episodeService,
+  }) : _episodeService = episodeService;
 
   final Episode episode;
+  final EpisodeService? _episodeService;
 
   @override
   State<EpisodeDetailScreen> createState() => _EpisodeDetailScreenState();
 }
 
 class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
-  late final Episode _episode = widget.episode;
+  late Episode _episode = widget.episode;
+  late final EpisodeService _episodeService =
+      widget._episodeService ?? EpisodeService();
   final ScrollController _scrollController = ScrollController();
   bool _showAppBarBackground = false;
   bool _showBackToTop = false;
@@ -63,6 +71,18 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  Future<void> _selectLanguage(String languageCode) async {
+    await context
+        .read<ContentLanguageProvider?>()
+        ?.setLanguageCode(languageCode);
+    final localizedEpisode = await _episodeService.getEpisodeById(
+      _episode.id,
+      languageCode: languageCode,
+    );
+    if (!mounted || localizedEpisode == null) return;
+    setState(() => _episode = localizedEpisode);
   }
 
   @override
@@ -104,7 +124,10 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _EpisodeHeader(episode: _episode),
-                  _PlaybackControls(episode: _episode),
+                  _PlaybackControls(
+                    episode: _episode,
+                    onLanguageSelected: _selectLanguage,
+                  ),
                   const SizedBox(height: 14),
                   _ActionRow(episode: _episode),
                   const SizedBox(height: 28),
@@ -162,9 +185,13 @@ class _EpisodeHeader extends StatelessWidget {
 }
 
 class _PlaybackControls extends StatefulWidget {
-  const _PlaybackControls({required this.episode});
+  const _PlaybackControls({
+    required this.episode,
+    required this.onLanguageSelected,
+  });
 
   final Episode episode;
+  final ValueChanged<String> onLanguageSelected;
 
   @override
   State<_PlaybackControls> createState() => _PlaybackControlsState();
@@ -200,6 +227,9 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
     final sliderValue = (_scrubValue ?? liveValue).clamp(0.0, maxValue);
     final displayedPosition = Duration(milliseconds: sliderValue.round());
     final audioTracks = widget.episode.playableAudioTracks;
+    final selectedLanguageCode =
+        context.watch<ContentLanguageProvider?>()?.languageCode ??
+            widget.episode.languageCode;
     final selectedAudioTrack = isCurrent && playback.currentAudioTrack != null
         ? playback.currentAudioTrack
         : audioTracks.isNotEmpty
@@ -295,7 +325,10 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
             ),
           ] else ...[
             const SizedBox(height: 10),
-            const LanguageChipRow(currentCode: AppConfig.contentLanguageCode),
+            LanguageChipRow(
+              currentCode: selectedLanguageCode,
+              onSelected: widget.onLanguageSelected,
+            ),
           ],
         ],
       ),

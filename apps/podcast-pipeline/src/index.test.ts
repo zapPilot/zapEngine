@@ -519,7 +519,7 @@ describe('POST /ingest pipeline', () => {
       episodeRow().id,
       'zh-Hant',
     );
-    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
@@ -534,6 +534,18 @@ describe('POST /ingest pipeline', () => {
       expect.objectContaining({
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
+      }),
+    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguageCode: 'ja',
+        targetLanguageCodes: ['zh-Hant', 'en'],
+      }),
+    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguageCode: 'en',
+        targetLanguageCodes: ['zh-Hant', 'ja'],
       }),
     );
     expect(
@@ -554,7 +566,7 @@ describe('POST /ingest pipeline', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
@@ -672,15 +684,16 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 Total $0.00009',
+        '💰 Total $0.00027',
         'Breakdown',
-        '- LLM classrooms (test-provider/test-model): $0.00009',
+        '- LLM classrooms (test-provider/test-model): $0.00027',
       ].join('\n'),
     ]);
   });
 
   it('omits cost from the Telegram result when no LLM calls run', async () => {
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
+      classroomRow({ id: 'classroom-zh', target_language_code: 'zh-Hant' }),
       classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
       classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
     ]);

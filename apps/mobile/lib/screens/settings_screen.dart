@@ -5,6 +5,7 @@ import 'package:zapengine_tokens/design_tokens.dart';
 import '../config/app_config.dart';
 import '../config/language_codes.dart';
 import '../state/auth_provider.dart';
+import '../state/content_language_provider.dart';
 import '../theme/colors.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -34,6 +35,9 @@ class _LanguageSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final languageCode =
+        context.watch<ContentLanguageProvider?>()?.languageCode ??
+            AppConfig.defaultLanguageCode;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,7 +55,7 @@ class _LanguageSection extends StatelessWidget {
               for (final option in kLanguageOptions) ...[
                 _LanguageTile(
                   option: option,
-                  selected: option.code == AppConfig.defaultLanguageCode,
+                  selected: option.code == languageCode,
                 ),
                 if (option != kLanguageOptions.last)
                   const Divider(height: 1, indent: 16, endIndent: 16),
@@ -61,7 +65,7 @@ class _LanguageSection extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          '目前只提供繁體中文。語言會影響介面與音訊版本，收聽紀錄會保留。',
+          '語言會影響內容與音訊版本，收聽紀錄會保留。',
           style: theme.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
             height: 1.45,
@@ -109,15 +113,19 @@ class _LanguageTile extends StatelessWidget {
                     Icons.lock_rounded,
                     color: AppColors.textSecondary,
                   ),
-        onTap: enabled
+        onTap: selected
             ? null
-            : () {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    const SnackBar(content: Text(kComingSoonTooltip)),
-                  );
-              },
+            : enabled
+                ? () => context
+                    .read<ContentLanguageProvider?>()
+                    ?.setLanguageCode(option.code)
+                : () {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        const SnackBar(content: Text(kComingSoonTooltip)),
+                      );
+                  },
       ),
     );
   }

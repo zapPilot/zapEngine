@@ -99,6 +99,32 @@ describe('translateChineseText', () => {
     });
     expect(mockTranslate).not.toHaveBeenCalled();
   });
+
+  it('uses the first alternative when Google returns translation choices', async () => {
+    mockTranslate.mockResolvedValueOnce([
+      ['en:first translation', 'en:second translation'],
+    ]);
+
+    const result = await translateChineseText('多個翻譯', 'en');
+
+    expect(result.text).toBe('en:first translation');
+  });
+
+  it('coerces non-string Google translation payloads', async () => {
+    mockTranslate.mockResolvedValueOnce([42]);
+
+    const result = await translateChineseText('數字翻譯', 'en');
+
+    expect(result.text).toBe('42');
+  });
+
+  it('coerces nullish Google translation payloads to an empty string', async () => {
+    mockTranslate.mockResolvedValueOnce([null]);
+
+    const result = await translateChineseText('空翻譯', 'en');
+
+    expect(result.text).toBe('');
+  });
 });
 
 describe('translateCanonicalScript', () => {
@@ -148,5 +174,21 @@ describe('splitTextIntoTranslationChunks', () => {
     expect(() => splitTextIntoTranslationChunks('text', 0)).toThrow(
       'maxCharacters must be greater than 0',
     );
+  });
+
+  it('splits a single oversized segment into fixed-size chunks', () => {
+    expect(splitTextIntoTranslationChunks('abcdef', 2)).toEqual([
+      'ab',
+      'cd',
+      'ef',
+    ]);
+  });
+
+  it('flushes the current sentence before starting an oversized segment', () => {
+    expect(splitTextIntoTranslationChunks('短句。abcdef', 3)).toEqual([
+      '短句。',
+      'abc',
+      'def',
+    ]);
   });
 });

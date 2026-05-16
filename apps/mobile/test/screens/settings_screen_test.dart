@@ -2,6 +2,7 @@ import 'package:ai_podcast_mobile/config/language_codes.dart';
 import 'package:ai_podcast_mobile/screens/settings_screen.dart';
 import 'package:ai_podcast_mobile/services/auth_service.dart';
 import 'package:ai_podcast_mobile/state/auth_provider.dart';
+import 'package:ai_podcast_mobile/state/content_language_provider.dart';
 import 'package:ai_podcast_mobile/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,23 +49,27 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
-    testWidgets('shows lock icon on disabled languages', (tester) async {
+    testWidgets('does not show lock icon on available languages',
+        (tester) async {
       await tester.pumpWidget(
         _makeSettingsScreen(),
       );
 
-      expect(find.byIcon(Icons.lock_rounded), findsNWidgets(2));
+      expect(find.byIcon(Icons.lock_rounded), findsNothing);
     });
 
-    testWidgets('tapping disabled language shows snackbar', (tester) async {
+    testWidgets('tapping a language updates the selected content language',
+        (tester) async {
+      final languageProvider = ContentLanguageProvider();
       await tester.pumpWidget(
-        _makeSettingsScreen(),
+        _makeSettingsScreen(languageProvider: languageProvider),
       );
 
       await tester.tap(find.text('English'));
       await tester.pump();
 
-      expect(find.text(kComingSoonTooltip), findsOneWidget);
+      expect(languageProvider.languageCode, 'en');
+      expect(find.text(kComingSoonTooltip), findsNothing);
     });
 
     testWidgets('displays default user title when not logged in',
@@ -177,7 +182,7 @@ void main() {
       );
 
       expect(
-        find.text('目前只提供繁體中文。語言會影響介面與音訊版本，收聽紀錄會保留。'),
+        find.text('語言會影響內容與音訊版本，收聽紀錄會保留。'),
         findsOneWidget,
       );
     });
@@ -238,13 +243,19 @@ void main() {
   });
 }
 
-Widget _makeSettingsScreen({AuthProvider? authProvider}) {
+Widget _makeSettingsScreen({
+  AuthProvider? authProvider,
+  ContentLanguageProvider? languageProvider,
+}) {
   return MaterialApp(
     theme: AppTheme.dark(),
     home: MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(
           value: authProvider ?? _defaultAuthProvider(),
+        ),
+        ChangeNotifierProvider<ContentLanguageProvider>.value(
+          value: languageProvider ?? ContentLanguageProvider(),
         ),
       ],
       child: const SettingsScreen(),

@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../models/episode_page.dart';
 import '../models/episode_status.dart';
 import '../services/episode_service.dart';
 import '../state/auth_provider.dart';
+import '../state/content_language_provider.dart';
 import '../state/likes_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
@@ -40,6 +42,7 @@ class _FeedScreenState extends State<FeedScreen> {
   int _requestEpoch = 0;
   bool _listenedExpanded = false;
   String? _playbackUserId;
+  String _languageCode = AppConfig.contentLanguageCode;
   StreamSubscription<String>? _completionSub;
 
   @override
@@ -52,6 +55,8 @@ class _FeedScreenState extends State<FeedScreen> {
         context.read<LikesProvider>().watchUser(user.id);
         _bindPlaybackUser(user.id);
       }
+      _languageCode = context.read<ContentLanguageProvider?>()?.languageCode ??
+          AppConfig.contentLanguageCode;
       _completionSub = context
           .read<PlaybackProvider>()
           .completedEpisodeIds
@@ -124,7 +129,11 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<EpisodePage> _loadPage({String? cursor}) async {
-    final page = await _episodeService.getEpisodes(limit: 20, cursor: cursor);
+    final page = await _episodeService.getEpisodes(
+      limit: 20,
+      cursor: cursor,
+      languageCode: _languageCode,
+    );
     final hydrated = await _applyUserState(page.items);
 
     return EpisodePage(items: hydrated, nextCursor: page.nextCursor);
@@ -183,7 +192,18 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
+    final selectedLanguageCode =
+        context.watch<ContentLanguageProvider?>()?.languageCode ??
+            AppConfig.contentLanguageCode;
     final playback = context.watch<PlaybackProvider>();
+    if (selectedLanguageCode != _languageCode) {
+      _languageCode = selectedLanguageCode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_loadFirstPage());
+        }
+      });
+    }
     if (user != null) {
       _bindPlaybackUser(user.id);
     }

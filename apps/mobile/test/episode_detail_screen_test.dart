@@ -1,6 +1,8 @@
 import 'package:ai_podcast_mobile/models/episode.dart';
 import 'package:ai_podcast_mobile/screens/episode_detail_screen.dart';
+import 'package:ai_podcast_mobile/services/episode_service.dart';
 import 'package:ai_podcast_mobile/state/auth_provider.dart';
+import 'package:ai_podcast_mobile/state/content_language_provider.dart';
 import 'package:ai_podcast_mobile/state/likes_provider.dart';
 import 'package:ai_podcast_mobile/state/playback_provider.dart';
 import 'package:ai_podcast_mobile/theme/app_theme.dart';
@@ -162,6 +164,33 @@ void main() {
     expect(find.text('日'), findsOneWidget);
   });
 
+  testWidgets('Episode detail language chip loads selected localization', (
+    tester,
+  ) async {
+    final languageProvider = ContentLanguageProvider();
+    final service = _DetailEpisodeService(
+      localizedEpisode: _episode(title: 'English liquidity watch').copyWith(
+        languageCode: 'en',
+      ),
+    );
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(
+        episode: _episode(),
+        episodeService: service,
+      ),
+      languageProvider: languageProvider,
+    );
+
+    await tester.tap(find.text('EN'));
+    await tester.pumpAndSettle();
+
+    expect(languageProvider.languageCode, 'en');
+    expect(service.requests, [const _EpisodeRequest('episode-1', 'en')]);
+    expect(find.text('English liquidity watch'), findsWidgets);
+  });
+
   testWidgets('Episode detail shows language classroom lessons', (
     tester,
   ) async {
@@ -182,11 +211,15 @@ Future<void> _pumpHarness(
   WidgetTester tester,
   Widget child, {
   PlaybackProvider? playbackProvider,
+  ContentLanguageProvider? languageProvider,
 }) async {
   await tester.pumpWidget(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider<ContentLanguageProvider>.value(
+          value: languageProvider ?? ContentLanguageProvider(),
+        ),
         if (playbackProvider == null)
           ChangeNotifierProvider(
             create: (_) => PlaybackProvider(FakePodcastAudioHandler()),
@@ -202,6 +235,43 @@ Future<void> _pumpHarness(
     ),
   );
   await tester.pump();
+}
+
+class _DetailEpisodeService extends EpisodeService {
+  _DetailEpisodeService({required this.localizedEpisode});
+
+  final Episode localizedEpisode;
+  final List<_EpisodeRequest> requests = [];
+
+  @override
+  Future<Episode?> getEpisodeById(
+    String id, {
+    String languageCode = 'zh-Hant',
+  }) async {
+    requests.add(_EpisodeRequest(id, languageCode));
+    return localizedEpisode;
+  }
+}
+
+class _EpisodeRequest {
+  const _EpisodeRequest(this.id, this.languageCode);
+
+  final String id;
+  final String languageCode;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is _EpisodeRequest &&
+            other.id == id &&
+            other.languageCode == languageCode;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, languageCode);
+
+  @override
+  String toString() => 'EpisodeRequest($id, $languageCode)';
 }
 
 Episode _episodeWithTracks() {

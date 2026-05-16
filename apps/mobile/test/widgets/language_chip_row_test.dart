@@ -22,11 +22,10 @@ void main() {
       expect(find.text('EN'), findsOneWidget);
       expect(find.text('中'), findsOneWidget);
       expect(find.text('日'), findsOneWidget);
-      expect(find.byTooltip(kComingSoonTooltip), findsNWidgets(2));
+      expect(find.byTooltip(kComingSoonTooltip), findsNothing);
     });
 
-    testWidgets(
-        'does not call onSelected for locked languages and shows notice', (
+    testWidgets('calls onSelected for enabled English and Japanese languages', (
       tester,
     ) async {
       String? selectedCode;
@@ -45,8 +44,13 @@ void main() {
       await tester.tap(find.text('EN'));
       await tester.pump();
 
-      expect(selectedCode, isNull);
-      expect(find.text(kComingSoonTooltip), findsOneWidget);
+      expect(selectedCode, 'en');
+
+      selectedCode = null;
+      await tester.tap(find.text('日'));
+      await tester.pump();
+
+      expect(selectedCode, 'ja');
     });
 
     testWidgets('calls onSelected for enabled unselected languages', (

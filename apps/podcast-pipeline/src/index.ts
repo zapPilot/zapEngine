@@ -33,7 +33,10 @@ import {
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
-import { type IngestResult, performIngest } from './services/ingest.js';
+import {
+  type IngestResult,
+  performMultilingualIngest,
+} from './services/ingest.js';
 import {
   detectPlatform,
   renderEpisodeSharePage,
@@ -146,7 +149,7 @@ app.post('/ingest', async (c) => {
 
   console.log(`[/ingest] start url=${url} language=${languageCode}`);
 
-  const result = await performIngest(url, languageCode);
+  const result = await performMultilingualIngest(url, languageCode);
 
   console.log(
     `[/ingest] done episode=${result.episode.id} status=${result.statusCode}`,
@@ -345,7 +348,7 @@ async function runTelegramIngest(
   await sendTelegramNotification(chatId, TELEGRAM_START_TEXT);
 
   try {
-    const result = await performIngest(url, languageCode);
+    const result = await performMultilingualIngest(url, languageCode);
     await sendTelegramNotification(chatId, formatTelegramIngestResult(result));
   } catch (error) {
     await sendTelegramNotification(

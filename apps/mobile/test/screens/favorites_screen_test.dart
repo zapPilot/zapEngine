@@ -8,6 +8,7 @@ import 'package:ai_podcast_mobile/services/auth_service.dart';
 import 'package:ai_podcast_mobile/services/episode_service.dart';
 import 'package:ai_podcast_mobile/services/likes_service.dart';
 import 'package:ai_podcast_mobile/state/auth_provider.dart';
+import 'package:ai_podcast_mobile/state/content_language_provider.dart';
 import 'package:ai_podcast_mobile/state/likes_provider.dart';
 import 'package:ai_podcast_mobile/state/playback_provider.dart';
 import 'package:ai_podcast_mobile/theme/app_theme.dart';
@@ -160,13 +161,45 @@ void main() {
     ]);
     expect(find.text('Menu favorite'), findsNothing);
   });
+
+  testWidgets('reloads favorite source episodes when content language changes',
+      (
+    tester,
+  ) async {
+    final languageProvider = ContentLanguageProvider();
+    final episodeService = _FavoritesEpisodeService(
+      pages: [
+        [
+          _episode(
+            id: 'episode-old',
+            title: 'Older favorite',
+            createdAt: DateTime(2026, 5, 1),
+          ),
+        ],
+      ],
+    );
+    final likesService = _FavoritesLikesService();
+
+    await _pumpFavorites(
+      tester,
+      episodeService,
+      likesService,
+      languageProvider: languageProvider,
+    );
+
+    await languageProvider.setLanguageCode('ja');
+    await tester.pumpAndSettle();
+
+    expect(episodeService.requestedLanguageCodes, ['zh-Hant', 'ja']);
+  });
 }
 
 Future<void> _pumpFavorites(
   WidgetTester tester,
   _FavoritesEpisodeService episodeService,
-  _FavoritesLikesService likesService,
-) async {
+  _FavoritesLikesService likesService, {
+  ContentLanguageProvider? languageProvider,
+}) async {
   final authProvider = AuthProvider(
     authService: _FakeAuthService(
       const PodcastUser(id: 'user-1', displayName: 'Test User'),
@@ -179,6 +212,9 @@ Future<void> _pumpFavorites(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<ContentLanguageProvider>.value(
+          value: languageProvider ?? ContentLanguageProvider(),
+        ),
         ChangeNotifierProvider(
           create: (_) =>
               PlaybackProvider(handler, episodeService: episodeService),
@@ -215,6 +251,7 @@ class _FavoritesEpisodeService extends EpisodeService {
 
   final List<List<Episode>> pages;
   final List<String?> requestedCursors = [];
+  final List<String> requestedLanguageCodes = [];
 
   @override
   Future<EpisodePage> getEpisodes({
@@ -223,6 +260,7 @@ class _FavoritesEpisodeService extends EpisodeService {
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
     requestedCursors.add(cursor);
+    requestedLanguageCodes.add(languageCode);
     final pageIndex = int.tryParse(cursor ?? '') ?? 0;
     return EpisodePage(
       items: pages[pageIndex],

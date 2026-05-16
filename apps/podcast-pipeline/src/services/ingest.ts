@@ -52,6 +52,45 @@ type SecondaryLanguageCode = Exclude<
   typeof DEFAULT_LANGUAGE_CODE
 >;
 
+const MULTILINGUAL_INGEST_LANGUAGE_CODES: LanguageClassroomLanguageCode[] = [
+  DEFAULT_LANGUAGE_CODE,
+  'ja',
+  'en',
+];
+
+export async function performMultilingualIngest(
+  url: string,
+  responseLanguageCode: LanguageClassroomLanguageCode,
+): Promise<IngestResult> {
+  const results: IngestResult[] = [];
+
+  for (const languageCode of MULTILINGUAL_INGEST_LANGUAGE_CODES) {
+    results.push(await performIngest(url, languageCode));
+  }
+
+  const selectedResult = results.find(
+    (result) => result.episode.languageCode === responseLanguageCode,
+  );
+  if (!selectedResult) {
+    throw new Error(
+      `Failed to generate requested localization: ${responseLanguageCode}`,
+    );
+  }
+
+  const costDetails = buildUsageCostDetails(
+    results.flatMap((result) => result.costDetails.breakdown),
+  );
+
+  return {
+    episode: selectedResult.episode,
+    statusCode: results.some((result) => result.statusCode === 201)
+      ? 201
+      : selectedResult.statusCode,
+    costUsd: costDetails.totalUsd,
+    costDetails,
+  };
+}
+
 export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
