@@ -1,5 +1,16 @@
-import { createIntentEngine } from '@zapengine/intent-engine';
-import { createPublicClient, type Hash, http, type PublicClient } from 'viem';
+import {
+  createIntentEngine,
+  GMX_V2_TOKENS,
+  type GmxV2MarketKey,
+  type GmxV2SupplyPlan,
+} from '@zapengine/intent-engine';
+import {
+  type Address,
+  createPublicClient,
+  type Hash,
+  http,
+  type PublicClient,
+} from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 
 export const intentEngine = createIntentEngine({
@@ -59,4 +70,21 @@ export async function getBridgeStatus({
   }
 
   return (await response.json()) as BridgeStatus;
+}
+
+export async function buildGmxV2Deposit({
+  marketKey,
+  amount,
+  userAddress,
+}: {
+  marketKey: GmxV2MarketKey;
+  amount: string;
+  userAddress: Address;
+}): Promise<GmxV2SupplyPlan> {
+  return intentEngine.buildGmxV2Supply({
+    marketKey,
+    fromToken: GMX_V2_TOKENS.USDC.address,
+    fromAmount: amount,
+    userAddress,
+  });
 }

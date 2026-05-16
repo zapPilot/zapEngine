@@ -79,6 +79,12 @@ vi.mock('@/hooks/useInvestStrategy', () => ({
   useInvestStrategy: investStrategyMocks.useInvestStrategy,
 }));
 
+vi.mock('@/hooks/queries/wallet/useTokenBalances', () => ({
+  useTokenBalances: vi.fn(() => ({
+    byAddress: new Map(),
+  })),
+}));
+
 vi.mock(
   '@/components/wallet/portfolio/modals/hooks/useTransactionForm',
   () => ({
@@ -335,11 +341,11 @@ describe('TransactionPanel', () => {
   it('highlights selected token', () => {
     render(<TransactionPanel mode="deposit" />);
 
-    const usdcBtn = screen.getByText('USDC');
-    expect(usdcBtn.className).toContain('bg-gray-900');
+    const usdcBtn = screen.getByText('USDC').closest('button');
+    expect(usdcBtn).toHaveAttribute('aria-pressed', 'true');
 
-    const usdtBtn = screen.getByText('USDT');
-    expect(usdtBtn.className).toContain('bg-gray-50');
+    const usdtBtn = screen.getByText('USDT').closest('button');
+    expect(usdtBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('renders token loading skeletons when loading', async () => {
