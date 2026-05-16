@@ -22,7 +22,18 @@ describe('synthesizeClassroomAudio', () => {
     vi.clearAllMocks();
     mockTextToSpeech.mockImplementation(
       (text: string, opts: { languageCode: string }) =>
-        Promise.resolve(Buffer.from(`${opts.languageCode}:${text}`)),
+        Promise.resolve({
+          audio: Buffer.from(`${opts.languageCode}:${text}`),
+          cost: [
+            {
+              category: 'tts',
+              label: 'TTS classroom audio',
+              provider: 'test-provider',
+              model: opts.languageCode,
+              costUsd: 0.00001,
+            },
+          ],
+        }),
     );
     mockConcatMp3Buffers.mockResolvedValue(Buffer.from('classroom-mp3'));
   });
@@ -38,12 +49,41 @@ describe('synthesizeClassroomAudio', () => {
       episodeId: 'episode-1',
     });
 
-    expect(result).toEqual(Buffer.from('classroom-mp3'));
+    expect(result.audio).toEqual(Buffer.from('classroom-mp3'));
+    expect(result.cost).toHaveLength(4);
     expect(mockTextToSpeech.mock.calls).toEqual([
-      ['接下來是日文小教室。', { languageCode: 'zh-Hant' }],
-      ['この記事は市場流動性を説明します。', { languageCode: 'ja' }],
-      ['流動性，りゅうどうせい。', { languageCode: 'ja' }],
-      ['意思是資金容易進出市場的程度。', { languageCode: 'zh-Hant' }],
+      [
+        '接下來是日文小教室。',
+        {
+          languageCode: 'zh-Hant',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
+      ],
+      [
+        'この記事は市場流動性を説明します。',
+        {
+          languageCode: 'ja',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
+      ],
+      [
+        '流動性，りゅうどうせい。',
+        {
+          languageCode: 'ja',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
+      ],
+      [
+        '意思是資金容易進出市場的程度。',
+        {
+          languageCode: 'zh-Hant',
+          usage: 'classroom',
+          costLabel: 'TTS classroom audio',
+        },
+      ],
     ]);
     expect(mockConcatMp3Buffers).toHaveBeenCalledWith([
       Buffer.from('zh-Hant:接下來是日文小教室。'),
@@ -63,7 +103,10 @@ describe('synthesizeClassroomAudio', () => {
       episodeId: 'episode-1',
     });
 
-    expect(result).toBeNull();
+    expect(result).toEqual({
+      audio: null,
+      cost: [],
+    });
     expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith(
       '[classroom-audio] synthesis failed:',
@@ -85,7 +128,10 @@ describe('synthesizeClassroomAudio', () => {
       episodeId: 'episode-1',
     });
 
-    expect(result).toBeNull();
+    expect(result).toEqual({
+      audio: null,
+      cost: [],
+    });
     expect(consoleSpy).toHaveBeenCalledWith(
       '[classroom-audio] synthesis failed:',
       expect.objectContaining({
@@ -94,6 +140,45 @@ describe('synthesizeClassroomAudio', () => {
         message: 'string error',
       }),
     );
+  });
+
+  it('returns cost for already synthesized segments when a later segment fails', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockTextToSpeech
+      .mockResolvedValueOnce({
+        audio: Buffer.from('intro'),
+        cost: [
+          {
+            category: 'tts',
+            label: 'TTS classroom audio',
+            provider: 'fish-audio',
+            model: 's2-pro',
+            costUsd: 0.00009,
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error('Google TTS timeout'));
+
+    const result = await synthesizeClassroomAudio(classroomLesson(), {
+      episodeId: 'episode-1',
+    });
+
+    expect(result).toEqual({
+      audio: null,
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS classroom audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00009,
+        },
+      ],
+    });
+    expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 });
 

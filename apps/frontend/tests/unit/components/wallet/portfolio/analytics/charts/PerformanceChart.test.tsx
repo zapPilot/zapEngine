@@ -45,7 +45,14 @@ vi.mock('@/utils/formatters', () => ({
 }));
 
 vi.mock('@/lib/ui/chartPrimitives', () => ({
-  buildPath: () => 'M 0 0 L 100 100',
+  buildPath: (
+    points: { x: number }[],
+    width: number,
+    getY: (point: { x: number }) => number,
+  ) =>
+    points
+      .map((point) => `${(point.x / 100) * width},${getY(point)}`)
+      .join(' L '),
   CHART_GRID_POSITIONS: { FIVE_LINES: [] },
 }));
 
@@ -96,6 +103,19 @@ describe('PerformanceChart', () => {
       />,
     );
     expect(container).toBeInTheDocument();
+  });
+
+  it('does not render malformed paths when data is empty', () => {
+    const { container } = render(
+      <PerformanceChart
+        chartData={[]}
+        startDate="2024-01-01"
+        endDate="2024-01-02"
+      />,
+    );
+
+    const paths = Array.from(container.querySelectorAll('path'));
+    expect(paths).toHaveLength(0);
   });
 
   it('should render with custom dimensions', () => {

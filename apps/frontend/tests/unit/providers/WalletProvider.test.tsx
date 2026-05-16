@@ -20,8 +20,12 @@ const mockConnectAsync = vi.fn();
 const mockDisconnectAsync = vi.fn();
 const mockSwitchChainAsync = vi.fn();
 const mockSignMessageAsync = vi.fn();
+const mockSignTypedDataAsync = vi.fn();
+const mockGetWalletClient = vi.hoisted(() => vi.fn());
 
 vi.mock('wagmi', () => ({
+  createConfig: vi.fn((config) => config),
+  http: vi.fn((url: string) => ({ url })),
   // wagmi v2: useAccount was renamed to useConnection
   useConnection: () => mockUseAccount(),
   // wagmi v2: connectors are enumerated via a dedicated hook
@@ -42,6 +46,13 @@ vi.mock('wagmi', () => ({
   useSignMessage: () => ({
     mutateAsync: mockSignMessageAsync,
   }),
+  useSignTypedData: () => ({
+    mutateAsync: mockSignTypedDataAsync,
+  }),
+}));
+
+vi.mock('wagmi/actions', () => ({
+  getWalletClient: mockGetWalletClient,
 }));
 
 vi.mock('viem', () => ({
@@ -105,6 +116,7 @@ describe('WalletProvider', () => {
     mockDisconnectAsync.mockResolvedValue(undefined);
     mockSwitchChainAsync.mockResolvedValue(undefined);
     mockSignMessageAsync.mockResolvedValue('0xsignature');
+    mockSignTypedDataAsync.mockResolvedValue('0xtypedsignature');
   });
 
   describe('Provider rendering', () => {
@@ -142,6 +154,8 @@ describe('WalletProvider', () => {
       expect(result.current).toHaveProperty('disconnect');
       expect(result.current).toHaveProperty('switchChain');
       expect(result.current).toHaveProperty('signMessage');
+      expect(result.current).toHaveProperty('signTypedData');
+      expect(result.current).toHaveProperty('getWalletClient');
       expect(result.current).toHaveProperty('isConnected');
       expect(result.current).toHaveProperty('error');
       expect(result.current).toHaveProperty('clearError');
@@ -390,6 +404,51 @@ describe('WalletProvider', () => {
       });
     });
 
+    it('should use the first connector when multiple connectors are available', async () => {
+      const connectors = [
+        { id: 'io.rabby', name: 'Rabby' },
+        { id: 'io.metamask', name: 'MetaMask' },
+      ];
+      mockUseConnectors.mockReturnValue(connectors);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      await invokeWalletProviderAction(() => result.current.connect());
+
+      expect(mockConnectAsync).toHaveBeenCalledWith({
+        connector: connectors[0],
+      });
+      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it('should set NO_WALLET when no connectors are available', async () => {
+      mockUseConnectors.mockReturnValue([]);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      const { error } = await invokeWalletProviderAction(() =>
+        result.current.connect(),
+      );
+
+      expect(error).toBeUndefined();
+      expect(mockConnectAsync).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(result.current.error).toEqual({
+          message:
+            'No wallet detected. Please install MetaMask or another wallet extension.',
+          code: 'NO_WALLET',
+        });
+      });
+    });
+
     it('should set error state on connection failure', async () => {
       mockConnectAsync.mockRejectedValue(new Error('User rejected'));
 
@@ -506,6 +565,33 @@ describe('WalletProvider', () => {
 
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toBe('User rejected chain switch');
+    });
+  });
+
+  describe('Wallet client access', () => {
+    it('should expose the active wagmi wallet client', async () => {
+      const walletClient = { account: { address: mockAddress } };
+      mockUseAccount.mockReturnValue({
+        address: mockAddress,
+        isConnected: true,
+        isConnecting: false,
+        chain: mockChain,
+      });
+      mockGetWalletClient.mockResolvedValue(walletClient);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      const { error, value } = await invokeWalletProviderAction(() =>
+        result.current.getWalletClient(),
+      );
+
+      expect(error).toBeUndefined();
+      expect(value).toBe(walletClient);
+      expect(mockGetWalletClient).toHaveBeenCalled();
     });
   });
 

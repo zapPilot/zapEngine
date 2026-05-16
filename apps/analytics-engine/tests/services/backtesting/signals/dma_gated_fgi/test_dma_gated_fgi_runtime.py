@@ -13,10 +13,7 @@ from src.services.backtesting.signals.dma_gated_fgi.errors import SignalDataErro
 from src.services.backtesting.signals.dma_gated_fgi.signal_engine import (
     DmaSignalEngine,
 )
-from src.services.backtesting.signals.dma_gated_fgi.types import (
-    DmaCooldownState,
-    DmaMarketState,
-)
+from tests.services.backtesting.helpers import state
 
 
 def _context(
@@ -40,32 +37,6 @@ def _context(
         portfolio_value=10_000.0,
         ath_event=ath_event,
         extra_data=resolved_extra_data,
-    )
-
-
-def _market_state(
-    *,
-    zone: str,
-    regime: str,
-    ath_event: str | None = None,
-    cross_event: str | None = None,
-    actionable_cross_event: str | None = None,
-    cooldown_state: DmaCooldownState | None = None,
-) -> DmaMarketState:
-    dma_distance = {"above": 0.1, "below": -0.1, "at": 0.0}[zone]
-    return DmaMarketState(
-        signal_id="dma_gated_fgi",
-        dma_200=50_000.0,
-        dma_distance=dma_distance,
-        zone=zone,  # type: ignore[arg-type]
-        cross_event=cross_event,  # type: ignore[arg-type]
-        actionable_cross_event=actionable_cross_event,  # type: ignore[arg-type]
-        cooldown_state=cooldown_state or DmaCooldownState(False, 0, None),
-        fgi_value=15.0,
-        fgi_slope=0.0,
-        fgi_regime=regime,
-        regime_source="label",
-        ath_event=ath_event,  # type: ignore[arg-type]
     )
 
 
@@ -138,18 +109,20 @@ def test_signal_engine_uses_macro_label_not_score_threshold() -> None:
 
 
 def test_decision_resolver_prioritizes_dma_fgi_over_ath_fallback() -> None:
-    buy_state = _market_state(
+    buy_state = state(
+        symbol="BTC",
         zone="below",
-        regime="extreme_fear",
+        fgi_regime="extreme_fear",
         ath_event="portfolio_ath",
     )
     buy_intent = _resolve_dma_allocation_intent(buy_state)
     assert buy_intent.reason == "below_extreme_fear_buy"
     assert buy_intent.rule_group == "dma_fgi"
 
-    sell_state = _market_state(
+    sell_state = state(
+        symbol="BTC",
         zone="above",
-        regime="greed",
+        fgi_regime="greed",
         ath_event="both_ath",
     )
     sell_intent = _resolve_dma_allocation_intent(sell_state)
@@ -159,13 +132,23 @@ def test_decision_resolver_prioritizes_dma_fgi_over_ath_fallback() -> None:
 
 def test_decision_resolver_above_only_ath_fallback() -> None:
     hold_intent = _resolve_dma_allocation_intent(
-        _market_state(zone="below", regime="neutral", ath_event="token_ath")
+        state(
+            symbol="BTC",
+            zone="below",
+            fgi_regime="neutral",
+            ath_event="token_ath",
+        )
     )
     assert hold_intent.reason == "regime_no_signal"
     assert hold_intent.rule_group == "none"
 
     ath_intent = _resolve_dma_allocation_intent(
-        _market_state(zone="above", regime="neutral", ath_event="token_ath")
+        state(
+            symbol="BTC",
+            zone="above",
+            fgi_regime="neutral",
+            ath_event="token_ath",
+        )
     )
     assert ath_intent.reason == "ath_sell"
     assert ath_intent.rule_group == "ath"

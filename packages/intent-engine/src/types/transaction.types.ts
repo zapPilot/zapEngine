@@ -47,14 +47,14 @@ export interface RotateTransactionPlan {
     expectedOutput: string; // final amount
   };
   // Approval required before the LI.FI step, if any. Callers should prepend
-  // this approval when executing via Multicall3 (EIP-7702 can bundle it).
+  // this approval for EIP-7702 bundles or send it first in sequential mode.
   approval?: {
     tokenAddress: Address;
     spenderAddress: Address;
     amount: string;
   };
   // Execution strategy determined at runtime
-  strategy?: 'eip7702' | 'multicall3' | 'sequential';
+  strategy?: 'eip7702' | 'sequential';
 }
 
 // Simulation result (for Tenderly or similar)

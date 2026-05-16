@@ -56,4 +56,116 @@ describe('buildClassroomSegments', () => {
       },
     ]);
   });
+
+  it('throws when targetLanguageCode is not a supported language classroom code', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'fr',
+      oneLiner: 'Bonjour le monde',
+      keywords: [],
+    };
+
+    expect(() => buildClassroomSegments(lesson)).toThrow(
+      'Unsupported language classroom code: fr',
+    );
+  });
+
+  it('returns empty segment when oneLiner is only whitespace', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: '   ',
+      keywords: [],
+    };
+
+    const segments = buildClassroomSegments(lesson);
+    expect(segments).toEqual([
+      {
+        text: '接下來是日文小教室。',
+        languageCode: 'zh-Hant',
+      },
+      {
+        text: '',
+        languageCode: 'ja',
+      },
+    ]);
+  });
+
+  it('uses Japanese explanation narration for Japanese source lessons', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'ja',
+      targetLanguageCode: 'en',
+      oneLiner: 'Markets rally on softer inflation',
+      keywords: [
+        {
+          term: 'inflation',
+          reading: null,
+          meaning: '物価が継続的に上がること',
+          note: '経済ニュースでよく出ます',
+        },
+      ],
+    };
+
+    expect(buildClassroomSegments(lesson)).toEqual([
+      {
+        text: '次は英語ミニレッスンです。',
+        languageCode: 'ja',
+      },
+      {
+        text: 'Markets rally on softer inflation.',
+        languageCode: 'en',
+      },
+      {
+        text: 'inflation.',
+        languageCode: 'en',
+      },
+      {
+        text: '物価が継続的に上がることという意味です。',
+        languageCode: 'ja',
+      },
+      {
+        text: '補足：経済ニュースでよく出ます。',
+        languageCode: 'ja',
+      },
+    ]);
+  });
+
+  it('uses English explanation narration for English source lessons', () => {
+    const lesson: LanguageClassroomLesson = {
+      sourceLanguageCode: 'en',
+      targetLanguageCode: 'ja',
+      oneLiner: '市場はインフレ鈍化で上昇。',
+      keywords: [
+        {
+          term: '市場',
+          reading: 'しじょう',
+          meaning: 'market',
+          note: 'Common in financial news',
+        },
+      ],
+    };
+
+    expect(buildClassroomSegments(lesson)).toEqual([
+      {
+        text: 'Next is the Japanese language classroom.',
+        languageCode: 'en',
+      },
+      {
+        text: '市場はインフレ鈍化で上昇。',
+        languageCode: 'ja',
+      },
+      {
+        text: '市場，しじょう。',
+        languageCode: 'ja',
+      },
+      {
+        text: 'It means market.',
+        languageCode: 'en',
+      },
+      {
+        text: 'Note: Common in financial news.',
+        languageCode: 'en',
+      },
+    ]);
+  });
 });

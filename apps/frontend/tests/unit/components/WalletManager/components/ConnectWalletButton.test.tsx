@@ -46,7 +46,13 @@ describe('ConnectWalletButton', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls connect with first connector on click', () => {
+  it('calls connect with the first connector directly and does not render a picker', () => {
+    const connectors = [
+      { id: 'io.rabby', name: 'Rabby' },
+      { id: 'io.metamask', name: 'MetaMask' },
+    ];
+    mockUseConnectors.mockReturnValue(connectors);
+
     render(<ConnectWalletButton />);
 
     fireEvent.click(
@@ -54,8 +60,10 @@ describe('ConnectWalletButton', () => {
     );
 
     expect(mockConnect).toHaveBeenCalledWith({
-      connector: { id: 'injected', name: 'MetaMask' },
+      connector: connectors[0],
     });
+    expect(mockConnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it("shows 'Connecting...' when connection is pending", () => {
@@ -82,7 +90,11 @@ describe('ConnectWalletButton', () => {
 
     render(<ConnectWalletButton />);
 
-    expect(screen.getByText('0x1234...5678')).toBeInTheDocument();
+    const connectedButton = screen.getByRole('button', {
+      name: '0x1234...5678',
+    });
+    expect(connectedButton).toBeInTheDocument();
+    expect(connectedButton).toBeDisabled();
   });
 
   it('applies custom className', () => {

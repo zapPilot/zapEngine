@@ -91,7 +91,11 @@ export function parseSymbolsArray(
     .filter((part) => part.trim().length > 0);
 
   if (!underlyingTokens?.length) {
-    return symbolParts.length > 1 ? symbolParts : [cleanSymbol];
+    if (symbolParts.length > 1) {
+      return symbolParts;
+    }
+
+    return [cleanSymbol];
   }
 
   const expectedParts = underlyingTokens.length;
@@ -136,7 +140,11 @@ export function cleanRewardTokens(
       typeof token === 'string' && token.trim().length > 0,
   );
 
-  return cleanTokens.length > 0 ? cleanTokens : null;
+  if (cleanTokens.length === 0) {
+    return null;
+  }
+
+  return cleanTokens;
 }
 
 function logParseWarning(type: string, context: SymbolParseLogContext): void {

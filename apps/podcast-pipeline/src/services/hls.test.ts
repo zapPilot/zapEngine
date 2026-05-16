@@ -23,7 +23,7 @@ const createFfmpegMock = (): FfmpegMock => ({
   outputOptions: vi.fn().mockReturnThis(),
   output: vi.fn().mockReturnThis(),
   on: vi.fn().mockImplementation((_event: string, cb: () => void) => {
-    setTimeout(cb, 20);
+    queueMicrotask(cb);
     return vi.mocked(createFfmpegMock());
   }),
   run: vi.fn(),

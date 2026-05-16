@@ -1,7 +1,8 @@
 import {
   createConfig,
-  getQuote,
+  getQuote as getLiFiQuote,
   getContractCallsQuote,
+  getToken as getLiFiToken,
   type QuoteRequest,
   type ContractCallsQuoteRequest,
 } from '@lifi/sdk';
@@ -46,6 +47,37 @@ export interface LiFiAdapterConfig {
   apiKey?: string;
 }
 
+/**
+ * Lightweight token metadata + spot USD price, sourced from LI.FI's
+ * `getToken` endpoint. Used for valuing wallet balances without
+ * requiring a swap/route quote.
+ */
+export interface LiFiTokenInfo {
+  address: string;
+  symbol: string;
+  decimals: number;
+  /** Spot price in USD, as a decimal string (LI.FI native format) */
+  priceUSD: string;
+}
+
+function isNativeTokenAddress(address: string): boolean {
+  const normalized = address.toLowerCase();
+  return (
+    normalized === '0x0000000000000000000000000000000000000000' ||
+    normalized === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+  );
+}
+
+// Normalize an EVM JSON-RPC quantity (hex `0x186a0`, decimal `100000`, or
+// empty/missing) into a base-unit decimal-integer string. Returns `undefined`
+// for empty/missing input so optional schema fields stay absent.
+function toBaseUnitString(input: string | undefined): string | undefined {
+  if (input === undefined || input === '' || input === '0x') {
+    return undefined;
+  }
+  return BigInt(input).toString(10);
+}
+
 export class LiFiAdapter {
   private initialized = false;
 
@@ -87,8 +119,7 @@ export class LiFiAdapter {
         toAddress: params.toAddress ?? params.fromAddress,
         slippage: (params.slippageBps ?? 50) / 10000, // Convert bps to decimal
       };
-
-      const quote = await getQuote(request);
+      const quote = await getLiFiQuote(request);
       return this.mapQuoteToTransaction(
         quote as unknown as LiFiQuoteResponse,
         'SWAP',
@@ -101,36 +132,82 @@ export class LiFiAdapter {
   }
 
   /**
-   * Get quote with custom contract calls
-   * Use this for complex protocol interactions
+   * Get a route quote and preserve whether the caller is composing a bridge
+   * or a plain swap in the returned transaction metadata.
    */
-  async getContractCallQuote(params: {
+  async getQuote(params: {
     fromChain: number;
     toChain: number;
     fromToken: Address;
     toToken: Address;
-    toAmount: string;
+    fromAmount: string;
     fromAddress: Address;
-    contractCalls: Array<{
-      fromAmount: string;
-      fromTokenAddress: Address;
-      toContractAddress: Address;
-      toContractCallData: `0x${string}`;
-      toContractGasLimit: string;
-    }>;
+    toAddress?: Address;
+    slippageBps?: number;
+    intentType?: 'SWAP' | 'BRIDGE' | 'SUPPLY';
   }): Promise<TransactionQuote> {
     this.ensureInitialized();
 
     try {
-      const request: ContractCallsQuoteRequest = {
+      const request: QuoteRequest = {
         fromChain: params.fromChain,
         toChain: params.toChain,
         fromToken: params.fromToken,
         toToken: params.toToken,
-        toAmount: params.toAmount,
+        fromAmount: params.fromAmount,
+        fromAddress: params.fromAddress,
+        toAddress: params.toAddress ?? params.fromAddress,
+        slippage: (params.slippageBps ?? 50) / 10000,
+      };
+
+      const quote = await getLiFiQuote(request);
+      return this.mapQuoteToTransaction(
+        quote as unknown as LiFiQuoteResponse,
+        params.intentType ??
+          (params.fromChain === params.toChain ? 'SWAP' : 'BRIDGE'),
+      );
+    } catch (error) {
+      throw new QuoteError('Failed to get quote from LI.FI', {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Get quote with custom contract calls
+   * Use this for complex protocol interactions
+   */
+  async getContractCallQuote(
+    params: {
+      fromChain: number;
+      toChain: number;
+      fromToken: Address;
+      toToken: Address;
+      fromAddress: Address;
+      contractCalls: Array<{
+        fromAmount: string;
+        fromTokenAddress: Address;
+        toContractAddress: Address;
+        toContractCallData: `0x${string}`;
+        toContractGasLimit: string;
+      }>;
+    } & ({ fromAmount: string } | { toAmount: string }),
+  ): Promise<TransactionQuote> {
+    this.ensureInitialized();
+
+    try {
+      const baseRequest = {
+        fromChain: params.fromChain,
+        toChain: params.toChain,
+        fromToken: params.fromToken,
+        toToken: params.toToken,
         fromAddress: params.fromAddress,
         contractCalls: params.contractCalls,
       };
+      const request: ContractCallsQuoteRequest =
+        'fromAmount' in params
+          ? { ...baseRequest, fromAmount: params.fromAmount }
+          : { ...baseRequest, toAmount: params.toAmount };
 
       const quote = await getContractCallsQuote(request);
       return this.mapQuoteToTransaction(
@@ -139,6 +216,38 @@ export class LiFiAdapter {
       );
     } catch (error) {
       throw new QuoteError('Failed to get contract call quote from LI.FI', {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Fetch token metadata and spot USD price from LI.FI.
+   *
+   * Unlike the quote methods this performs no routing — it is a cheap
+   * single lookup intended for valuing wallet balances. Stablecoins
+   * (e.g. USDC) resolve to ~$1 from the same call, so no special-casing
+   * is required by callers.
+   */
+  async getTokenPrice(
+    chainId: number,
+    tokenAddress: string,
+  ): Promise<LiFiTokenInfo> {
+    this.ensureInitialized();
+
+    try {
+      const token = await getLiFiToken(
+        chainId as Parameters<typeof getLiFiToken>[0],
+        tokenAddress,
+      );
+      return {
+        address: token.address,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        priceUSD: token.priceUSD,
+      };
+    } catch (error) {
+      throw new QuoteError('Failed to get token price from LI.FI', {
         cause: error,
       });
     }
@@ -161,12 +270,12 @@ export class LiFiAdapter {
     const transaction: PreparedTransaction = {
       to: tx.to as Address,
       data: tx.data as `0x${string}`,
-      value: (tx.value ?? '0').toString(),
+      value: toBaseUnitString(tx.value) ?? '0',
       chainId: quote.action.fromChainId,
-      gasLimit: tx.gasLimit,
+      gasLimit: toBaseUnitString(tx.gasLimit),
       meta: {
         intentType,
-        estimatedGas: tx.gasLimit,
+        estimatedGas: toBaseUnitString(tx.gasLimit),
         estimatedDuration: executionDuration,
         route: quote,
       },
@@ -175,8 +284,7 @@ export class LiFiAdapter {
     // Check if approval is needed
     const approval =
       quote.estimate.approvalAddress &&
-      quote.action.fromToken.address !==
-        '0x0000000000000000000000000000000000000000'
+      !isNativeTokenAddress(quote.action.fromToken.address)
         ? {
             tokenAddress: quote.action.fromToken.address as Address,
             spenderAddress: quote.estimate.approvalAddress as Address,

@@ -4,6 +4,7 @@ import 'package:zapengine_tokens/design_tokens.dart';
 
 import '../state/auth_provider.dart';
 import '../theme/colors.dart';
+import '../widgets/branded_backdrop.dart';
 import 'home_shell.dart';
 
 class AuthGate extends StatefulWidget {
@@ -48,7 +49,7 @@ class _AuthGateState extends State<AuthGate> {
     final auth = context.watch<AuthProvider>();
 
     if (auth.loading) {
-      return const _BrandedScaffold(
+      return const BrandedBackdrop(
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -57,7 +58,7 @@ class _AuthGateState extends State<AuthGate> {
       return const HomeShell();
     }
 
-    return _BrandedScaffold(
+    return BrandedBackdrop(
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -193,32 +194,6 @@ class _AuthGateState extends State<AuthGate> {
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     }
-  }
-}
-
-class _BrandedScaffold extends StatelessWidget {
-  const _BrandedScaffold({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppColors.surfaceElevated,
-              AppColors.background,
-              AppColors.background,
-            ],
-          ),
-        ),
-        child: child,
-      ),
-    );
   }
 }
 

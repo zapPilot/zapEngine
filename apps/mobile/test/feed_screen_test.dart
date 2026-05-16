@@ -7,6 +7,7 @@ import 'package:ai_podcast_mobile/services/auth_service.dart';
 import 'package:ai_podcast_mobile/services/episode_service.dart';
 import 'package:ai_podcast_mobile/services/likes_service.dart';
 import 'package:ai_podcast_mobile/state/auth_provider.dart';
+import 'package:ai_podcast_mobile/state/content_language_provider.dart';
 import 'package:ai_podcast_mobile/state/likes_provider.dart';
 import 'package:ai_podcast_mobile/state/playback_provider.dart';
 import 'package:ai_podcast_mobile/theme/app_theme.dart';
@@ -174,12 +175,31 @@ void main() {
 
     await handler.dispose();
   });
+
+  testWidgets('reloads feed episodes when content language changes', (
+    tester,
+  ) async {
+    final languageProvider = ContentLanguageProvider();
+    final service = _FeedEpisodeService();
+
+    await _pumpFeed(
+      tester,
+      service,
+      languageProvider: languageProvider,
+    );
+
+    await languageProvider.setLanguageCode('en');
+    await tester.pumpAndSettle();
+
+    expect(service.requestedLanguageCodes, ['zh-Hant', 'en']);
+  });
 }
 
 Future<void> _pumpFeed(
   WidgetTester tester,
   _FeedEpisodeService episodeService, {
   FakePodcastAudioHandler? audioHandler,
+  ContentLanguageProvider? languageProvider,
 }) async {
   final authProvider = AuthProvider(
     authService: _FakeAuthService(
@@ -193,6 +213,9 @@ Future<void> _pumpFeed(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<ContentLanguageProvider>.value(
+          value: languageProvider ?? ContentLanguageProvider(),
+        ),
         ChangeNotifierProvider(
           create: (_) =>
               PlaybackProvider(handler, episodeService: episodeService),
@@ -227,6 +250,7 @@ class _FeedEpisodeService extends EpisodeService {
   final Map<String, UserEpisodeState> states;
   final Object? stateError;
   final List<_ListenedWrite> listenedWrites = [];
+  final List<String> requestedLanguageCodes = [];
   int userStateRequests = 0;
 
   @override
@@ -235,6 +259,7 @@ class _FeedEpisodeService extends EpisodeService {
     String? cursor,
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
+    requestedLanguageCodes.add(languageCode);
     return EpisodePage(
       items: episodes,
       nextCursor: null,

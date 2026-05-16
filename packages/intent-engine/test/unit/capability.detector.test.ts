@@ -75,13 +75,13 @@ describe('determineExecutionStrategy', () => {
     getCapabilitiesMock.mockReset();
   });
 
-  it('returns "multicall3" when no wallet is provided', async () => {
-    expect(await determineExecutionStrategy()).toBe('multicall3');
+  it('returns "sequential" when no wallet is provided', async () => {
+    expect(await determineExecutionStrategy()).toBe('sequential');
     expect(getCapabilitiesMock).not.toHaveBeenCalled();
   });
 
-  it('returns "multicall3" when wallet is provided but chainId is not', async () => {
-    expect(await determineExecutionStrategy(DUMMY_WALLET)).toBe('multicall3');
+  it('returns "sequential" when wallet is provided but chainId is not', async () => {
+    expect(await determineExecutionStrategy(DUMMY_WALLET)).toBe('sequential');
     expect(getCapabilitiesMock).not.toHaveBeenCalled();
   });
 
@@ -92,19 +92,19 @@ describe('determineExecutionStrategy', () => {
     expect(await determineExecutionStrategy(DUMMY_WALLET, 1)).toBe('eip7702');
   });
 
-  it('returns "multicall3" when the wallet does not support atomic batching', async () => {
+  it('returns "sequential" when the wallet does not support atomic batching', async () => {
     getCapabilitiesMock.mockResolvedValueOnce({
       atomic: { status: 'unsupported' },
     });
     expect(await determineExecutionStrategy(DUMMY_WALLET, 1)).toBe(
-      'multicall3',
+      'sequential',
     );
   });
 
-  it('returns "multicall3" when capability detection errors', async () => {
+  it('returns "sequential" when capability detection errors', async () => {
     getCapabilitiesMock.mockRejectedValueOnce(new Error('network error'));
     expect(await determineExecutionStrategy(DUMMY_WALLET, 1)).toBe(
-      'multicall3',
+      'sequential',
     );
   });
 });

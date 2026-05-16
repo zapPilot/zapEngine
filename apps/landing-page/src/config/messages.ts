@@ -42,7 +42,7 @@ export const MESSAGES = {
   slogans: {
     philosophy: 'Buy in fear. Defend in greed.',
     philosophyDescription:
-      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet in one bundled transaction. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
+      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet with atomic batching where supported. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
   },
 
   // Hero section
@@ -52,7 +52,7 @@ export const MESSAGES = {
       primary: 'A Non-Custodial BlackRock in Your Wallet.',
     },
     subtitle:
-      'Rules-based across S&P500, BTC/ETH, and stables — bundled into one signature you keep.',
+      'Rules-based across S&P500, BTC/ETH, and stables — wallet-signed execution you keep.',
     ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
     ctaSecondary: 'See the Backtest',
   },
@@ -121,7 +121,7 @@ export const MESSAGES = {
       {
         title: 'One-Click Bundled Rebalance',
         description:
-          'EIP-7702 batch on supported wallets, multicall3 as fallback. Every regime shift becomes a single transaction across the three pillars — one signature, fully self-custodial, fully transparent.',
+          'EIP-7702 atomic batch on supported wallets; unsupported wallets execute approval and rebalance transactions sequentially. Every regime shift stays fully self-custodial and transparent.',
       },
     ],
   },
@@ -152,7 +152,7 @@ export const MESSAGES = {
         icon: 'Zap' as const,
         title: 'Execute',
         description:
-          'Sign one bundled transaction in your own wallet — EIP-7702 batch on supported wallets, multicall3 as fallback. Idle capital quietly earns baseline yield until the next signal.',
+          'Sign an atomic EIP-7702 bundle when your wallet supports it, or approve then execute sequentially from your own wallet. Idle capital quietly earns baseline yield until the next signal.',
         color: 'from-green-500 to-emerald-600',
       },
     ],
@@ -226,7 +226,7 @@ export const MESSAGES = {
 
   // V2 How It Works section
   howItWorksV2: {
-    title: 'Three steps. One signature.',
+    title: 'Three steps. Your signature.',
     subtitle:
       'The engine turns regime data into a concrete allocation change, then hands execution back to your wallet.',
     steps: [
@@ -244,9 +244,9 @@ export const MESSAGES = {
       },
       {
         title: 'Sign',
-        meta: 'EIP-7702 · multicall3',
+        meta: 'EIP-7702 · sequential',
         description:
-          'Telegram delivers a pre-built bundle. EIP-7702 batch on supported wallets, multicall3 fallback. One signature, your keys.',
+          'Telegram delivers a pre-built plan. Atomic wallets sign one EIP-7702 bundle; other wallets approve and execute sequentially. Your keys stay in control.',
       },
     ],
   },
@@ -267,7 +267,7 @@ export const MESSAGES = {
   footer: {
     brand: {
       description:
-        'A regime-driven 3-pillar allocator (S&P500 · BTC/ETH · Stables), executed from your own wallet in one bundled transaction. 100% self-custody.',
+        'A regime-driven 3-pillar allocator (S&P500 · BTC/ETH · Stables), executed from your own wallet. 100% self-custody.',
     },
     sections: {
       product: 'Product',
@@ -301,7 +301,7 @@ export const MESSAGES = {
       show: 'Show Transition',
       hide: 'Hide Transition',
     },
-    timeframe: 'One bundled transaction',
+    timeframe: 'Wallet-signed execution',
     maintaining: {
       message: 'Maintaining current allocation',
       subtitle: 'Zero rebalancing — Holiday Mode',
@@ -313,7 +313,7 @@ export const MESSAGES = {
     selfCustody: 'Your keys, your crypto, always',
     sentimentDriven: 'Driven by macro regime, not emotion',
     manualSigning: 'You sign every transaction',
-    oneClickExecution: 'One bundled, one signature',
+    oneClickExecution: 'Atomic when supported',
     notAFund: 'Not a fund. You are in control.',
   },
 
@@ -390,7 +390,7 @@ export const MESSAGES = {
       {
         question: 'Which chain does this run on?',
         answer:
-          'Zap Pilot is built for EVM mainnet execution with wallet-signed bundles. EIP-7702 batching is used where supported, with multicall3 as the fallback path.',
+          'Zap Pilot is built for EVM mainnet execution with wallet-signed plans. EIP-7702 atomic batching is used where supported, with sequential approval and execution transactions as the fallback path.',
       },
       {
         question: 'What if Ondo, Morpho, GMX, or Hyperliquid has an issue?',

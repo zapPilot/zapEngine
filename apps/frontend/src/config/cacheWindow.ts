@@ -1,5 +1,4 @@
-import { getRuntimeEnv } from '@/lib/env/runtimeEnv';
-import { toSeconds } from '@/lib/utils/env';
+import { getRuntimeEnv, toSeconds } from '@/lib/env/runtimeEnv';
 
 const DEFAULT_MAX_AGE_SECONDS = toSeconds(
   getRuntimeEnv('VITE_CACHE_MAX_AGE_SECONDS'),

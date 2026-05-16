@@ -48,11 +48,46 @@ describe('Analytics Transformers', () => {
       const result = transformToPerformanceChart(dashboard);
 
       expect(result.points).toHaveLength(1);
-      // Single point: x = 0 / (1-1) * 100 = 0/0 * 100 = NaN * 100 = NaN
-      expect(isNaN(result.points[0].x)).toBe(true);
+      expect(result.points[0].x).toBe(0);
       expect(result.points[0].portfolio).toBe(50); // Single point normalized to middle (range = 0)
       expect(result.points[0].date).toBe('2024-01-01');
       expect(result.points[0].portfolioValue).toBe(10000);
+    });
+
+    it('falls back to drawdown portfolio values when trends has a partial failure payload', () => {
+      const dashboard = {
+        trends: {
+          error: true,
+          error_type: 'SQLAlchemyError',
+          service: 'trends',
+        },
+        drawdown_analysis: {
+          enhanced: {
+            drawdown_data: [
+              { date: '2025-08-08', portfolio_value: 94315.63 },
+              { date: '2025-08-10', portfolio_value: 98218.13 },
+            ],
+          },
+        },
+      } as unknown as UnifiedDashboardResponse;
+
+      const result = transformToPerformanceChart(dashboard);
+
+      expect(result.points).toHaveLength(2);
+      expect(result.points[0]).toMatchObject({
+        x: 0,
+        date: '2025-08-08',
+        portfolioValue: 94315.63,
+        portfolio: 100,
+      });
+      expect(result.points[1]).toMatchObject({
+        x: 100,
+        date: '2025-08-10',
+        portfolioValue: 98218.13,
+        portfolio: 0,
+      });
+      expect(result.startDate).toBe('2025-08-08');
+      expect(result.endDate).toBe('2025-08-10');
     });
 
     it('should normalize portfolio values to 0-100 scale', () => {

@@ -11,7 +11,7 @@ See @README.md for project overview and @package.json for available scripts.
 
 - Unit tests: `pnpm test:unit` (not `pnpm test`)
 - Component tests: use `renderWithProviders()` from `tests/test-utils.tsx`
-- Coverage is validated on Node 20 — newer versions are best-effort
+- Coverage is validated on Node 24 — other majors are best-effort (see `scripts/run-sharded-coverage.js`)
 
 # Gotchas
 

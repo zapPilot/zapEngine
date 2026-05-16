@@ -7,11 +7,12 @@ from typing import Any, cast, get_args
 from src.models.backtesting import ActionType
 from src.services.backtesting.decision import RuleGroup
 
+_VALID_ACTIONS = frozenset(get_args(ActionType))
 _VALID_RULE_GROUPS = frozenset(get_args(RuleGroup))
 
 
 def coerce_action(value: Any) -> ActionType:
-    if value in {"buy", "sell", "hold"}:
+    if value in _VALID_ACTIONS:
         return cast(ActionType, value)
     return "hold"
 

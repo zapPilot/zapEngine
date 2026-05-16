@@ -29,6 +29,7 @@
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
+    "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "^0.7.4",
@@ -37,6 +38,7 @@
     "hono": "catalog:",
     "nodemailer": "^7.0.6",
     "telegraf": "^4.16.3",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/auth_gate.dart';
+import 'screens/splash_screen.dart';
 import 'services/audio_player_handler.dart';
 import 'services/deep_link_service.dart';
 import 'services/episode_service.dart';
 import 'state/auth_provider.dart';
+import 'state/content_language_provider.dart';
 import 'state/likes_provider.dart';
 import 'state/playback_provider.dart';
 import 'theme/app_theme.dart';
@@ -114,6 +115,7 @@ class _AiPodcastAppState extends State<AiPodcastApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ContentLanguageProvider()),
         ChangeNotifierProvider(
           create: (_) => PlaybackProvider(
             widget.audioHandler,
@@ -127,7 +129,7 @@ class _AiPodcastAppState extends State<AiPodcastApp> {
         title: 'From Fed to Chain',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark(),
-        home: AuthGate(supabaseConfigured: widget.supabaseConfigured),
+        home: SplashScreen(supabaseConfigured: widget.supabaseConfigured),
       ),
     );
   }

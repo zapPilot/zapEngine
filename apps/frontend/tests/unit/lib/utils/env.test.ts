@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { toSeconds } from '@/lib/utils/env';
+import { toSeconds } from '@/lib/env/runtimeEnv';
 
 describe('env', () => {
   describe('toSeconds', () => {

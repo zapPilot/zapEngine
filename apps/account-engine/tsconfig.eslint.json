@@ -5,6 +5,7 @@
     "noEmit": true
   },
   "include": [
+    "knip.ts",
     "src/**/*",
     "test/**/*.ts",
     "tsconfig.test.json"

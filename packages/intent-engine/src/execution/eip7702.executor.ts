@@ -12,9 +12,8 @@ import type {
  *
  * Wallets that support EIP-7702 atomic execution will sign a single authorization
  * and dispatch the batch atomically; others may fall back to sequential sending.
- * Setting `forceAtomic: true` rejects wallets that cannot execute atomically —
- * callers that don't want that should handle the rejection and retry via
- * `encodeMulticall3` + a standard tx.
+ * Setting `forceAtomic: true` rejects wallets that cannot execute atomically;
+ * callers should send those plans as sequential EOA transactions instead.
  *
  * The returned result carries a `callsId` — opaque to the caller. Use
  * {@link waitForEIP7702Confirmation} to resolve it into a tx hash/receipt.

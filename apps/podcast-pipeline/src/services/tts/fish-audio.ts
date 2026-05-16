@@ -1,12 +1,20 @@
-import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
+import type { UsageCostLine } from '../cost.js';
+import type {
+  TtsMetadata,
+  TtsSynthesisResult,
+  TtsSynthesizeOptions,
+} from '../tts.js';
 
 const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
+const FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES = 15;
+const FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE =
+  FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES / 1_000_000;
 const ERROR_BODY_LIMIT = 300;
 
 export async function synthesize(
   text: string,
   opts: TtsSynthesizeOptions,
-): Promise<Buffer> {
+): Promise<TtsSynthesisResult> {
   const apiKey = process.env['FISH_AUDIO_API_KEY']?.trim();
   if (!apiKey) {
     throw new Error('FISH_AUDIO_API_KEY is required for Fish Audio TTS');
@@ -40,7 +48,10 @@ export async function synthesize(
     );
   }
 
-  return Buffer.from(await response.arrayBuffer());
+  return {
+    audio: Buffer.from(await response.arrayBuffer()),
+    cost: [buildFishAudioCostLine(text, opts)],
+  };
 }
 
 export function getMetadata(opts: TtsSynthesizeOptions): TtsMetadata {
@@ -60,6 +71,27 @@ function getFishAudioConfig(opts: TtsSynthesizeOptions) {
   }
 
   return opts.config;
+}
+
+export function buildFishAudioCostLine(
+  text: string,
+  opts: TtsSynthesizeOptions,
+): UsageCostLine {
+  const config = getFishAudioConfig(opts);
+  const utf8Bytes = Buffer.byteLength(text, 'utf8');
+
+  return {
+    category: 'tts',
+    label: opts.costLabel ?? 'TTS audio',
+    provider: 'fish-audio',
+    model: config.engine,
+    costUsd: utf8Bytes * FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE,
+    usage: {
+      unit: 'utf8_bytes',
+      quantity: utf8Bytes,
+      unitPriceUsd: FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE,
+    },
+  };
 }
 
 async function getErrorBody(response: Response): Promise<string> {

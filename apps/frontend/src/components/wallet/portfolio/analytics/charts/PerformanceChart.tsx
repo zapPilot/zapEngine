@@ -110,20 +110,24 @@ export const PerformanceChart = memo<PerformanceChartProps>(
             </linearGradient>
           </defs>
 
-          {/* Portfolio Area Fill */}
-          <path
-            d={`M 0,${height} L ${portfolioPath} L ${width},${height} Z`}
-            fill="url(#portfolioGradient)"
-          />
+          {portfolioPath && (
+            <>
+              {/* Portfolio Area Fill */}
+              <path
+                d={`M 0,${height} L ${portfolioPath} L ${width},${height} Z`}
+                fill="url(#portfolioGradient)"
+              />
 
-          {/* Portfolio Line */}
-          <path
-            d={`M ${portfolioPath}`}
-            fill="none"
-            stroke="#8B5CF6"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
+              {/* Portfolio Line */}
+              <path
+                d={`M ${portfolioPath}`}
+                fill="none"
+                stroke="#8B5CF6"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+              />
+            </>
+          )}
 
           {/* Hover indicator */}
           <ChartIndicator hoveredPoint={performanceHover.hoveredPoint} />

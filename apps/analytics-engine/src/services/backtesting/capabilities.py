@@ -12,6 +12,10 @@ from src.services.backtesting.utils.two_bucket import calculate_runtime_allocati
 RuntimePortfolioMode = Literal["aggregate", "asset"]
 
 
+def _clamp_to_zero(value: float | None) -> float:
+    return max(0.0, float(value)) if value is not None else 0.0
+
+
 @dataclass(frozen=True)
 class PortfolioBuckets:
     """Normalized two-bucket portfolio view used by backtesting services."""
@@ -43,18 +47,15 @@ class PortfolioBuckets:
             and self.alt_value is None
         ):
             return None
-        btc_value = max(0.0, float(0.0 if self.btc_value is None else self.btc_value))
-        eth_value = max(0.0, float(0.0 if self.eth_value is None else self.eth_value))
-        spy_value = max(0.0, float(0.0 if self.spy_value is None else self.spy_value))
-        stable_value = max(
-            0.0,
-            float(
-                self.stable_value
-                if self.stable_category_value is None
-                else self.stable_category_value
-            ),
+        btc_value = _clamp_to_zero(self.btc_value)
+        eth_value = _clamp_to_zero(self.eth_value)
+        spy_value = _clamp_to_zero(self.spy_value)
+        stable_value = _clamp_to_zero(
+            self.stable_value
+            if self.stable_category_value is None
+            else self.stable_category_value
         )
-        alt_value = max(0.0, float(0.0 if self.alt_value is None else self.alt_value))
+        alt_value = _clamp_to_zero(self.alt_value)
         total = btc_value + eth_value + spy_value + stable_value + alt_value
         if total <= 0.0:
             return {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}

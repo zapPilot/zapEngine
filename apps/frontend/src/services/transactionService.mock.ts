@@ -82,6 +82,29 @@ const MOCK_TOKENS: TransactionToken[] = [
     popular: true,
     logo_url: '/tokens/matic.svg',
   },
+  {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    chainId: 8453,
+    decimals: 6,
+    usdPrice: 1,
+    category: 'stable',
+    popular: true,
+    logo_url: '/tokens/usdc.svg',
+  },
+  {
+    symbol: 'ETH',
+    name: 'Ethereum',
+    address: '0x0000000000000000000000000000000000000000',
+    chainId: 8453,
+    decimals: 18,
+    usdPrice: 3200,
+    category: 'crypto',
+    popular: true,
+    logo_url: '/tokens/eth.svg',
+    type: 'native',
+  },
 ];
 
 const MOCK_TOKEN_BALANCES: Record<
@@ -92,6 +115,14 @@ const MOCK_TOKEN_BALANCES: Record<
   '1:0xeth': { balance: '2.5', usdValue: 8000 },
   '1:0xwbtc': { balance: '0.05', usdValue: 3250 },
   '137:0xmatic': { balance: '1200', usdValue: 984 },
+  '8453:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913': {
+    balance: '1000.50',
+    usdValue: 1000.5,
+  },
+  '8453:0x0000000000000000000000000000000000000000': {
+    balance: '2.5',
+    usdValue: 8000,
+  },
 };
 
 function createTxHash(): string {

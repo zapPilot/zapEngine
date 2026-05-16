@@ -24,20 +24,20 @@ zapEngine/
     └── types               # Shared TypeScript types & Zod schemas
 ```
 
-| App              | Language     | Framework         | Deploy                 |
-| ---------------- | ------------ | ----------------- | ---------------------- |
-| account-engine   | TypeScript   | Hono 4.10         | Fly.io                 |
-| alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
-| analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
-| frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
-| landing-page     | TypeScript   | Next.js 15        | Vercel                 |
-| mobile           | Dart         | Flutter           | App Store / Play Store |
-| pitch-deck       | HTML/Markdown| Reveal.js         | GitHub Pages           |
-| podcast-pipeline | TypeScript   | Hono 4.10         | Fly.io                 |
+| App              | Language      | Framework         | Deploy                 |
+| ---------------- | ------------- | ----------------- | ---------------------- |
+| account-engine   | TypeScript    | Hono 4.12         | Fly.io                 |
+| alpha-etl        | TypeScript    | Express 4.18      | Fly.io                 |
+| analytics-engine | Python 3.11+  | FastAPI           | Fly.io                 |
+| frontend         | TypeScript    | React 19 + Vite 7 | Vercel                 |
+| landing-page     | TypeScript    | Next.js 15        | Vercel                 |
+| mobile           | Dart          | Flutter           | App Store / Play Store |
+| pitch-deck       | HTML/Markdown | Reveal.js         | GitHub Pages           |
+| podcast-pipeline | TypeScript    | Hono 4.12         | Fly.io                 |
 
 ## Prerequisites
 
-- Node.js >= 22
+- Node.js 24.x
 - pnpm >= 10 (`npm i -g pnpm`)
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/) (for analytics-engine only)
 - Flutter 3.32+ (for mobile only)

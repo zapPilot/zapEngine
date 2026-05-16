@@ -50,6 +50,13 @@ export default defineConfig({
         ),
       },
       {
+        find: /^@zapengine\/types\/api$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../packages/types/src/api/index.ts',
+        ),
+      },
+      {
         find: /^@zapengine\/types\/(.*)$/,
         replacement: path.resolve(__dirname, '__mocks__/@zapengine/types/$1'),
       },

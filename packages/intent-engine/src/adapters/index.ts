@@ -1,4 +1,8 @@
-export { LiFiAdapter, type LiFiAdapterConfig } from './lifi.adapter.js';
+export {
+  LiFiAdapter,
+  type LiFiAdapterConfig,
+  type LiFiTokenInfo,
+} from './lifi.adapter.js';
 export {
   type SimulationAdapter,
   TenderlySimulationAdapter,

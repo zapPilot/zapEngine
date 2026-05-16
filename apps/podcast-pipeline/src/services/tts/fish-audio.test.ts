@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getMetadata, synthesize } from './fish-audio.js';
+import {
+  buildFishAudioCostLine,
+  getMetadata,
+  synthesize,
+} from './fish-audio.js';
 
 function responseFromArray(bytes: Uint8Array): Response {
   return {
@@ -41,14 +45,24 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('哈囉，這是 Fish Audio 測試', {
       languageCode: 'zh-Hant',
+      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
-        engine: 'speech-1.6',
+        engine: 's1',
       },
+      costLabel: 'TTS main audio',
     });
 
-    expect(result).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+    expect(result.cost).toEqual([
+      expect.objectContaining({
+        category: 'tts',
+        label: 'TTS main audio',
+        provider: 'fish-audio',
+        model: 's1',
+      }),
+    ]);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.fish.audio/v1/tts',
       expect.objectContaining({
@@ -56,7 +70,7 @@ describe('Fish Audio TTS provider', () => {
         headers: {
           authorization: 'Bearer fish-test-key',
           'content-type': 'application/json',
-          model: 'speech-1.6',
+          model: 's1',
         },
       }),
     );
@@ -73,6 +87,32 @@ describe('Fish Audio TTS provider', () => {
     });
   });
 
+  it('estimates cost from UTF-8 input bytes', () => {
+    const cost = buildFishAudioCostLine('測試', {
+      languageCode: 'zh-Hant',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-model-id',
+        engine: 's2-pro',
+      },
+      costLabel: 'TTS main audio',
+    });
+
+    expect(cost).toEqual({
+      category: 'tts',
+      label: 'TTS main audio',
+      provider: 'fish-audio',
+      model: 's2-pro',
+      costUsd: 0.00009,
+      usage: {
+        unit: 'utf8_bytes',
+        quantity: 6,
+        unitPriceUsd: 0.000015,
+      },
+    });
+  });
+
   it('throws when FISH_AUDIO_API_KEY is missing', async () => {
     const mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
@@ -81,6 +121,7 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('缺少金鑰', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -103,6 +144,7 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('服務錯誤', {
         languageCode: 'zh-Hant',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -125,6 +167,7 @@ describe('Fish Audio TTS provider', () => {
     expect(
       getMetadata({
         languageCode: 'ja',
+        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-ja-model',
@@ -136,5 +179,67 @@ describe('Fish Audio TTS provider', () => {
       languageCode: 'ja',
       voiceName: 'custom-ja-model',
     });
+  });
+
+  it('throws when response.text() throws during error body reading', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: vi.fn().mockRejectedValue(new Error('text extraction failed')),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('Fish Audio TTS failed: 500 Internal Server Error');
+  });
+
+  it('throws with status and short (untruncated) body when error response body is short', async () => {
+    const shortBody = 'rate limit exceeded';
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(errorResponse(429, '', shortBody));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('Fish Audio TTS failed: 429: rate limit exceeded');
+  });
+
+  it('throws when getFishAudioConfig detects wrong provider', async () => {
+    const mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('測試', {
+        languageCode: 'zh-Hant',
+        usage: 'main',
+        config: {
+          provider: 'google',
+          modelId: 'wrong-provider',
+          voiceName: 'some-voice',
+        } as never,
+      }),
+    ).rejects.toThrow('Fish Audio TTS received google language config');
   });
 });

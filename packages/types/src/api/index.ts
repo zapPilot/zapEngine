@@ -72,3 +72,4 @@ export type ApiResponse<T = unknown> = ApiResult<T> & { timestamp: string };
 export type Nullable<T> = T | null;
 
 export * from './marketDashboard.js';
+export * from './deposit.js';

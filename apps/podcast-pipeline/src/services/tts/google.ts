@@ -1,5 +1,7 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
+import type { UsageCostLine } from '../cost.js';
+import { resolveGcpClientOptions } from '../gcp-credentials.js';
 import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
 
@@ -15,6 +17,7 @@ function getClient(): TextToSpeechClient {
 }
 
 const MAX_BYTES = 4800;
+const GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER = 4 / 1_000_000;
 const DEFAULT_GOOGLE_VOICE = {
   languageCode: 'cmn-TW',
   voiceName: 'cmn-TW-Wavenet-A',
@@ -26,45 +29,7 @@ interface GoogleVoiceOptions {
 }
 
 export function getClientOptions(): TextToSpeechClientOptions | undefined {
-  const rawCredentials = process.env['GOOGLE_APPLICATION_CREDENTIALS_BASE64'];
-  const credentialsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS']?.trim();
-  if (!rawCredentials) {
-    return credentialsPath ? { keyFilename: credentialsPath } : undefined;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(rawCredentials, 'base64').toString('utf8'));
-  } catch {
-    throw new Error(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: expected base64-encoded service account JSON',
-    );
-  }
-
-  if (!isServiceAccountCredentials(parsed)) {
-    throw new Error(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: service account JSON must include client_email, private_key, and project_id',
-    );
-  }
-
-  return {
-    credentials: parsed,
-    projectId: parsed.project_id,
-  };
-}
-
-function isServiceAccountCredentials(value: unknown): value is {
-  client_email: string;
-  private_key: string;
-  project_id: string;
-} {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { client_email?: unknown }).client_email === 'string' &&
-    typeof (value as { private_key?: unknown }).private_key === 'string' &&
-    typeof (value as { project_id?: unknown }).project_id === 'string'
-  );
+  return resolveGcpClientOptions() as TextToSpeechClientOptions | undefined;
 }
 
 export function splitTextIntoChunks(text: string, maxBytes: number): string[] {
@@ -153,14 +118,13 @@ export function getMetadata(opts?: TtsSynthesizeOptions): TtsMetadata {
   };
 }
 
-export function synthesize(
-  text: string,
-  opts?: TtsSynthesizeOptions,
-): Promise<Buffer>;
 export async function synthesize(
   text: string,
   opts?: TtsSynthesizeOptions,
-): Promise<Buffer> {
+): Promise<{
+  audio: Buffer;
+  cost: UsageCostLine[];
+}> {
   const voiceOptions = getGoogleVoiceOptions(opts);
   const chunks = splitTextIntoChunks(text, MAX_BYTES);
 
@@ -169,13 +133,19 @@ export async function synthesize(
   }
 
   if (chunks.length === 1) {
-    return synthesizeChunk(chunks[0]!, voiceOptions);
+    return {
+      audio: await synthesizeChunk(chunks[0]!, voiceOptions),
+      cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
+    };
   }
 
   const audioBuffers = await Promise.all(
     chunks.map((chunk) => synthesizeChunk(chunk, voiceOptions)),
   );
-  return concatMp3Buffers(audioBuffers);
+  return {
+    audio: await concatenateAudioChunks(audioBuffers),
+    cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
+  };
 }
 
 function getGoogleVoiceOptions(
@@ -195,4 +165,32 @@ function getGoogleVoiceOptions(
     languageCode: opts.config.languageCode,
     voiceName: opts.config.voiceName,
   };
+}
+
+export function buildGoogleCostLine(
+  chunks: string[],
+  voiceOptions: GoogleVoiceOptions = DEFAULT_GOOGLE_VOICE,
+  opts?: TtsSynthesizeOptions,
+): UsageCostLine {
+  const characters = chunks.reduce(
+    (sum, chunk) => sum + countUnicodeCharacters(chunk),
+    0,
+  );
+
+  return {
+    category: 'tts',
+    label: opts?.costLabel ?? 'TTS audio',
+    provider: 'google',
+    model: voiceOptions.voiceName,
+    costUsd: characters * GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER,
+    usage: {
+      unit: 'characters',
+      quantity: characters,
+      unitPriceUsd: GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER,
+    },
+  };
+}
+
+function countUnicodeCharacters(text: string): number {
+  return [...text].length;
 }

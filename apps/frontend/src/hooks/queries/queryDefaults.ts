@@ -31,7 +31,7 @@
  */
 
 import { CACHE_WINDOW } from '@/config/cacheWindow';
-import { isClientError } from '@/lib/errors/errorHelpers';
+import { extractErrorMessage, isClientError } from '@/lib/errors';
 import { APIError } from '@/lib/http';
 import { logger } from '@/utils';
 
@@ -109,7 +109,7 @@ interface QueryConfigResult {
  */
 export function logQueryError(context: string, error: unknown): void {
   logger.error(context, {
-    error: error instanceof Error ? error.message : String(error),
+    error: extractErrorMessage(error, 'Unknown error'),
     status: error instanceof APIError ? error.status : undefined,
   });
 }

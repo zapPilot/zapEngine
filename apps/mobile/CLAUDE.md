@@ -47,3 +47,40 @@ plutil -p build/ios/iphoneos/Runner.app/Info.plist | grep -E 'AVAudioSessionCate
 
 Manual acceptance: start an episode, press the side button to lock the phone,
 and confirm audio continues for at least 30 seconds with lock-screen controls.
+
+## iOS App Store Release Versioning
+
+Xcode does not read `pubspec.yaml` directly. Flutter writes the version into
+`ios/Flutter/Generated.xcconfig`, then Xcode expands these plist values:
+
+```xml
+<key>CFBundleShortVersionString</key>
+<string>$(FLUTTER_BUILD_NAME)</string>
+<key>CFBundleVersion</key>
+<string>$(FLUTTER_BUILD_NUMBER)</string>
+```
+
+Keep `pubspec.yaml` in `x.y.z+build` format for releases, for example:
+
+```yaml
+version: 2.0.2+14
+```
+
+Before a manual Xcode upload, run:
+
+```sh
+pnpm --filter @zapengine/mobile ios:release:prepare -- 2.0.2+14
+```
+
+Then open `ios/Runner.xcworkspace` and archive from Xcode. The shared
+`Runner.xcscheme` has an Archive pre-action that runs
+`tool/prepare_ios_release.sh --from-xcode`, so Xcode Archive refreshes the
+generated Flutter iOS config automatically as a backstop.
+
+Do not hand-edit `ios/Flutter/Generated.xcconfig` or
+`ios/Flutter/flutter_export_environment.sh`; both are ignored generated files.
+If Xcode or App Store Connect still sees an old version, rerun:
+
+```sh
+pnpm --filter @zapengine/mobile ios:release:prepare --deep-clean -- 2.0.2+14
+```

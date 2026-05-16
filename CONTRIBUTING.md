@@ -1,4 +1,4 @@
-# Contributing to ZapEngine
+# Contributing to zapEngine
 
 This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with the root `CLAUDE.md` for project context, then read any app-level `CLAUDE.md` in the area you are changing. `AGENTS.md` and `GEMINI.md` are compatibility symlinks to the same root guidance.
 
@@ -32,11 +32,7 @@ For `analytics-engine`, include `sql:audit service-reachability pylint:duplicate
 
 ## AI Assistant Onboarding
 
-- Read root `CLAUDE.md` first.
-- Read app-level `CLAUDE.md` files before changing app-specific code.
-- Use `README.md` for product overview and root `package.json` for command discovery.
-- Do not create git worktrees unless the user explicitly requests one.
-- Keep backtesting strategy behavior unchanged unless the task explicitly asks for a strategy change.
+See [CLAUDE.md](./CLAUDE.md) for AI-assistant context. Read the relevant app-level `CLAUDE.md` before changing app-specific code; for backtesting work, the canonical home is [apps/analytics-engine/src/services/backtesting/CLAUDE.md](./apps/analytics-engine/src/services/backtesting/CLAUDE.md).
 
 ## Adding An Env Var
 
@@ -76,14 +72,7 @@ Use Zod v4 imports and APIs. Do not add Swagger/OpenAPI scaffolding unless the t
 
 ## Common Gotchas
 
-- Python uses `uv`; do not use `pip install`. Add dependencies with `uv add`.
-- `analytics-engine` has a read-only database connection. Do not add `INSERT`, `UPDATE`, or `DELETE` operations there.
-- `account-engine` uses dual Supabase clients. Use the anon client by default and the service-role client only for admin flows.
-- `alpha-etl` tests use Vitest. Use `vi.mock`, not `jest.mock`.
-- Frontend unit tests use `pnpm test:unit`, not `pnpm test`.
-- The macro Fear and Greed field is named `macro_fear_greed`, not `sp500_fgi`.
-- Frontend path alias `@/*` maps to `src/*` only in the frontend app.
-- ESLint uses flat config (`eslint.config.mjs`), not legacy `.eslintrc`.
+Cross-cutting conventions (Python/uv, ESLint flat config, path aliases, read-only analytics DB, dual Supabase clients, frontend `test:unit` vs `test`) live in root [CLAUDE.md](./CLAUDE.md). App-specific gotchas (e.g. `alpha-etl` Vitest mocks, `macro_fear_greed` field name) live in each app's `CLAUDE.md`.
 
 ## Strategy Iteration
 

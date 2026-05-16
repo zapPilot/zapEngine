@@ -334,13 +334,13 @@ describe('WalletPortfolioPresenter - handleSearch', () => {
   describe('Loading State Management', () => {
     it('shows searching indicator during API call', async () => {
       const user = userEvent.setup();
+      let resolveConnectWallet!: (value: typeof NEW_USER_RESPONSE) => void;
 
-      // Make connectWallet resolve slowly so we can see loading state
       mockConnectWallet.mockImplementation(
         () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve(NEW_USER_RESPONSE), 100),
-          ),
+          new Promise((resolve) => {
+            resolveConnectWallet = resolve;
+          }),
       );
 
       renderComponent();
@@ -352,6 +352,8 @@ describe('WalletPortfolioPresenter - handleSearch', () => {
       await waitFor(() => {
         expect(screen.getByTestId('searching-indicator')).toBeInTheDocument();
       });
+
+      resolveConnectWallet(NEW_USER_RESPONSE);
     });
 
     it('hides searching indicator after successful search', async () => {

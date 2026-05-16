@@ -14,19 +14,31 @@ export interface LatestDmaSnapshotRow {
   is_above_dma: boolean | null;
 }
 
+function formatSnapshotDate(snapshotDate: Date | string): string {
+  if (snapshotDate instanceof Date) {
+    return formatDateToYYYYMMDD(snapshotDate);
+  }
+
+  return String(snapshotDate);
+}
+
+function parseNullableNumber(
+  value: string | number | null | undefined,
+): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return Number.parseFloat(String(value));
+}
+
 export function mapLatestDmaSnapshotRow(
   row: LatestDmaSnapshotRow,
 ): LatestDmaSnapshot {
   return {
-    date:
-      row.snapshot_date instanceof Date
-        ? formatDateToYYYYMMDD(row.snapshot_date)
-        : String(row.snapshot_date),
+    date: formatSnapshotDate(row.snapshot_date),
     price: Number.parseFloat(String(row.price_usd)),
-    dma200:
-      row.dma_200 === null || row.dma_200 === undefined
-        ? null
-        : Number.parseFloat(String(row.dma_200)),
+    dma200: parseNullableNumber(row.dma_200),
     isAboveDma: row.is_above_dma,
   };
 }

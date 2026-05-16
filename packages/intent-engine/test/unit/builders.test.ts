@@ -57,13 +57,20 @@ function makeStubQuote(
 function makeAdapterMock(): {
   adapter: LiFiAdapter;
   getSwapQuote: ReturnType<typeof vi.fn>;
+  getQuote: ReturnType<typeof vi.fn>;
   getContractCallQuote: ReturnType<typeof vi.fn>;
 } {
   const getSwapQuote = vi.fn();
+  const getQuote = vi.fn();
   const getContractCallQuote = vi.fn();
   return {
-    adapter: { getSwapQuote, getContractCallQuote } as unknown as LiFiAdapter,
+    adapter: {
+      getSwapQuote,
+      getQuote,
+      getContractCallQuote,
+    } as unknown as LiFiAdapter,
     getSwapQuote,
+    getQuote,
     getContractCallQuote,
   };
 }
@@ -137,14 +144,13 @@ describe('buildSwapTx', () => {
 });
 
 describe('buildSupplyTx', () => {
-  it('reads vault.asset() and encodes a Morpho deposit call for the LI.FI quote', async () => {
-    const { adapter, getContractCallQuote } = makeAdapterMock();
-    getContractCallQuote.mockResolvedValueOnce(makeStubQuote());
+  it('encodes a direct Morpho deposit when the source token is the vault asset', async () => {
+    const { adapter, getSwapQuote, getContractCallQuote } = makeAdapterMock();
 
     const readContract = vi.fn().mockResolvedValueOnce(BASE_USDC); // vault.asset()
     const publicClient = { readContract } as unknown as PublicClient;
 
-    await buildSupplyTx(
+    const result = await buildSupplyTx(
       {
         type: 'SUPPLY',
         fromAddress: FROM_ADDRESS,
@@ -163,25 +169,74 @@ describe('buildSupplyTx', () => {
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    expect(getSwapQuote).not.toHaveBeenCalled();
 
-    const args = getContractCallQuote.mock.calls[0]?.[0];
-    expect(args.fromChain).toBe(8453);
-    expect(args.toChain).toBe(8453);
-    expect(args.fromToken).toBe(BASE_USDC);
-    expect(args.toToken).toBe(BASE_USDC);
-    expect(args.toAmount).toBe('5000000');
+    expect(result.transaction.to).toBe(BASE_MOONWELL_USDC);
+    expect(result.transaction.data.slice(0, 10)).toBe(DEPOSIT_SELECTOR);
+    expect(result.transaction.value).toBe('0');
+    expect(result.transaction.chainId).toBe(8453);
+    expect(result.transaction.gasLimit).toBe('150000');
+    expect(result.transaction.meta).toMatchObject({
+      intentType: 'SUPPLY',
+      estimatedGas: '150000',
+      estimatedDuration: 0,
+      route: { tool: 'direct' },
+    });
+    expect(result.transaction.meta.route).toEqual({ tool: 'direct' });
+    expect(result.estimate).toEqual({
+      fromAmount: '5000000',
+      toAmount: '5000000',
+      toAmountMin: '5000000',
+      gasCostUsd: '0',
+      executionDuration: 0,
+    });
+    expect(result.route).toEqual({ tool: 'direct' });
 
-    const [call] = args.contractCalls;
-    expect(call.toContractAddress).toBe(BASE_MOONWELL_USDC);
-    expect(call.toContractCallData.slice(0, 10)).toBe(DEPOSIT_SELECTOR);
-
-    // Decode the calldata to confirm args land in the right positions.
     const decoded = decodeFunctionData({
       abi: MORPHO_VAULT_ABI,
-      data: call.toContractCallData,
+      data: result.transaction.data as `0x${string}`,
     });
     expect(decoded.functionName).toBe('deposit');
     expect(decoded.args).toEqual([5_000_000n, FROM_ADDRESS]);
+  });
+
+  it('reads vault.asset() and requests a LI.FI Earn quote when a swap is needed', async () => {
+    const { adapter, getQuote, getContractCallQuote } = makeAdapterMock();
+    getQuote.mockResolvedValueOnce(makeStubQuote());
+
+    const readContract = vi.fn().mockResolvedValueOnce(BASE_USDC); // vault.asset()
+    const publicClient = { readContract } as unknown as PublicClient;
+
+    await buildSupplyTx(
+      {
+        type: 'SUPPLY',
+        fromAddress: FROM_ADDRESS,
+        chainId: 8453,
+        fromToken: BASE_WETH,
+        fromAmount: '5000000',
+        vaultAddress: BASE_MOONWELL_USDC,
+        protocol: 'morpho',
+      },
+      adapter,
+      publicClient,
+    );
+
+    expect(readContract).toHaveBeenCalledWith({
+      address: BASE_MOONWELL_USDC,
+      abi: MORPHO_VAULT_ABI,
+      functionName: 'asset',
+    });
+
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    const args = getQuote.mock.calls[0]?.[0];
+    expect(args.fromChain).toBe(8453);
+    expect(args.toChain).toBe(8453);
+    expect(args.fromToken).toBe(BASE_WETH);
+    expect(args.toToken).toBe(BASE_MOONWELL_USDC);
+    expect(args.fromAmount).toBe('5000000');
+    expect(args.fromAddress).toBe(FROM_ADDRESS);
+    expect(args.intentType).toBe('SUPPLY');
   });
 });
 
@@ -233,8 +288,8 @@ describe('buildRotateTx', () => {
     // toVault.asset()   → WETH (cross-asset rotation)
     readContract.mockResolvedValueOnce(BASE_WETH);
 
-    const { adapter, getContractCallQuote } = makeAdapterMock();
-    getContractCallQuote.mockResolvedValueOnce(
+    const { adapter, getQuote, getContractCallQuote } = makeAdapterMock();
+    getQuote.mockResolvedValueOnce(
       makeStubQuote({
         transaction: {
           to: '0x000000000000000000000000000000000000F00D' as Address,
@@ -268,8 +323,8 @@ describe('buildRotateTx', () => {
       publicClient,
     );
 
-    // Three parallel reads issued against the correct vaults
-    expect(readContract).toHaveBeenCalledTimes(3);
+    // Read the redeem preview and source vault asset for the LI.FI quote.
+    expect(readContract).toHaveBeenCalledTimes(2);
     expect(readContract).toHaveBeenNthCalledWith(1, {
       address: BASE_MOONWELL_USDC,
       abi: MORPHO_VAULT_ABI,
@@ -281,24 +336,14 @@ describe('buildRotateTx', () => {
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
-    expect(readContract).toHaveBeenNthCalledWith(3, {
-      address: BASE_SEAMLESS_WETH,
-      abi: MORPHO_VAULT_ABI,
-      functionName: 'asset',
-    });
 
-    // LI.FI step uses the previewed amount, not the intent's shareAmount
-    const quoteArgs = getContractCallQuote.mock.calls[0]?.[0];
+    // LI.FI step uses the previewed redeemed asset amount as exact input.
+    expect(getContractCallQuote).not.toHaveBeenCalled();
+    const quoteArgs = getQuote.mock.calls[0]?.[0];
     expect(quoteArgs.fromToken).toBe(BASE_USDC);
-    expect(quoteArgs.toToken).toBe(BASE_WETH);
-    expect(quoteArgs.toAmount).toBe('994000');
-    expect(quoteArgs.contractCalls[0].fromAmount).toBe('994000');
-    expect(quoteArgs.contractCalls[0].toContractAddress).toBe(
-      BASE_SEAMLESS_WETH,
-    );
-    expect(quoteArgs.contractCalls[0].toContractCallData.slice(0, 10)).toBe(
-      DEPOSIT_SELECTOR,
-    );
+    expect(quoteArgs.toToken).toBe(BASE_SEAMLESS_WETH);
+    expect(quoteArgs.fromAmount).toBe('994000');
+    expect(quoteArgs.intentType).toBe('SUPPLY');
 
     // Plan shape
     expect(plan.steps).toHaveLength(2);
@@ -316,8 +361,8 @@ describe('buildRotateTx', () => {
     readContract.mockResolvedValueOnce(BASE_USDC);
     readContract.mockResolvedValueOnce(BASE_WETH);
 
-    const { adapter, getContractCallQuote } = makeAdapterMock();
-    getContractCallQuote.mockRejectedValueOnce(new Error('LI.FI down'));
+    const { adapter, getQuote } = makeAdapterMock();
+    getQuote.mockRejectedValueOnce(new Error('LI.FI down'));
 
     await expect(
       buildRotateTx(

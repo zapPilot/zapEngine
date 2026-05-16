@@ -25,6 +25,7 @@ const {
   mockServe,
   mockSynthesizeClassroomAudio,
   mockTextToSpeech,
+  mockTranslateCanonicalScript,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
   mockUpsertLanguageClassrooms,
@@ -48,6 +49,7 @@ const {
   mockServe: vi.fn(),
   mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
+  mockTranslateCanonicalScript: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
@@ -122,6 +124,10 @@ vi.mock('./services/tts.js', async (importOriginal) => ({
 
 vi.mock('./services/opencc.js', () => ({
   convertArticleToZhTW: mockConvertArticleToZhTW,
+}));
+
+vi.mock('./services/translate.js', () => ({
+  translateCanonicalScript: mockTranslateCanonicalScript,
 }));
 
 const app = (await import('./index.js')).default;
@@ -329,7 +335,17 @@ describe('POST /ingest authorization', () => {
     );
   });
 
-  it('rejects unsupported primary languages in v1', async () => {
+  it('accepts secondary ingest languages', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) =>
+        Promise.resolve(
+          localizationRow({
+            language_code: languageCode,
+            status: 'completed',
+          }),
+        ),
+    );
+
     const response = await app.request('/ingest?language=ja', {
       method: 'POST',
       headers: {
@@ -339,7 +355,11 @@ describe('POST /ingest authorization', () => {
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'ja',
+    );
   });
 });
 
@@ -406,8 +426,19 @@ describe('POST /ingest pipeline', () => {
         return Promise.resolve(null);
       },
     );
-    mockTextToSpeech.mockResolvedValue(Buffer.from('audio'));
-    mockSynthesizeClassroomAudio.mockResolvedValue(null);
+    mockTextToSpeech.mockResolvedValue({
+      audio: Buffer.from('audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS main audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00006,
+        },
+      ],
+    });
+    mockSynthesizeClassroomAudio.mockResolvedValue({ audio: null, cost: [] });
     mockGenerateHls.mockResolvedValue({
       files: [
         {
@@ -488,7 +519,7 @@ describe('POST /ingest pipeline', () => {
       episodeRow().id,
       'zh-Hant',
     );
-    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
@@ -503,6 +534,18 @@ describe('POST /ingest pipeline', () => {
       expect.objectContaining({
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
+      }),
+    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguageCode: 'ja',
+        targetLanguageCodes: ['zh-Hant', 'en'],
+      }),
+    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguageCode: 'en',
+        targetLanguageCodes: ['zh-Hant', 'ja'],
       }),
     );
     expect(
@@ -523,7 +566,7 @@ describe('POST /ingest pipeline', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenLastCalledWith(
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
@@ -641,13 +684,16 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 $0.00009',
+        '💰 Total $0.00027',
+        'Breakdown',
+        '- LLM classrooms (test-provider/test-model): $0.00027',
       ].join('\n'),
     ]);
   });
 
   it('omits cost from the Telegram result when no LLM calls run', async () => {
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
+      classroomRow({ id: 'classroom-zh', target_language_code: 'zh-Hant' }),
       classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
       classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
     ]);

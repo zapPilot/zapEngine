@@ -35,7 +35,7 @@ def test_dma_field_mapping_is_derived_from_public_params_model() -> None:
     mapped_paths = {path for _, path in derived_mapping}
 
     assert mapped_paths == expected_paths
-    assert derived_mapping == [
+    assert derived_mapping == (
         ("cross_cooldown_days", ("signal", "cross_cooldown_days")),
         ("cross_on_touch", ("signal", "cross_on_touch")),
         ("pacing_k", ("pacing", "k")),
@@ -65,7 +65,7 @@ def test_dma_field_mapping_is_derived_from_public_params_model() -> None:
         ),
         ("disabled_rules", ("disabled_rules",)),
         ("enabled_rules", ("enabled_rules",)),
-    ]
+    )
     assert not hasattr(public_params, "_DMA_FIELD_MAPPING")
 
 

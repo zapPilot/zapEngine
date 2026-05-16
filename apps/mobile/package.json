@@ -9,6 +9,7 @@
     "build": "pnpm --dir ../../packages/design-tokens codegen:flutter && flutter pub get",
     "dev": "flutter run",
     "icons:ios": "swift tool/flatten_ios_app_icons.swift",
+    "ios:release:prepare": "bash tool/prepare_ios_release.sh",
     "test": "flutter test",
     "test:ci": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",
     "test:coverage": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",

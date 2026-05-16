@@ -14,6 +14,7 @@ COPY apps/account-engine/package.json apps/account-engine/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/types/package.json packages/types/package.json
+COPY packages/intent-engine/package.json packages/intent-engine/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
 RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/account-engine... --store-dir=/pnpm/store
@@ -23,9 +24,11 @@ COPY packages/eslint-config packages/eslint-config
 COPY packages/knip-config packages/knip-config
 COPY packages/tsconfig packages/tsconfig
 COPY packages/types packages/types
+COPY packages/intent-engine packages/intent-engine
 COPY apps/account-engine apps/account-engine
 
 RUN pnpm --filter @zapengine/types build \
+ && pnpm --filter @zapengine/intent-engine build \
  && pnpm --filter @zapengine/account-engine build \
  && pnpm --filter @zapengine/account-engine deploy --legacy --prod --store-dir=/pnpm/store /out \
  && test -f /out/dist/main.js

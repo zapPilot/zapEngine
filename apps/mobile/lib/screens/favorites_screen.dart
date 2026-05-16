@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../models/episode_page.dart';
 import '../services/episode_service.dart';
 import '../state/auth_provider.dart';
+import '../state/content_language_provider.dart';
 import '../state/likes_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
@@ -32,6 +34,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   String? _error;
   int _requestEpoch = 0;
   String? _playbackUserId;
+  String _languageCode = AppConfig.contentLanguageCode;
 
   @override
   void initState() {
@@ -42,6 +45,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         context.read<LikesProvider>().watchUser(user.id);
         _bindPlaybackUser(user.id);
       }
+      _languageCode = context.read<ContentLanguageProvider?>()?.languageCode ??
+          AppConfig.contentLanguageCode;
       unawaited(_loadFavoritesSource());
     });
   }
@@ -80,6 +85,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       final EpisodePage page = await _episodeService.getEpisodes(
         limit: 50,
         cursor: cursor,
+        languageCode: _languageCode,
       );
       episodes.addAll(page.items);
       cursor = page.nextCursor;
@@ -128,8 +134,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
+    final selectedLanguageCode =
+        context.watch<ContentLanguageProvider?>()?.languageCode ??
+            AppConfig.contentLanguageCode;
     final likes = context.watch<LikesProvider>();
     final playback = context.watch<PlaybackProvider>();
+    if (selectedLanguageCode != _languageCode) {
+      _languageCode = selectedLanguageCode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_loadFavoritesSource());
+        }
+      });
+    }
     if (user != null) {
       _bindPlaybackUser(user.id);
     }

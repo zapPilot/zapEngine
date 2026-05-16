@@ -88,6 +88,101 @@ describe('renderEpisodeSharePage', () => {
     expect(html).not.toContain('http-equiv="refresh"');
     expect(html).toContain('Android version coming soon');
   });
+
+  it('truncates description longer than 220 characters in twitter card', () => {
+    const longDescription = 'A'.repeat(250);
+    const html = renderEpisodeSharePage({
+      episode: {
+        id: 'episode-1',
+        title: 'Episode title',
+        description: longDescription,
+        coverUrl: 'https://cdn.example.com/cover.jpg',
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      androidAvailable: false,
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+    });
+
+    const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
+      html,
+    );
+    expect(twitterCard).toBeTruthy();
+    const desc = twitterCard![1]!;
+    expect(desc.length).toBeLessThanOrEqual(220);
+    expect(desc.endsWith('...')).toBe(true);
+  });
+
+  it('uses APP_NAME when episode title is empty', () => {
+    const html = renderEpisodeSharePage({
+      episode: {
+        id: 'episode-1',
+        title: '',
+        description: 'Description',
+        coverUrl: 'https://cdn.example.com/cover.jpg',
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      androidAvailable: false,
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+    });
+
+    expect(html).toContain('From Fed to Chain');
+  });
+
+  it('uses fallback description when episode description is empty', () => {
+    const html = renderEpisodeSharePage({
+      episode: {
+        id: 'episode-1',
+        title: 'Episode Title',
+        description: '   ',
+        coverUrl: 'https://cdn.example.com/cover.jpg',
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      androidAvailable: false,
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+    });
+
+    const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
+      html,
+    );
+    expect(twitterCard).toBeTruthy();
+    const desc = twitterCard![1]!;
+    expect(desc).toContain('Listen to');
+    expect(desc).toContain('Episode Title');
+  });
+
+  it('uses DEFAULT_DESCRIPTION when title equals APP_NAME and description is empty', () => {
+    const html = renderEpisodeSharePage({
+      episode: {
+        id: 'episode-1',
+        title: 'From Fed to Chain',
+        description: '   ',
+        coverUrl: 'https://cdn.example.com/cover.jpg',
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      androidAvailable: false,
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+    });
+
+    const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
+      html,
+    );
+    expect(twitterCard).toBeTruthy();
+    const desc = twitterCard![1]!;
+    expect(desc).toContain('Listen to');
+    expect(desc).toContain('global finance');
+  });
 });
 
 function shareEpisode() {

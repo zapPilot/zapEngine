@@ -154,6 +154,29 @@ describe('toEpisodeResponse', () => {
       ],
     });
   });
+
+  it('normalizes a snake-case classroom lesson row from database', () => {
+    expect(
+      toLanguageClassroomLesson({
+        id: 'classroom-1',
+        episode_localization_id: 'loc-1',
+        source_language_code: 'zh-Hant',
+        target_language_code: 'en',
+        one_liner: 'Hello world',
+        keywords: [],
+        llm_model: 'model',
+        llm_thinking_model: null,
+        llm_provider: 'provider',
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+      }),
+    ).toEqual({
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'en',
+      oneLiner: 'Hello world',
+      keywords: [],
+    });
+  });
 });
 
 describe('episode source and localization lookup', () => {
@@ -243,6 +266,20 @@ describe('cursor helpers', () => {
         }),
       ),
     ).toThrow('bad cursor id');
+  });
+
+  it('rejects cursor with non-string t or i fields', () => {
+    const badCursorT = Buffer.from(
+      JSON.stringify({ t: 123, i: '00000000-0000-4000-8000-000000000001' }),
+      'utf8',
+    ).toString('base64url');
+    expect(() => decodeCursor(badCursorT)).toThrow('bad cursor shape');
+
+    const badCursorI = Buffer.from(
+      JSON.stringify({ t: '2024-01-01T00:00:00.000Z', i: 456 }),
+      'utf8',
+    ).toString('base64url');
+    expect(() => decodeCursor(badCursorI)).toThrow('bad cursor shape');
   });
 });
 

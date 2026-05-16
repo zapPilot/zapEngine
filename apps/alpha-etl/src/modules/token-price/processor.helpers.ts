@@ -99,8 +99,10 @@ export function resolveHealthStatus(
 
   const daysDiff = calculateDaysOld(latestSnapshotDate);
   const freshness = `${daysDiff} days old`;
-  const status =
-    apiStatus === 'healthy' && daysDiff <= 1 ? 'healthy' : 'unhealthy';
+  let status: 'healthy' | 'unhealthy' = 'unhealthy';
+  if (apiStatus === 'healthy' && daysDiff <= 1) {
+    status = 'healthy';
+  }
 
   return { status, freshness };
 }

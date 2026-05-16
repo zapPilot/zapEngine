@@ -5,10 +5,16 @@ import {
   DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
   type EpisodeResponse,
+  type EpisodeRow,
   LANGUAGE_CLASSROOM_LANGUAGE_CODES,
   type LanguageClassroomLanguageCode,
   type LanguageClassroomRow,
 } from '../types.js';
+import {
+  buildUsageCostDetails,
+  type UsageCostDetails,
+  type UsageCostLine,
+} from './cost.js';
 import {
   findEpisodeBySourceUrl,
   findEpisodeLocalizationByEpisodeId,
@@ -30,6 +36,7 @@ import { convertArticleToZhTW } from './opencc.js';
 import { synthesizeClassroomAudio } from './podcast/classroom-audio.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadHlsToR2 } from './storage.js';
+import { translateCanonicalScript } from './translate.js';
 import { getTtsMetadata, textToSpeech } from './tts.js';
 import { concatMp3Buffers } from './tts/audio-concat.js';
 
@@ -37,14 +44,216 @@ export interface IngestResult {
   episode: EpisodeResponse;
   statusCode: 200 | 201;
   costUsd: number;
+  costDetails: UsageCostDetails;
+}
+
+type SecondaryLanguageCode = Exclude<
+  LanguageClassroomLanguageCode,
+  typeof DEFAULT_LANGUAGE_CODE
+>;
+
+const MULTILINGUAL_INGEST_LANGUAGE_CODES: LanguageClassroomLanguageCode[] = [
+  DEFAULT_LANGUAGE_CODE,
+  'ja',
+  'en',
+];
+
+export async function performMultilingualIngest(
+  url: string,
+  responseLanguageCode: LanguageClassroomLanguageCode,
+): Promise<IngestResult> {
+  const results: IngestResult[] = [];
+
+  for (const languageCode of MULTILINGUAL_INGEST_LANGUAGE_CODES) {
+    results.push(await performIngest(url, languageCode));
+  }
+
+  const selectedResult = results.find(
+    (result) => result.episode.languageCode === responseLanguageCode,
+  );
+  if (!selectedResult) {
+    throw new Error(
+      `Failed to generate requested localization: ${responseLanguageCode}`,
+    );
+  }
+
+  const costDetails = buildUsageCostDetails(
+    results.flatMap((result) => result.costDetails.breakdown),
+  );
+
+  return {
+    episode: selectedResult.episode,
+    statusCode: results.some((result) => result.statusCode === 201)
+      ? 201
+      : selectedResult.statusCode,
+    costUsd: costDetails.totalUsd,
+    costDetails,
+  };
 }
 
 export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
 ): Promise<IngestResult> {
-  let totalCostUsd = 0;
-  let episode = await step('findEpisodeBySourceUrl', () =>
+  if (isSecondaryLanguageCode(languageCode)) {
+    return performSecondaryIngest(url, languageCode);
+  }
+
+  const costBreakdown: UsageCostLine[] = [];
+  const existing = await findEpisodeAndLocalization(url, languageCode);
+
+  if (
+    existing.episode &&
+    existing.localization &&
+    isAudioReady(existing.localization)
+  ) {
+    const { rows: classrooms, cost } = await ensureLanguageClassrooms(
+      existing.localization,
+      languageCode,
+    );
+    costBreakdown.push(...cost);
+    return buildIngestResult(
+      existing.episode,
+      existing.localization,
+      classrooms,
+      200,
+      costBreakdown,
+    );
+  }
+
+  const { episode, localization } = await ensureEpisodeLocalizationScript(
+    url,
+    languageCode,
+    costBreakdown,
+    existing,
+  );
+
+  const completed = await ensureLocalizationCompleted(
+    episode,
+    localization,
+    languageCode,
+    costBreakdown,
+  );
+
+  return buildIngestResult(
+    episode,
+    completed.localization,
+    completed.classroomRows,
+    201,
+    costBreakdown,
+  );
+}
+
+async function performSecondaryIngest(
+  url: string,
+  languageCode: SecondaryLanguageCode,
+): Promise<IngestResult> {
+  const costBreakdown: UsageCostLine[] = [];
+  const { episode, localization: canonicalLocalization } =
+    await ensureEpisodeLocalizationScript(
+      url,
+      DEFAULT_LANGUAGE_CODE,
+      costBreakdown,
+    );
+
+  let localization = await step('findEpisodeLocalizationByEpisodeId', () =>
+    findEpisodeLocalizationByEpisodeId(episode.id, languageCode),
+  );
+
+  if (localization && isAudioReady(localization)) {
+    const { rows: classrooms, cost } = await ensureLanguageClassrooms(
+      localization,
+      languageCode,
+    );
+    costBreakdown.push(...cost);
+    return buildIngestResult(
+      episode,
+      localization,
+      classrooms,
+      200,
+      costBreakdown,
+    );
+  }
+
+  if (!localization) {
+    localization = await step('insertEpisodeLocalization:secondary', () =>
+      insertEpisodeLocalization({
+        id: randomUUID(),
+        episodeId: episode.id,
+        languageCode,
+        title: '',
+        hlsUrl: '',
+        rawText: '',
+        script: '',
+        llmModel: canonicalLocalization.llm_model ?? '',
+        llmThinkingModel: canonicalLocalization.llm_thinking_model,
+        llmProvider: canonicalLocalization.llm_provider ?? '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    );
+  }
+
+  if (needsTranslatedScript(localization)) {
+    const translated = await step('translateCanonicalScript', () =>
+      translateCanonicalScript({
+        title: canonicalLocalization.title,
+        script: canonicalLocalization.script ?? '',
+        targetLanguageCode: languageCode,
+      }),
+    );
+    costBreakdown.push(...translated.cost);
+
+    await step('updateEpisodeLocalizationArticleContent:translated', () =>
+      updateEpisodeLocalizationArticleContent(localization!.id, {
+        title: translated.title,
+        text: '',
+      }),
+    );
+    localization = await step(
+      'updateEpisodeLocalizationStatus:script_generated',
+      () =>
+        updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
+          script: translated.script,
+          llmModel: canonicalLocalization.llm_model ?? '',
+          llmThinkingModel: canonicalLocalization.llm_thinking_model,
+          llmProvider: canonicalLocalization.llm_provider ?? '',
+        }),
+    );
+  }
+
+  if (!localization) {
+    throw new Error('Failed to retrieve episode localization');
+  }
+
+  const completed = await ensureLocalizationCompleted(
+    episode,
+    localization,
+    languageCode,
+    costBreakdown,
+  );
+
+  return buildIngestResult(
+    episode,
+    completed.localization,
+    completed.classroomRows,
+    201,
+    costBreakdown,
+  );
+}
+
+interface EpisodeLocalizationState {
+  episode: EpisodeRow | null;
+  localization: EpisodeLocalizationRow | null;
+}
+
+async function findEpisodeAndLocalization(
+  url: string,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationState> {
+  const episode = await step('findEpisodeBySourceUrl', () =>
     findEpisodeBySourceUrl(url),
   );
   let localization: EpisodeLocalizationRow | null = null;
@@ -55,28 +264,20 @@ export async function performIngest(
     );
   }
 
-  if (
-    episode &&
-    localization &&
-    (localization.status === 'audio_generated' ||
-      localization.status === 'completed')
-  ) {
-    const { rows: classrooms, costUsd } = await ensureLanguageClassrooms(
-      localization,
-      languageCode,
-    );
-    totalCostUsd += costUsd;
-    return {
-      episode: toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-      ),
-      statusCode: 200,
-      costUsd: totalCostUsd,
-    };
-  }
+  return { episode, localization };
+}
 
+async function ensureEpisodeLocalizationScript(
+  url: string,
+  languageCode: LanguageClassroomLanguageCode,
+  costBreakdown: UsageCostLine[],
+  state?: EpisodeLocalizationState,
+): Promise<{
+  episode: EpisodeRow;
+  localization: EpisodeLocalizationRow;
+}> {
+  let { episode, localization } =
+    state ?? (await findEpisodeAndLocalization(url, languageCode));
   const needsScrape =
     !episode || !localization || localization.status === 'pending';
   let article: Article = localization
@@ -143,15 +344,17 @@ export async function performIngest(
     throw new Error('Failed to create episode localization');
   }
 
-  if (
-    localization.status === 'scraped' ||
-    localization.status === 'pending' ||
-    !localization.status
-  ) {
+  if (needsGeneratedScript(localization)) {
     const generated = await step('generateScript', () =>
       generateScriptWithLLM(article.title, article.text),
     );
-    totalCostUsd += generated.costUsd;
+    costBreakdown.push(
+      buildLlmCostLine('LLM script', {
+        provider: generated.provider,
+        model: generated.model,
+        costUsd: generated.costUsd,
+      }),
+    );
     localization = await step(
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
@@ -168,30 +371,48 @@ export async function performIngest(
     throw new Error('Failed to retrieve episode localization');
   }
 
+  return {
+    episode,
+    localization,
+  };
+}
+
+async function ensureLocalizationCompleted(
+  episode: EpisodeRow,
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+  costBreakdown: UsageCostLine[],
+): Promise<{
+  localization: EpisodeLocalizationRow;
+  classroomRows: LanguageClassroomRow[];
+}> {
   let classroomRows: LanguageClassroomRow[] | null = null;
 
-  if (
-    localization.status !== 'audio_generated' &&
-    localization.status !== 'completed'
-  ) {
+  if (!isAudioReady(localization)) {
     const ensuredClassrooms = await ensureLanguageClassrooms(
       localization,
       languageCode,
     );
     classroomRows = ensuredClassrooms.rows;
-    totalCostUsd += ensuredClassrooms.costUsd;
+    costBreakdown.push(...ensuredClassrooms.cost);
 
     const script = localization.script ?? '';
     const mainAudio = await step('textToSpeech', () =>
-      textToSpeech(script, { languageCode }),
+      textToSpeech(script, {
+        languageCode,
+        usage: 'main',
+        costLabel: 'TTS main audio',
+      }),
     );
+    costBreakdown.push(...mainAudio.cost);
     const classroomAudios = await synthesizeClassroomAudios(
       episode.id,
       classroomRows,
     );
+    costBreakdown.push(...classroomAudios.cost);
     const publishAudio = await combineMainAndClassroomAudio(
-      mainAudio,
-      classroomAudios,
+      mainAudio.audio,
+      classroomAudios.audioBuffers,
       {
         episodeId: episode.id,
         localizationId: localization.id,
@@ -205,34 +426,32 @@ export async function performIngest(
       uploadHlsToR2(files, episode.id, languageCode),
     );
     const ttsMetadata = getTtsMetadataForLanguage(languageCode);
-    localization = await step('updateEpisodeLocalizationStatus:completed', () =>
-      updateEpisodeLocalizationStatus(localization!.id, 'completed', {
-        hlsUrl: uploaded.hlsUrl,
-        r2Prefix: uploaded.r2Prefix,
-        ttsLanguageCode: ttsMetadata.languageCode,
-        ttsVoiceName: ttsMetadata.voiceName,
-      }),
+    const completedLocalization = await step(
+      'updateEpisodeLocalizationStatus:completed',
+      () =>
+        updateEpisodeLocalizationStatus(localization.id, 'completed', {
+          hlsUrl: uploaded.hlsUrl,
+          r2Prefix: uploaded.r2Prefix,
+          ttsLanguageCode: ttsMetadata.languageCode,
+          ttsVoiceName: ttsMetadata.voiceName,
+        }),
     );
+    if (!completedLocalization) {
+      throw new Error('Failed to retrieve episode localization');
+    }
+    localization = completedLocalization;
   }
 
   if (!classroomRows) {
     const ensuredClassrooms = await ensureLanguageClassrooms(
-      localization!,
+      localization,
       languageCode,
     );
     classroomRows = ensuredClassrooms.rows;
-    totalCostUsd += ensuredClassrooms.costUsd;
+    costBreakdown.push(...ensuredClassrooms.cost);
   }
 
-  return {
-    episode: toEpisodeResponseFromLocalization(
-      episode,
-      localization!,
-      classroomRows,
-    ),
-    statusCode: 201,
-    costUsd: totalCostUsd,
-  };
+  return { localization, classroomRows };
 }
 
 async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -261,13 +480,39 @@ function normalizeArticleForLanguage(
   return convertArticleToZhTW(article);
 }
 
+function isSecondaryLanguageCode(
+  languageCode: LanguageClassroomLanguageCode,
+): languageCode is SecondaryLanguageCode {
+  return languageCode !== DEFAULT_LANGUAGE_CODE;
+}
+
+function isAudioReady(localization: EpisodeLocalizationRow): boolean {
+  return (
+    localization.status === 'audio_generated' ||
+    localization.status === 'completed'
+  );
+}
+
+function needsGeneratedScript(localization: EpisodeLocalizationRow): boolean {
+  return (
+    localization.status === 'scraped' ||
+    localization.status === 'pending' ||
+    !localization.status ||
+    !localization.script
+  );
+}
+
+function needsTranslatedScript(localization: EpisodeLocalizationRow): boolean {
+  return needsGeneratedScript(localization);
+}
+
 function getTtsMetadataForLanguage(
   languageCode: LanguageClassroomLanguageCode,
 ): {
   languageCode: string;
   voiceName: string;
 } {
-  const metadata = getTtsMetadata({ languageCode });
+  const metadata = getTtsMetadata({ languageCode, usage: 'main' });
   return {
     languageCode: metadata.languageCode,
     voiceName: metadata.voiceName,
@@ -277,20 +522,22 @@ function getTtsMetadataForLanguage(
 async function synthesizeClassroomAudios(
   episodeId: string,
   classrooms: LanguageClassroomRow[],
-): Promise<Buffer[]> {
+): Promise<{ audioBuffers: Buffer[]; cost: UsageCostLine[] }> {
   const audioBuffers: Buffer[] = [];
+  const cost: UsageCostLine[] = [];
 
   for (const classroom of classrooms) {
-    const audio = await synthesizeClassroomAudio(
+    const result = await synthesizeClassroomAudio(
       toLanguageClassroomLesson(classroom),
       { episodeId },
     );
-    if (audio) {
-      audioBuffers.push(audio);
+    cost.push(...result.cost);
+    if (result.audio) {
+      audioBuffers.push(result.audio);
     }
   }
 
-  return audioBuffers;
+  return { audioBuffers, cost };
 }
 
 async function combineMainAndClassroomAudio(
@@ -325,9 +572,9 @@ async function combineMainAndClassroomAudio(
 async function ensureLanguageClassrooms(
   localization: EpisodeLocalizationRow,
   sourceLanguageCode: LanguageClassroomLanguageCode,
-): Promise<{ rows: LanguageClassroomRow[]; costUsd: number }> {
+): Promise<{ rows: LanguageClassroomRow[]; cost: UsageCostLine[] }> {
   let existing: LanguageClassroomRow[] = [];
-  let costUsd = 0;
+  const cost: UsageCostLine[] = [];
 
   try {
     existing = await step('listLanguageClassroomsByLocalizationId', () =>
@@ -344,7 +591,7 @@ async function ensureLanguageClassrooms(
     if (missingTargets.length === 0) {
       return {
         rows: orderLanguageClassrooms(existing, sourceLanguageCode),
-        costUsd,
+        cost,
       };
     }
 
@@ -357,7 +604,13 @@ async function ensureLanguageClassrooms(
         targetLanguageCodes: missingTargets,
       }),
     );
-    costUsd += generated.costUsd;
+    cost.push(
+      buildLlmCostLine('LLM classrooms', {
+        provider: generated.provider,
+        model: generated.model,
+        costUsd: generated.costUsd,
+      }),
+    );
 
     const persisted = await step('upsertLanguageClassrooms', () =>
       upsertLanguageClassrooms(
@@ -387,7 +640,7 @@ async function ensureLanguageClassrooms(
         [...retainedExisting, ...persisted],
         sourceLanguageCode,
       ),
-      costUsd,
+      cost,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -400,9 +653,47 @@ async function ensureLanguageClassrooms(
     });
     return {
       rows: orderLanguageClassrooms(existing, sourceLanguageCode),
-      costUsd,
+      cost,
     };
   }
+}
+
+function buildLlmCostLine(
+  label: string,
+  generated: {
+    provider: string;
+    model: string;
+    costUsd: number;
+  },
+): UsageCostLine {
+  return {
+    category: 'llm',
+    label,
+    provider: generated.provider,
+    model: generated.model,
+    costUsd: generated.costUsd,
+  };
+}
+
+function buildIngestResult(
+  episode: EpisodeRow,
+  localization: EpisodeLocalizationRow,
+  classrooms: LanguageClassroomRow[],
+  statusCode: 200 | 201,
+  costBreakdown: UsageCostLine[],
+): IngestResult {
+  const costDetails = buildUsageCostDetails(costBreakdown);
+
+  return {
+    episode: toEpisodeResponseFromLocalization(
+      episode,
+      localization,
+      classrooms,
+    ),
+    statusCode,
+    costUsd: costDetails.totalUsd,
+    costDetails,
+  };
 }
 
 function getClassroomTargetLanguageCodes(

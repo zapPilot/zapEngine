@@ -21,20 +21,22 @@ function extractSourcesHealth(
 ): Record<DataSource, SourceHealth> {
   const sources: Partial<Record<DataSource, SourceHealth>> = {};
 
-  if (details) {
-    for (const source of DATA_SOURCES) {
-      const sourceHealth = details[source];
-      if (sourceHealth) {
-        sources[source] = {
-          status: sourceHealth.status,
-          ...(sourceHealth.details !== undefined && {
-            details: sourceHealth.details,
-          }),
-          ...(sourceHealth.lastCheck !== undefined && {
-            lastCheck: sourceHealth.lastCheck,
-          }),
-        };
-      }
+  if (!details) {
+    return sources as Record<DataSource, SourceHealth>;
+  }
+
+  for (const source of DATA_SOURCES) {
+    const sourceHealth = details[source];
+    if (sourceHealth) {
+      sources[source] = {
+        status: sourceHealth.status,
+        ...(sourceHealth.details !== undefined && {
+          details: sourceHealth.details,
+        }),
+        ...(sourceHealth.lastCheck !== undefined && {
+          lastCheck: sourceHealth.lastCheck,
+        }),
+      };
     }
   }
 

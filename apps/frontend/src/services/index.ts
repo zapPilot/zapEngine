@@ -105,6 +105,16 @@ export {
   type StrategyPreset,
 } from './strategyService';
 
+// Deposit planning
+export { getDepositPlan } from './depositService';
+
+// On-chain token balances (real wallet balance + LI.FI USD valuation)
+export {
+  getOnChainTokenBalance,
+  NATIVE_TOKEN_ADDRESS,
+  type OnChainTokenBalance,
+} from './tokenBalanceService';
+
 // Strategy Admin
 export {
   createStrategyConfig,

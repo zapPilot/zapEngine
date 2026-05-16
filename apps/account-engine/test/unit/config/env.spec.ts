@@ -5,6 +5,7 @@ const validEnv = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_ANON_KEY: 'anon-key',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  LIFI_INTEGRATOR: 'zapengine-test',
 };
 
 function omitEnvKey(key: keyof typeof validEnv): NodeJS.ProcessEnv {

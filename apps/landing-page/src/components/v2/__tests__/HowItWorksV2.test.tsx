@@ -47,7 +47,7 @@ describe('HowItWorksV2', () => {
 
       expect(screen.getByText(/200MA · FGI · ETH\/BTC/)).toBeInTheDocument();
       expect(screen.getByText(/Buy fear · defend greed/)).toBeInTheDocument();
-      expect(screen.getByText(/EIP-7702 · multicall3/)).toBeInTheDocument();
+      expect(screen.getByText(/EIP-7702 · sequential/)).toBeInTheDocument();
     });
   });
 

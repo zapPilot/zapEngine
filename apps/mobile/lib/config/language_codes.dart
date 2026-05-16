@@ -20,7 +20,7 @@ const kLanguageOptions = <LanguageOption>[
     code: 'en',
     shortLabel: 'EN',
     nativeName: 'English',
-    enabled: false,
+    enabled: true,
   ),
   LanguageOption(
     code: kDefaultLanguageCode,
@@ -32,7 +32,7 @@ const kLanguageOptions = <LanguageOption>[
     code: 'ja',
     shortLabel: '日',
     nativeName: '日本語',
-    enabled: false,
+    enabled: true,
   ),
 ];
 

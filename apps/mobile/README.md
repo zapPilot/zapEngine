@@ -64,6 +64,36 @@ When you intentionally override any `--dart-define` value, include it in the
 `flutter build ios --simulator ...` command and rerun that command before
 running from Xcode again.
 
+## iOS App Store Release
+
+Before uploading a new App Store Connect build, bump the Flutter version with
+both the marketing version and build number:
+
+```yaml
+version: 2.0.2+14
+```
+
+Then prepare the iOS config that Xcode Archive reads:
+
+```bash
+pnpm --filter @zapengine/mobile ios:release:prepare -- 2.0.2+14
+open apps/mobile/ios/Runner.xcworkspace
+```
+
+Archive from Xcode with `Product > Archive`. The shared `Runner` scheme also
+runs the same release-prep script automatically before Archive, so Xcode stays
+in sync with `pubspec.yaml` even if you forget the manual command.
+
+If App Store Connect reports an old `CFBundleShortVersionString`, run:
+
+```bash
+pnpm --filter @zapengine/mobile ios:release:prepare --deep-clean -- 2.0.2+14
+```
+
+The release-prep script regenerates `ios/Flutter/Generated.xcconfig`, which is
+the file Xcode actually reads for `FLUTTER_BUILD_NAME` and
+`FLUTTER_BUILD_NUMBER`.
+
 ## Simulator Recovery
 
 If booting a simulator fails with `cannot be located on disk`, the simulator
