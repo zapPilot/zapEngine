@@ -109,12 +109,35 @@ def _get_recipe(strategy_id: str) -> StrategyRecipe:
     return get_strategy_recipe(strategy_id)
 
 
-def supports_nested_public_params(strategy_id: str) -> bool:
+def _resolve_recipe(strategy_id: str) -> StrategyRecipe | None:
     try:
-        _get_recipe(strategy_id)
+        return _get_recipe(strategy_id)
     except ValueError:
-        return False
-    return True
+        return None
+
+
+def _copy_params(params: Mapping[str, Any] | None) -> dict[str, Any]:
+    return {} if params is None else dict(params)
+
+
+def _as_json_params(params: Mapping[str, Any]) -> dict[str, JsonValue]:
+    return cast(dict[str, JsonValue], dict(params))
+
+
+def _dump_model_json(model: BaseModel) -> dict[str, JsonValue]:
+    return cast(dict[str, JsonValue], model.model_dump(mode="json"))
+
+
+def _normalize_recipe_params(
+    recipe: StrategyRecipe,
+    params: Mapping[str, Any],
+) -> dict[str, JsonValue]:
+    normalized = recipe.public_params_model.model_validate(params)
+    return _dump_model_json(normalized)
+
+
+def supports_nested_public_params(strategy_id: str) -> bool:
+    return _resolve_recipe(strategy_id) is not None
 
 
 def normalize_nested_public_params(
@@ -122,14 +145,11 @@ def normalize_nested_public_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Validate and canonicalize nested public params for a built-in strategy."""
-    raw_params = {} if params is None else dict(params)
-    try:
-        recipe = _get_recipe(strategy_id)
-    except ValueError:
-        return cast(dict[str, JsonValue], raw_params)
-
-    normalized = recipe.public_params_model.model_validate(raw_params)
-    return cast(dict[str, JsonValue], normalized.model_dump(mode="json"))
+    raw_params = _copy_params(params)
+    recipe = _resolve_recipe(strategy_id)
+    if recipe is None:
+        return _as_json_params(raw_params)
+    return _normalize_recipe_params(recipe, raw_params)
 
 
 def _flat_key(field_name: str, field_info: Any) -> str:
@@ -191,17 +211,12 @@ def public_params_to_runtime_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Translate nested public params into flat runtime params."""
-    raw_params = {} if params is None else dict(params)
-    try:
-        recipe = _get_recipe(strategy_id)
-    except ValueError:
-        return cast(dict[str, JsonValue], raw_params)
+    raw_params = _copy_params(params)
+    recipe = _resolve_recipe(strategy_id)
+    if recipe is None:
+        return _as_json_params(raw_params)
 
-    normalized_model = recipe.public_params_model.model_validate(raw_params)
-    normalized = cast(
-        dict[str, JsonValue],
-        normalized_model.model_dump(mode="json"),
-    )
+    normalized = _normalize_recipe_params(recipe, raw_params)
 
     if recipe.param_family == "dma":
         from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
@@ -220,11 +235,10 @@ def runtime_params_to_public_params(
     params: Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     """Translate flat runtime params into the nested public contract."""
-    raw_params = {} if params is None else dict(params)
-    try:
-        recipe = _get_recipe(strategy_id)
-    except ValueError:
-        return cast(dict[str, JsonValue], raw_params)
+    raw_params = _copy_params(params)
+    recipe = _resolve_recipe(strategy_id)
+    if recipe is None:
+        return _as_json_params(raw_params)
 
     if recipe.param_family == "dma":
         from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
@@ -234,15 +248,15 @@ def runtime_params_to_public_params(
         resolved = DmaGatedFgiParams.from_public_params(raw_params)
         sections = _flat_to_nested(resolved)
         dma_model = DmaGatedFgiPublicParams.model_validate(sections)
-        return cast(dict[str, JsonValue], dma_model.model_dump(mode="json"))
+        return _dump_model_json(dma_model)
 
-    return cast(dict[str, JsonValue], raw_params)
+    return _as_json_params(raw_params)
 
 
 @lru_cache(maxsize=32)
 def get_nested_public_params_schema(strategy_id: str) -> dict[str, JsonValue]:
     recipe = _get_recipe(strategy_id)
-    return cast(dict[str, JsonValue], recipe.public_params_model.model_json_schema())
+    return _as_json_params(recipe.public_params_model.model_json_schema())
 
 
 def get_default_public_params(strategy_id: str) -> dict[str, JsonValue]:
@@ -259,10 +273,11 @@ def normalize_saved_strategy_public_params(
     keep their existing free-form params to avoid breaking test-only extension
     families that are validated through the composition catalog instead.
     """
-    if supports_nested_public_params(strategy_id):
-        return normalize_nested_public_params(strategy_id, params)
-    raw = {} if params is None else dict(params)
-    return cast(dict[str, JsonValue], raw)
+    raw_params = _copy_params(params)
+    recipe = _resolve_recipe(strategy_id)
+    if recipe is None:
+        return _as_json_params(raw_params)
+    return _normalize_recipe_params(recipe, raw_params)
 
 
 __all__ = [

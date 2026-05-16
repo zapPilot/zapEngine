@@ -26,7 +26,12 @@ from tests.services.backtesting.portfolio_rules.helpers import snapshot
 def _ratio_state(deviation: float) -> EthBtcRatioState:
     ratio_dma = 1.0
     ratio = ratio_dma * (1.0 + deviation)
-    zone = "above" if deviation > 0 else "below" if deviation < 0 else "at"
+    if deviation > 0:
+        zone = "above"
+    elif deviation < 0:
+        zone = "below"
+    else:
+        zone = "at"
     return EthBtcRatioState(
         ratio=ratio,
         ratio_dma_200=ratio_dma,

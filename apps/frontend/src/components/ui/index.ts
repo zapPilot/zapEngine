@@ -2,6 +2,8 @@
 export { AppImage } from './AppImage';
 export { BaseCard } from './BaseCard';
 export { GradientButton } from './GradientButton';
+export type { NumericInputProps } from './NumericInput';
+export { NumericInput } from './NumericInput';
 
 // Modal system
 export { Modal, ModalContent, ModalFooter, ModalHeader } from './modal';

@@ -12,3 +12,13 @@ Two clients exist — use the right one:
 - Swagger is removed. Do not reintroduce documentation-only endpoints.
 - `ADMIN_API_KEY` is the canonical auth for job routes. `API_KEY` is still accepted as a legacy fallback.
 - Tests hit the Hono app directly via `app.request(...)` — no Nest test harness or module metadata.
+
+# Architecture boundary
+
+account-engine is the **identity / persistence** plane — it plans no money movement.
+The deposit-plan endpoint is a dead accidental tenant; do not extend it. The ONLY
+intent/orchestration code permitted here is a single bounded `plan-orchestration`
+module (added when analytics→intent is wired): its own `POST /plan-orchestration/*`
+routes, its own `@zapengine/types` contract, no imports to/from the rest of
+account-engine, shaped for extraction to `apps/plan-orchestration`. Nothing else in
+account-engine may import `@zapengine/intent-engine`. See root `# Architecture planes`.

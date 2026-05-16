@@ -251,15 +251,17 @@ describe('TransactionPanel', () => {
   it('renders token buttons', () => {
     render(<TransactionPanel mode="deposit" />);
 
-    expect(screen.getByText('USDC')).toBeDefined();
-    expect(screen.getByText('USDT')).toBeDefined();
-    expect(screen.getByText('DAI')).toBeDefined();
+    expect(
+      screen.getByRole('button', { name: /USDC USD Coin/i }),
+    ).toBeDefined();
+    expect(screen.getByRole('button', { name: /USDT Tether/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /DAI Dai/i })).toBeDefined();
   });
 
   it('calls setValue when token button is clicked', () => {
     render(<TransactionPanel mode="deposit" />);
 
-    fireEvent.click(screen.getByText('USDT'));
+    fireEvent.click(screen.getByRole('button', { name: /USDT Tether/i }));
 
     expect(mockSetValue).toHaveBeenCalledWith('tokenAddress', '0x456');
   });
@@ -270,7 +272,9 @@ describe('TransactionPanel', () => {
     const input = screen.getByPlaceholderText('0.00');
     fireEvent.change(input, { target: { value: '250' } });
 
-    expect(mockSetValue).toHaveBeenCalledWith('amount', '250');
+    expect(mockSetValue).toHaveBeenCalledWith('amount', '250', {
+      shouldValidate: true,
+    });
   });
 
   it('renders review button with deposit label', () => {
@@ -341,10 +345,10 @@ describe('TransactionPanel', () => {
   it('highlights selected token', () => {
     render(<TransactionPanel mode="deposit" />);
 
-    const usdcBtn = screen.getByText('USDC').closest('button');
+    const usdcBtn = screen.getByRole('button', { name: /USDC USD Coin/i });
     expect(usdcBtn).toHaveAttribute('aria-pressed', 'true');
 
-    const usdtBtn = screen.getByText('USDT').closest('button');
+    const usdtBtn = screen.getByRole('button', { name: /USDT Tether/i });
     expect(usdtBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
