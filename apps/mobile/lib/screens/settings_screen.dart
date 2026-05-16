@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
@@ -113,21 +115,32 @@ class _LanguageTile extends StatelessWidget {
                     Icons.lock_rounded,
                     color: AppColors.textSecondary,
                   ),
-        onTap: selected
-            ? null
-            : enabled
-                ? () => context
-                    .read<ContentLanguageProvider?>()
-                    ?.setLanguageCode(option.code)
-                : () {
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(content: Text(kComingSoonTooltip)),
-                      );
-                  },
+        onTap: _buildTapHandler(context, enabled),
       ),
     );
+  }
+
+  VoidCallback? _buildTapHandler(BuildContext context, bool enabled) {
+    if (selected) {
+      return null;
+    }
+
+    if (enabled) {
+      return () {
+        final provider = context.read<ContentLanguageProvider?>();
+        if (provider != null) {
+          unawaited(provider.setLanguageCode(option.code));
+        }
+      };
+    }
+
+    return () {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(kComingSoonTooltip)),
+        );
+    };
   }
 }
 

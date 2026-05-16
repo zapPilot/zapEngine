@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/auth_gate.dart';
+import 'screens/splash_screen.dart';
 import 'services/audio_player_handler.dart';
 import 'services/deep_link_service.dart';
 import 'services/episode_service.dart';
@@ -129,7 +129,7 @@ class _AiPodcastAppState extends State<AiPodcastApp> {
         title: 'From Fed to Chain',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark(),
-        home: AuthGate(supabaseConfigured: widget.supabaseConfigured),
+        home: SplashScreen(supabaseConfigured: widget.supabaseConfigured),
       ),
     );
   }
