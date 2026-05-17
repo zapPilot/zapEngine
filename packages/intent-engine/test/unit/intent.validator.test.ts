@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  validateIntent,
   validateSwapIntent,
   validateSupplyIntent,
   validateWithdrawIntent,
+  validateRotateIntent,
   ValidationError,
+  UnsupportedTokenError,
 } from '../../src/index.js';
 
 describe('Intent Validators', () => {
@@ -49,6 +52,20 @@ describe('Intent Validators', () => {
 
       // Zod validation catches unsupported chain via refine
       expect(() => validateSwapIntent(intent)).toThrow(ValidationError);
+    });
+
+    it('should throw UnsupportedTokenError when token is known on a different chain', () => {
+      // Ethereum USDC used on Base — wrong chain for this address
+      const intent = {
+        type: 'SWAP' as const,
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 8453, // Base
+        fromToken: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum USDC
+        toToken: '0x4200000000000000000000000000000000000006', // Base WETH
+        fromAmount: '1000000',
+      };
+
+      expect(() => validateSwapIntent(intent)).toThrow(UnsupportedTokenError);
     });
   });
 
@@ -133,6 +150,88 @@ describe('Intent Validators', () => {
         protocol: 'morpho' as const,
       };
       expect(() => validateWithdrawIntent(intent)).toThrow(ValidationError);
+    });
+  });
+
+  describe('validateIntent', () => {
+    it('validates any valid intent type', () => {
+      const intent = {
+        type: 'SWAP' as const,
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 1,
+        fromToken: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+        toToken: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+        fromAmount: '1000000000000000000',
+      };
+
+      const result = validateIntent(intent);
+      expect(result.type).toBe('SWAP');
+      expect(result.chainId).toBe(1);
+    });
+
+    it('throws ValidationError for completely invalid intent', () => {
+      expect(() => validateIntent({ type: 'INVALID' })).toThrow(
+        ValidationError,
+      );
+    });
+  });
+
+  describe('validateSupplyIntent cross-chain vault check', () => {
+    it('throws ValidationError when vault is known on a different chain', () => {
+      // Moonwell USDC vault is on Base (8453), not Ethereum (1)
+      const intent = {
+        type: 'SUPPLY' as const,
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 1, // Ethereum
+        fromToken: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum USDC
+        fromAmount: '1000000',
+        vaultAddress: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Base vault
+        protocol: 'morpho' as const,
+      };
+
+      expect(() => validateSupplyIntent(intent)).toThrow(ValidationError);
+    });
+  });
+
+  describe('validateRotateIntent', () => {
+    it('validates a valid rotate intent without intermediateToken', () => {
+      const intent = {
+        type: 'ROTATE' as const,
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 8453,
+        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Moonwell USDC
+        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Seamless WETH
+        shareAmount: '1000000000000000000',
+        protocol: 'morpho' as const,
+      };
+
+      const result = validateRotateIntent(intent);
+      expect(result.type).toBe('ROTATE');
+      expect(result.chainId).toBe(8453);
+    });
+
+    it('validates a valid rotate intent with intermediateToken', () => {
+      const intent = {
+        type: 'ROTATE' as const,
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 8453,
+        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Moonwell USDC
+        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Seamless WETH
+        shareAmount: '1000000000000000000',
+        protocol: 'morpho' as const,
+        intermediateToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Base USDC
+      };
+
+      const result = validateRotateIntent(intent);
+      expect(result.intermediateToken).toBe(
+        '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      );
+    });
+
+    it('throws ValidationError for invalid rotate intent input', () => {
+      expect(() => validateRotateIntent({ type: 'ROTATE' })).toThrow(
+        ValidationError,
+      );
     });
   });
 });

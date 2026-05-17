@@ -38,10 +38,10 @@ export default defineConfig({
         'src/components/v2/HeroLiquidMetalCanvas.tsx',
       ],
       thresholds: {
-        statements: 65,
-        branches: 60,
-        functions: 60,
-        lines: 65,
+        statements: 95,
+        branches: 85,
+        functions: 95,
+        lines: 95,
         'src/hooks/useMediaQuery.ts': {
           statements: 80,
           branches: 75,
