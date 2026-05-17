@@ -45,7 +45,8 @@ Before claiming a strategy change is done:
    ```
 2. Add or update validation coverage in
    `tests/fixtures/hierarchical_validation_events.json` when behavior changes.
-3. Regenerate the 500-day snapshot for intentional performance changes:
+3. Regenerate the 500-day snapshot for intentional performance changes
+   (update mode is HTTP-based — the dev server must be running on port 8001):
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py --update-snapshot
    ```

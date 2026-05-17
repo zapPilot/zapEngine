@@ -105,7 +105,7 @@ Landing-page proof is anchored to the same backtest snapshot, not rewritten by h
 The user receives a Telegram message with the target allocation and a transaction bundle.
 
 - **EIP-7702** batch on supported wallets.
-- Multicall3 fallback where needed.
+- Sequential approval + execution fallback where 7702 is unavailable.
 - One signature from the user's own EOA.
 - No custody, no pooled funds, no hidden discretionary manager.
 

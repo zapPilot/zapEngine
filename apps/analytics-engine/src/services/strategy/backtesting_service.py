@@ -35,7 +35,10 @@ from src.services.backtesting.execution.compare import (
 )
 from src.services.backtesting.execution.config import RegimeConfig
 from src.services.backtesting.features import MarketDataRequirements
-from src.services.backtesting.strategy_registry import get_strategy_recipe
+from src.services.backtesting.strategy_registry import (
+    StrategyRecipe,
+    get_strategy_recipe,
+)
 from src.services.exceptions import MarketDataUnavailableError
 from src.services.strategy.strategy_config_store import (
     SeedStrategyConfigStore,
@@ -108,6 +111,32 @@ def _resolve_market_data_requirements(
 def _resolve_recipe_warmup_days(configs: list[ResolvedSavedStrategyConfig]) -> int:
     recipe_warmup_days = max(config.warmup_lookback_days for config in configs)
     return max(PRIMER_DAYS, recipe_warmup_days)
+
+
+def _recipe_to_resolved_config(
+    recipe: StrategyRecipe,
+    *,
+    saved_config_id: str,
+    request_config_id: str,
+    display_name: str,
+    public_params: dict[str, Any],
+) -> ResolvedSavedStrategyConfig:
+    return ResolvedSavedStrategyConfig(
+        saved_config_id=saved_config_id,
+        request_config_id=request_config_id,
+        strategy_id=recipe.strategy_id,
+        display_name=display_name,
+        description=recipe.description,
+        primary_asset=recipe.primary_asset,
+        summary_signal_id=recipe.signal_id,
+        warmup_lookback_days=recipe.warmup_lookback_days,
+        market_data_requirements=recipe.market_data_requirements,
+        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
+        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
+        supports_daily_suggestion=recipe.supports_daily_suggestion,
+        public_params=public_params,
+        build_strategy=recipe.build_strategy,
+    )
 
 
 def _resolve_shared_primary_asset(configs: list[ResolvedSavedStrategyConfig]) -> str:
@@ -185,21 +214,12 @@ def _resolve_runtime_config(
             request_config_id=request_config.config_id,
         )
     recipe = get_strategy_recipe(request_config.strategy_id)
-    return ResolvedSavedStrategyConfig(
+    return _recipe_to_resolved_config(
+        recipe,
         saved_config_id=request_config.config_id,
         request_config_id=request_config.config_id,
-        strategy_id=recipe.strategy_id,
         display_name=request_config.config_id,
-        description=recipe.description,
-        primary_asset=recipe.primary_asset,
-        summary_signal_id=recipe.signal_id,
-        warmup_lookback_days=recipe.warmup_lookback_days,
-        market_data_requirements=recipe.market_data_requirements,
-        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
-        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
-        supports_daily_suggestion=recipe.supports_daily_suggestion,
         public_params=dict(request_config.params),
-        build_strategy=recipe.build_strategy,
     )
 
 
@@ -215,21 +235,12 @@ def _resolve_saved_config_recipe_alias(
         recipe = get_strategy_recipe(saved_config_id)
     except ValueError:
         return None
-    return ResolvedSavedStrategyConfig(
+    return _recipe_to_resolved_config(
+        recipe,
         saved_config_id=saved_config_id,
         request_config_id=request_config.config_id,
-        strategy_id=recipe.strategy_id,
         display_name=request_config.config_id,
-        description=recipe.description,
-        primary_asset=recipe.primary_asset,
-        summary_signal_id=recipe.signal_id,
-        warmup_lookback_days=recipe.warmup_lookback_days,
-        market_data_requirements=recipe.market_data_requirements,
-        portfolio_bucket_mapper=recipe.portfolio_bucket_mapper,
-        runtime_portfolio_mode=recipe.runtime_portfolio_mode,
-        supports_daily_suggestion=recipe.supports_daily_suggestion,
         public_params=recipe.normalize_public_params({}),
-        build_strategy=recipe.build_strategy,
     )
 
 

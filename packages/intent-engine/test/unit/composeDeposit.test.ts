@@ -416,3 +416,22 @@ describe('composeDeposit', () => {
     });
   });
 });
+
+describe('composeDeposit error cases', () => {
+  it('throws when sourceChainId is not Base', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 1, // Ethereum, not Base
+          userAddress: USER,
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('Deposit v1 supports Base as the source chain');
+  });
+});
