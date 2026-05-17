@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { serializeError } from '../../../src/modules/sentiment/errorSerializer.js';
-import { APIError, DatabaseError, ValidationError, TransformError } from '../../../src/utils/errors.js';
+import { serializeError } from '../../../src/utils/errorSerializer.js';
+import {
+  APIError,
+  DatabaseError,
+  ValidationError,
+  TransformError,
+} from '../../../src/utils/errors.js';
 
 describe('serializeError', () => {
   describe('Error instances', () => {
@@ -20,7 +25,7 @@ describe('serializeError', () => {
         'Not found',
         404,
         'https://api.example.com/data',
-        'TestFetcher'
+        'TestFetcher',
       );
       const result = serializeError(error);
 
@@ -43,7 +48,11 @@ describe('serializeError', () => {
     });
 
     it('should serialize ValidationError with field and value', () => {
-      const error = new ValidationError('Invalid email', 'email', 'not-an-email');
+      const error = new ValidationError(
+        'Invalid email',
+        'email',
+        'not-an-email',
+      );
       const result = serializeError(error);
 
       expect(result).toHaveProperty('message', 'Invalid email');
@@ -55,7 +64,11 @@ describe('serializeError', () => {
 
     it('should serialize TransformError with record field', () => {
       const record = { id: '123', value: 'test' };
-      const error = new TransformError('Transform failed', record, 'TestTransformer');
+      const error = new TransformError(
+        'Transform failed',
+        record,
+        'TestTransformer',
+      );
       const result = serializeError(error);
 
       expect(result).toHaveProperty('message', 'Transform failed');
@@ -85,11 +98,18 @@ describe('serializeError', () => {
 
       expect(result).toHaveProperty('message', 'Level 1 error');
       expect(result.cause).toHaveProperty('message', 'Level 2 error');
-      expect((result.cause as unknown).cause).toHaveProperty('message', 'Level 3 error');
+      expect((result.cause as unknown).cause).toHaveProperty(
+        'message',
+        'Level 3 error',
+      );
     });
 
     it('should handle Error.cause with APIError', () => {
-      const rootCause = new APIError('Unauthorized', 401, 'https://api.example.com');
+      const rootCause = new APIError(
+        'Unauthorized',
+        401,
+        'https://api.example.com',
+      );
       const wrapperError = new Error('Request failed', { cause: rootCause });
       const result = serializeError(wrapperError);
 
@@ -104,7 +124,7 @@ describe('serializeError', () => {
       const error = {
         message: 'Network request failed',
         name: 'TypeError',
-        code: 'ECONNREFUSED'
+        code: 'ECONNREFUSED',
       };
       const result = serializeError(error);
 
@@ -182,7 +202,7 @@ describe('serializeError', () => {
         '401 Unauthorized',
         401,
         'https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest',
-        'FearGreedFetcher'
+        'FearGreedFetcher',
       );
       const result = serializeError(error);
 
@@ -215,7 +235,7 @@ describe('serializeError', () => {
       const error = {
         message: 'fetch failed',
         name: 'TypeError',
-        code: 'ENOTFOUND'
+        code: 'ENOTFOUND',
       };
       const result = serializeError(error);
 
@@ -225,10 +245,7 @@ describe('serializeError', () => {
     });
 
     it('should handle database connection errors', () => {
-      const error = new DatabaseError(
-        'Connection refused',
-        'CONNECT'
-      );
+      const error = new DatabaseError('Connection refused', 'CONNECT');
       const result = serializeError(error);
 
       expect(result).toHaveProperty('message', 'Connection refused');
@@ -241,7 +258,7 @@ describe('serializeError', () => {
       const error = new ValidationError(
         'Invalid nested structure',
         'config.database.pool',
-        invalidValue
+        invalidValue,
       );
       const result = serializeError(error);
 
@@ -258,7 +275,7 @@ describe('serializeError', () => {
         'Service unavailable',
         503,
         'https://api.example.com',
-        'TestFetcher'
+        'TestFetcher',
       );
       (apiError as unknown).cause = networkError;
 

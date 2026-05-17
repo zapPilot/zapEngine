@@ -106,7 +106,7 @@ export {
 } from './strategyService';
 
 // Deposit planning
-export { getDepositPlan } from './depositService';
+export { getDepositPlan, getGmxDepositPlan } from './planOrchestrationService';
 
 // On-chain token balances (real wallet balance + LI.FI USD valuation)
 export {

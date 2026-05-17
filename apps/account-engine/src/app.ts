@@ -11,7 +11,7 @@ import {
   startServices,
   stopServices,
 } from './container';
-import { createDepositRoutes } from './routes/deposit';
+import { createPlanOrchestrationRoutes } from './modules/plan-orchestration';
 import { createEtlRoutes } from './routes/etl';
 import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
 import { createJobsRoutes } from './routes/jobs';
@@ -32,7 +32,10 @@ export function createApp(
 
   app.route('/health', createHealthRoutes(releaseEnv));
   app.route('/users', createUsersRoutes(services));
-  app.route('/users', createDepositRoutes(services));
+  app.route(
+    '/plan-orchestration',
+    createPlanOrchestrationRoutes(services.planOrchestrationService),
+  );
   app.route('/jobs', createJobsRoutes(services));
   app.route('/etl', createEtlRoutes(services));
   app.route('/telegram', createTelegramRoutes(services));

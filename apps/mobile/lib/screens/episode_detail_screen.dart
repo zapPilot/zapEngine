@@ -15,6 +15,8 @@ import '../widgets/playback_speed_menu.dart';
 import '../widgets/share_button.dart';
 import '../widgets/synced_transcript.dart';
 
+const _languageUnavailableMessage = '此集數尚未提供所選語言版本。';
+
 class EpisodeDetailScreen extends StatefulWidget {
   const EpisodeDetailScreen({
     super.key,
@@ -74,14 +76,24 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Future<void> _selectLanguage(String languageCode) async {
-    await context
-        .read<ContentLanguageProvider?>()
-        ?.setLanguageCode(languageCode);
     final localizedEpisode = await _episodeService.getEpisodeById(
       _episode.id,
       languageCode: languageCode,
     );
-    if (!mounted || localizedEpisode == null) return;
+    if (!mounted) return;
+    if (localizedEpisode == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(_languageUnavailableMessage)),
+        );
+      return;
+    }
+
+    await context
+        .read<ContentLanguageProvider?>()
+        ?.setLanguageCode(languageCode);
+    if (!mounted) return;
     setState(() => _episode = localizedEpisode);
   }
 
@@ -214,7 +226,10 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
   @override
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
-    final isCurrent = playback.currentEpisode?.id == widget.episode.id;
+    final isCurrent = _isSameEpisodeLocalization(
+      playback.currentEpisode,
+      widget.episode,
+    );
     final isPlaying = isCurrent && playback.isPlaying;
     final isLoading = playback.loadingEpisodeId == widget.episode.id;
     final position = isCurrent ? playback.position : Duration.zero;
@@ -227,9 +242,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
     final sliderValue = (_scrubValue ?? liveValue).clamp(0.0, maxValue);
     final displayedPosition = Duration(milliseconds: sliderValue.round());
     final audioTracks = widget.episode.playableAudioTracks;
-    final selectedLanguageCode =
-        context.watch<ContentLanguageProvider?>()?.languageCode ??
-            widget.episode.languageCode;
+    final selectedLanguageCode = widget.episode.languageCode;
     final selectedAudioTrack = isCurrent && playback.currentAudioTrack != null
         ? playback.currentAudioTrack
         : audioTracks.isNotEmpty
@@ -459,6 +472,10 @@ class _AudioTrackSegment extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _isSameEpisodeLocalization(Episode? left, Episode right) {
+  return left?.id == right.id && left?.localizationId == right.localizationId;
 }
 
 class _ActionRow extends StatelessWidget {

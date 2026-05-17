@@ -1,4 +1,4 @@
-import type { Hash, WalletClient } from 'viem';
+import type { Chain, Hash, WalletClient } from 'viem';
 import { sendCalls, waitForCallsStatus } from 'viem/actions';
 
 import { ExecutionError } from '../errors/intent.errors.js';
@@ -21,6 +21,7 @@ import type {
 export async function executeWithEIP7702(
   txs: PreparedTransaction[],
   wallet: WalletClient,
+  options: { chainId?: number } = {},
 ): Promise<ExecutionResult> {
   if (!txs || txs.length === 0) {
     throw new ExecutionError('Cannot execute empty transaction array');
@@ -33,6 +34,9 @@ export async function executeWithEIP7702(
 
     const { id: callsId } = await sendCalls(wallet, {
       account: wallet.account,
+      ...(options.chainId
+        ? { chain: { id: options.chainId } as Chain }
+        : {}),
       calls: txs.map((tx) => ({
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,

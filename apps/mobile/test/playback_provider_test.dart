@@ -74,6 +74,38 @@ void main() {
   );
 
   test(
+    'toggle reloads the same episode id when the localization changes',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
+      final zhEpisode = _episode('episode-1').copyWith(
+        localizationId: 'episode-1-zh',
+        languageCode: 'zh-Hant',
+        hlsUrl: 'https://example.com/zh.m3u8',
+      );
+      final enEpisode = _episode('episode-1').copyWith(
+        localizationId: 'episode-1-en',
+        languageCode: 'en',
+        hlsUrl: 'https://example.com/en.m3u8',
+      );
+
+      await provider.toggle(zhEpisode);
+      await provider.toggle(enEpisode);
+
+      expect(handler.loadedEpisodeIds, ['episode-1', 'episode-1']);
+      expect(handler.loadedTrackUrls, [
+        'https://example.com/zh.m3u8',
+        'https://example.com/en.m3u8',
+      ]);
+      expect(handler.playCount, 2);
+      expect(provider.currentEpisode, enEpisode);
+
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
     'setSpeed delegates to the handler and tracks speed stream updates',
     () async {
       final handler = FakePodcastAudioHandler();

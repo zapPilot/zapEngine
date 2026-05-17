@@ -4,14 +4,14 @@ import {
   type DepositPlan,
   type PreparedTransaction,
 } from '@zapengine/types/api';
-import {
-  encodeFunctionData,
-  erc20Abi,
-  type Address,
-  type PublicClient,
-} from 'viem';
+import { type Address, type PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
+import {
+  buildApproveTx,
+  needsApproval,
+  type ApprovalRequirement,
+} from '../approvals/erc20Approval.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
 import {
@@ -48,12 +48,6 @@ export interface ComposeDepositInput {
 export interface ComposeDepositDeps {
   adapter: LiFiAdapter;
   publicClients: Record<number, PublicClient>;
-}
-
-interface ApprovalRequirement {
-  tokenAddress: Address;
-  spenderAddress: Address;
-  amount: bigint;
 }
 
 function isNativeToken(chainId: number, token: Address): boolean {
@@ -99,46 +93,6 @@ function addApprovalRequirement(
     spenderAddress: approval.spenderAddress,
     amount,
   });
-}
-
-async function needsApproval(params: {
-  publicClient: PublicClient;
-  owner: Address;
-  requirement: ApprovalRequirement;
-}): Promise<boolean> {
-  try {
-    const allowance = (await params.publicClient.readContract({
-      address: params.requirement.tokenAddress,
-      abi: erc20Abi,
-      functionName: 'allowance',
-      args: [params.owner, params.requirement.spenderAddress],
-    })) as bigint;
-
-    return allowance < params.requirement.amount;
-  } catch {
-    return true;
-  }
-}
-
-function buildApproveTx(params: {
-  token: Address;
-  spender: Address;
-  amount: string;
-  chainId: number;
-}): PreparedTransaction {
-  return {
-    to: params.token,
-    data: encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'approve',
-      args: [params.spender, BigInt(params.amount)],
-    }),
-    value: '0',
-    chainId: params.chainId,
-    meta: {
-      intentType: 'ERC20_APPROVE',
-    },
-  };
 }
 
 function splitAmounts(

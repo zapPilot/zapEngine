@@ -691,6 +691,51 @@ describe('POST /telegram/webhook', () => {
     ]);
   });
 
+  it('sorts the Telegram cost breakdown by cost descending', async () => {
+    mockGenerateLanguageClassroomsWithLLM
+      .mockResolvedValueOnce({
+        lessons: [],
+        model: 'low-model',
+        thinkingModel: null,
+        provider: 'test-provider',
+        costUsd: 0.00001,
+      })
+      .mockResolvedValueOnce({
+        lessons: [],
+        model: 'high-model',
+        thinkingModel: null,
+        provider: 'test-provider',
+        costUsd: 0.00009,
+      })
+      .mockResolvedValueOnce({
+        lessons: [],
+        model: 'middle-model',
+        thinkingModel: null,
+        provider: 'test-provider',
+        costUsd: 0.00004,
+      });
+
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'https://example.com/article' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
+    expect(telegramMessageTexts()).toEqual([
+      expect.stringContaining('收到'),
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+        '💰 Total $0.00014',
+        'Breakdown',
+        '- LLM classrooms (test-provider/high-model): $0.00009',
+        '- LLM classrooms (test-provider/middle-model): $0.00004',
+        '- LLM classrooms (test-provider/low-model): $0.00001',
+      ].join('\n'),
+    ]);
+  });
+
   it('omits cost from the Telegram result when no LLM calls run', async () => {
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
       classroomRow({ id: 'classroom-zh', target_language_code: 'zh-Hant' }),

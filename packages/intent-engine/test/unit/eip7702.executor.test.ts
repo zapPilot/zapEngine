@@ -79,6 +79,22 @@ describe('EIP-7702 Executor', () => {
       });
     });
 
+    it('targets the requested chain when sending atomic calls', async () => {
+      vi.mocked(sendCalls).mockResolvedValue({
+        id: 'calls-123',
+      } as unknown as never);
+
+      await executeWithEIP7702(mockTxs, mockWalletClient, { chainId: 8453 });
+
+      expect(sendCalls).toHaveBeenCalledWith(
+        mockWalletClient,
+        expect.objectContaining({
+          chain: expect.objectContaining({ id: 8453 }),
+          forceAtomic: true,
+        }),
+      );
+    });
+
     it('returns error result when sendCalls fails', async () => {
       vi.mocked(sendCalls).mockRejectedValue(
         new Error('User rejected request'),

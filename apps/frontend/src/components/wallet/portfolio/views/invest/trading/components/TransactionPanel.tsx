@@ -8,7 +8,7 @@ import { useTransactionForm } from '@/components/wallet/portfolio/modals/hooks/u
 import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
 import { useWatchedTransactionData } from '@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData';
 import { useTokenBalances } from '@/hooks/queries/wallet/useTokenBalances';
-import { useGmxV2Deposit } from '@/hooks/useGmxV2Deposit';
+import { useGmxDeposit } from '@/hooks/useGmxDeposit';
 import { useInvestStrategy } from '@/hooks/useInvestStrategy';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { transactionServiceMock } from '@/services';
@@ -160,12 +160,14 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
     run,
     pending,
     lastError,
+    tier,
     lastTxHash,
     lastTxHashes,
+    lastCallsId,
     lastPlan,
     steps,
     getErrorMessage,
-  } = useGmxV2Deposit();
+  } = useGmxDeposit();
   const isOnArbitrum = chain?.id === arbitrum.id;
 
   const handleRun = async (marketKey: GmxV2MarketKey) => {
@@ -180,6 +182,13 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
   };
 
   const disabled = pending || !amount || parseFloat(amount) <= 0;
+  const tierLabel =
+    tier === 'eip7702'
+      ? 'EIP-7702'
+      : tier === 'sequential'
+        ? 'Sequential'
+        : null;
+  const resultId = lastCallsId ?? lastTxHash;
 
   return (
     <div className="mt-4 p-3 border border-dashed border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 rounded-lg text-xs">
@@ -205,7 +214,13 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
       </div>
       {lastPlan ? (
         <div className="mt-2 text-amber-700 dark:text-amber-300">
-          Market: {lastPlan.market.name} · fee {lastPlan.executionFeeWei} wei
+          GMX plan · {formatBaseUnits(lastPlan.legs[0]?.fromAmount ?? '0')} base
+          units
+        </div>
+      ) : null}
+      {tierLabel ? (
+        <div className="mt-2 text-amber-700 dark:text-amber-300">
+          Tier: {tierLabel}
         </div>
       ) : null}
       {steps.length ? (
@@ -226,25 +241,29 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
           ))}
         </div>
       ) : null}
-      {lastTxHash ? (
+      {resultId ? (
         <div className="mt-2 text-gray-700 dark:text-gray-300">
-          GMX deposit confirmed ·{' '}
-          <a
-            href={`https://arbiscan.io/tx/${lastTxHash}`}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            <code className="font-mono">{formatAddress(lastTxHash)}</code>
-          </a>
+          GMX deposit submitted ·{' '}
+          {lastTxHash ? (
+            <a
+              href={`https://arbiscan.io/tx/${lastTxHash}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              <code className="font-mono">{formatAddress(lastTxHash)}</code>
+            </a>
+          ) : (
+            <code className="font-mono">{formatAddress(resultId)}</code>
+          )}
         </div>
       ) : null}
-      {lastTxHashes.length > 1 ? (
+      {tier === 'sequential' && lastTxHashes.length > 1 ? (
         <div className="mt-1 text-gray-600 dark:text-gray-400">
           {lastTxHashes.length} transactions confirmed
         </div>
       ) : null}
-      {lastTxHash ? (
+      {resultId ? (
         <div className="mt-1 text-gray-600 dark:text-gray-400">
           GM minted by keeper - verify in GMX UI
         </div>

@@ -20,6 +20,22 @@ class RebalanceCalculator:
         return normalize_target_allocation(target_allocation)
 
     @staticmethod
+    def _resolve_current_values(
+        context: StrategyContext,
+        price: float | dict[str, float],
+        target_allocation: dict[str, float],
+    ) -> dict[str, float]:
+        """Resolve per-bucket current values, preferring allocation-keyed
+        values when the portfolio exposes them, else bucket values."""
+        values_for_keys = getattr(context.portfolio, "values_for_allocation_keys", None)
+        if callable(values_for_keys):
+            resolved_values = values_for_keys(price, target_allocation)
+            if isinstance(resolved_values, dict):
+                return resolved_values
+            return context.portfolio.bucket_values(price)
+        return context.portfolio.bucket_values(price)
+
+    @staticmethod
     def calculate_deltas(
         total_value: float,
         target_allocation: dict[str, float],
@@ -45,15 +61,9 @@ class RebalanceCalculator:
     ) -> dict[str, float]:
         price = context.portfolio_price
         total_value = context.portfolio.total_value(price)
-        values_for_keys = getattr(context.portfolio, "values_for_allocation_keys", None)
-        if callable(values_for_keys):
-            resolved_values = values_for_keys(price, target_allocation)
-            if isinstance(resolved_values, dict):
-                current_values = resolved_values
-            else:
-                current_values = context.portfolio.bucket_values(price)
-        else:
-            current_values = context.portfolio.bucket_values(price)
+        current_values = RebalanceCalculator._resolve_current_values(
+            context, price, target_allocation
+        )
         return RebalanceCalculator.calculate_deltas(
             total_value, target_allocation, current_values
         )
@@ -131,15 +141,9 @@ class RebalanceCalculator:
                 "Portfolio must expose bucket_values or snapshot"
             )  # pragma: no cover
         total_value = context.portfolio.total_value(price)
-        values_for_keys = getattr(context.portfolio, "values_for_allocation_keys", None)
-        if callable(values_for_keys):
-            resolved_values = values_for_keys(price, target_allocation)
-            if isinstance(resolved_values, dict):
-                current_values = resolved_values
-            else:
-                current_values = context.portfolio.bucket_values(price)
-        else:
-            current_values = context.portfolio.bucket_values(price)
+        current_values = RebalanceCalculator._resolve_current_values(
+            context, price, target_allocation
+        )
         return RebalanceCalculator.calculate_current_allocation(
             total_value=total_value,
             current_values=current_values,

@@ -191,6 +191,60 @@ void main() {
     expect(find.text('English liquidity watch'), findsWidgets);
   });
 
+  testWidgets(
+      'Episode detail keeps current localization when selected one is missing',
+      (
+    tester,
+  ) async {
+    final languageProvider = ContentLanguageProvider();
+    final service = _DetailEpisodeService(localizedEpisode: null);
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(
+        episode: _episode(),
+        episodeService: service,
+      ),
+      languageProvider: languageProvider,
+    );
+
+    await tester.tap(find.text('EN'));
+    await tester.pumpAndSettle();
+
+    expect(languageProvider.languageCode, 'zh-Hant');
+    expect(service.requests, [const _EpisodeRequest('episode-1', 'en')]);
+    expect(find.text('Treasury liquidity watch'), findsWidgets);
+    expect(find.text('此集數尚未提供所選語言版本。'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Episode detail language chips use the displayed episode language', (
+    tester,
+  ) async {
+    final languageProvider = ContentLanguageProvider();
+    await languageProvider.setLanguageCode('en');
+    final service = _DetailEpisodeService(
+      localizedEpisode: _episode(title: 'English liquidity watch').copyWith(
+        languageCode: 'en',
+      ),
+    );
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(
+        episode: _episode(),
+        episodeService: service,
+      ),
+      languageProvider: languageProvider,
+    );
+
+    await tester.tap(find.text('EN'));
+    await tester.pumpAndSettle();
+
+    expect(service.requests, [const _EpisodeRequest('episode-1', 'en')]);
+    expect(find.text('English liquidity watch'), findsWidgets);
+  });
+
   testWidgets('Episode detail shows language classroom lessons', (
     tester,
   ) async {
@@ -240,7 +294,7 @@ Future<void> _pumpHarness(
 class _DetailEpisodeService extends EpisodeService {
   _DetailEpisodeService({required this.localizedEpisode});
 
-  final Episode localizedEpisode;
+  final Episode? localizedEpisode;
   final List<_EpisodeRequest> requests = [];
 
   @override

@@ -15,8 +15,12 @@ import type { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
 import type { LatestDmaSnapshot } from '../../modules/core/dmaSnapshot.js';
+import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
 import { StockPriceDmaWriter } from '../../modules/stock-price/dmaWriter.js';
-import { computeRollingDmaMetrics } from '../../modules/token-price/dmaCalculator.js';
+import {
+  computeRollingDmaMetrics,
+  mapRollingMetric,
+} from '../../modules/token-price/dmaCalculator.js';
 import { logger } from '../../utils/logger.js';
 
 export interface StockPriceDmaSnapshotInsert {
@@ -56,37 +60,15 @@ export class StockPriceDmaService {
   ): Promise<{ recordsInserted: number }> {
     const correlationId = jobId ?? `dma-${symbol}-${Date.now()}`;
 
-    logger.info('Starting DMA computation post-step', {
-      jobId: correlationId,
-      symbol,
-    });
-
-    const prices = await this.fetchPricesForSymbol(symbol);
-    if (prices.length === 0) {
-      logger.info('No price history found for DMA computation', {
-        jobId: correlationId,
-        symbol,
-      });
-      return { recordsInserted: 0 };
-    }
-
-    const dmaSnapshots = this.computeDma(
-      prices,
-      StockPriceDmaService.DMA_WINDOW_SIZE,
-    );
-    const writeResult = await this.writeDmaSnapshots(
-      dmaSnapshots,
+    return runDmaUpdate({
       correlationId,
-      symbol,
-    );
-
-    logger.info('DMA computation post-step completed', {
-      jobId: correlationId,
-      symbol,
-      recordsInserted: writeResult.recordsInserted,
+      logContext: { symbol },
+      fetchPrices: () => this.fetchPricesForSymbol(symbol),
+      computeSnapshots: (prices) =>
+        this.computeDma(prices, StockPriceDmaService.DMA_WINDOW_SIZE),
+      writeSnapshots: (snapshots) =>
+        this.writeDmaSnapshots(snapshots, correlationId, symbol),
     });
-
-    return writeResult;
   }
 
   async getLatestDmaSnapshot(
@@ -139,10 +121,7 @@ export class StockPriceDmaService {
         symbol: row.symbol,
         snapshot_date: row.snapshot_date,
         price_usd: row.price_usd,
-        dma_200: metric?.dma200 ?? null,
-        price_vs_dma_ratio: metric?.ratioVsDma ?? null,
-        is_above_dma: metric?.isAboveDma ?? null,
-        days_available: metric?.daysAvailable ?? 0,
+        ...mapRollingMetric(metric, 'price_vs_dma_ratio'),
         source: StockPriceDmaService.SOURCE,
         snapshot_time: now,
         created_at: now,

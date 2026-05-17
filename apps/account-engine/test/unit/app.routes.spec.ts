@@ -1,5 +1,6 @@
 import type { Mock } from 'vitest';
 
+import { createApp } from '../../src/app';
 import { NotFoundException } from '../../src/common/http';
 import type { AppServices } from '../../src/container';
 import {
@@ -7,8 +8,6 @@ import {
   JobStatus,
   JobType,
 } from '../../src/modules/jobs/interfaces/job.interface';
-
-import { createApp } from '../../src/app';
 
 function createJob(overrides: Partial<Job> = {}): Job {
   const now = new Date('2026-01-01T00:00:00.000Z');
@@ -92,6 +91,15 @@ function createServices(): AppServices {
       }),
       logWebhookError: vi.fn(),
     },
+    planOrchestrationService: {
+      buildDeposit: vi.fn().mockResolvedValue({
+        legs: [],
+        approvals: [],
+        calls: [],
+        totalGasUsd: '0',
+        sourceChainId: 42161,
+      }),
+    },
   } as unknown as AppServices;
 }
 
@@ -109,6 +117,26 @@ describe('Hono app routes', () => {
     });
     expect(body).toHaveProperty('commitSha');
     expect(body).toHaveProperty('buildTime');
+  });
+
+  it('does not expose the legacy user deposit-plan route', async () => {
+    const app = createApp(createServices());
+
+    const response = await app.request(
+      'http://localhost/users/0x1111111111111111111111111111111111111111/deposit-plan',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: '0x1111111111111111111111111111111111111111',
+          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '1000',
+          sourceChainId: 8453,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it('handles connect-wallet with validated JSON body', async () => {

@@ -293,6 +293,34 @@ def add_split_proceeds(
     target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
 
 
+def _finalize_allocation_intent(
+    *,
+    action: DecisionAction,
+    snapshot: PortfolioSnapshot,
+    target: dict[str, float],
+    matching_symbols: list[str],
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    emit_signals_consulted: bool,
+) -> AllocationIntent:
+    """Build the final portfolio-target intent shared by DCA buy/sell rules."""
+    return portfolio_target_intent(
+        action=action,
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=reason,
+        rule_group=rule_group,
+        assets=matching_symbols,
+        signals_consulted=signals_consulted_for_symbols(
+            snapshot,
+            tuple(matching_symbols),
+        )
+        if emit_signals_consulted
+        else None,
+    )
+
+
 def build_dca_sell_intent(
     *,
     snapshot: PortfolioSnapshot,
@@ -321,19 +349,15 @@ def build_dca_sell_intent(
         sold = min(adjusted_sell_step, max(0.0, float(target.get(key, 0.0))))
         target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
         proceeds_handler(target, sold)
-    return portfolio_target_intent(
+    return _finalize_allocation_intent(
         action="sell",
-        target=normalize_target_allocation(target),
+        snapshot=snapshot,
+        target=target,
+        matching_symbols=matching_symbols,
         allocation_name=allocation_name,
         reason=reason,
         rule_group=rule_group,
-        assets=matching_symbols,
-        signals_consulted=signals_consulted_for_symbols(
-            snapshot,
-            tuple(matching_symbols),
-        )
-        if emit_signals_consulted
-        else None,
+        emit_signals_consulted=emit_signals_consulted,
     )
 
 
@@ -371,19 +395,15 @@ def build_dca_buy_intent(
             0.0,
             stable_available - sum(adjusted_step_by_symbol.values()) * stable_scale,
         )
-    return portfolio_target_intent(
+    return _finalize_allocation_intent(
         action="buy",
-        target=normalize_target_allocation(target),
+        snapshot=snapshot,
+        target=target,
+        matching_symbols=matching_symbols,
         allocation_name=allocation_name,
         reason=reason,
         rule_group=rule_group,
-        assets=matching_symbols,
-        signals_consulted=signals_consulted_for_symbols(
-            snapshot,
-            tuple(matching_symbols),
-        )
-        if emit_signals_consulted
-        else None,
+        emit_signals_consulted=emit_signals_consulted,
     )
 
 

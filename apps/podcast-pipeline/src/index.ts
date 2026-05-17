@@ -19,6 +19,7 @@ import {
 import {
   compactUsageCostLines,
   nonZeroUsageCostLines,
+  sortUsageCostLinesByCostDesc,
   type UsageCostLine,
 } from './services/cost.js';
 import {
@@ -385,8 +386,8 @@ function formatTelegramIngestResult(result: IngestResult): string {
     lines.push(result.episode.hlsUrl);
   }
 
-  const costLines = compactUsageCostLines(
-    nonZeroUsageCostLines(result.costDetails.breakdown),
+  const costLines = sortUsageCostLinesByCostDesc(
+    compactUsageCostLines(nonZeroUsageCostLines(result.costDetails.breakdown)),
   );
   if (result.costDetails.totalUsd > 0 && costLines.length > 0) {
     lines.push(`💰 Total $${formatUsd(result.costDetails.totalUsd)}`);

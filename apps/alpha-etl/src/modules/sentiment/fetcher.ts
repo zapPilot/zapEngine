@@ -14,12 +14,12 @@ import {
   type SentimentData,
 } from '../../modules/sentiment/schema.js';
 import { APIError } from '../../utils/errors.js';
+import { serializeError } from '../../utils/errorSerializer.js';
 import {
   type HealthCheckResult,
   wrapHealthCheck,
 } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
-import { serializeError } from './errorSerializer.js';
 import {
   normalizeSentimentData,
   validateAndExtractSentimentEntry,

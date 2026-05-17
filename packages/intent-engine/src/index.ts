@@ -63,6 +63,11 @@ export {
   type Bucket,
   type VaultEntry,
 } from './registry/vaults.js';
+export {
+  buildApproveTx,
+  needsApproval,
+  type ApprovalRequirement,
+} from './approvals/erc20Approval.js';
 export { composeDeposit } from './strategies/composeDeposit.js';
 
 // Protocol constants
@@ -209,6 +214,7 @@ export interface IntentEngine {
   executeWithEIP7702(
     txs: PreparedTransaction[],
     wallet: WalletClient,
+    options?: { chainId?: number },
   ): Promise<ExecutionResult>;
 }
 
@@ -271,8 +277,14 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return lifiAdapter.getTokenPrice(chainId, tokenAddress);
     },
 
-    async executeWithEIP7702(txs: PreparedTransaction[], wallet: WalletClient) {
-      return executeWithEIP7702(txs, wallet);
+    async executeWithEIP7702(
+      txs: PreparedTransaction[],
+      wallet: WalletClient,
+      options?: { chainId?: number },
+    ) {
+      return options
+        ? executeWithEIP7702(txs, wallet, options)
+        : executeWithEIP7702(txs, wallet);
     },
   };
 }

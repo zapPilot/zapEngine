@@ -1,15 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  buildGmxV2Deposit,
-  getBridgeStatus,
-  getPublicClient,
-} from '@/services/intentClient';
+import { getBridgeStatus, getPublicClient } from '@/services/intentClient';
 
 const mocks = vi.hoisted(() => {
   const publicClientStub = { id: 'public-client-stub' };
   return {
-    buildGmxV2Supply: vi.fn(),
     // intentClient.ts builds its publicClients map at import time, so the
     // implementation must be in place before the hoisted import runs.
     createPublicClient: vi.fn(() => publicClientStub),
@@ -19,12 +14,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@zapengine/intent-engine', () => ({
-  createIntentEngine: vi.fn(() => ({
-    buildGmxV2Supply: mocks.buildGmxV2Supply,
-  })),
-  GMX_V2_TOKENS: {
-    USDC: { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' },
-  },
+  createIntentEngine: vi.fn(() => ({})),
 }));
 
 vi.mock('viem', async (importOriginal) => {
@@ -90,27 +80,6 @@ describe('intentClient', () => {
       await expect(
         getBridgeStatus({ txHash: '0xabc', fromChain: 8453, toChain: 1 }),
       ).rejects.toThrow('Failed to fetch LI.FI bridge status: 502');
-    });
-  });
-
-  describe('buildGmxV2Deposit', () => {
-    it('delegates to the intent engine with the USDC source token', async () => {
-      const plan = { approvals: [], steps: [] };
-      mocks.buildGmxV2Supply.mockResolvedValueOnce(plan);
-
-      const result = await buildGmxV2Deposit({
-        marketKey: 'eth-usdc',
-        amount: '1000000',
-        userAddress: '0x1111111111111111111111111111111111111111',
-      });
-
-      expect(mocks.buildGmxV2Supply).toHaveBeenCalledWith({
-        marketKey: 'eth-usdc',
-        fromToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-        fromAmount: '1000000',
-        userAddress: '0x1111111111111111111111111111111111111111',
-      });
-      expect(result).toBe(plan);
     });
   });
 });

@@ -91,7 +91,48 @@ export const DepositRequestSchema = z
     }
   });
 
+export const PlanOrchestrationDepositRequestSchema = z
+  .discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('invest'),
+      userAddress: AddressSchema,
+      fromToken: AddressSchema,
+      fromAmount: decimalStringSchema,
+      sourceChainId: z.number().int().positive(),
+    }),
+    z.object({
+      kind: z.literal('gmx-v2'),
+      marketKey: z.enum(['btc-btc', 'eth-eth', 'btc-usdc', 'eth-usdc']),
+      amount: decimalStringSchema,
+      userAddress: AddressSchema,
+    }),
+  ])
+  .superRefine((value, ctx) => {
+    if (value.kind !== 'invest') {
+      return;
+    }
+
+    if (value.sourceChainId !== BASE_CHAIN_ID) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Deposit v1 supports Base only',
+        path: ['sourceChainId'],
+      });
+    }
+
+    if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Deposit v1 supports USDC and native ETH on Base only',
+        path: ['fromToken'],
+      });
+    }
+  });
+
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
 export type DepositLeg = z.infer<typeof DepositLegSchema>;
 export type DepositPlan = z.infer<typeof DepositPlanSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;
+export type PlanOrchestrationDepositRequest = z.infer<
+  typeof PlanOrchestrationDepositRequestSchema
+>;

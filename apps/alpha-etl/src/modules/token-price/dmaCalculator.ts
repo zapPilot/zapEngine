@@ -137,7 +137,7 @@ export function computeTokenPairRatioDma(
   });
 }
 
-function mapRollingMetric<
+export function mapRollingMetric<
   RatioKey extends 'price_vs_dma_ratio' | 'ratio_vs_dma_ratio',
 >(
   metric: RollingDmaMetric | undefined,
