@@ -18,6 +18,9 @@ class FakePodcastAudioHandler extends BaseAudioHandler
   final _positionController = StreamController<Duration>.broadcast(sync: true);
   final _durationController = StreamController<Duration?>.broadcast(sync: true);
   final _speedController = StreamController<double>.broadcast(sync: true);
+  final _sectionController = StreamController<PlaybackSection>.broadcast(
+    sync: true,
+  );
 
   final List<String> loadedEpisodeIds = [];
   final List<String> loadedTrackUrls = [];
@@ -27,6 +30,7 @@ class FakePodcastAudioHandler extends BaseAudioHandler
   double _speed = 1.0;
   bool _closed = false;
   AudioTrack? currentAudioTrack;
+  PlaybackSection _currentSection = PlaybackSection.main;
 
   @override
   Stream<PlayerState> get playerStateStream => _playerStateController.stream;
@@ -41,10 +45,16 @@ class FakePodcastAudioHandler extends BaseAudioHandler
   Stream<double> get speedStream => _speedController.stream;
 
   @override
+  Stream<PlaybackSection> get currentSectionStream => _sectionController.stream;
+
+  @override
   Duration get duration => Duration.zero;
 
   @override
   double get speed => _speed;
+
+  @override
+  PlaybackSection get currentSection => _currentSection;
 
   @override
   Future<void> setEpisode(Episode episode, {AudioTrack? audioTrack}) async {
@@ -93,6 +103,7 @@ class FakePodcastAudioHandler extends BaseAudioHandler
     await _positionController.close();
     await _durationController.close();
     await _speedController.close();
+    await _sectionController.close();
   }
 
   void emitPosition(Duration position) {
@@ -105,5 +116,10 @@ class FakePodcastAudioHandler extends BaseAudioHandler
 
   void complete() {
     _playerStateController.add(PlayerState(false, ProcessingState.completed));
+  }
+
+  void emitSection(PlaybackSection section) {
+    _currentSection = section;
+    _sectionController.add(section);
   }
 }

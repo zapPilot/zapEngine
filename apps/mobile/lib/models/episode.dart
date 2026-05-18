@@ -5,11 +5,13 @@ class AudioTrack {
     required this.languageCode,
     required this.title,
     required this.hlsUrl,
+    this.classroomHlsUrl,
   });
 
   final String languageCode;
   final String title;
   final String hlsUrl;
+  final String? classroomHlsUrl;
 
   bool get isPlayable => hlsUrl.trim().isNotEmpty;
 
@@ -25,6 +27,11 @@ class AudioTrack {
       languageCode: languageCode,
       title: title.isNotEmpty ? title : languageCode,
       hlsUrl: _readOptionalString(json, 'hlsUrl', 'hls_url'),
+      classroomHlsUrl: _readNullableString(
+        json,
+        'classroomHlsUrl',
+        'classroom_hls_url',
+      ),
     );
   }
 
@@ -34,11 +41,12 @@ class AudioTrack {
         other is AudioTrack &&
             other.languageCode == languageCode &&
             other.title == title &&
-            other.hlsUrl == hlsUrl;
+            other.hlsUrl == hlsUrl &&
+            other.classroomHlsUrl == classroomHlsUrl;
   }
 
   @override
-  int get hashCode => Object.hash(languageCode, title, hlsUrl);
+  int get hashCode => Object.hash(languageCode, title, hlsUrl, classroomHlsUrl);
 }
 
 class LanguageClassroomKeyword {

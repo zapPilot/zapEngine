@@ -4,15 +4,21 @@ from datetime import date
 
 import pytest
 
+from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.signals.contracts import SignalContext
 from src.services.backtesting.signals.dma_gated_fgi.component import (
+    DmaGatedFgiSignalComponent,
+    _hold_intent,
+    _hold_reason,
     _resolve_dma_allocation_intent,
+    _target_intent,
 )
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.dma_gated_fgi.errors import SignalDataError
 from src.services.backtesting.signals.dma_gated_fgi.signal_engine import (
     DmaSignalEngine,
 )
+from src.services.backtesting.strategies.base import StrategyContext
 from tests.services.backtesting.helpers import state
 
 
@@ -37,6 +43,23 @@ def _context(
         portfolio_value=10_000.0,
         ath_event=ath_event,
         extra_data=resolved_extra_data,
+    )
+
+
+def _strategy_context(
+    *,
+    day: int,
+    price: float,
+    sentiment: dict[str, object] | None = None,
+    dma_200: float = 50_000.0,
+) -> StrategyContext:
+    return StrategyContext(
+        date=date(2025, 1, day),
+        price=price,
+        sentiment=sentiment,
+        price_history=[50_000.0, price],
+        portfolio=Portfolio(spot_balance=0.0, stable_balance=10_000.0),
+        extra_data={"dma_200": dma_200},
     )
 
 
@@ -130,6 +153,48 @@ def test_decision_resolver_prioritizes_dma_fgi_over_ath_fallback() -> None:
     assert sell_intent.rule_group == "dma_fgi"
 
 
+def test_component_intent_helpers_delegate_to_tactical_contracts() -> None:
+    assert _hold_reason("at") == "price_equal_dma_hold"
+
+    hold = _hold_intent(reason="custom_hold", rule_group="cooldown")
+    assert hold.action == "hold"
+    assert hold.reason == "custom_hold"
+
+    target = _target_intent(
+        action="buy",
+        target={"btc": 1.0, "stable": 0.0},
+        allocation_name="all_btc",
+        reason="below_extreme_fear_buy",
+        rule_group="dma_fgi",
+        immediate=True,
+    )
+    assert target.action == "buy"
+    assert target.immediate is True
+    assert target.target_allocation == {"btc": 1.0, "stable": 0.0}
+
+
+def test_decision_resolver_holds_when_matching_rule_is_disabled() -> None:
+    intent = _resolve_dma_allocation_intent(
+        state(symbol="BTC", zone="below", fgi_regime="extreme_fear"),
+        disabled_rules=frozenset({"below_extreme_fear_buy"}),
+    )
+
+    assert intent.action == "hold"
+    assert intent.reason == "regime_no_signal"
+    assert intent.diagnostics == {"matched_rule_name": "regime_no_signal_hold"}
+
+
+def test_decision_resolver_fallback_holds_when_rule_registry_is_empty() -> None:
+    intent = _resolve_dma_allocation_intent(
+        state(symbol="BTC", zone="at", fgi_regime="neutral"),
+        rules=(),
+    )
+
+    assert intent.action == "hold"
+    assert intent.reason == "price_equal_dma_hold"
+    assert intent.diagnostics == {"matched_rule_name": "regime_no_signal_hold"}
+
+
 def test_decision_resolver_above_only_ath_fallback() -> None:
     hold_intent = _resolve_dma_allocation_intent(
         state(
@@ -152,6 +217,89 @@ def test_decision_resolver_above_only_ath_fallback() -> None:
     )
     assert ath_intent.reason == "ath_sell"
     assert ath_intent.rule_group == "ath"
+
+
+def test_component_builds_signal_observation_for_cross_intent() -> None:
+    component = DmaGatedFgiSignalComponent()
+    market_state = state(
+        symbol="BTC",
+        zone="above",
+        cross_event="cross_up",
+        actionable_cross_event="cross_up",
+        fgi_regime="greed",
+        fgi_value=72.0,
+        fgi_slope=0.08,
+    )
+    intent = _resolve_dma_allocation_intent(market_state)
+
+    observation = component.build_signal_observation(
+        snapshot=market_state,
+        intent=intent,
+    )
+
+    assert observation.signal_id == "dma_gated_fgi"
+    assert observation.regime == "greed"
+    assert observation.raw_value == pytest.approx(72.0)
+    assert observation.dma is not None
+    assert observation.dma.cross_event == "cross_up"
+    assert observation.dma.fgi_slope == pytest.approx(0.08)
+
+
+def test_component_builds_spy_macro_execution_hints_for_buy_gate() -> None:
+    component = DmaGatedFgiSignalComponent()
+    market_state = state(
+        symbol="SPY",
+        zone="below",
+        dma_distance=-0.12,
+        fgi_regime="neutral",
+        macro_fear_greed_regime="extreme_fear",
+        macro_fear_greed_value=4.0,
+    )
+    intent = _resolve_dma_allocation_intent(market_state)
+
+    hints = component.build_execution_hints(
+        snapshot=market_state,
+        intent=intent,
+        signal_confidence=0.81,
+    )
+
+    assert intent.reason == "spy_below_extreme_fear_buy"
+    assert hints.enable_buy_gate is True
+    assert hints.buy_strength is not None
+    assert hints.current_regime == "extreme_fear"
+    assert hints.signal_value == pytest.approx(4.0)
+    assert hints.signal_confidence == pytest.approx(0.81)
+
+
+def test_component_warmup_observe_apply_and_reset_cycle() -> None:
+    component = DmaGatedFgiSignalComponent()
+    warmup_context = _strategy_context(
+        day=1,
+        price=45_000.0,
+        sentiment={"label": "fear", "value": 30},
+    )
+    live_context = _strategy_context(
+        day=2,
+        price=55_000.0,
+        sentiment={"label": "greed", "value": 70},
+    )
+
+    component.initialize(warmup_context)
+    component.warmup(warmup_context)
+    market_state = component.observe(live_context)
+    intent = _resolve_dma_allocation_intent(market_state)
+    committed = component.apply_intent(
+        current_date=date(2025, 1, 2),
+        snapshot=market_state,
+        intent=intent,
+    )
+
+    assert market_state.cross_event == "cross_up"
+    assert committed.cooldown_state.active is True
+
+    component.reset()
+    after_reset = component.observe(live_context)
+    assert after_reset.cross_event is None
 
 
 def test_signal_engine_cooldown_transition_blocks_opposite_side() -> None:

@@ -7,7 +7,10 @@ from unittest.mock import Mock
 
 from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.contracts import ExecutionHints
-from src.services.backtesting.execution.dma_buy_gate import DmaBuyGateSnapshot
+from src.services.backtesting.execution.dma_buy_gate import (
+    DmaBuyGateSnapshot,
+    DmaBuySidewaysGate,
+)
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
     DmaBuyGateExecutionPlugin,
 )
@@ -159,3 +162,49 @@ def test_resolve_capped_stable_buy_not_confirmed() -> None:
         snapshot=snapshot,
     )
     assert result == 0.0
+
+
+def test_sideways_gate_clears_armed_episode_when_range_breaks_out() -> None:
+    gate = DmaBuySidewaysGate(window_days=3, sideways_range_threshold=0.02)
+    for distance in (-0.10, -0.11, -0.10):
+        gate.observe_dma_distance(distance)
+
+    decision = gate.prepare_buy_execution(nav_usd=10_000.0, buy_strength=0.5)
+    assert decision.allowed is True
+    assert decision.snapshot.buy_episode_state == "armed"
+
+    gate.observe_dma_distance(-0.20)
+
+    snapshot = gate.snapshot(buy_strength=0.5)
+    assert snapshot.buy_episode_state == "idle"
+    assert snapshot.buy_leg_index is None
+
+
+def test_sideways_gate_consumed_episode_blocks_until_breakout() -> None:
+    gate = DmaBuySidewaysGate(window_days=3, sideways_range_threshold=0.02)
+    for distance in (-0.10, -0.11, -0.10):
+        gate.observe_dma_distance(distance)
+    assert (
+        gate.prepare_buy_execution(nav_usd=10_000.0, buy_strength=0.5).allowed is True
+    )
+    gate.record_buy_execution(500.0)
+
+    consumed = gate.prepare_buy_execution(nav_usd=10_000.0, buy_strength=0.5)
+    assert consumed.allowed is False
+    assert consumed.snapshot.buy_gate_block_reason == "breakout_not_seen"
+
+    gate.observe_dma_distance(-0.20)
+    assert gate.snapshot(buy_strength=0.5).buy_episode_state == "idle"
+
+
+def test_sideways_gate_cap_and_record_noop_edges() -> None:
+    gate = DmaBuySidewaysGate(window_days=1, leg_cap_pcts=())
+    gate.observe_dma_distance(-0.10)
+    decision = gate.prepare_buy_execution(nav_usd=10_000.0, buy_strength=0.5)
+
+    assert decision.allowed is True
+    assert gate.cap_buy_amount(-1.0) == 0.0
+    assert gate.cap_buy_amount(750.0) == 750.0
+
+    gate.record_buy_execution(0.0)
+    assert gate.snapshot(buy_strength=0.5).buy_episode_state == "armed"

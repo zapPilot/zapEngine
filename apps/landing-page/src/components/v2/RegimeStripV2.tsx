@@ -8,17 +8,15 @@ import {
   type RegimeStripItem,
 } from '@/lib/api/market';
 
+const SKELETON_ITEM_KEYS = ['regime', 'fgi', 'dma'] as const;
+
 type RegimeItemProps = {
   item: RegimeStripItem;
-  loading: boolean;
 };
 
-function RegimeItem({ item, loading }: RegimeItemProps) {
+function RegimeItem({ item }: RegimeItemProps) {
   return (
-    <div
-      className={`regime-strip-item${loading ? ' is-loading' : ''}`}
-      aria-busy={loading || undefined}
-    >
+    <div className="regime-strip-item">
       <span>{item.label}</span>
       <strong>{item.value}</strong>
       <small>{item.detail}</small>
@@ -26,9 +24,20 @@ function RegimeItem({ item, loading }: RegimeItemProps) {
   );
 }
 
+function RegimeSkeletonItem() {
+  return (
+    <div className="regime-strip-item is-skeleton" aria-hidden="true">
+      <span className="skeleton-bar skeleton-label" />
+      <strong className="skeleton-bar skeleton-value" />
+      <small className="skeleton-bar skeleton-detail" />
+    </div>
+  );
+}
+
 export function RegimeStripV2() {
   const [data, setData] = useState<RegimeStripData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { regimeStrip } = MESSAGES;
 
   useEffect(() => {
     let cancelled = false;
@@ -55,22 +64,31 @@ export function RegimeStripV2() {
     };
   }, []);
 
-  const items = data?.items ?? MESSAGES.regimeTelemetry.items;
-  const loadingFallback = loading && data === null;
+  const showSkeleton = loading || data === null;
+  const liveItems = data?.items ?? [];
 
   return (
-    <section className="regime-strip-section" aria-label="Regime data">
+    <section
+      className="regime-strip-section"
+      aria-label={regimeStrip.ariaLabel}
+    >
       <div className="regime-strip-header">
         <span className="live-status">
-          <span aria-hidden />
-          {MESSAGES.regimeTelemetry.status}
+          {showSkeleton ? null : <span aria-hidden />}
+          {showSkeleton ? regimeStrip.pendingStatus : regimeStrip.liveStatus}
         </span>
-        <strong>Telemetry feeding the next bundle</strong>
+        <strong>{regimeStrip.header}</strong>
       </div>
-      <div className="regime-strip" aria-live="polite">
-        {items.map((item) => (
-          <RegimeItem key={item.label} item={item} loading={loadingFallback} />
-        ))}
+      <div
+        className="regime-strip"
+        aria-live="polite"
+        aria-busy={showSkeleton || undefined}
+      >
+        {showSkeleton
+          ? SKELETON_ITEM_KEYS.map((key) => <RegimeSkeletonItem key={key} />)
+          : liveItems.map((item) => (
+              <RegimeItem key={item.label} item={item} />
+            ))}
       </div>
     </section>
   );

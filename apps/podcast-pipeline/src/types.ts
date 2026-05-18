@@ -42,6 +42,7 @@ export interface EpisodeLocalizationRow {
   language_code: string;
   title: string;
   hls_url: string;
+  classroom_hls_url: string | null;
   raw_text: string | null;
   script: string | null;
   llm_model: string | null;
@@ -50,6 +51,7 @@ export interface EpisodeLocalizationRow {
   tts_language_code: string | null;
   tts_voice_name: string | null;
   r2_prefix: string | null;
+  classroom_r2_prefix: string | null;
   status: EpisodeStatus;
   created_at: string;
   updated_at: string;
@@ -62,6 +64,7 @@ export interface EpisodeListRow {
   title: string;
   language_code: string;
   hls_url: string;
+  classroom_hls_url: string | null;
   script: string | null;
   llm_model: string | null;
   llm_thinking_model: string | null;
@@ -71,6 +74,13 @@ export interface EpisodeListRow {
   listened: boolean;
   like_count: number;
   language_classrooms: unknown;
+}
+
+export interface EpisodeAudioTrackResponse {
+  languageCode: string;
+  title: string;
+  hlsUrl: string;
+  classroomHlsUrl: string | null;
 }
 
 export interface LanguageClassroomKeyword {
@@ -107,6 +117,7 @@ export interface EpisodeResponse {
   title: string;
   languageCode: string;
   hlsUrl: string;
+  audioTracks: EpisodeAudioTrackResponse[];
   createdAt: string;
   listened: boolean;
   script: string | null;
@@ -137,6 +148,8 @@ export interface NewEpisodeLocalization {
   ttsLanguageCode: string | null;
   ttsVoiceName: string | null;
   r2Prefix: string | null;
+  classroomHlsUrl?: string | null;
+  classroomR2Prefix?: string | null;
   status: EpisodeStatus;
 }
 

@@ -324,8 +324,8 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
           Align(
             alignment: Alignment.centerRight,
             child: PlaybackSpeedMenu(
-              speed: playback.speed,
-              onSelected: playback.setSpeed,
+              speed: playback.currentSectionSpeed,
+              onSelected: playback.setSpeedForCurrentSection,
             ),
           ),
           if (audioTracks.length > 1) ...[

@@ -417,8 +417,8 @@ describe('POST /ingest pipeline', () => {
               raw_text: '滑鼠和腳踏車市場',
               script: 'Generated script',
               hls_url:
-                'https://cdn.example.com/episodes/e/localizations/zh-Hant/playlist.m3u8',
-              r2_prefix: 'episodes/e/localizations/zh-Hant',
+                'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+              r2_prefix: 'episodes/e/localizations/zh-Hant/main',
               status: 'completed',
             }),
           );
@@ -449,11 +449,13 @@ describe('POST /ingest pipeline', () => {
       ],
       playlistKey: 'playlist.m3u8',
     });
-    mockUploadHlsToR2.mockResolvedValue({
-      hlsUrl:
-        'https://cdn.example.com/episodes/e/localizations/zh-Hant/playlist.m3u8',
-      r2Prefix: 'episodes/e/localizations/zh-Hant',
-    });
+    mockUploadHlsToR2.mockImplementation(
+      (_files, episodeId: string, languageCode: string, section: string) =>
+        Promise.resolve({
+          hlsUrl: `https://cdn.example.com/episodes/${episodeId}/localizations/${languageCode}/${section}/playlist.m3u8`,
+          r2Prefix: `episodes/${episodeId}/localizations/${languageCode}/${section}`,
+        }),
+    );
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [
@@ -518,14 +520,16 @@ describe('POST /ingest pipeline', () => {
       expect.any(Array),
       episodeRow().id,
       'zh-Hant',
+      'main',
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
         hlsUrl:
-          'https://cdn.example.com/episodes/e/localizations/zh-Hant/playlist.m3u8',
-        r2Prefix: 'episodes/e/localizations/zh-Hant',
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
+        r2Prefix:
+          'episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main',
         ttsLanguageCode: 'zh-Hant',
         ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
       }),
@@ -910,6 +914,14 @@ function localizationResponse(
     title: localization.title,
     languageCode: localization.language_code,
     hlsUrl: localization.hls_url,
+    audioTracks: [
+      {
+        languageCode: localization.language_code,
+        title: localization.title,
+        hlsUrl: localization.hls_url,
+        classroomHlsUrl: localization.classroom_hls_url,
+      },
+    ],
     createdAt: episode.created_at,
     listened: episode.listened,
     script: localization.script,
@@ -952,6 +964,14 @@ function episodeListResponse(
     title: row.title,
     languageCode: row.language_code,
     hlsUrl: row.hls_url,
+    audioTracks: [
+      {
+        languageCode: row.language_code,
+        title: row.title,
+        hlsUrl: row.hls_url,
+        classroomHlsUrl: row.classroom_hls_url,
+      },
+    ],
     createdAt: row.created_at,
     listened: row.listened,
     script: row.script,
@@ -983,6 +1003,7 @@ function localizationRow(
     language_code: 'zh-Hant',
     title: 'Localization title',
     hls_url: 'https://cdn.example.com/playlist.m3u8',
+    classroom_hls_url: null,
     raw_text: 'Article text',
     script: 'Script',
     llm_model: 'model',
@@ -991,6 +1012,7 @@ function localizationRow(
     tts_language_code: null,
     tts_voice_name: null,
     r2_prefix: null,
+    classroom_r2_prefix: null,
     status: 'completed',
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
@@ -1006,6 +1028,7 @@ function listRow(overrides: Partial<EpisodeListRow> = {}): EpisodeListRow {
     title: 'Localization title',
     language_code: 'zh-Hant',
     hls_url: 'https://cdn.example.com/playlist.m3u8',
+    classroom_hls_url: null,
     script: 'Script',
     llm_model: 'model',
     llm_thinking_model: null,

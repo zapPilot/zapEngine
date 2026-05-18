@@ -69,7 +69,7 @@ export function buildUserMessage(title: string, text: string): string {
   return `標題：${title}\n\n內容：\n${text}`;
 }
 
-function getOpenRouterConfig(): {
+export function getOpenRouterConfig(): {
   openai: OpenAI;
   model: string;
   thinkingModel: string | null;
@@ -93,14 +93,15 @@ function getOpenRouterConfig(): {
   return { openai, model, thinkingModel };
 }
 
-type OpenRouterParams = OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & {
-  extra_body?: {
-    thinking?: { type: 'optimized'; model: string };
-    usage?: { include: boolean };
+export type OpenRouterParams =
+  OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & {
+    extra_body?: {
+      thinking?: { type: 'optimized'; model: string };
+      usage?: { include: boolean };
+    };
   };
-};
 
-function withThinkingModel(
+export function withThinkingModel(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
 ): OpenRouterParams {
@@ -117,7 +118,7 @@ function withThinkingModel(
   };
 }
 
-function completionMetadata(
+export function completionMetadata(
   completion: OpenAI.Chat.ChatCompletion & { provider?: string | null },
   fallbackModel: string,
   thinkingModel: string | null,

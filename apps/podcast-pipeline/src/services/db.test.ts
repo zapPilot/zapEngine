@@ -74,6 +74,8 @@ beforeEach(() => {
 describe('toEpisodeResponse', () => {
   it('maps a localization view row and embedded classroom lessons', () => {
     const row = listRow({
+      classroom_hls_url:
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
       language_classrooms: [
         {
           sourceLanguageCode: 'zh-Hant',
@@ -99,6 +101,15 @@ describe('toEpisodeResponse', () => {
       title: row.title,
       languageCode: 'zh-Hant',
       hlsUrl: row.hls_url,
+      audioTracks: [
+        {
+          languageCode: 'zh-Hant',
+          title: row.title,
+          hlsUrl: row.hls_url,
+          classroomHlsUrl:
+            'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        },
+      ],
       createdAt: row.created_at,
       listened: false,
       script: row.script,
@@ -639,6 +650,9 @@ describe('updates', () => {
     await updateEpisodeLocalizationStatus(row.id, 'completed', {
       hlsUrl: 'https://cdn.example.com/playlist.m3u8',
       r2Prefix: 'episodes/e/localizations/zh-Hant',
+      classroomHlsUrl:
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+      classroomR2Prefix: 'episodes/e/localizations/zh-Hant/classroom',
       ttsLanguageCode: 'cmn-TW',
       ttsVoiceName: 'cmn-TW-Wavenet-A',
     });
@@ -648,6 +662,9 @@ describe('updates', () => {
         status: 'completed',
         hls_url: 'https://cdn.example.com/playlist.m3u8',
         r2_prefix: 'episodes/e/localizations/zh-Hant',
+        classroom_hls_url:
+          'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
         tts_language_code: 'cmn-TW',
         tts_voice_name: 'cmn-TW-Wavenet-A',
       }),
@@ -697,6 +714,7 @@ function localizationRow(
     language_code: 'zh-Hant',
     title: 'Localization title',
     hls_url: 'https://cdn.example.com/playlist.m3u8',
+    classroom_hls_url: null,
     raw_text: 'Article text',
     script: 'Script',
     llm_model: 'model',
@@ -705,6 +723,7 @@ function localizationRow(
     tts_language_code: null,
     tts_voice_name: null,
     r2_prefix: null,
+    classroom_r2_prefix: null,
     status: 'completed',
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
@@ -720,6 +739,7 @@ function listRow(overrides: Partial<EpisodeListRow> = {}): EpisodeListRow {
     title: 'Localization title',
     language_code: 'zh-Hant',
     hls_url: 'https://cdn.example.com/playlist.m3u8',
+    classroom_hls_url: null,
     script: 'Script',
     llm_model: 'model',
     llm_thinking_model: null,

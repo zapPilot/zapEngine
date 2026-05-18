@@ -40,7 +40,7 @@ class EpisodeService {
     final rows = await _supabaseService.client
         .from('episodes_with_stats')
         .select(
-          'id,localization_id,title,language_code,hls_url,created_at,listened,script,like_count,language_classrooms',
+          'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms',
         )
         .eq('language_code', languageCode)
         .order('created_at', ascending: false)
@@ -49,7 +49,7 @@ class EpisodeService {
 
     final episodes = rows
         .take(limit)
-        .map((row) => Episode.fromJson(row))
+        .map((row) => Episode.fromJson(_withDefaultAudioTrack(row)))
         .toList(growable: false);
 
     return EpisodePage(
@@ -65,14 +65,14 @@ class EpisodeService {
     final rows = await _supabaseService.client
         .from('episodes_with_stats')
         .select(
-          'id,localization_id,title,language_code,hls_url,created_at,listened,script,like_count,language_classrooms',
+          'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms',
         )
         .eq('id', id)
         .eq('language_code', languageCode)
         .limit(1);
 
     if (rows.isEmpty) return null;
-    return Episode.fromJson(rows.first);
+    return Episode.fromJson(_withDefaultAudioTrack(rows.first));
   }
 
   Future<Set<String>> getListenedEpisodeIds(String userId) async {
@@ -140,6 +140,24 @@ class EpisodeService {
       'updated_at': _now().toUtc().toIso8601String(),
     }, onConflict: 'user_id,episode_id');
   }
+}
+
+Map<String, dynamic> _withDefaultAudioTrack(Map<String, dynamic> row) {
+  if (row['audioTracks'] is List || row['audio_tracks'] is List) {
+    return row;
+  }
+
+  return {
+    ...row,
+    'audioTracks': [
+      {
+        'languageCode': row['languageCode'] ?? row['language_code'],
+        'title': row['title'],
+        'hlsUrl': row['hlsUrl'] ?? row['hls_url'],
+        'classroomHlsUrl': row['classroomHlsUrl'] ?? row['classroom_hls_url'],
+      },
+    ],
+  };
 }
 
 abstract interface class UserEpisodeStateWriter {

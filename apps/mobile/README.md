@@ -76,7 +76,7 @@ version: 2.0.2+14
 Then prepare the iOS config that Xcode Archive reads:
 
 ```bash
-pnpm --filter @zapengine/mobile ios:release:prepare -- 2.0.2+14
+pnpm --filter @zapengine/mobile ios:release:prepare 2.0.2+14
 open apps/mobile/ios/Runner.xcworkspace
 ```
 
@@ -87,7 +87,7 @@ in sync with `pubspec.yaml` even if you forget the manual command.
 If App Store Connect reports an old `CFBundleShortVersionString`, run:
 
 ```bash
-pnpm --filter @zapengine/mobile ios:release:prepare --deep-clean -- 2.0.2+14
+pnpm --filter @zapengine/mobile ios:release:prepare --deep-clean 2.0.2+14
 ```
 
 The release-prep script regenerates `ios/Flutter/Generated.xcconfig`, which is

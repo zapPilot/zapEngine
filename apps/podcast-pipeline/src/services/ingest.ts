@@ -410,8 +410,13 @@ async function ensureLocalizationCompleted(
       classroomRows,
     );
     costBreakdown.push(...classroomAudios.cost);
-    const publishAudio = await combineMainAndClassroomAudio(
-      mainAudio.audio,
+    const { files: mainFiles } = await step('generateMainHls', () =>
+      generateHls(mainAudio.audio),
+    );
+    const uploadedMain = await step('uploadMainHlsToR2', () =>
+      uploadHlsToR2(mainFiles, episode.id, languageCode, 'main'),
+    );
+    const classroomAudio = await combineClassroomAudio(
       classroomAudios.audioBuffers,
       {
         episodeId: episode.id,
@@ -419,19 +424,29 @@ async function ensureLocalizationCompleted(
         languageCode,
       },
     );
-    const { files } = await step('generateHls', () =>
-      generateHls(publishAudio),
-    );
-    const uploaded = await step('uploadHlsToR2', () =>
-      uploadHlsToR2(files, episode.id, languageCode),
-    );
+    const uploadedClassroom = classroomAudio
+      ? await step('uploadClassroomHlsToR2', async () => {
+          const { files: classroomFiles } = await step(
+            'generateClassroomHls',
+            () => generateHls(classroomAudio),
+          );
+          return uploadHlsToR2(
+            classroomFiles,
+            episode.id,
+            languageCode,
+            'classroom',
+          );
+        })
+      : null;
     const ttsMetadata = getTtsMetadataForLanguage(languageCode);
     const completedLocalization = await step(
       'updateEpisodeLocalizationStatus:completed',
       () =>
         updateEpisodeLocalizationStatus(localization.id, 'completed', {
-          hlsUrl: uploaded.hlsUrl,
-          r2Prefix: uploaded.r2Prefix,
+          hlsUrl: uploadedMain.hlsUrl,
+          r2Prefix: uploadedMain.r2Prefix,
+          classroomHlsUrl: uploadedClassroom?.hlsUrl,
+          classroomR2Prefix: uploadedClassroom?.r2Prefix,
           ttsLanguageCode: ttsMetadata.languageCode,
           ttsVoiceName: ttsMetadata.voiceName,
         }),
@@ -540,22 +555,21 @@ async function synthesizeClassroomAudios(
   return { audioBuffers, cost };
 }
 
-async function combineMainAndClassroomAudio(
-  mainAudio: Buffer,
+async function combineClassroomAudio(
   classroomAudios: Buffer[],
   context: {
     episodeId: string;
     localizationId: string;
     languageCode: LanguageClassroomLanguageCode;
   },
-): Promise<Buffer> {
+): Promise<Buffer | null> {
   if (classroomAudios.length === 0) {
-    return mainAudio;
+    return null;
   }
 
   try {
     return await step('concatEpisodeClassroomAudio', () =>
-      concatMp3Buffers([mainAudio, ...classroomAudios]),
+      concatMp3Buffers(classroomAudios),
     );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -565,7 +579,7 @@ async function combineMainAndClassroomAudio(
       stack: err.stack,
       cause: err.cause,
     });
-    return mainAudio;
+    return null;
   }
 }
 

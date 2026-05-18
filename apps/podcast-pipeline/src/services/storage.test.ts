@@ -53,12 +53,12 @@ describe('uploadHlsToR2', () => {
       },
     ];
 
-    const result = await uploadHlsToR2(files, 'test-id', 'zh-Hant');
+    const result = await uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main');
 
     expect(result).toEqual({
       hlsUrl:
-        'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/playlist.m3u8',
-      r2Prefix: 'episodes/test-id/localizations/zh-Hant',
+        'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
+      r2Prefix: 'episodes/test-id/localizations/zh-Hant/main',
     });
     expect(mockSend).toHaveBeenCalled();
   });

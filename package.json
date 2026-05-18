@@ -11,7 +11,7 @@
     "lint:repo": "pnpm lint:config && pnpm lint:scripts && pnpm lint:snapshot-sync",
     "build": "turbo run build",
     "build:core": "turbo run build --filter=!@zapengine/mobile",
-    "dev": "turbo run dev --filter=@zapengine/frontend --filter=@zapengine/account-engine --filter=@zapengine/analytics-engine",
+    "dev": "turbo run dev --filter=@zapengine/frontend --filter=@zapengine/account-engine --filter=@zapengine/analytics-engine --filter=@zapengine/types --filter=@zapengine/intent-engine",
     "dev:landing": "turbo run dev --filter=@zapengine/landing-page",
     "dev:all": "turbo run dev",
     "lint": "turbo run lint",

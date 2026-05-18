@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -21,7 +22,13 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     DmaMarketState,
 )
-from src.services.backtesting.signals.flat_minimum import FlatMinimumSignalComponent
+from src.services.backtesting.signals.flat_minimum import (
+    FlatMinimumSignalComponent,
+    FlatMinimumState,
+    _coerce_optional_float,
+    _forced_cross_events,
+    build_initial_flat_minimum_asset_allocation,
+)
 from src.services.backtesting.strategies.base import StrategyContext
 
 
@@ -152,3 +159,134 @@ def test_signal_component_declares_ratio_price_features() -> None:
     assert ETH_BTC_RATIO_FEATURE not in requirements.required_price_features
     assert ETH_BTC_RATIO_DMA_200_FEATURE not in requirements.required_price_features
     assert ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES in requirements.required_aux_series
+
+
+def test_flat_minimum_state_rejects_unknown_asset_key() -> None:
+    state_snapshot = FlatMinimumState(
+        spy_dma_state=None,
+        btc_dma_state=None,
+        eth_dma_state=None,
+        current_asset_allocation={"stable": 1.0},
+    )
+
+    with pytest.raises(ValueError, match="Unsupported flat-minimum asset"):
+        state_snapshot.dma_state_for("doge")
+
+
+def test_signal_component_symbol_config_falls_back_when_override_missing() -> None:
+    component = FlatMinimumSignalComponent(
+        cross_down_cooldown_days_by_symbol={"BTC": 7}
+    )
+
+    assert component._config_for_symbol("ETH") is component.config
+    assert component._config_for_symbol("BTC").cross_cooldown_days == 7
+
+
+def test_signal_component_reset_and_invalid_signal_key_contracts() -> None:
+    component = FlatMinimumSignalComponent()
+    component._ratio_cooldown_remaining = 3
+    component._ratio_cooldown_blocked_zone = "above"
+
+    component.reset()
+
+    assert component._ratio_cooldown_state().active is False
+    with pytest.raises(ValueError, match="Unsupported flat-minimum asset"):
+        component._signal_for("doge")
+
+
+def test_build_initial_flat_minimum_allocation_handles_zero_total_and_primary_btc() -> (
+    None
+):
+    all_stable = build_initial_flat_minimum_asset_allocation(
+        aggregate_allocation={"spot": 0.0, "stable": 0.0},
+        extra_data={DMA_200_FEATURE: 90.0},
+        price_map={},
+        primary_price=100.0,
+    )
+    assert all_stable == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+    )
+
+    primary_btc = build_initial_flat_minimum_asset_allocation(
+        aggregate_allocation={"spot": 1.0, "stable": 0.0},
+        extra_data={DMA_200_FEATURE: 90.0},
+        price_map={},
+        primary_price=100.0,
+    )
+    assert primary_btc == pytest.approx(
+        {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0, "alt": 0.0}
+    )
+
+    no_above = build_initial_flat_minimum_asset_allocation(
+        aggregate_allocation={"spot": 1.0, "stable": 0.0},
+        extra_data={DMA_200_FEATURE: 110.0},
+        price_map={"btc": 100.0},
+        primary_price=100.0,
+    )
+    assert no_above == pytest.approx(
+        {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
+    )
+
+
+def test_signal_component_handles_ratio_cooldown_and_empty_observation() -> None:
+    component = FlatMinimumSignalComponent(ratio_cross_cooldown_days=3)
+    component._start_ratio_cooldown(None)
+    assert component._ratio_cooldown_state().active is False
+    component._start_ratio_cooldown("cross_up")
+    component._decrement_ratio_cooldown()
+
+    cooldown = component._ratio_cooldown_state()
+    assert cooldown.active is True
+    assert cooldown.remaining_days == 2
+    assert cooldown.blocked_zone == "above"
+
+    empty = FlatMinimumState(
+        spy_dma_state=None,
+        btc_dma_state=None,
+        eth_dma_state=None,
+        current_asset_allocation={"stable": 1.0},
+    )
+    intent = AllocationIntent(
+        action="hold",
+        target_allocation=None,
+        allocation_name=None,
+        immediate=False,
+        reason="regime_no_signal",
+        rule_group="none",
+        decision_score=0.0,
+    )
+
+    observation = component.build_signal_observation(snapshot=empty, intent=intent)
+    hints = component.build_execution_hints(
+        snapshot=empty,
+        intent=intent,
+        signal_confidence=0.5,
+    )
+
+    assert observation.regime == "neutral"
+    assert observation.dma is None
+    assert observation.ratio is None
+    assert hints.current_regime == "neutral"
+    assert hints.enable_buy_gate is False
+
+
+def test_forced_cross_events_ignore_invalid_entries() -> None:
+    intent = AllocationIntent(
+        action="sell",
+        target_allocation={"stable": 1.0},
+        allocation_name="forced",
+        immediate=True,
+        reason="forced",
+        rule_group="cross",
+        decision_score=-1.0,
+        diagnostics={
+            "portfolio_rule_forced_cross_events": {
+                "BTC": "cross_down",
+                "ETH": "sideways",
+                10: "cross_up",
+            }
+        },
+    )
+
+    assert _forced_cross_events(intent) == {"BTC": "cross_down"}
+    assert _coerce_optional_float("not-a-number") is None

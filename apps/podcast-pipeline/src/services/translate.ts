@@ -1,45 +1,40 @@
-import { v2 as translateV2 } from '@google-cloud/translate';
+import OpenAI from 'openai';
 
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
-import { resolveGcpClientOptions } from './gcp-credentials.js';
+import {
+  completionMetadata,
+  getOpenRouterConfig,
+  withThinkingModel,
+} from './llm.js';
 
-const { Translate } = translateV2;
-
-const SOURCE_LANGUAGE = 'zh-TW';
-const MAX_TRANSLATE_CHARACTERS = 28_000;
-const GOOGLE_TRANSLATE_PRICE_USD_PER_CHARACTER = 20 / 1_000_000;
-const GOOGLE_TRANSLATE_MODEL = 'nmt';
-
-type TranslateClient = InstanceType<typeof Translate>;
 export type SecondaryLanguageCode = Exclude<
   LanguageClassroomLanguageCode,
   'zh-Hant'
 >;
 
-const GOOGLE_TRANSLATE_TARGET: Record<SecondaryLanguageCode, string> = {
-  ja: 'ja',
-  en: 'en',
+const TARGET_LANGUAGE_NAME: Record<SecondaryLanguageCode, string> = {
+  ja: 'Japanese',
+  en: 'English',
 };
 
-let client: TranslateClient | null = null;
-let clientOptionsKey: string | null = null;
+interface OpenRouterConfig {
+  openai: OpenAI;
+  model: string;
+  thinkingModel: string | null;
+}
 
-function getClient(): TranslateClient {
-  const clientOptions = resolveGcpClientOptions();
-  const nextClientOptionsKey = JSON.stringify(clientOptions ?? null);
-  if (!client || clientOptionsKey !== nextClientOptionsKey) {
-    client = new Translate(clientOptions);
-    clientOptionsKey = nextClientOptionsKey;
-  }
-  return client;
+interface TranslationCompletion {
+  text: string;
+  provider: string;
+  model: string;
+  costUsd: number;
 }
 
 export interface TranslateCanonicalScriptOptions {
   title: string;
   script: string;
   targetLanguageCode: SecondaryLanguageCode;
-  maxCharactersPerRequest?: number;
 }
 
 export interface TranslateCanonicalScriptResult {
@@ -52,28 +47,21 @@ export async function translateCanonicalScript({
   title,
   script,
   targetLanguageCode,
-  maxCharactersPerRequest = MAX_TRANSLATE_CHARACTERS,
 }: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  const titleChunks = splitTextIntoTranslationChunks(
-    title,
-    maxCharactersPerRequest,
-  );
-  const scriptChunks = splitTextIntoTranslationChunks(
-    script,
-    maxCharactersPerRequest,
-  );
-  const [translatedTitleChunks, translatedScriptChunks] = await Promise.all([
-    translateChunks(titleChunks, targetLanguageCode),
-    translateChunks(scriptChunks, targetLanguageCode),
+  const config = getOpenRouterConfig();
+  const [translatedTitle, translatedScript] = await Promise.all([
+    translateTextWithLLM(title, targetLanguageCode, config),
+    translateTextWithLLM(script, targetLanguageCode, config),
   ]);
 
   return {
-    title: translatedTitleChunks.join(''),
-    script: translatedScriptChunks.join(''),
+    title: translatedTitle.text,
+    script: translatedScript.text,
     cost: [
-      buildGoogleTranslateCostLine(
-        [...titleChunks, ...scriptChunks],
+      buildOpenRouterTranslateCostLine(
+        [translatedTitle, translatedScript],
         targetLanguageCode,
+        config.model,
       ),
     ],
   };
@@ -82,143 +70,103 @@ export async function translateCanonicalScript({
 export async function translateChineseText(
   text: string,
   targetLanguageCode: SecondaryLanguageCode,
-  maxCharactersPerRequest = MAX_TRANSLATE_CHARACTERS,
 ): Promise<{ text: string; cost: UsageCostLine[] }> {
-  const chunks = splitTextIntoTranslationChunks(text, maxCharactersPerRequest);
-  const translatedChunks = await translateChunks(chunks, targetLanguageCode);
+  const config = getOpenRouterConfig();
+  const translated = await translateTextWithLLM(
+    text,
+    targetLanguageCode,
+    config,
+  );
 
   return {
-    text: translatedChunks.join(''),
-    cost: [buildGoogleTranslateCostLine(chunks, targetLanguageCode)],
+    text: translated.text,
+    cost: [
+      buildOpenRouterTranslateCostLine(
+        [translated],
+        targetLanguageCode,
+        config.model,
+      ),
+    ],
   };
 }
 
-export function splitTextIntoTranslationChunks(
+async function translateTextWithLLM(
   text: string,
-  maxCharacters: number = MAX_TRANSLATE_CHARACTERS,
-): string[] {
-  if (maxCharacters < 1) {
-    throw new Error('maxCharacters must be greater than 0');
-  }
+  targetLanguageCode: SecondaryLanguageCode,
+  config: OpenRouterConfig,
+): Promise<TranslationCompletion> {
   if (text.length === 0) {
-    return [];
+    return {
+      text: '',
+      provider: 'openrouter',
+      model: config.model,
+      costUsd: 0,
+    };
   }
 
-  const chunks: string[] = [];
-  let currentChunk = '';
-  let currentChunkCharacters = 0;
+  const completion = (await config.openai.chat.completions.create(
+    withThinkingModel(
+      {
+        model: config.model,
+        messages: [
+          {
+            role: 'system',
+            content: translationSystemPrompt(targetLanguageCode),
+          },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.2,
+      },
+      config.thinkingModel,
+    ),
+  )) as OpenAI.Chat.ChatCompletion & {
+    provider?: string | null;
+  };
 
-  for (const segment of splitSentenceSegments(text)) {
-    const segmentCharacters = countUnicodeCharacters(segment);
-    if (currentChunkCharacters + segmentCharacters <= maxCharacters) {
-      currentChunk += segment;
-      currentChunkCharacters += segmentCharacters;
-      continue;
-    }
+  const metadata = completionMetadata(
+    completion,
+    config.model,
+    config.thinkingModel,
+  );
 
-    if (currentChunk) {
-      chunks.push(currentChunk);
-    }
-
-    if (segmentCharacters > maxCharacters) {
-      const oversizedChunks = splitOversizedText(segment, maxCharacters);
-      chunks.push(...oversizedChunks.slice(0, -1));
-      currentChunk = oversizedChunks.at(-1) ?? '';
-      currentChunkCharacters = countUnicodeCharacters(currentChunk);
-    } else {
-      currentChunk = segment;
-      currentChunkCharacters = segmentCharacters;
-    }
-  }
-
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
+  return {
+    text: completion.choices[0]?.message?.content ?? '',
+    provider:
+      metadata.provider === 'unknown' ? 'openrouter' : metadata.provider,
+    model: metadata.model,
+    costUsd: metadata.costUsd,
+  };
 }
 
-export function buildGoogleTranslateCostLine(
-  texts: string[],
+function translationSystemPrompt(
   targetLanguageCode: SecondaryLanguageCode,
+): string {
+  return [
+    `Translate Traditional Chinese (zh-TW) into ${TARGET_LANGUAGE_NAME[targetLanguageCode]}.`,
+    'Preserve line breaks and paragraph structure exactly where possible.',
+    'Translate faithfully without adding commentary, explanations, Markdown, or notes.',
+    'Output only the translated text.',
+  ].join(' ');
+}
+
+function buildOpenRouterTranslateCostLine(
+  completions: TranslationCompletion[],
+  targetLanguageCode: SecondaryLanguageCode,
+  fallbackModel: string,
 ): UsageCostLine {
-  const characters = texts.reduce(
-    (sum, text) => sum + countUnicodeCharacters(text),
-    0,
-  );
+  const model = completions.at(-1)?.model ?? fallbackModel;
+  const provider =
+    completions.find((completion) => completion.provider)?.provider ??
+    'openrouter';
 
   return {
     category: 'translate',
     label: `Translation ${targetLanguageCode}`,
-    provider: 'google',
-    model: GOOGLE_TRANSLATE_MODEL,
-    costUsd: characters * GOOGLE_TRANSLATE_PRICE_USD_PER_CHARACTER,
-    usage: {
-      unit: 'characters',
-      quantity: characters,
-      unitPriceUsd: GOOGLE_TRANSLATE_PRICE_USD_PER_CHARACTER,
-    },
+    provider,
+    model,
+    costUsd: completions.reduce(
+      (sum, completion) => sum + completion.costUsd,
+      0,
+    ),
   };
-}
-
-async function translateChunks(
-  chunks: string[],
-  targetLanguageCode: SecondaryLanguageCode,
-): Promise<string[]> {
-  const translatedChunks: string[] = [];
-  for (const chunk of chunks) {
-    translatedChunks.push(await translateText(chunk, targetLanguageCode));
-  }
-  return translatedChunks;
-}
-
-async function translateText(
-  text: string,
-  targetLanguageCode: SecondaryLanguageCode,
-): Promise<string> {
-  if (!text) {
-    return '';
-  }
-
-  const [rawTranslation] = (await getClient().translate(text, {
-    from: SOURCE_LANGUAGE,
-    to: GOOGLE_TRANSLATE_TARGET[targetLanguageCode],
-  })) as unknown as [unknown];
-  const translation = Array.isArray(rawTranslation)
-    ? rawTranslation[0]
-    : rawTranslation;
-  return typeof translation === 'string'
-    ? translation
-    : String(translation ?? '');
-}
-
-function splitSentenceSegments(text: string): string[] {
-  return text.match(/[^。！？.!?\n]+[。！？.!?]?\s*|\n+/gu) ?? [text];
-}
-
-function splitOversizedText(text: string, maxCharacters: number): string[] {
-  const chunks: string[] = [];
-  let currentChunk = '';
-  let currentChunkCharacters = 0;
-
-  for (const char of text) {
-    if (currentChunkCharacters + 1 > maxCharacters) {
-      chunks.push(currentChunk);
-      currentChunk = char;
-      currentChunkCharacters = 1;
-    } else {
-      currentChunk += char;
-      currentChunkCharacters += 1;
-    }
-  }
-
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-}
-
-function countUnicodeCharacters(text: string): number {
-  return [...text].length;
 }

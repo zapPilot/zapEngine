@@ -1,5 +1,3 @@
-import { MESSAGES } from '@/config/messages';
-
 export type RegimeStripItem = {
   label: string;
   value: string;
@@ -52,6 +50,11 @@ const REGIME_DETAILS: Record<string, string> = {
   g: 'Risk-on legs active',
   eg: 'Defense watch',
 };
+const LABEL = {
+  regime: 'Regime',
+  fgi: 'FGI',
+  dma: '200MA Δ',
+} as const;
 
 function getAnalyticsApiUrl(): string | null {
   const baseUrl = process.env['NEXT_PUBLIC_ANALYTICS_API_URL']?.trim();
@@ -84,58 +87,39 @@ async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
   }
 }
 
-function cloneFallbackItems(): RegimeStripItem[] {
-  return MESSAGES.regimeTelemetry.items.map((item) => ({ ...item }));
-}
-
-function updateItem(
-  items: RegimeStripItem[],
-  label: string,
-  value: string,
-  detail: string,
-): boolean {
-  const item = items.find((candidate) => candidate.label === label);
-  if (item === undefined) {
-    return false;
-  }
-
-  item.value = value;
-  item.detail = detail;
-  return true;
-}
-
-function applyRegimeData(
-  items: RegimeStripItem[],
+function buildRegimeItem(
   response: RegimeHistoryResponse,
-): boolean {
-  const regimeId = response.current?.regime_id ?? response.current?.to_regime;
+): RegimeStripItem | null {
+  const regimeId = response.current?.to_regime ?? response.current?.regime_id;
   if (regimeId === undefined) {
-    return false;
+    return null;
   }
 
   const value = REGIME_LABELS[regimeId];
   if (value === undefined) {
-    return false;
+    return null;
   }
 
-  return updateItem(items, 'Regime', value, REGIME_DETAILS[regimeId] ?? value);
+  return {
+    label: LABEL.regime,
+    value,
+    detail: REGIME_DETAILS[regimeId] ?? value,
+  };
 }
 
-function applySentimentData(
-  items: RegimeStripItem[],
+function buildSentimentItem(
   response: MarketSentimentResponse,
-): boolean {
+): RegimeStripItem | null {
   if (typeof response.value !== 'number' || !Number.isFinite(response.value)) {
-    return false;
+    return null;
   }
 
   const status = response.status?.trim();
-  return updateItem(
-    items,
-    'FGI',
-    String(response.value),
-    status ? `${status} zone` : 'Fear & Greed Index',
-  );
+  return {
+    label: LABEL.fgi,
+    value: String(response.value),
+    detail: status ? `${status} zone` : 'Fear & Greed Index',
+  };
 }
 
 function getLatestBtcDmaDelta(
@@ -170,21 +154,19 @@ function formatDelta(value: number): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-function applyDashboardData(
-  items: RegimeStripItem[],
+function buildDashboardItem(
   response: MarketDashboardResponse,
-): boolean {
+): RegimeStripItem | null {
   const delta = getLatestBtcDmaDelta(response);
   if (delta === null) {
-    return false;
+    return null;
   }
 
-  return updateItem(
-    items,
-    '200MA Δ',
-    formatDelta(delta),
-    delta >= 0 ? 'Above trend' : 'Below trend',
-  );
+  return {
+    label: LABEL.dma,
+    value: formatDelta(delta),
+    detail: delta >= 0 ? 'Above trend' : 'Below trend',
+  };
 }
 
 export async function fetchRegimeStrip(): Promise<RegimeStripData | null> {
@@ -206,33 +188,22 @@ export async function fetchRegimeStrip(): Promise<RegimeStripData | null> {
       ),
     ]);
 
-  const items = cloneFallbackItems();
-  let liveItemCount = 0;
+  const regimeItem =
+    regimeResult.status === 'fulfilled'
+      ? buildRegimeItem(regimeResult.value)
+      : null;
+  const sentimentItem =
+    sentimentResult.status === 'fulfilled'
+      ? buildSentimentItem(sentimentResult.value)
+      : null;
+  const dashboardItem =
+    dashboardResult.status === 'fulfilled'
+      ? buildDashboardItem(dashboardResult.value)
+      : null;
 
-  if (
-    regimeResult.status === 'fulfilled' &&
-    applyRegimeData(items, regimeResult.value)
-  ) {
-    liveItemCount += 1;
-  }
-
-  if (
-    sentimentResult.status === 'fulfilled' &&
-    applySentimentData(items, sentimentResult.value)
-  ) {
-    liveItemCount += 1;
-  }
-
-  if (
-    dashboardResult.status === 'fulfilled' &&
-    applyDashboardData(items, dashboardResult.value)
-  ) {
-    liveItemCount += 1;
-  }
-
-  if (liveItemCount === 0) {
+  if (regimeItem === null || sentimentItem === null || dashboardItem === null) {
     return null;
   }
 
-  return { items };
+  return { items: [regimeItem, sentimentItem, dashboardItem] };
 }

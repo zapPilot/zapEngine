@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ai_podcast_mobile/models/episode.dart';
+import 'package:ai_podcast_mobile/services/audio_player_handler.dart';
 import 'package:ai_podcast_mobile/services/episode_service.dart';
 import 'package:ai_podcast_mobile/state/playback_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,41 +107,49 @@ void main() {
   );
 
   test(
-    'setSpeed delegates to the handler and tracks speed stream updates',
+    'setSpeedForCurrentSection delegates to the handler and tracks speed stream updates',
     () async {
       final handler = FakePodcastAudioHandler();
       final provider = PlaybackProvider(handler);
 
-      await provider.setSpeed(1.5);
+      await provider.setSpeedForCurrentSection(1.5);
 
       expect(handler.speed, 1.5);
       expect(provider.speed, 1.5);
+      expect(provider.mainSpeed, 1.5);
+      expect(provider.classroomSpeed, 1.0);
 
       provider.dispose();
       await handler.dispose();
     },
   );
 
-  test('setSpeed persists the chosen speed to SharedPreferences', () async {
+  test('setSpeedForCurrentSection persists the main speed to SharedPreferences',
+      () async {
     SharedPreferences.setMockInitialValues({});
     final handler = FakePodcastAudioHandler();
     final provider = PlaybackProvider(handler);
 
-    await provider.setSpeed(1.75);
+    await provider.setSpeedForCurrentSection(1.75);
 
     final prefs = await SharedPreferences.getInstance();
     expect(
-      prefs.getDouble('playback_speed'),
+      prefs.getDouble('playback_speed_main'),
       1.75,
       reason: 'speed must survive app restarts via local prefs',
     );
+    expect(prefs.getDouble('playback_speed_classroom'), isNull);
 
     provider.dispose();
     await handler.dispose();
   });
 
-  test('PlaybackProvider restores stored speed on construction', () async {
-    SharedPreferences.setMockInitialValues({'playback_speed': 1.25});
+  test('PlaybackProvider restores stored section speeds on construction',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'playback_speed_main': 1.25,
+      'playback_speed_classroom': 0.75,
+    });
     final handler = FakePodcastAudioHandler();
     final provider = PlaybackProvider(handler);
 
@@ -151,9 +160,12 @@ void main() {
     expect(
       handler.speed,
       1.25,
-      reason: 'saved speed must be re-applied to the audio handler at start',
+      reason:
+          'saved main speed must be re-applied to the audio handler at start',
     );
     expect(provider.speed, 1.25);
+    expect(provider.mainSpeed, 1.25);
+    expect(provider.classroomSpeed, 0.75);
 
     provider.dispose();
     await handler.dispose();
@@ -168,6 +180,58 @@ void main() {
 
     expect(handler.speed, 1.0);
     expect(provider.speed, 1.0);
+    expect(provider.mainSpeed, 1.0);
+    expect(provider.classroomSpeed, 1.0);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('PlaybackProvider migrates the legacy speed key to main speed only',
+      () async {
+    SharedPreferences.setMockInitialValues({'playback_speed': 1.25});
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+
+    await _flushProviderAsync();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(provider.mainSpeed, 1.25);
+    expect(provider.classroomSpeed, 1.0);
+    expect(handler.speed, 1.25);
+    expect(prefs.getDouble('playback_speed_main'), 1.25);
+    expect(prefs.getDouble('playback_speed_classroom'), isNull);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('section changes apply the remembered speed for that section', () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+
+    await provider.setSpeedForCurrentSection(1.5);
+    handler.emitSection(PlaybackSection.classroom);
+    await _flushProviderAsync();
+
+    expect(provider.currentSection, PlaybackSection.classroom);
+    expect(provider.speed, 1.0);
+    expect(handler.speed, 1.0);
+
+    await provider.setSpeedForCurrentSection(0.75);
+    expect(provider.classroomSpeed, 0.75);
+    expect(handler.speed, 0.75);
+
+    handler.emitSection(PlaybackSection.main);
+    await _flushProviderAsync();
+
+    expect(provider.currentSection, PlaybackSection.main);
+    expect(provider.speed, 1.5);
+    expect(handler.speed, 1.5);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getDouble('playback_speed_main'), 1.5);
+    expect(prefs.getDouble('playback_speed_classroom'), 0.75);
 
     provider.dispose();
     await handler.dispose();
@@ -221,7 +285,7 @@ void main() {
     final japaneseTrack = episode.audioTracks[2];
 
     await provider.toggle(episode);
-    await provider.setSpeed(1.5);
+    await provider.setSpeedForCurrentSection(1.5);
     await provider.setAudioTrack(japaneseTrack);
 
     expect(provider.speed, 1.5);

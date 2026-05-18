@@ -8,11 +8,13 @@ void main() {
         'languageCode': 'zh-Hant',
         'title': '繁中',
         'hlsUrl': 'https://example.com/audio.m3u8',
+        'classroomHlsUrl': 'https://example.com/classroom.m3u8',
       });
 
       expect(track.languageCode, 'zh-Hant');
       expect(track.title, '繁中');
       expect(track.hlsUrl, 'https://example.com/audio.m3u8');
+      expect(track.classroomHlsUrl, 'https://example.com/classroom.m3u8');
     });
 
     test('fromJson parses snake_case keys', () {
@@ -20,10 +22,12 @@ void main() {
         'language_code': 'en',
         'title': 'English',
         'hls_url': 'https://example.com/en.m3u8',
+        'classroom_hls_url': 'https://example.com/en-classroom.m3u8',
       });
 
       expect(track.languageCode, 'en');
       expect(track.title, 'English');
+      expect(track.classroomHlsUrl, 'https://example.com/en-classroom.m3u8');
     });
 
     test(
@@ -64,20 +68,30 @@ void main() {
         languageCode: 'en',
         title: 'English',
         hlsUrl: 'https://example.com/audio.m3u8',
+        classroomHlsUrl: 'https://example.com/classroom.m3u8',
       );
       final track2 = AudioTrack(
         languageCode: 'en',
         title: 'English',
         hlsUrl: 'https://example.com/audio.m3u8',
+        classroomHlsUrl: 'https://example.com/classroom.m3u8',
       );
       final track3 = AudioTrack(
         languageCode: 'zh',
         title: 'Chinese',
         hlsUrl: 'https://example.com/audio.m3u8',
+        classroomHlsUrl: 'https://example.com/classroom.m3u8',
+      );
+      final track4 = AudioTrack(
+        languageCode: 'en',
+        title: 'English',
+        hlsUrl: 'https://example.com/audio.m3u8',
+        classroomHlsUrl: 'https://example.com/other-classroom.m3u8',
       );
 
       expect(track1, equals(track2));
       expect(track1, isNot(equals(track3)));
+      expect(track1, isNot(equals(track4)));
     });
 
     test('hashCode is consistent with equality', () {
@@ -170,6 +184,7 @@ void main() {
             'languageCode': 'zh',
             'title': 'Chinese',
             'hlsUrl': 'https://example.com/zh.m3u8',
+            'classroomHlsUrl': 'https://example.com/zh-classroom.m3u8',
           },
           {
             'languageCode': 'en',
@@ -181,6 +196,10 @@ void main() {
 
       expect(episode.audioTracks.length, 2);
       expect(episode.audioTracks[0].languageCode, 'zh');
+      expect(
+        episode.audioTracks[0].classroomHlsUrl,
+        'https://example.com/zh-classroom.m3u8',
+      );
       expect(episode.audioTracks[1].languageCode, 'en');
     });
 

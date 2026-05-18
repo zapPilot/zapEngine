@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "clean": "rm -rf dist",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",

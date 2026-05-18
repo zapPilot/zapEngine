@@ -17,6 +17,10 @@ from src.services.backtesting.execution.dma_buy_gate_plugin import (
 from src.services.backtesting.execution.pacing.fgi_exponential import (
     FgiExponentialPacingPolicy,
 )
+from src.services.backtesting.execution.plugins import (
+    ExecutionPluginResult,
+    PluginInvocation,
+)
 from src.services.backtesting.execution.portfolio import Portfolio
 from src.services.backtesting.execution.trade_quota_guard_plugin import (
     TradeQuotaGuardExecutionPlugin,
@@ -117,6 +121,37 @@ def _trade_quota_payload(execution) -> dict[str, object] | None:
         if diagnostic.plugin_id == "trade_quota_guard":
             return dict(diagnostic.payload)
     return None
+
+
+class _ResettablePlugin:
+    def __init__(self) -> None:
+        self.reset_called = False
+
+    def reset(self) -> None:
+        self.reset_called = True
+
+    def observe(self, hints: ExecutionHints) -> None:
+        del hints
+
+    def precheck(self, invocation: PluginInvocation) -> ExecutionPluginResult:
+        del invocation
+        return ExecutionPluginResult()
+
+    def adjust_step_plan(
+        self,
+        invocation: PluginInvocation,
+        step_plan: dict[str, float],
+    ) -> ExecutionPluginResult:
+        del invocation, step_plan
+        return ExecutionPluginResult()
+
+    def after_execution(
+        self,
+        invocation: PluginInvocation,
+        transfers: list[object],
+    ) -> ExecutionPluginResult:
+        del invocation, transfers
+        return ExecutionPluginResult()
 
 
 def test_executor_immediate_cross_rebalances_fully() -> None:
@@ -863,3 +898,87 @@ def test_rotation_cooldown_blocks_trade() -> None:
     executor.observe(hints_buy)
     result = executor.execute(context=ctx2, intent=intent_second, hints=hints_buy)
     assert result.transfers is None
+
+
+def test_executor_reset_clears_dates_plan_and_resets_plugins() -> None:
+    plugin = _ResettablePlugin()
+    executor = AllocationIntentExecutor(
+        pacing_policy=_pacing(),
+        plugins=(plugin,),  # type: ignore[arg-type]
+    )
+    executor.last_trade_date = date(2025, 1, 1)
+    executor._last_rotation_trade_date = date(2025, 1, 1)
+    executor.rebalance_step_plan = {"btc": 100.0}
+    executor.steps_remaining = 2
+
+    executor.reset()
+
+    assert executor.last_trade_date is None
+    assert executor._last_rotation_trade_date is None
+    assert executor.rebalance_step_plan is None
+    assert plugin.reset_called is True
+
+
+def test_extract_realized_volatility_returns_none_with_short_history() -> None:
+    portfolio = Portfolio(spot_balance=1.0, stable_balance=0.0)
+
+    assert (
+        AllocationIntentExecutor._extract_realized_volatility(
+            StrategyContext(
+                date=date(2025, 1, 1),
+                price=50_000.0,
+                sentiment=None,
+                price_history=[50_000.0],
+                portfolio=portfolio,
+            )
+        )
+        is None
+    )
+
+
+def test_existing_step_plan_is_rebuilt_for_current_step_weights() -> None:
+    executor = _executor()
+    portfolio = Portfolio(spot_balance=0.0, stable_balance=1_000.0)
+    context = _context(day=1, portfolio=portfolio)
+    intent = _intent(
+        action="buy",
+        reason="test",
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
+    )
+    executor.rebalance_step_plan = {"btc": 1.0, "stable": 1.0}
+    executor.steps_remaining = 2
+    executor._plan_total_steps = 3
+    executor._plan_step_weights = [1.0, 2.0, 3.0]
+    executor._plan_tail_weight_sums = [6.0, 5.0, 3.0]
+
+    total_steps = executor._ensure_step_plan(
+        context=context,
+        target_allocation={
+            "btc": 1.0,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.0,
+            "alt": 0.0,
+        },
+        allocation_name="test",
+        intent=intent,
+        hints=_hints(action="buy"),
+        realized_volatility=None,
+    )
+
+    assert total_steps == 3
+    assert executor.rebalance_step_plan is not None
+    assert executor.rebalance_step_plan["btc"] == pytest.approx(400.0)
+    assert executor._fraction_for_step(99, 4) == pytest.approx(0.25)
+
+
+def test_same_target_requires_both_none_or_equal_dicts() -> None:
+    assert AllocationIntentExecutor._same_target(None, None) is True
+    assert AllocationIntentExecutor._same_target(None, {"btc": 1.0}) is False
+    assert AllocationIntentExecutor._same_target({"btc": 1.0}, {"btc": 1.0}) is True
