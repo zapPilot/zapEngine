@@ -9,7 +9,7 @@ import {
 import { useUser } from '@/contexts/UserContext';
 import { useOperationStateHandlers } from '@/hooks/utils/useOperationState';
 import { handleWalletError } from '@/lib/validation/walletUtils';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
 import type { OperationState } from '@/types';
 import { validateEmail } from '@/utils';

@@ -188,14 +188,19 @@ export function WalletProvider({
     [address, signTypedDataAsync],
   );
 
-  const getActiveWalletClient =
-    useCallback(async (): Promise<ConnectedWalletClient> => {
+  const getActiveWalletClient = useCallback(
+    async (chainId?: number): Promise<ConnectedWalletClient> => {
       if (!address) {
         throw new Error('No account connected');
       }
 
-      return getWagmiWalletClient(wagmiConfig);
-    }, [address]);
+      return getWagmiWalletClient(
+        wagmiConfig,
+        chainId === undefined ? {} : { chainId },
+      );
+    },
+    [address],
+  );
 
   const sendTransaction = useCallback(
     async (tx: {

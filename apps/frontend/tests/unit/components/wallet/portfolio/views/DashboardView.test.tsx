@@ -75,8 +75,22 @@ vi.mock('@/components/wallet/portfolio/components/shared', () => ({
       Balance Card
     </div>
   ),
-  PortfolioComposition: ({ isEmptyState }: { isEmptyState: boolean }) => (
-    <div data-testid="portfolio-composition" data-empty={isEmptyState}>
+  PortfolioComposition: ({
+    isEmptyState,
+    targetAllocation,
+    driftOverride,
+  }: {
+    isEmptyState: boolean;
+    targetAllocation?: { crypto: number; stable: number; btc?: number };
+    driftOverride?: number;
+  }) => (
+    <div
+      data-testid="portfolio-composition"
+      data-empty={isEmptyState}
+      data-target-crypto={targetAllocation?.crypto}
+      data-target-btc={targetAllocation?.btc}
+      data-drift={driftOverride}
+    >
       Portfolio Composition
     </div>
   ),
@@ -259,6 +273,25 @@ describe('DashboardView Ghost Mode', () => {
       expect(screen.getAllByTestId('section-wrapper').length).toBeGreaterThan(
         0,
       );
+    });
+
+    it('forwards strategy target and drift to PortfolioComposition', () => {
+      render(
+        <DashboardView
+          data={mockData}
+          sections={sectionsWithData}
+          currentRegime={undefined}
+          isEmptyState={false}
+          strategyTarget={{ crypto: 80, stable: 20, btc: 50 }}
+          strategyDrift={12.5}
+          onOpenModal={vi.fn()}
+        />,
+      );
+
+      const composition = screen.getByTestId('portfolio-composition');
+      expect(composition).toHaveAttribute('data-target-crypto', '80');
+      expect(composition).toHaveAttribute('data-target-btc', '50');
+      expect(composition).toHaveAttribute('data-drift', '12.5');
     });
   });
 });

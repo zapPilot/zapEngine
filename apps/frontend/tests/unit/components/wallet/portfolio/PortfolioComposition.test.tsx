@@ -143,7 +143,7 @@ describe('PortfolioComposition', () => {
         />,
       );
 
-      expect(screen.getByText('Target Allocation')).toBeInTheDocument();
+      expect(screen.getByText('Strategy Target')).toBeInTheDocument();
       expect(screen.getByText('Current Portfolio')).toBeInTheDocument();
     });
 
@@ -218,6 +218,22 @@ describe('PortfolioComposition', () => {
       const driftElement = screen.getByText(/Drift: 3.0%/);
       expect(driftElement).toHaveClass('text-gray-500');
     });
+
+    it('uses driftOverride when a strategy drift is provided', () => {
+      render(
+        <PortfolioComposition
+          data={{ ...mockData, delta: 2.1 }}
+          currentRegime="Risk-On"
+          driftOverride={8.4}
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      const driftElement = screen.getByText(/Drift: 8.4%/);
+      expect(driftElement).toBeInTheDocument();
+      expect(driftElement).toHaveClass('text-orange-400');
+      expect(screen.queryByText(/Drift: 2.1%/)).not.toBeInTheDocument();
+    });
   });
 
   describe('Loading State', () => {
@@ -278,6 +294,23 @@ describe('PortfolioComposition', () => {
       );
 
       expect(screen.getByText('Portfolio Composition')).toBeInTheDocument();
+    });
+
+    it('renders two-bucket target crypto as neutral Crypto instead of BTC', () => {
+      render(
+        <PortfolioComposition
+          data={mockData}
+          currentRegime={undefined}
+          targetAllocation={{ crypto: 50, stable: 50 }}
+          onRebalance={mockOnRebalance}
+        />,
+      );
+
+      expect(screen.getByTestId('target-alt')).toHaveAttribute(
+        'title',
+        'Crypto: 50.0%',
+      );
+      expect(screen.queryByTestId('target-btc')).not.toBeInTheDocument();
     });
   });
 

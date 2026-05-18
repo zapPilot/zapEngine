@@ -122,7 +122,7 @@ export function useGmxDeposit() {
         setLastPlan(plan);
         setSteps(initialSteps(plan));
 
-        const walletClient = await getWalletClient();
+        const walletClient = await getWalletClient(arbitrum.id);
         const execution = await executeDepositPlan({
           plan,
           walletClient,

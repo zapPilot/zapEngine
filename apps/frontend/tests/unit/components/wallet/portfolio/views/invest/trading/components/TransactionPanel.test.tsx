@@ -216,6 +216,7 @@ describe('TransactionPanel', () => {
   beforeEach(() => {
     mockSetValue.mockClear();
     mockHandleSubmit.mockClear();
+    investStrategyMocks.run.mockClear();
     walletProviderMocks.useWalletProvider.mockReturnValue({
       isConnected: true,
       chain: { id: 8453 },
@@ -322,6 +323,18 @@ describe('TransactionPanel', () => {
         'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
       ),
     ).toBeNull();
+  });
+
+  it('passes the selected Base token and parsed amount to the invest strategy runner', () => {
+    render(<TransactionPanel mode="deposit" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Invest strategy' }));
+
+    expect(investStrategyMocks.run).toHaveBeenCalledWith({
+      fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      fromAmount: '100000000',
+      sourceChainId: 8453,
+    });
   });
 
   it('opens review modal on button click', () => {

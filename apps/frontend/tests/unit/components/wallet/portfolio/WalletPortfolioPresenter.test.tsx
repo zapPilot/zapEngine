@@ -113,12 +113,15 @@ vi.mock('@/lib/routing', () => ({
 }));
 
 // Mock useToast hook
-vi.mock('@/providers/ToastProvider', () => ({
+vi.mock('@/providers/ToastContext', () => ({
   useToast: () => ({
     showToast: vi.fn(),
     hideToast: vi.fn(),
     toasts: [],
   }),
+  ToastContext: {
+    Provider: ({ children }: any) => <>{children}</>,
+  },
   ToastProvider: ({ children }: any) => <>{children}</>,
 }));
 

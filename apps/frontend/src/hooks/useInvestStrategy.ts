@@ -151,7 +151,7 @@ export function useInvestStrategy() {
         setLastPlan(plan);
         setLegs(initialLegProgress(plan));
 
-        const walletClient = await getWalletClient();
+        const walletClient = await getWalletClient(base.id);
         const execution = await executeDepositPlan({
           plan,
           walletClient,

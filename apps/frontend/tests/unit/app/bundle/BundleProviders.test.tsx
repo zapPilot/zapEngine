@@ -1,35 +1,36 @@
 import { render, screen } from '@testing-library/react';
+import type { ComponentType, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BundleProviders } from '@/app/bundle/BundleProviders';
 
 // Mock all providers to keep tests focused on BundleProviders composition
 vi.mock('@/providers/QueryProvider', () => ({
-  QueryProvider: ({ children }: { children: React.ReactNode }) => (
+  QueryProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="query-provider">{children}</div>
   ),
 }));
 
 vi.mock('@/providers/SimpleWeb3Provider', () => ({
-  SimpleWeb3Provider: ({ children }: { children: React.ReactNode }) => (
+  SimpleWeb3Provider: ({ children }: { children: ReactNode }) => (
     <div data-testid="web3-provider">{children}</div>
   ),
 }));
 
 vi.mock('@/providers/WalletProvider', () => ({
-  WalletProvider: ({ children }: { children: React.ReactNode }) => (
+  WalletProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="wallet-provider">{children}</div>
   ),
 }));
 
 vi.mock('@/contexts/UserContext', () => ({
-  UserProvider: ({ children }: { children: React.ReactNode }) => (
+  UserProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="user-provider">{children}</div>
   ),
 }));
 
 vi.mock('@/components/errors/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: { children: React.ReactNode }) => (
+  ErrorBoundary: ({ children }: { children: ReactNode }) => (
     <div data-testid="error-boundary">{children}</div>
   ),
 }));
@@ -41,14 +42,23 @@ vi.mock('@/components/errors/GlobalErrorHandler', () => ({
 }));
 
 vi.mock('@/providers/ToastProvider', () => ({
-  ToastProvider: ({ children }: { children: React.ReactNode }) => (
+  ToastProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="toast-provider">{children}</div>
   ),
 }));
 
-// Mock lazyImport so LogViewer doesn't trigger lazy loading
+// Resolve the deferred ToastProvider synchronously while keeping lazy-only
+// development widgets out of these composition tests.
 vi.mock('@/lib/lazy/lazyImport', () => ({
-  lazyImport: () => () => null,
+  lazyImport: <TProps,>(
+    _loader: () => Promise<unknown>,
+    selectExport: (module: unknown) => ComponentType<TProps>,
+  ) =>
+    selectExport({
+      ToastProvider: ({ children }: { children: ReactNode }) => (
+        <div data-testid="toast-provider">{children}</div>
+      ),
+    }),
 }));
 
 // Mock env to control shouldLoadLogViewer

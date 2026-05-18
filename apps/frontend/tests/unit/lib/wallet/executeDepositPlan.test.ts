@@ -132,28 +132,24 @@ describe('executeDepositPlan', () => {
     });
   });
 
-  it('falls back to sequential when atomic send is explicitly unsupported after a supported capability response', async () => {
+  it('surfaces atomic send errors without demoting an eip7702 strategy to sequential execution', async () => {
     mocks.getExecutionStrategy.mockResolvedValue('eip7702');
     mocks.executeWithEIP7702.mockResolvedValue({
       success: false,
       error:
         '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
     });
-    walletClient.sendTransaction
-      .mockResolvedValueOnce('0xapprove')
-      .mockResolvedValueOnce('0xcall');
 
-    const result = await executeDepositPlan({
-      plan,
-      walletClient: walletClient as never,
-      chainId: 8453,
-    });
-
-    expect(walletClient.sendTransaction).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({
-      kind: 'sequential',
-      hashes: ['0xapprove', '0xcall'],
-    });
+    await expect(
+      executeDepositPlan({
+        plan,
+        walletClient: walletClient as never,
+        chainId: 8453,
+      }),
+    ).rejects.toThrow(
+      '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
+    );
+    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
   });
 
   it('does not fall back to sequential when the user rejects the atomic bundle', async () => {

@@ -66,23 +66,6 @@ async function waitForTransaction(tx: PreparedTransaction, hash: Hash) {
   await getPublicClient(tx.chainId).waitForTransactionReceipt({ hash });
 }
 
-function isAtomicUnsupportedError(error: string | undefined): boolean {
-  if (!error) {
-    return false;
-  }
-
-  const message = error.toLowerCase();
-  return (
-    message.includes('atomicity not supported') ||
-    message.includes('forceatomic') ||
-    message.includes('eip-7702 not supported') ||
-    message.includes('wallet_sendcalls') ||
-    message.includes('method not found') ||
-    message.includes('method not supported') ||
-    message.includes('unsupported wc_ method')
-  );
-}
-
 async function executeSequentially({
   plan,
   walletClient,
@@ -134,17 +117,6 @@ export async function executeDepositPlan({
       { chainId },
     );
     if (!result.success || !result.callsId) {
-      if (isAtomicUnsupportedError(result.error)) {
-        return executeSequentially({
-          plan,
-          walletClient,
-          onApprovalSubmitted,
-          onApprovalConfirmed,
-          onCallSubmitted,
-          onCallConfirmed,
-        });
-      }
-
       throw new Error(
         result.error ?? 'EIP-7702 batch failed to return a calls bundle id',
       );

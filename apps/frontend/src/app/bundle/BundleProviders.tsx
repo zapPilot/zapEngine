@@ -7,8 +7,12 @@ import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { lazyImport } from '@/lib/lazy/lazyImport';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SimpleWeb3Provider } from '@/providers/SimpleWeb3Provider';
-import { ToastProvider } from '@/providers/ToastProvider';
 import { WalletProvider } from '@/providers/WalletProvider';
+
+const DeferredToastProvider = lazyImport(
+  async () => import('@/providers/ToastProvider'),
+  (mod) => mod.ToastProvider,
+);
 
 const shouldLoadLogViewer =
   isRuntimeMode('development') &&
@@ -39,7 +43,7 @@ export function BundleProviders({ children }: BundleProvidersProps) {
           <UserProvider>
             <ErrorBoundary resetKeys={['user-context']}>
               <GlobalErrorHandler />
-              <ToastProvider>{children}</ToastProvider>
+              <DeferredToastProvider>{children}</DeferredToastProvider>
               <LogViewer />
             </ErrorBoundary>
           </UserProvider>

@@ -6,6 +6,7 @@ import {
   PortfolioComposition,
 } from '@/components/wallet/portfolio/components/shared';
 import { StrategyCard } from '@/components/wallet/portfolio/components/strategy';
+import type { CompositionTarget } from '@/components/wallet/portfolio/components/utils/strategyCompositionTarget';
 import {
   BalanceCardSkeleton,
   PortfolioCompositionSkeleton,
@@ -31,6 +32,8 @@ interface DashboardViewProps {
   /** Whether user is viewing their own bundle (enables wallet actions) */
   isOwnBundle?: boolean;
   isLoading?: boolean;
+  strategyTarget?: CompositionTarget | undefined;
+  strategyDrift?: number | undefined;
   onOpenModal: (type: ModalType) => void;
   /** User ID for fetching detailed borrowing positions */
   userId?: string | undefined;
@@ -42,6 +45,8 @@ export function DashboardView({
   currentRegime,
   isEmptyState,
   isOwnBundle = true,
+  strategyTarget,
+  strategyDrift,
   onOpenModal,
   userId,
 }: DashboardViewProps) {
@@ -66,14 +71,12 @@ export function DashboardView({
     />
   );
 
-  const composition = (targetAllocation?: {
-    crypto: number;
-    stable: number;
-  }) => (
+  const composition = (targetAllocation?: CompositionTarget | undefined) => (
     <PortfolioComposition
       data={data}
       currentRegime={currentRegime}
-      targetAllocation={targetAllocation}
+      targetAllocation={strategyTarget ?? targetAllocation}
+      driftOverride={strategyTarget ? strategyDrift : undefined}
       isEmptyState={isEmptyState}
       isOwnBundle={isOwnBundle}
       isLoading={false}

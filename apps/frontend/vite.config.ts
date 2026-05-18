@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{css,html,ico,png,svg,webp,js}"],
+        globIgnores: ["**/*.map", "**/vendor-*.js", "**/vendor-*.js.map"],
+        maximumFileSizeToCacheInBytes: 380 * 1024,
         navigateFallback: "index.html",
         runtimeCaching: [
           {
@@ -77,6 +79,23 @@ export default defineConfig(({ mode }) => ({
             handler: "NetworkFirst",
             options: {
               cacheName: "app-pages",
+            },
+          },
+          {
+            urlPattern: ({ request }) =>
+              ["style", "script", "font", "image"].includes(
+                request.destination,
+              ),
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "static-assets",
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
             },
           },
         ],

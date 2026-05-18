@@ -6,9 +6,11 @@ import {
   buildTargetCryptoAssets,
 } from '@/components/wallet/portfolio/components/utils/portfolioCompositionHelpers';
 import { regimes } from '@/components/wallet/regime/regimeData';
+import { ASSET_COLORS } from '@/constants/assets';
+import { getAllocationCategoryForToken } from '@/lib/domain/allocationCategories';
 
 describe('buildTargetCryptoAssets', () => {
-  it('returns a BTC entry for a regime with spot exposure > 0', () => {
+  it('returns a neutral Crypto entry for a regime with spot exposure > 0', () => {
     // Extreme Fear regime has spot > 0 (it accumulates)
     const regime = regimes.find((r) => r.id === 'ef');
     expect(regime).toBeDefined();
@@ -16,8 +18,11 @@ describe('buildTargetCryptoAssets', () => {
     const result = buildTargetCryptoAssets(regime!);
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.asset).toBe('BTC');
-    expect(result[0]?.symbol).toBe('BTC');
+    expect(result[0]?.asset).toBe('Crypto');
+    expect(result[0]?.symbol).toBe('CRYPTO');
+    expect(result[0]?.name).toBe('Crypto');
+    expect(result[0]?.color).toBe(ASSET_COLORS.ALT);
+    expect(getAllocationCategoryForToken(result[0]?.symbol ?? '')).toBe('alt');
     expect(result[0]?.value).toBeGreaterThan(0);
     expect(result[0]?.value).toBeLessThanOrEqual(100);
   });
@@ -51,7 +56,7 @@ describe('buildTargetCryptoAssets', () => {
     expect(result).toEqual([]);
   });
 
-  it('returns correct BTC value as 100% of spot when regime has full spot exposure', () => {
+  it('returns correct Crypto value as 100% of spot when regime has full spot exposure', () => {
     const regime = regimes.find((r) => r.id === 'ef');
     expect(regime).toBeDefined();
 

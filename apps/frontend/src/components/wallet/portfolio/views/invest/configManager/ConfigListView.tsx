@@ -2,7 +2,7 @@ import { Copy, Edit2, Lock, Plus, Star } from 'lucide-react';
 import { type ReactElement, useCallback, useMemo, useState } from 'react';
 
 import { useSetDefaultStrategyConfig } from '@/hooks/mutations';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import type { SavedStrategyConfig } from '@/types';
 
 import { SetDefaultConfirmModal } from './SetDefaultConfirmModal';
