@@ -8,6 +8,7 @@
     "postinstall": "playwright install",
     "dev": "cross-env VITE_ENABLE_RQ_DEVTOOLS=1 VITE_ENABLE_LOG_VIEWER=0 vite",
     "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
     "start": "vite preview --host 0.0.0.0 --port 4173",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "eslint .",
@@ -30,12 +31,12 @@
     "clean": "rm -rf dist coverage .vitest-reports"
   },
   "dependencies": {
-    "@zapengine/design-tokens": "workspace:*",
-    "@zapengine/intent-engine": "workspace:*",
-    "@zapengine/types": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.85.3",
     "@tanstack/react-query-devtools": "^5.85.3",
+    "@zapengine/design-tokens": "workspace:*",
+    "@zapengine/intent-engine": "workspace:*",
+    "@zapengine/types": "workspace:*",
     "dayjs": "^1.11.19",
     "framer-motion": "^12.19.1",
     "lucide-react": "catalog:",
@@ -52,9 +53,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@zapengine/eslint-config": "workspace:*",
-    "@zapengine/knip-config": "workspace:*",
-    "@zapengine/tsconfig": "workspace:*",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "catalog:",
     "@testing-library/jest-dom": "catalog:",
@@ -65,17 +63,21 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "baseline-browser-mapping": "^2.0.0",
     "cross-env": "^10.0.0",
     "eslint": "catalog:",
     "jsdom": "catalog:",
     "knip": "catalog:",
     "postcss": "^8.4.47",
     "prettier": "catalog:",
+    "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
-    "baseline-browser-mapping": "^2.0.0"
+    "vitest": "catalog:"
   },
   "engines": {
     "node": "24.x"

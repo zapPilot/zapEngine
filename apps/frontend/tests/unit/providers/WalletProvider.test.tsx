@@ -593,6 +593,33 @@ describe('WalletProvider', () => {
       expect(value).toBe(walletClient);
       expect(mockGetWalletClient).toHaveBeenCalled();
     });
+
+    it('should request the wallet client for the target chain when provided', async () => {
+      const walletClient = { account: { address: mockAddress } };
+      mockUseAccount.mockReturnValue({
+        address: mockAddress,
+        isConnected: true,
+        isConnecting: false,
+        chain: mockChain,
+      });
+      mockGetWalletClient.mockResolvedValue(walletClient);
+
+      const { result } = renderHook(() => useWalletProvider(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <WalletProvider>{children}</WalletProvider>
+        ),
+      });
+
+      const { error, value } = await invokeWalletProviderAction(() =>
+        result.current.getWalletClient(8453),
+      );
+
+      expect(error).toBeUndefined();
+      expect(value).toBe(walletClient);
+      expect(mockGetWalletClient).toHaveBeenCalledWith(expect.anything(), {
+        chainId: 8453,
+      });
+    });
   });
 
   describe('Sign message function', () => {

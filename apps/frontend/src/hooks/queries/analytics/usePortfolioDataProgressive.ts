@@ -109,12 +109,15 @@ function getProgressiveError(
  * @param isLandingActive - Whether the dashboard view (the only real consumer of
  *   landing data) is currently active. Gates the landing query so non-dashboard
  *   tabs (Analytics, Invest sub-views) don't generate `/landing` traffic.
+ * @param isStrategyActive - Whether dashboard strategy/sentiment sections are
+ *   currently active. Gates market sentiment and regime queries offscreen.
  * @returns Section states with loading/error information
  */
 export function usePortfolioDataProgressive(
   userId: string,
   isEtlInProgress = false,
   isLandingActive = true,
+  isStrategyActive = true,
 ): DashboardProgressiveState {
   // Fetch data from independent sources
   const landingQuery = useLandingPageData(
@@ -122,8 +125,8 @@ export function usePortfolioDataProgressive(
     isEtlInProgress,
     isLandingActive,
   );
-  const sentimentQuery = useSentimentData();
-  const regimeQuery = useRegimeHistory();
+  const sentimentQuery = useSentimentData(isStrategyActive);
+  const regimeQuery = useRegimeHistory(isStrategyActive);
 
   // 1. Balance Section (Depends only on Landing)
   const balanceSection = createSectionState([landingQuery], extractBalanceData);
@@ -163,11 +166,11 @@ export function usePortfolioDataProgressive(
   );
 
   const refetchAll = async () => {
-    await Promise.all([
-      landingQuery.refetch(),
-      sentimentQuery.refetch(),
-      regimeQuery.refetch(),
-    ]);
+    const refetches: Promise<unknown>[] = [landingQuery.refetch()];
+    if (isStrategyActive) {
+      refetches.push(sentimentQuery.refetch(), regimeQuery.refetch());
+    }
+    await Promise.all(refetches);
   };
 
   return {

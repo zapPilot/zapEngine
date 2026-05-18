@@ -15,11 +15,11 @@ vi.mock('@/hooks/queries/analytics/usePortfolioQuery', () => ({
 }));
 
 vi.mock('@/hooks/queries/market/useSentimentQuery', () => ({
-  useSentimentData: () => mockUseSentimentData(),
+  useSentimentData: (...args: unknown[]) => mockUseSentimentData(...args),
 }));
 
 vi.mock('@/hooks/queries/market/useRegimeHistoryQuery', () => ({
-  useRegimeHistory: () => mockUseRegimeHistory(),
+  useRegimeHistory: (...args: unknown[]) => mockUseRegimeHistory(...args),
 }));
 
 vi.mock('@/adapters/walletPortfolioDataAdapter', () => ({
@@ -196,6 +196,40 @@ describe('usePortfolioDataProgressive', () => {
   it('forwards isLandingActive=false to useLandingPageData when consumer view is inactive', () => {
     renderHook(() => usePortfolioDataProgressive('user1', false, false));
     expect(mockUseLandingPageData).toHaveBeenCalledWith('user1', false, false);
+  });
+
+  it('forwards isStrategyActive=false to market queries when strategy view is inactive', () => {
+    renderHook(() => usePortfolioDataProgressive('user1', false, true, false));
+
+    expect(mockUseSentimentData).toHaveBeenCalledWith(false);
+    expect(mockUseRegimeHistory).toHaveBeenCalledWith(false);
+  });
+
+  it('skips market refetches when strategy view is inactive', async () => {
+    const mockRefetchLanding = vi.fn().mockResolvedValue(undefined);
+    const mockRefetchSentiment = vi.fn().mockResolvedValue(undefined);
+    const mockRefetchRegime = vi.fn().mockResolvedValue(undefined);
+    mockUseLandingPageData.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchLanding,
+    });
+    mockUseSentimentData.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchSentiment,
+    });
+    mockUseRegimeHistory.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchRegime,
+    });
+
+    const { result } = renderHook(() =>
+      usePortfolioDataProgressive('user1', false, true, false),
+    );
+    await result.current.refetch();
+
+    expect(mockRefetchLanding).toHaveBeenCalled();
+    expect(mockRefetchSentiment).not.toHaveBeenCalled();
+    expect(mockRefetchRegime).not.toHaveBeenCalled();
   });
 
   it('logs query states including error messages', () => {

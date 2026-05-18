@@ -495,7 +495,7 @@ describe('useAnalyticsData', () => {
     expect(queryOptions.enabled).toBe(true);
   });
 
-  it('should disable monthlyPnL query when dashboard data is missing', () => {
+  it('should enable monthlyPnL query when dashboard data is missing', () => {
     vi.mocked(usePortfolioDashboard).mockReturnValue({
       ...defaultDashboardQuery,
       data: null,
@@ -506,7 +506,7 @@ describe('useAnalyticsData', () => {
     );
 
     const queryOptions = vi.mocked(useQuery).mock.calls[0][0];
-    expect(queryOptions.enabled).toBe(false);
+    expect(queryOptions.enabled).toBe(true);
   });
 
   it('should disable monthlyPnL query when userId is missing', () => {

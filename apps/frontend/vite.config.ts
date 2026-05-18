@@ -1,6 +1,8 @@
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
+import type { PluginOption } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig } from "vitest/config";
 
@@ -18,11 +20,50 @@ const coverageThresholds = {
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 
-export default defineConfig({
+function getManualChunk(id: string): string | undefined {
+  if (!id.includes("node_modules")) {
+    return undefined;
+  }
+
+  if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/.test(id)) {
+    return "vendor-react";
+  }
+
+  if (id.includes(`${path.sep}node_modules${path.sep}recharts${path.sep}`)) {
+    return "vendor-recharts";
+  }
+
+  if (/[\\/]node_modules[\\/](wagmi|viem)[\\/]/.test(id)) {
+    return "vendor-wagmi";
+  }
+
+  if (id.includes(`${path.sep}node_modules${path.sep}framer-motion${path.sep}`)) {
+    return "vendor-motion";
+  }
+
+  if (id.includes(`${path.sep}node_modules${path.sep}@tanstack${path.sep}`)) {
+    return "vendor-tanstack";
+  }
+
+  return undefined;
+}
+
+export default defineConfig(({ mode }) => ({
   envDir: REPO_ROOT,
   plugins: [
     react(),
+    ...(mode === "analyze"
+      ? [
+          visualizer({
+            filename: "dist/stats.html",
+            gzipSize: true,
+            brotliSize: true,
+            template: "treemap",
+          }) as unknown as PluginOption,
+        ]
+      : []),
     VitePWA({
+      disable: mode === "analyze",
       registerType: "autoUpdate",
       injectRegister: "auto",
       manifest: false,
@@ -63,6 +104,11 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk,
+      },
+    },
   },
   test: {
     pool: "forks",
@@ -109,4 +155,4 @@ export default defineConfig({
         : {}),
     },
   },
-});
+}));

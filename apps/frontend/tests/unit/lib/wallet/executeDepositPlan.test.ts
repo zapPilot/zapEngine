@@ -136,7 +136,8 @@ describe('executeDepositPlan', () => {
     mocks.getExecutionStrategy.mockResolvedValue('eip7702');
     mocks.executeWithEIP7702.mockResolvedValue({
       success: false,
-      error: '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
+      error:
+        '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
     });
     walletClient.sendTransaction
       .mockResolvedValueOnce('0xapprove')

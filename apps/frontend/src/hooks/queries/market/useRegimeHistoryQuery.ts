@@ -20,7 +20,6 @@ const REGIME_HISTORY_CACHE_MS = 60 * 1000; // 60 seconds (regime transitions are
  *
  * Configuration:
  * - Frontend cache: 60 seconds (aligned with sentiment data)
- * - Auto refetch: Every 60 seconds
  * - Retry: Once on failure
  * - Error handling: Never throws, returns DEFAULT_REGIME_HISTORY on error
  *
@@ -38,7 +37,7 @@ const REGIME_HISTORY_CACHE_MS = 60 * 1000; // 60 seconds (regime transitions are
  * }
  * ```
  */
-export function useRegimeHistory() {
+export function useRegimeHistory(enabled = true) {
   return useQuery({
     ...createQueryConfig(),
     queryKey: queryKeys.sentiment.regimeHistory(),
@@ -49,7 +48,7 @@ export function useRegimeHistory() {
     ),
     staleTime: REGIME_HISTORY_CACHE_MS,
     gcTime: REGIME_HISTORY_CACHE_MS * 3,
-    refetchInterval: REGIME_HISTORY_CACHE_MS,
+    enabled,
     retry: 1,
     // Critical: Return default data on error, never leave data undefined
     placeholderData: DEFAULT_REGIME_HISTORY,

@@ -115,8 +115,8 @@ export function DashboardShell({
   const searchParams = useAppSearchParams();
   const queryClient = useQueryClient();
 
-  // Gate the landing query on the active tab — only the dashboard view consumes
-  // landing data, so polling it on Analytics/Invest tabs is wasted traffic.
+  // Gate dashboard-only data on the active tab so Analytics/Invest don't
+  // generate landing, sentiment, or regime traffic while hidden.
   const { tab: activeTab } = readPortfolioRouteState(searchParams);
   const isDashboardActive = activeTab === 'dashboard';
 
@@ -137,6 +137,7 @@ export function DashboardShell({
   } = usePortfolioDataProgressive(
     urlUserId,
     etlState.isInProgress,
+    isDashboardActive,
     isDashboardActive,
   );
 

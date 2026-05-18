@@ -6,6 +6,10 @@
  * isolation and reuse across components.
  */
 
+import {
+  normalizeSpotAsset,
+  type SpotAssetSymbol,
+} from '@/lib/domain/spotAsset';
 import type { BacktestBucket } from '@/types/backtesting';
 import type { DailySuggestionResponse } from '@/types/strategy';
 
@@ -23,8 +27,6 @@ const REASON_LABELS: Record<string, string> = {
   interval_wait: 'Minimum rebalance interval has not elapsed yet.',
   trade_quota_min_interval_active: 'Trade quota cooldown is still active.',
 };
-
-export type SpotAssetSymbol = 'BTC' | 'ETH' | 'SPY';
 
 export interface DerivedTradeAction {
   action: 'buy' | 'sell';
@@ -47,26 +49,13 @@ export function formatRegimeLabel(value: string | null | undefined): string {
   return (value ?? 'unknown').replace(/_/g, ' ');
 }
 
-export function normalizeSpotAsset(value: unknown): SpotAssetSymbol | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const normalized = value.trim().toUpperCase();
-  if (normalized === 'BTC' || normalized === 'ETH' || normalized === 'SPY') {
-    return normalized;
-  }
-
-  return null;
-}
-
-export function getTargetSpotAsset(
+function getTargetSpotAsset(
   data: DailySuggestionResponse,
 ): SpotAssetSymbol | null {
   return normalizeSpotAsset(data.context.strategy.details?.target_spot_asset);
 }
 
-export function getBucketLabel(
+function getBucketLabel(
   bucket: BacktestBucket,
   targetSpotAsset: SpotAssetSymbol | null,
 ): string {
@@ -111,7 +100,7 @@ export function buildTradeActions(
   });
 }
 
-export function humanizeReasonCode(reasonCode: string): string {
+function humanizeReasonCode(reasonCode: string): string {
   const mappedReason = REASON_LABELS[reasonCode];
   if (mappedReason) {
     return mappedReason;

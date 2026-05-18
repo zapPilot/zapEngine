@@ -1,4 +1,5 @@
 import { UNIFIED_COLORS } from '@/constants/assets';
+import { normalizeSpotAsset } from '@/lib/domain/spotAsset';
 import type {
   BacktestSpotAssetSymbol,
   BacktestStrategyPoint,
@@ -39,16 +40,7 @@ export function getBacktestSpotAssetColor(
 function normalizeBacktestSpotAsset(
   value: unknown,
 ): BacktestSpotAssetSymbol | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const normalized = value.trim().toUpperCase();
-  if (normalized === 'BTC' || normalized === 'ETH' || normalized === 'SPY') {
-    return normalized;
-  }
-
-  return null;
+  return normalizeSpotAsset(value);
 }
 
 type SpotAssetStrategyLike = Pick<

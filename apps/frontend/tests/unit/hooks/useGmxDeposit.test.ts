@@ -107,6 +107,7 @@ describe('useGmxDeposit', () => {
       amount: '1000',
       userAddress: USER,
     });
+    expect(mocks.getWalletClient).toHaveBeenCalledWith(42161);
     expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         plan,

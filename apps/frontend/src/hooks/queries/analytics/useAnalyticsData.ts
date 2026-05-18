@@ -122,7 +122,7 @@ export function useAnalyticsData(
         walletFilter ?? undefined,
       ); // Pass wallet filter to API, convert null to undefined
     },
-    enabled: !!userId && !!dashboardQuery.data,
+    enabled: !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes (matches yield summary cache)
     gcTime: 10 * 60 * 1000, // 10 minutes
     retry: 2,

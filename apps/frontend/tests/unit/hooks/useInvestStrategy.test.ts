@@ -165,6 +165,7 @@ describe('useInvestStrategy', () => {
       fromAmount: '10000',
       sourceChainId: 8453,
     });
+    expect(mocks.getWalletClient).toHaveBeenCalledWith(8453);
     expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         plan,

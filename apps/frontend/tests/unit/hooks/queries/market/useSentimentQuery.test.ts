@@ -26,7 +26,7 @@ describe('useSentimentData', () => {
     } as ReturnType<typeof useQuery>);
   });
 
-  it('configures sentiment query caching and polling', () => {
+  it('configures sentiment query caching without polling', () => {
     renderHook(() => useSentimentData());
 
     expect(useQuery).toHaveBeenCalledWith(
@@ -34,8 +34,18 @@ describe('useSentimentData', () => {
         queryKey: ['sentiment', 'market'],
         staleTime: 10 * 60 * 1000,
         gcTime: 30 * 60 * 1000,
-        refetchInterval: 10 * 60 * 1000,
+        enabled: true,
         retry: 1,
+      }),
+    );
+  });
+
+  it('passes disabled state to the query when requested', () => {
+    renderHook(() => useSentimentData(false));
+
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false,
       }),
     );
   });
