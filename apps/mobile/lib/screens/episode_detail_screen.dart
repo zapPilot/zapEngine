@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
+import '../config/language_codes.dart';
 import '../models/episode.dart';
 import '../services/episode_service.dart';
 import '../state/content_language_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../utils/date_format.dart';
+import '../utils/snackbar.dart';
 import '../widgets/bookmark_button.dart';
 import '../widgets/episode_hero_frame.dart';
 import '../widgets/language_chip_row.dart';
@@ -82,11 +85,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     );
     if (!mounted) return;
     if (localizedEpisode == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text(_languageUnavailableMessage)),
-        );
+      context.showMessage(_languageUnavailableMessage);
       return;
     }
 
@@ -187,10 +186,12 @@ class _EpisodeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return EpisodeHeroFrame(
       height: 220,
-      iconRight: -14,
-      iconTop: 24,
-      iconSize: 100,
-      iconOpacity: 0.10,
+      iconConfig: const EpisodeHeroIconConfig(
+        right: -14,
+        top: 24,
+        size: 100,
+        opacity: 0.10,
+      ),
       child: EpisodeHeroText(episode: episode, showDateSeparator: true),
     );
   }
@@ -273,7 +274,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  _formatDuration(displayedPosition),
+                  formatDuration(displayedPosition),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
@@ -314,7 +315,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _formatDuration(duration),
+                  formatDuration(duration),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -346,19 +347,6 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
         ],
       ),
     );
-  }
-
-  static String _formatDuration(Duration duration) {
-    final totalSeconds = duration.inSeconds;
-    final hours = totalSeconds ~/ 3600;
-    final minutes = (totalSeconds % 3600) ~/ 60;
-    final seconds = totalSeconds % 60;
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-
-    if (hours > 0) {
-      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
-    }
-    return '$minutes:${twoDigits(seconds)}';
   }
 }
 
@@ -596,7 +584,7 @@ class _LanguageBadge extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Text(
-          _languageLabel(languageCode),
+          languageShortLabelFor(languageCode),
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w800,
@@ -604,19 +592,6 @@ class _LanguageBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _languageLabel(String languageCode) {
-    switch (languageCode) {
-      case 'ja':
-        return 'JP';
-      case 'en':
-        return 'EN';
-      case 'zh-Hant':
-        return '繁中';
-      default:
-        return languageCode;
-    }
   }
 }
 

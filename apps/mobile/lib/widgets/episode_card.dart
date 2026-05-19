@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
-import '../config/share_config.dart';
 import '../models/episode.dart';
 import '../models/episode_status.dart';
 import '../screens/episode_detail_screen.dart';
@@ -132,10 +130,11 @@ class EpisodeCard extends StatelessWidget {
                   title: const Text('Share'),
                   onTap: () async {
                     final sharePositionOrigin =
-                        _sharePositionOrigin(tileContext);
+                        ShareButton.sharePositionOriginFor(tileContext);
                     Navigator.pop(sheetContext);
-                    await _shareEpisode(
+                    await ShareButton.share(
                       context,
+                      episode,
                       sharePositionOrigin: sharePositionOrigin,
                     );
                   },
@@ -162,38 +161,5 @@ class EpisodeCard extends StatelessWidget {
         );
       },
     );
-  }
-
-  Future<void> _shareEpisode(
-    BuildContext context, {
-    required Rect? sharePositionOrigin,
-  }) async {
-    final shareUrl = ShareConfig.episodeUri(episode.id).toString();
-
-    try {
-      await SharePlus.instance.share(
-        ShareParams(
-          text: '${episode.title}\n$shareUrl',
-          subject: episode.title,
-          sharePositionOrigin: sharePositionOrigin,
-        ),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Failed to share episode ${episode.id}: $error\n$stackTrace');
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('分享失敗，請稍後再試')),
-      );
-    }
-  }
-
-  Rect? _sharePositionOrigin(BuildContext context) {
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) {
-      return null;
-    }
-
-    return box.localToGlobal(Offset.zero) & box.size;
   }
 }

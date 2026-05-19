@@ -44,3 +44,10 @@ LanguageOption languageOptionFor(String code) {
     ),
   );
 }
+
+String languageShortLabelFor(String code) {
+  for (final option in kLanguageOptions) {
+    if (option.code == code) return option.shortLabel;
+  }
+  return code;
+}

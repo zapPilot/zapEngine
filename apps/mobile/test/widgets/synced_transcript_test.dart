@@ -41,7 +41,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('00:30'), findsOneWidget);
+      expect(find.text('0:30'), findsOneWidget);
 
       await tester.tap(find.text('bbbb'));
       await tester.pump();

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/json_utils.dart';
 import 'supabase_service.dart';
 
 class PodcastUser {
@@ -20,10 +21,10 @@ class PodcastUser {
 
   factory PodcastUser.fromJson(Map<String, dynamic> json) {
     return PodcastUser(
-      id: json['id'] as String,
-      email: json['email'] as String?,
-      deviceId: json['device_id'] as String?,
-      displayName: json['display_name'] as String?,
+      id: readRequiredString(json, 'id', 'id'),
+      email: readNullableString(json, 'email', 'email'),
+      deviceId: readNullableString(json, 'deviceId', 'device_id'),
+      displayName: readNullableString(json, 'displayName', 'display_name'),
     );
   }
 }
@@ -118,10 +119,10 @@ class AuthService {
     ).single();
 
     return PodcastUser(
-      id: row['id'] as String,
+      id: readRequiredString(row, 'id', 'id'),
       email: email,
       deviceId: deviceId,
-      displayName: row['display_name'] as String?,
+      displayName: readNullableString(row, 'displayName', 'display_name'),
     );
   }
 

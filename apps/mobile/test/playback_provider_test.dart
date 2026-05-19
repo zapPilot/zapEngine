@@ -740,6 +740,51 @@ void main() {
       await handler.dispose();
     },
   );
+
+  test('position updates notify listeners only when the whole second changes',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    var notifications = 0;
+    provider.addListener(() => notifications += 1);
+
+    await provider.toggle(_episode('episode-1'));
+    notifications = 0;
+
+    handler.emitPosition(const Duration(milliseconds: 100));
+    handler.emitPosition(const Duration(milliseconds: 200));
+    handler.emitPosition(const Duration(milliseconds: 900));
+    handler.emitPosition(const Duration(seconds: 1));
+
+    expect(provider.position, const Duration(seconds: 1));
+    expect(notifications, 2);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('unchanged playback state and duration do not notify listeners',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    var notifications = 0;
+    provider.addListener(() => notifications += 1);
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 60));
+    notifications = 0;
+
+    await handler.play();
+    handler.emitDuration(const Duration(seconds: 60));
+    handler.emitDuration(const Duration(seconds: 61));
+
+    expect(provider.isPlaying, isTrue);
+    expect(provider.duration, const Duration(seconds: 61));
+    expect(notifications, 1);
+
+    provider.dispose();
+    await handler.dispose();
+  });
 }
 
 Future<void> _flushProviderAsync() async {

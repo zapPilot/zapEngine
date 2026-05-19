@@ -161,7 +161,7 @@ void main() {
 
     expect(find.text('中'), findsOneWidget);
     expect(find.text('EN'), findsOneWidget);
-    expect(find.text('日'), findsOneWidget);
+    expect(find.text('日'), findsWidgets);
   });
 
   testWidgets('Episode detail language chip loads selected localization', (
@@ -254,7 +254,7 @@ void main() {
     );
 
     expect(find.text('Language Classroom'), findsOneWidget);
-    expect(find.text('JP'), findsOneWidget);
+    expect(find.text('日'), findsWidgets);
     expect(find.text('この記事は市場流動性を説明します。'), findsOneWidget);
     expect(find.text('流動性'), findsOneWidget);
     expect(find.textContaining('資金容易進出市場的程度'), findsOneWidget);

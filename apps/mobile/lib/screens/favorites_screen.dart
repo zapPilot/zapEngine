@@ -35,20 +35,27 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   int _requestEpoch = 0;
   String? _playbackUserId;
   String _languageCode = AppConfig.contentLanguageCode;
+  bool _didLoadInitialSource = false;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthProvider>().currentUser;
-      if (user != null) {
-        context.read<LikesProvider>().watchUser(user.id);
-        _bindPlaybackUser(user.id);
-      }
-      _languageCode = context.read<ContentLanguageProvider?>()?.languageCode ??
-          AppConfig.contentLanguageCode;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final user = Provider.of<AuthProvider>(context).currentUser;
+    if (user != null) {
+      context.read<LikesProvider>().watchUser(user.id);
+      _bindPlaybackUser(user.id);
+    }
+
+    final selectedLanguageCode =
+        Provider.of<ContentLanguageProvider?>(context)?.languageCode ??
+            AppConfig.contentLanguageCode;
+    final languageChanged = selectedLanguageCode != _languageCode;
+    if (!_didLoadInitialSource || languageChanged) {
+      _didLoadInitialSource = true;
+      _languageCode = selectedLanguageCode;
       unawaited(_loadFavoritesSource());
-    });
+    }
   }
 
   Future<void> _loadFavoritesSource() async {
@@ -133,23 +140,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    final selectedLanguageCode =
-        context.watch<ContentLanguageProvider?>()?.languageCode ??
-            AppConfig.contentLanguageCode;
+    context.watch<ContentLanguageProvider?>();
     final likes = context.watch<LikesProvider>();
     final playback = context.watch<PlaybackProvider>();
-    if (selectedLanguageCode != _languageCode) {
-      _languageCode = selectedLanguageCode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_loadFavoritesSource());
-        }
-      });
-    }
-    if (user != null) {
-      _bindPlaybackUser(user.id);
-    }
 
     final likedEpisodeIds = likes.likedEpisodeIds;
     final favorites = _episodes

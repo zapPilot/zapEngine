@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../config/share_config.dart';
 import '../models/episode.dart';
 import '../theme/colors.dart';
+import '../utils/snackbar.dart';
 
 class ShareButton extends StatelessWidget {
   const ShareButton({super.key, required Episode episode, bool compact = false})
@@ -34,30 +35,37 @@ class ShareButton extends StatelessWidget {
     );
   }
 
-  Future<void> _shareEpisode(BuildContext context) async {
-    final shareUrl = ShareConfig.episodeUri(_episode.id).toString();
+  static Future<void> share(
+    BuildContext context,
+    Episode episode, {
+    Rect? sharePositionOrigin,
+  }) async {
+    final shareUrl = ShareConfig.episodeUri(episode.id).toString();
 
     try {
       await SharePlus.instance.share(
         ShareParams(
-          text: '${_episode.title}\n$shareUrl',
-          subject: _episode.title,
-          sharePositionOrigin: _sharePositionOrigin(context),
+          text: '${episode.title}\n$shareUrl',
+          subject: episode.title,
+          sharePositionOrigin:
+              sharePositionOrigin ?? sharePositionOriginFor(context),
         ),
       );
     } catch (error, stackTrace) {
       debugPrint(
-        'Failed to share episode ${_episode.id}: $error\n$stackTrace',
+        'Failed to share episode ${episode.id}: $error\n$stackTrace',
       );
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('分享失敗，請稍後再試')),
-      );
+      context.showMessage('分享失敗，請稍後再試');
     }
   }
 
-  Rect? _sharePositionOrigin(BuildContext context) {
+  Future<void> _shareEpisode(BuildContext context) {
+    return share(context, _episode);
+  }
+
+  static Rect? sharePositionOriginFor(BuildContext context) {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) {
       return null;

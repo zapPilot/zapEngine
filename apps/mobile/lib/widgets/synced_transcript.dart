@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/episode.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../utils/date_format.dart';
 import '../utils/transcript_timing.dart';
 
 class SyncedTranscript extends StatefulWidget {
@@ -66,9 +67,7 @@ class _SyncedTranscriptState extends State<SyncedTranscript> {
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Divider(height: 1),
           ),
-          if (segments.isEmpty)
-            _PlainTranscript(script: widget.episode.script)
-          else if (!canSync)
+          if (segments.isEmpty || !canSync)
             _PlainTranscript(script: widget.episode.script)
           else
             ListView.builder(
@@ -206,7 +205,7 @@ class _TranscriptLine extends StatelessWidget {
                 SizedBox(
                   width: 42,
                   child: Text(
-                    _formatTimestamp(segment.start),
+                    formatDuration(segment.start),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: isCurrent
                           ? AppColors.accent
@@ -235,12 +234,4 @@ class _TranscriptLine extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatTimestamp(Duration duration) {
-  final totalSeconds = duration.inSeconds;
-  final minutes = totalSeconds ~/ 60;
-  final seconds = totalSeconds % 60;
-  return '${minutes.toString().padLeft(2, '0')}:'
-      '${seconds.toString().padLeft(2, '0')}';
 }

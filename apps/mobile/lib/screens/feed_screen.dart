@@ -44,25 +44,37 @@ class _FeedScreenState extends State<FeedScreen> {
   String? _playbackUserId;
   String _languageCode = AppConfig.contentLanguageCode;
   StreamSubscription<String>? _completionSub;
+  bool _didLoadInitialPage = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthProvider>().currentUser;
-      if (user != null) {
-        context.read<LikesProvider>().watchUser(user.id);
-        _bindPlaybackUser(user.id);
-      }
-      _languageCode = context.read<ContentLanguageProvider?>()?.languageCode ??
-          AppConfig.contentLanguageCode;
-      _completionSub = context
-          .read<PlaybackProvider>()
-          .completedEpisodeIds
-          .listen(_onEpisodeCompleted);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _completionSub ??= context
+        .read<PlaybackProvider>()
+        .completedEpisodeIds
+        .listen(_onEpisodeCompleted);
+
+    final user = Provider.of<AuthProvider>(context).currentUser;
+    if (user != null) {
+      context.read<LikesProvider>().watchUser(user.id);
+      _bindPlaybackUser(user.id);
+    }
+
+    final selectedLanguageCode =
+        Provider.of<ContentLanguageProvider?>(context)?.languageCode ??
+            AppConfig.contentLanguageCode;
+    final languageChanged = selectedLanguageCode != _languageCode;
+    if (!_didLoadInitialPage || languageChanged) {
+      _didLoadInitialPage = true;
+      _languageCode = selectedLanguageCode;
       unawaited(_loadFirstPage());
-    });
+    }
   }
 
   @override
@@ -192,21 +204,8 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final selectedLanguageCode =
-        context.watch<ContentLanguageProvider?>()?.languageCode ??
-            AppConfig.contentLanguageCode;
+    context.watch<ContentLanguageProvider?>();
     final playback = context.watch<PlaybackProvider>();
-    if (selectedLanguageCode != _languageCode) {
-      _languageCode = selectedLanguageCode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_loadFirstPage());
-        }
-      });
-    }
-    if (user != null) {
-      _bindPlaybackUser(user.id);
-    }
     final groups = _groupByStatus(_episodes);
     final heroEpisode = _heroEpisode(groups);
 
@@ -262,20 +261,10 @@ class _FeedScreenState extends State<FeedScreen> {
                 ),
               ),
             if (groups.inProgress.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: _SectionTitle(title: '進行中')),
-              _EpisodeSliverList(
-                episodes: groups.inProgress,
-                playback: playback,
-                onPlay: (episode) => playback.toggle(episode),
-              ),
+              ..._buildSection('進行中', groups.inProgress, playback),
             ],
             if (groups.unplayed.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: _SectionTitle(title: '未聽')),
-              _EpisodeSliverList(
-                episodes: groups.unplayed,
-                playback: playback,
-                onPlay: (episode) => playback.toggle(episode),
-              ),
+              ..._buildSection('未聽', groups.unplayed, playback),
             ],
             if (groups.completed.isNotEmpty) ...[
               SliverToBoxAdapter(
@@ -306,6 +295,21 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildSection(
+    String title,
+    List<Episode> episodes,
+    PlaybackProvider playback,
+  ) {
+    return [
+      SliverToBoxAdapter(child: _SectionTitle(title: title)),
+      _EpisodeSliverList(
+        episodes: episodes,
+        playback: playback,
+        onPlay: (episode) => playback.toggle(episode),
+      ),
+    ];
   }
 
   Future<void> _handleSmartPlay(Episode heroEpisode) async {

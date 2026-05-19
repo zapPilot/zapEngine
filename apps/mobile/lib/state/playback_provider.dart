@@ -28,15 +28,14 @@ class PlaybackProvider extends ChangeNotifier {
   StreamSubscription<PlayerState>? _subscription;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
-  StreamSubscription<double>? _speedSubscription;
   StreamSubscription<PlaybackSection>? _sectionSubscription;
 
   Episode? _currentEpisode;
   bool _isPlaying = false;
+  ProcessingState? _processingState;
   String? _loadingEpisodeId;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
-  double _speed = 1.0;
   double _mainSpeed = 1.0;
   double _classroomSpeed = 1.0;
   PlaybackSection _currentSection = PlaybackSection.main;
@@ -45,6 +44,7 @@ class PlaybackProvider extends ChangeNotifier {
   final List<Episode> _queue = [];
   int _queueIndex = -1;
   int? _lastPersistedSecond;
+  int? _lastNotifiedSecond;
   bool _advancingAfterCompletion = false;
   final Set<String> _finalizedEpisodeIds = <String>{};
 
@@ -53,7 +53,7 @@ class PlaybackProvider extends ChangeNotifier {
   String? get loadingEpisodeId => _loadingEpisodeId;
   Duration get position => _position;
   Duration get duration => _duration;
-  double get speed => _speed;
+  double get speed => currentSectionSpeed;
   double get mainSpeed => _mainSpeed;
   double get classroomSpeed => _classroomSpeed;
   PlaybackSection get currentSection => _currentSection;
@@ -69,7 +69,6 @@ class PlaybackProvider extends ChangeNotifier {
     _subscription = _handler.playerStateStream.listen(_handleState);
     _positionSubscription = _handler.positionStream.listen(_handlePosition);
     _durationSubscription = _handler.durationStream.listen(_handleDuration);
-    _speedSubscription = _handler.speedStream.listen(_handleSpeed);
     _sectionSubscription = _handler.currentSectionStream.listen(_handleSection);
   }
 
@@ -88,16 +87,12 @@ class PlaybackProvider extends ChangeNotifier {
 
     _mainSpeed = prefs.getDouble(_mainSpeedKey) ?? legacySpeed ?? 1.0;
     _classroomSpeed = prefs.getDouble(_classroomSpeedKey) ?? 1.0;
+    notifyListeners();
     if (!hasMainSpeed && legacySpeed != null) {
       await prefs.setDouble(_mainSpeedKey, legacySpeed);
     }
 
     await _applySpeedForSection(_currentSection);
-  }
-
-  void _handleSpeed(double speed) {
-    _speed = speed;
-    notifyListeners();
   }
 
   void _handleSection(PlaybackSection section) {
@@ -173,6 +168,7 @@ class PlaybackProvider extends ChangeNotifier {
   Future<void> seek(Duration position) async {
     await _handler.seek(position);
     _position = position;
+    _lastNotifiedSecond = position.inSeconds;
     notifyListeners();
     _maybeFinalizeNearEnd();
   }
@@ -192,7 +188,6 @@ class PlaybackProvider extends ChangeNotifier {
     } else {
       _mainSpeed = speed;
     }
-    _speed = speed;
     notifyListeners();
 
     await _handler.setSpeed(speed);
@@ -223,20 +218,31 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   void _handleState(PlayerState state) {
-    _isPlaying = state.playing;
-    if (state.processingState == ProcessingState.completed) {
-      _isPlaying = false;
+    final wasCompleted = _processingState == ProcessingState.completed;
+    final isCompleted = state.processingState == ProcessingState.completed;
+    final nextPlaying = isCompleted ? false : state.playing;
+    final shouldNotify =
+        _isPlaying != nextPlaying || wasCompleted != isCompleted;
+
+    _processingState = state.processingState;
+    _isPlaying = nextPlaying;
+    if (isCompleted) {
       if (!_advancingAfterCompletion) {
         unawaited(_handleCompleted());
       }
     }
-    notifyListeners();
+    if (shouldNotify) {
+      notifyListeners();
+    }
   }
 
   void _handlePosition(Duration position) {
     _position = position;
-    notifyListeners();
     final sec = position.inSeconds;
+    if (_lastNotifiedSecond != sec) {
+      _lastNotifiedSecond = sec;
+      notifyListeners();
+    }
     if (_lastPersistedSecond == null ||
         (sec - _lastPersistedSecond!).abs() >= 10) {
       unawaited(_persistPosition());
@@ -245,7 +251,9 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   void _handleDuration(Duration? duration) {
-    _duration = duration ?? Duration.zero;
+    final nextDuration = duration ?? Duration.zero;
+    if (_duration == nextDuration) return;
+    _duration = nextDuration;
     notifyListeners();
   }
 
@@ -265,7 +273,6 @@ class PlaybackProvider extends ChangeNotifier {
     _subscription?.cancel();
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
-    _speedSubscription?.cancel();
     _sectionSubscription?.cancel();
     _completionController.close();
     unawaited(_handler.dispose());
@@ -303,6 +310,8 @@ class PlaybackProvider extends ChangeNotifier {
     _position = Duration.zero;
     _duration = Duration.zero;
     _lastPersistedSecond = null;
+    _lastNotifiedSecond = null;
+    _processingState = null;
     notifyListeners();
 
     try {
@@ -310,6 +319,7 @@ class PlaybackProvider extends ChangeNotifier {
       await _applySpeedForSection(_currentSection);
       if (startAt != null && startAt > Duration.zero) {
         _lastPersistedSecond = startAt.inSeconds;
+        _lastNotifiedSecond = startAt.inSeconds;
         await _handler.seek(startAt);
         _position = startAt;
       }
@@ -358,6 +368,8 @@ class PlaybackProvider extends ChangeNotifier {
       _position = Duration.zero;
       _duration = Duration.zero;
       _lastPersistedSecond = null;
+      _lastNotifiedSecond = null;
+      _processingState = null;
       notifyListeners();
       return;
     }
@@ -394,10 +406,6 @@ class PlaybackProvider extends ChangeNotifier {
 
   Future<void> _applySpeedForSection(PlaybackSection section) async {
     final sectionSpeed = _speedForSection(section);
-    if (_speed != sectionSpeed) {
-      _speed = sectionSpeed;
-      notifyListeners();
-    }
     await _handler.setSpeed(sectionSpeed);
   }
 

@@ -105,7 +105,7 @@ class EpisodeService {
     return {
       for (final row in rows)
         row['episode_id'] as String: UserEpisodeState(
-          listened: row['listened'] as bool? ?? false,
+          listened: readBoolFromJson(row, 'listened', 'listened'),
           lastPositionSeconds: readIntFromJson(
             row,
             'lastPositionSeconds',
@@ -151,10 +151,18 @@ Map<String, dynamic> _withDefaultAudioTrack(Map<String, dynamic> row) {
     ...row,
     'audioTracks': [
       {
-        'languageCode': row['languageCode'] ?? row['language_code'],
-        'title': row['title'],
-        'hlsUrl': row['hlsUrl'] ?? row['hls_url'],
-        'classroomHlsUrl': row['classroomHlsUrl'] ?? row['classroom_hls_url'],
+        'languageCode': readOptionalString(
+          row,
+          'languageCode',
+          'language_code',
+        ),
+        'title': readOptionalString(row, 'title', 'title'),
+        'hlsUrl': readOptionalString(row, 'hlsUrl', 'hls_url'),
+        'classroomHlsUrl': readNullableString(
+          row,
+          'classroomHlsUrl',
+          'classroom_hls_url',
+        ),
       },
     ],
   };

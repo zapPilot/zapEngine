@@ -16,18 +16,18 @@ class AudioTrack {
   bool get isPlayable => hlsUrl.trim().isNotEmpty;
 
   factory AudioTrack.fromJson(Map<String, dynamic> json) {
-    final languageCode = _readOptionalString(
+    final languageCode = json_utils.readOptionalString(
       json,
       'languageCode',
       'language_code',
     );
-    final title = _readOptionalString(json, 'title', 'title');
+    final title = json_utils.readOptionalString(json, 'title', 'title');
 
     return AudioTrack(
       languageCode: languageCode,
       title: title.isNotEmpty ? title : languageCode,
-      hlsUrl: _readOptionalString(json, 'hlsUrl', 'hls_url'),
-      classroomHlsUrl: _readNullableString(
+      hlsUrl: json_utils.readOptionalString(json, 'hlsUrl', 'hls_url'),
+      classroomHlsUrl: json_utils.readNullableString(
         json,
         'classroomHlsUrl',
         'classroom_hls_url',
@@ -64,10 +64,10 @@ class LanguageClassroomKeyword {
 
   factory LanguageClassroomKeyword.fromJson(Map<String, dynamic> json) {
     return LanguageClassroomKeyword(
-      term: _readRequiredString(json, 'term', 'term'),
-      reading: _readNullableString(json, 'reading', 'reading'),
-      meaning: _readRequiredString(json, 'meaning', 'meaning'),
-      note: _readNullableString(json, 'note', 'note'),
+      term: json_utils.readRequiredString(json, 'term', 'term'),
+      reading: json_utils.readNullableString(json, 'reading', 'reading'),
+      meaning: json_utils.readRequiredString(json, 'meaning', 'meaning'),
+      note: json_utils.readNullableString(json, 'note', 'note'),
     );
   }
 
@@ -100,17 +100,17 @@ class LanguageClassroomLesson {
 
   factory LanguageClassroomLesson.fromJson(Map<String, dynamic> json) {
     return LanguageClassroomLesson(
-      sourceLanguageCode: _readOptionalString(
+      sourceLanguageCode: json_utils.readOptionalString(
         json,
         'sourceLanguageCode',
         'source_language_code',
       ),
-      targetLanguageCode: _readRequiredString(
+      targetLanguageCode: json_utils.readRequiredString(
         json,
         'targetLanguageCode',
         'target_language_code',
       ),
-      oneLiner: _readRequiredString(json, 'oneLiner', 'one_liner'),
+      oneLiner: json_utils.readRequiredString(json, 'oneLiner', 'one_liner'),
       keywords: _readLanguageClassroomKeywords(json),
     );
   }
@@ -170,13 +170,13 @@ class Episode {
   }
 
   factory Episode.fromJson(Map<String, dynamic> json) {
-    final id = json['id'] as String;
-    final localizationId = _readOptionalString(
+    final id = json_utils.readRequiredString(json, 'id', 'id');
+    final localizationId = json_utils.readOptionalString(
       json,
       'localizationId',
       'localization_id',
     );
-    final languageCode = _readOptionalString(
+    final languageCode = json_utils.readOptionalString(
       json,
       'languageCode',
       'language_code',
@@ -185,13 +185,13 @@ class Episode {
     return Episode(
       id: id,
       localizationId: localizationId.isNotEmpty ? localizationId : id,
-      title: json['title'] as String,
+      title: json_utils.readRequiredString(json, 'title', 'title'),
       languageCode: languageCode.isNotEmpty ? languageCode : 'zh-Hant',
-      hlsUrl: _readRequiredString(json, 'hlsUrl', 'hls_url'),
+      hlsUrl: json_utils.readRequiredString(json, 'hlsUrl', 'hls_url'),
       createdAt: DateTime.parse(
-        _readRequiredString(json, 'createdAt', 'created_at'),
+        json_utils.readRequiredString(json, 'createdAt', 'created_at'),
       ).toLocal(),
-      listened: json['listened'] as bool? ?? false,
+      listened: json_utils.readBoolFromJson(json, 'listened', 'listened'),
       likeCount: json_utils.readIntFromJson(json, 'likeCount', 'like_count'),
       script: json['script'] as String?,
       audioTracks: _readAudioTracks(json),
@@ -233,31 +233,6 @@ class Episode {
       lastPositionSeconds: lastPositionSeconds ?? this.lastPositionSeconds,
     );
   }
-}
-
-String _readRequiredString(
-  Map<String, dynamic> json,
-  String camelKey,
-  String snakeKey,
-) {
-  return (json[camelKey] ?? json[snakeKey]) as String;
-}
-
-String _readOptionalString(
-  Map<String, dynamic> json,
-  String camelKey,
-  String snakeKey,
-) {
-  return (json[camelKey] ?? json[snakeKey])?.toString() ?? '';
-}
-
-String? _readNullableString(
-  Map<String, dynamic> json,
-  String camelKey,
-  String snakeKey,
-) {
-  final value = _readOptionalString(json, camelKey, snakeKey).trim();
-  return value.isEmpty ? null : value;
 }
 
 List<AudioTrack> _readAudioTracks(Map<String, dynamic> json) {

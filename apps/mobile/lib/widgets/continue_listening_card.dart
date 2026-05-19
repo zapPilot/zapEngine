@@ -29,25 +29,11 @@ class ContinueListeningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final status = episode.status;
-    final eyebrow = allCompleted
-        ? '已全部聽完'
-        : status == EpisodeStatus.inProgress
-            ? '繼續收聽'
-            : '一鍵播放';
-    final title = allCompleted ? '已全部聽完' : episode.title;
-    final subtitle = allCompleted
-        ? '重新從最舊一集開始播放'
-        : status == EpisodeStatus.inProgress
-            ? '上次收聽至 ${_formatPosition(episode.lastPositionSeconds)}'
-            : '從最舊未聽集開始';
-    final buttonLabel = isPlaying
-        ? '暫停'
-        : allCompleted
-            ? '重新從最舊開始'
-            : status == EpisodeStatus.inProgress
-                ? '繼續收聽'
-                : '從最舊未聽開始';
+    final copy = _CardCopy.forEpisode(
+      episode,
+      allCompleted: allCompleted,
+      isPlaying: isPlaying,
+    );
 
     return EpisodeHeroFrame(
       constraints: const BoxConstraints(minHeight: 250),
@@ -66,7 +52,7 @@ class ContinueListeningCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                eyebrow,
+                copy.eyebrow,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: AppColors.accent,
                   fontWeight: FontWeight.w800,
@@ -87,14 +73,14 @@ class ContinueListeningCard extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           Text(
-            title,
+            copy.title,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.headlineLarge,
           ),
           const SizedBox(height: 10),
           Text(
-            subtitle,
+            copy.subtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -111,7 +97,7 @@ class ContinueListeningCard extends StatelessWidget {
                 isPlaying: isPlaying,
                 isLoading: isLoading,
                 onPressed: onPlay,
-                label: buttonLabel,
+                label: copy.buttonLabel,
               ),
               LikeButton(episode: episode),
               ShareButton(episode: episode),
@@ -121,11 +107,50 @@ class ContinueListeningCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  static String _formatPosition(int seconds) {
-    final duration = Duration(seconds: seconds);
-    final minutes = duration.inMinutes;
-    final remainingSeconds = duration.inSeconds.remainder(60);
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+class _CardCopy {
+  const _CardCopy({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    required this.buttonLabel,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  final String buttonLabel;
+
+  static _CardCopy forEpisode(
+    Episode episode, {
+    required bool allCompleted,
+    required bool isPlaying,
+  }) {
+    if (allCompleted) {
+      return _CardCopy(
+        eyebrow: '已全部聽完',
+        title: '已全部聽完',
+        subtitle: '重新從最舊一集開始播放',
+        buttonLabel: isPlaying ? '暫停' : '重新從最舊開始',
+      );
+    }
+
+    if (episode.status == EpisodeStatus.inProgress) {
+      return _CardCopy(
+        eyebrow: '繼續收聽',
+        title: episode.title,
+        subtitle:
+            '上次收聽至 ${formatDuration(Duration(seconds: episode.lastPositionSeconds))}',
+        buttonLabel: isPlaying ? '暫停' : '繼續收聽',
+      );
+    }
+
+    return _CardCopy(
+      eyebrow: '一鍵播放',
+      title: episode.title,
+      subtitle: '從最舊未聽集開始',
+      buttonLabel: isPlaying ? '暫停' : '從最舊未聽開始',
+    );
   }
 }
