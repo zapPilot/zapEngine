@@ -371,6 +371,23 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     );
   }
 
+  protected logSnapshotSaved(
+    entityType: string,
+    data: {
+      priceUsd: number;
+      source: string;
+      date: string;
+      entityIdentifier: Record<string, unknown>;
+    },
+  ): void {
+    logger.info(`${entityType} snapshot saved`, {
+      price: data.priceUsd,
+      source: data.source,
+      date: data.date,
+      ...data.entityIdentifier,
+    });
+  }
+
   private logConfiguredError(
     message: string,
     context: Record<string, unknown>,
