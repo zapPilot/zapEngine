@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypedDict, cast
 
 from src.models.token_price import TokenPriceSnapshot
+from src.services.market._coercion import coerce_dma_snapshot_date
 from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
@@ -34,20 +35,12 @@ class TokenPriceService(QueryBackedMarketService):
     Supports multiple tokens (BTC, ETH, SOL, etc.) with backward compatibility.
     """
 
-    @staticmethod
-    def _coerce_dma_snapshot_date(raw_date: object) -> date:
-        """Convert raw DMA row date into ``date``."""
-        if isinstance(raw_date, datetime):
-            return raw_date.date()
-        if isinstance(raw_date, date):
-            return raw_date
-        if isinstance(raw_date, str):
-            return date.fromisoformat(raw_date)
-        raise ValueError(f"Invalid snapshot_date in DMA row: {raw_date!r}")
-
-    @staticmethod
+    @classmethod
     def _coerce_positive_float(
-        raw_value: object, snapshot_date: date, field_name: str
+        cls,
+        raw_value: object,
+        snapshot_date: date,
+        field_name: str,
     ) -> float:
         """Convert a numeric field into a validated positive finite float."""
         if raw_value is None:
@@ -218,7 +211,7 @@ class TokenPriceService(QueryBackedMarketService):
 
             out: dict[date, float] = {}
             for row in result:
-                snapshot_date = self._coerce_dma_snapshot_date(row.get("snapshot_date"))
+                snapshot_date = coerce_dma_snapshot_date(row.get("snapshot_date"))
                 dma_value = self._coerce_dma_value(row.get("dma_200"), snapshot_date)
                 out[snapshot_date] = dma_value
 
@@ -269,7 +262,7 @@ class TokenPriceService(QueryBackedMarketService):
 
             out: dict[date, PairRatioDmaPoint] = {}
             for row in result:
-                snapshot_date = self._coerce_dma_snapshot_date(row.get("snapshot_date"))
+                snapshot_date = coerce_dma_snapshot_date(row.get("snapshot_date"))
                 out[snapshot_date] = {
                     "ratio": self._coerce_positive_float(
                         row.get("ratio_value"), snapshot_date, "ratio_value"

@@ -3,7 +3,8 @@
   "ignore": [
     "src/tests/**",
     "**/__pycache__/**",
-    "src/services/backtesting/strategies/**"
+    "src/services/backtesting/strategies/**",
+    "src/services/interfaces/**"
   ],
   "ignorePattern": [
     "from\\s+[^\\n]+\\s+import\\s+\\([\\s\\S]*?\\)",

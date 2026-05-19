@@ -45,6 +45,28 @@ SUPPORTED_AUX_SERIES = frozenset(
 SPY_FORWARD_FILL_SEED_DAYS = 7
 
 
+def _load_eth_usd_features(
+    feature_history: dict[str, dict[date, Any]],
+    *,
+    token_price_service: TokenPriceServiceProtocol,
+    days: int,
+    start_date: date,
+    end_date: date,
+) -> None:
+    feature_history[ETH_USD_PRICE_FEATURE] = _load_token_price_history(
+        token_price_service=token_price_service,
+        token_symbol="ETH",
+        days=days,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
+        start_date=start_date,
+        end_date=end_date,
+        token_symbol="ETH",
+    )
+
+
 def resolve_price_feature_history(
     *,
     token_price_service: TokenPriceServiceProtocol,
@@ -85,17 +107,12 @@ def resolve_price_feature_history(
         not in declared_requirements.required_aux_series
     ):
         days = max((end_date - start_date).days + 7, 1)
-        feature_history[ETH_USD_PRICE_FEATURE] = _load_token_price_history(
+        _load_eth_usd_features(
+            feature_history,
             token_price_service=token_price_service,
-            token_symbol="ETH",
             days=days,
             start_date=start_date,
             end_date=end_date,
-        )
-        feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
-            start_date=start_date,
-            end_date=end_date,
-            token_symbol="ETH",
         )
     if (
         ETH_BTC_RELATIVE_STRENGTH_AUX_SERIES
@@ -120,17 +137,12 @@ def resolve_price_feature_history(
             snapshot_date: payload["is_above_dma"]
             for snapshot_date, payload in ratio_history.items()
         }
-        feature_history[ETH_USD_PRICE_FEATURE] = _load_token_price_history(
+        _load_eth_usd_features(
+            feature_history,
             token_price_service=token_price_service,
-            token_symbol="ETH",
             days=days,
             start_date=start_date,
             end_date=end_date,
-        )
-        feature_history[ETH_DMA_200_FEATURE] = token_price_service.get_dma_history(
-            start_date=start_date,
-            end_date=end_date,
-            token_symbol="ETH",
         )
     if (
         SPY_AUX_SERIES in declared_requirements.required_aux_series

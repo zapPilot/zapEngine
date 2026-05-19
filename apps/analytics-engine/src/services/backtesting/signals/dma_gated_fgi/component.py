@@ -57,6 +57,8 @@ def _hold_intent(*, reason: str, rule_group: RuleGroup) -> AllocationIntent:
     return hold_intent(reason=reason, rule_group=rule_group)
 
 
+# jscpd:ignore-start
+# Reason: compatibility wrapper intentionally mirrors the tactic target builder.
 def _target_intent(
     *,
     action: DecisionAction,
@@ -74,6 +76,9 @@ def _target_intent(
         rule_group=rule_group,
         immediate=immediate,
     )
+
+
+# jscpd:ignore-end
 
 
 def _resolve_dma_allocation_intent(
@@ -220,6 +225,8 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
         self._regime_history.append(market_state.fgi_regime)
         return market_state
 
+    # jscpd:ignore-start
+    # Reason: component delegates runtime API with the same public signature.
     def apply_intent(
         self,
         *,
@@ -234,6 +241,8 @@ class DmaGatedFgiSignalComponent(StatefulSignalComponent):
             intent=intent,
             forced_cross_event=forced_cross_event,
         )
+
+    # jscpd:ignore-end
 
     def build_signal_observation(
         self,

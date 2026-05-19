@@ -95,14 +95,9 @@ def _trigger_symbols_from_intent(intent: AllocationIntent) -> list[str]:
 def _cooldown_key_from_intent(intent: AllocationIntent) -> RuleCooldownKey | None:
     diagnostics = intent.diagnostics or {}
     raw_key = diagnostics.get(DIAG_PORTFOLIO_RULE_COOLDOWN_KEY)
-    if isinstance(raw_key, str):
-        return raw_key
-    if (
-        isinstance(raw_key, tuple)
-        and len(raw_key) == 2
-        and all(isinstance(part, str) for part in raw_key)
-    ):
-        return cast(tuple[str, str], raw_key)
+    coerced_key = _coerce_rule_cooldown_key(raw_key)
+    if coerced_key is not None:
+        return coerced_key
     if (
         isinstance(raw_key, list)
         and len(raw_key) == 2
@@ -163,6 +158,13 @@ def _rule_cooldown_key(
     if not callable(cooldown_key):
         return rule.name
     raw_key = cooldown_key(snapshot, config=config)
+    coerced_key = _coerce_rule_cooldown_key(raw_key)
+    if coerced_key is not None:
+        return coerced_key
+    return rule.name
+
+
+def _coerce_rule_cooldown_key(raw_key: object) -> RuleCooldownKey | None:
     if isinstance(raw_key, str):
         return raw_key
     if (
@@ -171,7 +173,7 @@ def _rule_cooldown_key(
         and all(isinstance(part, str) for part in raw_key)
     ):
         return cast(tuple[str, str], raw_key)
-    return rule.name
+    return None
 
 
 def _rule_cooldown_days(

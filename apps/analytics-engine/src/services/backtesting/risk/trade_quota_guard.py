@@ -27,11 +27,15 @@ class TradeQuotaGuard:
     max_trades_7d: int | None = None
     max_trades_30d: int | None = None
 
+    # jscpd:ignore-start
+    # Reason: quota guard mirrors TradeQuotaLimits field normalization.
     def __post_init__(self) -> None:
         limits = self._limits
         self.min_trade_interval_days = limits.min_trade_interval_days
         self.max_trades_7d = limits.max_trades_7d
         self.max_trades_30d = limits.max_trades_30d
+
+    # jscpd:ignore-end
 
     @property
     def _limits(self) -> TradeQuotaLimits:

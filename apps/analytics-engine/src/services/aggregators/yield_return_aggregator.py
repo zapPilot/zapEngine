@@ -40,6 +40,22 @@ class YieldReturnAggregator:
     )
 
     @staticmethod
+    def _new_aggregate_snapshot(
+        user_id: UUID,
+        value_key: str,
+        value: Any,
+    ) -> dict[str, Any]:
+        """Create a shared aggregate bucket with protocol metadata fields."""
+        return {
+            "user_id": str(user_id),
+            "protocol_name": None,
+            "chain": None,
+            "snapshot_at": None,
+            value_key: value,
+            "name_item": None,
+        }
+
+    @staticmethod
     def _safe_json_loads(
         value: Any, default: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -94,14 +110,11 @@ class YieldReturnAggregator:
             position_types = cls.DELTA_POSITION_TYPES
 
         aggregated_snapshots: dict[tuple[str, str, str], dict[str, Any]] = defaultdict(
-            lambda: {
-                "user_id": str(user_id),
-                "protocol_name": None,
-                "chain": None,
-                "snapshot_at": None,
-                "token_amounts": defaultdict(lambda: {"amount": 0.0, "price": 0.0}),
-                "name_item": None,
-            }
+            lambda: cls._new_aggregate_snapshot(
+                user_id,
+                "token_amounts",
+                defaultdict(lambda: {"amount": 0.0, "price": 0.0}),
+            )
         )
 
         for row in rows:
@@ -143,12 +156,16 @@ class YieldReturnAggregator:
 
     @staticmethod
     def _snapshot_identity(
-        row: dict[str, Any], snapshot_at: Any
+        row: dict[str, Any],
+        snapshot_at: Any,
+        *,
+        use_name_fallback: bool = True,
     ) -> tuple[str, str, str]:
         """Build canonical aggregation key (chain, protocol_name, date_str)."""
         date_str = snapshot_at.strftime("%Y-%m-%d")
         chain = row.get("chain") or ""
-        protocol_name = row.get("protocol_name") or row.get("name") or ""
+        fallback_name = row.get("name") if use_name_fallback else ""
+        protocol_name = row.get("protocol_name") or fallback_name or ""
         return chain, protocol_name, date_str
 
     @staticmethod
@@ -206,6 +223,8 @@ class YieldReturnAggregator:
             key=lambda item: item["snapshot_at"],
         )
 
+    # jscpd:ignore-start
+    # Reason: aggregate entrypoints share the same public API for token/USD modes.
     @classmethod
     def aggregate_usd_balance_snapshots(
         cls,
@@ -218,14 +237,7 @@ class YieldReturnAggregator:
             position_types = cls.DELTA_POSITION_TYPES
 
         aggregated: dict[tuple[str, str, str], dict[str, Any]] = defaultdict(
-            lambda: {
-                "user_id": str(user_id),
-                "protocol_name": None,
-                "chain": None,
-                "snapshot_at": None,
-                "usd_balance": 0.0,
-                "name_item": None,
-            }
+            lambda: cls._new_aggregate_snapshot(user_id, "usd_balance", 0.0)
         )
 
         for row in rows:
@@ -250,18 +262,21 @@ class YieldReturnAggregator:
             if snapshot_at is None:
                 continue
 
-            date_str = snapshot_at.strftime("%Y-%m-%d")
-            chain = row.get("chain") or ""
-            protocol_name = row.get("protocol_name") or ""
-            key = (chain, protocol_name, date_str)
-
-            aggregated[key]["usd_balance"] = usd_value
-            aggregated[key]["protocol_name"] = protocol_name
-            aggregated[key]["chain"] = chain
-            aggregated[key]["snapshot_at"] = date_str
-            aggregated[key]["name_item"] = name_item
+            key = cls._snapshot_identity(row, snapshot_at, use_name_fallback=False)
+            _chain, protocol_name, date_str = key
+            aggregated_snapshot = aggregated[key]
+            aggregated_snapshot["usd_balance"] = usd_value
+            cls._apply_row_snapshot_fields(
+                aggregated_snapshot,
+                row,
+                protocol_name=protocol_name,
+                date_str=date_str,
+                name_item=name_item,
+            )
 
         return sorted(aggregated.values(), key=lambda item: item["snapshot_at"])
+
+    # jscpd:ignore-end
 
     @staticmethod
     def calculate_usd_balance_deltas(

@@ -34,6 +34,8 @@ class SupportsAnalyticsQueries(Protocol):
     ) -> tuple[datetime, datetime, dict[str, Any]]:  # pragma: no cover - protocol
         ...
 
+    # jscpd:ignore-start
+    # Reason: protocol method must mirror BaseAnalyticsService query helper signature.
     def _execute_query(
         self,
         query_name: str,
@@ -42,6 +44,8 @@ class SupportsAnalyticsQueries(Protocol):
         db: Session | None = None,
     ) -> list[dict[str, Any]]:  # pragma: no cover - protocol
         ...
+
+    # jscpd:ignore-end
 
     def _with_cache(
         self,

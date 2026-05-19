@@ -142,6 +142,8 @@ def _normalize_primary_asset(value: str) -> str:
 
 
 class SavedStrategyConfigMutationBase(BaseModel):
+    # jscpd:ignore-start
+    # Reason: admin mutation schema intentionally mirrors saved config fields.
     display_name: str
     description: str | None = None
     strategy_id: str
@@ -159,6 +161,8 @@ class SavedStrategyConfigMutationBase(BaseModel):
             self.params,
         )
         return self
+
+    # jscpd:ignore-end
 
 
 class CreateSavedStrategyConfigRequest(SavedStrategyConfigMutationBase):

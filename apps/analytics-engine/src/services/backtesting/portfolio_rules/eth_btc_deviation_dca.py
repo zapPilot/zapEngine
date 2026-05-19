@@ -11,11 +11,9 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_target,
-    portfolio_target_intent,
-    ratio_signals_consulted,
+    eth_btc_ratio_rotation_intent,
 )
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
-from src.services.backtesting.target_allocation import normalize_target_allocation
 
 CooldownKey = str | tuple[str, str]
 
@@ -86,17 +84,12 @@ class EthBtcDeviationDcaRule:
         target[destination_key] = (
             max(0.0, float(target.get(destination_key, 0.0))) + rotated
         )
-        intent = portfolio_target_intent(
-            action="sell",
-            target=normalize_target_allocation(target),
+        intent = eth_btc_ratio_rotation_intent(
+            snapshot=snapshot,
+            config=config,
+            target=target,
             allocation_name=str(tier["allocation_name"]),
-            reason=str(tier["allocation_name"]),
             rule_group=self.rule_group,
-            assets=["BTC", "ETH"],
-            immediate=True,
-            signals_consulted=ratio_signals_consulted(snapshot)
-            if config.emit_signals_consulted
-            else None,
         )
         diagnostics = dict(intent.diagnostics or {})
         diagnostics[DIAG_PORTFOLIO_RULE_COOLDOWN_KEY] = [

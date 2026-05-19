@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from src.services.market._coercion import coerce_dma_snapshot_date
 from src.services.market.token_price_service import TokenPriceService
 
 
@@ -57,29 +58,29 @@ class TestTokenPriceServiceCoverage:
 
 
 class TestCoerceDmaSnapshotDate:
-    """Tests for _coerce_dma_snapshot_date — lines 62 and 66."""
+    """Tests for coerce_dma_snapshot_date (moved from TokenPriceService)."""
 
     def test_datetime_input_returns_date(self):
-        """Line 62: datetime input → returns .date()"""
+        """datetime input → returns .date()"""
         dt = datetime(2024, 3, 15, 10, 30, 0)
-        result = TokenPriceService._coerce_dma_snapshot_date(dt)
+        result = coerce_dma_snapshot_date(dt)
         assert result == date(2024, 3, 15)
 
     def test_str_input_returns_date(self):
-        """Line 66: str input → returns date.fromisoformat()"""
-        result = TokenPriceService._coerce_dma_snapshot_date("2024-03-15")
+        """str input → returns date.fromisoformat()"""
+        result = coerce_dma_snapshot_date("2024-03-15")
         assert result == date(2024, 3, 15)
 
     def test_date_input_returns_same(self):
         """date input passes through unchanged."""
         d = date(2024, 3, 15)
-        result = TokenPriceService._coerce_dma_snapshot_date(d)
+        result = coerce_dma_snapshot_date(d)
         assert result == d
 
     def test_invalid_type_raises(self):
         """Invalid type raises ValueError."""
         with pytest.raises(ValueError):
-            TokenPriceService._coerce_dma_snapshot_date(20240315)
+            coerce_dma_snapshot_date(20240315)
 
 
 class TestCoercePositiveFloat:

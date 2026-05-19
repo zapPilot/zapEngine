@@ -75,6 +75,8 @@ class PortfolioSnapshot:
     trade_dates: tuple[date, ...] = ()
 
 
+# jscpd:ignore-start
+# Reason: portfolio rule Protocol mirrors concrete rule method signatures.
 class PortfolioRule(Protocol):
     @property
     def name(self) -> str: ...
@@ -104,6 +106,9 @@ class PortfolioRule(Protocol):
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent: ...
+
+
+# jscpd:ignore-end
 
 
 @runtime_checkable
@@ -272,6 +277,28 @@ def ratio_signals_consulted(snapshot: PortfolioSnapshot) -> dict[str, Any]:
     }
 
 
+def eth_btc_ratio_rotation_intent(
+    *,
+    snapshot: PortfolioSnapshot,
+    config: PortfolioRuleConfig,
+    target: Mapping[str, float],
+    allocation_name: str,
+    rule_group: RuleGroup,
+) -> AllocationIntent:
+    return portfolio_target_intent(
+        action="sell",
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=allocation_name,
+        rule_group=rule_group,
+        assets=["BTC", "ETH"],
+        immediate=True,
+        signals_consulted=ratio_signals_consulted(snapshot)
+        if config.emit_signals_consulted
+        else None,
+    )
+
+
 def add_stable(target: dict[str, float], amount: float) -> None:
     if amount <= _EPSILON:
         return
@@ -407,13 +434,7 @@ def build_dca_buy_intent(
     )
 
 
-class DcaSellRuleBase:
-    allocation_name: str
-    reason: str
-    rule_group: RuleGroup
-    sell_step: float
-    sizing: SizingStrategy
-
+class _DcaRuleBase:
     def matches(
         self,
         snapshot: PortfolioSnapshot,
@@ -422,6 +443,17 @@ class DcaSellRuleBase:
     ) -> bool:
         del config
         return bool(self._matching_symbols(snapshot))
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        raise NotImplementedError
+
+
+class DcaSellRuleBase(_DcaRuleBase):
+    allocation_name: str
+    reason: str
+    rule_group: RuleGroup
+    sell_step: float
+    sizing: SizingStrategy
 
     def build_intent(
         self,
@@ -441,28 +473,16 @@ class DcaSellRuleBase:
             emit_signals_consulted=config.emit_signals_consulted,
         )
 
-    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
-        raise NotImplementedError
-
     def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
         raise NotImplementedError
 
 
-class DcaBuyRuleBase:
+class DcaBuyRuleBase(_DcaRuleBase):
     allocation_name: str
     buy_step: float
     reason: str
     rule_group: RuleGroup
     sizing: SizingStrategy
-
-    def matches(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> bool:
-        del config
-        return bool(self._matching_symbols(snapshot))
 
     def build_intent(
         self,
@@ -480,9 +500,6 @@ class DcaBuyRuleBase:
             rule_group=self.rule_group,
             emit_signals_consulted=config.emit_signals_consulted,
         )
-
-    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
-        raise NotImplementedError
 
 
 __all__ = [
@@ -511,6 +528,7 @@ __all__ = [
     "current_fgi_regime_for_symbol",
     "current_target",
     "cross_down_cooldown_days_for",
+    "eth_btc_ratio_rotation_intent",
     "normalize_regime",
     "normalize_symbol",
     "portfolio_target_intent",

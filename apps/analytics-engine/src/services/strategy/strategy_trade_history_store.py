@@ -6,9 +6,10 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import inspect, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from src.services.strategy._db_introspection import table_exists
 
 _TABLE_NAME = "strategy_trade_history"
 
@@ -61,11 +62,7 @@ class StrategyTradeHistoryStore:
         return list(self._deserialize_rows(rows))
 
     def _table_exists(self) -> bool:
-        try:
-            bind = self.db.get_bind()
-            return bool(inspect(bind).has_table(_TABLE_NAME))
-        except SQLAlchemyError:
-            return False
+        return table_exists(self.db, _TABLE_NAME)
 
     @staticmethod
     def _deserialize_rows(rows: Iterable[object]) -> Iterable[date]:
@@ -76,6 +73,8 @@ class StrategyTradeHistoryStore:
 class SeedStrategyTradeHistoryStore:
     """Static fallback store used when no persistent trade history exists."""
 
+    # jscpd:ignore-start
+    # Reason: fallback store intentionally mirrors the persistent store protocol.
     def list_trade_dates(
         self,
         user_id: UUID,
@@ -85,6 +84,8 @@ class SeedStrategyTradeHistoryStore:
     ) -> list[date]:
         del user_id, start_date, end_date
         return []
+
+    # jscpd:ignore-end
 
 
 __all__ = [

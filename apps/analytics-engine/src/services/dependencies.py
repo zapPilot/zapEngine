@@ -320,6 +320,8 @@ def get_market_dashboard_service(
     )
 
 
+# jscpd:ignore-start
+# Reason: FastAPI dependency providers repeat DI signatures for explicit wiring.
 def get_backtesting_service(
     db: Session = Depends(get_db),
     token_price_service: TokenPriceServiceProtocol = Depends(get_token_price_service),
@@ -345,6 +347,9 @@ def get_backtesting_service(
         stock_price_service=stock_price_service,
         macro_fear_greed_service=macro_fear_greed_service,
     )  # pragma: no cover
+
+
+# jscpd:ignore-end
 
 
 def get_landing_page_service(

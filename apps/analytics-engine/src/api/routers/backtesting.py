@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from src.api.routers._errors import market_data_unavailable_http_exception
 from src.models.backtesting import (
     BacktestCompareRequestV3,
     BacktestResponse,
@@ -18,17 +19,7 @@ v3_router = APIRouter(prefix="/v3/backtesting", tags=["Backtesting"])
 def _build_backtest_http_error(error: Exception) -> HTTPException:
     """Map backtesting execution errors to HTTPException responses."""
     if isinstance(error, MarketDataUnavailableError):
-        return HTTPException(
-            status_code=503,
-            detail={
-                "error_code": "MARKET_DATA_UNAVAILABLE",
-                "message": str(error),
-                "missing_assets": error.missing_assets,
-                "oldest_data_date": error.oldest_data_date.isoformat()
-                if error.oldest_data_date
-                else None,
-            },
-        )
+        return market_data_unavailable_http_exception(error)
     if isinstance(error, ValueError):
         return HTTPException(status_code=400, detail=str(error))
     return HTTPException(

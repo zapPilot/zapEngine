@@ -100,9 +100,12 @@ class PortfolioVolatilityResponse(PeriodAwareResponseMixin, AnalyticsResponseMod
 class SharpeRatioResponse(PeriodAwareResponseMixin, AnalyticsResponseModel):
     """Sharpe ratio calculation with risk-adjusted return metrics."""
 
+    # jscpd:ignore-start
+    # Reason: risk response schemas share canonical identity/period counters.
     user_id: str = Field(description="User identifier")
     period_days: int = Field(ge=1, description="Analysis period in days")
     data_points: int = Field(ge=0, description="Number of data points used")
+    # jscpd:ignore-end
     sharpe_ratio: Float3dpRounded = Field(
         description="Sharpe ratio (excess return / volatility)"
     )
@@ -126,9 +129,12 @@ class SharpeRatioResponse(PeriodAwareResponseMixin, AnalyticsResponseModel):
 class MaxDrawdownResponse(PeriodAwareResponseMixin, AnalyticsResponseModel):
     """Maximum drawdown analysis with peak-to-trough metrics."""
 
+    # jscpd:ignore-start
+    # Reason: risk response schemas share canonical identity/period counters.
     user_id: str = Field(description="User identifier")
     period_days: int = Field(ge=1, description="Analysis period in days")
     data_points: int = Field(ge=0, description="Number of data points used")
+    # jscpd:ignore-end
     max_drawdown_pct: PercentageRounded = Field(
         le=0.0, description="Maximum drawdown as negative percentage"
     )
@@ -378,6 +384,8 @@ class RollingSharpeAnalysisResponse(PeriodAwareResponseMixin):
 class RollingVolatilityDataPoint(BaseModel):
     """30-day rolling volatility data point."""
 
+    # jscpd:ignore-start
+    # Reason: rolling point schemas share window metadata declarations.
     date: datetime = Field(description="End date of the 30-day window")
     volatility_daily: Float6dpRounded = Field(
         ge=0.0, description="Daily volatility for this window"
@@ -392,14 +400,18 @@ class RollingVolatilityDataPoint(BaseModel):
     reliable: bool = Field(
         description="Whether this window has sufficient data for reliability"
     )
+    # jscpd:ignore-end
 
 
 class RollingVolatilityAnalysisResponse(PeriodAwareResponseMixin):
     """30-day rolling volatility analysis with daily and annualized metrics."""
 
+    # jscpd:ignore-start
+    # Reason: rolling analysis schemas share canonical identity/period counters.
     user_id: str = Field(description="User identifier")
     period_days: int = Field(ge=1, description="Analysis period in days")
     data_points: int = Field(ge=0, description="Number of rolling window data points")
+    # jscpd:ignore-end
     rolling_volatility: list[RollingVolatilityDataPoint] = Field(
         default_factory=list, description="30-day rolling volatility values"
     )

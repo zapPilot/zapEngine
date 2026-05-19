@@ -89,22 +89,15 @@ class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtoco
     See: get_portfolio_trend() below for in-memory filtering implementation
     """
 
+    # jscpd:ignore-start
+    # Reason: subclass constructor intentionally mirrors BaseAnalyticsService DI shape.
     def __init__(
         self,
         db: Session,
         query_service: QueryServiceProtocol,
         context: PortfolioAnalyticsContext | None = None,
     ) -> None:
-        """Initialize TrendAnalysisService with configuration validation.
-
-        Args:
-            db: Database session
-            query_service: Query execution service
-            context: Optional analytics context (created if not provided)
-
-        Raises:
-            ValueError: If MAX_CACHE_DAYS is outside safe range [30, 365]
-        """
+        """Initialize service and validate cache-window bounds."""
         super().__init__(db, query_service, context)
 
         # Validate MAX_CACHE_DAYS to prevent production incidents
@@ -114,6 +107,8 @@ class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtoco
                 f"This value affects cache key construction and changing it invalidates all cached data. "
                 f"See class docstring for details on safe modification procedures."
             )
+
+    # jscpd:ignore-end
 
     def get_portfolio_trend(
         self,

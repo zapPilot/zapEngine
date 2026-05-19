@@ -38,12 +38,11 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
             self._gate.observe_dma_distance(hints.dma_distance)
 
     def precheck(self, invocation: PluginInvocation) -> ExecutionPluginResult:
-        context = invocation.context
-        intent = invocation.intent
-        hints = invocation.hints
-        if not self._enabled(intent=intent, hints=hints):
+        active = self._active_invocation(invocation)
+        if active is None:
             return ExecutionPluginResult()
-        buy_strength = self._buy_strength(hints)
+        context = invocation.context
+        intent, _hints, buy_strength = active
         snapshot = self._gate.snapshot(buy_strength=buy_strength)
         diagnostics = (self._to_diagnostic(snapshot),)
         if intent.immediate:
@@ -119,11 +118,10 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
         invocation: PluginInvocation,
         transfers: list[TransferIntent],
     ) -> ExecutionPluginResult:
-        intent = invocation.intent
-        hints = invocation.hints
-        if not self._enabled(intent=intent, hints=hints):
+        active = self._active_invocation(invocation)
+        if active is None:
             return ExecutionPluginResult()
-        buy_strength = self._buy_strength(hints)
+        _intent, _hints, buy_strength = active
         executed_buy = sum(
             float(transfer.amount_usd)
             for transfer in transfers
@@ -140,6 +138,16 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
             clear_plan=True,
             diagnostics=(self._to_diagnostic(snapshot),),
         )
+
+    def _active_invocation(
+        self,
+        invocation: PluginInvocation,
+    ) -> tuple[AllocationIntent, ExecutionHints, float] | None:
+        intent = invocation.intent
+        hints = invocation.hints
+        if not self._enabled(intent=intent, hints=hints):
+            return None
+        return intent, hints, self._buy_strength(hints)
 
     @staticmethod
     def _enabled(*, intent: AllocationIntent, hints: ExecutionHints) -> bool:

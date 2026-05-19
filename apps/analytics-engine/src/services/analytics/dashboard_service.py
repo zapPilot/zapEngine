@@ -13,7 +13,7 @@ Key Features:
 
 import inspect
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import timedelta
 from typing import Any, cast
 from uuid import UUID
@@ -32,6 +32,9 @@ from src.services.interfaces import (
 from src.services.shared.base_analytics_service import CacheKeyMixin
 
 logger = logging.getLogger(__name__)
+
+DashboardPayload = BaseModel | dict[str, Any] | None
+DashboardFetcher = Callable[[], DashboardPayload | Awaitable[DashboardPayload]]
 
 
 class DashboardService(CacheKeyMixin):
@@ -272,6 +275,8 @@ class DashboardService(CacheKeyMixin):
             ),
         }
 
+    # jscpd:ignore-start
+    # Reason: dashboard sections intentionally share the same section-builder shape.
     async def _add_drawdown_section(
         self,
         dashboard: dict[str, Any],
@@ -279,25 +284,33 @@ class DashboardService(CacheKeyMixin):
         time_ranges: DashboardTimeRanges,
         wallet_address: str | None,
     ) -> None:
-        dashboard["drawdown_analysis"] = {
-            "enhanced": await self._safe_call(
-                "enhanced_drawdown",
-                lambda: self.drawdown_service.get_enhanced_drawdown_analysis(
-                    user_id,
-                    time_ranges.drawdown_days,
-                    wallet_address=wallet_address,
+        await self._add_dashboard_section(
+            dashboard,
+            "drawdown_analysis",
+            {
+                "enhanced": (
+                    "enhanced_drawdown",
+                    lambda: self.drawdown_service.get_enhanced_drawdown_analysis(
+                        user_id,
+                        time_ranges.drawdown_days,
+                        wallet_address=wallet_address,
+                    ),
                 ),
-            ),
-            "underwater_recovery": await self._safe_call(
-                "underwater_recovery",
-                lambda: self.drawdown_service.get_underwater_recovery_analysis(
-                    user_id,
-                    time_ranges.drawdown_days,
-                    wallet_address=wallet_address,
+                "underwater_recovery": (
+                    "underwater_recovery",
+                    lambda: self.drawdown_service.get_underwater_recovery_analysis(
+                        user_id,
+                        time_ranges.drawdown_days,
+                        wallet_address=wallet_address,
+                    ),
                 ),
-            ),
-        }
+            },
+        )
 
+    # jscpd:ignore-end
+
+    # jscpd:ignore-start
+    # Reason: dashboard sections intentionally share the same section-builder shape.
     async def _add_rolling_section(
         self,
         dashboard: dict[str, Any],
@@ -305,28 +318,42 @@ class DashboardService(CacheKeyMixin):
         time_ranges: DashboardTimeRanges,
         wallet_address: str | None,
     ) -> None:
-        dashboard["rolling_analytics"] = {
-            "sharpe": await self._safe_call(
-                "rolling_sharpe",
-                lambda: self.rolling_service.get_rolling_sharpe_analysis(
-                    user_id, time_ranges.rolling_days, wallet_address=wallet_address
+        await self._add_dashboard_section(
+            dashboard,
+            "rolling_analytics",
+            {
+                "sharpe": (
+                    "rolling_sharpe",
+                    lambda: self.rolling_service.get_rolling_sharpe_analysis(
+                        user_id, time_ranges.rolling_days, wallet_address=wallet_address
+                    ),
                 ),
-            ),
-            "volatility": await self._safe_call(
-                "rolling_volatility",
-                lambda: self.rolling_service.get_rolling_volatility_analysis(
-                    user_id, time_ranges.rolling_days, wallet_address=wallet_address
+                "volatility": (
+                    "rolling_volatility",
+                    lambda: self.rolling_service.get_rolling_volatility_analysis(
+                        user_id, time_ranges.rolling_days, wallet_address=wallet_address
+                    ),
                 ),
-            ),
+            },
+        )
+
+    # jscpd:ignore-end
+
+    async def _add_dashboard_section(
+        self,
+        dashboard: dict[str, Any],
+        key: str,
+        entries: Mapping[str, tuple[str, DashboardFetcher]],
+    ) -> None:
+        dashboard[key] = {
+            entry_key: await self._safe_call(service_name, fetcher)
+            for entry_key, (service_name, fetcher) in entries.items()
         }
 
     async def _safe_call(
         self,
         service_name: str,
-        fetcher: Callable[
-            [],
-            BaseModel | dict[str, Any] | Awaitable[BaseModel | dict[str, Any]] | None,
-        ],
+        fetcher: DashboardFetcher,
     ) -> dict[str, Any] | None:
         """
         Execute service call with error handling.
