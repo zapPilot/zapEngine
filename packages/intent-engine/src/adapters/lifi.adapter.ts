@@ -60,6 +60,17 @@ export interface LiFiTokenInfo {
   priceUSD: string;
 }
 
+interface QuoteParams {
+  fromChain: number;
+  toChain: number;
+  fromToken: Address;
+  toToken: Address;
+  fromAmount: string;
+  fromAddress: Address;
+  toAddress?: Address;
+  slippageBps?: number;
+}
+
 function isNativeTokenAddress(address: string): boolean {
   const normalized = address.toLowerCase();
   return (
@@ -93,59 +104,26 @@ export class LiFiAdapter {
     }
   }
 
+  private buildQuoteRequest(_params: QuoteParams): QuoteRequest {
+    throw new Error('Not implemented - use getQuote directly');
+  }
+
   /**
    * Get a simple swap quote (same-chain or cross-chain)
    */
-  async getSwapQuote(params: {
-    fromChain: number;
-    toChain: number;
-    fromToken: Address;
-    toToken: Address;
-    fromAmount: string;
-    fromAddress: Address;
-    toAddress?: Address;
-    slippageBps?: number;
-  }): Promise<TransactionQuote> {
-    this.ensureInitialized();
-
-    try {
-      const request: QuoteRequest = {
-        fromChain: params.fromChain,
-        toChain: params.toChain,
-        fromToken: params.fromToken,
-        toToken: params.toToken,
-        fromAmount: params.fromAmount,
-        fromAddress: params.fromAddress,
-        toAddress: params.toAddress ?? params.fromAddress,
-        slippage: (params.slippageBps ?? 50) / 10000, // Convert bps to decimal
-      };
-      const quote = await getLiFiQuote(request);
-      return this.mapQuoteToTransaction(
-        quote as unknown as LiFiQuoteResponse,
-        'SWAP',
-      );
-    } catch (error) {
-      throw new QuoteError('Failed to get swap quote from LI.FI', {
-        cause: error,
-      });
-    }
+  async getSwapQuote(
+    params: Parameters<typeof this.buildQuoteRequest>[0],
+  ): Promise<TransactionQuote> {
+    return this.getQuote({ ...params, intentType: 'SWAP' });
   }
 
   /**
    * Get a route quote and preserve whether the caller is composing a bridge
    * or a plain swap in the returned transaction metadata.
    */
-  async getQuote(params: {
-    fromChain: number;
-    toChain: number;
-    fromToken: Address;
-    toToken: Address;
-    fromAmount: string;
-    fromAddress: Address;
-    toAddress?: Address;
-    slippageBps?: number;
-    intentType?: 'SWAP' | 'BRIDGE' | 'SUPPLY';
-  }): Promise<TransactionQuote> {
+  async getQuote(
+    params: QuoteParams & { intentType?: 'SWAP' | 'BRIDGE' | 'SUPPLY' },
+  ): Promise<TransactionQuote> {
     this.ensureInitialized();
 
     try {
@@ -159,7 +137,6 @@ export class LiFiAdapter {
         toAddress: params.toAddress ?? params.fromAddress,
         slippage: (params.slippageBps ?? 50) / 10000,
       };
-
       const quote = await getLiFiQuote(request);
       return this.mapQuoteToTransaction(
         quote as unknown as LiFiQuoteResponse,

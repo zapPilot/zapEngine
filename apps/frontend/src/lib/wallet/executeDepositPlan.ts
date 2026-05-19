@@ -66,6 +66,24 @@ async function waitForTransaction(tx: PreparedTransaction, hash: Hash) {
   await getPublicClient(tx.chainId).waitForTransactionReceipt({ hash });
 }
 
+function isAtomicUnsupportedError(error: string | undefined): boolean {
+  if (!error) {
+    return false;
+  }
+
+  const message = error.toLowerCase();
+  return (
+    message.includes('atomicity not supported') ||
+    message.includes('forceatomic') ||
+    message.includes('eip-7702 not supported') ||
+    message.includes('wallet_sendcalls') ||
+    message.includes('method not found') ||
+    message.includes('method not supported') ||
+    message.includes('unsupported wc_ method') ||
+    message.includes('unsupported eip-7702 chain id')
+  );
+}
+
 async function executeSequentially({
   plan,
   walletClient,
@@ -105,23 +123,19 @@ export async function executeDepositPlan({
   onCallSubmitted,
   onCallConfirmed,
 }: ExecuteDepositPlanInput): Promise<DepositPlanExecutionResult> {
-  const strategy = await intentEngine.getExecutionStrategy(
+  // Optimistic: attempt the EIP-5792 atomic batch first and let the wallet be
+  // the source of truth. `wallet_getCapabilities` is unreliable through wallet
+  // abstractions (e.g. MetaMask omits chains it does not advertise rather than
+  // reporting them unsupported), so a capability pre-check would wrongly block
+  // wallets that can in fact batch. Only fall back to sequential when the
+  // wallet genuinely cannot do atomic execution.
+  const result = await intentEngine.executeWithEIP7702(
+    [...plan.approvals, ...plan.calls],
     walletClient,
-    chainId,
+    { chainId },
   );
 
-  if (strategy === 'eip7702') {
-    const result = await intentEngine.executeWithEIP7702(
-      [...plan.approvals, ...plan.calls],
-      walletClient,
-      { chainId },
-    );
-    if (!result.success || !result.callsId) {
-      throw new Error(
-        result.error ?? 'EIP-7702 batch failed to return a calls bundle id',
-      );
-    }
-
+  if (result.success && result.callsId) {
     onBundleSubmitted?.(result.callsId);
     onBundleConfirmed?.();
     return {
@@ -130,12 +144,18 @@ export async function executeDepositPlan({
     };
   }
 
-  return executeSequentially({
-    plan,
-    walletClient,
-    onApprovalSubmitted,
-    onApprovalConfirmed,
-    onCallSubmitted,
-    onCallConfirmed,
-  });
+  if (isAtomicUnsupportedError(result.error)) {
+    return executeSequentially({
+      plan,
+      walletClient,
+      onApprovalSubmitted,
+      onApprovalConfirmed,
+      onCallSubmitted,
+      onCallConfirmed,
+    });
+  }
+
+  throw new Error(
+    result.error ?? 'EIP-7702 batch failed to return a calls bundle id',
+  );
 }

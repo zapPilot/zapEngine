@@ -66,6 +66,32 @@ const supportedBaseDepositTokens = new Set(
   ),
 );
 
+interface BaseDepositFields {
+  readonly fromToken: string;
+  readonly sourceChainId: number;
+}
+
+function addBaseDepositValidationIssues(
+  value: BaseDepositFields,
+  ctx: z.RefinementCtx,
+): void {
+  if (value.sourceChainId !== BASE_CHAIN_ID) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Deposit v1 supports Base only',
+      path: ['sourceChainId'],
+    });
+  }
+
+  if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Deposit v1 supports USDC and native ETH on Base only',
+      path: ['fromToken'],
+    });
+  }
+}
+
 export const DepositRequestSchema = z
   .object({
     userAddress: AddressSchema,
@@ -74,21 +100,7 @@ export const DepositRequestSchema = z
     sourceChainId: z.number().int().positive(),
   })
   .superRefine((value, ctx) => {
-    if (value.sourceChainId !== BASE_CHAIN_ID) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports Base only',
-        path: ['sourceChainId'],
-      });
-    }
-
-    if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports USDC and native ETH on Base only',
-        path: ['fromToken'],
-      });
-    }
+    addBaseDepositValidationIssues(value, ctx);
   });
 
 export const PlanOrchestrationDepositRequestSchema = z
@@ -112,21 +124,7 @@ export const PlanOrchestrationDepositRequestSchema = z
       return;
     }
 
-    if (value.sourceChainId !== BASE_CHAIN_ID) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports Base only',
-        path: ['sourceChainId'],
-      });
-    }
-
-    if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports USDC and native ETH on Base only',
-        path: ['fromToken'],
-      });
-    }
+    addBaseDepositValidationIssues(value, ctx);
   });
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;

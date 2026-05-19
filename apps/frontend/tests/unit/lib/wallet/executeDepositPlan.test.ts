@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 
 const mocks = vi.hoisted(() => ({
-  getExecutionStrategy: vi.fn(),
   executeWithEIP7702: vi.fn(),
   waitForEIP7702Confirmation: vi.fn(),
   getPublicClient: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock('@zapengine/intent-engine', async (importOriginal) => {
 
 vi.mock('@/services/intentClient', () => ({
   intentEngine: {
-    getExecutionStrategy: mocks.getExecutionStrategy,
     executeWithEIP7702: mocks.executeWithEIP7702,
   },
   getPublicClient: mocks.getPublicClient,
@@ -77,8 +75,7 @@ describe('executeDepositPlan', () => {
     mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'success' });
   });
 
-  it('executes approvals and calls as one EIP-7702 atomic bundle by default when supported', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
+  it('optimistically attempts the EIP-7702 atomic bundle without a capability pre-check', async () => {
     mocks.executeWithEIP7702.mockResolvedValue({
       success: true,
       callsId: '0xbundle',
@@ -94,7 +91,6 @@ describe('executeDepositPlan', () => {
       onBundleConfirmed,
     });
 
-    expect(mocks.getExecutionStrategy).toHaveBeenCalledWith(walletClient, 8453);
     expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
       [approvalTx, callTx],
       walletClient,
@@ -110,8 +106,7 @@ describe('executeDepositPlan', () => {
     expect(walletClient.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it('does not fail a submitted EIP-7702 bundle when calls status polling is unavailable', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
+  it('returns the submitted EIP-7702 bundle even when calls-status polling is unavailable', async () => {
     mocks.executeWithEIP7702.mockResolvedValue({
       success: true,
       callsId: '0xbundle',
@@ -132,45 +127,12 @@ describe('executeDepositPlan', () => {
     });
   });
 
-  it('surfaces atomic send errors without demoting an eip7702 strategy to sequential execution', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
+  it('falls back to sequential when the wallet cannot force an atomic batch', async () => {
     mocks.executeWithEIP7702.mockResolvedValue({
       success: false,
       error:
         '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
     });
-
-    await expect(
-      executeDepositPlan({
-        plan,
-        walletClient: walletClient as never,
-        chainId: 8453,
-      }),
-    ).rejects.toThrow(
-      '`forceAtomic` is not supported on fallback to `eth_sendTransaction`.',
-    );
-    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
-  });
-
-  it('does not fall back to sequential when the user rejects the atomic bundle', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
-    mocks.executeWithEIP7702.mockResolvedValue({
-      success: false,
-      error: 'User rejected request',
-    });
-
-    await expect(
-      executeDepositPlan({
-        plan,
-        walletClient: walletClient as never,
-        chainId: 8453,
-      }),
-    ).rejects.toThrow('User rejected request');
-    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
-  });
-
-  it('falls back to sequential execution only when atomic batching is unavailable', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('sequential');
     walletClient.sendTransaction
       .mockResolvedValueOnce('0xapprove')
       .mockResolvedValueOnce('0xcall');
@@ -197,5 +159,65 @@ describe('executeDepositPlan', () => {
       kind: 'sequential',
       hashes: ['0xapprove', '0xcall'],
     });
+  });
+
+  it('falls back to sequential when the wallet reports atomicity not supported', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: 'Atomicity not supported by this wallet',
+    });
+    walletClient.sendTransaction
+      .mockResolvedValueOnce('0xapprove')
+      .mockResolvedValueOnce('0xcall');
+
+    const result = await executeDepositPlan({
+      plan,
+      walletClient: walletClient as never,
+      chainId: 8453,
+    });
+
+    expect(walletClient.sendTransaction).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      kind: 'sequential',
+      hashes: ['0xapprove', '0xcall'],
+    });
+  });
+
+  it('falls back to sequential when the chain is outside the EIP-7702 set', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: 'Unsupported EIP-7702 chain id: 10',
+    });
+    walletClient.sendTransaction
+      .mockResolvedValueOnce('0xapprove')
+      .mockResolvedValueOnce('0xcall');
+
+    const result = await executeDepositPlan({
+      plan,
+      walletClient: walletClient as never,
+      chainId: 10,
+    });
+
+    expect(walletClient.sendTransaction).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      kind: 'sequential',
+      hashes: ['0xapprove', '0xcall'],
+    });
+  });
+
+  it('throws (no silent sequential re-prompt) when the user rejects the atomic bundle', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: 'User rejected request',
+    });
+
+    await expect(
+      executeDepositPlan({
+        plan,
+        walletClient: walletClient as never,
+        chainId: 8453,
+      }),
+    ).rejects.toThrow('User rejected request');
+    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
   });
 });

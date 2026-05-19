@@ -60,14 +60,28 @@ function createServiceHttpClient(baseURL: string) {
       body?: unknown,
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
-    ) => mutate(httpPut, endpoint, body, config, transformer),
+    ) =>
+      mutate(
+        (url, b, cfg, t) => httpPut(url, b, cfg, t),
+        endpoint,
+        body,
+        config,
+        transformer,
+      ),
 
     patch: <T = unknown>(
       endpoint: string,
       body?: unknown,
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
-    ) => mutate(httpPatch, endpoint, body, config, transformer),
+    ) =>
+      mutate(
+        (url, b, cfg, t) => httpPatch(url, b, cfg, t),
+        endpoint,
+        body,
+        config,
+        transformer,
+      ),
 
     delete: <T = unknown>(
       endpoint: string,
