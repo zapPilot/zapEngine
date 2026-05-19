@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/episode.dart';
 import '../state/auth_provider.dart';
 import '../state/likes_provider.dart';
+import '../theme/colors.dart';
 
 typedef LikeToggleBuilder = Widget Function(
   BuildContext context,
@@ -11,6 +12,62 @@ typedef LikeToggleBuilder = Widget Function(
   bool enabled,
   VoidCallback? onPressed,
 );
+
+abstract class EpisodeLikeToggleButton extends StatelessWidget {
+  const EpisodeLikeToggleButton({
+    super.key,
+    required this.episode,
+    this.compact = false,
+  });
+
+  final Episode episode;
+  final bool compact;
+}
+
+Color likeToggleForegroundColor(EpisodeLikeState state) {
+  return state.liked ? AppColors.accent : AppColors.textSecondary;
+}
+
+double likeToggleIconSize(bool compact) {
+  return compact ? 18.0 : 21.0;
+}
+
+class LikeToggleStateIcon extends StatelessWidget {
+  const LikeToggleStateIcon({
+    super.key,
+    required this.state,
+    required this.likedIcon,
+    required this.unlikedIcon,
+    required this.compact,
+  });
+
+  const LikeToggleStateIcon.favorite({
+    super.key,
+    required this.state,
+    required this.compact,
+  })  : likedIcon = Icons.favorite_rounded,
+        unlikedIcon = Icons.favorite_border_rounded;
+
+  const LikeToggleStateIcon.bookmark({
+    super.key,
+    required this.state,
+    required this.compact,
+  })  : likedIcon = Icons.bookmark_rounded,
+        unlikedIcon = Icons.bookmark_border_rounded;
+
+  final EpisodeLikeState state;
+  final IconData likedIcon;
+  final IconData unlikedIcon;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      state.liked ? likedIcon : unlikedIcon,
+      size: likeToggleIconSize(compact),
+    );
+  }
+}
 
 class LikeToggleScaffold extends StatefulWidget {
   const LikeToggleScaffold({

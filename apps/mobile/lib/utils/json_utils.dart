@@ -6,23 +6,32 @@ Object? _readJsonValue(
   return json[camelKey] ?? json[snakeKey];
 }
 
-int readIntFromJson(
+T _readConvertedJsonValue<T>(
   Map<String, dynamic> json,
   String camelKey,
   String snakeKey,
+  T Function(Object? value) convert,
 ) {
-  final value = _readJsonValue(json, camelKey, snakeKey);
+  return convert(_readJsonValue(json, camelKey, snakeKey));
+}
+
+int readIntFromJson(
+    Map<String, dynamic> json, String camelKey, String snakeKey) {
+  return _readConvertedJsonValue(json, camelKey, snakeKey, _coerceInt);
+}
+
+int _coerceInt(Object? value) {
   if (value is int) return value;
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 bool readBoolFromJson(
-  Map<String, dynamic> json,
-  String camelKey,
-  String snakeKey,
-) {
-  final value = _readJsonValue(json, camelKey, snakeKey);
+    Map<String, dynamic> json, String camelKey, String snakeKey) {
+  return _readConvertedJsonValue(json, camelKey, snakeKey, _coerceBool);
+}
+
+bool _coerceBool(Object? value) {
   if (value is bool) return value;
   if (value is num) return value != 0;
 

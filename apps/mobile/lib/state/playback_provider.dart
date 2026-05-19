@@ -103,7 +103,9 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   Future<void> toggle(Episode episode) async {
-    if (_isCurrentEpisodeLocalization(episode)) {
+    final currentEpisode = _currentEpisode;
+    if (currentEpisode != null &&
+        currentEpisode.isSameLocalizationAs(episode)) {
       if (_isPlaying) {
         await pause();
       } else {
@@ -283,13 +285,6 @@ class PlaybackProvider extends ChangeNotifier {
     final tracks = episode.playableAudioTracks;
     if (tracks.isEmpty) return null;
     return tracks.first;
-  }
-
-  bool _isCurrentEpisodeLocalization(Episode episode) {
-    final currentEpisode = _currentEpisode;
-    return currentEpisode != null &&
-        currentEpisode.id == episode.id &&
-        currentEpisode.localizationId == episode.localizationId;
   }
 
   Duration _resumePositionFor(Episode episode) {

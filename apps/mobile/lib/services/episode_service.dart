@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/episode.dart';
 import '../models/episode_page.dart';
 import '../config/app_config.dart';
@@ -113,6 +115,32 @@ class EpisodeService {
           ),
         ),
     };
+  }
+
+  Future<List<Episode>> hydrateUserState(
+    String userId,
+    List<Episode> episodes,
+  ) async {
+    if (episodes.isEmpty) return episodes;
+
+    try {
+      final states = await getUserState(
+        userId,
+        episodeIds: episodes.map((episode) => episode.id),
+      );
+
+      return episodes.map((episode) {
+        final state = states[episode.id];
+        if (state == null) return episode;
+        return episode.copyWith(
+          listened: episode.listened || state.listened,
+          lastPositionSeconds: state.lastPositionSeconds,
+        );
+      }).toList(growable: false);
+    } catch (error) {
+      debugPrint('User state hydration failed: $error');
+      return episodes;
+    }
   }
 
   Future<void> setListened({

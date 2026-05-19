@@ -169,6 +169,10 @@ class Episode {
         .toList(growable: false);
   }
 
+  bool isSameLocalizationAs(Episode other) {
+    return id == other.id && localizationId == other.localizationId;
+  }
+
   factory Episode.fromJson(Map<String, dynamic> json) {
     final id = json_utils.readRequiredString(json, 'id', 'id');
     final localizationId = json_utils.readOptionalString(

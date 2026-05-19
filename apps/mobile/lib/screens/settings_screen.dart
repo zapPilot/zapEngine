@@ -48,12 +48,7 @@ class _LanguageSection extends StatelessWidget {
       children: [
         Text('語言', style: theme.textTheme.titleMedium),
         const SizedBox(height: 10),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
-            border: Border.all(color: AppColors.divider),
-          ),
+        _SettingsCard(
           child: Column(
             children: [
               for (final option in kLanguageOptions) ...[
@@ -153,12 +148,7 @@ class _AccountSection extends StatelessWidget {
       children: [
         Text('帳戶', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
-            border: Border.all(color: AppColors.divider),
-          ),
+        _SettingsCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -247,6 +237,24 @@ class _AccountSection extends StatelessWidget {
     if (email != null) return email;
     if (hasDeviceId) return '裝置登入';
     return '尚未同步帳戶資料';
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
+        side: const BorderSide(color: AppColors.divider),
+      ),
+      child: child,
+    );
   }
 }
 

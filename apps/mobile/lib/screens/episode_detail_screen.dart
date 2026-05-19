@@ -227,10 +227,9 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
   @override
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
-    final isCurrent = _isSameEpisodeLocalization(
-      playback.currentEpisode,
-      widget.episode,
-    );
+    final currentEpisode = playback.currentEpisode;
+    final isCurrent = currentEpisode != null &&
+        currentEpisode.isSameLocalizationAs(widget.episode);
     final isPlaying = isCurrent && playback.isPlaying;
     final isLoading = playback.loadingEpisodeId == widget.episode.id;
     final position = isCurrent ? playback.position : Duration.zero;
@@ -460,10 +459,6 @@ class _AudioTrackSegment extends StatelessWidget {
       ),
     );
   }
-}
-
-bool _isSameEpisodeLocalization(Episode? left, Episode right) {
-  return left?.id == right.id && left?.localizationId == right.localizationId;
 }
 
 class _ActionRow extends StatelessWidget {
