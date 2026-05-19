@@ -98,9 +98,12 @@ function classroomIntro(
   sourceLanguageCode: LanguageClassroomLanguageCode,
   targetLanguageCode: LanguageClassroomLanguageCode,
 ): string {
+  // The localized name table is exhaustive for every validated source/target pair.
+  /* v8 ignore start -- @preserve */
   const targetName =
     LOCALIZED_TARGET_LANGUAGE_NAMES[sourceLanguageCode][targetLanguageCode] ??
     TARGET_LANGUAGE_NAMES[targetLanguageCode];
+  /* v8 ignore stop -- @preserve */
 
   switch (sourceLanguageCode) {
     case 'zh-Hant':

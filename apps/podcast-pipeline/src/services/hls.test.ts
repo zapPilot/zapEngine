@@ -130,6 +130,33 @@ describe('generateHls', { timeout: 10000 }, () => {
     expect(dataBin?.contentType).toBe('application/octet-stream');
   });
 
+  it('skips directory entries while collecting generated HLS files', async () => {
+    const { default: ffmpeg } = await import('fluent-ffmpeg');
+    const { readdirSync, statSync } = await import('node:fs');
+
+    vi.mocked(readdirSync).mockReturnValue([
+      'playlist.m3u8',
+      'segments',
+      'seg1.ts',
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(statSync).mockImplementation(((filePath: string) => ({
+      isFile: () => !filePath.endsWith('/segments'),
+    })) as unknown as typeof statSync);
+
+    const mockFfmpeg = vi.mocked(ffmpeg);
+    mockFfmpeg.mockImplementation(
+      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
+    );
+
+    const { generateHls } = await import('./hls.js');
+    const result = await generateHls(Buffer.alloc(100));
+
+    expect(result.files.map((file) => file.name)).toEqual([
+      'playlist.m3u8',
+      'seg1.ts',
+    ]);
+  });
+
   it('cleans up temp files in finally block when readdirSync throws', async () => {
     const { unlinkSync, rmdirSync, readdirSync } = await import('node:fs');
     vi.mocked(readdirSync).mockImplementation(() => {

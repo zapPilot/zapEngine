@@ -286,18 +286,9 @@ export async function insertEpisodeLocalization(
 export async function listLanguageClassroomsByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<LanguageClassroomRow[]> {
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .select('*')
-    .eq('episode_localization_id', episodeLocalizationId)
-    .order('target_language_code', { ascending: true })
-    .returns<LanguageClassroomRow[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return (data ?? []).map(normalizeLanguageClassroomRow);
+  const classroomsByLocalizationId =
+    await listLanguageClassroomsByLocalizationIds([episodeLocalizationId]);
+  return classroomsByLocalizationId.get(episodeLocalizationId) ?? [];
 }
 
 export async function listLanguageClassroomsByLocalizationIds(
@@ -317,7 +308,7 @@ export async function listLanguageClassroomsByLocalizationIds(
     throw error;
   }
 
-  for (const row of (data ?? []).map(normalizeLanguageClassroomRow)) {
+  for (const row of normalizeLanguageClassroomRows(data)) {
     const rows = map.get(row.episode_localization_id) ?? [];
     rows.push(row);
     map.set(row.episode_localization_id, rows);
@@ -356,7 +347,7 @@ export async function upsertLanguageClassrooms(
     throw error;
   }
 
-  return (data ?? []).map(normalizeLanguageClassroomRow);
+  return normalizeLanguageClassroomRows(data);
 }
 
 async function updateEpisodeFields(
@@ -494,6 +485,12 @@ function normalizeLanguageClassroomRow(
     ...row,
     keywords: normalizeKeywords(row.keywords),
   };
+}
+
+function normalizeLanguageClassroomRows(
+  data: LanguageClassroomRow[] | null,
+): LanguageClassroomRow[] {
+  return (data ?? []).map(normalizeLanguageClassroomRow);
 }
 
 function normalizeKeywords(value: unknown): LanguageClassroomKeyword[] {

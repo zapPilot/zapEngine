@@ -36,41 +36,34 @@ export interface EpisodeRow {
   listened: boolean;
 }
 
-export interface EpisodeLocalizationRow {
-  id: string;
-  episode_id: string;
+interface EpisodeLocalizationProjection {
   language_code: string;
   title: string;
   hls_url: string;
   classroom_hls_url: string | null;
-  raw_text: string | null;
   script: string | null;
   llm_model: string | null;
   llm_thinking_model: string | null;
   llm_provider: string | null;
+  status: EpisodeStatus;
+  created_at: string;
+}
+
+export interface EpisodeLocalizationRow extends EpisodeLocalizationProjection {
+  id: string;
+  episode_id: string;
+  raw_text: string | null;
   tts_language_code: string | null;
   tts_voice_name: string | null;
   r2_prefix: string | null;
   classroom_r2_prefix: string | null;
-  status: EpisodeStatus;
-  created_at: string;
   updated_at: string;
 }
 
-export interface EpisodeListRow {
+export interface EpisodeListRow extends EpisodeLocalizationProjection {
   id: string;
   episode_id: string;
   localization_id: string;
-  title: string;
-  language_code: string;
-  hls_url: string;
-  classroom_hls_url: string | null;
-  script: string | null;
-  llm_model: string | null;
-  llm_thinking_model: string | null;
-  llm_provider: string | null;
-  status: EpisodeStatus;
-  created_at: string;
   listened: boolean;
   like_count: number;
   language_classrooms: unknown;

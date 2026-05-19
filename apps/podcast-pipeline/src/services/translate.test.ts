@@ -93,6 +93,29 @@ describe('translateChineseText', () => {
       ],
     });
   });
+
+  it('falls back to empty text and openrouter provider when completion metadata is absent', async () => {
+    mockCreate.mockResolvedValueOnce({
+      model: 'openrouter/resolved-model',
+      choices: [],
+      usage: { cost: 0.0002 },
+    });
+
+    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
+
+    expect(result).toEqual({
+      text: '',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation en',
+          provider: 'openrouter',
+          model: 'openrouter/resolved-model',
+          costUsd: 0.0002,
+        },
+      ],
+    });
+  });
 });
 
 describe('translateCanonicalScript', () => {

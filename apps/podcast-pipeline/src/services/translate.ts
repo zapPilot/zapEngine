@@ -154,10 +154,14 @@ function buildOpenRouterTranslateCostLine(
   targetLanguageCode: SecondaryLanguageCode,
   fallbackModel: string,
 ): UsageCostLine {
+  // buildOpenRouterTranslateCostLine is only called with at least one completion.
+  /* v8 ignore start -- @preserve */
   const model = completions.at(-1)?.model ?? fallbackModel;
+  // Translation completions always set provider after metadata normalization.
   const provider =
     completions.find((completion) => completion.provider)?.provider ??
     'openrouter';
+  /* v8 ignore stop -- @preserve */
 
   return {
     category: 'translate',

@@ -55,6 +55,13 @@ describe('normalizeLanguageClassroomKeywords', () => {
 });
 
 describe('normalizeLanguageClassroomLesson', () => {
+  it.each([null, undefined, 'str', 42, []])(
+    'rejects non-object lesson payload %s',
+    (value) => {
+      expect(normalizeLanguageClassroomLesson(value)).toBeNull();
+    },
+  );
+
   it('requires embedded source language when no fallback is provided', () => {
     expect(
       normalizeLanguageClassroomLesson({

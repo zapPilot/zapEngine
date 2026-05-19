@@ -113,6 +113,20 @@ describe('Fish Audio TTS provider', () => {
     });
   });
 
+  it('uses the default TTS audio label when no cost label is provided', () => {
+    const cost = buildFishAudioCostLine('測試', {
+      languageCode: 'zh-Hant',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-model-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(cost.label).toBe('TTS audio');
+  });
+
   it('throws when FISH_AUDIO_API_KEY is missing', async () => {
     const mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);

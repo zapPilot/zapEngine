@@ -19,6 +19,7 @@ import {
   listLanguageClassroomsByLocalizationIds,
   markEpisodeListened,
   toEpisodeResponse,
+  toEpisodeResponseFromLocalization,
   toLanguageClassroomLesson,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
@@ -133,6 +134,87 @@ describe('toEpisodeResponse', () => {
         },
       ],
     });
+  });
+
+  it('maps an episode and localization directly without classroom rows', () => {
+    const episode = episodeRow({ listened: true });
+    const localization = localizationRow({
+      classroom_hls_url:
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+    });
+
+    expect(toEpisodeResponseFromLocalization(episode, localization)).toEqual({
+      id: episode.id,
+      localizationId: localization.id,
+      title: localization.title,
+      languageCode: localization.language_code,
+      hlsUrl: localization.hls_url,
+      audioTracks: [
+        {
+          languageCode: localization.language_code,
+          title: localization.title,
+          hlsUrl: localization.hls_url,
+          classroomHlsUrl: localization.classroom_hls_url,
+        },
+      ],
+      createdAt: episode.created_at,
+      listened: true,
+      script: localization.script,
+      llmModel: localization.llm_model,
+      llmThinkingModel: localization.llm_thinking_model,
+      llmProvider: localization.llm_provider,
+      status: localization.status,
+      languageClassrooms: [],
+    });
+  });
+
+  it('maps direct localization rows with explicit classrooms', () => {
+    const response = toEpisodeResponseFromLocalization(
+      episodeRow(),
+      localizationRow(),
+      [classroomRow()],
+    );
+
+    expect(response.languageClassrooms).toEqual([
+      {
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'ja',
+        oneLiner: 'この記事は流動性を説明します。',
+        keywords: [],
+      },
+    ]);
+  });
+
+  it('uses inline list-row classrooms when no explicit classrooms are supplied', () => {
+    const response = toEpisodeResponse(
+      listRow({
+        language_classrooms: [
+          {
+            sourceLanguageCode: 'zh-Hant',
+            targetLanguageCode: 'en',
+            oneLiner: 'This article explains liquidity.',
+            keywords: [],
+          },
+        ],
+      }),
+    );
+
+    expect(response.languageClassrooms).toEqual([
+      {
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'en',
+        oneLiner: 'This article explains liquidity.',
+        keywords: [],
+      },
+    ]);
+  });
+
+  it('ignores non-array inline classroom payloads on list rows', () => {
+    const response = toEpisodeResponse(
+      listRow({ language_classrooms: null as never }),
+    );
+
+    expect(response.languageClassrooms).toEqual([]);
   });
 
   it('normalizes a camel-case classroom lesson input', () => {
@@ -341,6 +423,15 @@ describe('listEpisodesPaged', () => {
     expect(result).toEqual({ rows, nextCursor: null });
   });
 
+  it('returns an empty page when paged list data is null', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(listEpisodesPaged(20, null)).resolves.toEqual({
+      rows: [],
+      nextCursor: null,
+    });
+  });
+
   it('applies cursor filtering on subsequent pages', async () => {
     const cursor = {
       t: '2024-01-01T00:00:00.000Z',
@@ -475,10 +566,17 @@ describe('language classrooms', () => {
     await expect(
       listLanguageClassroomsByLocalizationId('loc-1'),
     ).resolves.toEqual(rows);
-    expect(state.query!.eq).toHaveBeenCalledWith(
-      'episode_localization_id',
+    expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
       'loc-1',
-    );
+    ]);
+  });
+
+  it('returns an empty classroom list when lookup data is null', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      listLanguageClassroomsByLocalizationId('loc-1'),
+    ).resolves.toEqual([]);
   });
 
   it('throws Supabase errors when classroom lookup fails', async () => {
@@ -525,6 +623,14 @@ describe('language classrooms', () => {
     expect(result.get('loc-2')).toEqual([rows[1]]);
   });
 
+  it('returns an empty classroom map when grouped lookup data is null', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      listLanguageClassroomsByLocalizationIds(['loc-1']),
+    ).resolves.toEqual(new Map());
+  });
+
   it('throws Supabase errors when grouped classroom lookup fails', async () => {
     state.query!.returns.mockResolvedValue({
       data: null,
@@ -561,6 +667,26 @@ describe('language classrooms', () => {
       ],
       { onConflict: 'episode_localization_id,target_language_code' },
     );
+  });
+
+  it('returns an empty classroom list when upsert data is null', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      upsertLanguageClassrooms([
+        {
+          id: 'ignored',
+          episodeLocalizationId: 'loc-1',
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は流動性を説明します。',
+          keywords: [],
+          llmModel: 'model',
+          llmThinkingModel: null,
+          llmProvider: 'provider',
+        },
+      ]),
+    ).resolves.toEqual([]);
   });
 
   it('throws Supabase errors when classroom upsert fails', async () => {

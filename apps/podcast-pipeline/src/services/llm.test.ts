@@ -138,6 +138,28 @@ describe('getSystemPrompt error handling', () => {
       'utf8',
     );
   });
+
+  it('reuses the cached system prompt after the first read', async () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
+    vi.stubEnv('LLM_MODEL', 'test/model');
+    vi.stubEnv('LLM_THINKING_MODEL', '');
+    vi.stubEnv('SCRIPT_PROMPT_PATH', '');
+    vi.mocked(readFileSync).mockClear();
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    const { generateScriptWithLLM: freshGenerate } = await import('./llm.js');
+    await freshGenerate('Title one', 'Text one');
+    await freshGenerate('Title two', 'Text two');
+
+    expect(readFileSync).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('generateScriptWithLLM', () => {
@@ -157,6 +179,40 @@ describe('generateScriptWithLLM', () => {
     await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
       'OPENROUTER_API_KEY not set',
     );
+  });
+
+  it('uses default OpenRouter config and empty script fallbacks when optional fields are absent', async () => {
+    vi.stubEnv('OPENROUTER_BASE_URL', '');
+    vi.stubEnv('LLM_MODEL', '');
+    vi.stubEnv('LLM_THINKING_MODEL', '');
+    vi.mocked(OpenAI).mockClear();
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [],
+      provider: null,
+      model: null,
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateScriptWithLLM('Title', 'Text');
+
+    expect(OpenAI).toHaveBeenCalledWith({
+      apiKey: 'test-api-key',
+      baseURL: 'https://openrouter.ai/api/v1',
+    });
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+      }),
+    );
+    expect(result).toEqual({
+      script: '',
+      model: 'anthropic/claude-3-5-sonnet-20241022',
+      thinkingModel: null,
+      provider: 'unknown',
+      costUsd: 0,
+    });
   });
 
   it('returns script from mocked OpenRouter API response', async () => {
@@ -414,6 +470,11 @@ ${validLanguageClassroomPayload()}
 
   it.each([
     ['array JSON', '[]', 'Language classroom response must be a JSON object'],
+    [
+      'non-array lessons',
+      '{}',
+      'Language classroom response did not contain any valid lessons',
+    ],
     ['unterminated fence', '```json', 'Unexpected token'],
     [
       'unsupported fence language',
@@ -447,6 +508,26 @@ ${validLanguageClassroomPayload()}
       ).rejects.toThrow(message);
     },
   );
+
+  it('throws when the classroom completion has no message content', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateLanguageClassroomsWithLLM({
+        title: 'Title',
+        articleText: 'Text',
+        script: 'Script',
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCodes: ['ja'],
+      }),
+    ).rejects.toThrow('Unexpected end of JSON input');
+  });
 
   it('throws when response has no valid lessons', async () => {
     const mockCreate = vi.fn().mockResolvedValue({

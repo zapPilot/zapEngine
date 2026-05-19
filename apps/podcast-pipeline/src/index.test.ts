@@ -46,7 +46,11 @@ const {
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockMarkEpisodeListened: vi.fn(),
   mockScrapeArticle: vi.fn(),
-  mockServe: vi.fn(),
+  mockServe: vi.fn(
+    (_options: unknown, callback?: (info: { port: number }) => void) => {
+      callback?.({ port: 0 });
+    },
+  ),
   mockSynthesizeClassroomAudio: vi.fn(),
   mockTextToSpeech: vi.fn(),
   mockTranslateCanonicalScript: vi.fn(),
@@ -226,6 +230,54 @@ describe('GET /e/:id share landing page', () => {
     expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
   });
 
+  it('uses a localization cover URL when one is present', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue({
+      ...localizationRow({ title: 'Covered Episode' }),
+      cover_url: 'https://cdn.example.com/covers/episode.png',
+    });
+
+    const response = await app.request(`/e/${episodeRow().id}`, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain(
+      'property="og:image" content="https://cdn.example.com/covers/episode.png"',
+    );
+  });
+
+  it('falls back to the default cover URL for non-record localization values', async () => {
+    const localization = Object.assign(() => undefined, {
+      episode_id: episodeRow().id,
+      title: 'Function-shaped Localization',
+      raw_text: 'Description from a defensive mock shape.',
+      script: null,
+      language_code: 'zh-Hant',
+      hls_url: 'https://cdn.example.com/playlist.m3u8',
+      classroom_hls_url: null,
+      llm_model: 'model',
+      llm_thinking_model: null,
+      llm_provider: 'provider',
+      status: 'completed',
+    });
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
+
+    const response = await app.request(`/e/${episodeRow().id}`, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain(
+      'property="og:image" content="https://is1-ssl.mzstatic.com/image/thumb/',
+    );
+  });
+
   it('keeps the Apple app site association JSON unchanged', async () => {
     const response = await app.request(
       '/.well-known/apple-app-site-association',
@@ -273,7 +325,10 @@ describe('POST /ingest authorization', () => {
 
   it.each([
     ['missing', undefined],
-    ['invalid', 'Bearer wrong-token'],
+    ['basic scheme', 'Basic abc'],
+    ['empty bearer token', 'Bearer '],
+    ['wrong bearer token with matching length', 'Bearer secret-tokem'],
+    ['invalid bearer token', 'Bearer wrong-token'],
   ])(
     'returns 401 for %s admin authorization',
     async (_label, authorization) => {
@@ -294,6 +349,64 @@ describe('POST /ingest authorization', () => {
       expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
     },
   );
+
+  it('returns 500 when the admin token is not configured', async () => {
+    vi.stubEnv('INGEST_ADMIN_TOKEN', '');
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for unsupported primary language codes', async () => {
+    const response = await app.request('/ingest?language=fr', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the ingest body is not JSON', async () => {
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'text/plain',
+      },
+      body: '',
+    });
+
+    expect(response.status).toBe(400);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the ingest URL uses an unsupported protocol', async () => {
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'ftp://example.com/article' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
 
   it('accepts valid admin authorization with default zh-Hant language', async () => {
     const response = await app.request('/ingest', {
@@ -637,6 +750,34 @@ describe('POST /telegram/webhook', () => {
     expect(mockTelegramFetch).not.toHaveBeenCalled();
   });
 
+  it('ignores a webhook body that is not valid JSON', async () => {
+    const response = await app.request('/telegram/webhook', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'webhook-secret',
+      },
+      body: '{',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('');
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+    expect(mockTelegramFetch).not.toHaveBeenCalled();
+  });
+
+  it('ignores a webhook update without a message object', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      message: 'not-an-object',
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('');
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+    expect(mockTelegramFetch).not.toHaveBeenCalled();
+  });
+
   it('ignores users outside the Telegram allowlist', async () => {
     const response = await postTelegramUpdate(
       telegramUpdate({ fromId: 99999, text: 'https://example.com/article' }),
@@ -661,9 +802,91 @@ describe('POST /telegram/webhook', () => {
     expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
   });
 
+  it.each(['/help', '/start@podcast_bot', '/help@podcast_bot'])(
+    'responds to %s without running ingest',
+    async (command) => {
+      const response = await postTelegramUpdate(
+        telegramUpdate({ text: command }),
+      );
+
+      expect(response.status).toBe(200);
+      await vi.waitFor(() =>
+        expect(mockTelegramFetch).toHaveBeenCalledTimes(1),
+      );
+      expect(telegramMessageTexts()).toEqual([
+        expect.stringContaining('貼一個文章 URL'),
+      ]);
+      expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+    },
+  );
+
+  it('accepts edited messages as webhook input', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      edited_message: {
+        message_id: 1,
+        from: { id: 12345 },
+        chat: { id: 67890 },
+        date: 1,
+        text: '/help',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(telegramMessageTexts()).toEqual([
+      expect.stringContaining('貼一個文章 URL'),
+    ]);
+  });
+
+  it('ignores messages without a sender id', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        from: {},
+        chat: { id: 67890 },
+        date: 1,
+        text: 'https://example.com/article',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockTelegramFetch).not.toHaveBeenCalled();
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('ignores messages with an invalid chat id shape', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        from: { id: 12345 },
+        chat: { id: { nested: true } },
+        date: 1,
+        text: 'https://example.com/article',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockTelegramFetch).not.toHaveBeenCalled();
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
   it('prompts when the message does not contain an http URL', async () => {
     const response = await postTelegramUpdate(
       telegramUpdate({ text: 'hello' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(telegramMessageTexts()).toEqual(['請貼一個 http(s) 文章網址']);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('prompts when the extracted URL cannot be parsed', async () => {
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'please read http://' }),
     );
 
     expect(response.status).toBe(200);
@@ -693,6 +916,43 @@ describe('POST /telegram/webhook', () => {
         '- LLM classrooms (test-provider/test-model): $0.00027',
       ].join('\n'),
     ]);
+  });
+
+  it('logs Telegram send failures without failing the webhook', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockTelegramFetch.mockRejectedValue(new Error('telegram unavailable'));
+
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'https://example.com/article' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[/telegram/webhook] sendMessage failed:',
+        expect.objectContaining({ message: 'telegram unavailable' }),
+      ),
+    );
+  });
+
+  it('formats usage details in Telegram cost breakdowns', async () => {
+    configureFreshTelegramIngest();
+
+    const response = await postTelegramUpdate(
+      telegramUpdate({ text: 'https://example.com/fresh' }),
+    );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
+    const resultMessage = telegramMessageTexts()[1]!;
+    expect(resultMessage).toContain(
+      '- TTS main audio (fish-audio/s2-pro, 12 UTF-8 bytes @ $15.00000/M): $0.00018',
+    );
+    expect(resultMessage).toContain(
+      '- Translation ja (google/nmt, 5 chars @ $20.00000/M): $0.00010',
+    );
   });
 
   it('sorts the Telegram cost breakdown by cost descending', async () => {
@@ -854,6 +1114,36 @@ describe('GET /episodes', () => {
     });
   });
 
+  it('uses the default limit and row classrooms when the classroom map misses', async () => {
+    const row = listRow({
+      language_classrooms: [
+        classroomRow({
+          target_language_code: 'en',
+          one_liner: 'This article explains liquidity.',
+        }),
+      ],
+    });
+    mockListEpisodesPaged.mockResolvedValue({
+      rows: [row],
+      nextCursor: null,
+    });
+    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockListEpisodesPaged).toHaveBeenCalledWith(20, null, 'zh-Hant');
+    expect(body.items[0].languageClassrooms).toEqual([
+      {
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'en',
+        oneLiner: 'This article explains liquidity.',
+        keywords: [],
+      },
+    ]);
+  });
+
   it('returns 400 for an invalid limit', async () => {
     const response = await app.request('/episodes?limit=abc');
 
@@ -867,6 +1157,13 @@ describe('GET /episodes', () => {
     });
 
     const response = await app.request('/episodes?cursor=garbage');
+
+    expect(response.status).toBe(400);
+    expect(mockListEpisodesPaged).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for unsupported language codes', async () => {
+    const response = await app.request('/episodes?language=fr');
 
     expect(response.status).toBe(400);
     expect(mockListEpisodesPaged).not.toHaveBeenCalled();
@@ -900,6 +1197,86 @@ describe('POST /episodes/:id/listened', () => {
     );
     expect(body.listened).toBe(true);
     expect(body.localizationId).toBe(localizationRow().id);
+  });
+
+  it('returns 404 when the episode cannot be marked listened', async () => {
+    mockMarkEpisodeListened.mockResolvedValue(null);
+
+    const response = await app.request(
+      `/episodes/${episodeRow().id}/listened`,
+      {
+        method: 'POST',
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the requested localization is missing', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
+
+    const response = await app.request(
+      `/episodes/${episodeRow().id}/listened?language=en`,
+      {
+        method: 'POST',
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockMarkEpisodeListened).toHaveBeenCalledWith(episodeRow().id);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'en',
+    );
+  });
+});
+
+describe('app error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('returns a production 500 body for non-HTTP errors', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockListEpisodesPaged.mockRejectedValue(new Error('database unavailable'));
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: 'Internal server error' });
+  });
+
+  it('includes Error causes in development error responses', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockListEpisodesPaged.mockRejectedValue(
+      new Error('outer failure', { cause: new Error('inner failure') }),
+    );
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual(
+      expect.objectContaining({
+        error: 'Internal server error',
+        name: 'Error',
+        message: 'outer failure',
+        cause: expect.objectContaining({
+          name: 'Error',
+          message: 'inner failure',
+        }),
+      }),
+    );
   });
 });
 
@@ -1091,6 +1468,160 @@ async function postTelegramUpdate(update: unknown): Promise<Response> {
     },
     body: JSON.stringify(update),
   });
+}
+
+function configureFreshTelegramIngest(): void {
+  const localizations = new Map<string, EpisodeLocalizationRow>();
+
+  mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+  mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+    (_episodeId: string, languageCode: string) =>
+      Promise.resolve(localizations.get(languageCode) ?? null),
+  );
+  mockScrapeArticle.mockResolvedValue({
+    title: '软件更新',
+    text: '鼠标和自行车市场',
+  });
+  mockConvertArticleToZhTW.mockReturnValue({
+    title: '軟體更新',
+    text: '滑鼠和腳踏車市場',
+  });
+  mockInsertEpisodeLocalization.mockImplementation(
+    (localization: {
+      languageCode: string;
+      title: string;
+      hlsUrl: string;
+      rawText: string;
+      script: string;
+      llmModel: string;
+      llmThinkingModel: string | null;
+      llmProvider: string;
+      status: EpisodeLocalizationRow['status'];
+    }) => {
+      const row = localizationRow({
+        id: `${localization.languageCode}-localization`,
+        language_code: localization.languageCode,
+        title: localization.title,
+        hls_url: localization.hlsUrl,
+        raw_text: localization.rawText,
+        script: localization.script,
+        llm_model: localization.llmModel,
+        llm_thinking_model: localization.llmThinkingModel,
+        llm_provider: localization.llmProvider,
+        status: localization.status,
+      });
+      localizations.set(localization.languageCode, row);
+      return Promise.resolve(row);
+    },
+  );
+  mockGenerateScriptWithLLM.mockResolvedValue({
+    script: 'Generated script',
+    model: 'test-model',
+    thinkingModel: null,
+    provider: 'test-provider',
+    costUsd: 0.00001,
+  });
+  mockTranslateCanonicalScript.mockImplementation(
+    ({ targetLanguageCode }: { targetLanguageCode: 'ja' | 'en' }) =>
+      Promise.resolve({
+        title: targetLanguageCode === 'ja' ? '日本語タイトル' : 'English title',
+        script:
+          targetLanguageCode === 'ja' ? '日本語スクリプト' : 'English script',
+        cost: [
+          {
+            category: 'translate',
+            label: `Translation ${targetLanguageCode}`,
+            provider: 'google',
+            model: 'nmt',
+            costUsd: 0.0001,
+            usage: {
+              unit: 'characters',
+              quantity: 5,
+              unitPriceUsd: 0.00002,
+            },
+          },
+        ],
+      }),
+  );
+  mockUpdateEpisodeLocalizationArticleContent.mockResolvedValue(null);
+  mockUpdateEpisodeLocalizationStatus.mockImplementation(
+    (id: string, status: EpisodeLocalizationRow['status'], updates = {}) => {
+      const entry = [...localizations.entries()].find(
+        ([, row]) => row.id === id,
+      );
+      if (!entry) return Promise.resolve(null);
+
+      const [languageCode, row] = entry;
+      const update = updates as {
+        hlsUrl?: string;
+        script?: string;
+        r2Prefix?: string | null;
+        llmModel?: string;
+        llmThinkingModel?: string | null;
+        llmProvider?: string;
+        ttsLanguageCode?: string | null;
+        ttsVoiceName?: string | null;
+      };
+      const next = localizationRow({
+        ...row,
+        status,
+        hls_url: update.hlsUrl ?? row.hls_url,
+        script: update.script ?? row.script,
+        r2_prefix:
+          update.r2Prefix === undefined ? row.r2_prefix : update.r2Prefix,
+        llm_model: update.llmModel ?? row.llm_model,
+        llm_thinking_model:
+          update.llmThinkingModel === undefined
+            ? row.llm_thinking_model
+            : update.llmThinkingModel,
+        llm_provider: update.llmProvider ?? row.llm_provider,
+        tts_language_code:
+          update.ttsLanguageCode === undefined
+            ? row.tts_language_code
+            : update.ttsLanguageCode,
+        tts_voice_name:
+          update.ttsVoiceName === undefined
+            ? row.tts_voice_name
+            : update.ttsVoiceName,
+      });
+      localizations.set(languageCode, next);
+      return Promise.resolve(next);
+    },
+  );
+  mockTextToSpeech.mockResolvedValue({
+    audio: Buffer.from('audio'),
+    cost: [
+      {
+        category: 'tts',
+        label: 'TTS main audio',
+        provider: 'fish-audio',
+        model: 's2-pro',
+        costUsd: 0.00006,
+        usage: {
+          unit: 'utf8_bytes',
+          quantity: 4,
+          unitPriceUsd: 0.000015,
+        },
+      },
+    ],
+  });
+  mockGenerateHls.mockResolvedValue({
+    files: [
+      {
+        name: 'playlist.m3u8',
+        data: Buffer.from('hls'),
+        contentType: 'application/vnd.apple.mpegurl',
+      },
+    ],
+    playlistKey: 'playlist.m3u8',
+  });
+  mockUploadHlsToR2.mockImplementation(
+    (_files, episodeId: string, languageCode: string, section: string) =>
+      Promise.resolve({
+        hlsUrl: `https://cdn.example.com/episodes/${episodeId}/localizations/${languageCode}/${section}/playlist.m3u8`,
+        r2Prefix: `episodes/${episodeId}/localizations/${languageCode}/${section}`,
+      }),
+  );
 }
 
 function telegramMessageTexts(): string[] {

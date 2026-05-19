@@ -107,11 +107,11 @@ export async function performIngest(
     existing.localization &&
     isAudioReady(existing.localization)
   ) {
-    const { rows: classrooms, cost } = await ensureLanguageClassrooms(
+    const classrooms = await ensureLanguageClassroomsAndRecordCost(
       existing.localization,
       languageCode,
+      costBreakdown,
     );
-    costBreakdown.push(...cost);
     return buildIngestResult(
       existing.episode,
       existing.localization,
@@ -128,17 +128,10 @@ export async function performIngest(
     existing,
   );
 
-  const completed = await ensureLocalizationCompleted(
+  return completeIngestResult(
     episode,
     localization,
     languageCode,
-    costBreakdown,
-  );
-
-  return buildIngestResult(
-    episode,
-    completed.localization,
-    completed.classroomRows,
     201,
     costBreakdown,
   );
@@ -161,11 +154,11 @@ async function performSecondaryIngest(
   );
 
   if (localization && isAudioReady(localization)) {
-    const { rows: classrooms, cost } = await ensureLanguageClassrooms(
+    const classrooms = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
+      costBreakdown,
     );
-    costBreakdown.push(...cost);
     return buildIngestResult(
       episode,
       localization,
@@ -228,17 +221,10 @@ async function performSecondaryIngest(
     throw new Error('Failed to retrieve episode localization');
   }
 
-  const completed = await ensureLocalizationCompleted(
+  return completeIngestResult(
     episode,
     localization,
     languageCode,
-    costBreakdown,
-  );
-
-  return buildIngestResult(
-    episode,
-    completed.localization,
-    completed.classroomRows,
     201,
     costBreakdown,
   );
@@ -389,12 +375,11 @@ async function ensureLocalizationCompleted(
   let classroomRows: LanguageClassroomRow[] | null = null;
 
   if (!isAudioReady(localization)) {
-    const ensuredClassrooms = await ensureLanguageClassrooms(
+    classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
+      costBreakdown,
     );
-    classroomRows = ensuredClassrooms.rows;
-    costBreakdown.push(...ensuredClassrooms.cost);
 
     const script = localization.script ?? '';
     const mainAudio = await step('textToSpeech', () =>
@@ -458,15 +443,50 @@ async function ensureLocalizationCompleted(
   }
 
   if (!classroomRows) {
-    const ensuredClassrooms = await ensureLanguageClassrooms(
+    classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
+      costBreakdown,
     );
-    classroomRows = ensuredClassrooms.rows;
-    costBreakdown.push(...ensuredClassrooms.cost);
   }
 
   return { localization, classroomRows };
+}
+
+async function completeIngestResult(
+  episode: EpisodeRow,
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+  statusCode: 200 | 201,
+  costBreakdown: UsageCostLine[],
+): Promise<IngestResult> {
+  const completed = await ensureLocalizationCompleted(
+    episode,
+    localization,
+    languageCode,
+    costBreakdown,
+  );
+
+  return buildIngestResult(
+    episode,
+    completed.localization,
+    completed.classroomRows,
+    statusCode,
+    costBreakdown,
+  );
+}
+
+async function ensureLanguageClassroomsAndRecordCost(
+  localization: EpisodeLocalizationRow,
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+  costBreakdown: UsageCostLine[],
+): Promise<LanguageClassroomRow[]> {
+  const ensuredClassrooms = await ensureLanguageClassrooms(
+    localization,
+    sourceLanguageCode,
+  );
+  costBreakdown.push(...ensuredClassrooms.cost);
+  return ensuredClassrooms.rows;
 }
 
 async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -489,6 +509,8 @@ function normalizeArticleForLanguage(
   languageCode: string,
 ): Article {
   if (languageCode !== DEFAULT_LANGUAGE_CODE) {
+    // Secondary ingest currently normalizes through the canonical zh-Hant script path.
+    /* v8 ignore next -- @preserve */
     return article;
   }
 
@@ -657,19 +679,39 @@ async function ensureLanguageClassrooms(
       cost,
     };
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[/ingest] language classroom generation failed:', {
-      episodeLocalizationId: localization.id,
+    logLanguageClassroomGenerationFailure(
+      localization,
       sourceLanguageCode,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return {
-      rows: orderLanguageClassrooms(existing, sourceLanguageCode),
-      cost,
-    };
+      error,
+    );
+    return existingLanguageClassroomResult(existing, sourceLanguageCode, cost);
   }
+}
+
+function existingLanguageClassroomResult(
+  existing: LanguageClassroomRow[],
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+  cost: UsageCostLine[],
+): { rows: LanguageClassroomRow[]; cost: UsageCostLine[] } {
+  return {
+    rows: orderLanguageClassrooms(existing, sourceLanguageCode),
+    cost,
+  };
+}
+
+function logLanguageClassroomGenerationFailure(
+  localization: EpisodeLocalizationRow,
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+  error: unknown,
+): void {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const details: Record<string, unknown> = {};
+  details['episodeLocalizationId'] = localization.id;
+  details['sourceLanguageCode'] = sourceLanguageCode;
+  details['message'] = err.message;
+  details['stack'] = err.stack;
+  details['cause'] = err.cause;
+  console.error('[/ingest] language classroom generation failed:', details);
 }
 
 function buildLlmCostLine(

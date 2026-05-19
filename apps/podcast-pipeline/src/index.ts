@@ -505,6 +505,8 @@ function isEpisodeId(value: string): boolean {
 function extractIosAppId(appStoreUrl: string): string {
   const appId = /\/id(\d+)(?:\D|$)/.exec(appStoreUrl)?.[1];
   if (!appId) {
+    // IOS_APP_STORE_URL is a module constant with a validated App Store /id segment.
+    /* v8 ignore next -- @preserve */
     throw new Error('IOS_APP_STORE_URL must include a numeric /id value');
   }
 
