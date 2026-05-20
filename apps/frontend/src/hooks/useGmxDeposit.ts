@@ -1,14 +1,15 @@
 import type { GmxV2MarketKey } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
-import type { Address, Hash } from 'viem';
+import type { Hash } from 'viem';
 import { arbitrum } from 'viem/chains';
 
-import { extractErrorMessage } from '@/lib/errors';
 import {
-  type DepositExecutionTier,
-  executeDepositPlan,
-} from '@/lib/wallet/executeDepositPlan';
+  ensureChain,
+  requireUserAddress,
+  useDepositExecutionState,
+} from '@/hooks/useDepositExecutionState';
+import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { getGmxDepositPlan } from '@/services/planOrchestrationService';
 import { logger } from '@/utils/logger';
@@ -56,13 +57,7 @@ function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
 
 export function useGmxDeposit() {
   const { account, chain, getWalletClient, switchChain } = useWalletProvider();
-  const [pending, setPending] = useState(false);
-  const [lastError, setLastError] = useState<unknown>(null);
-  const [tier, setTier] = useState<DepositExecutionTier | null>(null);
-  const [lastTxHash, setLastTxHash] = useState<Hash | null>(null);
-  const [lastTxHashes, setLastTxHashes] = useState<Hash[]>([]);
-  const [lastCallsId, setLastCallsId] = useState<string | null>(null);
-  const [lastPlan, setLastPlan] = useState<DepositPlan | null>(null);
+  const { state, actions } = useDepositExecutionState();
   const [steps, setSteps] = useState<GmxDepositStepProgress[]>([]);
 
   const updateStep = useCallback(
@@ -90,109 +85,73 @@ export function useGmxDeposit() {
   );
 
   const run = useCallback(
-    async ({
-      marketKey,
-      amount,
-    }: RunGmxDepositInput): Promise<GmxDepositResult> => {
-      setPending(true);
-      setLastError(null);
-      setTier(null);
-      setLastTxHash(null);
-      setLastTxHashes([]);
-      setLastCallsId(null);
-      setLastPlan(null);
-      setSteps([]);
+    ({ marketKey, amount }: RunGmxDepositInput): Promise<GmxDepositResult> =>
+      actions.run(
+        async () => {
+          setSteps([]);
 
-      try {
-        const userAddress = account?.address as Address | undefined;
-        if (!userAddress) {
-          throw new Error('Connect wallet first');
-        }
+          const userAddress = requireUserAddress(account?.address);
+          await ensureChain(chain?.id, arbitrum.id, switchChain);
 
-        if (chain?.id !== arbitrum.id) {
-          await switchChain(arbitrum.id);
-        }
+          const plan = await getGmxDepositPlan({
+            kind: 'gmx-v2',
+            marketKey,
+            amount,
+            userAddress,
+          });
+          actions.setLastPlan(plan);
+          setSteps(initialSteps(plan));
 
-        const plan = await getGmxDepositPlan({
-          kind: 'gmx-v2',
-          marketKey,
-          amount,
-          userAddress,
-        });
-        setLastPlan(plan);
-        setSteps(initialSteps(plan));
+          const walletClient = await getWalletClient(arbitrum.id);
+          const execution = await executeDepositPlan({
+            plan,
+            walletClient,
+            chainId: arbitrum.id,
+            onBundleSubmitted: (callsId) => {
+              actions.markBundleSubmitted(callsId);
+              markAllSteps('submitted');
+            },
+            onBundleConfirmed: (transactionHash) => {
+              actions.markBundleConfirmed(transactionHash);
+              markAllSteps('confirmed', transactionHash);
+            },
+            onApprovalSubmitted: (index) => {
+              updateStep(index, { status: 'submitted' });
+            },
+            onApprovalConfirmed: (index, _tx, hash) => {
+              updateStep(index, { status: 'confirmed', txHash: hash });
+            },
+            onCallSubmitted: (index) => {
+              updateStep(plan.approvals.length + index, {
+                status: 'submitted',
+              });
+            },
+            onCallConfirmed: (index, _tx, hash) => {
+              updateStep(plan.approvals.length + index, {
+                status: 'confirmed',
+                txHash: hash,
+              });
+            },
+          });
 
-        const walletClient = await getWalletClient(arbitrum.id);
-        const execution = await executeDepositPlan({
-          plan,
-          walletClient,
-          chainId: arbitrum.id,
-          onBundleSubmitted: (callsId) => {
-            setTier('eip7702');
-            setLastCallsId(callsId);
-            markAllSteps('submitted');
-          },
-          onBundleConfirmed: (transactionHash) => {
-            setLastTxHash(transactionHash ?? null);
-            markAllSteps('confirmed', transactionHash);
-          },
-          onApprovalSubmitted: (index) => {
-            updateStep(index, { status: 'submitted' });
-          },
-          onApprovalConfirmed: (index, _tx, hash) => {
-            updateStep(index, { status: 'confirmed', txHash: hash });
-          },
-          onCallSubmitted: (index) => {
-            updateStep(plan.approvals.length + index, { status: 'submitted' });
-          },
-          onCallConfirmed: (index, _tx, hash) => {
-            updateStep(plan.approvals.length + index, {
-              status: 'confirmed',
-              txHash: hash,
-            });
-          },
-        });
-
-        if (execution.kind === 'eip7702') {
-          setTier('eip7702');
-          setLastCallsId(execution.callsId);
-          setLastTxHash(execution.transactionHash ?? null);
-          return execution;
-        }
-
-        setTier('sequential');
-        setLastTxHashes(execution.hashes);
-        setLastTxHash(execution.hashes.at(-1) ?? null);
-        return execution;
-      } catch (error) {
-        gmxDepositLogger.error('[gmx-deposit] failed:', error);
-        setLastError(error);
-        throw error;
-      } finally {
-        setPending(false);
-      }
-    },
+          return actions.applyExecutionResult(execution);
+        },
+        (error) => gmxDepositLogger.error('[gmx-deposit] failed:', error),
+      ),
     [
       account?.address,
       chain?.id,
       getWalletClient,
-      markAllSteps,
       switchChain,
+      markAllSteps,
       updateStep,
+      actions,
     ],
   );
 
   return {
     run,
-    pending,
-    lastError,
-    tier,
-    lastTxHash,
-    lastTxHashes,
-    lastCallsId,
-    lastPlan,
+    ...state,
     steps,
-    getErrorMessage: (error: unknown) =>
-      extractErrorMessage(error, 'Unexpected error'),
   };
 }

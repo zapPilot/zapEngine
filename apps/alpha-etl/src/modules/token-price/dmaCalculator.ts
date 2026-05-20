@@ -51,19 +51,11 @@ export function computeDma(
   prices: PriceRow[],
   windowSize: number = DMA_WINDOW_SIZE,
 ): TokenPriceDmaSnapshotInsert[] {
-  const now = new Date().toISOString();
-  const metrics = computeRollingDmaMetrics(
-    prices.map((row) => ({
-      snapshot_date: row.snapshot_date,
-      value: row.price_usd,
-    })),
+  return buildRollingDmaSnapshots(
+    prices,
     windowSize,
-  );
-
-  return prices.map((row, index) => {
-    const metric = metrics[index];
-
-    return {
+    (row) => row.price_usd,
+    (row, metric, now) => ({
       token_symbol: row.token_symbol,
       token_id: row.token_id,
       snapshot_date: row.snapshot_date,
@@ -73,8 +65,8 @@ export function computeDma(
       /* v8 ignore stop */
       source: DMA_SOURCE,
       snapshot_time: now,
-    };
-  });
+    }),
+  );
 }
 
 export function buildAlignedPairRatioSeries(
@@ -109,19 +101,11 @@ export function computeTokenPairRatioDma(
   ratios: PairRatioRow[],
   windowSize: number = DMA_WINDOW_SIZE,
 ): TokenPairRatioDmaSnapshotInsert[] {
-  const now = new Date().toISOString();
-  const metrics = computeRollingDmaMetrics(
-    ratios.map((row) => ({
-      snapshot_date: row.snapshot_date,
-      value: row.ratio_value,
-    })),
+  return buildRollingDmaSnapshots(
+    ratios,
     windowSize,
-  );
-
-  return ratios.map((row, index) => {
-    const metric = metrics[index];
-
-    return {
+    (row) => row.ratio_value,
+    (row, metric, now) => ({
       base_token_symbol: row.base_token_symbol,
       base_token_id: row.base_token_id,
       quote_token_symbol: row.quote_token_symbol,
@@ -133,8 +117,8 @@ export function computeTokenPairRatioDma(
       /* v8 ignore stop */
       source: DMA_SOURCE,
       snapshot_time: now,
-    };
-  });
+    }),
+  );
 }
 
 export function mapRollingMetric<
@@ -159,7 +143,32 @@ export function mapRollingMetric<
   } & Record<RatioKey, number | null>;
 }
 
-export function computeRollingDmaMetrics(
+export function buildRollingDmaSnapshots<
+  TRow extends { snapshot_date: string },
+  TOut,
+>(
+  rows: TRow[],
+  windowSize: number,
+  getSeriesValue: (row: TRow) => number,
+  project: (
+    row: TRow,
+    metric: RollingDmaMetric | undefined,
+    now: string,
+  ) => TOut,
+): TOut[] {
+  const now = new Date().toISOString();
+  const metrics = computeRollingDmaMetrics(
+    rows.map((row) => ({
+      snapshot_date: row.snapshot_date,
+      value: getSeriesValue(row),
+    })),
+    windowSize,
+  );
+
+  return rows.map((row, index) => project(row, metrics[index], now));
+}
+
+function computeRollingDmaMetrics(
   rows: RollingSeriesRow[],
   windowSize: number,
 ): RollingDmaMetric[] {

@@ -3,14 +3,19 @@ import { Check } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 
 import { AppImage } from '@/components/ui';
+import { GRADIENTS } from '@/constants/designSystem';
 import { dropdownMenu } from '@/lib/ui/animationVariants';
 import { cn } from '@/lib/ui/classNames';
-import type { ChainData } from '@/types/domain/transaction';
+import type { ChainData, TransactionToken } from '@/types/domain/transaction';
 
 import type { TransactionModalState } from '../base/TransactionModalBase';
 import type { TransactionDropdownState } from '../hooks/useTransactionDropdownState';
+import { resolveActionLabel } from '../utils/actionLabelUtils';
 import { getChainLogo } from '../utils/assetHelpers';
-import { buildFormActionsProps } from '../utils/modalHelpers';
+import {
+  buildFormActionsProps,
+  buildModalFormState,
+} from '../utils/modalHelpers';
 import { CompactSelectorButton } from './CompactSelectorButton';
 import { TransactionFormActionsWithForm } from './TransactionModalParts';
 
@@ -212,6 +217,30 @@ export function TokenOptionButton({
   );
 }
 
+export function renderTransactionTokenOption(args: {
+  token: TransactionToken;
+  balance: string;
+  modalState: TransactionModalState;
+  dropdownState: TransactionDropdownState;
+}) {
+  const isSelected =
+    args.modalState.transactionData.selectedToken?.address ===
+    args.token.address;
+
+  return (
+    <TokenOptionButton
+      key={args.token.address}
+      symbol={args.token.symbol}
+      balanceLabel={`${args.balance} available`}
+      isSelected={isSelected}
+      onSelect={() => {
+        args.modalState.form.setValue('tokenAddress', args.token.address);
+        args.dropdownState.closeDropdowns();
+      }}
+    />
+  );
+}
+
 interface EmptyAssetsMessageProps {
   message?: string;
 }
@@ -254,6 +283,108 @@ interface TransactionModalContentProps {
   actionGradient: string;
   handlePercentage: (pct: number) => void;
   assetContent: ReactNode;
+}
+
+interface TransactionFlowBodyArgs {
+  modalState: TransactionModalState;
+  dropdownState: TransactionDropdownState;
+  isConnected: boolean;
+  assetContent: ReactNode;
+}
+
+type TransactionFlow = 'deposit' | 'withdraw';
+
+/**
+ * Shared render tail for the Deposit/Withdraw modals: both build their own
+ * `assetContent` and action label, then hand off to the same
+ * `TransactionModalContent` with the primary action gradient.
+ */
+function renderTransactionModalBody(args: {
+  modalState: TransactionModalState;
+  dropdownState: TransactionDropdownState;
+  actionLabel: string;
+  handlePercentage: (pct: number) => void;
+  assetContent: ReactNode;
+}) {
+  return (
+    <TransactionModalContent
+      modalState={args.modalState}
+      dropdownState={args.dropdownState}
+      actionLabel={args.actionLabel}
+      actionGradient={GRADIENTS.PRIMARY}
+      handlePercentage={args.handlePercentage}
+      assetContent={args.assetContent}
+    />
+  );
+}
+
+function renderConfiguredTransactionModalBody(args: {
+  modalState: TransactionModalState;
+  dropdownState: TransactionDropdownState;
+  isConnected: boolean;
+  getMaxAmount: () => number;
+  readyLabel: string;
+  assetContent: ReactNode;
+}) {
+  const { handlePercentage, isValid } = buildModalFormState(
+    args.modalState.form,
+    args.getMaxAmount,
+  );
+
+  const actionLabel = resolveActionLabel({
+    isConnected: args.isConnected,
+    hasSelection: Boolean(args.modalState.transactionData.selectedToken),
+    isReady: isValid,
+    selectionLabel: 'Select Asset',
+    notReadyLabel: 'Enter Amount',
+    readyLabel: args.readyLabel,
+  });
+
+  return renderTransactionModalBody({
+    modalState: args.modalState,
+    dropdownState: args.dropdownState,
+    actionLabel,
+    handlePercentage,
+    assetContent: args.assetContent,
+  });
+}
+
+function renderFlowTransactionModalBody(
+  flow: TransactionFlow,
+  args: TransactionFlowBodyArgs,
+) {
+  const isDeposit = flow === 'deposit';
+  const { modalState } = args;
+
+  return renderConfiguredTransactionModalBody({
+    modalState: args.modalState,
+    dropdownState: args.dropdownState,
+    isConnected: args.isConnected,
+    getMaxAmount: () =>
+      isDeposit
+        ? parseFloat(
+            modalState.transactionData.balanceQuery.data?.balance || '0',
+          )
+        : parseFloat(
+            modalState.transactionData.balances[
+              modalState.transactionData.selectedToken?.address || ''
+            ]?.balance || '0',
+          ),
+    readyLabel: isDeposit ? 'Review & Deposit' : 'Review & Withdraw',
+    assetContent: args.assetContent,
+  });
+}
+
+export function renderDepositTransactionModalBody(
+  args: TransactionFlowBodyArgs,
+) {
+  return renderFlowTransactionModalBody('deposit', args);
+}
+
+export function renderWithdrawTransactionModalBody(
+  args: TransactionFlowBodyArgs,
+) {
+  return renderFlowTransactionModalBody('withdraw', args);
 }
 
 export function TransactionModalContent({

@@ -116,15 +116,8 @@ const mockUseTransactionModalState = {
 
 vi.mock(
   '@/components/wallet/portfolio/modals/transactionModalDependencies',
-  () => ({
-    buildModalFormState: vi.fn(() => ({
-      handlePercentage: vi.fn(),
-      isValid: true,
-    })),
-    resolveActionLabel: vi.fn().mockReturnValue('Review & Deposit'),
-    useTransactionModalState: vi.fn(),
-    useTransactionData: vi.fn(),
-    TransactionModalContent: ({
+  () => {
+    const TransactionModalContent = ({
       modalState,
       assetContent,
     }: {
@@ -144,8 +137,9 @@ vi.mock(
         {assetContent}
         <div data-testid="form-actions">Form Actions</div>
       </div>
-    ),
-    TokenOptionButton: ({
+    );
+
+    const TokenOptionButton = ({
       symbol,
       balanceLabel,
       onSelect,
@@ -158,11 +152,60 @@ vi.mock(
       <div data-testid="token-option" onClick={onSelect}>
         {symbol} {balanceLabel}
       </div>
-    ),
-    EmptyAssetsMessage: () => (
-      <div data-testid="empty-assets">No assets found.</div>
-    ),
-  }),
+    );
+
+    const renderModalBody = (args: {
+      modalState: {
+        selectedChain?: { name?: string };
+        transactionData?: { selectedToken?: { symbol?: string } };
+      };
+      assetContent?: React.ReactNode;
+    }) => (
+      <TransactionModalContent
+        modalState={args.modalState}
+        assetContent={args.assetContent}
+      />
+    );
+
+    return {
+      buildModalFormState: vi.fn(() => ({
+        handlePercentage: vi.fn(),
+        isValid: true,
+      })),
+      resolveActionLabel: vi.fn().mockReturnValue('Review & Deposit'),
+      useTransactionModalState: vi.fn(),
+      useTransactionData: vi.fn(),
+      TransactionModalContent,
+      renderTransactionModalBody: renderModalBody,
+      renderDepositTransactionModalBody: renderModalBody,
+      renderTransactionTokenOption: (args: {
+        token: { symbol: string; address: string };
+        balance: string;
+        modalState: {
+          transactionData?: { selectedToken?: { address?: string } };
+          form: { setValue: (name: string, value: string) => void };
+        };
+        dropdownState: { closeDropdowns: () => void };
+      }) => (
+        <TokenOptionButton
+          symbol={args.token.symbol}
+          balanceLabel={`${args.balance} available`}
+          isSelected={
+            args.modalState.transactionData?.selectedToken?.address ===
+            args.token.address
+          }
+          onSelect={() => {
+            args.modalState.form.setValue('tokenAddress', args.token.address);
+            args.dropdownState.closeDropdowns();
+          }}
+        />
+      ),
+      TokenOptionButton,
+      EmptyAssetsMessage: () => (
+        <div data-testid="empty-assets">No assets found.</div>
+      ),
+    };
+  },
 );
 
 vi.mock(

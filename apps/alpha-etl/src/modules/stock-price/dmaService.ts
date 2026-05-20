@@ -18,7 +18,7 @@ import type { LatestDmaSnapshot } from '../../modules/core/dmaSnapshot.js';
 import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
 import { StockPriceDmaWriter } from '../../modules/stock-price/dmaWriter.js';
 import {
-  computeRollingDmaMetrics,
+  buildRollingDmaSnapshots,
   mapRollingMetric,
 } from '../../modules/token-price/dmaCalculator.js';
 import { logger } from '../../utils/logger.js';
@@ -104,20 +104,11 @@ export class StockPriceDmaService {
     prices: StockPriceRow[],
     windowSize: number = StockPriceDmaService.DMA_WINDOW_SIZE,
   ): StockPriceDmaSnapshotInsert[] {
-    const now = new Date().toISOString();
-
-    const metrics = computeRollingDmaMetrics(
-      prices.map((row) => ({
-        snapshot_date: row.snapshot_date,
-        value: row.price_usd,
-      })),
+    return buildRollingDmaSnapshots(
+      prices,
       windowSize,
-    );
-
-    return prices.map((row, index) => {
-      const metric = metrics[index];
-
-      return {
+      (row) => row.price_usd,
+      (row, metric, now) => ({
         symbol: row.symbol,
         snapshot_date: row.snapshot_date,
         price_usd: row.price_usd,
@@ -125,8 +116,8 @@ export class StockPriceDmaService {
         source: StockPriceDmaService.SOURCE,
         snapshot_time: now,
         created_at: now,
-      };
-    });
+      }),
+    );
   }
 
   private async writeDmaSnapshots(

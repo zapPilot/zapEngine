@@ -1,7 +1,6 @@
 import { Coins, Layers } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { GRADIENTS } from '@/constants/designSystem';
 import {
   type AssetCategoryKey,
   getCategoryForToken,
@@ -71,25 +70,6 @@ export function WithdrawModal({
           {} as Record<AssetCategoryKey, typeof tokens>,
         );
 
-        const { handlePercentage, isValid } = modalDeps.buildModalFormState(
-          modalState.form,
-          () =>
-            parseFloat(
-              modalState.transactionData.balances[
-                modalState.transactionData.selectedToken?.address || ''
-              ]?.balance || '0',
-            ),
-        );
-
-        const actionLabel = modalDeps.resolveActionLabel({
-          isConnected,
-          hasSelection: Boolean(modalState.transactionData.selectedToken),
-          isReady: isValid,
-          selectionLabel: 'Select Asset',
-          notReadyLabel: 'Enter Amount',
-          readyLabel: 'Review & Withdraw',
-        });
-
         const assetContent = (
           <div className="max-h-80 overflow-y-auto custom-scrollbar">
             {CATEGORIES.map((category) => {
@@ -106,27 +86,15 @@ export function WithdrawModal({
                   </div>
                   <div className="p-1">
                     {catTokens.map((token) => {
-                      const isSelected =
-                        modalState.transactionData.selectedToken?.address ===
-                        token.address;
                       const bal =
                         modalState.transactionData.balances[token.address]
                           ?.balance || '0';
-                      return (
-                        <modalDeps.TokenOptionButton
-                          key={token.address}
-                          symbol={token.symbol}
-                          balanceLabel={`${bal} available`}
-                          isSelected={isSelected}
-                          onSelect={() => {
-                            modalState.form.setValue(
-                              'tokenAddress',
-                              token.address,
-                            );
-                            dropdownState.closeDropdowns();
-                          }}
-                        />
-                      );
+                      return modalDeps.renderTransactionTokenOption({
+                        token,
+                        balance: bal,
+                        modalState,
+                        dropdownState,
+                      });
                     })}
                   </div>
                 </div>
@@ -137,16 +105,12 @@ export function WithdrawModal({
           </div>
         );
 
-        return (
-          <modalDeps.TransactionModalContent
-            modalState={modalState}
-            dropdownState={dropdownState}
-            actionLabel={actionLabel}
-            actionGradient={GRADIENTS.PRIMARY}
-            handlePercentage={handlePercentage}
-            assetContent={assetContent}
-          />
-        );
+        return modalDeps.renderWithdrawTransactionModalBody({
+          modalState,
+          dropdownState,
+          isConnected,
+          assetContent,
+        });
       }}
     </TransactionModalBase>
   );

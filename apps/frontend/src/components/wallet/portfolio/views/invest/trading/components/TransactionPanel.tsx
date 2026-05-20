@@ -1,8 +1,6 @@
 import type { GmxV2MarketKey } from '@zapengine/intent-engine';
-import type { ReactNode } from 'react';
-import { useState } from 'react';
-import type { Hash } from 'viem';
-import { type Address, parseUnits } from 'viem';
+import { type ReactNode, useState } from 'react';
+import { type Address, type Hash, parseUnits } from 'viem';
 import { arbitrum, base } from 'viem/chains';
 
 import { TokenAmountField, TokenSelectorList } from '@/components/shared/token';
@@ -59,20 +57,12 @@ function formatBaseUnits(value: string): string {
 
 type ExecutionTier = 'eip7702' | 'sequential' | null;
 
-function useDebugPanelState<
-  T extends {
-    pending: boolean;
-    lastError: unknown;
-    tier: ExecutionTier;
-    lastTxHash: Hash | null;
-    lastTxHashes: Hash[];
-    lastCallsId: string | null;
-    getErrorMessage: (e: unknown) => string;
-  },
->(hook: () => T) {
-  const { chain } = useWalletProvider();
-  const state = hook();
-  return { ...state, chain };
+interface DebugExecutionState {
+  tier: ExecutionTier;
+  lastTxHash: Hash | null;
+  lastTxHashes: Hash[];
+  lastError: unknown;
+  getErrorMessage: (e: unknown) => string;
 }
 
 function DebugExecutionPanel({
@@ -84,13 +74,8 @@ function DebugExecutionPanel({
   getErrorMessage,
   explorerBaseUrl,
   renderDetails,
-}: {
+}: DebugExecutionState & {
   title: string;
-  tier: ExecutionTier;
-  lastTxHash: Hash | null;
-  lastTxHashes: Hash[];
-  lastError: unknown;
-  getErrorMessage: (e: unknown) => string;
   explorerBaseUrl: (hash: Hash) => string;
   renderDetails: () => ReactNode;
 }) {
@@ -145,6 +130,31 @@ function DebugExecutionPanel({
         </pre>
       ) : null}
     </div>
+  );
+}
+
+function ExecutionDebugPanel({
+  execution,
+  title,
+  explorerBaseUrl,
+  renderDetails,
+}: {
+  execution: DebugExecutionState;
+  title: string;
+  explorerBaseUrl: (hash: Hash) => string;
+  renderDetails: () => ReactNode;
+}) {
+  return (
+    <DebugExecutionPanel
+      title={title}
+      tier={execution.tier}
+      lastTxHash={execution.lastTxHash}
+      lastTxHashes={execution.lastTxHashes}
+      lastError={execution.lastError}
+      getErrorMessage={execution.getErrorMessage}
+      explorerBaseUrl={explorerBaseUrl}
+      renderDetails={renderDetails}
+    />
   );
 }
 
@@ -249,18 +259,8 @@ export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
 
 function GmxV2TestButtons({ amount }: { amount: string }) {
   const { chain } = useWalletProvider();
-  const {
-    run,
-    pending,
-    lastError,
-    tier,
-    lastTxHash,
-    lastTxHashes,
-    lastCallsId,
-    lastPlan,
-    steps,
-    getErrorMessage,
-  } = useGmxDeposit();
+  const gmx = useGmxDeposit();
+  const { run, pending, lastCallsId, lastTxHash, lastPlan, steps } = gmx;
   const isOnArbitrum = chain?.id === arbitrum.id;
 
   const handleRun = async (marketKey: GmxV2MarketKey) => {
@@ -278,13 +278,9 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
   const resultId = lastCallsId ?? lastTxHash;
 
   return (
-    <DebugExecutionPanel
+    <ExecutionDebugPanel
+      execution={gmx}
       title="GMX v2 GM deposits · Arbitrum USDC"
-      tier={tier}
-      lastTxHash={lastTxHash}
-      lastTxHashes={lastTxHashes}
-      lastError={lastError}
-      getErrorMessage={getErrorMessage}
       explorerBaseUrl={(hash) => `https://arbiscan.io/tx/${hash}`}
       renderDetails={() => (
         <>
@@ -364,18 +360,9 @@ function InvestStrategyButton({
   selectedToken: TransactionToken | null;
 }) {
   const { chain } = useWalletProvider();
-  const {
-    run,
-    pending,
-    lastError,
-    tier,
-    lastTxHash,
-    lastTxHashes,
-    lastCallsId,
-    lastPlan,
-    legs,
-    getErrorMessage,
-  } = useInvestStrategy();
+  const investStrategy = useInvestStrategy();
+  const { run, pending, lastCallsId, lastTxHash, lastPlan, legs } =
+    investStrategy;
   const isOnBase = chain?.id === base.id;
 
   const handleRun = async () => {
@@ -402,13 +389,9 @@ function InvestStrategyButton({
   );
 
   return (
-    <DebugExecutionPanel
+    <ExecutionDebugPanel
+      execution={investStrategy}
       title="Invest deposit route · Base source"
-      tier={tier}
-      lastTxHash={lastTxHash}
-      lastTxHashes={lastTxHashes}
-      lastError={lastError}
-      getErrorMessage={getErrorMessage}
       explorerBaseUrl={(hash) => `https://basescan.io/tx/${hash}`}
       renderDetails={() => (
         <>

@@ -3,14 +3,16 @@ import { useCallback, useState } from 'react';
 import type { Address, Hash } from 'viem';
 import { base } from 'viem/chains';
 
-import { extractErrorMessage } from '@/lib/errors';
+import {
+  ensureChain,
+  requireUserAddress,
+  useDepositExecutionState,
+} from '@/hooks/useDepositExecutionState';
 import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { getBridgeStatus } from '@/services/intentClient';
 import { getDepositPlan } from '@/services/planOrchestrationService';
 import { logger } from '@/utils/logger';
-
-export type InvestExecutionTier = 'eip7702' | 'sequential';
 
 export type InvestLegStatus =
   | 'pending'
@@ -50,13 +52,7 @@ function initialLegProgress(plan: DepositPlan): InvestLegProgress[] {
 
 export function useInvestStrategy() {
   const { account, chain, getWalletClient, switchChain } = useWalletProvider();
-  const [pending, setPending] = useState(false);
-  const [lastError, setLastError] = useState<unknown>(null);
-  const [tier, setTier] = useState<InvestExecutionTier | null>(null);
-  const [lastTxHash, setLastTxHash] = useState<Hash | null>(null);
-  const [lastTxHashes, setLastTxHashes] = useState<Hash[]>([]);
-  const [lastCallsId, setLastCallsId] = useState<string | null>(null);
-  const [lastPlan, setLastPlan] = useState<DepositPlan | null>(null);
+  const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
 
   const updateLeg = useCallback(
@@ -115,113 +111,84 @@ export function useInvestStrategy() {
       fromToken,
       fromAmount,
       sourceChainId = base.id,
-    }: RunInvestStrategyInput): Promise<InvestStrategyResult> => {
-      setPending(true);
-      setLastError(null);
-      setTier(null);
-      setLastTxHash(null);
-      setLastTxHashes([]);
-      setLastCallsId(null);
-      setLastPlan(null);
-      setLegs([]);
+    }: RunInvestStrategyInput): Promise<InvestStrategyResult> =>
+      actions.run(
+        async () => {
+          setLegs([]);
 
-      try {
-        const userAddress = account?.address as Address | undefined;
-        if (!userAddress) {
-          throw new Error('Connect wallet first');
-        }
+          const userAddress = requireUserAddress(account?.address);
 
-        if (sourceChainId !== base.id) {
-          throw new Error(
-            'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
-          );
-        }
+          if (sourceChainId !== base.id) {
+            throw new Error(
+              'Connect to Base - Ethereum/Arbitrum legs route through Base in v1',
+            );
+          }
 
-        if (chain?.id !== base.id) {
-          await switchChain(base.id);
-        }
+          await ensureChain(chain?.id, base.id, switchChain);
 
-        const plan = await getDepositPlan({
-          kind: 'invest',
-          userAddress,
-          fromToken,
-          fromAmount,
-          sourceChainId,
-        });
-        setLastPlan(plan);
-        setLegs(initialLegProgress(plan));
+          const plan = await getDepositPlan({
+            kind: 'invest',
+            userAddress,
+            fromToken,
+            fromAmount,
+            sourceChainId,
+          });
+          actions.setLastPlan(plan);
+          setLegs(initialLegProgress(plan));
 
-        const walletClient = await getWalletClient(base.id);
-        const execution = await executeDepositPlan({
-          plan,
-          walletClient,
-          chainId: sourceChainId,
-          onBundleSubmitted: (callsId) => {
-            investStrategyLogger.info('[invest-strategy] executing EIP-7702');
-            setTier('eip7702');
-            setLastCallsId(callsId);
-            markAllCallsSubmitted(plan);
-          },
-          onBundleConfirmed: (transactionHash) => {
-            setLastTxHash(transactionHash ?? null);
-          },
-          onCallSubmitted: (index) => {
-            updateLeg(index, { status: 'submitted' });
-          },
-          onCallConfirmed: (index, _tx, hash) => {
-            updateLeg(index, {
-              status: 'sourceConfirmed',
-              sourceTxHash: hash,
-            });
-            const leg = plan.legs[index];
-            if (leg?.kind === 'bridge') {
-              void pollBridgeStatus(leg, hash, index);
-            }
-          },
-        });
+          const walletClient = await getWalletClient(base.id);
+          const execution = await executeDepositPlan({
+            plan,
+            walletClient,
+            chainId: sourceChainId,
+            onBundleSubmitted: (callsId) => {
+              investStrategyLogger.info('[invest-strategy] executing EIP-7702');
+              actions.markBundleSubmitted(callsId);
+              markAllCallsSubmitted(plan);
+            },
+            onBundleConfirmed: (transactionHash) => {
+              actions.markBundleConfirmed(transactionHash);
+            },
+            onCallSubmitted: (index) => {
+              updateLeg(index, { status: 'submitted' });
+            },
+            onCallConfirmed: (index, _tx, hash) => {
+              updateLeg(index, {
+                status: 'sourceConfirmed',
+                sourceTxHash: hash,
+              });
+              const leg = plan.legs[index];
+              if (leg?.kind === 'bridge') {
+                void pollBridgeStatus(leg, hash, index);
+              }
+            },
+          });
 
-        if (execution.kind === 'eip7702') {
-          setTier('eip7702');
-          setLastCallsId(execution.callsId);
-          setLastTxHash(execution.transactionHash ?? null);
-          return { kind: 'eip7702', callsId: execution.callsId };
-        }
-
-        investStrategyLogger.info('[invest-strategy] executing sequentially');
-        setTier('sequential');
-        setLastTxHash(execution.hashes.at(-1) ?? null);
-        setLastTxHashes(execution.hashes);
-        return { kind: 'sequential', hashes: execution.hashes };
-      } catch (error) {
-        investStrategyLogger.error('[invest-strategy] failed:', error);
-        setLastError(error);
-        throw error;
-      } finally {
-        setPending(false);
-      }
-    },
+          if (execution.kind === 'sequential') {
+            investStrategyLogger.info(
+              '[invest-strategy] executing sequentially',
+            );
+          }
+          return actions.applyExecutionResult(execution);
+        },
+        (error) =>
+          investStrategyLogger.error('[invest-strategy] failed:', error),
+      ),
     [
       account?.address,
       chain?.id,
       getWalletClient,
+      switchChain,
       markAllCallsSubmitted,
       pollBridgeStatus,
-      switchChain,
       updateLeg,
+      actions,
     ],
   );
 
   return {
     run,
-    pending,
-    lastError,
-    tier,
-    lastTxHash,
-    lastTxHashes,
-    lastCallsId,
-    lastPlan,
+    ...state,
     legs,
-    getErrorMessage: (error: unknown) =>
-      extractErrorMessage(error, 'Unexpected error'),
   };
 }

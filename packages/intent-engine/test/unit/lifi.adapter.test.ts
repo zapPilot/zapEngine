@@ -192,7 +192,7 @@ describe('LiFiAdapter', () => {
 
       await expect(adapter.getSwapQuote(params)).rejects.toThrow(QuoteError);
       await expect(adapter.getSwapQuote(params)).rejects.toThrow(
-        'Failed to get swap quote from LI.FI',
+        'Failed to get quote from LI.FI',
       );
     });
 
