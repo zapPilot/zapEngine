@@ -135,7 +135,9 @@ describe('UsersService', () => {
       );
 
       expect(result.etl_job?.status).toBe('error');
-      expect(result.etl_job?.message).toBe('ETL job could not be queued');
+      // Underlying message from triggerWalletDataFetch's webhook-failure path —
+      // previously rewritten by a now-removed outer try/catch in connectWallet.
+      expect(result.etl_job?.message).toBe('Failed to queue ETL job');
     });
 
     it('wraps RPC failure in ServiceLayerException', async () => {
@@ -166,7 +168,13 @@ describe('UsersService', () => {
     });
 
     it('throws ConflictException when wallet belongs to current user', async () => {
-      const { service, validationService } = createMocks();
+      const { service, qb, validationService } = createMocks();
+      // insertOne fires PG unique-violation (23505) → ConflictException
+      qb.single.mockResolvedValue({
+        data: null,
+        error: { code: '23505', message: 'duplicate key' },
+      });
+      // Post-conflict ownership lookup says "you already own it"
       validationService.validateWalletAvailability.mockResolvedValue({
         isAvailable: false,
         belongsToCurrentUser: true,
@@ -178,7 +186,11 @@ describe('UsersService', () => {
     });
 
     it('throws ConflictException when wallet belongs to another user', async () => {
-      const { service, validationService } = createMocks();
+      const { service, qb, validationService } = createMocks();
+      qb.single.mockResolvedValue({
+        data: null,
+        error: { code: '23505', message: 'duplicate key' },
+      });
       validationService.validateWalletAvailability.mockResolvedValue({
         isAvailable: false,
         belongsToCurrentUser: false,
@@ -347,6 +359,12 @@ describe('UsersService', () => {
   describe('getUserProfile', () => {
     it('returns profile with wallets and no subscription', async () => {
       const { service, qb } = createMocks();
+      // getUserProfile now fetches the full users row via mustExist (qb.single),
+      // not via validationService.
+      qb.single.mockResolvedValue({
+        data: { id: 'user-1', email: 'test@test.com' },
+        error: null,
+      });
       qb.mockResolvedThen({
         data: [{ id: 'w-1', wallet: '0x111' }],
         error: null,
@@ -361,6 +379,10 @@ describe('UsersService', () => {
 
     it('includes subscription when active', async () => {
       const { service, qb, validationService } = createMocks();
+      qb.single.mockResolvedValue({
+        data: { id: 'user-1', email: 'test@test.com' },
+        error: null,
+      });
       qb.mockResolvedThen({ data: [], error: null });
       validationService.getActiveSubscriptionWithPlan.mockResolvedValue({
         id: 'sub-1',
@@ -378,10 +400,11 @@ describe('UsersService', () => {
     });
 
     it('throws NotFoundException when user does not exist', async () => {
-      const { service, validationService } = createMocks();
-      validationService.validateUserExists.mockRejectedValue(
-        new NotFoundException('User not found'),
-      );
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
+        data: null,
+        error: { code: 'PGRST116', message: 'not found' },
+      });
 
       await expect(service.getUserProfile('user-999')).rejects.toThrow(
         NotFoundException,

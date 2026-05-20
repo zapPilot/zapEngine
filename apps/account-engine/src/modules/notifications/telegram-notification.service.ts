@@ -1,5 +1,5 @@
 import { CHANNEL_TYPE_TELEGRAM } from '../../common/constants';
-import { Logger } from '../../common/logger';
+import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
 import { DailySuggestionData, DriftAlertData } from './interfaces';
 import { TelegramBotCoreService } from './telegram-bot-core.service';
@@ -16,13 +16,14 @@ interface TelegramNotificationSettings {
   };
 }
 
-export class TelegramNotificationService {
-  private readonly logger = new Logger(TelegramNotificationService.name);
-
+export class TelegramNotificationService extends BaseService {
+  /* istanbul ignore next -- DI constructor */
   constructor(
-    private readonly databaseService: DatabaseService,
+    databaseService: DatabaseService,
     private readonly botCore: TelegramBotCoreService,
-  ) {}
+  ) {
+    super(databaseService);
+  }
 
   async sendDriftAlert(
     userId: string,
@@ -39,42 +40,40 @@ export class TelegramNotificationService {
     userId: string,
     data: DailySuggestionData,
   ): Promise<void> {
-    if (!this.botCore.getBot()) {
-      this.logger.warn(
-        'Telegram bot not configured, cannot send daily suggestion',
-      );
-      return;
-    }
-    const chatId = await this.getTelegramChatId(userId);
-    if (!chatId) return;
-
     const payload = buildDailySuggestionMessagePayload(data);
-    await this.sendMessageToUser(
+    await this.sendNotification(
       userId,
-      chatId,
-      payload.message,
+      () => payload.message,
+      'daily suggestion',
       payload.replyMarkup,
     );
-    this.logger.log(`Sent daily suggestion to user ${userId}`);
   }
 
   async sendNotification(
     userId: string,
     formatMessage: () => string,
     logLabel: string,
+    replyMarkup?: TelegramMessagePayload['replyMarkup'],
   ): Promise<void> {
+    // Fast-fail before the chat-id DB read when the bot isn't configured.
     if (!this.botCore.getBot()) {
       this.logger.warn(`Telegram bot not configured, cannot send ${logLabel}`);
       return;
     }
     const chatId = await this.getTelegramChatId(userId);
     if (!chatId) return;
-    await this.sendMessageToUser(userId, chatId, formatMessage());
+    await this.sendMessageToUser(userId, chatId, formatMessage(), replyMarkup);
     this.logger.log(`Sent ${logLabel} to user ${userId}`);
   }
 
   async getTelegramConnectedUserIds(): Promise<string[]> {
-    const { data } = await this.getNotificationSettingsQuery();
+    // The findMany surface doesn't accept useServiceRole — go raw here.
+    // notification_settings is service-role only.
+    const { data } = await this.serviceRoleSupabase
+      .from('notification_settings')
+      .select('user_id')
+      .eq('channel_type', CHANNEL_TYPE_TELEGRAM)
+      .eq('is_enabled', true);
 
     if (!data) {
       this.logger.warn('Failed to fetch Telegram-connected users');
@@ -87,14 +86,22 @@ export class TelegramNotificationService {
   }
 
   async getTelegramChatId(userId: string): Promise<string | null> {
-    const { data: settings } = await this.databaseService
-      .getServiceRoleClient()
-      .from('notification_settings')
-      .select('config')
-      .eq('user_id', userId)
-      .eq('channel_type', CHANNEL_TYPE_TELEGRAM)
-      .eq('is_enabled', true)
-      .single<Pick<TelegramNotificationSettings, 'config'>>();
+    const settings = await this.findOne<
+      Pick<TelegramNotificationSettings, 'config'>
+    >(
+      'notification_settings',
+      {
+        user_id: userId,
+        channel_type: CHANNEL_TYPE_TELEGRAM,
+        is_enabled: true,
+      },
+      {
+        select: 'config',
+        entityName: 'Telegram settings',
+        throwOnNotFound: false,
+        useServiceRole: true,
+      },
+    );
 
     if (!settings) {
       this.logger.warn(`No Telegram chat_id for user ${userId}`);
@@ -142,20 +149,11 @@ export class TelegramNotificationService {
   }
 
   async disableTelegramNotifications(userId: string): Promise<void> {
-    await this.databaseService
-      .getServiceRoleClient()
-      .from('notification_settings')
-      .update({ is_enabled: false })
-      .eq('user_id', userId)
-      .eq('channel_type', CHANNEL_TYPE_TELEGRAM);
-  }
-
-  private getNotificationSettingsQuery() {
-    return this.databaseService
-      .getServiceRoleClient()
-      .from('notification_settings')
-      .select('user_id')
-      .eq('channel_type', CHANNEL_TYPE_TELEGRAM)
-      .eq('is_enabled', true);
+    await this.updateWhere(
+      'notification_settings',
+      { is_enabled: false },
+      { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
+      { entityName: 'Telegram settings', useServiceRole: true },
+    );
   }
 }

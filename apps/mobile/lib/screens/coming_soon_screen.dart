@@ -9,18 +9,11 @@ class ComingSoonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return SafeArea(
-      child: CenteredStateMessage(
+      child: CenteredStateMessage.hero(
         title: title,
         message: '即將推出',
         icon: Icons.construction_rounded,
-        iconSize: 34,
-        framedIcon: true,
-        iconSpacing: 18,
-        padding: EdgeInsets.zero,
-        titleStyle: theme.textTheme.titleLarge,
       ),
     );
   }

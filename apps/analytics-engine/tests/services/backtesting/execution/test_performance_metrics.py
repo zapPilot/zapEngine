@@ -211,6 +211,107 @@ class TestCalculateBeta:
         assert isinstance(beta, float)
 
 
+class TestCalculateCvar:
+    """Tests for CVaR / expected shortfall calculation."""
+
+    def test_insufficient_data_returns_zero(self):
+        """Fewer than 2 returns should return 0."""
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_cvar(np.array([0.01])) == 0.0
+
+    def test_worst_five_percent_mean(self):
+        """CVaR should average the worst 5% of returns."""
+        returns = np.array([-0.10, *([0.01] * 19)])
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_cvar(returns) == -0.10
+
+    def test_all_positive_uses_lowest_positive_return(self):
+        """All-positive returns should still report the worst tail mean."""
+        returns = np.array([0.03, 0.01, 0.02, 0.04])
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_cvar(returns) == 0.01
+
+
+class TestCalculateUlcerIndex:
+    """Tests for Ulcer Index calculation."""
+
+    def test_monotonic_up_returns_zero(self):
+        """Monotonically increasing values have no drawdown."""
+        values = np.array([100.0, 110.0, 120.0, 130.0])
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_ulcer_index(values) == 0.0
+
+    def test_rms_percentage_drawdown(self):
+        """Ulcer Index should be RMS of percentage drawdowns."""
+        values = np.array([100.0, 120.0, 90.0, 110.0])
+        calc = PerformanceMetricsCalculator()
+
+        running_max = np.maximum.accumulate(values)
+        drawdowns = ((values - running_max) / running_max) * 100.0
+        expected = np.sqrt(np.mean(np.square(drawdowns)))
+
+        assert abs(calc.calculate_ulcer_index(values) - expected) < 1e-6
+
+
+class TestCalculateAlpha:
+    """Tests for alpha calculation."""
+
+    def test_beta_zero_returns_annualized_strategy_return(self):
+        """With beta 0, alpha should equal annualized strategy return."""
+        strategy_returns = np.array([0.01, 0.02, -0.005])
+        benchmark_returns = np.array([0.02, 0.02, 0.02])
+        calc = PerformanceMetricsCalculator()
+
+        total_return = np.prod(1.0 + strategy_returns) - 1.0
+        expected = (1.0 + total_return) ** (365.0 / len(strategy_returns)) - 1.0
+
+        assert (
+            abs(
+                calc.calculate_alpha(
+                    strategy_returns,
+                    benchmark_returns,
+                    0.0,
+                )
+                - expected
+            )
+            < 1e-6
+        )
+
+
+class TestCalculateInformationRatio:
+    """Tests for information ratio calculation."""
+
+    def test_zero_variance_excess_returns_zero(self):
+        """Zero-variance excess returns should return 0."""
+        strategy_returns = np.array([0.02, 0.02, 0.02])
+        benchmark_returns = np.array([0.01, 0.01, 0.01])
+        calc = PerformanceMetricsCalculator()
+
+        assert (
+            calc.calculate_information_ratio(strategy_returns, benchmark_returns) == 0.0
+        )
+
+    def test_aligns_mismatched_lengths(self):
+        """Information ratio should align inputs by the shortest length."""
+        strategy_returns = np.array([0.02, -0.01, 0.03, 0.99])
+        benchmark_returns = np.array([0.01, -0.02, 0.01])
+        calc = PerformanceMetricsCalculator()
+
+        excess = strategy_returns[:3] - benchmark_returns
+        expected = np.mean(excess) / np.std(excess) * np.sqrt(365)
+
+        assert (
+            abs(
+                calc.calculate_information_ratio(
+                    strategy_returns,
+                    benchmark_returns,
+                )
+                - expected
+            )
+            < 1e-6
+        )
+
+
 class TestCalculateAllMetrics:
     """Tests for aggregate metric calculation."""
 
@@ -224,6 +325,10 @@ class TestCalculateAllMetrics:
         assert metrics["calmar_ratio"] == 0.0
         assert metrics["volatility"] == 0.0
         assert metrics["beta"] == 0.0
+        assert metrics["cvar_95"] == 0.0
+        assert metrics["ulcer_index"] == 0.0
+        assert metrics["alpha"] == 0.0
+        assert metrics["information_ratio"] == 0.0
         assert metrics["max_drawdown_percent"] == 0.0
 
     def test_all_metrics_present(self):
@@ -239,6 +344,10 @@ class TestCalculateAllMetrics:
             "calmar_ratio",
             "volatility",
             "beta",
+            "cvar_95",
+            "ulcer_index",
+            "alpha",
+            "information_ratio",
             "max_drawdown_percent",
         }
         assert set(metrics.keys()) == expected_keys

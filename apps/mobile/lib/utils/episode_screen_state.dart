@@ -14,6 +14,21 @@ mixin EpisodeScreenState<T extends StatefulWidget> on State<T> {
 
   bool _didLoadContentLanguage = false;
   String? _playbackUserId;
+  int _requestEpoch = 0;
+
+  /// Allocates a fresh epoch for an outgoing async request. Pair every call
+  /// with [isStaleRequest] before applying results so racing responses from
+  /// earlier requests are discarded.
+  int beginRequest() => ++_requestEpoch;
+
+  /// The current request epoch without allocating a new one — for follow-up
+  /// requests (e.g. pagination) that should be invalidated when the parent
+  /// load increments via [beginRequest].
+  int get currentRequestEpoch => _requestEpoch;
+
+  /// True if [epoch] is no longer the latest request, or the state is
+  /// unmounted. Callers should early-return when this returns true.
+  bool isStaleRequest(int epoch) => !mounted || epoch != _requestEpoch;
 
   bool syncEpisodeDependencies() {
     final user = Provider.of<AuthProvider>(context).currentUser;

@@ -296,10 +296,8 @@ describe('AnalyticsClientService', () => {
   describe('getDailySuggestion retry on timeout', () => {
     const validResponse = createValidDailySuggestionResponse();
 
-    it('retries once on ECONNABORTED and succeeds on second attempt', async () => {
-      const timeoutError = Object.assign(new Error('timeout'), {
-        code: 'ECONNABORTED',
-      });
+    it('retries once on a timeout error and succeeds on second attempt', async () => {
+      const timeoutError = new Error('timeout');
       global.fetch = vi
         .fn()
         .mockRejectedValueOnce(timeoutError)
@@ -313,10 +311,8 @@ describe('AnalyticsClientService', () => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
-    it('retries on ETIMEOUT error code', async () => {
-      const timeoutError = Object.assign(new Error('operation timed out'), {
-        code: 'ETIMEOUT',
-      });
+    it('retries when error message says "timed out"', async () => {
+      const timeoutError = new Error('operation timed out');
       global.fetch = vi
         .fn()
         .mockRejectedValueOnce(timeoutError)
@@ -344,9 +340,7 @@ describe('AnalyticsClientService', () => {
     });
 
     it('throws ServiceLayerException when both retry attempts fail', async () => {
-      const timeoutError = Object.assign(new Error('timeout'), {
-        code: 'ECONNABORTED',
-      });
+      const timeoutError = new Error('timeout');
       global.fetch = vi.fn().mockRejectedValue(timeoutError);
 
       await expect(service.getDailySuggestion('user-1')).rejects.toThrow(

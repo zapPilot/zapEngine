@@ -1,7 +1,7 @@
 import { Context } from 'telegraf';
 
 import { CHANNEL_TYPE_TELEGRAM } from '../../common/constants';
-import { Logger } from '../../common/logger';
+import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
 import { TelegramTokenService } from './telegram-token.service';
 
@@ -9,13 +9,13 @@ interface TelegramStartContext {
   startPayload?: string;
 }
 
-export class TelegramConnectionService {
-  private readonly logger = new Logger(TelegramConnectionService.name);
-
+export class TelegramConnectionService extends BaseService {
   constructor(
-    private readonly databaseService: DatabaseService,
+    databaseService: DatabaseService,
     private readonly tokenService: TelegramTokenService,
-  ) {}
+  ) {
+    super(databaseService);
+  }
 
   async handleStartCommand(ctx: Context): Promise<void> {
     const token = (ctx as Context & TelegramStartContext).startPayload;
@@ -47,8 +47,8 @@ export class TelegramConnectionService {
 
     const telegramUsername = ctx.from?.username;
 
-    const { error: upsertError } = await this.databaseService
-      .getServiceRoleClient()
+    // Upsert isn't on the BaseService surface; raw call here is intentional.
+    const { error: upsertError } = await this.serviceRoleSupabase
       .from('notification_settings')
       .upsert(
         {
@@ -72,15 +72,19 @@ export class TelegramConnectionService {
       return;
     }
 
-    if (telegramUsername) {
-      await this.databaseService
-        .getServiceRoleClient()
-        .from('users')
-        .update({ telegram_username: telegramUsername })
-        .eq('id', userId);
-    }
-
-    await this.tokenService.invalidateToken(token);
+    // username update and token invalidation are independent — run in parallel
+    // so the user sees the success reply ~one round-trip sooner.
+    await Promise.all([
+      telegramUsername
+        ? this.updateWhere(
+            'users',
+            { telegram_username: telegramUsername },
+            { id: userId },
+            { entityName: 'User', useServiceRole: true },
+          )
+        : Promise.resolve(),
+      this.tokenService.invalidateToken(token),
+    ]);
 
     this.logger.log(`User ${userId} connected Telegram (chat_id: ${chatId})`);
 
@@ -111,15 +115,14 @@ export class TelegramConnectionService {
       return;
     }
 
-    const { error: deleteError } = await this.databaseService
-      .getServiceRoleClient()
-      .from('notification_settings')
-      .delete()
-      .eq('user_id', userId)
-      .eq('channel_type', CHANNEL_TYPE_TELEGRAM);
-
-    if (deleteError) {
-      this.logger.error(`Failed to disconnect user ${userId}:`, deleteError);
+    try {
+      await this.deleteWhere(
+        'notification_settings',
+        { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
+        { entityName: 'Telegram settings', useServiceRole: true },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to disconnect user ${userId}:`, error);
       await ctx.reply('❌ Failed to disconnect. Please try again.');
       return;
     }
@@ -135,14 +138,19 @@ export class TelegramConnectionService {
   }
 
   async findUserIdByChatId(chatId: string): Promise<string | null> {
-    const { data } = await this.databaseService
-      .getServiceRoleClient()
+    // `config->>chat_id` is a Postgres JSON-path filter — not expressible via
+    // the BaseService conditions shape. Raw client call is intentional. The
+    // chain coincidentally matches the one in TelegramNotificationService
+    // but the .maybeSingle() lookup vs list-fetch makes them distinct ops.
+    // jscpd:ignore-start
+    const { data } = await this.serviceRoleSupabase
       .from('notification_settings')
       .select('user_id')
       .eq('channel_type', CHANNEL_TYPE_TELEGRAM)
       .eq('is_enabled', true)
       .eq('config->>chat_id', chatId)
       .maybeSingle<{ user_id: string }>();
+    // jscpd:ignore-end
 
     return data?.user_id ?? null;
   }

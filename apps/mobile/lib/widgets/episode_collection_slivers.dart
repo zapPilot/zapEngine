@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'error_state_widget.dart';
 
+/// Spacer height appended below episode lists so the floating playback bar
+/// doesn't occlude the last card. Used by every screen that hosts an
+/// [EpisodeSliverList] inside the main scaffold.
+const double kEpisodeListBottomPadding = 108;
+
 List<Widget> buildEpisodeCollectionSlivers({
   required bool loading,
   required String? error,

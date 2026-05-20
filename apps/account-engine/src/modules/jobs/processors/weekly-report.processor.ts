@@ -1,5 +1,9 @@
 import { Logger } from '../../../common/logger';
-import { getErrorMessage } from '../../../common/utils';
+import {
+  getErrorMessage,
+  isFiniteNumber,
+  percentChange,
+} from '../../../common/utils';
 import { AnalyticsClientService } from '../../notifications/analytics-client.service';
 import { ChartService } from '../../notifications/chart.service';
 import { EmailService } from '../../notifications/email.service';
@@ -124,13 +128,26 @@ export class WeeklyReportProcessor implements JobProcessor {
   /**
    * Process batch weekly report job
    */
+  /**
+   * Both batch + single jobs share testMode / testRecipient option fields.
+   * One helper to keep them in sync (and silence jscpd on the destructure).
+   */
+  private extractTestModeOptions(payload: Record<string, unknown>): {
+    testMode?: boolean;
+    testRecipient?: string;
+  } {
+    return {
+      testMode: payload['testMode'] as boolean | undefined,
+      testRecipient: payload['testRecipient'] as string | undefined,
+    };
+  }
+
   private async processBatchWeeklyReport(
     job: Job,
   ): Promise<JobProcessingResult> {
     const payload: WeeklyReportJobPayload = {
       userIds: job.payload['userIds'] as string[] | undefined,
-      testMode: job.payload['testMode'] as boolean | undefined,
-      testRecipient: job.payload['testRecipient'] as string | undefined,
+      ...this.extractTestModeOptions(job.payload),
     };
 
     // Validate services
@@ -147,15 +164,23 @@ export class WeeklyReportProcessor implements JobProcessor {
       throw new Error('No subscribed users matched the provided filters');
     }
 
+    // Index by id once so the per-user payload builder is O(1), not O(N).
+    const byUserId = new Map(
+      usersWithWallets.map((uw) => [uw.user.id, uw] as const),
+    );
+
     // Fan out to individual jobs
     return this.batchFanoutHelper.fanOutBatch(
       job,
       usersWithWallets.map((uw) => uw.user.id),
       JobType.WEEKLY_REPORT_SINGLE,
       (userId) => {
-        const userEntry = usersWithWallets.find((uw) => uw.user.id === userId)!;
+        const userEntry = byUserId.get(userId)!;
+        // Carry email + wallets in the payload so the child processor doesn't
+        // re-run getUserWithWallets (a full VIP-subscriber join) per recipient.
         return {
           userId,
+          email: userEntry.user.email,
           wallets: userEntry.wallets,
           testMode: payload.testMode,
           testRecipient,
@@ -179,20 +204,31 @@ export class WeeklyReportProcessor implements JobProcessor {
   ): Promise<JobProcessingResult> {
     const payload: SingleUserReportJobPayload = {
       userId: job.payload['userId'] as string,
-      testMode: job.payload['testMode'] as boolean | undefined,
-      testRecipient: job.payload['testRecipient'] as string | undefined,
+      email: job.payload['email'] as string | undefined,
+      wallets: job.payload['wallets'] as string[] | undefined,
+      ...this.extractTestModeOptions(job.payload),
     };
 
     try {
-      // Get user data first to extract wallets from database
-      const userWithWallets = await this.supabaseUserService.getUserWithWallets(
-        payload.userId,
-      );
-      if (!userWithWallets) {
-        throw new Error(`User ${payload.userId} not found or not subscribed`);
+      // Prefer the payload-supplied identity (set by the batch parent).
+      // Fall back to a Supabase lookup for older in-flight jobs that lack it.
+      let user: { id: string; email: string; subscription_active: boolean };
+      let userWallets: string[];
+      if (payload.email !== undefined && payload.wallets !== undefined) {
+        user = {
+          id: payload.userId,
+          email: payload.email,
+          subscription_active: true,
+        };
+        userWallets = payload.wallets;
+      } else {
+        const userWithWallets =
+          await this.supabaseUserService.getUserWithWallets(payload.userId);
+        if (!userWithWallets) {
+          throw new Error(`User ${payload.userId} not found or not subscribed`);
+        }
+        ({ user, wallets: userWallets } = userWithWallets);
       }
-
-      const { user, wallets: userWallets } = userWithWallets;
 
       this.jobQueueService.logJobEvent(
         job.id,
@@ -277,56 +313,51 @@ export class WeeklyReportProcessor implements JobProcessor {
         'Generated chart and retrieved portfolio data',
       );
 
-      try {
-        // Generate email HTML with portfolio metrics
-        const emailHtml = this.templateService.generateReportHTML(
-          user.id,
-          emailMetrics,
-          user.email,
-          chart.contentId,
-          userWallets.length > 0 ? userWallets : ['unknown'],
-        );
+      // Generate email HTML with portfolio metrics
+      const emailHtml = this.templateService.generateReportHTML(
+        user.id,
+        emailMetrics,
+        user.email,
+        chart.contentId,
+        userWallets.length > 0 ? userWallets : ['unknown'],
+      );
 
-        // Send email
-        const recipient = payload.testMode
-          ? (payload.testRecipient ?? user.email)
-          : user.email;
+      // Send email
+      const recipient = payload.testMode
+        ? (payload.testRecipient ?? user.email)
+        : user.email;
 
-        await this.emailService.sendEmail({
-          to: recipient,
-          subject: this.emailService.generateSubject({
-            weeklyPnLPercentage: weeklySubjectPercentage,
-          }),
-          html: emailHtml,
-          attachments: [
-            {
-              filename: chart.fileName,
-              content: chart.buffer,
-              cid: chart.contentId,
-            },
-          ],
-        });
-
-        this.jobQueueService.logJobEvent(
-          job.id,
-          LogLevel.INFO,
-          `Successfully sent weekly report to ${recipient}`,
-          { userId: user.id, recipient, testMode: payload.testMode },
-        );
-
-        return {
-          success: true,
-          metadata: {
-            userId: user.id,
-            recipient,
-            testMode: payload.testMode,
-            walletCount: userWallets.length,
+      await this.emailService.sendEmail({
+        to: recipient,
+        subject: this.emailService.generateSubject({
+          weeklyPnLPercentage: weeklySubjectPercentage,
+        }),
+        html: emailHtml,
+        attachments: [
+          {
+            filename: chart.fileName,
+            content: chart.buffer,
+            cid: chart.contentId,
           },
-        };
-      } finally {
-        // Always cleanup chart files
-        this.chartService.cleanupTempFiles(chart);
-      }
+        ],
+      });
+
+      this.jobQueueService.logJobEvent(
+        job.id,
+        LogLevel.INFO,
+        `Successfully sent weekly report to ${recipient}`,
+        { userId: user.id, recipient, testMode: payload.testMode },
+      );
+
+      return {
+        success: true,
+        metadata: {
+          userId: user.id,
+          recipient,
+          testMode: payload.testMode,
+          walletCount: userWallets.length,
+        },
+      };
     } catch (error) {
       this.logger.error(
         `Failed to process weekly report for user ${payload.userId}`,
@@ -369,10 +400,7 @@ export class WeeklyReportProcessor implements JobProcessor {
     emailMetrics: EmailMetrics,
     balanceHistory: BalanceHistoryPoint[],
   ): number | undefined {
-    if (
-      typeof emailMetrics.weeklyPnLPercentage === 'number' &&
-      Number.isFinite(emailMetrics.weeklyPnLPercentage)
-    ) {
+    if (isFiniteNumber(emailMetrics.weeklyPnLPercentage)) {
       return emailMetrics.weeklyPnLPercentage;
     }
 
@@ -424,15 +452,16 @@ export class WeeklyReportProcessor implements JobProcessor {
       return { reason: 'missing_7d_baseline' };
     }
 
-    if (baselinePoint.usdValue <= 0) {
+    // Single authoritative percent-change formula lives in `percentChange`;
+    // both this code path and the ROI window in analytics-client.service.ts
+    // route through it so the two cannot diverge.
+    const pct = percentChange(latestPoint.usdValue, baselinePoint.usdValue);
+    if (pct === null) {
       return { reason: 'invalid_7d_baseline_balance' };
     }
 
     return {
-      weeklyPnLPercentage:
-        ((latestPoint.usdValue - baselinePoint.usdValue) /
-          baselinePoint.usdValue) *
-        100,
+      weeklyPnLPercentage: pct,
       reason: 'resolved_from_balance_history',
     };
   }

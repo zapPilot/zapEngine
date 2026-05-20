@@ -1,38 +1,11 @@
-import * as fs from 'node:fs';
-
-import type { Mock } from 'vitest';
-
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import { ChartService } from '../../../../src/modules/notifications/chart.service';
-
-vi.mock('node:fs');
-
-const mockExistsSync = fs.existsSync as Mock;
-const mockMkdirSync = fs.mkdirSync as Mock;
-const mockWriteFileSync = fs.writeFileSync as Mock;
-const mockUnlinkSync = fs.unlinkSync as Mock;
 
 describe('ChartService', () => {
   let service: ChartService;
 
   beforeEach(() => {
-    mockExistsSync.mockReturnValue(true);
-    mockMkdirSync.mockReturnValue(undefined);
-    mockWriteFileSync.mockReturnValue(undefined);
-    mockUnlinkSync.mockReturnValue(undefined);
     service = new ChartService();
-  });
-
-  describe('constructor', () => {
-    it('creates temp directory if it does not exist', () => {
-      mockExistsSync.mockReturnValue(false);
-      // eslint-disable-next-line sonarjs/constructor-for-side-effects
-      new ChartService();
-      expect(mockMkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('temp'),
-        { recursive: true },
-      );
-    });
   });
 
   describe('generateChart', () => {
@@ -54,7 +27,7 @@ describe('ChartService', () => {
 
       expect(result.fileName).toContain('chart-');
       expect(result.contentId).toContain('chart-');
-      expect(mockWriteFileSync).toHaveBeenCalled();
+      expect(Buffer.isBuffer(result.buffer)).toBe(true);
     });
 
     it('throws ServiceLayerException on fetch failure', async () => {
@@ -151,7 +124,6 @@ describe('ChartService', () => {
       });
 
       expect(result.fileName).toContain('chart-');
-      expect(mockWriteFileSync).toHaveBeenCalled();
     });
   });
 
@@ -174,54 +146,6 @@ describe('ChartService', () => {
       });
 
       expect(result.fileName).toContain('chart-');
-    });
-  });
-
-  describe('cleanupTempFiles', () => {
-    it('deletes temp file when it exists', () => {
-      mockExistsSync.mockReturnValue(true);
-
-      service.cleanupTempFiles({
-        buffer: Buffer.from(''),
-        fileName: 'test.png',
-        // eslint-disable-next-line sonarjs/publicly-writable-directories
-        filePath: '/tmp/test.png',
-        contentId: 'cid',
-      });
-
-      // eslint-disable-next-line sonarjs/publicly-writable-directories
-      expect(mockUnlinkSync).toHaveBeenCalledWith('/tmp/test.png');
-    });
-
-    it('does not throw when file does not exist', () => {
-      mockExistsSync.mockReturnValue(false);
-
-      service.cleanupTempFiles({
-        buffer: Buffer.from(''),
-        fileName: 'test.png',
-        // eslint-disable-next-line sonarjs/publicly-writable-directories
-        filePath: '/tmp/gone.png',
-        contentId: 'cid',
-      });
-
-      expect(mockUnlinkSync).not.toHaveBeenCalled();
-    });
-
-    it('does not throw on unlink error', () => {
-      mockExistsSync.mockReturnValue(true);
-      mockUnlinkSync.mockImplementation(() => {
-        throw new Error('EPERM');
-      });
-
-      expect(() =>
-        service.cleanupTempFiles({
-          buffer: Buffer.from(''),
-          fileName: 'test.png',
-          // eslint-disable-next-line sonarjs/publicly-writable-directories
-          filePath: '/tmp/test.png',
-          contentId: 'cid',
-        }),
-      ).not.toThrow();
     });
   });
 });

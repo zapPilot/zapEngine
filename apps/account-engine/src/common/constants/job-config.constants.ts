@@ -19,6 +19,26 @@ export const JOB_CONFIG = {
   CLEANUP_INTERVAL_MS: 60 * 60 * 1000,
 
   /**
+   * Max age of terminal (completed/failed) jobs before they are evicted from memory.
+   * Currently mirrors CLEANUP_INTERVAL_MS — promoted to its own name so the cleanup
+   * sweep can be tuned independently of how often it runs.
+   */
+  COMPLETED_JOB_RETENTION_MS: 60 * 60 * 1000,
+
+  /**
+   * Max log entries retained per job. Older entries are dropped FIFO so a
+   * runaway job can't OOM the in-memory queue.
+   */
+  MAX_LOGS_PER_JOB: 200,
+
+  /**
+   * Hard TTL for non-terminal (pending/processing) jobs. A job that has been
+   * sitting in a non-terminal state longer than this is force-failed by the
+   * cleanup sweep — guards against stuck jobs leaking memory indefinitely.
+   */
+  NON_TERMINAL_TTL_MS: 24 * 60 * 60 * 1000,
+
+  /**
    * Default base delay for retry attempts (1 second)
    */
   DEFAULT_RETRY_BASE_DELAY: 1000,

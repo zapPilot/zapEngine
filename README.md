@@ -83,6 +83,17 @@ All apps — including analytics-engine — run via `pnpm <script>`. Python scri
 
 For build, test, lint, and type-check commands see [CLAUDE.md](./CLAUDE.md#per-app-tooling).
 
+## Turbo Remote Cache (optional)
+
+CI pushes build artifacts to Vercel Remote Cache. After merging `main` (lockfile / `package.json` changes), the next commit triggers a full cold-cache rebuild (~20s on `format:check`). To pull CI's cache locally and eliminate this penalty:
+
+```bash
+pnpm dlx turbo login   # one-time browser auth
+pnpm dlx turbo link    # bind this repo to the Vercel team
+```
+
+After linking, Turbo checks remote cache on local misses — `pnpm check:local` stays fast even after dependency upgrades.
+
 ## Deployment
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)

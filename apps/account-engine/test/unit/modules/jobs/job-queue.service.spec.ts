@@ -1,3 +1,4 @@
+import { JOB_CONFIG } from '../../../../src/common/constants';
 import {
   JobStatus,
   JobType,
@@ -578,6 +579,26 @@ describe('JobQueueService', () => {
       ).not.toThrow();
       service.stop();
     });
+
+    it('ring-buffers logs at MAX_LOGS_PER_JOB to prevent unbounded growth', () => {
+      const service = makeService();
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+
+      const overflow = JOB_CONFIG.MAX_LOGS_PER_JOB + 50;
+      for (let i = 0; i < overflow; i++) {
+        service.logJobEvent(job.id, LogLevel.INFO, `entry-${i}`);
+      }
+
+      const logs = service.getJobLogs(job.id);
+      expect(logs.length).toBe(JOB_CONFIG.MAX_LOGS_PER_JOB);
+      // FIFO eviction: oldest entries dropped, newest retained
+      expect(logs[0]).toContain(`entry-${overflow - JOB_CONFIG.MAX_LOGS_PER_JOB}`);
+      expect(logs[logs.length - 1]).toContain(`entry-${overflow - 1}`);
+      service.stop();
+    });
   });
 
   describe('getJobLogs', () => {
@@ -612,6 +633,27 @@ describe('JobQueueService', () => {
 
       // Job should be cleaned up
       expect(service.getJob(job.id)).toBeNull();
+      service.stop();
+    });
+
+    it('cleanup force-fails non-terminal jobs older than NON_TERMINAL_TTL_MS', () => {
+      vi.useFakeTimers();
+      const service = makeService();
+
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      // Job stays in PENDING (never started) — simulates a stuck pre-processing job
+      expect(job.status).toBe(JobStatus.PENDING);
+
+      // Advance past the non-terminal TTL plus a cleanup interval to trigger sweep
+      vi.setSystemTime(Date.now() + JOB_CONFIG.NON_TERMINAL_TTL_MS + 1000);
+      vi.advanceTimersByTime(JOB_CONFIG.CLEANUP_INTERVAL_MS + 1);
+
+      const recovered = service.getJob(job.id);
+      expect(recovered?.status).toBe(JobStatus.FAILED);
+      expect(recovered?.errorMessage).toContain('TTL');
       service.stop();
     });
   });

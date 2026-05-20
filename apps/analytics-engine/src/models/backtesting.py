@@ -180,8 +180,16 @@ class StrategySummary(BaseModel):
     roi_percent: float
     trade_count: int = Field(ge=0)
     sharpe_ratio: float = 0.0
+    sortino_ratio: float = 0.0
     calmar_ratio: float = 0.0
     max_drawdown_percent: float = 0.0
+    volatility: float = 0.0
+    beta: float = 0.0
+    cvar_95: float = 0.0
+    ulcer_index: float = 0.0
+    alpha: float = 0.0
+    information_ratio: float = 0.0
+    # True trade-level win rate needs forward-PnL accounting; keep API unset.
     win_rate_percent: float | None = None
     final_allocation: Allocation
     final_asset_allocation: AssetAllocation

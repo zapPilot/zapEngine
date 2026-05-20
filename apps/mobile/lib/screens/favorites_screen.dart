@@ -26,6 +26,13 @@ class FavoritesScreen extends StatefulWidget {
   State<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
+// Favorites are sorted client-side, so the entire list lives in memory.
+// Cap the eager fetch to avoid runaway memory / network on accounts with very
+// large favorite history; if a user ever has more than this, [_loadAllEpisodes]
+// logs a debug warning so the truncation is visible during development.
+const int _kFavoritesMaxPages = 20;
+const int _kFavoritesPageSize = 50;
+
 class _FavoritesScreenState extends State<FavoritesScreen>
     with EpisodeScreenState<FavoritesScreen> {
   late final EpisodeService _episodeService =
@@ -34,7 +41,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
   List<Episode> _episodes = const [];
   bool _loading = true;
   String? _error;
-  int _requestEpoch = 0;
 
   @override
   void didChangeDependencies() {
@@ -46,7 +52,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
   }
 
   Future<void> _loadFavoritesSource() async {
-    final epoch = ++_requestEpoch;
+    final epoch = beginRequest();
     setState(() {
       _loading = true;
       _error = null;
@@ -55,19 +61,15 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     try {
       final episodes = await _loadAllEpisodes();
       final hydrated = await _applyUserState(episodes);
-      if (_didRequestExpire(epoch)) return;
-      _showFavoriteEpisodes(hydrated);
+      if (isStaleRequest(epoch)) return;
+      _applyFavorites(hydrated);
     } catch (error) {
-      if (_didRequestExpire(epoch)) return;
-      _showFavoritesError(error);
+      if (isStaleRequest(epoch)) return;
+      _applyFavoritesError(error);
     }
   }
 
-  bool _didRequestExpire(int epoch) {
-    return !mounted || epoch != _requestEpoch;
-  }
-
-  void _showFavoriteEpisodes(List<Episode> episodes) {
+  void _applyFavorites(List<Episode> episodes) {
     setState(() {
       _episodes = episodes;
       _loading = false;
@@ -75,7 +77,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     context.read<LikesProvider>().seedEpisodes(episodes);
   }
 
-  void _showFavoritesError(Object error) {
+  void _applyFavoritesError(Object error) {
     setState(() {
       _error = error.toString();
       _loading = false;
@@ -84,20 +86,27 @@ class _FavoritesScreenState extends State<FavoritesScreen>
 
   Future<List<Episode>> _loadAllEpisodes() async {
     final episodes = <Episode>[];
-    const maxPages = 20; // ~1000 episodes hard ceiling.
     var pages = 0;
     String? cursor;
 
     do {
       final EpisodePage page = await _episodeService.getEpisodes(
-        limit: 50,
+        limit: _kFavoritesPageSize,
         cursor: cursor,
         languageCode: contentLanguageCode,
       );
       episodes.addAll(page.items);
       cursor = page.nextCursor;
       pages += 1;
-    } while (cursor != null && pages < maxPages);
+    } while (cursor != null && pages < _kFavoritesMaxPages);
+
+    if (cursor != null) {
+      debugPrint(
+        'FavoritesScreen: hit _kFavoritesMaxPages=$_kFavoritesMaxPages '
+        '(~${_kFavoritesMaxPages * _kFavoritesPageSize} episodes); '
+        'remaining favorites are not loaded.',
+      );
+    }
 
     episodes.sort((left, right) {
       final dateOrder = right.createdAt.compareTo(left.createdAt);
@@ -149,7 +158,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                 deleteLabel: '從收藏移除',
                 wrapper: _wrapFavoriteCard,
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 108)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kEpisodeListBottomPadding),
+              ),
             ],
           ),
         ],

@@ -6,9 +6,9 @@ multipliers, ``fgi_downshift_dca_sell``) can be judged on per-regime evidence
 instead of a single aggregate ROI.
 
 This is an offline diagnostic: it consumes the ``/api/v3/backtesting/compare``
-timeline (already serializes per-day portfolio value, signal regime, DMA zone,
-and execution transfers). It adds no API surface and does not touch the
-snapshot regression gate.
+timeline (already serializes per-day portfolio value, FGI regime, signal
+regime, and DMA zone) plus the compare decision log for executed trade rows.
+It adds no API surface and does not touch the snapshot regression gate.
 
 A daily return ``r_t`` is attributed to the regime in effect *going into* the
 move (the regime on day ``t-1``) -- the regime the strategy was positioned
@@ -21,7 +21,6 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
-from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +28,18 @@ import httpx
 import numpy as np
 
 from scripts.attribution._helpers import _metric
+from scripts.attribution.sweep_production_window import (
+    COMPARE_PATH,
+    DEFAULT_ENDPOINT,
+    DEFAULT_REFERENCE_DATE,
+    DEFAULT_TOTAL_CAPITAL,
+    DEFAULT_WINDOW_DAYS,
+    _parse_reference_date,
+    _window_start,
+)
+from scripts.attribution.sweep_production_window import (
+    _compare_request as _production_compare_request,
+)
 from src.config.strategy_presets import get_default_seed_strategy_config
 from src.services.backtesting.execution.performance_metrics import (
     PerformanceMetricsCalculator,
@@ -37,11 +48,6 @@ from src.services.backtesting.signals.dma_gated_fgi.regime_classifier import (
     VALID_REGIME_LABELS,
 )
 
-DEFAULT_ENDPOINT = "http://localhost:8001"
-COMPARE_PATH = "/api/v3/backtesting/compare"
-DEFAULT_REFERENCE_DATE = "2026-04-15"
-DEFAULT_WINDOW_DAYS = 500
-DEFAULT_TOTAL_CAPITAL = 10_000.0
 DEFAULT_WIN_HORIZON_DAYS = 30
 # Annualizing a return over a handful of days explodes
 # (1.09 ** (365/2) is astronomical and misleading). Below this many
@@ -59,7 +65,8 @@ class DailyPoint:
     value: float
     fgi_regime: str
     dma_zone: str
-    traded: bool
+    signal_regime: str = "neutral"
+    traded: bool = False
 
 
 @dataclass(frozen=True)
@@ -91,21 +98,6 @@ def _normalize_zone(raw: object) -> str:
     return normalized if normalized in {"below", "at", "above"} else "unknown"
 
 
-def _window_start(reference_date: date, window_days: int) -> date:
-    if window_days < 1:
-        raise ValueError("window_days must be >= 1")
-    return reference_date - timedelta(days=window_days - 1)
-
-
-def _parse_reference_date(raw: str) -> date:
-    try:
-        return date.fromisoformat(raw)
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid reference date '{raw}'; expected YYYY-MM-DD"
-        ) from exc
-
-
 def _compare_request(
     *,
     strategy_id: str,
@@ -113,19 +105,14 @@ def _compare_request(
     end_date: str,
     total_capital: float,
 ) -> dict[str, Any]:
-    return {
-        "token_symbol": "BTC",
-        "total_capital": total_capital,
-        "start_date": start_date,
-        "end_date": end_date,
-        "configs": [
-            {
-                "config_id": strategy_id,
-                "strategy_id": strategy_id,
-                "params": {},
-            }
-        ],
-    }
+    request = _production_compare_request(
+        strategy_ids=[strategy_id],
+        start_date=start_date,
+        end_date=end_date,
+        total_capital=total_capital,
+    )
+    request["emit_decision_log"] = True
+    return request
 
 
 def _fetch_compare_payload(
@@ -159,6 +146,8 @@ def _fetch_compare_payload(
     strategies = payload.get("strategies")
     if not isinstance(strategies, dict) or strategy_id not in strategies:
         raise ValueError(f"Compare response missing strategy: {strategy_id}")
+    if not isinstance(payload.get("decision_log_path"), str):
+        raise ValueError("Compare response must include decision_log_path")
     return payload
 
 
@@ -186,15 +175,13 @@ def _extract_timeline(
             continue
 
         signal = strategy_state.get("signal")
-        regime_raw: object = None
+        signal_regime_raw: object = None
         zone_raw: object = None
         if isinstance(signal, dict):
-            regime_raw = signal.get("regime")
+            signal_regime_raw = signal.get("regime")
             details = signal.get("details")
             if isinstance(details, dict) and isinstance(details.get("dma"), dict):
                 zone_raw = details["dma"].get("zone")
-        if regime_raw is None:
-            regime_raw = market.get("sentiment_label")
 
         execution = strategy_state.get("execution")
         transfers = execution.get("transfers") if isinstance(execution, dict) else None
@@ -204,8 +191,9 @@ def _extract_timeline(
             DailyPoint(
                 date=str(market.get("date")),
                 value=float(total_value),
-                fgi_regime=_normalize_regime(regime_raw),
+                fgi_regime=_normalize_regime(market.get("sentiment_label")),
                 dma_zone=_normalize_zone(zone_raw),
+                signal_regime=_normalize_regime(signal_regime_raw),
                 traded=traded,
             )
         )
@@ -257,16 +245,22 @@ def _bucket_stats(
     return BucketStats(
         bucket=bucket,
         days=days,
-        pct_of_time=round(pct_of_time, 2),
-        cumulative_return_percent=round(cumulative_return, 4),
+        pct_of_time=_round_metric(pct_of_time, digits=2),
+        cumulative_return_percent=_round_metric(cumulative_return, digits=4),
         annualized_return_percent=(
-            None if annualized is None else round(annualized, 4)
+            None if annualized is None else _round_metric(annualized, digits=4)
         ),
-        sharpe_ratio=round(sharpe, 4),
-        max_drawdown_percent=round(max_dd, 4),
-        win_rate_percent=None if win_rate is None else round(win_rate, 2),
+        sharpe_ratio=_round_metric(sharpe, digits=4),
+        max_drawdown_percent=_round_metric(max_dd, digits=4),
+        win_rate_percent=None
+        if win_rate is None
+        else _round_metric(win_rate, digits=2),
         trade_count=trade_count,
     )
+
+
+def _round_metric(value: float, *, digits: int) -> float:
+    return float(_metric({"value": value}, "value", round_digits=digits))
 
 
 def _trade_won(points: list[DailyPoint], index: int, horizon: int) -> bool:
@@ -282,6 +276,7 @@ def _trade_won(points: list[DailyPoint], index: int, horizon: int) -> bool:
 def compute_breakdowns(
     points: list[DailyPoint],
     *,
+    trade_indices: list[int],
     win_horizon_days: int,
 ) -> dict[str, list[BucketStats]]:
     total_return_days = len(points) - 1
@@ -301,10 +296,11 @@ def compute_breakdowns(
         fgi_returns.setdefault(prev.fgi_regime, []).append(daily_return)
         zone_returns.setdefault(prev.dma_zone, []).append(daily_return)
 
-    for i, point in enumerate(points):
-        if not point.traded:
+    for index in trade_indices:
+        if index < 0 or index >= len(points):
             continue
-        won = _trade_won(points, i, win_horizon_days)
+        point = points[index]
+        won = _trade_won(points, index, win_horizon_days)
         fgi_trades.setdefault(point.fgi_regime, []).append(won)
         zone_trades.setdefault(point.dma_zone, []).append(won)
 
@@ -327,6 +323,33 @@ def compute_breakdowns(
         for zone in ZONE_ORDER
     ]
     return {"by_fgi_regime": by_fgi, "by_dma_zone": by_zone}
+
+
+def _trade_indices_from_decision_log(
+    *,
+    decision_log_path: Path,
+    points: list[DailyPoint],
+    strategy_id: str,
+) -> list[int]:
+    date_to_index = {point.date: index for index, point in enumerate(points)}
+    trade_indices: list[int] = []
+    for line in decision_log_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("strategy") != strategy_id:
+            continue
+        if payload.get("executed") is not True:
+            continue
+        raw_date = payload.get("date")
+        if not isinstance(raw_date, str):
+            continue
+        index = date_to_index.get(raw_date)
+        if index is not None:
+            trade_indices.append(index)
+    return trade_indices
 
 
 def _render_section(title: str, rows: list[BucketStats]) -> list[str]:
@@ -461,7 +484,19 @@ def main() -> None:
             payload = _collect(http_client, str(args.endpoint))
 
     points = _extract_timeline(payload, strategy_id)
-    breakdowns = compute_breakdowns(points, win_horizon_days=int(args.win_horizon_days))
+    decision_log_path = payload.get("decision_log_path")
+    if not isinstance(decision_log_path, str):
+        raise ValueError("Compare response must include decision_log_path")
+    trade_indices = _trade_indices_from_decision_log(
+        decision_log_path=Path(decision_log_path),
+        points=points,
+        strategy_id=strategy_id,
+    )
+    breakdowns = compute_breakdowns(
+        points,
+        trade_indices=trade_indices,
+        win_horizon_days=int(args.win_horizon_days),
+    )
     overall_summary = payload["strategies"][strategy_id]
 
     report = render_report(

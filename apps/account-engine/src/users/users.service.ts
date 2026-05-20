@@ -1,5 +1,4 @@
 import { CHANNEL_TYPE_TELEGRAM } from '../common/constants';
-import { ServiceLayerException } from '../common/exceptions';
 import {
   BadRequestException,
   ConflictException,
@@ -98,21 +97,14 @@ export class UsersService extends BaseService {
           { entityName: 'User', useServiceRole: true },
         );
 
-        try {
-          etlJob = await this.triggerWalletDataFetch(result.user_id, wallet);
-
-          if (!etlJob.job_id) {
-            throw new ServiceLayerException(
-              'ETL job creation failed: no job_id returned',
-            );
-          }
-
+        // The RPC just created (user_id, wallet) atomically, so we can skip
+        // the validateUserExists/validateWalletOwnership re-reads that the
+        // public triggerWalletDataFetch performs. Call the inner directly.
+        etlJob = await this.executeWalletDataFetch(result.user_id, wallet);
+        if (etlJob.job_id) {
           this.logger.log(`Auto-triggered ETL: job ${etlJob.job_id}`);
-        } catch (error) {
-          this.logger.warn('Failed to auto-trigger ETL', error);
-          etlJob = this.createFailedEtlJobResponse(
-            'ETL job could not be queued',
-          );
+        } else {
+          this.logger.warn(`Failed to auto-trigger ETL: ${etlJob.message}`);
         }
       }
 
@@ -131,35 +123,43 @@ export class UsersService extends BaseService {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
 
-      const walletValidation =
-        await this.userValidationService.validateWalletAvailability(
-          wallet,
-          userId,
+      // Let the unique constraint on (wallet) be the source of truth. We skip
+      // the pre-check entirely so the happy path is one round-trip — and we
+      // close the small TOCTOU window between check-and-insert. The conflict
+      // path looks up ownership to keep the differentiated UX message.
+      try {
+        const newWallet = await this.insertOne<UserCryptoWallet>(
+          'user_crypto_wallets',
+          {
+            user_id: userId,
+            wallet,
+            label: label ?? generateDefaultWalletLabel(wallet),
+          },
+          { entityName: 'Wallet' },
         );
 
-      if (!walletValidation.isAvailable) {
-        if (walletValidation.belongsToCurrentUser) {
-          throw new ConflictException('Wallet already belongs to this user');
+        return {
+          wallet_id: newWallet.id,
+          message: 'Wallet added successfully to user bundle',
+        };
+      } catch (error) {
+        // SupabaseErrorHandler translates Postgres unique_violation (23505) to
+        // ConflictException — only refine the message in that case.
+        if (error instanceof ConflictException) {
+          const walletValidation =
+            await this.userValidationService.validateWalletAvailability(
+              wallet,
+              userId,
+            );
+          if (walletValidation.belongsToCurrentUser) {
+            throw new ConflictException('Wallet already belongs to this user');
+          }
+          throw new ConflictException(
+            'Wallet already belongs to another user, please delete one of the accounts instead',
+          );
         }
-        throw new ConflictException(
-          'Wallet already belongs to another user, please delete one of the accounts instead',
-        );
+        throw error;
       }
-
-      const newWallet = await this.insertOne<UserCryptoWallet>(
-        'user_crypto_wallets',
-        {
-          user_id: userId,
-          wallet,
-          label: label ?? generateDefaultWalletLabel(wallet),
-        },
-        { entityName: 'Wallet' },
-      );
-
-      return {
-        wallet_id: newWallet.id,
-        message: 'Wallet added successfully to user bundle',
-      };
     }, 'add wallet');
   }
 
@@ -279,12 +279,22 @@ export class UsersService extends BaseService {
 
   async getUserProfile(userId: string): Promise<UserProfileResponse> {
     return this.withErrorHandling(async () => {
-      const user = await this.userValidationService.validateUserExists(userId);
-
-      const wallets = await this.getUserWallets(userId);
-
-      const subscriptionData =
-        await this.userValidationService.getActiveSubscriptionWithPlan(userId);
+      // The three reads are independent — run them in parallel.
+      // mustExist throws NotFoundException on missing user, which short-circuits
+      // the Promise.all and propagates through withErrorHandling as before.
+      // We fetch the full users row directly (instead of going through the
+      // narrow validateUserExists) because the profile response needs every
+      // column.
+      const [user, wallets, subscriptionData] = await Promise.all([
+        this.mustExist<UserProfileResponse['user']>(
+          'users',
+          { id: userId },
+          'User',
+          '*',
+        ),
+        this.getUserWallets(userId),
+        this.userValidationService.getActiveSubscriptionWithPlan(userId),
+      ]);
 
       const result: UserProfileResponse = {
         user,
@@ -346,14 +356,11 @@ export class UsersService extends BaseService {
     }, 'delete user');
   }
 
-  // ETL Job Methods
-
   async triggerWalletDataFetch(
     userId: string,
     walletAddress: string,
   ): Promise<EtlJobResponse> {
     return this.withErrorHandling(async () => {
-      const walletPreview = truncateForLog(walletAddress);
       this.logger.log(
         `Triggering wallet data fetch for user ${userId}, wallet ${walletAddress}`,
       );
@@ -365,43 +372,57 @@ export class UsersService extends BaseService {
       );
 
       this.logger.log(`Validation passed. Calling alpha-etl webhook...`);
-
-      try {
-        const healthPassed = await this.alphaEtlHttpService.healthPing();
-
-        if (!healthPassed) {
-          this.logger.warn(
-            'Alpha-ETL health check failed, proceeding with webhook anyway',
-          );
-        }
-
-        const webhookResult = await this.alphaEtlHttpService.triggerWalletFetch(
-          userId,
-          walletAddress,
-        );
-
-        this.logger.log('Alpha-ETL webhook response', {
-          jobId: webhookResult.jobId,
-          userId,
-          walletAddress: walletPreview,
-        });
-
-        return {
-          job_id: webhookResult.jobId,
-          status: 'pending',
-          message: 'Wallet data fetch job queued successfully',
-          rate_limited: false,
-        };
-      } catch (error) {
-        this.logger.error('Failed to trigger alpha-etl webhook', {
-          error: getErrorMessage(error),
-          userId,
-          walletAddress: walletPreview,
-        });
-
-        return this.createFailedEtlJobResponse('Failed to queue ETL job');
-      }
+      return this.executeWalletDataFetch(userId, walletAddress);
     }, 'trigger wallet data fetch');
+  }
+
+  /**
+   * Internal: call the alpha-etl webhook without re-validating the
+   * user/wallet. Use only when the caller has just created or owns the
+   * (userId, walletAddress) pair — e.g. inside `connectWallet` right after
+   * the RPC that creates them.
+   */
+  private async executeWalletDataFetch(
+    userId: string,
+    walletAddress: string,
+  ): Promise<EtlJobResponse> {
+    const walletPreview = truncateForLog(walletAddress);
+
+    try {
+      const healthPassed = await this.alphaEtlHttpService.healthPing();
+
+      if (!healthPassed) {
+        this.logger.warn(
+          'Alpha-ETL health check failed, proceeding with webhook anyway',
+        );
+      }
+
+      const webhookResult = await this.alphaEtlHttpService.triggerWalletFetch(
+        userId,
+        walletAddress,
+      );
+
+      this.logger.log('Alpha-ETL webhook response', {
+        jobId: webhookResult.jobId,
+        userId,
+        walletAddress: walletPreview,
+      });
+
+      return {
+        job_id: webhookResult.jobId,
+        status: 'pending',
+        message: 'Wallet data fetch job queued successfully',
+        rate_limited: false,
+      };
+    } catch (error) {
+      this.logger.error('Failed to trigger alpha-etl webhook', {
+        error: getErrorMessage(error),
+        userId,
+        walletAddress: walletPreview,
+      });
+
+      return this.createFailedEtlJobResponse('Failed to queue ETL job');
+    }
   }
 
   async getEtlJobStatus(jobId: string): Promise<EtlJobStatusApiResponse> {
@@ -426,12 +447,6 @@ export class UsersService extends BaseService {
     }, 'get ETL job status');
   }
 
-  // Telegram Integration Methods
-
-  /**
-   * Request a Telegram connection token for a user.
-   * Validates service configuration, user existence, generates token, and builds deep link.
-   */
   async requestTelegramToken(userId: string): Promise<TelegramTokenResponse> {
     return this.withErrorHandling(async () => {
       if (!this.telegramService.isServiceConfigured()) {
@@ -455,9 +470,6 @@ export class UsersService extends BaseService {
     }, 'request Telegram token');
   }
 
-  /**
-   * Get Telegram connection status for a user.
-   */
   async getTelegramStatus(userId: string): Promise<TelegramStatusResponse> {
     return this.withErrorHandling(async () => {
       const settings = await this.findTelegramSettings<{
@@ -480,9 +492,6 @@ export class UsersService extends BaseService {
     }, 'get Telegram status');
   }
 
-  /**
-   * Disconnect Telegram notifications for a user.
-   */
   async disconnectTelegram(userId: string): Promise<SuccessResponse> {
     return this.withErrorHandling(async () => {
       const existing = await this.findTelegramSettings<{ user_id: string }>(
@@ -496,11 +505,13 @@ export class UsersService extends BaseService {
         );
       }
 
+      // jscpd:ignore-start
       await this.deleteWhere(
         'notification_settings',
         { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
         { entityName: 'Telegram settings', useServiceRole: true },
       );
+      // jscpd:ignore-end
 
       this.logger.log(`User ${userId} disconnected Telegram via API`);
 

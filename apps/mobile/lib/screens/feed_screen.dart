@@ -41,7 +41,6 @@ class _FeedScreenState extends State<FeedScreen>
   bool _loadingMore = false;
   String? _error;
   String? _loadMoreError;
-  int _requestEpoch = 0;
   bool _listenedExpanded = false;
   StreamSubscription<String>? _completionSub;
 
@@ -72,7 +71,7 @@ class _FeedScreenState extends State<FeedScreen>
   }
 
   Future<void> _loadFirstPage() async {
-    final epoch = ++_requestEpoch;
+    final epoch = beginRequest();
     setState(() {
       _loading = true;
       _error = null;
@@ -82,19 +81,15 @@ class _FeedScreenState extends State<FeedScreen>
 
     try {
       final page = await _loadPage();
-      if (_isStaleRequest(epoch)) return;
-      _replaceFirstPage(page);
+      if (isStaleRequest(epoch)) return;
+      _applyFirstPage(page);
     } catch (error) {
-      if (_isStaleRequest(epoch)) return;
-      _showInitialLoadError(error);
+      if (isStaleRequest(epoch)) return;
+      _applyFirstPageError(error);
     }
   }
 
-  bool _isStaleRequest(int epoch) {
-    return !mounted || epoch != _requestEpoch;
-  }
-
-  void _replaceFirstPage(EpisodePage page) {
+  void _applyFirstPage(EpisodePage page) {
     setState(() {
       _episodes = page.items;
       _nextCursor = page.nextCursor;
@@ -103,7 +98,7 @@ class _FeedScreenState extends State<FeedScreen>
     context.read<LikesProvider>().seedEpisodes(page.items);
   }
 
-  void _showInitialLoadError(Object error) {
+  void _applyFirstPageError(Object error) {
     setState(() {
       _error = error.toString();
       _loading = false;
@@ -113,7 +108,7 @@ class _FeedScreenState extends State<FeedScreen>
   Future<void> _loadMore() async {
     if (_loadingMore || _nextCursor == null) return;
 
-    final epoch = _requestEpoch;
+    final epoch = currentRequestEpoch;
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -121,21 +116,28 @@ class _FeedScreenState extends State<FeedScreen>
 
     try {
       final page = await _loadPage(cursor: _nextCursor);
-      if (!mounted || epoch != _requestEpoch) return;
-
-      setState(() {
-        _episodes = [..._episodes, ...page.items];
-        _nextCursor = page.nextCursor;
-        _loadingMore = false;
-      });
-      context.read<LikesProvider>().seedEpisodes(_episodes);
+      if (isStaleRequest(epoch)) return;
+      _appendPage(page);
     } catch (error) {
-      if (!mounted || epoch != _requestEpoch) return;
-      setState(() {
-        _loadingMore = false;
-        _loadMoreError = error.toString();
-      });
+      if (isStaleRequest(epoch)) return;
+      _applyLoadMoreError(error);
     }
+  }
+
+  void _appendPage(EpisodePage page) {
+    setState(() {
+      _episodes = [..._episodes, ...page.items];
+      _nextCursor = page.nextCursor;
+      _loadingMore = false;
+    });
+    context.read<LikesProvider>().seedEpisodes(_episodes);
+  }
+
+  void _applyLoadMoreError(Object error) {
+    setState(() {
+      _loadingMore = false;
+      _loadMoreError = error.toString();
+    });
   }
 
   Future<EpisodePage> _loadPage({String? cursor}) async {
@@ -250,7 +252,9 @@ class _FeedScreenState extends State<FeedScreen>
                   onRetry: _loadMore,
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 108)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kEpisodeListBottomPadding),
+              ),
             ],
           ),
         ],

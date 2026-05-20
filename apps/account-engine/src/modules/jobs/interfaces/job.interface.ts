@@ -60,10 +60,18 @@ export interface WeeklyReportJobPayload extends Record<string, unknown> {
 }
 
 /**
- * Single user weekly report job payload interface
+ * Single user weekly report job payload interface.
+ *
+ * `email` and `wallets` are carried over from the batch parent so the child
+ * job does not need to re-run the full VIP-subscriber join just to look them
+ * up. Both are optional for backwards compatibility with in-flight jobs that
+ * were enqueued before this field was added — when absent, the child falls
+ * back to a Supabase fetch.
  */
 export interface SingleUserReportJobPayload extends Record<string, unknown> {
   userId: string;
+  email?: string;
+  wallets?: string[];
   testMode?: boolean;
   testRecipient?: string;
 }
