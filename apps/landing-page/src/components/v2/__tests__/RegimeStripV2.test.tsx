@@ -4,13 +4,102 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MESSAGES } from '@/config/messages';
 import { RegimeStripV2 } from '../RegimeStripV2';
 
+function okResponse(json: object): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify(json), {
+      status: 200,
+    }),
+  );
+}
+
+function mockLiveTelemetryFetch(
+  overrides: Partial<
+    Record<'regime' | 'sentiment' | 'dashboard', 'reject'>
+  > = {},
+) {
+  vi.mocked(fetch).mockImplementation((input) => {
+    const url = String(input);
+
+    if (url.includes('/api/v2/market/regime/history')) {
+      if (overrides.regime === 'reject') {
+        return Promise.reject(new Error('regime unavailable'));
+      }
+
+      return okResponse({
+        current: {
+          to_regime: 'ef',
+        },
+      });
+    }
+
+    if (url.includes('/api/v2/market/sentiment')) {
+      if (overrides.sentiment === 'reject') {
+        return Promise.reject(new Error('sentiment unavailable'));
+      }
+
+      return okResponse({
+        value: 21,
+        status: 'Extreme Fear',
+      });
+    }
+
+    if (url.includes('/api/v2/market/dashboard')) {
+      if (overrides.dashboard === 'reject') {
+        return Promise.reject(new Error('dashboard unavailable'));
+      }
+
+      return okResponse({
+        snapshots: [
+          {
+            snapshot_date: '2026-05-12',
+            values: {
+              btc: {
+                value: 125_000,
+                indicators: {
+                  dma_200: {
+                    value: 100_000,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+}
+
+function expectSkeleton(container: HTMLElement) {
+  expect(
+    container.querySelectorAll('.regime-strip-item.is-skeleton'),
+  ).toHaveLength(3);
+  expect(container.querySelector('.regime-strip')).toHaveAttribute(
+    'aria-busy',
+    'true',
+  );
+  expect(
+    screen.getByText(MESSAGES.regimeStrip.pendingStatus),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(MESSAGES.regimeStrip.liveStatus),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('Greed')).not.toBeInTheDocument();
+  expect(screen.queryByText('72')).not.toBeInTheDocument();
+  expect(screen.queryByText('+14.2%')).not.toBeInTheDocument();
+}
+
 describe('RegimeStripV2', () => {
   const originalAnalyticsApiUrl =
     process.env['NEXT_PUBLIC_ANALYTICS_API_URL'] ?? undefined;
 
   beforeEach(() => {
     process.env['NEXT_PUBLIC_ANALYTICS_API_URL'] = 'http://analytics.test';
-    vi.stubGlobal('fetch', vi.fn());
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
   });
 
   afterEach(() => {
@@ -35,135 +124,61 @@ describe('RegimeStripV2', () => {
       const { container } = render(<RegimeStripV2 />);
       expect(container.querySelector('.regime-strip-section')).toHaveAttribute(
         'aria-label',
-        'Regime data',
+        MESSAGES.regimeStrip.ariaLabel,
       );
     });
 
-    it('renders live status', () => {
+    it('renders telemetry header copy', () => {
       render(<RegimeStripV2 />);
-      expect(screen.getByText(/live · mainnet/)).toBeInTheDocument();
-    });
-
-    it('renders telemetry header', () => {
-      render(<RegimeStripV2 />);
-      expect(
-        screen.getByText(/Telemetry feeding the next bundle/),
-      ).toBeInTheDocument();
-    });
-  });
-
-  describe('telemetry items', () => {
-    it('renders the three live-backed regime items', async () => {
-      vi.mocked(fetch).mockRejectedValue(new Error('network unavailable'));
-
-      const { container } = render(<RegimeStripV2 />);
-
-      expect(screen.getByText('Regime')).toBeInTheDocument();
-      expect(screen.getByText('FGI')).toBeInTheDocument();
-      expect(screen.getByText('200MA Δ')).toBeInTheDocument();
-
-      await waitFor(() => {
-        expect(container.querySelectorAll('.regime-strip-item')).toHaveLength(
-          3,
-        );
-      });
-      expect(screen.queryByText('Next rebal')).not.toBeInTheDocument();
-    });
-
-    it('renders regime value', () => {
-      render(<RegimeStripV2 />);
-      expect(screen.getByText('Greed')).toBeInTheDocument();
-    });
-
-    it('renders FGI value', () => {
-      render(<RegimeStripV2 />);
-      expect(screen.getByText('72')).toBeInTheDocument();
-    });
-
-    it('renders 200MA delta value', () => {
-      render(<RegimeStripV2 />);
-      const dmaItem = MESSAGES.regimeTelemetry.items.find(
-        (item) => item.label === '200MA Δ',
-      );
-
-      expect(dmaItem).toBeDefined();
-      expect(screen.getByText(dmaItem!.value)).toBeInTheDocument();
+      expect(screen.getByText(MESSAGES.regimeStrip.header)).toBeInTheDocument();
     });
   });
 
   describe('live telemetry', () => {
-    it('renders static fallback values when the market API fails', async () => {
-      vi.mocked(fetch).mockRejectedValue(new Error('network unavailable'));
+    it('renders a skeleton while live telemetry is pending', () => {
+      vi.mocked(fetch).mockImplementation(
+        () => new Promise<Response>(() => {}),
+      );
 
-      render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStripV2 />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Greed')).toBeInTheDocument();
-      });
-
-      MESSAGES.regimeTelemetry.items.forEach((item) => {
-        expect(screen.getByText(item.value)).toBeInTheDocument();
-      });
+      expectSkeleton(container);
+      expect(
+        container.querySelector('.live-status [aria-hidden]'),
+      ).not.toBeInTheDocument();
     });
 
-    it('renders fetched telemetry values when the market API succeeds', async () => {
-      vi.mocked(fetch).mockImplementation((input) => {
-        const url = String(input);
+    it('stays skeleton when the market API fails', async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error('network unavailable'));
 
-        if (url.includes('/api/v2/market/regime/history')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                current: {
-                  to_regime: 'ef',
-                },
-              }),
-              { status: 200 },
-            ),
-          );
-        }
+      const { container } = render(<RegimeStripV2 />);
 
-        if (url.includes('/api/v2/market/sentiment')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                value: 21,
-                status: 'Extreme Fear',
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-
-        if (url.includes('/api/v2/market/dashboard')) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                snapshots: [
-                  {
-                    snapshot_date: '2026-05-12',
-                    values: {
-                      btc: {
-                        value: 125_000,
-                        indicators: {
-                          dma_200: {
-                            value: 100_000,
-                          },
-                        },
-                      },
-                    },
-                  },
-                ],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-
-        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalledTimes(3);
       });
 
-      render(<RegimeStripV2 />);
+      expectSkeleton(container);
+    });
+
+    it('stays skeleton when one telemetry endpoint fails', async () => {
+      mockLiveTelemetryFetch({ dashboard: 'reject' });
+
+      const { container } = render(<RegimeStripV2 />);
+
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalledTimes(3);
+      });
+
+      expectSkeleton(container);
+      expect(screen.queryByText('Extreme Fear')).not.toBeInTheDocument();
+      expect(screen.queryByText('21')).not.toBeInTheDocument();
+      expect(screen.queryByText('+25.0%')).not.toBeInTheDocument();
+    });
+
+    it('renders fetched telemetry values when all endpoints succeed', async () => {
+      mockLiveTelemetryFetch();
+
+      const { container } = render(<RegimeStripV2 />);
 
       await waitFor(() => {
         expect(screen.getByText('Extreme Fear')).toBeInTheDocument();
@@ -171,19 +186,43 @@ describe('RegimeStripV2', () => {
 
       expect(screen.getByText('21')).toBeInTheDocument();
       expect(screen.getByText('+25.0%')).toBeInTheDocument();
-      expect(screen.queryByText('02:14:00')).not.toBeInTheDocument();
+      expect(
+        container.querySelectorAll('.regime-strip-item.is-skeleton'),
+      ).toHaveLength(0);
+      expect(container.querySelector('.regime-strip')).not.toHaveAttribute(
+        'aria-busy',
+      );
+      expect(
+        screen.getByText(MESSAGES.regimeStrip.liveStatus),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(MESSAGES.regimeStrip.pendingStatus),
+      ).not.toBeInTheDocument();
+      expect(
+        container.querySelector('.live-status [aria-hidden]'),
+      ).toBeInTheDocument();
     });
   });
 
   describe('accessibility', () => {
-    it('has regime strip container', () => {
+    it('has regime strip container with polite live announcements', () => {
       const { container } = render(<RegimeStripV2 />);
-      expect(container.querySelector('.regime-strip')).toBeInTheDocument();
+      expect(container.querySelector('.regime-strip')).toHaveAttribute(
+        'aria-live',
+        'polite',
+      );
     });
 
-    it('has regime strip items', () => {
+    it('has three skeleton items before live data arrives', () => {
+      vi.mocked(fetch).mockImplementation(
+        () => new Promise<Response>(() => {}),
+      );
+
       const { container } = render(<RegimeStripV2 />);
-      expect(container.querySelectorAll('.regime-strip-item').length).toBe(3);
+
+      expect(
+        container.querySelectorAll('.regime-strip-item.is-skeleton'),
+      ).toHaveLength(3);
     });
   });
 });

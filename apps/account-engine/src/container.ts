@@ -1,4 +1,4 @@
-import { LiFiAdapter } from '@zapengine/intent-engine';
+import { createIntentEngine, LiFiAdapter } from '@zapengine/intent-engine';
 
 import { ActivityTracker } from './common/interceptors';
 import { AlphaEtlHttpService } from './common/services';
@@ -6,11 +6,6 @@ import { ConfigService } from './config/config.service';
 import { AppEnv, loadEnv } from './config/env';
 import { DatabaseService } from './database/database.service';
 import { UserValidationService } from './database/user-validation.service';
-import {
-  createDepositPlanService,
-  createDepositPublicClients,
-  type DepositPlanService,
-} from './modules/deposit/depositPlanService';
 import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
@@ -23,6 +18,11 @@ import { SupabaseUserService } from './modules/notifications/supabase-user.servi
 import { TelegramService } from './modules/notifications/telegram.service';
 import { TelegramTokenService } from './modules/notifications/telegram-token.service';
 import { TemplateService } from './modules/notifications/template.service';
+import {
+  createDepositPublicClients,
+  createPlanOrchestrationService,
+  type PlanOrchestrationService,
+} from './modules/plan-orchestration';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
@@ -45,7 +45,7 @@ export interface AppServices {
   weeklyReportProcessor: WeeklyReportProcessor;
   dailySuggestionProcessor: DailySuggestionProcessor;
   activityTracker: ActivityTracker;
-  depositPlanService: DepositPlanService;
+  planOrchestrationService: PlanOrchestrationService;
 }
 
 export function createContainer(
@@ -100,13 +100,19 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
-  const depositPlanService = createDepositPlanService({
-    analyticsClientService,
-    adapter: new LiFiAdapter({
-      integrator: env.LIFI_INTEGRATOR,
-      ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
+  const lifiAdapter = new LiFiAdapter({
+    integrator: env.LIFI_INTEGRATOR,
+    ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
+  });
+  const planOrchestrationService = createPlanOrchestrationService({
+    adapter: lifiAdapter,
+    intentEngine: createIntentEngine({
+      lifi: {
+        integrator: env.LIFI_INTEGRATOR,
+        ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
+      },
     }),
-    publicClientsForDeposit: createDepositPublicClients(configService),
+    publicClients: createDepositPublicClients(configService)(),
   });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
@@ -132,7 +138,7 @@ export function createContainer(
     weeklyReportProcessor,
     dailySuggestionProcessor,
     activityTracker,
-    depositPlanService,
+    planOrchestrationService,
   };
 }
 

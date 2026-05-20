@@ -4,6 +4,7 @@ import {
   buildUsageCostDetails,
   compactUsageCostLines,
   nonZeroUsageCostLines,
+  sortUsageCostLinesByCostDesc,
   sumUsageCostLines,
 } from './cost.js';
 
@@ -87,6 +88,92 @@ describe('nonZeroUsageCostLines', () => {
 
     expect(nonZeroUsageCostLines(lines)).toHaveLength(1);
     expect(nonZeroUsageCostLines(lines)[0]!.label).toBe('b');
+  });
+});
+
+describe('sortUsageCostLinesByCostDesc', () => {
+  it('sorts lines by cost descending', () => {
+    const lines = [
+      {
+        category: 'llm' as const,
+        label: 'low',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.01,
+      },
+      {
+        category: 'tts' as const,
+        label: 'high',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.09,
+      },
+      {
+        category: 'translate' as const,
+        label: 'middle',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.04,
+      },
+    ];
+
+    expect(
+      sortUsageCostLinesByCostDesc(lines).map((line) => line.label),
+    ).toEqual(['high', 'middle', 'low']);
+  });
+
+  it('does not mutate the input array', () => {
+    const lines = [
+      {
+        category: 'llm' as const,
+        label: 'low',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.01,
+      },
+      {
+        category: 'llm' as const,
+        label: 'high',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.09,
+      },
+    ];
+
+    const result = sortUsageCostLinesByCostDesc(lines);
+
+    expect(result).not.toBe(lines);
+    expect(lines.map((line) => line.label)).toEqual(['low', 'high']);
+  });
+
+  it('preserves relative order for equal cost lines', () => {
+    const lines = [
+      {
+        category: 'llm' as const,
+        label: 'first',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.05,
+      },
+      {
+        category: 'llm' as const,
+        label: 'second',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.05,
+      },
+      {
+        category: 'llm' as const,
+        label: 'third',
+        provider: 'p',
+        model: 'm',
+        costUsd: 0.01,
+      },
+    ];
+
+    expect(
+      sortUsageCostLinesByCostDesc(lines).map((line) => line.label),
+    ).toEqual(['first', 'second', 'third']);
   });
 });
 

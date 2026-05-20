@@ -5,8 +5,11 @@ import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfoli
 import { Footer } from '@/components/Footer/Footer';
 import { InitialDataLoadingState } from '@/components/wallet/InitialDataLoadingState';
 import { WalletNavigation } from '@/components/wallet/portfolio/components/navigation';
+import { toCompositionTargetFromSuggestion } from '@/components/wallet/portfolio/components/utils/strategyCompositionTarget';
 import { usePortfolioModalState } from '@/components/wallet/portfolio/hooks/usePortfolioModalState';
 import { DashboardView } from '@/components/wallet/portfolio/views/DashboardView';
+import { useDailySuggestion } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDailySuggestion';
+import { useDefaultPresetId } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDefaultPresetId';
 import { getRegimeById } from '@/components/wallet/regime/regimeData';
 import type { EtlJobPollingState } from '@/hooks/wallet';
 import { lazyImport } from '@/lib/lazy/lazyImport';
@@ -20,7 +23,7 @@ import {
   useAppRouter,
   useAppSearchParams,
 } from '@/lib/routing';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import { connectWallet } from '@/services';
 import type { DashboardSections, InvestSubTab, TabType } from '@/types';
 
@@ -148,6 +151,16 @@ export function WalletPortfolioPresenter({
   const [showNewWalletLoading, setShowNewWalletLoading] = useState(false);
   const routeState = readPortfolioRouteState(searchParams);
   const activeTab = routeState.tab;
+  const defaultPresetId = useDefaultPresetId(true);
+  const shouldLoadStrategySuggestion = !!userId && !isEmptyState;
+  const { data: strategySuggestion } = useDailySuggestion(
+    userId,
+    defaultPresetId,
+    shouldLoadStrategySuggestion,
+  );
+  const strategyComposition = strategySuggestion
+    ? toCompositionTargetFromSuggestion(strategySuggestion)
+    : undefined;
 
   const {
     activeModal,
@@ -244,6 +257,8 @@ export function WalletPortfolioPresenter({
         isEmptyState={isEmptyState}
         isOwnBundle={isOwnBundle}
         isLoading={isLoading}
+        strategyTarget={strategyComposition?.target}
+        strategyDrift={strategyComposition?.drift}
         onOpenModal={openModal}
         userId={userId}
       />

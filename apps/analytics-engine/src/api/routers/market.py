@@ -52,6 +52,22 @@ def _raise_token_history_not_found(token_symbol: str) -> None:
     )
 
 
+def _database_error_response(detail: str) -> dict[str, object]:
+    """Build standardized OpenAPI metadata for database failures."""
+    return {
+        "description": "Database error occurred",
+        "content": {
+            "application/json": {
+                "example": {
+                    "error_code": "DATABASE_ERROR",
+                    "message": "A database error occurred",
+                    "detail": detail,
+                }
+            }
+        },
+    }
+
+
 @router.get(
     "/sentiment",
     response_model=MarketSentimentResponse,
@@ -281,18 +297,7 @@ async def get_sentiment_history(
                 }
             },
         },
-        500: {
-            "description": "Database error occurred",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "error_code": "DATABASE_ERROR",
-                        "message": "A database error occurred",
-                        "detail": "Failed to fetch regime history",
-                    }
-                }
-            },
-        },
+        500: _database_error_response("Failed to fetch regime history"),
     },
 )
 async def get_regime_history(
@@ -392,18 +397,7 @@ async def get_regime_history(
                 }
             },
         },
-        500: {
-            "description": "Database error occurred",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "error_code": "DATABASE_ERROR",
-                        "message": "A database error occurred",
-                        "detail": "Failed to fetch token price history",
-                    }
-                }
-            },
-        },
+        500: _database_error_response("Failed to fetch token price history"),
     },
 )
 async def get_token_price_history(

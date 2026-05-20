@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:zapengine_tokens/design_tokens.dart';
 
+import '../config/language_codes.dart';
 import '../models/episode.dart';
 import '../services/episode_service.dart';
 import '../state/content_language_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../utils/date_format.dart';
+import '../utils/snackbar.dart';
 import '../widgets/bookmark_button.dart';
 import '../widgets/episode_hero_frame.dart';
 import '../widgets/language_chip_row.dart';
@@ -14,6 +17,8 @@ import '../widgets/play_pause_button.dart';
 import '../widgets/playback_speed_menu.dart';
 import '../widgets/share_button.dart';
 import '../widgets/synced_transcript.dart';
+
+const _languageUnavailableMessage = '此集數尚未提供所選語言版本。';
 
 class EpisodeDetailScreen extends StatefulWidget {
   const EpisodeDetailScreen({
@@ -74,14 +79,20 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Future<void> _selectLanguage(String languageCode) async {
-    await context
-        .read<ContentLanguageProvider?>()
-        ?.setLanguageCode(languageCode);
     final localizedEpisode = await _episodeService.getEpisodeById(
       _episode.id,
       languageCode: languageCode,
     );
-    if (!mounted || localizedEpisode == null) return;
+    if (!mounted) return;
+    if (localizedEpisode == null) {
+      context.showMessage(_languageUnavailableMessage);
+      return;
+    }
+
+    await context
+        .read<ContentLanguageProvider?>()
+        ?.setLanguageCode(languageCode);
+    if (!mounted) return;
     setState(() => _episode = localizedEpisode);
   }
 
@@ -175,10 +186,12 @@ class _EpisodeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return EpisodeHeroFrame(
       height: 220,
-      iconRight: -14,
-      iconTop: 24,
-      iconSize: 100,
-      iconOpacity: 0.10,
+      iconConfig: const EpisodeHeroIconConfig(
+        right: -14,
+        top: 24,
+        size: 100,
+        opacity: 0.10,
+      ),
       child: EpisodeHeroText(episode: episode, showDateSeparator: true),
     );
   }
@@ -214,7 +227,9 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
   @override
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
-    final isCurrent = playback.currentEpisode?.id == widget.episode.id;
+    final currentEpisode = playback.currentEpisode;
+    final isCurrent = currentEpisode != null &&
+        currentEpisode.isSameLocalizationAs(widget.episode);
     final isPlaying = isCurrent && playback.isPlaying;
     final isLoading = playback.loadingEpisodeId == widget.episode.id;
     final position = isCurrent ? playback.position : Duration.zero;
@@ -227,9 +242,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
     final sliderValue = (_scrubValue ?? liveValue).clamp(0.0, maxValue);
     final displayedPosition = Duration(milliseconds: sliderValue.round());
     final audioTracks = widget.episode.playableAudioTracks;
-    final selectedLanguageCode =
-        context.watch<ContentLanguageProvider?>()?.languageCode ??
-            widget.episode.languageCode;
+    final selectedLanguageCode = widget.episode.languageCode;
     final selectedAudioTrack = isCurrent && playback.currentAudioTrack != null
         ? playback.currentAudioTrack
         : audioTracks.isNotEmpty
@@ -260,7 +273,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  _formatDuration(displayedPosition),
+                  formatDuration(displayedPosition),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
@@ -301,7 +314,7 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _formatDuration(duration),
+                  formatDuration(duration),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -311,8 +324,8 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
           Align(
             alignment: Alignment.centerRight,
             child: PlaybackSpeedMenu(
-              speed: playback.speed,
-              onSelected: playback.setSpeed,
+              speed: playback.currentSectionSpeed,
+              onSelected: playback.setSpeedForCurrentSection,
             ),
           ),
           if (audioTracks.length > 1) ...[
@@ -333,19 +346,6 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
         ],
       ),
     );
-  }
-
-  static String _formatDuration(Duration duration) {
-    final totalSeconds = duration.inSeconds;
-    final hours = totalSeconds ~/ 3600;
-    final minutes = (totalSeconds % 3600) ~/ 60;
-    final seconds = totalSeconds % 60;
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-
-    if (hours > 0) {
-      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
-    }
-    return '$minutes:${twoDigits(seconds)}';
   }
 }
 
@@ -579,7 +579,7 @@ class _LanguageBadge extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Text(
-          _languageLabel(languageCode),
+          languageShortLabelFor(languageCode),
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w800,
@@ -587,19 +587,6 @@ class _LanguageBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _languageLabel(String languageCode) {
-    switch (languageCode) {
-      case 'ja':
-        return 'JP';
-      case 'en':
-        return 'EN';
-      case 'zh-Hant':
-        return '繁中';
-      default:
-        return languageCode;
-    }
   }
 }
 

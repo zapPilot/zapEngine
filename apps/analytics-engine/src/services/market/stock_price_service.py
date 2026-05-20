@@ -6,9 +6,13 @@ by alpha-etl from the alpha_raw.stock_price_snapshots table.
 """
 
 import logging
-from datetime import date, datetime
-from typing import Any, TypedDict, cast
+from datetime import date
+from typing import TypedDict
 
+from src.services.market._coercion import (
+    coerce_dma_snapshot_date,
+    coerce_positive_float,
+)
 from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
@@ -33,34 +37,6 @@ class StockPriceService(QueryBackedMarketService):
     """
 
     DEFAULT_SYMBOL: str = "SPY"
-
-    @staticmethod
-    def _coerce_dma_snapshot_date(raw_date: object) -> date:
-        """Convert raw DMA row date into ``date``."""
-        if isinstance(raw_date, datetime):
-            return raw_date.date()
-        if isinstance(raw_date, date):
-            return raw_date
-        if isinstance(raw_date, str):
-            return date.fromisoformat(raw_date)
-        raise ValueError(f"Invalid snapshot_date in DMA row: {raw_date!r}")
-
-    @staticmethod
-    def _coerce_positive_float(
-        raw_value: object, snapshot_date: date, field_name: str
-    ) -> float:
-        """Convert a numeric field into a validated positive finite float."""
-        try:
-            numeric_value = float(cast(Any, raw_value))
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Invalid {field_name} value for {snapshot_date}: {raw_value!r}"
-            ) from exc
-        if numeric_value <= 0 or not numeric_value < float("inf"):
-            raise ValueError(
-                f"{field_name} must be positive for {snapshot_date}: {numeric_value}"
-            )
-        return numeric_value
 
     def get_dma_history(
         self,
@@ -102,8 +78,8 @@ class StockPriceService(QueryBackedMarketService):
 
             out: dict[date, StockPriceDmaPoint] = {}
             for row in result:
-                snapshot_date = self._coerce_dma_snapshot_date(row.get("snapshot_date"))
-                price_usd = self._coerce_positive_float(
+                snapshot_date = coerce_dma_snapshot_date(row.get("snapshot_date"))
+                price_usd = coerce_positive_float(
                     row.get("price_usd"), snapshot_date, "price_usd"
                 )
 
@@ -112,9 +88,7 @@ class StockPriceService(QueryBackedMarketService):
 
                 raw_dma = row.get("dma_200")
                 if raw_dma is not None:
-                    dma_200 = self._coerce_positive_float(
-                        raw_dma, snapshot_date, "dma_200"
-                    )
+                    dma_200 = coerce_positive_float(raw_dma, snapshot_date, "dma_200")
 
                 raw_is_above = row.get("is_above_dma")
                 if raw_is_above is not None:

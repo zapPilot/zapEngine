@@ -1,29 +1,11 @@
-import { composeDeposit, type LiFiAdapter } from '@zapengine/intent-engine';
-import {
-  type DepositPlan,
-  DepositPlanSchema,
-  type DepositRequest,
-} from '@zapengine/types/api';
+import type { composeDeposit } from '@zapengine/intent-engine';
 import { createPublicClient, http } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 
 import type { ConfigService } from '../../config/config.service';
 
 type ComposeDepositDeps = Parameters<typeof composeDeposit>[1];
-type DepositPublicClients = ComposeDepositDeps['publicClients'];
-
-export interface DepositPlanService {
-  build(userId: string, request: DepositRequest): Promise<DepositPlan>;
-}
-
-export interface DepositPlanServiceDeps {
-  analyticsClientService: {
-    getDailySuggestion(userId: string): Promise<unknown>;
-  };
-  adapter: LiFiAdapter;
-  publicClientsForDeposit: () => DepositPublicClients;
-  composeDeposit?: typeof composeDeposit;
-}
+export type DepositPublicClients = ComposeDepositDeps['publicClients'];
 
 function getRpcUrl(
   configService: Pick<ConfigService, 'get'>,
@@ -78,29 +60,4 @@ export function createDepositPublicClients(
   };
 
   return () => publicClients;
-}
-
-export function createDepositPlanService({
-  adapter,
-  publicClientsForDeposit,
-  composeDeposit: compose = composeDeposit,
-}: DepositPlanServiceDeps): DepositPlanService {
-  return {
-    async build(
-      _userId: string,
-      request: DepositRequest,
-    ): Promise<DepositPlan> {
-      const plan = await compose(
-        {
-          userAddress: request.userAddress as `0x${string}`,
-          fromToken: request.fromToken as `0x${string}`,
-          fromAmount: request.fromAmount,
-          sourceChainId: request.sourceChainId,
-        },
-        { adapter, publicClients: publicClientsForDeposit() },
-      );
-
-      return DepositPlanSchema.parse(plan);
-    },
-  };
 }

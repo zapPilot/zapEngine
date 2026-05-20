@@ -48,7 +48,10 @@ export function splitTextIntoChunks(text: string, maxBytes: number): string[] {
       if (Buffer.byteLength(sentence, 'utf8') > maxBytes) {
         const sentenceChunks = splitOversizedSentence(sentence, maxBytes);
         chunks.push(...sentenceChunks.slice(0, -1));
+        // splitOversizedSentence is called only for non-empty oversized sentences.
+        /* v8 ignore start -- @preserve */
         currentChunk = sentenceChunks.at(-1) ?? '';
+        /* v8 ignore stop -- @preserve */
       } else {
         currentChunk = sentence;
       }
@@ -76,9 +79,12 @@ function splitOversizedSentence(sentence: string, maxBytes: number): string[] {
     }
   }
 
+  // splitOversizedSentence is called only with non-empty sentence input.
+  /* v8 ignore start -- @preserve */
   if (chars) {
     chunks.push(chars);
   }
+  /* v8 ignore stop -- @preserve */
 
   return chunks;
 }

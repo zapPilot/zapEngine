@@ -23,6 +23,21 @@ export type TtsLanguageConfig =
 const FISH_AUDIO_PROVIDER = 'fish-audio';
 const GOOGLE_PROVIDER = 'google';
 const DEFAULT_FISH_AUDIO_MODEL_ID = 'debb4c1065114ffda03f3a60abdcc421';
+const GOOGLE_ZH_HANT_CONFIG = {
+  provider: GOOGLE_PROVIDER,
+  languageCode: 'cmn-TW',
+  voiceName: 'cmn-TW-Wavenet-A',
+} satisfies GoogleTtsLanguageConfig;
+const GOOGLE_JA_CONFIG = {
+  provider: GOOGLE_PROVIDER,
+  languageCode: 'ja-JP',
+  voiceName: 'ja-JP-Wavenet-A',
+} satisfies GoogleTtsLanguageConfig;
+const GOOGLE_EN_CONFIG = {
+  provider: GOOGLE_PROVIDER,
+  languageCode: 'en-US',
+  voiceName: 'en-US-Wavenet-A',
+} satisfies GoogleTtsLanguageConfig;
 
 export const MAIN_TTS_CONFIG: Record<
   LanguageClassroomLanguageCode,
@@ -33,37 +48,17 @@ export const MAIN_TTS_CONFIG: Record<
     modelId: DEFAULT_FISH_AUDIO_MODEL_ID,
     engine: 's2-pro',
   },
-  ja: {
-    provider: GOOGLE_PROVIDER,
-    languageCode: 'ja-JP',
-    voiceName: 'ja-JP-Wavenet-A',
-  },
-  en: {
-    provider: GOOGLE_PROVIDER,
-    languageCode: 'en-US',
-    voiceName: 'en-US-Wavenet-A',
-  },
+  ja: GOOGLE_JA_CONFIG,
+  en: GOOGLE_EN_CONFIG,
 };
 
 export const CLASSROOM_TTS_CONFIG: Record<
   LanguageClassroomLanguageCode,
   TtsLanguageConfig
 > = {
-  'zh-Hant': {
-    provider: GOOGLE_PROVIDER,
-    languageCode: 'cmn-TW',
-    voiceName: 'cmn-TW-Wavenet-A',
-  },
-  ja: {
-    provider: GOOGLE_PROVIDER,
-    languageCode: 'ja-JP',
-    voiceName: 'ja-JP-Wavenet-A',
-  },
-  en: {
-    provider: GOOGLE_PROVIDER,
-    languageCode: 'en-US',
-    voiceName: 'en-US-Wavenet-A',
-  },
+  'zh-Hant': GOOGLE_ZH_HANT_CONFIG,
+  ja: GOOGLE_JA_CONFIG,
+  en: GOOGLE_EN_CONFIG,
 };
 
 export function getTtsConfig(

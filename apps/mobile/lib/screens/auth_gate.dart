@@ -4,6 +4,7 @@ import 'package:zapengine_tokens/design_tokens.dart';
 
 import '../state/auth_provider.dart';
 import '../theme/colors.dart';
+import '../utils/snackbar.dart';
 import '../widgets/branded_backdrop.dart';
 import 'home_shell.dart';
 
@@ -66,21 +67,23 @@ class _AuthGateState extends State<AuthGate> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Spacer(),
-              Container(
+              SizedBox(
                 width: 74,
                 height: 74,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.accent, AppColors.accentMuted],
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.accent, AppColors.accentMuted],
+                    ),
                   ),
-                ),
-                child: const Icon(
-                  Icons.graphic_eq_rounded,
-                  color: AppColors.background,
-                  size: 36,
+                  child: const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: AppColors.background,
+                    size: 36,
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
@@ -190,9 +193,7 @@ class _AuthGateState extends State<AuthGate> {
     } catch (_) {
       if (!mounted) return;
       final message = context.read<AuthProvider>().error ?? 'Sign in failed.';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      context.showMessage(message);
     }
   }
 }

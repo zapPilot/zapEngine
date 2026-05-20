@@ -24,6 +24,8 @@ class DmaSignalDiagnostics:
     outer_dma_reference_asset: str | None = None
 
 
+# jscpd:ignore-start
+# Reason: signal diagnostic dataclasses intentionally mirror common diagnostic fields.
 @dataclass(frozen=True, slots=True)
 class RatioSignalDiagnostics:
     ratio: float | None = None
@@ -34,6 +36,9 @@ class RatioSignalDiagnostics:
     cooldown_active: bool | None = None
     cooldown_remaining_days: int | None = None
     cooldown_blocked_zone: str | None = None
+
+
+# jscpd:ignore-end
 
 
 @dataclass(frozen=True, slots=True)

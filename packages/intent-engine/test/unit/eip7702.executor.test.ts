@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { arbitrum, base, mainnet } from 'viem/chains';
 import {
   executeWithEIP7702,
   waitForEIP7702Confirmation,
@@ -77,6 +78,28 @@ describe('EIP-7702 Executor', () => {
         success: true,
         callsId: 'calls-123',
       });
+    });
+
+    it.each([
+      ['Base', base],
+      ['Arbitrum', arbitrum],
+      ['Mainnet', mainnet],
+    ])('targets %s with a hydrated viem chain', async (_name, chain) => {
+      vi.mocked(sendCalls).mockResolvedValue({
+        id: 'calls-123',
+      } as unknown as never);
+
+      await executeWithEIP7702(mockTxs, mockWalletClient, {
+        chainId: chain.id,
+      });
+
+      expect(sendCalls).toHaveBeenCalledWith(
+        mockWalletClient,
+        expect.objectContaining({
+          chain,
+          forceAtomic: true,
+        }),
+      );
     });
 
     it('returns error result when sendCalls fails', async () => {

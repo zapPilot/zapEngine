@@ -12,6 +12,7 @@ Two clients exist — use the right one:
 - Swagger is removed. Do not reintroduce documentation-only endpoints.
 - `ADMIN_API_KEY` is the canonical auth for job routes. `API_KEY` is still accepted as a legacy fallback.
 - Tests hit the Hono app directly via `app.request(...)` — no Nest test harness or module metadata.
+- `tsconfig.json` intentionally overrides `lib` to add `DOM`/`DOM.Iterable` on top of the `@zapengine/tsconfig/node.json` (ES2022-only) preset — load-bearing for undici `fetch`/`Response.json()` typing in `alpha-etl-http.service.ts` (without it, strict mode flags TS18046). Do not "align with the shared preset"; the real fix is typing the `response.json()` payloads first, then dropping DOM.
 
 # Architecture boundary
 

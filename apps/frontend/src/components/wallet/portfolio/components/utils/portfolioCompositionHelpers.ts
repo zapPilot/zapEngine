@@ -8,7 +8,8 @@ import type { AllocationConstituent } from '@/types/portfolio';
 
 /**
  * Build target crypto assets from regime breakdown for empty state
- * Maps all invest spot exposure to BTC for the empty-state target visual.
+ * Maps all invest spot exposure to a neutral Crypto segment for the empty-state
+ * target visual because regime data has no per-asset breakdown.
  */
 export function buildTargetCryptoAssets(
   regime: Regime,
@@ -23,11 +24,11 @@ export function buildTargetCryptoAssets(
   const assets: AllocationConstituent[] = [];
 
   assets.push({
-    asset: 'BTC',
-    symbol: 'BTC',
-    name: 'Bitcoin (Spot)',
+    asset: 'Crypto',
+    symbol: 'CRYPTO',
+    name: 'Crypto',
     value: (breakdown.spot / totalCrypto) * 100,
-    color: ASSET_COLORS.BTC,
+    color: ASSET_COLORS.ALT,
   });
 
   return assets;

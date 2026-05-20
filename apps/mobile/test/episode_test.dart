@@ -63,6 +63,7 @@ void main() {
             'languageCode': 'zh-Hant',
             'title': '繁中',
             'hlsUrl': 'https://cdn.example.com/zh.m3u8',
+            'classroomHlsUrl': 'https://cdn.example.com/zh-classroom.m3u8',
           },
           {
             'languageCode': 'en',
@@ -79,6 +80,10 @@ void main() {
         episode.audioTracks.first.hlsUrl,
         'https://cdn.example.com/zh.m3u8',
       );
+      expect(
+        episode.audioTracks.first.classroomHlsUrl,
+        'https://cdn.example.com/zh-classroom.m3u8',
+      );
       expect(episode.audioTracks.last.languageCode, 'en');
     });
 
@@ -93,6 +98,7 @@ void main() {
             'language_code': 'ja',
             'title': '日本語',
             'hls_url': 'https://cdn.example.com/ja.m3u8',
+            'classroom_hls_url': 'https://cdn.example.com/ja-classroom.m3u8',
           },
         ],
       });
@@ -103,6 +109,10 @@ void main() {
       expect(
         episode.audioTracks.single.hlsUrl,
         'https://cdn.example.com/ja.m3u8',
+      );
+      expect(
+        episode.audioTracks.single.classroomHlsUrl,
+        'https://cdn.example.com/ja-classroom.m3u8',
       );
     });
 

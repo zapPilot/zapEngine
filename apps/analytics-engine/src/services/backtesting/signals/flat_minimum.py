@@ -495,32 +495,41 @@ def _coerce_optional_float(value: Any) -> float | None:
     return None
 
 
-def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
+def _extract_dma_assets(
+    intent: AllocationIntent, keys: tuple[str, ...]
+) -> frozenset[str]:
+    """Return the first diagnostics asset list found, scanning ``keys`` in
+    priority order. Callers differ only in that priority order."""
     diagnostics = intent.diagnostics or {}
-    for key in (
-        "flat_dma_assets",
-        "portfolio_rule_cooldown_assets",
-        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
-        "portfolio_rule_assets",
-    ):
+    for key in keys:
         assets = diagnostics.get(key)
         if isinstance(assets, list):
             return frozenset(asset for asset in assets if isinstance(asset, str))
     return frozenset()
+
+
+def _selected_dma_assets(intent: AllocationIntent) -> frozenset[str]:
+    return _extract_dma_assets(
+        intent,
+        (
+            "flat_dma_assets",
+            "portfolio_rule_cooldown_assets",
+            DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+            "portfolio_rule_assets",
+        ),
+    )
 
 
 def _observation_dma_assets(intent: AllocationIntent) -> frozenset[str]:
-    diagnostics = intent.diagnostics or {}
-    for key in (
-        "flat_dma_assets",
-        DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
-        "portfolio_rule_assets",
-        "portfolio_rule_cooldown_assets",
-    ):
-        assets = diagnostics.get(key)
-        if isinstance(assets, list):
-            return frozenset(asset for asset in assets if isinstance(asset, str))
-    return frozenset()
+    return _extract_dma_assets(
+        intent,
+        (
+            "flat_dma_assets",
+            DIAG_PORTFOLIO_RULE_TRIGGER_ASSETS,
+            "portfolio_rule_assets",
+            "portfolio_rule_cooldown_assets",
+        ),
+    )
 
 
 def _forced_cross_events(intent: AllocationIntent) -> dict[str, CrossEvent]:

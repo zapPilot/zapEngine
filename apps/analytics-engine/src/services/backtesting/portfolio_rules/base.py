@@ -75,6 +75,8 @@ class PortfolioSnapshot:
     trade_dates: tuple[date, ...] = ()
 
 
+# jscpd:ignore-start
+# Reason: portfolio rule Protocol mirrors concrete rule method signatures.
 class PortfolioRule(Protocol):
     @property
     def name(self) -> str: ...
@@ -104,6 +106,9 @@ class PortfolioRule(Protocol):
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent: ...
+
+
+# jscpd:ignore-end
 
 
 @runtime_checkable
@@ -272,6 +277,28 @@ def ratio_signals_consulted(snapshot: PortfolioSnapshot) -> dict[str, Any]:
     }
 
 
+def eth_btc_ratio_rotation_intent(
+    *,
+    snapshot: PortfolioSnapshot,
+    config: PortfolioRuleConfig,
+    target: Mapping[str, float],
+    allocation_name: str,
+    rule_group: RuleGroup,
+) -> AllocationIntent:
+    return portfolio_target_intent(
+        action="sell",
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=allocation_name,
+        rule_group=rule_group,
+        assets=["BTC", "ETH"],
+        immediate=True,
+        signals_consulted=ratio_signals_consulted(snapshot)
+        if config.emit_signals_consulted
+        else None,
+    )
+
+
 def add_stable(target: dict[str, float], amount: float) -> None:
     if amount <= _EPSILON:
         return
@@ -291,6 +318,34 @@ def add_split_proceeds(
     stable_amount = amount - spy_amount
     target["spy"] = max(0.0, float(target.get("spy", 0.0))) + spy_amount
     target["stable"] = max(0.0, float(target.get("stable", 0.0))) + stable_amount
+
+
+def _finalize_allocation_intent(
+    *,
+    action: DecisionAction,
+    snapshot: PortfolioSnapshot,
+    target: dict[str, float],
+    matching_symbols: list[str],
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    emit_signals_consulted: bool,
+) -> AllocationIntent:
+    """Build the final portfolio-target intent shared by DCA buy/sell rules."""
+    return portfolio_target_intent(
+        action=action,
+        target=normalize_target_allocation(target),
+        allocation_name=allocation_name,
+        reason=reason,
+        rule_group=rule_group,
+        assets=matching_symbols,
+        signals_consulted=signals_consulted_for_symbols(
+            snapshot,
+            tuple(matching_symbols),
+        )
+        if emit_signals_consulted
+        else None,
+    )
 
 
 def build_dca_sell_intent(
@@ -321,19 +376,15 @@ def build_dca_sell_intent(
         sold = min(adjusted_sell_step, max(0.0, float(target.get(key, 0.0))))
         target[key] = max(0.0, float(target.get(key, 0.0)) - sold)
         proceeds_handler(target, sold)
-    return portfolio_target_intent(
+    return _finalize_allocation_intent(
         action="sell",
-        target=normalize_target_allocation(target),
+        snapshot=snapshot,
+        target=target,
+        matching_symbols=matching_symbols,
         allocation_name=allocation_name,
         reason=reason,
         rule_group=rule_group,
-        assets=matching_symbols,
-        signals_consulted=signals_consulted_for_symbols(
-            snapshot,
-            tuple(matching_symbols),
-        )
-        if emit_signals_consulted
-        else None,
+        emit_signals_consulted=emit_signals_consulted,
     )
 
 
@@ -371,29 +422,19 @@ def build_dca_buy_intent(
             0.0,
             stable_available - sum(adjusted_step_by_symbol.values()) * stable_scale,
         )
-    return portfolio_target_intent(
+    return _finalize_allocation_intent(
         action="buy",
-        target=normalize_target_allocation(target),
+        snapshot=snapshot,
+        target=target,
+        matching_symbols=matching_symbols,
         allocation_name=allocation_name,
         reason=reason,
         rule_group=rule_group,
-        assets=matching_symbols,
-        signals_consulted=signals_consulted_for_symbols(
-            snapshot,
-            tuple(matching_symbols),
-        )
-        if emit_signals_consulted
-        else None,
+        emit_signals_consulted=emit_signals_consulted,
     )
 
 
-class DcaSellRuleBase:
-    allocation_name: str
-    reason: str
-    rule_group: RuleGroup
-    sell_step: float
-    sizing: SizingStrategy
-
+class _DcaRuleBase:
     def matches(
         self,
         snapshot: PortfolioSnapshot,
@@ -402,6 +443,17 @@ class DcaSellRuleBase:
     ) -> bool:
         del config
         return bool(self._matching_symbols(snapshot))
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        raise NotImplementedError
+
+
+class DcaSellRuleBase(_DcaRuleBase):
+    allocation_name: str
+    reason: str
+    rule_group: RuleGroup
+    sell_step: float
+    sizing: SizingStrategy
 
     def build_intent(
         self,
@@ -421,28 +473,16 @@ class DcaSellRuleBase:
             emit_signals_consulted=config.emit_signals_consulted,
         )
 
-    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
-        raise NotImplementedError
-
     def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
         raise NotImplementedError
 
 
-class DcaBuyRuleBase:
+class DcaBuyRuleBase(_DcaRuleBase):
     allocation_name: str
     buy_step: float
     reason: str
     rule_group: RuleGroup
     sizing: SizingStrategy
-
-    def matches(
-        self,
-        snapshot: PortfolioSnapshot,
-        *,
-        config: PortfolioRuleConfig,
-    ) -> bool:
-        del config
-        return bool(self._matching_symbols(snapshot))
 
     def build_intent(
         self,
@@ -460,9 +500,6 @@ class DcaBuyRuleBase:
             rule_group=self.rule_group,
             emit_signals_consulted=config.emit_signals_consulted,
         )
-
-    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
-        raise NotImplementedError
 
 
 __all__ = [
@@ -491,6 +528,7 @@ __all__ = [
     "current_fgi_regime_for_symbol",
     "current_target",
     "cross_down_cooldown_days_for",
+    "eth_btc_ratio_rotation_intent",
     "normalize_regime",
     "normalize_symbol",
     "portfolio_target_intent",

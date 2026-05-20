@@ -40,8 +40,9 @@ export async function uploadHlsToR2(
   files: HlsFile[],
   episodeId: string,
   languageCode: string,
+  section: 'main' | 'classroom',
 ): Promise<HlsUploadResult> {
-  const prefix = `episodes/${episodeId}/localizations/${languageCode}`;
+  const prefix = `episodes/${episodeId}/localizations/${languageCode}/${section}`;
   const r2 = getR2Client();
   const Bucket = getBucket();
 

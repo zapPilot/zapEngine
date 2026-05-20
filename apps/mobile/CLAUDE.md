@@ -1,6 +1,9 @@
 # Mobile App Notes
 
-## iOS Background Audio
+iOS release runbook (plist configs, repro commands, App Store version prep):
+see [docs/ios-release.md](./docs/ios-release.md).
+
+## iOS Background Audio (invariants)
 
 Lock-screen audio depends on both Dart startup order and the native plist that
 Xcode actually packages.
@@ -8,79 +11,26 @@ Xcode actually packages.
 - `AudioService.init()` must run in `lib/main.dart` before `runApp()`.
 - `PodcastAudioHandler` owns the `AudioPlayer`; do not reintroduce a lazy
   wrapper that creates `AudioService` on first play.
-- The handler should publish the `MediaItem` before loading the HLS source, then
-  update duration from `durationStream`.
-- Do not move background audio into `Runner.entitlements`; iOS reads this from
-  the app `Info.plist`.
+- The handler should publish the `MediaItem` before loading the HLS source,
+  then update duration from `durationStream`.
+- Do not move background audio into `Runner.entitlements`; iOS reads this
+  from the app `Info.plist`.
+- Each `Info-{Debug,Profile,Release}.plist` (plus the base `Info.plist`) must
+  carry `AVAudioSessionCategoryPlayback` + `UIBackgroundModes: audio` — see
+  the runbook for the exact XML and which file Xcode picks per configuration.
 
-This project is easy to misconfigure because the app target does not build from
-`ios/Runner/Info.plist` for normal configurations. Xcode uses:
+Regression guard: `flutter test test/ios_background_audio_config_test.dart`.
+The simulator is not a reliable test surface — verify on a real device before
+claiming a fix.
 
-- `ios/Runner/Info-Debug.plist`
-- `ios/Runner/Info-Profile.plist`
-- `ios/Runner/Info-Release.plist`
+## iOS Versioning (invariants)
 
-Each active plist, plus the base `Info.plist`, must include:
-
-```xml
-<key>AVAudioSessionCategory</key>
-<string>AVAudioSessionCategoryPlayback</string>
-<key>UIBackgroundModes</key>
-<array>
-  <string>audio</string>
-</array>
-```
-
-Regression guard:
-
-```sh
-flutter test test/ios_background_audio_config_test.dart
-```
-
-Before claiming this is fixed, install on a real iPhone. The simulator is not a
-reliable test for lock-screen/background audio:
-
-```sh
-flutter run --release -d <device-id>
-plutil -p build/ios/iphoneos/Runner.app/Info.plist | grep -E 'AVAudioSessionCategory|UIBackgroundModes|audio'
-```
-
-Manual acceptance: start an episode, press the side button to lock the phone,
-and confirm audio continues for at least 30 seconds with lock-screen controls.
-
-## iOS App Store Release Versioning
-
-Xcode does not read `pubspec.yaml` directly. Flutter writes the version into
-`ios/Flutter/Generated.xcconfig`, then Xcode expands these plist values:
-
-```xml
-<key>CFBundleShortVersionString</key>
-<string>$(FLUTTER_BUILD_NAME)</string>
-<key>CFBundleVersion</key>
-<string>$(FLUTTER_BUILD_NUMBER)</string>
-```
-
-Keep `pubspec.yaml` in `x.y.z+build` format for releases, for example:
-
-```yaml
-version: 2.0.2+14
-```
-
-Before a manual Xcode upload, run:
-
-```sh
-pnpm --filter @zapengine/mobile ios:release:prepare -- 2.0.2+14
-```
-
-Then open `ios/Runner.xcworkspace` and archive from Xcode. The shared
-`Runner.xcscheme` has an Archive pre-action that runs
-`tool/prepare_ios_release.sh --from-xcode`, so Xcode Archive refreshes the
-generated Flutter iOS config automatically as a backstop.
-
-Do not hand-edit `ios/Flutter/Generated.xcconfig` or
-`ios/Flutter/flutter_export_environment.sh`; both are ignored generated files.
-If Xcode or App Store Connect still sees an old version, rerun:
-
-```sh
-pnpm --filter @zapengine/mobile ios:release:prepare --deep-clean -- 2.0.2+14
-```
+- `pubspec.yaml` is the source of truth in `x.y.z+build` format
+  (e.g. `version: 2.0.2+14`). Xcode reads it indirectly via
+  `ios/Flutter/Generated.xcconfig` → `$(FLUTTER_BUILD_NAME)` /
+  `$(FLUTTER_BUILD_NUMBER)`.
+- Do not hand-edit `ios/Flutter/Generated.xcconfig` or
+  `ios/Flutter/flutter_export_environment.sh`; both are generated and
+  gitignored.
+- Release prep: `pnpm --filter @zapengine/mobile ios:release:prepare -- <ver>`
+  (add `--deep-clean` if Xcode/App Store Connect still sees an old version).

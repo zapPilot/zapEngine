@@ -51,6 +51,8 @@ class DmaBuyGateGuard(DmaBuyGateConfigMixin):
         if intent.action == "buy" and not intent.immediate:
             self._gate.record_buy_execution(1.0)
 
+    # jscpd:ignore-start
+    # Reason: risk guards intentionally share the RiskGuard.allow protocol shape.
     def allow(
         self,
         intent: AllocationIntent,
@@ -95,6 +97,7 @@ class DmaBuyGateGuard(DmaBuyGateConfigMixin):
                                 or symbols_for_snapshot(snapshot)
                             ),
                         )
+                        # jscpd:ignore-end
                     }
                     if config.emit_signals_consulted
                     else {}

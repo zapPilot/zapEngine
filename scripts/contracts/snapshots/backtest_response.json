@@ -123,7 +123,16 @@
       "additionalProperties": {
         "additionalProperties": false,
         "properties": {
+          "alpha": {
+            "type": "number"
+          },
+          "beta": {
+            "type": "number"
+          },
           "calmar_ratio": {
+            "type": "number"
+          },
+          "cvar_95": {
             "type": "number"
           },
           "display_name": {
@@ -191,6 +200,9 @@
             "minimum": 0,
             "type": "number"
           },
+          "information_ratio": {
+            "type": "number"
+          },
           "max_drawdown_percent": {
             "type": "number"
           },
@@ -219,6 +231,9 @@
               }
             ]
           },
+          "sortino_ratio": {
+            "type": "number"
+          },
           "strategy_id": {
             "type": "string"
           },
@@ -230,6 +245,12 @@
             "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
+          },
+          "ulcer_index": {
+            "type": "number"
+          },
+          "volatility": {
+            "type": "number"
           },
           "win_rate_percent": {
             "anyOf": [

@@ -7,7 +7,7 @@ import { useUser } from '@/contexts/UserContext';
 import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
 import { queryKeys } from '@/lib/state/queryClient';
 import { handleWalletError } from '@/lib/validation/walletUtils';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { deleteUser as deleteUserAccount } from '@/services';
 

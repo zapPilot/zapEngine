@@ -10,6 +10,7 @@ from src.config.strategy_presets import (
     DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
     STRATEGY_PRESETS,
     STRATEGY_TUNING_OVERRIDES,
+    _get_params_model,
     get_backtest_defaults,
     get_benchmark_seed_strategy_config,
     get_default_seed_strategy_config,
@@ -17,6 +18,7 @@ from src.config.strategy_presets import (
     list_strategy_presets,
     resolve_seed_strategy_config,
     resolve_strategy_default_params,
+    resolve_strategy_default_runtime_params,
     resolve_strategy_preset,
 )
 from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
@@ -110,6 +112,18 @@ def test_resolve_strategy_default_params_rejects_unsupported_tuning_keys() -> No
             resolve_strategy_default_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
 
 
+def test_get_params_model_rejects_unknown_strategy_id() -> None:
+    with pytest.raises(ValueError, match="does not define preset params"):
+        _get_params_model("unknown_strategy")
+
+
+def test_resolve_strategy_default_runtime_params_returns_flat_contract() -> None:
+    params = resolve_strategy_default_runtime_params(STRATEGY_DMA_FGI_PORTFOLIO_RULES)
+
+    assert "cross_cooldown_days" in params
+    assert "signal" not in params
+
+
 def test_get_default_seed_strategy_config_raises_when_no_default() -> None:
     """Line 135: get_default_seed_strategy_config raises ValueError when no default."""
     non_default_configs = [
@@ -132,3 +146,29 @@ def test_get_benchmark_seed_strategy_config_raises_when_no_benchmark() -> None:
     ):
         with pytest.raises(ValueError, match="No benchmark strategy config configured"):
             get_benchmark_seed_strategy_config()
+
+
+def test_seed_strategy_config_invariants_reject_duplicate_default_or_benchmark() -> (
+    None
+):
+    duplicate_defaults = [
+        c.model_copy(update={"is_default": True, "is_benchmark": False})
+        for c in STRATEGY_PRESETS
+    ]
+    with patch(
+        "src.config.strategy_presets.SEED_STRATEGY_CONFIGS",
+        duplicate_defaults,
+    ):
+        with pytest.raises(ValueError, match="multiple defaults"):
+            resolve_seed_strategy_config(None)
+
+    duplicate_benchmarks = [
+        c.model_copy(update={"is_default": False, "is_benchmark": True})
+        for c in STRATEGY_PRESETS
+    ]
+    with patch(
+        "src.config.strategy_presets.SEED_STRATEGY_CONFIGS",
+        duplicate_benchmarks,
+    ):
+        with pytest.raises(ValueError, match="multiple benchmarks"):
+            resolve_seed_strategy_config(None)

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { SUPPORTED_CHAINS } from '@/config/chains/definitions';
+import {
+  getMainnetChains,
+  SUPPORTED_CHAINS,
+} from '@/config/chains/definitions';
+import type { BaseChainConfig } from '@/config/chains/types';
 
 describe('SUPPORTED_CHAINS', () => {
   it('exports a non-empty array', () => {
@@ -69,5 +73,48 @@ describe('SUPPORTED_CHAINS', () => {
     for (const chain of SUPPORTED_CHAINS) {
       expect(chain.isSupported).toBe(true);
     }
+  });
+});
+
+describe('getMainnetChains', () => {
+  const supportedA: BaseChainConfig = {
+    id: 42161,
+    name: 'Arbitrum One',
+    rpcUrls: { default: { http: ['https://arb1.arbitrum.io/rpc'] } },
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    blockExplorers: {
+      default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
+    },
+    isSupported: true,
+  } as BaseChainConfig;
+
+  const supportedB: BaseChainConfig = {
+    id: 1337,
+    name: 'Local Dev',
+    rpcUrls: { default: { http: ['http://localhost:8545'] } },
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    isSupported: true,
+  } as BaseChainConfig;
+
+  const unsupported: BaseChainConfig = {
+    id: 5,
+    name: 'Goerli',
+    rpcUrls: { default: { http: ['https://goerli.infura.io'] } },
+    nativeCurrency: { name: 'Goerli Ether', symbol: 'ETH', decimals: 18 },
+    isSupported: false,
+  } as BaseChainConfig;
+
+  it('filters to only supported chains', () => {
+    const result = getMainnetChains([supportedA, unsupported]);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(42161);
+  });
+
+  it('returns empty array when no chains are supported', () => {
+    expect(getMainnetChains([unsupported])).toEqual([]);
+  });
+
+  it('returns all chains when all are supported', () => {
+    expect(getMainnetChains([supportedA, supportedB])).toHaveLength(2);
   });
 });

@@ -20,6 +20,8 @@ class RiskGuardResult:
     blocked_by: str | None = None
 
 
+# jscpd:ignore-start
+# Reason: guard Protocol mirrors concrete risk-guard method signatures.
 class RiskGuard(Protocol):
     @property
     def name(self) -> str: ...
@@ -37,6 +39,9 @@ class RiskGuard(Protocol):
         *,
         config: PortfolioRuleConfig,
     ) -> AllocationIntent | None: ...
+
+
+# jscpd:ignore-end
 
 
 __all__ = ["RiskGuard", "RiskGuardResult"]

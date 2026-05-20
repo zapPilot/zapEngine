@@ -1,11 +1,22 @@
-import type { Hash, WalletClient } from 'viem';
+import type { Chain, Hash, WalletClient } from 'viem';
 import { sendCalls, waitForCallsStatus } from 'viem/actions';
+import { arbitrum, base, mainnet } from 'viem/chains';
 
 import { ExecutionError } from '../errors/intent.errors.js';
 import type {
   ExecutionResult,
   PreparedTransaction,
 } from '../types/transaction.types.js';
+
+const EIP7702_CHAINS = [base, arbitrum, mainnet] as const;
+
+function getEIP7702Chain(chainId: number): Chain {
+  const chain = EIP7702_CHAINS.find((candidate) => candidate.id === chainId);
+  if (!chain) {
+    throw new ExecutionError(`Unsupported EIP-7702 chain id: ${chainId}`);
+  }
+  return chain;
+}
 
 /**
  * Execute a batch of transactions via EIP-5792 `wallet_sendCalls`.
@@ -21,6 +32,7 @@ import type {
 export async function executeWithEIP7702(
   txs: PreparedTransaction[],
   wallet: WalletClient,
+  options: { chainId?: number } = {},
 ): Promise<ExecutionResult> {
   if (!txs || txs.length === 0) {
     throw new ExecutionError('Cannot execute empty transaction array');
@@ -33,6 +45,9 @@ export async function executeWithEIP7702(
 
     const { id: callsId } = await sendCalls(wallet, {
       account: wallet.account,
+      ...(options.chainId === undefined
+        ? {}
+        : { chain: getEIP7702Chain(options.chainId) }),
       calls: txs.map((tx) => ({
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,

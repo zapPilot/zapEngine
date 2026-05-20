@@ -50,7 +50,7 @@ export interface WalletProviderInterface {
     chainId: number;
     gas?: bigint;
   }): Promise<`0x${string}`>;
-  getWalletClient(): Promise<ConnectedWalletClient>;
+  getWalletClient(chainId?: number): Promise<ConnectedWalletClient>;
   signMessage(message: string): Promise<string>;
   signTypedData(typedData: WalletTypedData): Promise<Hex>;
   isConnected: boolean;

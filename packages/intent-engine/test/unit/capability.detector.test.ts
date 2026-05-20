@@ -54,6 +54,31 @@ describe('detectEIP7702Support', () => {
     expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(false);
   });
 
+  it('returns true when atomic support is advertised globally under chain 0', async () => {
+    getCapabilitiesMock.mockResolvedValueOnce({}).mockResolvedValueOnce({
+      0: { atomic: { status: 'supported' } },
+    });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(true);
+  });
+
+  it('returns true when atomic support is advertised globally under raw 0x0', async () => {
+    getCapabilitiesMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      '0x0': { atomic: { status: 'ready' } },
+    });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(true);
+  });
+
+  it('returns false when chain-specific unsupported overrides global support', async () => {
+    getCapabilitiesMock.mockResolvedValueOnce({
+      atomic: { status: 'unsupported' },
+    });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(false);
+    expect(getCapabilitiesMock).toHaveBeenCalledTimes(1);
+  });
+
   it('returns false when wallet.request throws (non-EIP-5792 wallet)', async () => {
     getCapabilitiesMock.mockRejectedValueOnce(new Error('Method not found'));
     expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(false);

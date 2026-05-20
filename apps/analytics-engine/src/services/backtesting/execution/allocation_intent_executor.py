@@ -332,6 +332,8 @@ class AllocationIntentExecutor:
             plugin_diagnostics=precheck.diagnostics,
         )
 
+    # jscpd:ignore-start
+    # Reason: step-plan setup shares the same execution context signature.
     def _ensure_step_plan(
         self,
         *,
@@ -362,6 +364,8 @@ class AllocationIntentExecutor:
             target_allocation=target_allocation,
         )
         return total_steps
+
+    # jscpd:ignore-end
 
     def _build_pacing_inputs(
         self,
@@ -400,6 +404,8 @@ class AllocationIntentExecutor:
             )
         )
 
+    # jscpd:ignore-start
+    # Reason: pacing wrappers share inputs but call distinct policy accessors.
     def _get_effective_step_count(
         self,
         *,
@@ -416,6 +422,8 @@ class AllocationIntentExecutor:
                 realized_volatility=realized_volatility,
             )
         )
+
+    # jscpd:ignore-end
 
     def _initialize_pacing_plan(
         self,

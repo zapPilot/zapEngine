@@ -17,23 +17,7 @@ class DrawdownAnalysisService(BaseAnalyticsService):
     def get_enhanced_drawdown_analysis(
         self, user_id: UUID, days: int = 40, wallet_address: str | None = None
     ) -> dict[str, Any]:
-        """
-        Get enhanced drawdown analysis with daily portfolio values and running peaks.
-
-        Returns detailed daily drawdown data including portfolio values, running peaks,
-        and daily drawdown percentages for comprehensive drawdown visualization.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for enhanced drawdown analysis (default 40)
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            Dictionary with enhanced drawdown analysis data and summary metrics
-
-        Raises:
-            Exception: Database operation errors
-        """
+        """Return drawdown series with peak and current-value summary."""
         _, _, period_info = self._date_range_with_period(days)
 
         drawdown_timeseries = self._get_drawdown_base_data(
@@ -79,23 +63,7 @@ class DrawdownAnalysisService(BaseAnalyticsService):
     def get_underwater_recovery_analysis(
         self, user_id: UUID, days: int = 40, wallet_address: str | None = None
     ) -> dict[str, Any]:
-        """
-        Get underwater periods and recovery point analysis.
-
-        Returns daily underwater status, underwater percentages, and recovery point
-        detection for comprehensive understanding of portfolio recovery patterns.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for underwater recovery analysis (default 40)
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            Dictionary with underwater analysis data and recovery statistics
-
-        Raises:
-            Exception: Database operation errors
-        """
+        """Return underwater status series and recovery point counts."""
         _, _, period_info = self._date_range_with_period(days)
 
         underwater_timeseries = self._get_drawdown_base_data(

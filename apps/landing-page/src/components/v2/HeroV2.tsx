@@ -6,6 +6,8 @@ import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 import HeroLiquidMetalCanvas from './HeroLiquidMetalCanvas.client';
 
+const HERO_DEFAULT_REGIME = 'neutral' as const;
+
 const HERO_PILLARS = [
   {
     className: 'spy',
@@ -67,10 +69,7 @@ export function HeroV2() {
       </div>
 
       <div className="hero-visual" aria-label="Liquid metal allocation scene">
-        <HeroLiquidMetalCanvas
-          heroRef={heroRef}
-          regime={MESSAGES.regimeTelemetry.regime}
-        />
+        <HeroLiquidMetalCanvas heroRef={heroRef} regime={HERO_DEFAULT_REGIME} />
       </div>
     </section>
   );

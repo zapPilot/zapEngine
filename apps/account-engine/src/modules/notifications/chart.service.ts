@@ -1,6 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { CHART_CONFIG } from '../../common/constants';
 import { ServiceLayerException } from '../../common/exceptions';
 import { Logger } from '../../common/logger';
@@ -14,7 +11,6 @@ export interface ChartDataPoint {
 export interface ChartResult {
   buffer: Buffer;
   fileName: string;
-  filePath: string;
   contentId: string;
 }
 
@@ -29,18 +25,6 @@ export interface GenerateChartOptions {
 
 export class ChartService {
   private readonly logger = new Logger(ChartService.name);
-  private readonly tempDir: string;
-
-  constructor() {
-    this.tempDir = path.join(process.cwd(), 'temp');
-    this.ensureTempDirectory();
-  }
-
-  private ensureTempDirectory(): void {
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
-    }
-  }
 
   /**
    * Sample data points to limit chart API payload size
@@ -108,6 +92,8 @@ export class ChartService {
   ): Record<string, unknown> {
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
+    const axisColor = CHART_CONFIG.AXIS_LABEL_COLOR;
+    const gridColor = CHART_CONFIG.GRID_COLOR;
 
     return {
       type: chartType,
@@ -127,7 +113,7 @@ export class ChartService {
                       ? CHART_CONFIG.PRIMARY_COLOR
                       : CHART_CONFIG.NEGATIVE_COLOR,
                   ),
-            tension: 0.4,
+            tension: CHART_CONFIG.LINE_TENSION,
             borderWidth: chartType === 'line' ? 2 : 0,
           },
         ],
@@ -138,26 +124,29 @@ export class ChartService {
           title: {
             display: true,
             text: title,
-            color: '#ffffff',
+            color: axisColor,
             font: { size: 16, weight: 'bold' },
           },
           legend: { display: false },
         },
         scales: {
           x: {
-            title: { display: true, text: 'Date', color: '#ffffff' },
-            ticks: { color: '#ffffff', maxTicksLimit: 5 },
-            grid: { color: 'rgba(48, 48, 48, 0.5)' },
+            title: { display: true, text: 'Date', color: axisColor },
+            ticks: {
+              color: axisColor,
+              maxTicksLimit: CHART_CONFIG.X_AXIS_MAX_TICKS,
+            },
+            grid: { color: gridColor },
           },
           y: {
-            title: { display: true, text: yField, color: '#ffffff' },
+            title: { display: true, text: yField, color: axisColor },
             min: minValue,
             max: maxValue,
-            ticks: { color: '#ffffff' },
+            ticks: { color: axisColor },
             grid: {
-              color: 'rgba(48, 48, 48, 0.5)',
+              color: gridColor,
               lineWidth: 1,
-              borderDash: [4, 5],
+              borderDash: [...CHART_CONFIG.Y_GRID_BORDER_DASH],
             },
           },
         },
@@ -202,14 +191,12 @@ export class ChartService {
       chartJsType,
     );
 
-    // Generate filename
+    // Filename label for the email attachment (not a filesystem path).
     const addressPrefix = address ? address.substring(0, 8) : 'default';
     const fileName = `chart-${addressPrefix}-${Date.now()}.png`;
-    const filePath = path.join(this.tempDir, fileName);
 
     try {
-      // Use QuickChart API to generate the chart
-      const chartUrl = new URL('https://quickchart.io/chart');
+      const chartUrl = new URL(CHART_CONFIG.QUICKCHART_URL);
       chartUrl.searchParams.set('c', JSON.stringify(chartConfig));
       chartUrl.searchParams.set(
         'backgroundColor',
@@ -225,13 +212,9 @@ export class ChartService {
 
       const buffer = Buffer.from(await response.arrayBuffer());
 
-      // Save the image to file
-      fs.writeFileSync(filePath, buffer);
-
       return {
         buffer,
         fileName,
-        filePath,
         contentId: `chart-${addressPrefix}`,
       };
     } catch (error) {
@@ -254,16 +237,5 @@ export class ChartService {
       yField: 'usd_value',
       chartType: 'line',
     });
-  }
-
-  cleanupTempFiles(chartResult: ChartResult): void {
-    if (chartResult.filePath && fs.existsSync(chartResult.filePath)) {
-      try {
-        fs.unlinkSync(chartResult.filePath);
-        this.logger.log(`Cleaned up temp file: ${chartResult.fileName}`);
-      } catch (error) {
-        this.logger.error('Failed to cleanup temp file:', error);
-      }
-    }
   }
 }

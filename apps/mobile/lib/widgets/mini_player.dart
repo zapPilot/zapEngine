@@ -54,22 +54,23 @@ class MiniPlayer extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
                       child: Row(
                         children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.accent,
-                                  AppColors.accentMuted,
-                                ],
+                          SizedBox.square(
+                            dimension: 42,
+                            child: DecoratedBox(
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.accent,
+                                    AppColors.accentMuted,
+                                  ],
+                                ),
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.graphic_eq_rounded,
-                              color: AppColors.background,
-                              size: 22,
+                              child: const Icon(
+                                Icons.graphic_eq_rounded,
+                                color: AppColors.background,
+                                size: 22,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),

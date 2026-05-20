@@ -1,11 +1,16 @@
 """Supplemental tests for SentimentDatabaseService coverage."""
 
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.exceptions.market_sentiment import MarketSentimentError
-from src.services.market.sentiment_database_service import SentimentDatabaseService
+from src.services.market.sentiment_database_service import (
+    SentimentDatabaseService,
+    _coerce_history_bound,
+)
+from src.services.shared.query_names import QUERY_NAMES
 
 
 @pytest.fixture
@@ -92,3 +97,49 @@ def test_get_daily_sentiment_aggregates_raises_internal_error_on_exception(mock_
         InternalError, match="Failed to fetch daily sentiment aggregates"
     ):
         service.get_daily_sentiment_aggregates()
+
+
+def test_coerce_history_bound_sets_date_to_start_or_end_of_utc_day() -> None:
+    assert _coerce_history_bound(date(2026, 4, 29), end_of_day=False) == datetime(
+        2026, 4, 29, tzinfo=UTC
+    )
+    assert _coerce_history_bound(date(2026, 4, 29), end_of_day=True) == datetime(
+        2026, 4, 29, 23, 59, 59, 999999, tzinfo=UTC
+    )
+
+
+def test_coerce_history_bound_normalizes_datetime_to_utc() -> None:
+    value = datetime(2026, 4, 29, 21, 30, tzinfo=UTC)
+
+    assert _coerce_history_bound(value, end_of_day=True) == datetime(
+        2026, 4, 29, 21, 30, tzinfo=UTC
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_sentiment_history_uses_explicit_date_bounds(mock_db) -> None:
+    mock_qs = MagicMock()
+    mock_qs.execute_query.return_value = [
+        {
+            "sentiment_value": 25,
+            "classification": "Fear",
+            "source": "alternative.me",
+            "snapshot_time": datetime(2026, 4, 29, 12, tzinfo=UTC),
+        }
+    ]
+    service = SentimentDatabaseService(mock_db, mock_qs)
+
+    result = await service.get_sentiment_history(
+        start_time=date(2026, 4, 29),
+        end_time=date(2026, 4, 30),
+    )
+
+    assert [item.value for item in result] == [25]
+    mock_qs.execute_query.assert_called_once_with(
+        service.db,
+        QUERY_NAMES.SENTIMENT_HISTORY,
+        {
+            "min_timestamp": datetime(2026, 4, 29, tzinfo=UTC),
+            "max_timestamp": datetime(2026, 4, 30, 23, 59, 59, 999999, tzinfo=UTC),
+        },
+    )

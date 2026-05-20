@@ -55,11 +55,8 @@ function createMocks() {
     generateHistoricalBalanceChart: vi.fn().mockResolvedValue({
       buffer: Buffer.from('PNG'),
       fileName: 'chart.png',
-      // eslint-disable-next-line sonarjs/publicly-writable-directories
-      filePath: '/tmp/chart.png',
       contentId: 'chart-cid',
     }),
-    cleanupTempFiles: vi.fn(),
   };
 
   const templateService = {
@@ -217,7 +214,7 @@ describe('WeeklyReportProcessor', () => {
 
   describe('process - single', () => {
     it('sends weekly report email successfully', async () => {
-      const { processor, emailService, chartService } = createMocks();
+      const { processor, emailService } = createMocks();
       const job = createPendingJob({
         type: JobType.WEEKLY_REPORT_SINGLE,
         payload: { userId: 'u-1' },
@@ -227,7 +224,6 @@ describe('WeeklyReportProcessor', () => {
 
       expect(result.success).toBe(true);
       expect(emailService.sendEmail).toHaveBeenCalled();
-      expect(chartService.cleanupTempFiles).toHaveBeenCalled();
     });
 
     it('uses test recipient in test mode', async () => {
@@ -275,8 +271,8 @@ describe('WeeklyReportProcessor', () => {
       expect(result.success).toBe(false);
     });
 
-    it('always cleans up chart files even on send failure', async () => {
-      const { processor, emailService, chartService } = createMocks();
+    it('propagates send failure as job failure', async () => {
+      const { processor, emailService } = createMocks();
       emailService.sendEmail.mockRejectedValue(new Error('SMTP error'));
 
       const job = createPendingJob({
@@ -287,7 +283,6 @@ describe('WeeklyReportProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(chartService.cleanupTempFiles).toHaveBeenCalled();
     });
   });
 

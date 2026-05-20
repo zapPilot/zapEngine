@@ -37,18 +37,20 @@ async function simulateBasicTransaction(
   };
 }
 
+const usdcToken = (chainId: number, address: string): TransactionToken => ({
+  symbol: 'USDC',
+  name: 'USD Coin',
+  address,
+  chainId,
+  decimals: 6,
+  usdPrice: 1,
+  category: 'stable',
+  popular: true,
+  logo_url: '/tokens/usdc.svg',
+});
+
 const MOCK_TOKENS: TransactionToken[] = [
-  {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    address: '0xusdc',
-    chainId: 1,
-    decimals: 6,
-    usdPrice: 1,
-    category: 'stable',
-    popular: true,
-    logo_url: '/tokens/usdc.svg',
-  },
+  usdcToken(1, '0xusdc'),
   {
     symbol: 'ETH',
     name: 'Ethereum',
@@ -82,17 +84,7 @@ const MOCK_TOKENS: TransactionToken[] = [
     popular: true,
     logo_url: '/tokens/matic.svg',
   },
-  {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    chainId: 8453,
-    decimals: 6,
-    usdPrice: 1,
-    category: 'stable',
-    popular: true,
-    logo_url: '/tokens/usdc.svg',
-  },
+  usdcToken(8453, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'),
   {
     symbol: 'ETH',
     name: 'Ethereum',

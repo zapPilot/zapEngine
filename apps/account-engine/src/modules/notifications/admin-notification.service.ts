@@ -121,19 +121,33 @@ export class AdminNotificationService {
   }
 
   /**
-   * Build job details section HTML
+   * Build a generic titled section. Used for "Job Details", "Error Details",
+   * and "Job Metadata" — they only differ in container style + title + body.
    */
+  private buildSection({
+    containerStyle,
+    title,
+    bodyHtml,
+  }: {
+    containerStyle: string;
+    title: string;
+    bodyHtml: string;
+  }): string {
+    return `
+    <div style="${containerStyle}">
+      <h2 style="${this.EMAIL_STYLES.SECTION_TITLE}">
+        ${title}
+      </h2>
+      ${bodyHtml}
+    </div>`;
+  }
+
   private buildJobDetailsSection(
     job: Job,
     userId: string | null,
     timestamp: string,
   ): string {
-    return `
-    <div style="${this.EMAIL_STYLES.SECTION}">
-      <h2 style="${this.EMAIL_STYLES.SECTION_TITLE}">
-        Job Details
-      </h2>
-      <table style="${this.EMAIL_STYLES.TABLE}">
+    const bodyHtml = `<table style="${this.EMAIL_STYLES.TABLE}">
         <tr>
           <td style="${this.EMAIL_STYLES.TABLE_LABEL}">Job ID:</td>
           <td style="${this.EMAIL_STYLES.TABLE_VALUE_BREAK}">${escapeHtml(job.id)}</td>
@@ -154,38 +168,37 @@ export class AdminNotificationService {
           <td style="${this.EMAIL_STYLES.TABLE_LABEL}">Retry Count:</td>
           <td style="${this.EMAIL_STYLES.TABLE_VALUE}">${job.retryCount}/${job.maxRetries} attempts</td>
         </tr>
-      </table>
-    </div>`;
+      </table>`;
+
+    return this.buildSection({
+      containerStyle: this.EMAIL_STYLES.SECTION,
+      title: 'Job Details',
+      bodyHtml,
+    });
   }
 
-  /**
-   * Build error details section HTML
-   */
   private buildErrorSection(errorMessage: string): string {
-    return `
-    <div style="${this.EMAIL_STYLES.SECTION_ALT}">
-      <h2 style="${this.EMAIL_STYLES.SECTION_TITLE}">
-        Error Details
-      </h2>
-      <div style="${this.EMAIL_STYLES.ERROR_BOX}">
+    const bodyHtml = `<div style="${this.EMAIL_STYLES.ERROR_BOX}">
         <pre style="${this.EMAIL_STYLES.ERROR_TEXT}">${escapeHtml(errorMessage)}</pre>
-      </div>
-    </div>`;
+      </div>`;
+
+    return this.buildSection({
+      containerStyle: this.EMAIL_STYLES.SECTION_ALT,
+      title: 'Error Details',
+      bodyHtml,
+    });
   }
 
-  /**
-   * Build job metadata section HTML
-   */
   private buildMetadataSection(metadata: string): string {
-    return `
-    <div style="${this.EMAIL_STYLES.SECTION}">
-      <h2 style="${this.EMAIL_STYLES.SECTION_TITLE}">
-        Job Metadata
-      </h2>
-      <div style="${this.EMAIL_STYLES.METADATA_BOX}">
+    const bodyHtml = `<div style="${this.EMAIL_STYLES.METADATA_BOX}">
         <pre style="${this.EMAIL_STYLES.METADATA_TEXT}">${escapeHtml(metadata)}</pre>
-      </div>
-    </div>`;
+      </div>`;
+
+    return this.buildSection({
+      containerStyle: this.EMAIL_STYLES.SECTION,
+      title: 'Job Metadata',
+      bodyHtml,
+    });
   }
 
   /**

@@ -21,37 +21,31 @@ import {
   buildRealCryptoAssets,
   buildTargetCryptoAssets,
 } from '../utils/portfolioCompositionHelpers';
+import type { CompositionTarget } from '../utils/strategyCompositionTarget';
 
 /**
- * Target allocation shape for the Target Allocation bar.
+ * Target allocation shape for the Strategy Target bar.
  *
  * Two modes:
  *  - **Coarse (2-bucket)**: only `crypto` + `stable` are provided. The bar
- *    renders the entire crypto portion as a single BTC segment (legacy regime
- *    data only exposes spot/stable, so BTC stands in for "all spot crypto").
+ *    renders the entire crypto portion as a neutral Crypto segment. Legacy
+ *    regime data only exposes spot/stable and has no per-asset signal.
  *  - **Asset-aware**: in addition to `crypto`/`stable`, callers may provide any
  *    of `btc`/`eth`/`spy`/`alt` as percentages-of-total. When at least one is
- *    present, the bar renders the explicit per-asset breakdown and skips the
- *    all-BTC fallback. Values that are omitted are treated as 0.
+ *    present, the bar renders the explicit per-asset breakdown. Values that are
+ *    omitted are treated as 0.
  *
  * Note: per-asset fields should sum to `crypto`. The component does not
  * re-normalize.
  */
-interface CompositionTarget {
-  crypto: number;
-  stable: number;
-  /** Optional per-asset target percentages of total (sum should equal `crypto`). */
-  btc?: number;
-  eth?: number;
-  spy?: number;
-  alt?: number;
-}
 
 interface PortfolioCompositionProps {
   data: WalletPortfolioDataWithDirection;
   currentRegime: Regime | undefined;
   /** Optional target allocation to render without regime */
   targetAllocation?: CompositionTarget | undefined;
+  /** Optional drift value already calculated from the targetAllocation source */
+  driftOverride?: number | undefined;
   isEmptyState?: boolean;
   /** Whether user is viewing their own bundle (enables wallet actions) */
   isOwnBundle?: boolean;
@@ -77,8 +71,7 @@ const STYLES = {
  *   non-zero asset is emitted as its own segment with the matching unified
  *   color.
  * - When no per-asset fields are present (legacy 2-bucket regime data), the
- *   entire `crypto` portion is rendered as a single BTC segment — preserving
- *   the prior behavior so existing callers stay unchanged.
+ *   entire `crypto` portion is rendered as a neutral Crypto segment.
  * - `stable` is always emitted as a STABLE segment when > 0.
  */
 function buildTargetUnifiedSegments(
@@ -132,10 +125,10 @@ function buildTargetUnifiedSegments(
     }
   } else if (target.crypto > 0) {
     segments.push({
-      category: 'btc',
-      label: 'BTC',
+      category: 'alt',
+      label: 'Crypto',
       percentage: target.crypto,
-      color: UNIFIED_COLORS.BTC,
+      color: UNIFIED_COLORS.ALT,
     });
   }
 
@@ -193,6 +186,7 @@ export function PortfolioComposition({
   data,
   currentRegime,
   targetAllocation,
+  driftOverride,
   isEmptyState = false,
   isOwnBundle = true,
   isLoading = false,
@@ -200,6 +194,7 @@ export function PortfolioComposition({
 }: PortfolioCompositionProps): ReactElement | null {
   const isActionsDisabled = isEmptyState || !isOwnBundle;
   const target = resolveTargetAllocation(targetAllocation, currentRegime);
+  const drift = driftOverride ?? data.delta;
 
   if (isLoading) {
     return <PortfolioCompositionSkeleton />;
@@ -225,10 +220,8 @@ export function PortfolioComposition({
           <div className={STYLES.subtitle}>
             <div className={STYLES.allocationRow}>
               {/* Drift Indicator moved here for context */}
-              <span
-                className={`text-xs font-bold ${getDriftClassName(data.delta)}`}
-              >
-                Drift: {data.delta.toFixed(1)}%
+              <span className={`text-xs font-bold ${getDriftClassName(drift)}`}>
+                Strategy Drift: {drift.toFixed(1)}%
               </span>
             </div>
           </div>
@@ -254,7 +247,7 @@ export function PortfolioComposition({
           segments={targetSegments}
           size="sm"
           showLabels={false}
-          title="Target Allocation"
+          title="Strategy Target"
           testIdPrefix="target"
         />
 

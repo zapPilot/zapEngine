@@ -43,11 +43,11 @@ export class StockPriceWriter extends BaseWriter<
 
       this.assertWriteSuccess(result, 'Unknown insert error');
 
-      logger.info('Stock price snapshot saved', {
-        symbol: data.symbol,
-        price: data.priceUsd,
+      this.logSnapshotSaved('Stock price', {
+        priceUsd: data.priceUsd,
         source: data.source,
         date: snapshotDate,
+        entityIdentifier: { symbol: data.symbol },
       });
     } catch (error) {
       this.logWriteFailureAndRethrow(

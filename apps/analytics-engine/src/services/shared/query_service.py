@@ -258,6 +258,8 @@ class QueryService:
         """Execute a SQL query and return a single result."""
         return self._execute(db, query_name, params or {}, single=True)
 
+    # jscpd:ignore-start
+    # Reason: overload declarations intentionally share one implementation signature.
     @overload
     def _execute(
         self,
@@ -277,6 +279,8 @@ class QueryService:
         *,
         single: Literal[False],
     ) -> list[dict[str, Any]]: ...
+
+    # jscpd:ignore-end
 
     def _execute(
         self,

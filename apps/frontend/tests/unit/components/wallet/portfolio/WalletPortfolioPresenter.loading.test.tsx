@@ -44,8 +44,11 @@ vi.mock('@/lib/routing', () => ({
   useAppPathname: () => '/bundle',
 }));
 
-vi.mock('@/providers/ToastProvider', () => ({
+vi.mock('@/providers/ToastContext', () => ({
   useToast: () => ({ showToast: vi.fn() }),
+  ToastContext: {
+    Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  },
   ToastProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),

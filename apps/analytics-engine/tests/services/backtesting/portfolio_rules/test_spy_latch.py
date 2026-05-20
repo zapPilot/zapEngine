@@ -139,3 +139,91 @@ def test_spy_latch_expires_after_follow_through_window() -> None:
         {"btc": 0.0, "eth": 0.0, "spy": 0.80, "stable": 0.20, "alt": 0.0}
     )
     assert adjusted.diagnostics is None
+
+
+def test_spy_latch_observe_ignores_missing_date_or_spy_state() -> None:
+    rule = SpyLatchRule()
+
+    rule.observe(
+        snapshot(
+            assets={
+                "SPY": state(
+                    symbol="SPY",
+                    zone="above",
+                    actionable_cross_event="cross_up",
+                )
+            },
+            current_date=None,
+        ),
+        config=PortfolioRuleConfig(),
+    )
+    rule.observe(
+        snapshot(assets={"BTC": state(symbol="BTC")}, current_date=date(2025, 5, 12)),
+        config=PortfolioRuleConfig(),
+    )
+
+    adjusted = rule.apply_post_intent_adjustments(
+        intent=_intent({"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0}),
+        snapshot=snapshot(current_date=date(2025, 5, 12)),
+        config=PortfolioRuleConfig(),
+    )
+
+    assert adjusted.diagnostics is None
+
+
+def test_spy_latch_cross_down_resets_active_window() -> None:
+    rule = SpyLatchRule()
+    activation_date = date(2025, 5, 12)
+    rule.observe(
+        snapshot(
+            assets={"SPY": state(symbol="SPY", actionable_cross_event="cross_up")},
+            current_date=activation_date,
+        ),
+        config=PortfolioRuleConfig(),
+    )
+
+    rule.observe(
+        snapshot(
+            assets={
+                "SPY": state(
+                    symbol="SPY",
+                    zone="below",
+                    actionable_cross_event="cross_down",
+                )
+            },
+            current_date=activation_date + timedelta(days=1),
+        ),
+        config=PortfolioRuleConfig(),
+    )
+    adjusted = rule.apply_post_intent_adjustments(
+        intent=_intent({"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0}),
+        snapshot=snapshot(current_date=activation_date + timedelta(days=1)),
+        config=PortfolioRuleConfig(),
+    )
+
+    assert adjusted.diagnostics is None
+
+
+def test_spy_latch_build_intent_is_not_supported() -> None:
+    with pytest.raises(ValueError, match="only supports post-intent adjustments"):
+        SpyLatchRule().build_intent(snapshot(), config=PortfolioRuleConfig())
+
+
+def test_spy_latch_returns_original_intent_when_no_stable_can_be_redeployed() -> None:
+    rule = SpyLatchRule()
+    activation_date = date(2025, 5, 12)
+    snap = snapshot(
+        assets={"SPY": state(symbol="SPY", actionable_cross_event="cross_up")},
+        current={"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0, "alt": 0.0},
+        current_date=activation_date,
+    )
+    rule.observe(snap, config=PortfolioRuleConfig())
+    intent = _intent({"btc": 0.0, "eth": 0.0, "spy": 1.0, "stable": 0.0})
+
+    adjusted = rule.apply_post_intent_adjustments(
+        intent=intent,
+        snapshot=snap,
+        config=PortfolioRuleConfig(),
+    )
+
+    assert adjusted is intent

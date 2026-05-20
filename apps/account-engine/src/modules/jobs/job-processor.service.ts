@@ -39,12 +39,6 @@ export class JobProcessorService {
     private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
-  /**
-   * Initialize the job processor
-   */
-  /**
-   * Register a job processor for specific job types
-   */
   registerProcessor(processor: JobProcessor): void {
     for (const jobType of processor.supportedJobTypes) {
       if (this.processors.has(jobType)) {

@@ -24,40 +24,34 @@ export class UserValidationService extends BaseService {
   }
 
   /**
-   * Validates that a user exists in the database and returns their complete data.
+   * Validates that a user exists. Pure existence check — returns only `{ id }`,
+   * not the full row (saves bandwidth on every wallet/email/Telegram write).
    * Throws NotFoundException if the user is not found.
+   *
+   * Callers that need the full users row should do a separate read.
    */
-  async validateUserExists(
-    userId: string,
-  ): Promise<Database['public']['Tables']['users']['Row']> {
+  async validateUserExists(userId: string): Promise<{ id: string }> {
     this.logger.debug(`Validating user existence: ${userId}`);
 
-    return this.mustExist<Database['public']['Tables']['users']['Row']>(
-      'users',
-      { id: userId },
-      'User',
-      '*',
-    );
+    return this.mustExist<{ id: string }>('users', { id: userId }, 'User');
   }
 
   /**
    * Validates that a wallet exists AND belongs to the specified user.
+   * Existence-only check — returns just `{ id }`.
    * Throws NotFoundException if wallet doesn't exist or doesn't belong to the user.
    */
   async validateWalletOwnership(
     walletAddress: string,
     userId: string,
-  ): Promise<Database['public']['Tables']['user_crypto_wallets']['Row']> {
+  ): Promise<{ id: string }> {
     this.logger.debug(
       `Validating wallet ownership: ${walletAddress} for user: ${userId}`,
     );
-    return this.mustExist<
-      Database['public']['Tables']['user_crypto_wallets']['Row']
-    >(
+    return this.mustExist<{ id: string }>(
       'user_crypto_wallets',
       { wallet: walletAddress, user_id: userId },
       'Wallet',
-      '*',
     );
   }
 

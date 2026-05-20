@@ -37,6 +37,12 @@ export function nonZeroUsageCostLines(lines: UsageCostLine[]): UsageCostLine[] {
   return lines.filter((line) => line.costUsd > 0);
 }
 
+export function sortUsageCostLinesByCostDesc(
+  lines: UsageCostLine[],
+): UsageCostLine[] {
+  return [...lines].sort((a, b) => b.costUsd - a.costUsd);
+}
+
 export function compactUsageCostLines(lines: UsageCostLine[]): UsageCostLine[] {
   const grouped = new Map<string, UsageCostLine>();
 

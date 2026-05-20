@@ -28,21 +28,7 @@ class RollingAnalyticsService(BaseAnalyticsService):
     def _get_rolling_metrics_base_data(
         self, user_id: UUID, days: int, wallet_address: str | None = None
     ) -> list[dict[str, Any]]:
-        """
-        Get base rolling metrics data (shared by Sharpe and Volatility calculations).
-
-        Executes the unified rolling metrics query once and caches the result.
-        Both Sharpe and Volatility methods extract their respective columns from
-        this shared dataset, eliminating duplicate SQL execution.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for rolling metrics
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            List of rolling metrics dictionaries with all columns
-        """
+        """Fetch cached rolling metric rows shared by Sharpe and volatility."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
 
         return self._cached_query_with_row_conversion(
@@ -65,27 +51,7 @@ class RollingAnalyticsService(BaseAnalyticsService):
     def get_rolling_sharpe_analysis(
         self, user_id: UUID, days: int = 40, wallet_address: str | None = None
     ) -> dict[str, Any]:
-        """
-        Get 30-day rolling Sharpe ratio analysis with statistical reliability indicators.
-
-        Returns daily 30-day rolling Sharpe ratios with clear labeling about statistical
-        limitations for short-term analysis. Includes reliability flags and window size
-        information for educational context.
-
-        Statistical Disclaimer: 30-day Sharpe ratios are directional indicators only.
-        Statistically robust analysis typically requires 90+ days of data.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for rolling Sharpe analysis (minimum 7 accepted, 30+ recommended for statistical reliability)
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            Dictionary with rolling Sharpe analysis data and statistical context
-
-        Raises:
-            Exception: Database operation errors
-        """
+        """Return rolling Sharpe time series and reliability summary."""
         _, _, period_info = self._date_range_with_period(days)
 
         rolling_sharpe_timeseries = self._get_rolling_metrics_base_data(
@@ -151,27 +117,7 @@ class RollingAnalyticsService(BaseAnalyticsService):
     def get_rolling_volatility_analysis(
         self, user_id: UUID, days: int = 40, wallet_address: str | None = None
     ) -> dict[str, Any]:
-        """
-        Get 30-day rolling volatility analysis with both daily and annualized metrics.
-
-        Returns rolling volatility calculations with clear distinctions between daily
-        and annualized figures. Includes statistical reliability indicators and
-        educational context about short-term volatility measurement.
-
-        Educational Note: Shows both daily volatility and annualized projections.
-        Short-term volatility can be highly variable in DeFi markets.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for rolling volatility analysis (minimum 7 accepted, 30+ recommended for statistical reliability)
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            Dictionary with rolling volatility analysis data and educational context
-
-        Raises:
-            Exception: Database operation errors
-        """
+        """Return rolling volatility time series and reliability summary."""
         _, _, period_info = self._date_range_with_period(days)
 
         rolling_volatility_timeseries = self._get_rolling_metrics_base_data(

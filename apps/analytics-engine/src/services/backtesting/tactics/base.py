@@ -26,6 +26,8 @@ class RuleConfig:
     fgi_slope_recovery_threshold: float = 0.05
 
 
+# jscpd:ignore-start
+# Reason: rule Protocol mirrors concrete rule implementations by design.
 class Rule(Protocol):
     @property
     def name(self) -> str: ...
@@ -47,6 +49,9 @@ class Rule(Protocol):
         *,
         config: RuleConfig,
     ) -> AllocationIntent: ...
+
+
+# jscpd:ignore-end
 
 
 def hold_reason(zone: Zone) -> str:

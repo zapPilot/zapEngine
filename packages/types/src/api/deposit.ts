@@ -66,6 +66,32 @@ const supportedBaseDepositTokens = new Set(
   ),
 );
 
+interface BaseDepositFields {
+  readonly fromToken: string;
+  readonly sourceChainId: number;
+}
+
+function addBaseDepositValidationIssues(
+  value: BaseDepositFields,
+  ctx: z.RefinementCtx,
+): void {
+  if (value.sourceChainId !== BASE_CHAIN_ID) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Deposit v1 supports Base only',
+      path: ['sourceChainId'],
+    });
+  }
+
+  if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Deposit v1 supports USDC and native ETH on Base only',
+      path: ['fromToken'],
+    });
+  }
+}
+
 export const DepositRequestSchema = z
   .object({
     userAddress: AddressSchema,
@@ -74,24 +100,37 @@ export const DepositRequestSchema = z
     sourceChainId: z.number().int().positive(),
   })
   .superRefine((value, ctx) => {
-    if (value.sourceChainId !== BASE_CHAIN_ID) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports Base only',
-        path: ['sourceChainId'],
-      });
+    addBaseDepositValidationIssues(value, ctx);
+  });
+
+export const PlanOrchestrationDepositRequestSchema = z
+  .discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('invest'),
+      userAddress: AddressSchema,
+      fromToken: AddressSchema,
+      fromAmount: decimalStringSchema,
+      sourceChainId: z.number().int().positive(),
+    }),
+    z.object({
+      kind: z.literal('gmx-v2'),
+      marketKey: z.enum(['btc-btc', 'eth-eth', 'btc-usdc', 'eth-usdc']),
+      amount: decimalStringSchema,
+      userAddress: AddressSchema,
+    }),
+  ])
+  .superRefine((value, ctx) => {
+    if (value.kind !== 'invest') {
+      return;
     }
 
-    if (!supportedBaseDepositTokens.has(value.fromToken.toLowerCase())) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Deposit v1 supports USDC and native ETH on Base only',
-        path: ['fromToken'],
-      });
-    }
+    addBaseDepositValidationIssues(value, ctx);
   });
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
 export type DepositLeg = z.infer<typeof DepositLegSchema>;
 export type DepositPlan = z.infer<typeof DepositPlanSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;
+export type PlanOrchestrationDepositRequest = z.infer<
+  typeof PlanOrchestrationDepositRequestSchema
+>;

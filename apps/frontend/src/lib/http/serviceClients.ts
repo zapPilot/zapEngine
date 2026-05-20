@@ -41,6 +41,16 @@ function createServiceHttpClient(baseURL: string) {
     transformer?: ResponseTransformer<T>,
   ) => fn(endpoint, body, withBase(config), transformer);
 
+  const mutator =
+    (fn: typeof httpPost) =>
+    <T = unknown>(
+      endpoint: string,
+      body?: unknown,
+      config?: MutateConfig,
+      transformer?: ResponseTransformer<T>,
+    ) =>
+      mutate(fn, endpoint, body, config, transformer);
+
   return {
     get: <T = unknown>(
       endpoint: string,
@@ -48,26 +58,11 @@ function createServiceHttpClient(baseURL: string) {
       transformer?: ResponseTransformer<T>,
     ) => httpGet(endpoint, withBase(config), transformer),
 
-    post: <T = unknown>(
-      endpoint: string,
-      body?: unknown,
-      config?: MutateConfig,
-      transformer?: ResponseTransformer<T>,
-    ) => mutate(httpPost, endpoint, body, config, transformer),
+    post: mutator(httpPost),
 
-    put: <T = unknown>(
-      endpoint: string,
-      body?: unknown,
-      config?: MutateConfig,
-      transformer?: ResponseTransformer<T>,
-    ) => mutate(httpPut, endpoint, body, config, transformer),
+    put: mutator(httpPut),
 
-    patch: <T = unknown>(
-      endpoint: string,
-      body?: unknown,
-      config?: MutateConfig,
-      transformer?: ResponseTransformer<T>,
-    ) => mutate(httpPatch, endpoint, body, config, transformer),
+    patch: mutator(httpPatch),
 
     delete: <T = unknown>(
       endpoint: string,

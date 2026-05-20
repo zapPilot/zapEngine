@@ -21,6 +21,15 @@ vi.mock('@/lib/routing', () => ({
   useAppPathname: () => '/bundle',
 }));
 
+// BundleProviders wraps children in a lazy-imported DeferredToastProvider.
+// The global lazyImport setup mock renders unregistered lazy modules as a
+// placeholder that drops children, which would swallow BundlePageClient.
+// This test only needs the search-param → userId flow, so pass children
+// straight through (same pattern as the UserProvider mock below).
+vi.mock('@/app/bundle/BundleProviders', () => ({
+  BundleProviders: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock UserContext with controllable state
 let mockUserInfo: { userId: string } | null = null;
 let mockIsConnected = false;

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../models/episode_page.dart';
 import '../models/episode_status.dart';
@@ -13,9 +12,11 @@ import '../state/content_language_provider.dart';
 import '../state/likes_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../utils/episode_screen_state.dart';
+import '../widgets/centered_state_message.dart';
 import '../widgets/continue_listening_card.dart';
-import '../widgets/episode_card.dart';
-import '../widgets/error_state_widget.dart';
+import '../widgets/episode_collection_slivers.dart';
+import '../widgets/episode_sliver_list.dart';
 import '../widgets/listened_section_header.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -28,7 +29,8 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen>
+    with EpisodeScreenState<FeedScreen> {
   late final EpisodeService _episodeService =
       widget._episodeService ?? EpisodeService();
   final ScrollController _scrollController = ScrollController();
@@ -39,30 +41,26 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _loadingMore = false;
   String? _error;
   String? _loadMoreError;
-  int _requestEpoch = 0;
   bool _listenedExpanded = false;
-  String? _playbackUserId;
-  String _languageCode = AppConfig.contentLanguageCode;
   StreamSubscription<String>? _completionSub;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthProvider>().currentUser;
-      if (user != null) {
-        context.read<LikesProvider>().watchUser(user.id);
-        _bindPlaybackUser(user.id);
-      }
-      _languageCode = context.read<ContentLanguageProvider?>()?.languageCode ??
-          AppConfig.contentLanguageCode;
-      _completionSub = context
-          .read<PlaybackProvider>()
-          .completedEpisodeIds
-          .listen(_onEpisodeCompleted);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _completionSub ??= context
+        .read<PlaybackProvider>()
+        .completedEpisodeIds
+        .listen(_onEpisodeCompleted);
+
+    if (syncEpisodeDependencies()) {
       unawaited(_loadFirstPage());
-    });
+    }
   }
 
   @override
@@ -73,7 +71,7 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _loadFirstPage() async {
-    final epoch = ++_requestEpoch;
+    final epoch = beginRequest();
     setState(() {
       _loading = true;
       _error = null;
@@ -83,27 +81,34 @@ class _FeedScreenState extends State<FeedScreen> {
 
     try {
       final page = await _loadPage();
-      if (!mounted || epoch != _requestEpoch) return;
-
-      setState(() {
-        _episodes = page.items;
-        _nextCursor = page.nextCursor;
-        _loading = false;
-      });
-      context.read<LikesProvider>().seedEpisodes(page.items);
+      if (isStaleRequest(epoch)) return;
+      _applyFirstPage(page);
     } catch (error) {
-      if (!mounted || epoch != _requestEpoch) return;
-      setState(() {
-        _error = error.toString();
-        _loading = false;
-      });
+      if (isStaleRequest(epoch)) return;
+      _applyFirstPageError(error);
     }
+  }
+
+  void _applyFirstPage(EpisodePage page) {
+    setState(() {
+      _episodes = page.items;
+      _nextCursor = page.nextCursor;
+      _loading = false;
+    });
+    context.read<LikesProvider>().seedEpisodes(page.items);
+  }
+
+  void _applyFirstPageError(Object error) {
+    setState(() {
+      _error = error.toString();
+      _loading = false;
+    });
   }
 
   Future<void> _loadMore() async {
     if (_loadingMore || _nextCursor == null) return;
 
-    final epoch = _requestEpoch;
+    final epoch = currentRequestEpoch;
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -111,28 +116,35 @@ class _FeedScreenState extends State<FeedScreen> {
 
     try {
       final page = await _loadPage(cursor: _nextCursor);
-      if (!mounted || epoch != _requestEpoch) return;
-
-      setState(() {
-        _episodes = [..._episodes, ...page.items];
-        _nextCursor = page.nextCursor;
-        _loadingMore = false;
-      });
-      context.read<LikesProvider>().seedEpisodes(_episodes);
+      if (isStaleRequest(epoch)) return;
+      _appendPage(page);
     } catch (error) {
-      if (!mounted || epoch != _requestEpoch) return;
-      setState(() {
-        _loadingMore = false;
-        _loadMoreError = error.toString();
-      });
+      if (isStaleRequest(epoch)) return;
+      _applyLoadMoreError(error);
     }
+  }
+
+  void _appendPage(EpisodePage page) {
+    setState(() {
+      _episodes = [..._episodes, ...page.items];
+      _nextCursor = page.nextCursor;
+      _loadingMore = false;
+    });
+    context.read<LikesProvider>().seedEpisodes(_episodes);
+  }
+
+  void _applyLoadMoreError(Object error) {
+    setState(() {
+      _loadingMore = false;
+      _loadMoreError = error.toString();
+    });
   }
 
   Future<EpisodePage> _loadPage({String? cursor}) async {
     final page = await _episodeService.getEpisodes(
       limit: 20,
       cursor: cursor,
-      languageCode: _languageCode,
+      languageCode: contentLanguageCode,
     );
     final hydrated = await _applyUserState(page.items);
 
@@ -140,35 +152,7 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<List<Episode>> _applyUserState(List<Episode> episodes) async {
-    final user = context.read<AuthProvider>().currentUser;
-    if (user == null || episodes.isEmpty) return episodes;
-
-    _bindPlaybackUser(user.id);
-    final Map<String, UserEpisodeState> states;
-    try {
-      states = await _episodeService.getUserState(
-        user.id,
-        episodeIds: episodes.map((episode) => episode.id),
-      );
-    } catch (error) {
-      debugPrint('Feed user state hydration failed: $error');
-      return episodes;
-    }
-
-    return episodes.map((episode) {
-      final state = states[episode.id];
-      if (state == null) return episode;
-      return episode.copyWith(
-        listened: episode.listened || state.listened,
-        lastPositionSeconds: state.lastPositionSeconds,
-      );
-    }).toList(growable: false);
-  }
-
-  void _bindPlaybackUser(String userId) {
-    if (_playbackUserId == userId) return;
-    _playbackUserId = userId;
-    context.read<PlaybackProvider>().setUser(userId);
+    return hydrateEpisodesForCurrentUser(_episodeService, episodes);
   }
 
   void _onEpisodeCompleted(String id) {
@@ -192,21 +176,8 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final selectedLanguageCode =
-        context.watch<ContentLanguageProvider?>()?.languageCode ??
-            AppConfig.contentLanguageCode;
+    context.watch<ContentLanguageProvider?>();
     final playback = context.watch<PlaybackProvider>();
-    if (selectedLanguageCode != _languageCode) {
-      _languageCode = selectedLanguageCode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_loadFirstPage());
-        }
-      });
-    }
-    if (user != null) {
-      _bindPlaybackUser(user.id);
-    }
     final groups = _groupByStatus(_episodes);
     final heroEpisode = _heroEpisode(groups);
 
@@ -233,79 +204,77 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
             ],
           ),
-          if (_loading)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child:
-                  ErrorStateWidget(message: _error!, onRetry: _loadFirstPage),
-            )
-          else if (_episodes.isEmpty)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: _EmptyState(),
-            )
-          else ...[
-            if (heroEpisode != null)
+          ...buildEpisodeCollectionSlivers(
+            loading: _loading,
+            error: _error,
+            empty: _episodes.isEmpty,
+            emptyState: const _EmptyState(),
+            onRetry: _loadFirstPage,
+            contentSlivers: [
+              if (heroEpisode != null)
+                SliverToBoxAdapter(
+                  child: ContinueListeningCard(
+                    episode: heroEpisode,
+                    allCompleted:
+                        groups.inProgress.isEmpty && groups.unplayed.isEmpty,
+                    isPlaying: playback.isEpisodePlaying(heroEpisode.id),
+                    isLoading: playback.loadingEpisodeId == heroEpisode.id,
+                    onPlay: () => _handleSmartPlay(heroEpisode),
+                  ),
+                ),
+              if (groups.inProgress.isNotEmpty) ...[
+                ..._buildSection('進行中', groups.inProgress, playback),
+              ],
+              if (groups.unplayed.isNotEmpty) ...[
+                ..._buildSection('未聽', groups.unplayed, playback),
+              ],
+              if (groups.completed.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: ListenedSectionHeader(
+                    count: groups.completed.length,
+                    expanded: _listenedExpanded,
+                    onTap: () =>
+                        setState(() => _listenedExpanded = !_listenedExpanded),
+                  ),
+                ),
+                if (_listenedExpanded)
+                  EpisodeSliverList(
+                    episodes: groups.completed,
+                    playback: playback,
+                    onPlay: (episode) => playback.toggle(episode),
+                  ),
+              ],
               SliverToBoxAdapter(
-                child: ContinueListeningCard(
-                  episode: heroEpisode,
-                  allCompleted:
-                      groups.inProgress.isEmpty && groups.unplayed.isEmpty,
-                  isPlaying: playback.isEpisodePlaying(heroEpisode.id),
-                  isLoading: playback.loadingEpisodeId == heroEpisode.id,
-                  onPlay: () => _handleSmartPlay(heroEpisode),
+                child: _LoadMoreStatus(
+                  loading: _loadingMore,
+                  error: _loadMoreError,
+                  hasMore: _nextCursor != null,
+                  onRetry: _loadMore,
                 ),
               ),
-            if (groups.inProgress.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: _SectionTitle(title: '進行中')),
-              _EpisodeSliverList(
-                episodes: groups.inProgress,
-                playback: playback,
-                onPlay: (episode) => playback.toggle(episode),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kEpisodeListBottomPadding),
               ),
             ],
-            if (groups.unplayed.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: _SectionTitle(title: '未聽')),
-              _EpisodeSliverList(
-                episodes: groups.unplayed,
-                playback: playback,
-                onPlay: (episode) => playback.toggle(episode),
-              ),
-            ],
-            if (groups.completed.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: ListenedSectionHeader(
-                  count: groups.completed.length,
-                  expanded: _listenedExpanded,
-                  onTap: () =>
-                      setState(() => _listenedExpanded = !_listenedExpanded),
-                ),
-              ),
-              if (_listenedExpanded)
-                _EpisodeSliverList(
-                  episodes: groups.completed,
-                  playback: playback,
-                  onPlay: (episode) => playback.toggle(episode),
-                ),
-            ],
-            SliverToBoxAdapter(
-              child: _LoadMoreStatus(
-                loading: _loadingMore,
-                error: _loadMoreError,
-                hasMore: _nextCursor != null,
-                onRetry: _loadMore,
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 108)),
-          ],
+          ),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildSection(
+    String title,
+    List<Episode> episodes,
+    PlaybackProvider playback,
+  ) {
+    return [
+      SliverToBoxAdapter(child: _SectionTitle(title: title)),
+      EpisodeSliverList(
+        episodes: episodes,
+        playback: playback,
+        onPlay: (episode) => playback.toggle(episode),
+      ),
+    ];
   }
 
   Future<void> _handleSmartPlay(Episode heroEpisode) async {
@@ -371,34 +340,6 @@ class _EpisodeGroups {
   final List<Episode> inProgress;
   final List<Episode> unplayed;
   final List<Episode> completed;
-}
-
-class _EpisodeSliverList extends StatelessWidget {
-  const _EpisodeSliverList({
-    required this.episodes,
-    required this.playback,
-    required this.onPlay,
-  });
-
-  final List<Episode> episodes;
-  final PlaybackProvider playback;
-  final ValueChanged<Episode> onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverList.builder(
-      itemCount: episodes.length,
-      itemBuilder: (context, index) {
-        final episode = episodes[index];
-        return EpisodeCard(
-          episode: episode,
-          isPlaying: playback.isEpisodePlaying(episode.id),
-          isLoading: playback.loadingEpisodeId == episode.id,
-          onPlay: () => onPlay(episode),
-        );
-      },
-    );
-  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -468,13 +409,12 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'No episodes yet.',
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-      ),
+    return CenteredStateMessage(
+      title: 'No episodes yet.',
+      padding: EdgeInsets.zero,
+      titleStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+          ),
     );
   }
 }

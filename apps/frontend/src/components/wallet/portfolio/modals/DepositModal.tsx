@@ -1,4 +1,3 @@
-import { GRADIENTS } from '@/constants/designSystem';
 import { transactionServiceMock as depositTransactionService } from '@/services';
 import type { DepositModalProps } from '@/types/ui/ui.types';
 
@@ -30,46 +29,17 @@ export function DepositModal({
       modalContentClassName="p-0 overflow-visible bg-gray-950 border-gray-800"
     >
       {(modalState) => {
-        const { handlePercentage, isValid } = modalDeps.buildModalFormState(
-          modalState.form,
-          () =>
-            parseFloat(
-              modalState.transactionData.balanceQuery.data?.balance || '0',
-            ),
-        );
-
-        const hasSelectedToken = Boolean(
-          modalState.transactionData.selectedToken,
-        );
-        const actionLabel = modalDeps.resolveActionLabel({
-          isConnected,
-          hasSelection: hasSelectedToken,
-          isReady: isValid,
-          selectionLabel: 'Select Asset',
-          notReadyLabel: 'Enter Amount',
-          readyLabel: 'Review & Deposit',
-        });
-
         const assetContent = (
           <div className="max-h-80 overflow-y-auto custom-scrollbar p-2">
             {modalState.transactionData.tokenQuery.data?.map((token) => {
-              const isSelected =
-                modalState.transactionData.selectedToken?.address ===
-                token.address;
               const balance =
                 modalState.transactionData.balanceQuery.data?.balance || '0';
-              return (
-                <modalDeps.TokenOptionButton
-                  key={token.address}
-                  symbol={token.symbol}
-                  balanceLabel={`${balance} available`}
-                  isSelected={isSelected}
-                  onSelect={() => {
-                    modalState.form.setValue('tokenAddress', token.address);
-                    dropdownState.closeDropdowns();
-                  }}
-                />
-              );
+              return modalDeps.renderTransactionTokenOption({
+                token,
+                balance,
+                modalState,
+                dropdownState,
+              });
             })}
 
             {(!modalState.transactionData.tokenQuery.data ||
@@ -79,16 +49,12 @@ export function DepositModal({
           </div>
         );
 
-        return (
-          <modalDeps.TransactionModalContent
-            modalState={modalState}
-            dropdownState={dropdownState}
-            actionLabel={actionLabel}
-            actionGradient={GRADIENTS.PRIMARY}
-            handlePercentage={handlePercentage}
-            assetContent={assetContent}
-          />
-        );
+        return modalDeps.renderDepositTransactionModalBody({
+          modalState,
+          dropdownState,
+          isConnected,
+          assetContent,
+        });
       }}
     </TransactionModalBase>
   );

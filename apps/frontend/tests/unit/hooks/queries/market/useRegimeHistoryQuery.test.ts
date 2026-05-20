@@ -43,9 +43,19 @@ describe('useRegimeHistory', () => {
         queryKey: ['sentiment', 'regime-history'],
         staleTime: 60 * 1000,
         gcTime: 180 * 1000,
-        refetchInterval: 60 * 1000,
+        enabled: true,
         retry: 1,
         placeholderData: DEFAULT_REGIME_HISTORY,
+      }),
+    );
+  });
+
+  it('passes disabled state to the query when requested', () => {
+    renderHook(() => useRegimeHistory(false));
+
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false,
       }),
     );
   });

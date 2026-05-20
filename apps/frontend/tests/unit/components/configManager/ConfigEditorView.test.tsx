@@ -92,9 +92,9 @@ vi.mock('@/services', async (importOriginal) => {
   };
 });
 
-vi.mock('@/providers/ToastProvider', async (importOriginal) => {
+vi.mock('@/providers/ToastContext', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/providers/ToastProvider')>();
+    await importOriginal<typeof import('@/providers/ToastContext')>();
 
   return {
     ...actual,

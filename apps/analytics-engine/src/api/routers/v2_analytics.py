@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
@@ -24,6 +24,23 @@ from src.services.interfaces import WalletServiceProtocol
 from src.utils.wallet_validation import validate_wallet_format
 
 router = APIRouter(prefix="/v2/analytics", tags=["Analytics V2"])
+
+_WALLET_ADDRESS_DESCRIPTION = (
+    "Optional wallet filter. When provided, returns data for specific wallet. "
+    "Omit for bundle aggregation."
+)
+WalletAddressQuery = Annotated[
+    str | None,
+    Query(description=_WALLET_ADDRESS_DESCRIPTION, pattern=r"^0x[a-fA-F0-9]{40}$"),
+]
+WalletAddressCamelQuery = Annotated[
+    str | None,
+    Query(
+        alias="walletAddress",
+        description="Optional wallet filter (camelCase alias).",
+        pattern=r"^0x[a-fA-F0-9]{40}$",
+    ),
+]
 
 
 def _resolve_wallet_address(
@@ -81,17 +98,8 @@ async def get_daily_yield_returns_v2(
     chains: list[str] | None = Query(
         None, description="Optional chain filter (repeat param for multiples)."
     ),
-    wallet_address: str | None = Query(
-        None,
-        description="Optional wallet filter. When provided, returns data for specific wallet. Omit for bundle aggregation.",
-        pattern=r"^0x[a-fA-F0-9]{40}$",
-    ),
-    wallet_address_camel: str | None = Query(
-        None,
-        alias="walletAddress",
-        description="Optional wallet filter (camelCase alias).",
-        pattern=r"^0x[a-fA-F0-9]{40}$",
-    ),
+    wallet_address: WalletAddressQuery = None,
+    wallet_address_camel: WalletAddressCamelQuery = None,
 ) -> YieldReturnsResponse:
     """Return canonical daily yield returns from shared yield service."""
 
@@ -126,17 +134,8 @@ async def get_dashboard_v2(
     rolling_days: int = Query(
         90, ge=7, description="Days for rolling analytics (min 7)"
     ),
-    wallet_address: str | None = Query(
-        None,
-        description="Optional wallet filter. When provided, returns data for specific wallet. Omit for bundle aggregation.",
-        pattern=r"^0x[a-fA-F0-9]{40}$",
-    ),
-    wallet_address_camel: str | None = Query(
-        None,
-        alias="walletAddress",
-        description="Optional wallet filter (camelCase alias).",
-        pattern=r"^0x[a-fA-F0-9]{40}$",
-    ),
+    wallet_address: WalletAddressQuery = None,
+    wallet_address_camel: WalletAddressCamelQuery = None,
     db: Session = Depends(get_db),
     wallet_service: WalletServiceProtocol = Depends(get_wallet_service),
 ) -> dict[str, Any]:

@@ -23,7 +23,7 @@ vi.mock('@/services/accountService', () => ({
   deleteUser: hoisted.mockDeleteUser,
 }));
 
-vi.mock('@/providers/ToastProvider', () => ({
+vi.mock('@/providers/ToastContext', () => ({
   useToast: () => ({ showToast: hoisted.mockShowToast }),
 }));
 

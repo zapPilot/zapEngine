@@ -6,8 +6,7 @@ import json
 from collections.abc import Iterable
 from typing import Any
 
-from sqlalchemy import inspect, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.config.strategy_presets import (
@@ -16,6 +15,7 @@ from src.config.strategy_presets import (
 )
 from src.core.database import validate_write_operation
 from src.models.strategy_config import SavedStrategyConfig
+from src.services.strategy._db_introspection import table_exists
 
 _TABLE_NAME = "strategy_saved_configs"
 
@@ -32,6 +32,21 @@ def _deserialize_json(value: Any) -> dict[str, Any]:
         if isinstance(decoded, dict):
             return decoded
     raise ValueError("Expected JSON object payload for saved strategy config")
+
+
+def _find_config(
+    configs: Iterable[SavedStrategyConfig],
+    config_id: str,
+) -> SavedStrategyConfig | None:
+    target_id = str(config_id).strip()
+    for config in configs:
+        if config.config_id == target_id:
+            return config
+    return None
+
+
+def _valid_config_ids(configs: Iterable[SavedStrategyConfig]) -> str:
+    return ", ".join(sorted(config.config_id for config in configs))
 
 
 class StrategyConfigStore:
@@ -69,15 +84,11 @@ class StrategyConfigStore:
         resolved = self.get_config(target_id)
         if resolved is not None:
             return resolved
-        valid = ", ".join(sorted(config.config_id for config in self.list_configs()))
+        valid = _valid_config_ids(self.list_configs())
         raise ValueError(f"Unknown config_id '{target_id}'. Valid values: {valid}")
 
     def get_config(self, config_id: str) -> SavedStrategyConfig | None:
-        target_id = str(config_id).strip()
-        for config in self.list_configs():
-            if config.config_id == target_id:
-                return config
-        return None
+        return _find_config(self.list_configs(), config_id)
 
     def upsert_config(self, config: SavedStrategyConfig) -> SavedStrategyConfig:
         return self.upsert_configs([config])[0]
@@ -151,11 +162,7 @@ class StrategyConfigStore:
         return [self.resolve_config(config_id) for config_id in persisted_ids]
 
     def _table_exists(self) -> bool:
-        try:
-            bind = self.db.get_bind()
-            return bool(inspect(bind).has_table(_TABLE_NAME))
-        except SQLAlchemyError:
-            return False
+        return table_exists(self.db, _TABLE_NAME)
 
     def _load_rows(self) -> Iterable[SavedStrategyConfig]:
         rows = self.db.execute(
@@ -203,20 +210,15 @@ class SeedStrategyConfigStore:
         if config_id is None or not str(config_id).strip():
             return get_default_seed_strategy_config()
         target_id = str(config_id).strip()
-        for config in list_seed_strategy_configs():
-            if config.config_id == target_id:
-                return config
-        valid = ", ".join(
-            sorted(config.config_id for config in list_seed_strategy_configs())
-        )
+        configs = list_seed_strategy_configs()
+        resolved = _find_config(configs, target_id)
+        if resolved is not None:
+            return resolved
+        valid = _valid_config_ids(configs)
         raise ValueError(f"Unknown config_id '{target_id}'. Valid values: {valid}")
 
     def get_config(self, config_id: str) -> SavedStrategyConfig | None:
-        target_id = str(config_id).strip()
-        for config in list_seed_strategy_configs():
-            if config.config_id == target_id:
-                return config
-        return None
+        return _find_config(list_seed_strategy_configs(), config_id)
 
 
 __all__ = ["SeedStrategyConfigStore", "StrategyConfigStore"]

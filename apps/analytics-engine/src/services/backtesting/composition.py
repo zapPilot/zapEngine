@@ -56,6 +56,14 @@ class ResolvedSavedStrategyConfig:
     build_strategy: Callable[[StrategyBuildRequest], BaseStrategy]
 
 
+@dataclass(frozen=True)
+class _RequiredComponentRefs:
+    signal: StrategyComponentRef
+    decision: StrategyComponentRef
+    pacing: StrategyComponentRef | None = None
+    execution: StrategyComponentRef | None = None
+
+
 def _require_component_ref(
     ref: StrategyComponentRef | None,
     *,
@@ -64,6 +72,56 @@ def _require_component_ref(
     if ref is None:
         raise ValueError(f"Saved config is missing {field_name}")
     return ref
+
+
+def _require_component_refs(
+    saved_config: SavedStrategyConfig,
+    *,
+    require_pacing_and_execution: bool,
+) -> _RequiredComponentRefs:
+    signal_ref = _require_component_ref(
+        saved_config.composition.signal,
+        field_name="signal",
+    )
+    decision_ref = _require_component_ref(
+        saved_config.composition.decision_policy,
+        field_name="decision_policy",
+    )
+    if not require_pacing_and_execution:
+        return _RequiredComponentRefs(signal=signal_ref, decision=decision_ref)
+    return _RequiredComponentRefs(
+        signal=signal_ref,
+        decision=decision_ref,
+        pacing=_require_component_ref(
+            saved_config.composition.pacing_policy,
+            field_name="pacing_policy",
+        ),
+        execution=_require_component_ref(
+            saved_config.composition.execution_profile,
+            field_name="execution_profile",
+        ),
+    )
+
+
+def _resolved_saved_config_fields(
+    saved_config: SavedStrategyConfig,
+    *,
+    bucket_mapper: PortfolioBucketMapper,
+    runtime_portfolio_mode: RuntimePortfolioMode,
+    public_params: dict[str, JsonValue],
+) -> dict[str, Any]:
+    return {
+        "saved_config_id": saved_config.config_id,
+        "request_config_id": saved_config.config_id,
+        "strategy_id": saved_config.strategy_id,
+        "display_name": saved_config.display_name,
+        "description": saved_config.description,
+        "primary_asset": saved_config.primary_asset,
+        "portfolio_bucket_mapper": bucket_mapper,
+        "runtime_portfolio_mode": runtime_portfolio_mode,
+        "supports_daily_suggestion": saved_config.supports_daily_suggestion,
+        "public_params": public_params,
+    }
 
 
 def build_saved_config_from_legacy(
@@ -131,83 +189,65 @@ def resolve_saved_strategy_config(
                 f"Strategy family '{saved_config.strategy_id}' is missing a benchmark builder"
             )
         return ResolvedSavedStrategyConfig(
-            saved_config_id=saved_config.config_id,
-            request_config_id=saved_config.config_id,
-            strategy_id=saved_config.strategy_id,
-            display_name=saved_config.display_name,
-            description=saved_config.description,
-            primary_asset=saved_config.primary_asset,
+            **_resolved_saved_config_fields(
+                saved_config,
+                bucket_mapper=bucket_mapper,
+                runtime_portfolio_mode=family.runtime_portfolio_mode,
+                public_params=dict(saved_config.params),
+            ),
             summary_signal_id=None,
             warmup_lookback_days=0,
             market_data_requirements=MarketDataRequirements(),
-            portfolio_bucket_mapper=bucket_mapper,
-            runtime_portfolio_mode=family.runtime_portfolio_mode,
-            supports_daily_suggestion=saved_config.supports_daily_suggestion,
-            public_params=dict(saved_config.params),
             build_strategy=family.benchmark_strategy_builder_factory(saved_config),
         )
 
-    signal_ref = _require_component_ref(
-        saved_config.composition.signal,
-        field_name="signal",
-    )
-    decision_ref = _require_component_ref(
-        saved_config.composition.decision_policy,
-        field_name="decision_policy",
-    )
-    pacing_ref = _require_component_ref(
-        saved_config.composition.pacing_policy,
-        field_name="pacing_policy",
-    )
-    execution_ref = _require_component_ref(
-        saved_config.composition.execution_profile,
-        field_name="execution_profile",
+    refs = _require_component_refs(
+        saved_config,
+        require_pacing_and_execution=True,
     )
     signal_factory = resolved_catalog.resolve_signal_component_factory(
-        signal_ref.component_id
+        refs.signal.component_id
     )
     decision_factory = resolved_catalog.resolve_decision_policy_factory(
-        decision_ref.component_id
+        refs.decision.component_id
     )
+    assert refs.pacing is not None
+    assert refs.execution is not None
     pacing_factory = resolved_catalog.resolve_pacing_policy_factory(
-        pacing_ref.component_id
+        refs.pacing.component_id
     )
     execution_factory = resolved_catalog.resolve_execution_profile_factory(
-        execution_ref.component_id
+        refs.execution.component_id
     )
-    signal_component = signal_factory(signal_ref.params)
+    signal_component = signal_factory(refs.signal.params)
     _validate_component_params(
         decision_factory=decision_factory,
-        decision_params=decision_ref.params,
+        decision_params=refs.decision.params,
         pacing_factory=pacing_factory,
-        pacing_params=pacing_ref.params,
+        pacing_params=refs.pacing.params,
         execution_factory=execution_factory,
-        execution_params=execution_ref.params,
+        execution_params=refs.execution.params,
         plugin_refs=saved_config.composition.plugins,
         catalog=resolved_catalog,
     )
     return ResolvedSavedStrategyConfig(
-        saved_config_id=saved_config.config_id,
-        request_config_id=saved_config.config_id,
-        strategy_id=saved_config.strategy_id,
-        display_name=saved_config.display_name,
-        description=saved_config.description,
-        primary_asset=saved_config.primary_asset,
+        **_resolved_saved_config_fields(
+            saved_config,
+            bucket_mapper=bucket_mapper,
+            runtime_portfolio_mode=family.runtime_portfolio_mode,
+            public_params=dict(saved_config.params),
+        ),
         summary_signal_id=signal_component.signal_id,
         warmup_lookback_days=signal_component.warmup_lookback_days,
         market_data_requirements=signal_component.market_data_requirements,
-        portfolio_bucket_mapper=bucket_mapper,
-        runtime_portfolio_mode=family.runtime_portfolio_mode,
-        supports_daily_suggestion=saved_config.supports_daily_suggestion,
-        public_params=dict(saved_config.params),
         build_strategy=_build_composed_strategy(
             saved_config=saved_config,
             signal_component_factory=signal_factory,
-            signal_params=signal_ref.params,
+            signal_params=refs.signal.params,
             decision_policy_factory=decision_factory,
-            decision_params=decision_ref.params,
+            decision_params=refs.decision.params,
             pacing_policy_factory=pacing_factory,
-            pacing_params=pacing_ref.params,
+            pacing_params=refs.pacing.params,
             plugin_refs=list(saved_config.composition.plugins),
             catalog=resolved_catalog,
         ),
@@ -225,17 +265,15 @@ def _resolve_recipe_saved_strategy_config(
         raise ValueError(
             f"Strategy family '{saved_config.strategy_id}' is not recipe-backed"
         )
-    signal_ref = _require_component_ref(
-        saved_config.composition.signal,
-        field_name="signal",
+    refs = _require_component_refs(
+        saved_config,
+        require_pacing_and_execution=False,
     )
-    decision_ref = _require_component_ref(
-        saved_config.composition.decision_policy,
-        field_name="decision_policy",
+    catalog.resolve_signal_component_factory(refs.signal.component_id)(
+        refs.signal.params
     )
-    catalog.resolve_signal_component_factory(signal_ref.component_id)(signal_ref.params)
-    catalog.resolve_decision_policy_factory(decision_ref.component_id)(
-        decision_ref.params
+    catalog.resolve_decision_policy_factory(refs.decision.component_id)(
+        refs.decision.params
     )
     for plugin_ref in saved_config.composition.plugins:
         catalog.resolve_plugin_factory(plugin_ref.component_id)(plugin_ref.params)
@@ -245,19 +283,15 @@ def _resolve_recipe_saved_strategy_config(
         public_params_to_runtime_params(saved_config.strategy_id, saved_config.params)
     )
     return ResolvedSavedStrategyConfig(
-        saved_config_id=saved_config.config_id,
-        request_config_id=saved_config.config_id,
-        strategy_id=saved_config.strategy_id,
-        display_name=saved_config.display_name,
-        description=saved_config.description,
-        primary_asset=saved_config.primary_asset,
+        **_resolved_saved_config_fields(
+            saved_config,
+            bucket_mapper=bucket_mapper,
+            runtime_portfolio_mode=family.runtime_portfolio_mode,
+            public_params=runtime_params,
+        ),
         summary_signal_id=recipe.signal_id,
         warmup_lookback_days=recipe.warmup_lookback_days,
         market_data_requirements=recipe.market_data_requirements,
-        portfolio_bucket_mapper=bucket_mapper,
-        runtime_portfolio_mode=family.runtime_portfolio_mode,
-        supports_daily_suggestion=saved_config.supports_daily_suggestion,
-        public_params=runtime_params,
         build_strategy=recipe.build_strategy,
     )
 

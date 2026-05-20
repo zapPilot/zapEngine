@@ -1,3 +1,5 @@
+import { type ReactElement, useCallback } from 'react';
+
 import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
 import type { TransactionToken } from '@/types/domain/transaction';
 
@@ -21,7 +23,14 @@ export function TokenSelectorList({
   isLoading,
   onSelect,
   limit = 8,
-}: TokenSelectorListProps) {
+}: TokenSelectorListProps): ReactElement {
+  const handleSelect = useCallback(
+    (address: string) => {
+      onSelect(address);
+    },
+    [onSelect],
+  );
+
   if (isLoading) {
     return (
       <>
@@ -44,7 +53,7 @@ export function TokenSelectorList({
           selected={selectedAddress === token.address}
           query={balancesByAddress.get(token.address)}
           isConnected={isConnected}
-          onSelect={() => onSelect(token.address)}
+          onSelect={handleSelect}
         />
       ))}
     </>

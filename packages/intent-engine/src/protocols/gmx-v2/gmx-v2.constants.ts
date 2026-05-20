@@ -104,6 +104,24 @@ const ADDRESS = 'address';
 const UINT256 = 'uint256';
 const BYTES32 = 'bytes32';
 
+interface GmxV2AbiInput {
+  readonly name: string;
+  readonly type: string;
+}
+
+function payableFunctionAbi<
+  const TName extends string,
+  const TInputs extends readonly GmxV2AbiInput[],
+>(name: TName, inputs: TInputs) {
+  return {
+    name,
+    type: 'function',
+    stateMutability: 'payable',
+    inputs,
+    outputs: [],
+  } as const;
+}
+
 export const GMX_V2_EXCHANGE_ROUTER_ABI = [
   {
     name: 'multicall',
@@ -122,27 +140,15 @@ export const GMX_V2_EXCHANGE_ROUTER_ABI = [
       },
     ],
   },
-  {
-    name: 'sendWnt',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      { name: 'receiver', type: ADDRESS },
-      { name: 'amount', type: UINT256 },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'sendTokens',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      { name: 'token', type: ADDRESS },
-      { name: 'receiver', type: ADDRESS },
-      { name: 'amount', type: UINT256 },
-    ],
-    outputs: [],
-  },
+  payableFunctionAbi('sendWnt', [
+    { name: 'receiver', type: ADDRESS },
+    { name: 'amount', type: UINT256 },
+  ]),
+  payableFunctionAbi('sendTokens', [
+    { name: 'token', type: ADDRESS },
+    { name: 'receiver', type: ADDRESS },
+    { name: 'amount', type: UINT256 },
+  ]),
   {
     name: 'createDeposit',
     type: 'function',

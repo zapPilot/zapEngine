@@ -73,6 +73,7 @@ export function toEpisodeResponseFromLocalization(
       title: localization.title,
       language_code: localization.language_code,
       hls_url: localization.hls_url,
+      classroom_hls_url: localization.classroom_hls_url,
       script: localization.script,
       llm_model: localization.llm_model,
       llm_thinking_model: localization.llm_thinking_model,
@@ -97,6 +98,14 @@ export function toEpisodeResponseWithClassrooms(
     title: row.title,
     languageCode: row.language_code,
     hlsUrl: row.hls_url,
+    audioTracks: [
+      {
+        languageCode: row.language_code,
+        title: row.title,
+        hlsUrl: row.hls_url,
+        classroomHlsUrl: row.classroom_hls_url,
+      },
+    ],
     createdAt: row.created_at,
     listened: row.listened,
     script: row.script,
@@ -277,18 +286,9 @@ export async function insertEpisodeLocalization(
 export async function listLanguageClassroomsByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<LanguageClassroomRow[]> {
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .select('*')
-    .eq('episode_localization_id', episodeLocalizationId)
-    .order('target_language_code', { ascending: true })
-    .returns<LanguageClassroomRow[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return (data ?? []).map(normalizeLanguageClassroomRow);
+  const classroomsByLocalizationId =
+    await listLanguageClassroomsByLocalizationIds([episodeLocalizationId]);
+  return classroomsByLocalizationId.get(episodeLocalizationId) ?? [];
 }
 
 export async function listLanguageClassroomsByLocalizationIds(
@@ -308,7 +308,7 @@ export async function listLanguageClassroomsByLocalizationIds(
     throw error;
   }
 
-  for (const row of (data ?? []).map(normalizeLanguageClassroomRow)) {
+  for (const row of normalizeLanguageClassroomRows(data)) {
     const rows = map.get(row.episode_localization_id) ?? [];
     rows.push(row);
     map.set(row.episode_localization_id, rows);
@@ -347,7 +347,7 @@ export async function upsertLanguageClassrooms(
     throw error;
   }
 
-  return (data ?? []).map(normalizeLanguageClassroomRow);
+  return normalizeLanguageClassroomRows(data);
 }
 
 async function updateEpisodeFields(
@@ -414,6 +414,8 @@ export async function updateEpisodeLocalizationStatus(
       | 'llmProvider'
       | 'hlsUrl'
       | 'r2Prefix'
+      | 'classroomHlsUrl'
+      | 'classroomR2Prefix'
       | 'ttsLanguageCode'
       | 'ttsVoiceName'
     >
@@ -430,6 +432,10 @@ export async function updateEpisodeLocalizationStatus(
   if (updates?.hlsUrl !== undefined) setFields['hls_url'] = updates.hlsUrl;
   if (updates?.r2Prefix !== undefined)
     setFields['r2_prefix'] = updates.r2Prefix;
+  if (updates?.classroomHlsUrl !== undefined)
+    setFields['classroom_hls_url'] = updates.classroomHlsUrl;
+  if (updates?.classroomR2Prefix !== undefined)
+    setFields['classroom_r2_prefix'] = updates.classroomR2Prefix;
   if (updates?.ttsLanguageCode !== undefined)
     setFields['tts_language_code'] = updates.ttsLanguageCode;
   if (updates?.ttsVoiceName !== undefined)
@@ -447,6 +453,7 @@ function toLocalizationPayload(
     language_code: localization.languageCode,
     title: localization.title,
     hls_url: localization.hlsUrl,
+    classroom_hls_url: localization.classroomHlsUrl ?? null,
     raw_text: localization.rawText,
     script: localization.script,
     llm_model: localization.llmModel,
@@ -455,6 +462,7 @@ function toLocalizationPayload(
     tts_language_code: localization.ttsLanguageCode,
     tts_voice_name: localization.ttsVoiceName,
     r2_prefix: localization.r2Prefix,
+    classroom_r2_prefix: localization.classroomR2Prefix ?? null,
     status: localization.status,
   };
 }
@@ -477,6 +485,12 @@ function normalizeLanguageClassroomRow(
     ...row,
     keywords: normalizeKeywords(row.keywords),
   };
+}
+
+function normalizeLanguageClassroomRows(
+  data: LanguageClassroomRow[] | null,
+): LanguageClassroomRow[] {
+  return (data ?? []).map(normalizeLanguageClassroomRow);
 }
 
 function normalizeKeywords(value: unknown): LanguageClassroomKeyword[] {

@@ -11,6 +11,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_MODE_KEY = 'default';
 
@@ -33,9 +35,18 @@ const MODES = {
   },
 };
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const FRONTEND_ROOT = path.resolve(SCRIPT_DIR, '..');
+const FRONTEND_BIN = path.join(FRONTEND_ROOT, 'node_modules', '.bin');
+
 function runCommand(command, args) {
   console.log(`[deadcode] Running ${command} ${args.join(' ')}`.trim());
   const result = spawnSync(command, args, {
+    cwd: FRONTEND_ROOT,
+    env: {
+      ...process.env,
+      PATH: `${FRONTEND_BIN}${path.delimiter}${process.env.PATH ?? ''}`,
+    },
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
@@ -48,7 +59,7 @@ function runCommand(command, args) {
     return result.status;
   }
 
-  return result.signal ? 1 : 0;
+  return result.error || result.signal ? 1 : 0;
 }
 
 const modeKey = process.argv[2] ?? DEFAULT_MODE_KEY;

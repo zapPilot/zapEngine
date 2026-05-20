@@ -85,6 +85,8 @@ class BaseAnalyticsService(CacheKeyMixin):
         session = db or self.db
         return self.query_service.execute_query(session, query_name, params)
 
+    # jscpd:ignore-start
+    # Reason: query helper overload mirrors _execute_query for a different result shape.
     def _execute_query_one(
         self,
         query_name: str,
@@ -95,6 +97,8 @@ class BaseAnalyticsService(CacheKeyMixin):
         """Execute a query expected to return a single record."""
         session = db or self.db
         return self.query_service.execute_query_one(session, query_name, params)
+
+    # jscpd:ignore-end
 
     def _date_range_with_period(
         self, days: int, end_date: datetime | None = None

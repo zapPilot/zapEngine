@@ -30,6 +30,8 @@ class CategoryTrendBaseService(BaseAnalyticsService):
     _transformer_cls: ClassVar[type[CategoryDataTransformer]] = CategoryDataTransformer
     _category_trend_cache_namespace: ClassVar[str] = "category_trend_rows"
 
+    # jscpd:ignore-start
+    # Reason: subclass constructor intentionally mirrors BaseAnalyticsService DI shape.
     def __init__(
         self,
         db: Session,
@@ -38,6 +40,8 @@ class CategoryTrendBaseService(BaseAnalyticsService):
     ) -> None:
         super().__init__(db, query_service, context)
         self._category_transformer = self._transformer_cls()
+
+    # jscpd:ignore-end
 
     @classmethod
     def extract_category_value(cls, row: dict[str, Any]) -> float:

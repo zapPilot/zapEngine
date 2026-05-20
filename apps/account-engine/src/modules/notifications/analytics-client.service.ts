@@ -4,7 +4,12 @@ import { ANALYTICS_CONFIG } from '../../common/constants';
 import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
-import { getErrorMessage, UrlValidator } from '../../common/utils';
+import {
+  getErrorMessage,
+  isFiniteNumber,
+  percentChange,
+  UrlValidator,
+} from '../../common/utils';
 import { ConfigService } from '../../config/config.service';
 import { PortfolioNotFoundError } from './errors/portfolio-not-found.error';
 import { DailySuggestionData } from './interfaces/daily-suggestion.interface';
@@ -131,12 +136,6 @@ export class AnalyticsClientService {
     this.handleAnalyticsError(lastError, userId, label);
   }
 
-  private getRequestTimeout(
-    timeoutMs: number = ANALYTICS_CONFIG.REQUEST_TIMEOUT_MS,
-  ): number {
-    return timeoutMs;
-  }
-
   private handleAnalyticsError(
     error: unknown,
     userId: string,
@@ -146,42 +145,39 @@ export class AnalyticsClientService {
       throw error;
     }
 
-    const axiosError = error as {
+    const httpError = error as {
       response?: { status?: number };
       code?: string;
-      message?: string;
     };
 
-    if (axiosError.response?.status === 404) {
+    if (httpError.response?.status === 404) {
       throw new PortfolioNotFoundError(
         userId,
         `${operationLabel.charAt(0).toUpperCase() + operationLabel.slice(1)} not found for user: ${userId}. User may be newly onboarded or portfolio not yet indexed.`,
       );
     }
-    if (axiosError.response?.status === 500) {
+    if (httpError.response?.status === 500) {
       throw new ServiceLayerException(
         `Analytics engine internal error for user: ${userId}`,
         HttpStatus.BAD_GATEWAY,
       );
     }
-    if (axiosError.code === 'ECONNREFUSED') {
+    if (httpError.code === 'ECONNREFUSED') {
       throw new ServiceLayerException(
         'Cannot connect to analytics engine. Please check if the service is running.',
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
     throw new ServiceLayerException(
-      `Failed to retrieve ${operationLabel}: ${axiosError.message ?? 'Unknown error'}`,
+      `Failed to retrieve ${operationLabel}: ${getErrorMessage(error)}`,
     );
   }
 
   private isRetryableTimeoutError(error: unknown): boolean {
-    const axiosError = error as { code?: string; message?: string };
-    return (
-      axiosError.code === 'ECONNABORTED' ||
-      axiosError.code === 'ETIMEOUT' ||
-      axiosError.message?.includes('timeout') === true
-    );
+    // This app uses node `fetch` (undici), not axios — timeouts surface as
+    // AbortError or with "timeout" / "timed out" in the message.
+    const message = getErrorMessage(error).toLowerCase();
+    return message.includes('timeout') || message.includes('timed out');
   }
 
   async getPortfolioTrendData(userId: string): Promise<PortfolioTrendResponse> {
@@ -218,22 +214,15 @@ export class AnalyticsClientService {
     >;
     const roi7d = windows['roi_7d'] as ROIData | undefined;
 
-    if (this.isFiniteNumber(roi7d?.value)) {
+    if (isFiniteNumber(roi7d?.value)) {
       return roi7d.value;
     }
 
-    const startBalance = roi7d?.start_balance;
-    if (
-      this.isFiniteNumber(startBalance) &&
-      startBalance > 0 &&
-      this.isFiniteNumber(portfolioData.total_net_usd)
-    ) {
-      return (
-        ((portfolioData.total_net_usd - startBalance) / startBalance) * 100
-      );
-    }
-
-    return undefined;
+    // Fall back to computing from the 7-day starting balance vs current net.
+    return (
+      percentChange(portfolioData.total_net_usd, roi7d?.start_balance) ??
+      undefined
+    );
   }
 
   async validateAnalyticsConnection(): Promise<{
@@ -447,12 +436,8 @@ export class AnalyticsClientService {
   }
 
   private resolvePortfolioTrendsBaseUrl(baseUrl: string): string {
-    if (!UrlValidator.isValidHttpUrl(baseUrl)) {
-      return UrlValidator.normalizeLoopbackUrl(
-        `http://localhost:${ANALYTICS_CONFIG.DEFAULT_TRENDS_PORT}`,
-      );
-    }
-
+    // `new URL(...)` below is the real guard; previously we double-validated
+    // with `isValidHttpUrl` and made the catch unreachable.
     try {
       const url = new URL(UrlValidator.normalizeLoopbackUrl(baseUrl));
 
@@ -462,10 +447,10 @@ export class AnalyticsClientService {
       }
 
       return UrlValidator.normalizeLoopbackUrl(UrlValidator.getOrigin(baseUrl));
-    } /* istanbul ignore next -- URL already validated by isValidHttpUrl above */ catch (error) {
+    } catch (error) {
       this.logger.warn(
         'Unable to derive analytics trends URL from base; using default',
-        error instanceof Error ? error.message : error,
+        getErrorMessage(error),
       );
       return UrlValidator.normalizeLoopbackUrl(
         `http://localhost:${ANALYTICS_CONFIG.DEFAULT_TRENDS_PORT}`,
@@ -495,12 +480,8 @@ export class AnalyticsClientService {
     );
   }
 
-  private isFiniteNumber(value: unknown): value is number {
-    return typeof value === 'number' && Number.isFinite(value);
-  }
-
   private getNumber(value: unknown, fieldPath: string): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
+    if (isFiniteNumber(value)) {
       return value;
     }
 
@@ -656,7 +637,9 @@ export class AnalyticsClientService {
 
     const response = await fetch(requestUrl.toString(), {
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(this.getRequestTimeout(options?.timeoutMs)),
+      signal: AbortSignal.timeout(
+        options?.timeoutMs ?? ANALYTICS_CONFIG.REQUEST_TIMEOUT_MS,
+      ),
     });
 
     if (!response.ok) {

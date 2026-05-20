@@ -64,33 +64,14 @@ identity plane owns no money-movement planning._
 - One authoritative path per money-moving flow: never compute the same plan both
   client-side and server-side against a shared contract.
 
-Evolution (a guardrail, not a scheduled project):
-
-1. Now: deposit-plan is a dead proxy in account-engine — do not extend it.
-2. When analytics→deposit is wired: replace it with ONE bounded
-   `apps/account-engine/src/modules/plan-orchestration/` module — own
-   `POST /plan-orchestration/*` routes, own `@zapengine/types` contract, no imports
-   to/from the rest of account-engine. This is the only intent/orchestration code
-   permitted inside account-engine.
-3. Extract to `apps/plan-orchestration` when a trigger fires: (1) account-engine's
-   runtime coupling to analytics-engine for a money route causes incidents, (2) LiFi/RPC
-   key exposure on the client becomes a concern, or (3) account-engine deploy coupling
-   starts costing you.
+Evolution guardrail (multi-step roadmap for when deposit-plan stops being a
+proxy, where the bounded module lives, and when to extract
+`apps/plan-orchestration`): see
+[apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md).
 
 # Pre-commit
 
 Hooks run from the repo root via Turbo. To run local checks for a workspace manually, use `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>`. For `analytics-engine`, include `sql:audit service-reachability pylint:duplicate-check` in the Turbo command when you need the full local gate.
-
-# Turbo Remote Cache (local setup)
-
-CI pushes build artifacts to Vercel Remote Cache. After merging main (lockfile / `package.json` changes), the next commit triggers a full cold-cache rebuild (~20s on `format:check`). To pull CI's cache locally and eliminate this penalty:
-
-```bash
-pnpm dlx turbo login   # one-time browser auth
-pnpm dlx turbo link    # bind this repo to the Vercel team
-```
-
-After linking, Turbo checks remote cache on local misses — `pnpm check:local` stays fast even after dependency upgrades.
 
 # Python environment (analytics-engine)
 

@@ -12,6 +12,7 @@ Key Design Decisions:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import numpy as np
 
@@ -47,6 +48,35 @@ class OutlierFilterStrategy(ABC):
             Guards against degenerate cases (zero IQR, identical values).
         """
 
+    def _partition(
+        self,
+        daily_totals: dict[str, float],
+        classify: Callable[[float], tuple[bool, float | None]],
+        reason: str,
+    ) -> tuple[list[float], list[OutlierInfo]]:
+        """Split values into kept/outliers using a per-value classifier.
+
+        ``classify(value)`` returns ``(keep, z_score)`` where ``keep`` decides
+        whether the value is retained and ``z_score`` is recorded on the
+        resulting :class:`OutlierInfo` (``None`` for non z-score strategies).
+        """
+        values = list(daily_totals.values())
+        dates = list(daily_totals.keys())
+
+        filtered: list[float] = []
+        outliers: list[OutlierInfo] = []
+
+        for date, value in zip(dates, values, strict=True):
+            keep, z_score = classify(value)
+            if keep:
+                filtered.append(value)
+            else:
+                outliers.append(
+                    OutlierInfo(date=date, value=value, reason=reason, z_score=z_score)
+                )
+
+        return filtered, outliers
+
 
 class NoOpFilter(OutlierFilterStrategy):
     """No-operation filter that passes through all values unchanged."""
@@ -75,7 +105,6 @@ class IQRFilter(OutlierFilterStrategy):
     ) -> tuple[list[float], list[OutlierInfo]]:
         """Apply IQR-based outlier filtering."""
         values = list(daily_totals.values())
-        dates = list(daily_totals.keys())
 
         if len(values) < self.MIN_SAMPLES_FOR_DETECTION:
             return values, []
@@ -90,18 +119,11 @@ class IQRFilter(OutlierFilterStrategy):
             lower = q1 - self.IQR_MULTIPLIER * iqr
             upper = q3 + self.IQR_MULTIPLIER * iqr
 
-        filtered = []
-        outliers: list[OutlierInfo] = []
-
-        for date, value in zip(dates, values, strict=True):
-            if lower <= value <= upper:
-                filtered.append(value)
-            else:
-                outliers.append(
-                    OutlierInfo(date=date, value=value, reason="IQR", z_score=None)
-                )
-
-        return filtered, outliers
+        return self._partition(
+            daily_totals,
+            lambda value: (lower <= value <= upper, None),
+            "IQR",
+        )
 
 
 class ZScoreFilter(OutlierFilterStrategy):
@@ -120,7 +142,6 @@ class ZScoreFilter(OutlierFilterStrategy):
     ) -> tuple[list[float], list[OutlierInfo]]:
         """Apply Z-score-based outlier filtering."""
         values = list(daily_totals.values())
-        dates = list(daily_totals.keys())
 
         if len(values) < self.MIN_SAMPLES_FOR_DETECTION:
             return values, []
@@ -128,21 +149,11 @@ class ZScoreFilter(OutlierFilterStrategy):
         mean = float(np.mean(values))
         std = float(np.std(values))
 
-        filtered = []
-        outliers: list[OutlierInfo] = []
-
-        for date, value in zip(dates, values, strict=True):
+        def classify(value: float) -> tuple[bool, float | None]:
             z_score = abs((value - mean) / std) if std > 0 else 0.0
-            if z_score <= self.ZSCORE_THRESHOLD:
-                filtered.append(value)
-            else:
-                outliers.append(
-                    OutlierInfo(
-                        date=date, value=value, reason="zscore", z_score=z_score
-                    )
-                )
+            return z_score <= self.ZSCORE_THRESHOLD, z_score
 
-        return filtered, outliers
+        return self._partition(daily_totals, classify, "zscore")
 
 
 class PercentileFilter(OutlierFilterStrategy):
@@ -162,7 +173,6 @@ class PercentileFilter(OutlierFilterStrategy):
     ) -> tuple[list[float], list[OutlierInfo]]:
         """Apply percentile-based outlier filtering."""
         values = list(daily_totals.values())
-        dates = list(daily_totals.keys())
 
         if len(values) < self.MIN_SAMPLES_FOR_DETECTION:
             return values, []
@@ -174,17 +184,8 @@ class PercentileFilter(OutlierFilterStrategy):
         if p5 == p95:
             return values, []
 
-        filtered = []
-        outliers: list[OutlierInfo] = []
-
-        for date, value in zip(dates, values, strict=True):
-            if p5 <= value <= p95:
-                filtered.append(value)
-            else:
-                outliers.append(
-                    OutlierInfo(
-                        date=date, value=value, reason="percentile", z_score=None
-                    )
-                )
-
-        return filtered, outliers
+        return self._partition(
+            daily_totals,
+            lambda value: (p5 <= value <= p95, None),
+            "percentile",
+        )

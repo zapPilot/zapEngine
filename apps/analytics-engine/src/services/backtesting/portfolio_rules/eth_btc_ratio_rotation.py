@@ -9,10 +9,8 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioRuleConfig,
     PortfolioSnapshot,
     current_target,
-    portfolio_target_intent,
-    ratio_signals_consulted,
+    eth_btc_ratio_rotation_intent,
 )
-from src.services.backtesting.target_allocation import normalize_target_allocation
 
 
 @dataclass(frozen=True)
@@ -55,17 +53,12 @@ class EthBtcRatioRotationRule:
             target["btc"] = btc + eth
             target["eth"] = 0.0
             allocation_name = "portfolio_eth_btc_ratio_rotation_to_btc"
-        return portfolio_target_intent(
-            action="sell",
-            target=normalize_target_allocation(target),
+        return eth_btc_ratio_rotation_intent(
+            snapshot=snapshot,
+            config=config,
+            target=target,
             allocation_name=allocation_name,
-            reason=allocation_name,
             rule_group=self.rule_group,
-            assets=["BTC", "ETH"],
-            immediate=True,
-            signals_consulted=ratio_signals_consulted(snapshot)
-            if config.emit_signals_consulted
-            else None,
         )
 
 

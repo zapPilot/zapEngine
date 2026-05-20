@@ -5,7 +5,7 @@ import { EMAIL_CONFIG } from '../../common/constants';
 import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
-import { getErrorMessage } from '../../common/utils';
+import { getErrorMessage, isFiniteNumber } from '../../common/utils';
 import { ConfigService } from '../../config/config.service';
 
 export interface EmailAttachment {
@@ -61,6 +61,11 @@ export class EmailService {
         user: emailUser,
         pass: emailPassword,
       },
+      // Reuse a small pool of SMTP connections across recipients in the same
+      // weekly batch — without this, each recipient pays a full TLS handshake.
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
     });
 
     this.logger.log('Email transporter configured successfully');
@@ -136,10 +141,7 @@ export class EmailService {
 
   generateSubject(metrics: { weeklyPnLPercentage?: number }): string {
     const weeklyPnLPercentage = metrics.weeklyPnLPercentage;
-    if (
-      typeof weeklyPnLPercentage !== 'number' ||
-      !Number.isFinite(weeklyPnLPercentage)
-    ) {
+    if (!isFiniteNumber(weeklyPnLPercentage)) {
       return '📊 Weekly Report | Zap Pilot';
     }
 

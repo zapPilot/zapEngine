@@ -1,3 +1,5 @@
+import { memo, type ReactElement, useCallback } from 'react';
+
 import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
 import { cn } from '@/lib/ui/classNames';
 import type { TransactionToken } from '@/types/domain/transaction';
@@ -9,20 +11,24 @@ export interface TokenSelectorRowProps {
   selected: boolean;
   query: TokenBalanceQuery | undefined;
   isConnected: boolean;
-  onSelect: () => void;
+  onSelect: (address: string) => void;
 }
 
-export function TokenSelectorRow({
+function TokenSelectorRowComponent({
   token,
   selected,
   query,
   isConnected,
   onSelect,
-}: TokenSelectorRowProps) {
+}: TokenSelectorRowProps): ReactElement {
+  const handleSelect = useCallback(() => {
+    onSelect(token.address);
+  }, [onSelect, token.address]);
+
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={handleSelect}
       aria-pressed={selected}
       className={cn(
         'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition-all',
@@ -62,3 +68,6 @@ export function TokenSelectorRow({
     </button>
   );
 }
+
+export const TokenSelectorRow = memo(TokenSelectorRowComponent);
+TokenSelectorRow.displayName = 'TokenSelectorRow';

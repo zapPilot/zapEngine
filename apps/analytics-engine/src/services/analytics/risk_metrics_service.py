@@ -61,21 +61,7 @@ class RiskMetricsService(BaseAnalyticsService):
     def _get_daily_returns_base_data(
         self, user_id: UUID, days: int, wallet_address: str | None = None
     ) -> list[dict[str, Any]]:
-        """
-        Get base daily returns data (shared by Volatility and Sharpe calculations).
-
-        Executes the daily returns query once and caches the result.
-        Both Volatility and Sharpe Ratio methods use this shared dataset,
-        eliminating duplicate SQL execution.
-
-        Args:
-            user_id: UUID of the user
-            days: Number of days for returns data
-            wallet_address: Optional wallet filter. When None, returns bundle data (all wallets).
-
-        Returns:
-            List of daily returns rows
-        """
+        """Fetch cached daily return rows for volatility and Sharpe calculations."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
 
         return self._cached_query_with_row_conversion(
@@ -194,11 +180,11 @@ class RiskMetricsService(BaseAnalyticsService):
         wallet_address: str | None,
     ) -> PortfolioVolatilityResponse:
         """Compute portfolio volatility payload for cache wrapper."""
-        _, _, period_info_dict = self._date_range_with_period(days)
-        period_info = PeriodInfo(**period_info_dict)
-        returns_data = self._get_daily_returns_base_data(user_id, days, wallet_address)
-
-        daily_returns = self._extract_daily_returns(returns_data)
+        period_info, daily_returns = self._period_info_and_daily_returns(
+            user_id,
+            days,
+            wallet_address,
+        )
         if len(daily_returns) < 2:
             return PortfolioVolatilityResponse(
                 user_id=self.uuid_to_str(user_id),
@@ -232,11 +218,11 @@ class RiskMetricsService(BaseAnalyticsService):
         wallet_address: str | None,
     ) -> SharpeRatioResponse:
         """Compute Sharpe ratio payload for cache wrapper."""
-        _, _, period_info_dict = self._date_range_with_period(days)
-        period_info = PeriodInfo(**period_info_dict)
-        returns_data = self._get_daily_returns_base_data(user_id, days, wallet_address)
-
-        daily_returns = self._extract_daily_returns(returns_data)
+        period_info, daily_returns = self._period_info_and_daily_returns(
+            user_id,
+            days,
+            wallet_address,
+        )
         if len(daily_returns) < 2:
             return SharpeRatioResponse(
                 user_id=self.uuid_to_str(user_id),
@@ -274,6 +260,18 @@ class RiskMetricsService(BaseAnalyticsService):
             interpretation=self.context.interpret_sharpe_ratio(sharpe_ratio),
             period_info=period_info,
         )
+
+    def _period_info_and_daily_returns(
+        self,
+        user_id: UUID,
+        days: int,
+        wallet_address: str | None,
+    ) -> tuple[PeriodInfo, list[float]]:
+        """Return typed period metadata and cleaned daily returns."""
+        _, _, period_info_dict = self._date_range_with_period(days)
+        period_info = PeriodInfo(**period_info_dict)
+        returns_data = self._get_daily_returns_base_data(user_id, days, wallet_address)
+        return period_info, self._extract_daily_returns(returns_data)
 
     def _compute_max_drawdown_response(
         self,

@@ -6,9 +6,11 @@ import 'package:zapengine_tokens/design_tokens.dart';
 
 import '../config/app_config.dart';
 import '../config/language_codes.dart';
+import '../services/auth_service.dart';
 import '../state/auth_provider.dart';
 import '../state/content_language_provider.dart';
 import '../theme/colors.dart';
+import '../utils/snackbar.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -46,12 +48,7 @@ class _LanguageSection extends StatelessWidget {
       children: [
         Text('語言', style: theme.textTheme.titleMedium),
         const SizedBox(height: 10),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
-            border: Border.all(color: AppColors.divider),
-          ),
+        _SettingsCard(
           child: Column(
             children: [
               for (final option in kLanguageOptions) ...[
@@ -134,13 +131,7 @@ class _LanguageTile extends StatelessWidget {
       };
     }
 
-    return () {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text(kComingSoonTooltip)),
-        );
-    };
+    return () => context.showMessage(kComingSoonTooltip);
   }
 }
 
@@ -150,29 +141,14 @@ class _AccountSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final user = auth.currentUser;
-    final title = user?.displayName?.trim().isNotEmpty == true
-        ? user!.displayName!.trim()
-        : user?.email?.trim().isNotEmpty == true
-            ? user!.email!.trim()
-            : '未登入帳戶';
-    final subtitle = user?.email?.trim().isNotEmpty == true
-        ? user!.email!.trim()
-        : user?.deviceId?.trim().isNotEmpty == true
-            ? '裝置登入'
-            : '尚未同步帳戶資料';
+    final accountDisplay = _resolveAccountDisplay(auth.currentUser);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('帳戶', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
-            border: Border.all(color: AppColors.divider),
-          ),
+        _SettingsCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -194,7 +170,7 @@ class _AccountSection extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            title,
+                            accountDisplay.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context)
@@ -204,7 +180,7 @@ class _AccountSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            subtitle,
+                            accountDisplay.subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
@@ -230,4 +206,61 @@ class _AccountSection extends StatelessWidget {
       ],
     );
   }
+
+  _AccountDisplay _resolveAccountDisplay(PodcastUser? user) {
+    final displayName = user?.displayName?.trim();
+    final email = user?.email?.trim();
+    final deviceId = user?.deviceId?.trim();
+    final hasDisplayName = displayName?.isNotEmpty ?? false;
+    final hasEmail = email?.isNotEmpty ?? false;
+    final hasDeviceId = deviceId?.isNotEmpty ?? false;
+
+    return _AccountDisplay(
+      title: _accountTitle(
+        displayName: hasDisplayName ? displayName : null,
+        email: hasEmail ? email : null,
+      ),
+      subtitle: _accountSubtitle(
+        email: hasEmail ? email : null,
+        hasDeviceId: hasDeviceId,
+      ),
+    );
+  }
+
+  String _accountTitle({String? displayName, String? email}) {
+    if (displayName != null) return displayName;
+    if (email != null) return email;
+    return '未登入帳戶';
+  }
+
+  String _accountSubtitle({String? email, required bool hasDeviceId}) {
+    if (email != null) return email;
+    if (hasDeviceId) return '裝置登入';
+    return '尚未同步帳戶資料';
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
+        side: const BorderSide(color: AppColors.divider),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _AccountDisplay {
+  const _AccountDisplay({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
 }

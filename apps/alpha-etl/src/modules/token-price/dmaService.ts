@@ -14,6 +14,7 @@
 import { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
+import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
 import { TokenPriceDmaWriter } from '../../modules/token-price/dmaWriter.js';
 import { TokenPairRatioDmaWriter } from '../../modules/token-price/ratioDmaWriter.js';
 import type {
@@ -84,38 +85,25 @@ export class TokenPriceDmaService {
       jobId,
     );
 
-    logger.info('Starting DMA computation post-step', {
-      jobId: correlationId,
-      tokenSymbol: tokenContext.tokenSymbol,
-      tokenId: tokenContext.tokenId,
-    });
-
-    const prices = await this.fetchPricesForToken(
-      tokenContext.tokenSymbol,
-      tokenContext.tokenId,
-    );
-    if (prices.length === 0) {
-      logger.info('No price history found for DMA computation', {
-        jobId: correlationId,
+    return runDmaUpdate({
+      correlationId,
+      logContext: {
         tokenSymbol: tokenContext.tokenSymbol,
         tokenId: tokenContext.tokenId,
-      });
-      return { recordsInserted: 0 };
-    }
-
-    const writeResult = await this.computeAndWriteDma(
-      prices,
-      correlationId,
-      tokenContext.tokenSymbol,
-    );
-
-    logger.info('DMA computation post-step completed', {
-      jobId: correlationId,
-      tokenSymbol: tokenContext.tokenSymbol,
-      recordsInserted: writeResult.recordsInserted,
+      },
+      fetchPrices: () =>
+        this.fetchPricesForToken(
+          tokenContext.tokenSymbol,
+          tokenContext.tokenId,
+        ),
+      computeSnapshots: (prices) => computeDma(prices, DMA_WINDOW_SIZE),
+      writeSnapshots: (snapshots) =>
+        this.writeDmaSnapshots(
+          snapshots,
+          correlationId,
+          tokenContext.tokenSymbol,
+        ),
     });
-
-    return { recordsInserted: writeResult.recordsInserted };
   }
 
   /**
@@ -278,15 +266,6 @@ export class TokenPriceDmaService {
 
     const result = await this.ratioWriter.writeRatioDmaSnapshots(snapshots);
     return { recordsInserted: result.recordsInserted };
-  }
-
-  private async computeAndWriteDma(
-    prices: PriceRow[],
-    correlationId: string,
-    tokenSymbol: string,
-  ): Promise<{ recordsInserted: number }> {
-    const dmaSnapshots = computeDma(prices, DMA_WINDOW_SIZE);
-    return this.writeDmaSnapshots(dmaSnapshots, correlationId, tokenSymbol);
   }
 
   private normalizeTokenContext(

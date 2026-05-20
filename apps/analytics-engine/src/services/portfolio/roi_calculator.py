@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
@@ -368,13 +368,9 @@ class ROICalculator(ROICalculatorProtocol):
         # Prefer lowest positive annualized ROI (most conservative/realistic signal)
         positives = [w for w in evaluated if w.annualized > 0.0]
         if positives:
-            best = min(
+            best = self._select_by_annualized_score(
                 positives,
-                key=lambda w: (
-                    w.annualized,
-                    -w.data["data_points"],
-                    int(w.period != DEFAULT_RECOMMENDED_PERIOD),
-                ),
+                lambda window: window.annualized,
             )
             return best.period, best.data, best.effective_days
 
@@ -393,17 +389,27 @@ class ROICalculator(ROICalculatorProtocol):
         # Prefer least-negative annualized ROI
         negatives = [w for w in evaluated if w.annualized < 0.0]
         if negatives:
-            best = min(
+            best = self._select_by_annualized_score(
                 negatives,
-                key=lambda w: (
-                    abs(w.annualized),
-                    -w.data["data_points"],
-                    int(w.period != DEFAULT_RECOMMENDED_PERIOD),
-                ),
+                lambda window: abs(window.annualized),
             )
             return best.period, best.data, best.effective_days
 
         return _fallback()  # pragma: no cover
+
+    @staticmethod
+    def _select_by_annualized_score(
+        windows: list[EvaluatedWindow],
+        score: Callable[[EvaluatedWindow], float],
+    ) -> EvaluatedWindow:
+        return min(
+            windows,
+            key=lambda window: (
+                score(window),
+                -window.data["data_points"],
+                int(window.period != DEFAULT_RECOMMENDED_PERIOD),
+            ),
+        )
 
     @staticmethod
     def _default_period(

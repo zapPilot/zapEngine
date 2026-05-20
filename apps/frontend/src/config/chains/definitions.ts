@@ -122,3 +122,12 @@ const MAINNET_CHAINS: BaseChainConfig[] = [
 export const SUPPORTED_CHAINS = MAINNET_CHAINS.filter(
   (chain) => chain.isSupported,
 );
+
+/**
+ * Get only mainnet (supported) chains from an arbitrary chain list.
+ */
+export function getMainnetChains(
+  configs: BaseChainConfig[],
+): BaseChainConfig[] {
+  return configs.filter((config) => config.isSupported);
+}

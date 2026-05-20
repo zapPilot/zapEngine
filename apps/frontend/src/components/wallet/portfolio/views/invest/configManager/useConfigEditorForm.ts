@@ -12,7 +12,7 @@ import {
   useUpdateStrategyConfig,
 } from '@/hooks/mutations';
 import { useStrategyAdminConfig } from '@/hooks/queries/strategyAdmin';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import type {
   BacktestCompareParamsV3,
   SavedStrategyConfig,

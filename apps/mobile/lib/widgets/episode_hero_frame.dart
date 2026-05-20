@@ -12,32 +12,26 @@ class EpisodeHeroFrame extends StatelessWidget {
     this.height,
     this.constraints,
     this.onTap,
-    this.iconRight = -20,
-    this.iconTop = 22,
-    this.iconSize = 128,
-    this.iconOpacity = 0.13,
+    this.iconConfig = const EpisodeHeroIconConfig(),
   });
 
   final Widget child;
   final double? height;
   final BoxConstraints? constraints;
   final VoidCallback? onTap;
-  final double iconRight;
-  final double iconTop;
-  final double iconSize;
-  final double iconOpacity;
+  final EpisodeHeroIconConfig iconConfig;
 
   @override
   Widget build(BuildContext context) {
     final content = Stack(
       children: [
         Positioned(
-          right: iconRight,
-          top: iconTop,
+          right: iconConfig.right,
+          top: iconConfig.top,
           child: Icon(
             Icons.graphic_eq_rounded,
-            size: iconSize,
-            color: AppColors.accent.withValues(alpha: iconOpacity),
+            size: iconConfig.size,
+            color: AppColors.accent.withValues(alpha: iconConfig.opacity),
           ),
         ),
         Padding(padding: const EdgeInsets.all(24), child: child),
@@ -82,6 +76,20 @@ class EpisodeHeroFrame extends StatelessWidget {
             ),
     );
   }
+}
+
+class EpisodeHeroIconConfig {
+  const EpisodeHeroIconConfig({
+    this.right = -20,
+    this.top = 22,
+    this.size = 128,
+    this.opacity = 0.13,
+  });
+
+  final double right;
+  final double top;
+  final double size;
+  final double opacity;
 }
 
 class EpisodeHeroText extends StatelessWidget {

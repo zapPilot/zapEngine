@@ -1,32 +1,12 @@
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useState,
-} from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 
 import { Z_INDEX } from '@/constants/designSystem';
+import { ToastContext } from '@/providers/ToastContext';
 
 import { Toast, ToastNotification } from '../components/ui/ToastNotification';
 
-interface ToastContextType {
-  showToast: (toast: Omit<Toast, 'id'>) => void;
-  hideToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
-
 function createToastId(): string {
   return Math.random().toString(36).substring(7);
-}
-
-export function useToast(): ToastContextType {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
 }
 
 interface ToastProviderProps {
@@ -67,3 +47,5 @@ export function ToastProvider({ children }: ToastProviderProps) {
     </ToastContext.Provider>
   );
 }
+
+export { useToast } from '@/providers/ToastContext';

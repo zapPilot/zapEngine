@@ -1,4 +1,5 @@
 import { CHANNEL_TYPE_TELEGRAM, REGIME_EMOJI } from '../../common/constants';
+import { formatShortWalletAddress } from '../../common/utils';
 import { DailySuggestionData, DriftAlertData } from './interfaces';
 
 export const DAILY_SUGGESTION_DONE_PREFIX = 'dsdone';
@@ -173,7 +174,11 @@ export function formatDailySuggestionPortfolioSummary(
 }
 
 export function formatDriftMessage(data: DriftAlertData): string {
-  const walletShort = `${data.wallet_address.slice(0, 8)}...${data.wallet_address.slice(-6)}`;
+  // Drift alerts use the higher-fidelity 8/6 visual (vs the email default 6/4).
+  const walletShort = formatShortWalletAddress(data.wallet_address, {
+    head: 8,
+    tail: 6,
+  });
   const driftFormatted = data.drift_percentage.toFixed(1);
 
   let message =

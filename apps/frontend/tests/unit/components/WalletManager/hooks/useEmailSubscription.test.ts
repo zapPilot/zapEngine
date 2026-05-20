@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useEmailSubscription } from '@/components/WalletManager/hooks/useEmailSubscription';
 import { useUser } from '@/contexts/UserContext';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
 import { validateEmail } from '@/utils';
 
@@ -12,7 +12,7 @@ vi.mock('@/contexts/UserContext', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock('@/providers/ToastProvider', () => ({
+vi.mock('@/providers/ToastContext', () => ({
   useToast: vi.fn(),
 }));
 

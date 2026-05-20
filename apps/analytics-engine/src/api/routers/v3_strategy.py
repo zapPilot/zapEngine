@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.routers._errors import market_data_unavailable_http_exception
 from src.models.strategy import DailySuggestionResponse
 from src.models.strategy_config import (
     CreateSavedStrategyConfigRequest,
@@ -185,17 +186,7 @@ async def get_daily_suggestion(
         return service.get_daily_suggestion(user_id=user_id, config_id=config_id)
     except MarketDataUnavailableError as error:
         logger.warning("Market data unavailable for user %s: %s", user_id, error)
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error_code": "MARKET_DATA_UNAVAILABLE",
-                "message": str(error),
-                "missing_assets": error.missing_assets,
-                "oldest_data_date": error.oldest_data_date.isoformat()
-                if error.oldest_data_date
-                else None,
-            },
-        ) from error
+        raise market_data_unavailable_http_exception(error) from error
     except ValueError as error:
         logger.warning("Validation error for user %s: %s", user_id, error)
         raise HTTPException(status_code=400, detail=str(error)) from error

@@ -87,6 +87,25 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'ContinueListeningCard formats in-progress positions over an hour',
+      (tester) async {
+    _useViewport(tester, const Size(393, 852));
+
+    await _pumpCard(
+      tester,
+      ContinueListeningCard(
+        episode: _episode().copyWith(lastPositionSeconds: 3661),
+        allCompleted: false,
+        isPlaying: false,
+        isLoading: false,
+        onPlay: () {},
+      ),
+    );
+
+    expect(find.text('上次收聽至 1:01:01'), findsOneWidget);
+  });
 }
 
 void _useViewport(WidgetTester tester, Size size) {

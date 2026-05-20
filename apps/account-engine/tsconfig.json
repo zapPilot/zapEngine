@@ -3,6 +3,9 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    // Intentional drift from @zapengine/tsconfig/node.json (lib: ES2022 only): DOM +
+    // DOM.Iterable are load-bearing for undici fetch/Response.json() typing in
+    // alpha-etl-http.service.ts (without them strict mode flags TS18046). Do not remove.
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,

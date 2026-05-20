@@ -67,18 +67,12 @@ vi.mock(
 
 vi.mock(
   '@/components/wallet/portfolio/modals/transactionModalDependencies',
-  () => ({
-    useTransactionModalState: () => ({
-      dropdownState: { closeDropdowns: mocks.mockCloseDropdowns },
-      isConnected: true,
-    }),
-    buildModalFormState: (form: any, getMax: any) => {
-      const max = getMax();
-      return mocks.mockBuildModalFormState(form, max);
-    },
-    resolveActionLabel: (...args: any[]) =>
-      mocks.mockResolveActionLabel(...args),
-    TokenOptionButton: ({
+  () => {
+    const TransactionModalContent = ({ assetContent }: any) => (
+      <div data-testid="transaction-modal-content">{assetContent}</div>
+    );
+
+    const TokenOptionButton = ({
       symbol,
       balanceLabel,
       isSelected,
@@ -93,12 +87,61 @@ vi.mock(
       >
         {symbol} - {balanceLabel}
       </div>
-    ),
-    EmptyAssetsMessage: () => <div data-testid="empty-assets" />,
-    TransactionModalContent: ({ assetContent }: any) => (
-      <div data-testid="transaction-modal-content">{assetContent}</div>
-    ),
-  }),
+    );
+
+    return {
+      useTransactionModalState: () => ({
+        dropdownState: { closeDropdowns: mocks.mockCloseDropdowns },
+        isConnected: true,
+      }),
+      buildModalFormState: (form: any, getMax: any) => {
+        const max = getMax();
+        return mocks.mockBuildModalFormState(form, max);
+      },
+      resolveActionLabel: (...args: any[]) =>
+        mocks.mockResolveActionLabel(...args),
+      TokenOptionButton,
+      EmptyAssetsMessage: () => <div data-testid="empty-assets" />,
+      TransactionModalContent,
+      renderTransactionModalBody: ({ assetContent }: any) => (
+        <TransactionModalContent assetContent={assetContent} />
+      ),
+      renderTransactionTokenOption: (args: any) => (
+        <TokenOptionButton
+          symbol={args.token.symbol}
+          balanceLabel={`${args.balance} available`}
+          isSelected={
+            args.modalState.transactionData?.selectedToken?.address ===
+            args.token.address
+          }
+          onSelect={() => {
+            args.modalState.form.setValue('tokenAddress', args.token.address);
+            args.dropdownState.closeDropdowns();
+          }}
+        />
+      ),
+      renderWithdrawTransactionModalBody: (args: any) => {
+        const max = parseFloat(
+          args.modalState.transactionData.balances[
+            args.modalState.transactionData.selectedToken?.address || ''
+          ]?.balance || '0',
+        );
+        const formResult = mocks.mockBuildModalFormState(
+          args.modalState.form,
+          max,
+        );
+        mocks.mockResolveActionLabel({
+          isConnected: args.isConnected,
+          hasSelection: Boolean(args.modalState.transactionData.selectedToken),
+          isReady: formResult.isValid,
+          selectionLabel: 'Select Asset',
+          notReadyLabel: 'Enter Amount',
+          readyLabel: 'Review & Withdraw',
+        });
+        return <TransactionModalContent assetContent={args.assetContent} />;
+      },
+    };
+  },
 );
 
 describe('WithdrawModal', () => {

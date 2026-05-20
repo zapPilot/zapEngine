@@ -18,12 +18,9 @@ const mocks = vi.hoisted(() => {
   return {
     useWalletProvider: vi.fn(),
     getDepositPlan: vi.fn(),
+    executeDepositPlan: vi.fn(),
     getWalletClient: vi.fn(),
     switchChain: vi.fn(),
-    getExecutionStrategy: vi.fn(),
-    executeWithEIP7702: vi.fn(),
-    getPublicClient: vi.fn(),
-    waitForTransactionReceipt: vi.fn(),
     getBridgeStatus: vi.fn(),
     walletClient,
   };
@@ -33,17 +30,16 @@ vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
 
-vi.mock('@/services/depositService', () => ({
+vi.mock('@/services/planOrchestrationService', () => ({
   getDepositPlan: mocks.getDepositPlan,
+}));
+
+vi.mock('@/lib/wallet/executeDepositPlan', () => ({
+  executeDepositPlan: mocks.executeDepositPlan,
 }));
 
 vi.mock('@/services/intentClient', () => ({
   getBridgeStatus: mocks.getBridgeStatus,
-  getPublicClient: mocks.getPublicClient,
-  intentEngine: {
-    getExecutionStrategy: mocks.getExecutionStrategy,
-    executeWithEIP7702: mocks.executeWithEIP7702,
-  },
 }));
 
 vi.mock('@/utils/logger', () => ({
@@ -142,23 +138,20 @@ describe('useInvestStrategy', () => {
     mocks.getWalletClient.mockResolvedValue(mocks.walletClient);
     mocks.switchChain.mockResolvedValue(undefined);
     mocks.getDepositPlan.mockResolvedValue(plan);
-    mocks.getPublicClient.mockReturnValue({
-      waitForTransactionReceipt: mocks.waitForTransactionReceipt,
-    });
-    mocks.waitForTransactionReceipt.mockResolvedValue({
-      status: 'success',
-      transactionHash: '0xsource',
-    });
+    mocks.executeDepositPlan.mockImplementation(
+      async ({ onBundleSubmitted }) => {
+        onBundleSubmitted?.('0xbundle');
+        return {
+          kind: 'eip7702',
+          callsId: '0xbundle',
+          transactionHash: '0xsource',
+        };
+      },
+    );
     mocks.getBridgeStatus.mockResolvedValue({ status: 'DONE' });
   });
 
   it('executes backend-provided approvals and three leg calls as one EIP-7702 bundle', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('eip7702');
-    mocks.executeWithEIP7702.mockResolvedValue({
-      success: true,
-      callsId: '0xbundle',
-    });
-
     const { result } = renderHook(() => useInvestStrategy());
 
     await act(async () => {
@@ -166,14 +159,19 @@ describe('useInvestStrategy', () => {
     });
 
     expect(mocks.getDepositPlan).toHaveBeenCalledWith({
+      kind: 'invest',
       userAddress: USER,
       fromToken: BASE_USDC,
       fromAmount: '10000',
       sourceChainId: 8453,
     });
-    expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
-      [approveTx, supplyTx, ethereumBridgeTx, arbitrumBridgeTx],
-      mocks.walletClient,
+    expect(mocks.getWalletClient).toHaveBeenCalledWith(8453);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan,
+        walletClient: mocks.walletClient,
+        chainId: 8453,
+      }),
     );
     expect(result.current.tier).toBe('eip7702');
     expect(result.current.lastCallsId).toBe('0xbundle');
@@ -185,12 +183,25 @@ describe('useInvestStrategy', () => {
   });
 
   it('falls back to sequential approval then three leg transactions when atomic batching is unavailable', async () => {
-    mocks.getExecutionStrategy.mockResolvedValue('sequential');
-    mocks.walletClient.sendTransaction
-      .mockResolvedValueOnce('0xapprovehash')
-      .mockResolvedValueOnce('0xsupplyhash')
-      .mockResolvedValueOnce('0xethbridgehash')
-      .mockResolvedValueOnce('0xarbbridgehash');
+    mocks.executeDepositPlan.mockImplementation(
+      async ({ onCallSubmitted, onCallConfirmed }) => {
+        onCallSubmitted?.(0, supplyTx);
+        onCallConfirmed?.(0, supplyTx, '0xsupplyhash');
+        onCallSubmitted?.(1, ethereumBridgeTx);
+        onCallConfirmed?.(1, ethereumBridgeTx, '0xethbridgehash');
+        onCallSubmitted?.(2, arbitrumBridgeTx);
+        onCallConfirmed?.(2, arbitrumBridgeTx, '0xarbbridgehash');
+        return {
+          kind: 'sequential',
+          hashes: [
+            '0xapprovehash',
+            '0xsupplyhash',
+            '0xethbridgehash',
+            '0xarbbridgehash',
+          ],
+        };
+      },
+    );
 
     const { result } = renderHook(() => useInvestStrategy());
 
@@ -198,8 +209,7 @@ describe('useInvestStrategy', () => {
       await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
     });
 
-    expect(mocks.walletClient.sendTransaction).toHaveBeenCalledTimes(4);
-    expect(mocks.waitForTransactionReceipt).toHaveBeenCalledTimes(4);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
     expect(result.current.tier).toBe('sequential');
     expect(result.current.lastTxHashes).toEqual([
       '0xapprovehash',
@@ -225,6 +235,7 @@ describe('useInvestStrategy', () => {
 
     expect(mocks.switchChain).toHaveBeenCalledWith(8453);
     expect(mocks.getDepositPlan).toHaveBeenCalledWith({
+      kind: 'invest',
       userAddress: USER,
       fromToken: BASE_USDC,
       fromAmount: '10000',
@@ -251,7 +262,7 @@ describe('useInvestStrategy', () => {
     });
 
     expect(mocks.getDepositPlan).not.toHaveBeenCalled();
-    expect(mocks.walletClient.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlan).not.toHaveBeenCalled();
     expect(result.current.lastError).toBe(switchError);
   });
 });

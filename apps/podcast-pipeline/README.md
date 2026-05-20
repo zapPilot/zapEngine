@@ -1,6 +1,6 @@
 # Podcast Pipeline
 
-Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, LLM script, hybrid Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
+Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, OpenRouter LLM script/translation, hybrid Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
 
 ## Stack
 
@@ -18,7 +18,7 @@ Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`, and `/epi
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `FISH_AUDIO_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `FISH_AUDIO_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS; title/script translation uses the same OpenRouter path as script generation.
 
 TTS provider selection is per classroom language and code-owned in `src/services/tts/tts-config.ts`. Defaults are `zh-Hant` via Fish Audio and `ja`/`en` via Google; changing providers, models, engines, or voices requires a code change and deploy.
 

@@ -68,27 +68,11 @@ export const MESSAGES = {
     loadingMessage: 'Loading regime visualizer...',
   },
 
-  // V2 live telemetry strip
-  regimeTelemetry: {
-    status: 'live · mainnet',
-    regime: 'greed' as const,
-    items: [
-      {
-        label: 'Regime',
-        value: 'Greed',
-        detail: 'Risk-on legs active',
-      },
-      {
-        label: 'FGI',
-        value: '72',
-        detail: 'Greed zone',
-      },
-      {
-        label: '200MA Δ',
-        value: '+14.2%',
-        detail: 'Above trend',
-      },
-    ],
+  regimeStrip: {
+    ariaLabel: 'Regime data',
+    header: 'Telemetry feeding the next bundle',
+    liveStatus: 'live · mainnet',
+    pendingStatus: 'awaiting live telemetry',
   },
 
   // Features section

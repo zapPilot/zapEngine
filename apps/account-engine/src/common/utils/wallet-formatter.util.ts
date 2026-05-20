@@ -1,16 +1,29 @@
 import { isWalletAddress } from '../validation/wallet-address.util';
 
+export interface FormatShortWalletAddressOptions {
+  /** Characters from the start of the address (including `0x`). Default 6. */
+  head?: number;
+  /** Characters from the end of the address. Default 4. */
+  tail?: number;
+}
+
 /**
- * Formats a wallet address to a shortened display format (0x1234...abcd)
- * @param address - The full wallet address to format
- * @returns Shortened wallet address or original string if invalid
+ * Formats a wallet address to a shortened display format (default 0x1234...abcd).
+ * Pass `{ head, tail }` for higher-fidelity contexts (e.g. trade alerts: 8/6).
+ *
+ * @returns Shortened wallet address, or the original string if it's not a valid address.
  */
-export function formatShortWalletAddress(address: string): string {
+export function formatShortWalletAddress(
+  address: string,
+  options?: FormatShortWalletAddressOptions,
+): string {
   if (!isWalletAddress(address)) {
     return address;
   }
 
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const head = options?.head ?? 6;
+  const tail = options?.tail ?? 4;
+  return `${address.slice(0, head)}...${address.slice(-tail)}`;
 }
 
 /**

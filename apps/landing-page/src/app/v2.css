@@ -667,9 +667,44 @@
   line-height: 1.45;
 }
 
-.v2-root .regime-strip-item.is-loading {
-  opacity: 0.58;
-  transition: opacity 180ms ease;
+.v2-root .regime-strip-item.is-skeleton .skeleton-bar {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0.055) 90%
+  );
+  background-clip: border-box;
+  background-size: 220% 100%;
+  animation: regime-shimmer 1.4s ease-in-out infinite;
+}
+
+.v2-root .regime-strip-item.is-skeleton .skeleton-label {
+  width: 72px;
+  height: 11px;
+}
+
+.v2-root .regime-strip-item.is-skeleton .skeleton-value {
+  width: 96px;
+  height: 24px;
+}
+
+.v2-root .regime-strip-item.is-skeleton .skeleton-detail {
+  width: 132px;
+  max-width: 72%;
+  height: 10px;
+}
+
+@keyframes regime-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
 }
 
 .v2-root .v2-section {
@@ -1771,5 +1806,10 @@
   .v2-root .scene {
     opacity: 1;
     transform: none;
+  }
+
+  .v2-root .regime-strip-item.is-skeleton .skeleton-bar {
+    animation: none !important;
+    background-position: 0 0;
   }
 }

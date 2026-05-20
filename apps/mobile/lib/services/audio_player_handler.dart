@@ -6,9 +6,14 @@ import 'package:just_audio/just_audio.dart';
 
 import '../models/episode.dart';
 
+enum PlaybackSection { main, classroom }
+
 class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer _player = AudioPlayer();
+  final _currentSectionController =
+      StreamController<PlaybackSection>.broadcast();
   late final Future<void> _ready;
+  PlaybackSection _currentSection = PlaybackSection.main;
   static const Set<MediaAction> _seekActions = {
     MediaAction.seek,
     MediaAction.seekForward,
@@ -24,7 +29,10 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<double> get speedStream => _player.speedStream;
+  Stream<PlaybackSection> get currentSectionStream =>
+      _currentSectionController.stream;
   Duration get duration => _player.duration ?? Duration.zero;
+  PlaybackSection get currentSection => _currentSection;
 
   Future<void> _init() async {
     final session = await AudioSession.instance;
@@ -40,6 +48,7 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
     });
 
     _player.playbackEventStream.listen(_broadcastState);
+    _player.currentIndexStream.listen(_handleCurrentIndex);
 
     _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
@@ -169,9 +178,11 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
     final newMediaItem = _mediaItemFor(episode, url: url, audioTrack: track);
 
     mediaItem.add(newMediaItem);
+    _publishQueue(episode, audioTrack: track);
+    _setCurrentSection(PlaybackSection.main);
 
     try {
-      await _setSourceUrl(url);
+      await _setEpisodeSource(episode, audioTrack: track);
     } catch (_) {
       _markPlaybackError();
       rethrow;
@@ -186,9 +197,11 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
     final currentSpeed = _player.speed;
 
     mediaItem.add(_mediaItemFor(episode, url: track.hlsUrl, audioTrack: track));
+    _publishQueue(episode, audioTrack: track);
+    _setCurrentSection(PlaybackSection.main);
 
     try {
-      final duration = await _setSourceUrl(track.hlsUrl);
+      final duration = await _setEpisodeSource(episode, audioTrack: track);
       final seekPosition = duration != null && previousPosition > duration
           ? duration
           : previousPosition;
@@ -211,6 +224,7 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
     Episode episode, {
     required String url,
     AudioTrack? audioTrack,
+    PlaybackSection section = PlaybackSection.main,
   }) {
     return MediaItem(
       id: episode.id,
@@ -220,6 +234,7 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
       duration: Duration.zero,
       extras: {
         'url': url,
+        'section': section.name,
         if (audioTrack != null) 'languageCode': audioTrack.languageCode,
         if (audioTrack != null) 'audioTrackTitle': audioTrack.title,
       },
@@ -239,7 +254,7 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,
-        queueIndex: 0,
+        queueIndex: _player.currentIndex ?? 0,
       ),
     );
   }
@@ -253,8 +268,50 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
     ];
   }
 
-  Future<Duration?> _setSourceUrl(String url) {
-    return _player.setAudioSource(AudioSource.uri(Uri.parse(url)));
+  Future<Duration?> _setEpisodeSource(
+    Episode episode, {
+    AudioTrack? audioTrack,
+  }) {
+    final mainUrl = audioTrack?.hlsUrl ?? episode.hlsUrl;
+    final classroomUrl = audioTrack?.classroomHlsUrl;
+    final sources = <AudioSource>[AudioSource.uri(Uri.parse(mainUrl))];
+    if (classroomUrl != null && classroomUrl.trim().isNotEmpty) {
+      sources.add(AudioSource.uri(Uri.parse(classroomUrl)));
+    }
+
+    if (sources.length == 1) {
+      return _player.setAudioSource(sources.single);
+    }
+
+    return _player.setAudioSource(ConcatenatingAudioSource(children: sources));
+  }
+
+  void _publishQueue(Episode episode, {AudioTrack? audioTrack}) {
+    final mainUrl = audioTrack?.hlsUrl ?? episode.hlsUrl;
+    final classroomUrl = audioTrack?.classroomHlsUrl;
+    queue.add([
+      _mediaItemFor(episode, url: mainUrl, audioTrack: audioTrack),
+      if (classroomUrl != null && classroomUrl.trim().isNotEmpty)
+        _mediaItemFor(
+          episode,
+          url: classroomUrl,
+          audioTrack: audioTrack,
+          section: PlaybackSection.classroom,
+        ),
+    ]);
+  }
+
+  void _handleCurrentIndex(int? index) {
+    _setCurrentSection(
+      index == 1 ? PlaybackSection.classroom : PlaybackSection.main,
+    );
+    _broadcastState(_player.playbackEvent);
+  }
+
+  void _setCurrentSection(PlaybackSection section) {
+    if (_currentSection == section) return;
+    _currentSection = section;
+    _currentSectionController.add(section);
   }
 
   void _markPlaybackError() {
@@ -265,5 +322,6 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> dispose() async {
     await _player.dispose();
+    await _currentSectionController.close();
   }
 }

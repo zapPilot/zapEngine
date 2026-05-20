@@ -12,6 +12,8 @@ from src.services.backtesting.execution.transfer_netting import build_bucket_tra
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
 
 
+# jscpd:ignore-start
+# Reason: legacy rule-based result mirrors the shared executor result contract.
 @dataclass(frozen=True)
 class AllocationExecutionResult:
     target_allocation: dict[str, float]
@@ -21,6 +23,9 @@ class AllocationExecutionResult:
     drift: float
     immediate_execution: bool = True
     block_reason: str | None = None
+
+
+# jscpd:ignore-end
 
 
 @dataclass

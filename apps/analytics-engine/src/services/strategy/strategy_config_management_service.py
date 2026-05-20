@@ -57,17 +57,10 @@ class StrategyConfigManagementService:
             raise StrategyConfigConflictError(
                 f"Config '{request.config_id}' already exists"
             )
-        config = SavedStrategyConfig(
+        config = self._config_from_request(
+            request,
             config_id=request.config_id,
-            display_name=request.display_name,
-            description=request.description,
-            strategy_id=request.strategy_id,
-            primary_asset=request.primary_asset,
-            params=dict(request.params),
-            composition=request.composition,
-            supports_daily_suggestion=request.supports_daily_suggestion,
             is_default=False,
-            is_benchmark=False,
         )
         self._validate_mutable_config(config)
         return self._persist_configs([config])[0]
@@ -79,17 +72,10 @@ class StrategyConfigManagementService:
     ) -> SavedStrategyConfig:
         existing = self.get_config(config_id)
         self._ensure_non_benchmark(existing)
-        updated = SavedStrategyConfig(
+        updated = self._config_from_request(
+            request,
             config_id=existing.config_id,
-            display_name=request.display_name,
-            description=request.description,
-            strategy_id=request.strategy_id,
-            primary_asset=request.primary_asset,
-            params=dict(request.params),
-            composition=request.composition,
-            supports_daily_suggestion=request.supports_daily_suggestion,
             is_default=existing.is_default,
-            is_benchmark=False,
         )
         self._validate_mutable_config(updated)
         if updated.is_default and not updated.supports_daily_suggestion:
@@ -120,6 +106,26 @@ class StrategyConfigManagementService:
                 )
         updates.append(target.model_copy(update={"is_default": True}, deep=True))
         return self._persist_configs(updates)[-1]
+
+    @staticmethod
+    def _config_from_request(
+        request: CreateSavedStrategyConfigRequest | UpdateSavedStrategyConfigRequest,
+        *,
+        config_id: str,
+        is_default: bool,
+    ) -> SavedStrategyConfig:
+        return SavedStrategyConfig(
+            config_id=config_id,
+            display_name=request.display_name,
+            description=request.description,
+            strategy_id=request.strategy_id,
+            primary_asset=request.primary_asset,
+            params=dict(request.params),
+            composition=request.composition,
+            supports_daily_suggestion=request.supports_daily_suggestion,
+            is_default=is_default,
+            is_benchmark=False,
+        )
 
     def _validate_mutable_config(self, config: SavedStrategyConfig) -> None:
         family = self.composition_catalog.resolve_family(config.strategy_id)

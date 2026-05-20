@@ -3,6 +3,7 @@ import 'package:zapengine_tokens/design_tokens.dart';
 
 import '../config/language_codes.dart';
 import '../theme/colors.dart';
+import '../utils/snackbar.dart';
 
 class LanguageChipRow extends StatelessWidget {
   const LanguageChipRow({
@@ -108,9 +109,7 @@ class _LanguageChipSegment extends StatelessWidget {
 
   void _handleTap(BuildContext context) {
     if (!option.enabled) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text(kComingSoonTooltip)));
+      context.showMessage(kComingSoonTooltip);
       return;
     }
     if (!selected) {

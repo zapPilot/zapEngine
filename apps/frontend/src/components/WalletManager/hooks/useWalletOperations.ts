@@ -13,7 +13,7 @@ import {
   handleWalletError,
   type WalletData,
 } from '@/lib/validation/walletUtils';
-import { useToast } from '@/providers/ToastProvider';
+import { useToast } from '@/providers/ToastContext';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import type { EditingWallet, NewWallet, WalletOperations } from '@/types';
 import { copyTextToClipboard } from '@/utils/clipboard';

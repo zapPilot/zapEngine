@@ -1,6 +1,6 @@
 import type { GmxV2MarketKey } from '@zapengine/intent-engine';
-import { useState } from 'react';
-import { type Address, parseUnits } from 'viem';
+import { type ReactNode, useState } from 'react';
+import { type Address, type Hash, parseUnits } from 'viem';
 import { arbitrum, base } from 'viem/chains';
 
 import { TokenAmountField, TokenSelectorList } from '@/components/shared/token';
@@ -8,7 +8,7 @@ import { useTransactionForm } from '@/components/wallet/portfolio/modals/hooks/u
 import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
 import { useWatchedTransactionData } from '@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData';
 import { useTokenBalances } from '@/hooks/queries/wallet/useTokenBalances';
-import { useGmxV2Deposit } from '@/hooks/useGmxV2Deposit';
+import { useGmxDeposit } from '@/hooks/useGmxDeposit';
 import { useInvestStrategy } from '@/hooks/useInvestStrategy';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { transactionServiceMock } from '@/services';
@@ -53,6 +53,109 @@ function formatBaseUnits(value: string): string {
   return new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 0,
   }).format(Number(value));
+}
+
+type ExecutionTier = 'eip7702' | 'sequential' | null;
+
+interface DebugExecutionState {
+  tier: ExecutionTier;
+  lastTxHash: Hash | null;
+  lastTxHashes: Hash[];
+  lastError: unknown;
+  getErrorMessage: (e: unknown) => string;
+}
+
+function DebugExecutionPanel({
+  title,
+  tier,
+  lastTxHash,
+  lastTxHashes,
+  lastError,
+  getErrorMessage,
+  explorerBaseUrl,
+  renderDetails,
+}: DebugExecutionState & {
+  title: string;
+  explorerBaseUrl: (hash: Hash) => string;
+  renderDetails: () => ReactNode;
+}) {
+  const tierLabel =
+    tier === 'eip7702'
+      ? 'EIP-7702'
+      : tier === 'sequential'
+        ? 'Sequential'
+        : null;
+
+  return (
+    <div className="mt-4 p-3 border border-dashed border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 rounded-lg text-xs">
+      <div className="font-mono text-amber-700 dark:text-amber-300 mb-2">
+        {title}
+      </div>
+      {tierLabel ? (
+        <div className="mt-2 text-amber-700 dark:text-amber-300">
+          Tier: {tierLabel}
+        </div>
+      ) : null}
+      {renderDetails()}
+      {lastTxHash || lastTxHashes.length > 0 ? (
+        <div className="mt-2 text-gray-700 dark:text-gray-300">
+          {lastTxHash ? (
+            <span>
+              Sent ·{' '}
+              <a
+                href={explorerBaseUrl(lastTxHash)}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                <code className="font-mono">{formatAddress(lastTxHash)}</code>
+              </a>
+            </span>
+          ) : lastTxHashes.length > 0 ? (
+            <span>
+              {lastTxHashes.length} transaction
+              {lastTxHashes.length === 1 ? '' : 's'} submitted
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {tier === 'sequential' && lastTxHashes.length > 1 ? (
+        <div className="mt-1 text-gray-600 dark:text-gray-400">
+          {lastTxHashes.length} transactions confirmed
+        </div>
+      ) : null}
+      {lastError ? (
+        <pre className="mt-2 text-red-500 whitespace-pre-wrap break-all">
+          {getErrorMessage(lastError)}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+function ExecutionDebugPanel({
+  execution,
+  title,
+  explorerBaseUrl,
+  renderDetails,
+}: {
+  execution: DebugExecutionState;
+  title: string;
+  explorerBaseUrl: (hash: Hash) => string;
+  renderDetails: () => ReactNode;
+}) {
+  return (
+    <DebugExecutionPanel
+      title={title}
+      tier={execution.tier}
+      lastTxHash={execution.lastTxHash}
+      lastTxHashes={execution.lastTxHashes}
+      lastError={execution.lastError}
+      getErrorMessage={execution.getErrorMessage}
+      explorerBaseUrl={explorerBaseUrl}
+      renderDetails={renderDetails}
+    />
+  );
 }
 
 export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
@@ -156,16 +259,8 @@ export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
 
 function GmxV2TestButtons({ amount }: { amount: string }) {
   const { chain } = useWalletProvider();
-  const {
-    run,
-    pending,
-    lastError,
-    lastTxHash,
-    lastTxHashes,
-    lastPlan,
-    steps,
-    getErrorMessage,
-  } = useGmxV2Deposit();
+  const gmx = useGmxDeposit();
+  const { run, pending, lastCallsId, lastTxHash, lastPlan, steps } = gmx;
   const isOnArbitrum = chain?.id === arbitrum.id;
 
   const handleRun = async (marketKey: GmxV2MarketKey) => {
@@ -180,81 +275,80 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
   };
 
   const disabled = pending || !amount || parseFloat(amount) <= 0;
+  const resultId = lastCallsId ?? lastTxHash;
 
   return (
-    <div className="mt-4 p-3 border border-dashed border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 rounded-lg text-xs">
-      <div className="font-mono text-amber-700 dark:text-amber-300 mb-2">
-        GMX v2 GM deposits · Arbitrum USDC
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {GMX_V2_DEV_MARKETS.map((market) => (
-          <button
-            key={market.key}
-            type="button"
-            onClick={() => void handleRun(market.key)}
-            disabled={disabled}
-            className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50 text-left"
-          >
-            {pending
-              ? 'Running...'
-              : !isOnArbitrum
-                ? `Switch to Arbitrum & Deposit GM ${market.label}`
-                : `Deposit GM ${market.label}`}
-          </button>
-        ))}
-      </div>
-      {lastPlan ? (
-        <div className="mt-2 text-amber-700 dark:text-amber-300">
-          Market: {lastPlan.market.name} · fee {lastPlan.executionFeeWei} wei
-        </div>
-      ) : null}
-      {steps.length ? (
-        <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
-          {steps.map((step) => (
-            <div key={step.index}>
-              {step.label} · {step.status}
-              {step.txHash ? (
-                <>
-                  {' '}
-                  ·{' '}
-                  <code className="font-mono">
-                    {formatAddress(step.txHash)}
-                  </code>
-                </>
-              ) : null}
+    <ExecutionDebugPanel
+      execution={gmx}
+      title="GMX v2 GM deposits · Arbitrum USDC"
+      explorerBaseUrl={(hash) => `https://arbiscan.io/tx/${hash}`}
+      renderDetails={() => (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            {GMX_V2_DEV_MARKETS.map((market) => (
+              <button
+                key={market.key}
+                type="button"
+                onClick={() => void handleRun(market.key)}
+                disabled={disabled}
+                className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50 text-left"
+              >
+                {pending
+                  ? 'Running...'
+                  : !isOnArbitrum
+                    ? `Switch to Arbitrum & Deposit GM ${market.label}`
+                    : `Deposit GM ${market.label}`}
+              </button>
+            ))}
+          </div>
+          {lastPlan ? (
+            <div className="mt-2 text-amber-700 dark:text-amber-300">
+              GMX plan · {formatBaseUnits(lastPlan.legs[0]?.fromAmount ?? '0')}{' '}
+              base units
             </div>
-          ))}
-        </div>
-      ) : null}
-      {lastTxHash ? (
-        <div className="mt-2 text-gray-700 dark:text-gray-300">
-          GMX deposit confirmed ·{' '}
-          <a
-            href={`https://arbiscan.io/tx/${lastTxHash}`}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            <code className="font-mono">{formatAddress(lastTxHash)}</code>
-          </a>
-        </div>
-      ) : null}
-      {lastTxHashes.length > 1 ? (
-        <div className="mt-1 text-gray-600 dark:text-gray-400">
-          {lastTxHashes.length} transactions confirmed
-        </div>
-      ) : null}
-      {lastTxHash ? (
-        <div className="mt-1 text-gray-600 dark:text-gray-400">
-          GM minted by keeper - verify in GMX UI
-        </div>
-      ) : null}
-      {lastError ? (
-        <pre className="mt-2 text-red-500 whitespace-pre-wrap break-all">
-          {getErrorMessage(lastError)}
-        </pre>
-      ) : null}
-    </div>
+          ) : null}
+          {steps.length ? (
+            <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
+              {steps.map((step) => (
+                <div key={step.index}>
+                  {step.label} · {step.status}
+                  {step.txHash ? (
+                    <>
+                      {' · '}
+                      <code className="font-mono">
+                        {formatAddress(step.txHash)}
+                      </code>
+                    </>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {resultId ? (
+            <div className="mt-2 text-gray-700 dark:text-gray-300">
+              GMX deposit submitted ·{' '}
+              {lastTxHash ? (
+                <a
+                  href={`https://arbiscan.io/tx/${lastTxHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  <code className="font-mono">{formatAddress(lastTxHash)}</code>
+                </a>
+              ) : (
+                <code className="font-mono">{formatAddress(resultId)}</code>
+              )}
+            </div>
+          ) : null}
+          {resultId ? (
+            <div className="mt-1 text-gray-600 dark:text-gray-400">
+              GM minted by keeper - verify in GMX UI
+            </div>
+          ) : null}
+        </>
+      )}
+    />
   );
 }
 
@@ -266,18 +360,9 @@ function InvestStrategyButton({
   selectedToken: TransactionToken | null;
 }) {
   const { chain } = useWalletProvider();
-  const {
-    run,
-    pending,
-    lastError,
-    tier,
-    lastTxHash,
-    lastTxHashes,
-    lastCallsId,
-    lastPlan,
-    legs,
-    getErrorMessage,
-  } = useInvestStrategy();
+  const investStrategy = useInvestStrategy();
+  const { run, pending, lastCallsId, lastTxHash, lastPlan, legs } =
+    investStrategy;
   const isOnBase = chain?.id === base.id;
 
   const handleRun = async () => {
@@ -296,12 +381,6 @@ function InvestStrategyButton({
     }
   };
 
-  const tierLabel =
-    tier === 'eip7702'
-      ? 'EIP-7702'
-      : tier === 'sequential'
-        ? 'Sequential'
-        : null;
   const resultId = lastCallsId ?? lastTxHash;
   const disabled =
     pending || !selectedToken || !amount || parseFloat(amount) <= 0;
@@ -310,54 +389,44 @@ function InvestStrategyButton({
   );
 
   return (
-    <div className="mt-4 p-3 border border-dashed border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 rounded-lg text-xs">
-      <div className="font-mono text-amber-700 dark:text-amber-300 mb-2">
-        Invest deposit route · Base source
-      </div>
-      <button
-        type="button"
-        onClick={() => void handleRun()}
-        disabled={disabled}
-        className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50"
-      >
-        {pending
-          ? 'Running...'
-          : !isOnBase
-            ? 'Switch to Base & Invest'
-            : 'Invest strategy'}
-      </button>
-      {tierLabel ? (
-        <div className="mt-2 text-amber-700 dark:text-amber-300">
-          Tier: {tierLabel}
-        </div>
-      ) : null}
-      {lastPlan?.legs.length ? (
-        <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
-          {lastPlan.legs.map((leg) => (
-            <div key={`${leg.kind}-${leg.chainId}`}>
-              {leg.kind === 'supply' ? 'Supply' : 'Bridge'} ·{' '}
-              {chainName(leg.chainId)} · {formatBaseUnits(leg.fromAmount)} ·{' '}
-              {progressByLeg.get(`${leg.kind}-${leg.chainId}`)?.status ??
-                'pending'}
+    <ExecutionDebugPanel
+      execution={investStrategy}
+      title="Invest deposit route · Base source"
+      explorerBaseUrl={(hash) => `https://basescan.io/tx/${hash}`}
+      renderDetails={() => (
+        <>
+          <button
+            type="button"
+            onClick={() => void handleRun()}
+            disabled={disabled}
+            className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50"
+          >
+            {pending
+              ? 'Running...'
+              : !isOnBase
+                ? 'Switch to Base & Invest'
+                : 'Invest strategy'}
+          </button>
+          {lastPlan?.legs.length ? (
+            <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
+              {lastPlan.legs.map((leg) => (
+                <div key={`${leg.kind}-${leg.chainId}`}>
+                  {leg.kind === 'supply' ? 'Supply' : 'Bridge'} ·{' '}
+                  {chainName(leg.chainId)} · {formatBaseUnits(leg.fromAmount)} ·{' '}
+                  {progressByLeg.get(`${leg.kind}-${leg.chainId}`)?.status ??
+                    'pending'}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : null}
-      {resultId ? (
-        <div className="mt-2 text-gray-700 dark:text-gray-300">
-          Sent · <code className="font-mono">{formatAddress(resultId)}</code>
-        </div>
-      ) : null}
-      {tier === 'sequential' && lastTxHashes.length > 1 ? (
-        <div className="mt-1 text-gray-600 dark:text-gray-400">
-          {lastTxHashes.length} transactions confirmed
-        </div>
-      ) : null}
-      {lastError ? (
-        <pre className="mt-2 text-red-500 whitespace-pre-wrap break-all">
-          {getErrorMessage(lastError)}
-        </pre>
-      ) : null}
-    </div>
+          ) : null}
+          {resultId ? (
+            <div className="mt-2 text-gray-700 dark:text-gray-300">
+              Sent ·{' '}
+              <code className="font-mono">{formatAddress(resultId)}</code>
+            </div>
+          ) : null}
+        </>
+      )}
+    />
   );
 }

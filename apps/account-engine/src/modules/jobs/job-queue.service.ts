@@ -447,9 +447,13 @@ export class JobQueueService {
       metadata ? ` | ${JSON.stringify(metadata)}` : ''
     }`;
 
-    // Store in memory for potential retrieval
+    // Store in memory for potential retrieval. Ring-buffer FIFO so a runaway
+    // job can't accumulate unbounded log entries.
     const logs = this.jobLogs.get(jobId) ?? [];
     logs.push(logEntry);
+    while (logs.length > JOB_CONFIG.MAX_LOGS_PER_JOB) {
+      logs.shift();
+    }
     this.jobLogs.set(jobId, logs);
 
     // Output to console with appropriate log level
@@ -474,25 +478,51 @@ export class JobQueueService {
   }
 
   /**
-   * Clean up old completed jobs and their logs
+   * Clean up old jobs and their logs:
+   * - terminal jobs older than COMPLETED_JOB_RETENTION_MS are evicted
+   * - non-terminal jobs older than NON_TERMINAL_TTL_MS are force-failed
+   *   and then evicted on the next sweep (prevents memory leaks from
+   *   processors that crash without reporting back)
    */
   private cleanupOldJobs(): void {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const now = Date.now();
+    const terminalCutoff = new Date(
+      now - JOB_CONFIG.COMPLETED_JOB_RETENTION_MS,
+    );
+    const stuckCutoff = new Date(now - JOB_CONFIG.NON_TERMINAL_TTL_MS);
     let cleanedCount = 0;
+    let stuckCount = 0;
 
     for (const [jobId, job] of this.jobs) {
-      const isCompleted = this.isTerminalStatus(job.status);
-      const isOld = job.completedAt && job.completedAt < oneHourAgo;
+      const isTerminal = this.isTerminalStatus(job.status);
 
-      if (isCompleted && isOld) {
-        this.jobs.delete(jobId);
-        this.jobLogs.delete(jobId);
-        cleanedCount++;
+      if (isTerminal) {
+        if (job.completedAt && job.completedAt < terminalCutoff) {
+          this.jobs.delete(jobId);
+          this.jobLogs.delete(jobId);
+          cleanedCount++;
+        }
+        continue;
+      }
+
+      // Non-terminal: force-fail if it's been hanging longer than the TTL.
+      const startedAt = job.startedAt ?? job.scheduledAt;
+      if (startedAt < stuckCutoff) {
+        job.status = JobStatus.FAILED;
+        job.errorMessage = `Job force-failed after exceeding non-terminal TTL (${JOB_CONFIG.NON_TERMINAL_TTL_MS}ms)`;
+        job.completedAt = new Date();
+        job.updatedAt = new Date();
+        stuckCount++;
       }
     }
 
     if (cleanedCount > 0) {
       this.logger.log(`Cleaned up ${cleanedCount} old jobs from memory`);
+    }
+    if (stuckCount > 0) {
+      this.logger.warn(
+        `Force-failed ${stuckCount} stuck non-terminal job(s) past TTL`,
+      );
     }
   }
 

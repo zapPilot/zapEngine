@@ -48,12 +48,14 @@ export class TokenPriceWriter extends BaseWriter<TokenPriceData> {
 
       this.assertWriteSuccess(result, 'Unknown insert error');
 
-      logger.info('Token price snapshot saved', {
-        tokenSymbol: data.tokenSymbol,
-        tokenId: data.tokenId,
-        price: data.priceUsd,
+      this.logSnapshotSaved('Token price', {
+        priceUsd: data.priceUsd,
         source: data.source,
         date: snapshotDate,
+        entityIdentifier: {
+          tokenSymbol: data.tokenSymbol,
+          tokenId: data.tokenId,
+        },
       });
     } catch (error) {
       this.logWriteFailureAndRethrow(
