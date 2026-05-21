@@ -45,7 +45,8 @@ npm-debug.log*
 pnpm-debug.log*
 
 # Test
-coverage/
+coverage/*
+!coverage/baseline.json
 .jscpd/
 
 # claude

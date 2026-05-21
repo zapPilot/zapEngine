@@ -64,7 +64,7 @@ export function createApp(
   return app;
 }
 
-/* istanbul ignore next -- server bootstrap, not unit-testable */
+/* v8 ignore start -- server bootstrap, not unit-testable */
 export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   const services = createContainer(rawEnv);
   startServices(services);
@@ -109,3 +109,4 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
 
   return { app, services, server };
 }
+/* v8 ignore stop */
