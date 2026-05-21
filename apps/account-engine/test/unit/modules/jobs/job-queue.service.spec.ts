@@ -595,7 +595,9 @@ describe('JobQueueService', () => {
       const logs = service.getJobLogs(job.id);
       expect(logs.length).toBe(JOB_CONFIG.MAX_LOGS_PER_JOB);
       // FIFO eviction: oldest entries dropped, newest retained
-      expect(logs[0]).toContain(`entry-${overflow - JOB_CONFIG.MAX_LOGS_PER_JOB}`);
+      expect(logs[0]).toContain(
+        `entry-${overflow - JOB_CONFIG.MAX_LOGS_PER_JOB}`,
+      );
       expect(logs[logs.length - 1]).toContain(`entry-${overflow - 1}`);
       service.stop();
     });
