@@ -25,6 +25,10 @@ type PipelineSupabaseClient = SupabaseClient<any, any, any>;
 let client: PipelineSupabaseClient | null = null;
 
 const DEFAULT_SUPABASE_DB_SCHEMA = 'from_fed_to_chain';
+const CLASSROOM_MEDIA_COLUMNS = [
+  'classroom_hls_url',
+  'classroom_r2_prefix',
+] as const;
 
 function getSupabaseDbSchema(): string {
   return (
@@ -48,6 +52,61 @@ function getSupabase(): PipelineSupabaseClient {
   );
 
   return client;
+}
+
+function throwSupabaseError(error: unknown): never {
+  if (error instanceof Error) {
+    throw error;
+  }
+
+  const normalized = new Error(formatSupabaseError(error), { cause: error });
+  (normalized as { supabaseError?: unknown }).supabaseError = error;
+  throw normalized;
+}
+
+function formatSupabaseError(error: unknown): string {
+  if (!isRecord(error)) {
+    return String(error);
+  }
+
+  const code = readOptionalString(error['code']);
+  const message =
+    readOptionalString(error['message']) ?? 'Supabase request failed';
+  const details = readOptionalString(error['details']);
+  const hint = readOptionalString(error['hint']);
+  const parts = [code ? `[${code}] ${message}` : message];
+
+  if (details) parts.push(`Details: ${details}`);
+  if (hint) parts.push(`Hint: ${hint}`);
+
+  return parts.join(' ');
+}
+
+function readOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isMissingSupabaseColumnsError(
+  error: unknown,
+  columns: readonly string[],
+): boolean {
+  const message =
+    error instanceof Error ? error.message : formatSupabaseError(error);
+
+  return (
+    message.includes('PGRST204') &&
+    columns.some((column) => message.includes(column))
+  );
+}
+
+function deleteClassroomMediaFields(fields: Record<string, unknown>): void {
+  for (const column of CLASSROOM_MEDIA_COLUMNS) {
+    delete fields[column];
+  }
 }
 
 export function toEpisodeResponse(
@@ -145,7 +204,7 @@ export async function findEpisodeBySourceUrl(
     .maybeSingle<EpisodeRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -163,7 +222,7 @@ export async function findEpisodeLocalizationByEpisodeId(
     .maybeSingle<EpisodeLocalizationRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -177,7 +236,7 @@ export async function listEpisodes(): Promise<EpisodeListRow[]> {
     .returns<EpisodeListRow[]>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data ?? [];
@@ -236,7 +295,7 @@ export async function listEpisodesPaged(
   }
 
   const { data, error } = await q.returns<EpisodeListRow[]>();
-  if (error) throw error;
+  if (error) throwSupabaseError(error);
 
   const all = data ?? [];
   const hasMore = all.length > lim;
@@ -261,7 +320,7 @@ export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {
     .single<EpisodeRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -277,7 +336,7 @@ export async function insertEpisodeLocalization(
     .single<EpisodeLocalizationRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -305,7 +364,7 @@ export async function listLanguageClassroomsByLocalizationIds(
     .returns<LanguageClassroomRow[]>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   for (const row of normalizeLanguageClassroomRows(data)) {
@@ -344,7 +403,7 @@ export async function upsertLanguageClassrooms(
     .returns<LanguageClassroomRow[]>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return normalizeLanguageClassroomRows(data);
@@ -362,7 +421,7 @@ async function updateEpisodeFields(
     .maybeSingle<EpisodeRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -380,7 +439,7 @@ async function updateLocalizationFields(
     .maybeSingle<EpisodeLocalizationRow>();
 
   if (error) {
-    throw error;
+    throwSupabaseError(error);
   }
 
   return data;
@@ -441,19 +500,35 @@ export async function updateEpisodeLocalizationStatus(
   if (updates?.ttsVoiceName !== undefined)
     setFields['tts_voice_name'] = updates.ttsVoiceName;
 
-  return updateLocalizationFields(id, setFields);
+  const includesClassroomMediaFields = CLASSROOM_MEDIA_COLUMNS.some(
+    (column) => column in setFields,
+  );
+
+  try {
+    return await updateLocalizationFields(id, setFields);
+  } catch (error) {
+    if (
+      includesClassroomMediaFields &&
+      isMissingSupabaseColumnsError(error, CLASSROOM_MEDIA_COLUMNS)
+    ) {
+      const retryFields = { ...setFields };
+      deleteClassroomMediaFields(retryFields);
+      return updateLocalizationFields(id, retryFields);
+    }
+
+    throw error;
+  }
 }
 
 function toLocalizationPayload(
   localization: NewEpisodeLocalization,
 ): Record<string, unknown> {
-  return {
+  const payload: Record<string, unknown> = {
     id: localization.id,
     episode_id: localization.episodeId,
     language_code: localization.languageCode,
     title: localization.title,
     hls_url: localization.hlsUrl,
-    classroom_hls_url: localization.classroomHlsUrl ?? null,
     raw_text: localization.rawText,
     script: localization.script,
     llm_model: localization.llmModel,
@@ -462,9 +537,17 @@ function toLocalizationPayload(
     tts_language_code: localization.ttsLanguageCode,
     tts_voice_name: localization.ttsVoiceName,
     r2_prefix: localization.r2Prefix,
-    classroom_r2_prefix: localization.classroomR2Prefix ?? null,
     status: localization.status,
   };
+
+  if (localization.classroomHlsUrl != null) {
+    payload['classroom_hls_url'] = localization.classroomHlsUrl;
+  }
+  if (localization.classroomR2Prefix != null) {
+    payload['classroom_r2_prefix'] = localization.classroomR2Prefix;
+  }
+
+  return payload;
 }
 
 function parseClassroomsFromListRow(

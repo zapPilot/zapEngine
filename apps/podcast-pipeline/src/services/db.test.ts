@@ -521,6 +521,12 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
         language_code: 'zh-Hant',
       }),
     );
+    const insertCalls = state.query!.insert.mock.calls as unknown as [
+      Record<string, unknown>,
+    ][];
+    const payload = insertCalls[0]![0];
+    expect(payload).not.toHaveProperty('classroom_hls_url');
+    expect(payload).not.toHaveProperty('classroom_r2_prefix');
     expect(result).toEqual(row);
   });
 
@@ -548,6 +554,42 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
         status: 'pending',
       }),
     ).rejects.toThrow('insert localization failed');
+  });
+
+  it('normalizes PostgREST error objects when localized episode insert fails', async () => {
+    const postgrestError = {
+      code: 'PGRST204',
+      message:
+        "Could not find the 'classroom_hls_url' column of 'episode_localizations' in the schema cache",
+      details: null,
+      hint: "If a new column was added, reload PostgREST's schema cache.",
+    };
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: postgrestError,
+    });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toMatchObject({
+      cause: postgrestError,
+      message: expect.stringContaining('PGRST204'),
+    });
   });
 });
 
@@ -793,6 +835,48 @@ describe('updates', () => {
         classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
         tts_language_code: 'cmn-TW',
         tts_voice_name: 'cmn-TW-Wavenet-A',
+      }),
+    );
+  });
+
+  it('retries completed status updates without classroom media columns when PostgREST has stale schema', async () => {
+    const row = localizationRow({ status: 'completed' });
+    state
+      .query!.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'classroom_hls_url' column of 'episode_localizations' in the schema cache",
+          details: null,
+          hint: "If a new column was added, reload PostgREST's schema cache.",
+        },
+      })
+      .mockResolvedValueOnce({ data: row, error: null });
+
+    await expect(
+      updateEpisodeLocalizationStatus(row.id, 'completed', {
+        hlsUrl: 'https://cdn.example.com/playlist.m3u8',
+        r2Prefix: 'episodes/e/localizations/zh-Hant/main',
+        classroomHlsUrl:
+          'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        classroomR2Prefix: 'episodes/e/localizations/zh-Hant/classroom',
+      }),
+    ).resolves.toEqual(row);
+
+    expect(state.query!.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        classroom_hls_url:
+          'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
+      }),
+    );
+    expect(state.query!.update).toHaveBeenNthCalledWith(
+      2,
+      expect.not.objectContaining({
+        classroom_hls_url: expect.any(String),
+        classroom_r2_prefix: expect.any(String),
       }),
     );
   });
