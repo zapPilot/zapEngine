@@ -31,6 +31,10 @@ export default defineConfig({
         'src/users/interfaces/**',
         '**/index.ts',
       ],
+      // Thresholds are deliberately strict — account-engine is the identity
+      // and persistence plane. Actual coverage (97.75/90.91/98.55/97.88 as of
+      // 2026-05-21) exceeds these floors with headroom for normal churn.
+      // Ratchet upward when sustained 1+ point above the current floor.
       thresholds: {
         branches: 90,
         functions: 95,
