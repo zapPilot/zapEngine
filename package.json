@@ -43,11 +43,20 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "tsx": "catalog:",
-    "turbo": "^2.5.0"
+    "turbo": "^2.9.14"
   },
   "engines": {
     "node": "24.x",
     "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@>=5.0.0 <5.0.6": ">=5.0.6",
+      "ws@>=8.0.0 <8.20.1": ">=8.20.1",
+      "protobufjs@<=7.5.7": ">=7.5.8",
+      "serialize-javascript@<7.0.5": ">=7.0.5",
+      "postcss@<8.5.10": ">=8.5.10"
+    }
   },
   "lint-staged": {
     "apps/account-engine/**/*.{ts,tsx}": [

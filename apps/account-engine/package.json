@@ -36,7 +36,7 @@
     "@supabase/supabase-js": "catalog:",
     "dotenv": "catalog:",
     "hono": "catalog:",
-    "nodemailer": "^7.0.6",
+    "nodemailer": "^8.0.5",
     "telegraf": "^4.16.3",
     "viem": "catalog:",
     "zod": "catalog:"
@@ -46,7 +46,7 @@
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "@types/nodemailer": "^7.0.1",
+    "@types/nodemailer": "^7.0.2",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "knip": "catalog:",
