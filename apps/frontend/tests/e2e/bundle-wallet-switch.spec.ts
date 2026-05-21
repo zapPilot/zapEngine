@@ -48,17 +48,10 @@ test.describe('Bundle Wallet Switching - E2E', () => {
   test('should show wallet connection option', async ({ page }) => {
     await page.goto(`/bundle?userId=${BUNDLE_USER_ID}`);
 
-    // Should have some way to connect wallet
-    const hasWalletOption = await page.evaluate(() => {
-      const text = document.body.textContent?.toLowerCase() || '';
-      return (
-        text.includes('connect') ||
-        text.includes('wallet') ||
-        text.includes('sign in')
-      );
-    });
-
-    expect(hasWalletOption).toBe(true);
+    await expect(page.locator('body')).toContainText(
+      /connect|wallet|sign in/i,
+      { timeout: 15000 },
+    );
   });
 
   test('banner should have switch and stay buttons when visible', async ({
