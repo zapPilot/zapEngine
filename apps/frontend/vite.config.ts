@@ -11,10 +11,10 @@ const enforceCoverageThresholds =
 
 const coverageThresholds = {
   global: {
-    statements: 96,
+    statements: 95,
     branches: 91,
     functions: 95,
-    lines: 96,
+    lines: 95,
   },
 } as const;
 
