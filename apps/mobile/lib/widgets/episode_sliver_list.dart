@@ -5,10 +5,7 @@ import '../state/playback_provider.dart';
 import 'episode_card.dart';
 
 typedef EpisodeCardWrapper = Widget Function(
-  BuildContext context,
-  Episode episode,
-  Widget child,
-);
+    BuildContext context, Episode episode, Widget child);
 
 class EpisodeSliverList extends StatelessWidget {
   const EpisodeSliverList({

@@ -36,9 +36,7 @@ void main() {
       });
 
       test('returns user with partial data when some fields missing', () async {
-        SharedPreferences.setMockInitialValues({
-          'podcast_user_id': 'user-456',
-        });
+        SharedPreferences.setMockInitialValues({'podcast_user_id': 'user-456'});
         final service = _FakeAuthService();
 
         final user = await service.restoreUser();
@@ -61,9 +59,7 @@ void main() {
       });
 
       test('returns stored user id', () async {
-        SharedPreferences.setMockInitialValues({
-          'podcast_user_id': 'user-789',
-        });
+        SharedPreferences.setMockInitialValues({'podcast_user_id': 'user-789'});
         final service = _FakeAuthService();
 
         final userId = await service.currentUserId;

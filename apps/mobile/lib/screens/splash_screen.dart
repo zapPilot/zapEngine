@@ -36,10 +36,8 @@ class _SplashScreenState extends State<SplashScreen>
     parent: _controller,
     curve: const Interval(0.42, 0.82, curve: _primaryCurve),
   );
-  late final Animation<Offset> _wordmarkOffset = Tween<Offset>(
-    begin: const Offset(0, 0.16),
-    end: Offset.zero,
-  ).animate(
+  late final Animation<Offset> _wordmarkOffset =
+      Tween<Offset>(begin: const Offset(0, 0.16), end: Offset.zero).animate(
     CurvedAnimation(
       parent: _controller,
       curve: const Interval(0.42, 0.82, curve: _primaryCurve),
@@ -49,10 +47,8 @@ class _SplashScreenState extends State<SplashScreen>
     parent: _controller,
     curve: const Interval(0.62, 1, curve: _primaryCurve),
   );
-  late final Animation<Offset> _endorsementOffset = Tween<Offset>(
-    begin: const Offset(0, 0.22),
-    end: Offset.zero,
-  ).animate(
+  late final Animation<Offset> _endorsementOffset =
+      Tween<Offset>(begin: const Offset(0, 0.22), end: Offset.zero).animate(
     CurvedAnimation(
       parent: _controller,
       curve: const Interval(0.62, 1, curve: _primaryCurve),
@@ -99,9 +95,8 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder<void>(
         transitionDuration: _routeFadeDuration,
         reverseTransitionDuration: _routeFadeDuration,
-        pageBuilder: (_, __, ___) => AuthGate(
-          supabaseConfigured: widget.supabaseConfigured,
-        ),
+        pageBuilder: (_, __, ___) =>
+            AuthGate(supabaseConfigured: widget.supabaseConfigured),
         transitionsBuilder: (_, animation, __, child) {
           final opacity = CurvedAnimation(
             parent: animation,
@@ -132,9 +127,7 @@ class _SplashScreenState extends State<SplashScreen>
                     AnimatedBuilder(
                       animation: _markProgress,
                       builder: (context, _) {
-                        return _MeasuredBarsMark(
-                          progress: _markProgress.value,
-                        );
+                        return _MeasuredBarsMark(progress: _markProgress.value);
                       },
                     ),
                     const SizedBox(height: 28),

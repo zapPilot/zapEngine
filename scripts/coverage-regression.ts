@@ -135,10 +135,15 @@ async function loadOrExit(
   path: string,
   errMsg: string,
 ): Promise<MonorepoSummaryInput> {
-  return readSummary(path).catch(() => {
+  try {
+    return await readSummary(path);
+  } catch {
     console.error(errMsg);
     process.exit(2);
-  }) as Promise<MonorepoSummaryInput>;
+    // process.exit returns `never` in node, but if a test harness stubs it,
+    // make the type honest by throwing instead of returning undefined.
+    throw new Error(errMsg);
+  }
 }
 
 async function main(): Promise<void> {

@@ -212,9 +212,16 @@ export class WeeklyReportProcessor implements JobProcessor {
     try {
       // Prefer the payload-supplied identity (set by the batch parent).
       // Fall back to a Supabase lookup for older in-flight jobs that lack it.
+      // Use a truthy + Array.isArray guard so an explicit `null`/non-array
+      // placeholder doesn't short-circuit the Supabase fallback and end up
+      // sending an email to `null`.
       let user: { id: string; email: string; subscription_active: boolean };
       let userWallets: string[];
-      if (payload.email !== undefined && payload.wallets !== undefined) {
+      if (
+        typeof payload.email === 'string' &&
+        payload.email.length > 0 &&
+        Array.isArray(payload.wallets)
+      ) {
         user = {
           id: payload.userId,
           email: payload.email,

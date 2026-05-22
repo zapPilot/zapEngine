@@ -124,52 +124,56 @@ void main() {
     },
   );
 
-  test('setSpeedForCurrentSection persists the main speed to SharedPreferences',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    final handler = FakePodcastAudioHandler();
-    final provider = PlaybackProvider(handler);
+  test(
+    'setSpeedForCurrentSection persists the main speed to SharedPreferences',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
 
-    await provider.setSpeedForCurrentSection(1.75);
+      await provider.setSpeedForCurrentSection(1.75);
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(
-      prefs.getDouble('playback_speed_main'),
-      1.75,
-      reason: 'speed must survive app restarts via local prefs',
-    );
-    expect(prefs.getDouble('playback_speed_classroom'), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getDouble('playback_speed_main'),
+        1.75,
+        reason: 'speed must survive app restarts via local prefs',
+      );
+      expect(prefs.getDouble('playback_speed_classroom'), isNull);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
-  test('PlaybackProvider restores stored section speeds on construction',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'playback_speed_main': 1.25,
-      'playback_speed_classroom': 0.75,
-    });
-    final handler = FakePodcastAudioHandler();
-    final provider = PlaybackProvider(handler);
+  test(
+    'PlaybackProvider restores stored section speeds on construction',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'playback_speed_main': 1.25,
+        'playback_speed_classroom': 0.75,
+      });
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
 
-    // _loadSpeed() runs asynchronously from the constructor; let it settle.
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
+      // _loadSpeed() runs asynchronously from the constructor; let it settle.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
-    expect(
-      handler.speed,
-      1.25,
-      reason:
-          'saved main speed must be re-applied to the audio handler at start',
-    );
-    expect(provider.speed, 1.25);
-    expect(provider.mainSpeed, 1.25);
-    expect(provider.classroomSpeed, 0.75);
+      expect(
+        handler.speed,
+        1.25,
+        reason:
+            'saved main speed must be re-applied to the audio handler at start',
+      );
+      expect(provider.speed, 1.25);
+      expect(provider.mainSpeed, 1.25);
+      expect(provider.classroomSpeed, 0.75);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
   test('PlaybackProvider falls back to 1.0x when no speed is stored', () async {
     SharedPreferences.setMockInitialValues({});
@@ -187,24 +191,26 @@ void main() {
     await handler.dispose();
   });
 
-  test('PlaybackProvider migrates the legacy speed key to main speed only',
-      () async {
-    SharedPreferences.setMockInitialValues({'playback_speed': 1.25});
-    final handler = FakePodcastAudioHandler();
-    final provider = PlaybackProvider(handler);
+  test(
+    'PlaybackProvider migrates the legacy speed key to main speed only',
+    () async {
+      SharedPreferences.setMockInitialValues({'playback_speed': 1.25});
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
 
-    await _flushProviderAsync();
+      await _flushProviderAsync();
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(provider.mainSpeed, 1.25);
-    expect(provider.classroomSpeed, 1.0);
-    expect(handler.speed, 1.25);
-    expect(prefs.getDouble('playback_speed_main'), 1.25);
-    expect(prefs.getDouble('playback_speed_classroom'), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(provider.mainSpeed, 1.25);
+      expect(provider.classroomSpeed, 1.0);
+      expect(handler.speed, 1.25);
+      expect(prefs.getDouble('playback_speed_main'), 1.25);
+      expect(prefs.getDouble('playback_speed_classroom'), isNull);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
   test('section changes apply the remembered speed for that section', () async {
     final handler = FakePodcastAudioHandler();
@@ -381,78 +387,84 @@ void main() {
     },
   );
 
-  test('marks an episode listened when position reaches near the end',
-      () async {
-    final handler = FakePodcastAudioHandler();
-    final service = _FakeEpisodeService();
-    final provider = PlaybackProvider(handler, episodeService: service)
-      ..setUser('user-1');
+  test(
+    'marks an episode listened when position reaches near the end',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
 
-    await provider.toggle(_episode('episode-1'));
-    handler.emitDuration(const Duration(seconds: 600));
-    handler.emitPosition(const Duration(seconds: 598));
-    handler.emitPosition(const Duration(seconds: 599));
-    handler.emitPosition(const Duration(seconds: 599));
-    await _flushProviderAsync();
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
+      handler.emitPosition(const Duration(seconds: 598));
+      handler.emitPosition(const Duration(seconds: 599));
+      handler.emitPosition(const Duration(seconds: 599));
+      await _flushProviderAsync();
 
-    expect(service.listenedWrites, [
-      const _ListenedWrite('user-1', 'episode-1', true),
-    ]);
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
-  test('seek near the end marks an episode listened without a position event',
-      () async {
-    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
-    final service = _FakeEpisodeService();
-    final provider = PlaybackProvider(handler, episodeService: service)
-      ..setUser('user-1');
+  test(
+    'seek near the end marks an episode listened without a position event',
+    () async {
+      final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+      final service = _FakeEpisodeService();
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
 
-    await provider.toggle(_episode('episode-1'));
-    handler.emitDuration(const Duration(seconds: 600));
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
 
-    await provider.seek(const Duration(seconds: 599));
+      await provider.seek(const Duration(seconds: 599));
 
-    expect(handler.seekPositions, [const Duration(seconds: 599)]);
-    expect(provider.position, const Duration(seconds: 600));
+      expect(handler.seekPositions, [const Duration(seconds: 599)]);
+      expect(provider.position, const Duration(seconds: 600));
 
-    await _flushProviderAsync();
+      await _flushProviderAsync();
 
-    expect(service.listenedWrites, [
-      const _ListenedWrite('user-1', 'episode-1', true),
-    ]);
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
-  test('completion still writes listened when position persistence fails',
-      () async {
-    final handler = FakePodcastAudioHandler();
-    final service = _FakeEpisodeService(
-      positionWriteError: Exception('position write failed'),
-    );
-    final provider = PlaybackProvider(handler, episodeService: service)
-      ..setUser('user-1');
+  test(
+    'completion still writes listened when position persistence fails',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final service = _FakeEpisodeService(
+        positionWriteError: Exception('position write failed'),
+      );
+      final provider = PlaybackProvider(handler, episodeService: service)
+        ..setUser('user-1');
 
-    await provider.toggle(_episode('episode-1'));
-    handler.emitDuration(const Duration(seconds: 600));
-    handler.emitPosition(const Duration(seconds: 599));
-    await _flushProviderAsync();
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 600));
+      handler.emitPosition(const Duration(seconds: 599));
+      await _flushProviderAsync();
 
-    expect(service.positionWrites, [
-      const _PositionWrite('user-1', 'episode-1', 599),
-      const _PositionWrite('user-1', 'episode-1', 600),
-    ]);
-    expect(service.listenedWrites, [
-      const _ListenedWrite('user-1', 'episode-1', true),
-    ]);
+      expect(service.positionWrites, [
+        const _PositionWrite('user-1', 'episode-1', 599),
+        const _PositionWrite('user-1', 'episode-1', 600),
+      ]);
+      expect(service.listenedWrites, [
+        const _ListenedWrite('user-1', 'episode-1', true),
+      ]);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
   test(
     'completion still writes listened when PostgrestException blocks position writes',
@@ -553,64 +565,58 @@ void main() {
     },
   );
 
-  test(
-    'seek to mid-episode does not finalize the episode',
-    () async {
-      final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
-      final service = _FakeEpisodeService();
-      final provider = PlaybackProvider(handler, episodeService: service)
-        ..setUser('user-1');
-      final emitted = <String>[];
-      final sub = provider.completedEpisodeIds.listen(emitted.add);
+  test('seek to mid-episode does not finalize the episode', () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+    final emitted = <String>[];
+    final sub = provider.completedEpisodeIds.listen(emitted.add);
 
-      await provider.toggle(_episode('episode-1'));
-      handler.emitDuration(const Duration(seconds: 600));
-      await provider.seek(const Duration(seconds: 300));
-      await _flushProviderAsync();
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 600));
+    await provider.seek(const Duration(seconds: 300));
+    await _flushProviderAsync();
 
-      expect(service.listenedWrites, isEmpty);
-      expect(emitted, isEmpty);
+    expect(service.listenedWrites, isEmpty);
+    expect(emitted, isEmpty);
 
-      handler.emitPosition(const Duration(seconds: 599));
-      await _flushProviderAsync();
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
 
-      expect(service.listenedWrites, [
-        const _ListenedWrite('user-1', 'episode-1', true),
-      ]);
-      expect(emitted, ['episode-1']);
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
+    expect(emitted, ['episode-1']);
 
-      await sub.cancel();
-      provider.dispose();
-      await handler.dispose();
-    },
-  );
+    await sub.cancel();
+    provider.dispose();
+    await handler.dispose();
+  });
 
-  test(
-    'seek with unknown duration does not finalize the episode',
-    () async {
-      final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
-      final service = _FakeEpisodeService();
-      final provider = PlaybackProvider(handler, episodeService: service)
-        ..setUser('user-1');
+  test('seek with unknown duration does not finalize the episode', () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
 
-      await provider.toggle(_episode('episode-1'));
-      await provider.seek(const Duration(seconds: 599));
-      await _flushProviderAsync();
+    await provider.toggle(_episode('episode-1'));
+    await provider.seek(const Duration(seconds: 599));
+    await _flushProviderAsync();
 
-      expect(service.listenedWrites, isEmpty);
+    expect(service.listenedWrites, isEmpty);
 
-      handler.emitDuration(const Duration(seconds: 600));
-      handler.emitPosition(const Duration(seconds: 599));
-      await _flushProviderAsync();
+    handler.emitDuration(const Duration(seconds: 600));
+    handler.emitPosition(const Duration(seconds: 599));
+    await _flushProviderAsync();
 
-      expect(service.listenedWrites, [
-        const _ListenedWrite('user-1', 'episode-1', true),
-      ]);
+    expect(service.listenedWrites, [
+      const _ListenedWrite('user-1', 'episode-1', true),
+    ]);
 
-      provider.dispose();
-      await handler.dispose();
-    },
-  );
+    provider.dispose();
+    await handler.dispose();
+  });
 
   test(
     'completion stream stays silent when setListened throws and does not retry',
@@ -741,50 +747,54 @@ void main() {
     },
   );
 
-  test('position updates notify listeners only when the whole second changes',
-      () async {
-    final handler = FakePodcastAudioHandler();
-    final provider = PlaybackProvider(handler);
-    var notifications = 0;
-    provider.addListener(() => notifications += 1);
+  test(
+    'position updates notify listeners only when the whole second changes',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
+      var notifications = 0;
+      provider.addListener(() => notifications += 1);
 
-    await provider.toggle(_episode('episode-1'));
-    notifications = 0;
+      await provider.toggle(_episode('episode-1'));
+      notifications = 0;
 
-    handler.emitPosition(const Duration(milliseconds: 100));
-    handler.emitPosition(const Duration(milliseconds: 200));
-    handler.emitPosition(const Duration(milliseconds: 900));
-    handler.emitPosition(const Duration(seconds: 1));
+      handler.emitPosition(const Duration(milliseconds: 100));
+      handler.emitPosition(const Duration(milliseconds: 200));
+      handler.emitPosition(const Duration(milliseconds: 900));
+      handler.emitPosition(const Duration(seconds: 1));
 
-    expect(provider.position, const Duration(seconds: 1));
-    expect(notifications, 2);
+      expect(provider.position, const Duration(seconds: 1));
+      expect(notifications, 2);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 
-  test('unchanged playback state and duration do not notify listeners',
-      () async {
-    final handler = FakePodcastAudioHandler();
-    final provider = PlaybackProvider(handler);
-    var notifications = 0;
-    provider.addListener(() => notifications += 1);
+  test(
+    'unchanged playback state and duration do not notify listeners',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
+      var notifications = 0;
+      provider.addListener(() => notifications += 1);
 
-    await provider.toggle(_episode('episode-1'));
-    handler.emitDuration(const Duration(seconds: 60));
-    notifications = 0;
+      await provider.toggle(_episode('episode-1'));
+      handler.emitDuration(const Duration(seconds: 60));
+      notifications = 0;
 
-    await handler.play();
-    handler.emitDuration(const Duration(seconds: 60));
-    handler.emitDuration(const Duration(seconds: 61));
+      await handler.play();
+      handler.emitDuration(const Duration(seconds: 60));
+      handler.emitDuration(const Duration(seconds: 61));
 
-    expect(provider.isPlaying, isTrue);
-    expect(provider.duration, const Duration(seconds: 61));
-    expect(notifications, 1);
+      expect(provider.isPlaying, isTrue);
+      expect(provider.duration, const Duration(seconds: 61));
+      expect(notifications, 1);
 
-    provider.dispose();
-    await handler.dispose();
-  });
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
 }
 
 Future<void> _flushProviderAsync() async {
@@ -825,10 +835,7 @@ Episode _episodeWithTracks(String id) {
 }
 
 class _FakeEpisodeService extends EpisodeService {
-  _FakeEpisodeService({
-    this.positionWriteError,
-    this.listenedWriteError,
-  });
+  _FakeEpisodeService({this.positionWriteError, this.listenedWriteError});
 
   final Object? positionWriteError;
   final Object? listenedWriteError;

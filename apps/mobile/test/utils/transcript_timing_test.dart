@@ -5,7 +5,9 @@ void main() {
   group('estimateTranscriptTiming', () {
     test('returns no segments for null or blank scripts', () {
       expect(
-          estimateTranscriptTiming(null, const Duration(minutes: 1)), isEmpty);
+        estimateTranscriptTiming(null, const Duration(minutes: 1)),
+        isEmpty,
+      );
       expect(estimateTranscriptTiming('', const Duration(minutes: 1)), isEmpty);
       expect(
         estimateTranscriptTiming('   \n  ', const Duration(minutes: 1)),
@@ -34,11 +36,7 @@ void main() {
         const Duration(seconds: 90),
       );
 
-      expect(segments.map((segment) => segment.text), [
-        '第一句。',
-        '第二句！',
-        '第三句?',
-      ]);
+      expect(segments.map((segment) => segment.text), ['第一句。', '第二句！', '第三句?']);
       expect(segments.first.start, Duration.zero);
       expect(segments.last.end, const Duration(seconds: 90));
     });
@@ -62,8 +60,10 @@ void main() {
       expect(segments.first.start, Duration.zero);
       expect(segments.first.end, segments.last.start);
       expect(segments.last.end, const Duration(seconds: 12));
-      expect(segments.last.end - segments.first.start,
-          const Duration(seconds: 12));
+      expect(
+        segments.last.end - segments.first.start,
+        const Duration(seconds: 12),
+      );
     });
   });
 }

@@ -24,8 +24,7 @@ class EpisodeService {
   })  : _supabaseService = supabaseService ?? SupabaseService(),
         _userEpisodeStateWriter = userEpisodeStateWriter ??
             SupabaseUserEpisodeStateWriter(
-              supabaseService ?? SupabaseService(),
-            ),
+                supabaseService ?? SupabaseService()),
         _now = now ?? DateTime.now;
 
   final SupabaseService _supabaseService;

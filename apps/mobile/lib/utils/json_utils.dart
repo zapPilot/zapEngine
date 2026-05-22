@@ -16,7 +16,10 @@ T _readConvertedJsonValue<T>(
 }
 
 int readIntFromJson(
-    Map<String, dynamic> json, String camelKey, String snakeKey) {
+  Map<String, dynamic> json,
+  String camelKey,
+  String snakeKey,
+) {
   return _readConvertedJsonValue(json, camelKey, snakeKey, _coerceInt);
 }
 
@@ -27,7 +30,10 @@ int _coerceInt(Object? value) {
 }
 
 bool readBoolFromJson(
-    Map<String, dynamic> json, String camelKey, String snakeKey) {
+  Map<String, dynamic> json,
+  String camelKey,
+  String snakeKey,
+) {
   return _readConvertedJsonValue(json, camelKey, snakeKey, _coerceBool);
 }
 

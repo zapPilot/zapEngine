@@ -412,9 +412,9 @@ class _EmptyState extends StatelessWidget {
     return CenteredStateMessage(
       title: 'No episodes yet.',
       padding: EdgeInsets.zero,
-      titleStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+      titleStyle: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
     );
   }
 }

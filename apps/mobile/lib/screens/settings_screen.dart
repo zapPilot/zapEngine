@@ -108,10 +108,8 @@ class _LanguageTile extends StatelessWidget {
             ? const Icon(Icons.check_circle_rounded, color: AppColors.accent)
             : enabled
                 ? null
-                : const Icon(
-                    Icons.lock_rounded,
-                    color: AppColors.textSecondary,
-                  ),
+                : const Icon(Icons.lock_rounded,
+                    color: AppColors.textSecondary),
         onTap: _buildTapHandler(context, enabled),
       ),
     );

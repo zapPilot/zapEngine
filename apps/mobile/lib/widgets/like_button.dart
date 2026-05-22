@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import 'like_toggle_scaffold.dart';
 
 class LikeButton extends EpisodeLikeToggleButton {
-  const LikeButton({
-    super.key,
-    required super.episode,
-    super.compact = false,
-  });
+  const LikeButton({super.key, required super.episode, super.compact = false});
 
   @override
   Widget build(BuildContext context) {

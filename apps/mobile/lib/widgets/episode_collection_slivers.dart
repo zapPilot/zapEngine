@@ -34,9 +34,7 @@ List<Widget> buildEpisodeCollectionSlivers({
   }
 
   if (empty) {
-    return [
-      SliverFillRemaining(hasScrollBody: false, child: emptyState),
-    ];
+    return [SliverFillRemaining(hasScrollBody: false, child: emptyState)];
   }
 
   return contentSlivers;

@@ -162,36 +162,36 @@ void main() {
     expect(find.text('Menu favorite'), findsNothing);
   });
 
-  testWidgets('reloads favorite source episodes when content language changes',
-      (
-    tester,
-  ) async {
-    final languageProvider = ContentLanguageProvider();
-    final episodeService = _FavoritesEpisodeService(
-      pages: [
-        [
-          _episode(
-            id: 'episode-old',
-            title: 'Older favorite',
-            createdAt: DateTime(2026, 5, 1),
-          ),
+  testWidgets(
+    'reloads favorite source episodes when content language changes',
+    (tester) async {
+      final languageProvider = ContentLanguageProvider();
+      final episodeService = _FavoritesEpisodeService(
+        pages: [
+          [
+            _episode(
+              id: 'episode-old',
+              title: 'Older favorite',
+              createdAt: DateTime(2026, 5, 1),
+            ),
+          ],
         ],
-      ],
-    );
-    final likesService = _FavoritesLikesService();
+      );
+      final likesService = _FavoritesLikesService();
 
-    await _pumpFavorites(
-      tester,
-      episodeService,
-      likesService,
-      languageProvider: languageProvider,
-    );
+      await _pumpFavorites(
+        tester,
+        episodeService,
+        likesService,
+        languageProvider: languageProvider,
+      );
 
-    await languageProvider.setLanguageCode('ja');
-    await tester.pumpAndSettle();
+      await languageProvider.setLanguageCode('ja');
+      await tester.pumpAndSettle();
 
-    expect(episodeService.requestedLanguageCodes, ['zh-Hant', 'ja']);
-  });
+      expect(episodeService.requestedLanguageCodes, ['zh-Hant', 'ja']);
+    },
+  );
 }
 
 Future<void> _pumpFavorites(

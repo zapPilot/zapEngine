@@ -589,6 +589,11 @@ async function combineClassroomAudio(
     return null;
   }
 
+  // Documented soft-failure: keep the main HLS / episode-completed state
+  // even when the classroom concat fails. Clients should treat
+  // classroom_hls_url as nullable. Failure is surfaced via console.error
+  // so it is searchable in logs; retry happens via a manual re-ingest of
+  // the episode after fixing the underlying ffmpeg issue.
   try {
     return await step('concatEpisodeClassroomAudio', () =>
       concatMp3Buffers(classroomAudios),

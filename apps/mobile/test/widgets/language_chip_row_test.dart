@@ -11,10 +11,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: LanguageChipRow(
-              currentCode: 'zh-Hant',
-              onSelected: (_) {},
-            ),
+            body: LanguageChipRow(currentCode: 'zh-Hant', onSelected: (_) {}),
           ),
         ),
       );

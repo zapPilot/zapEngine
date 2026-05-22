@@ -32,9 +32,7 @@ void main() {
         await _pumpCard(
           tester,
           ContinueListeningCard(
-            episode: _episode(
-              title: '德银重磅报告：AI的两个终局——马克思的预言与马斯克的愿景',
-            ),
+            episode: _episode(title: '德银重磅报告：AI的两个终局——马克思的预言与马斯克的愿景'),
             allCompleted: false,
             isPlaying: false,
             isLoading: false,
@@ -89,23 +87,24 @@ void main() {
   });
 
   testWidgets(
-      'ContinueListeningCard formats in-progress positions over an hour',
-      (tester) async {
-    _useViewport(tester, const Size(393, 852));
+    'ContinueListeningCard formats in-progress positions over an hour',
+    (tester) async {
+      _useViewport(tester, const Size(393, 852));
 
-    await _pumpCard(
-      tester,
-      ContinueListeningCard(
-        episode: _episode().copyWith(lastPositionSeconds: 3661),
-        allCompleted: false,
-        isPlaying: false,
-        isLoading: false,
-        onPlay: () {},
-      ),
-    );
+      await _pumpCard(
+        tester,
+        ContinueListeningCard(
+          episode: _episode().copyWith(lastPositionSeconds: 3661),
+          allCompleted: false,
+          isPlaying: false,
+          isLoading: false,
+          onPlay: () {},
+        ),
+      );
 
-    expect(find.text('上次收聽至 1:01:01'), findsOneWidget);
-  });
+      expect(find.text('上次收聽至 1:01:01'), findsOneWidget);
+    },
+  );
 }
 
 void _useViewport(WidgetTester tester, Size size) {

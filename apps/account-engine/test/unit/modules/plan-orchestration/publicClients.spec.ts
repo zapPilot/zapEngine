@@ -39,9 +39,11 @@ describe('createDepositPublicClients', () => {
     );
     const clients = factory();
 
-    expect(Object.keys(clients).map(Number).sort((a, b) => a - b)).toEqual(
-      [mainnet.id, base.id, arbitrum.id].sort((a, b) => a - b),
-    );
+    expect(
+      Object.keys(clients)
+        .map(Number)
+        .sort((a, b) => a - b),
+    ).toEqual([mainnet.id, base.id, arbitrum.id].sort((a, b) => a - b));
   });
 
   it('falls back to public RPC URLs when no env keys are configured', () => {

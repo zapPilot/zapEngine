@@ -182,11 +182,7 @@ void main() {
     final languageProvider = ContentLanguageProvider();
     final service = _FeedEpisodeService();
 
-    await _pumpFeed(
-      tester,
-      service,
-      languageProvider: languageProvider,
-    );
+    await _pumpFeed(tester, service, languageProvider: languageProvider);
 
     await languageProvider.setLanguageCode('en');
     await tester.pumpAndSettle();
@@ -239,12 +235,7 @@ class _FeedEpisodeService extends EpisodeService {
     this.states = const {},
     this.stateError,
   }) : episodes = episodes ??
-            [
-              _feedEpisode(
-                id: 'episode-1',
-                title: 'Treasury liquidity watch',
-              ),
-            ];
+            [_feedEpisode(id: 'episode-1', title: 'Treasury liquidity watch')];
 
   final List<Episode> episodes;
   final Map<String, UserEpisodeState> states;
@@ -260,10 +251,7 @@ class _FeedEpisodeService extends EpisodeService {
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
     requestedLanguageCodes.add(languageCode);
-    return EpisodePage(
-      items: episodes,
-      nextCursor: null,
-    );
+    return EpisodePage(items: episodes, nextCursor: null);
   }
 
   @override
