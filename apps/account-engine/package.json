@@ -22,8 +22,8 @@
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "deadcode": "knip --exports --dependencies",
-    "deadcode:fix": "knip --exports --dependencies --fix",
+    "deadcode": "knip --files --exports --dependencies",
+    "deadcode:fix": "knip --files --exports --dependencies --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "security:audit": "pnpm audit --prod --audit-level=moderate",
     "clean": "rm -rf dist coverage"
