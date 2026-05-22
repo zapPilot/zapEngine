@@ -138,43 +138,56 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_cvar(returns: np.ndarray, alpha: float = 0.05) -> float:
-        """Calculate CVaR / expected shortfall.
+        """Calculate Conditional Value-at-Risk (expected shortfall).
+
+        Mean of returns in the worst ``alpha`` tail, defined as
+        ``returns <= quantile(returns, alpha)``. Captures fat-tail pain that
+        a single max-drawdown point misses.
 
         Args:
             returns: Daily returns array
-            alpha: Tail size to average (0.05 = worst 5%)
+            alpha: Tail probability in ``(0, 1)`` (0.05 = CVaR-95)
 
         Returns:
-            Mean of the worst alpha share of daily returns
+            Expected shortfall as a daily return (negative in loss regimes)
         """
-        if len(returns) < 2 or alpha <= 0.0:
+        if returns.size < 1 or not 0.0 < alpha < 1.0:
             return 0.0
 
-        tail_size = max(1, int(np.ceil(len(returns) * min(alpha, 1.0))))
-        worst_returns = np.sort(returns)[:tail_size]
-        return float(np.mean(worst_returns))
+        var_threshold = float(np.quantile(returns, alpha))
+        tail = returns[returns <= var_threshold]
+        if tail.size < 1:
+            return 0.0
+        return float(np.mean(tail))
 
     @staticmethod
     def calculate_ulcer_index(values: np.ndarray) -> float:
-        """Calculate Ulcer Index as RMS of percentage drawdowns.
+        """Calculate the Ulcer Index (RMS of the drawdown series).
+
+        Unlike max drawdown (a single worst point), the Ulcer Index measures
+        the depth *and* duration of all drawdowns, expressed as a non-negative
+        percentage.
 
         Args:
             values: Portfolio values over time
 
         Returns:
-            Root mean square percentage drawdown
+            Ulcer Index as a non-negative percentage
         """
-        if len(values) < 2:
+        if values.size < 2:
             return 0.0
 
         running_max = np.maximum.accumulate(values)
-        drawdowns = np.divide(
-            values - running_max,
-            running_max,
-            out=np.zeros_like(values, dtype=float),
-            where=running_max != 0,
+        drawdown_pct = (
+            np.divide(
+                values - running_max,
+                running_max,
+                out=np.zeros_like(values, dtype=float),
+                where=running_max != 0,
+            )
+            * 100.0
         )
-        return float(np.sqrt(np.mean(np.square(drawdowns * 100.0))))
+        return float(np.sqrt(np.mean(np.square(drawdown_pct))))
 
     @staticmethod
     def calculate_alpha(
@@ -182,15 +195,19 @@ class PerformanceMetricsCalculator:
         benchmark_returns: np.ndarray,
         beta: float,
     ) -> float:
-        """Calculate annualized alpha versus benchmark exposure.
+        """Calculate annualized CAPM alpha vs the benchmark.
+
+        ``alpha = annualized(strategy) - beta * annualized(benchmark)``,
+        using geometric (compounded) annualization for consistency with the
+        Calmar return convention.
 
         Args:
             strategy_returns: Strategy daily returns
             benchmark_returns: Benchmark daily returns
-            beta: Pre-calculated beta
+            beta: Pre-calculated beta (reused, not recomputed)
 
         Returns:
-            Annualized strategy return minus beta times annualized benchmark return
+            Annualized alpha as a decimal (0.10 = +10% / year)
         """
         min_len = min(len(strategy_returns), len(benchmark_returns))
         if min_len < 1:
@@ -209,14 +226,18 @@ class PerformanceMetricsCalculator:
         strategy_returns: np.ndarray,
         benchmark_returns: np.ndarray,
     ) -> float:
-        """Calculate annualized information ratio.
+        """Calculate the annualized Information Ratio vs the benchmark.
+
+        ``mean(excess) / std(excess) * sqrt(365)`` where
+        ``excess = strategy - benchmark``. Measures risk-adjusted active
+        return (is the strategy true alpha or just levered beta?).
 
         Args:
             strategy_returns: Strategy daily returns
             benchmark_returns: Benchmark daily returns
 
         Returns:
-            Mean excess return divided by tracking-error volatility
+            Annualized Information Ratio
         """
         min_len = min(len(strategy_returns), len(benchmark_returns))
         if min_len < 2:
@@ -257,10 +278,10 @@ class PerformanceMetricsCalculator:
                 - max_drawdown_percent: Maximum drawdown as percentage
                 - calmar_ratio: Return/drawdown ratio
                 - beta: Correlation with benchmark
-                - cvar_95: Mean of worst 5% daily returns
-                - ulcer_index: RMS percentage drawdown
-                - alpha: Annualized alpha vs benchmark beta exposure
-                - information_ratio: Annualized excess-return ratio
+                - cvar_95: Expected shortfall of the worst 5% of daily returns
+                - ulcer_index: RMS of the drawdown series
+                - alpha: Annualized CAPM alpha vs benchmark
+                - information_ratio: Annualized active risk-adjusted return
         """
         # Edge case: insufficient data
         if len(strategy_values) < 2 or len(benchmark_prices) < 2:

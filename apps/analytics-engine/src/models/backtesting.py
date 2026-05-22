@@ -189,7 +189,11 @@ class StrategySummary(BaseModel):
     ulcer_index: float = 0.0
     alpha: float = 0.0
     information_ratio: float = 0.0
-    # True trade-level win rate needs forward-PnL accounting; keep API unset.
+    # win_rate_percent stays None: a meaningful trade-level win rate needs
+    # forward-PnL per executed decision (hot-path trade accounting, separate
+    # track). Deriving it from daily returns would be positive-day rate, which
+    # is misleading. Trade-level win rate is computed offline in
+    # scripts/attribution/regime_breakdown.py instead.
     win_rate_percent: float | None = None
     final_allocation: Allocation
     final_asset_allocation: AssetAllocation

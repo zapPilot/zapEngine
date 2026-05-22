@@ -212,30 +212,47 @@ class TestCalculateBeta:
 
 
 class TestCalculateCvar:
-    """Tests for CVaR / expected shortfall calculation."""
+    """Tests for CVaR (expected shortfall) calculation."""
 
     def test_insufficient_data_returns_zero(self):
-        """Fewer than 2 returns should return 0."""
+        """Empty returns should return 0."""
         calc = PerformanceMetricsCalculator()
-        assert calc.calculate_cvar(np.array([0.01])) == 0.0
+        assert calc.calculate_cvar(np.array([])) == 0.0
 
-    def test_worst_five_percent_mean(self):
-        """CVaR should average the worst 5% of returns."""
-        returns = np.array([-0.10, *([0.01] * 19)])
+    def test_invalid_alpha_returns_zero(self):
+        """Alpha outside (0, 1) should return 0."""
+        returns = np.array([0.01, -0.02, 0.03, -0.05])
         calc = PerformanceMetricsCalculator()
-        assert calc.calculate_cvar(returns) == -0.10
+        assert calc.calculate_cvar(returns, alpha=0.0) == 0.0
+        assert calc.calculate_cvar(returns, alpha=1.0) == 0.0
 
-    def test_all_positive_uses_lowest_positive_return(self):
-        """All-positive returns should still report the worst tail mean."""
-        returns = np.array([0.03, 0.01, 0.02, 0.04])
+    def test_tail_mean_not_above_var_threshold(self):
+        """CVaR is the mean of the tail, never above the VaR quantile."""
+        returns = np.array(
+            [0.05, -0.10, 0.02, -0.20, 0.01, -0.03, 0.04, -0.15, 0.03, -0.08]
+        )
         calc = PerformanceMetricsCalculator()
-        assert calc.calculate_cvar(returns) == 0.01
+        cvar = calc.calculate_cvar(returns, alpha=0.2)
+        assert cvar < 0.0
+        assert cvar <= float(np.quantile(returns, 0.2))
+
+    def test_all_positive_returns_smallest(self):
+        """With no losses the worst-tail mean is still the smallest return."""
+        returns = np.array([0.01, 0.02, 0.03, 0.04])
+        calc = PerformanceMetricsCalculator()
+        cvar = calc.calculate_cvar(returns, alpha=0.05)
+        assert abs(cvar - 0.01) < 1e-9
 
 
 class TestCalculateUlcerIndex:
-    """Tests for Ulcer Index calculation."""
+    """Tests for the Ulcer Index calculation."""
 
-    def test_monotonic_up_returns_zero(self):
+    def test_insufficient_data_returns_zero(self):
+        """Fewer than 2 values should return 0."""
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_ulcer_index(np.array([100.0])) == 0.0
+
+    def test_monotonic_increase_is_zero(self):
         """Monotonically increasing values have no drawdown."""
         values = np.array([100.0, 110.0, 120.0, 130.0])
         calc = PerformanceMetricsCalculator()
@@ -252,9 +269,22 @@ class TestCalculateUlcerIndex:
 
         assert abs(calc.calculate_ulcer_index(values) - expected) < 1e-6
 
+    def test_known_series_formula(self):
+        """UI = sqrt(mean(drawdown_pct**2)) over [100, 90, 100]."""
+        values = np.array([100.0, 90.0, 100.0])
+        calc = PerformanceMetricsCalculator()
+        ulcer = calc.calculate_ulcer_index(values)
+        # drawdown% = [0, -10, 0] -> sqrt((0 + 100 + 0) / 3)
+        assert abs(ulcer - float(np.sqrt(100.0 / 3.0))) < 1e-6
+
 
 class TestCalculateAlpha:
-    """Tests for alpha calculation."""
+    """Tests for CAPM alpha calculation."""
+
+    def test_insufficient_data_returns_zero(self):
+        """Empty arrays should return 0."""
+        calc = PerformanceMetricsCalculator()
+        assert calc.calculate_alpha(np.array([]), np.array([]), 1.0) == 0.0
 
     def test_beta_zero_returns_annualized_strategy_return(self):
         """With beta 0, alpha should equal annualized strategy return."""
@@ -277,9 +307,22 @@ class TestCalculateAlpha:
             < 1e-6
         )
 
+    def test_identical_series_beta_one_is_zero(self):
+        """Strategy == benchmark with beta=1 gives ~zero alpha."""
+        returns = np.array([0.01, -0.02, 0.03, -0.01])
+        calc = PerformanceMetricsCalculator()
+        alpha = calc.calculate_alpha(returns, returns, 1.0)
+        assert abs(alpha) < 1e-9
+
 
 class TestCalculateInformationRatio:
-    """Tests for information ratio calculation."""
+    """Tests for the Information Ratio calculation."""
+
+    def test_insufficient_data_returns_zero(self):
+        """Fewer than 2 aligned points should return 0."""
+        calc = PerformanceMetricsCalculator()
+        ir = calc.calculate_information_ratio(np.array([0.01]), np.array([0.0]))
+        assert ir == 0.0
 
     def test_zero_variance_excess_returns_zero(self):
         """Zero-variance excess returns should return 0."""
@@ -310,6 +353,14 @@ class TestCalculateInformationRatio:
             )
             < 1e-6
         )
+
+    def test_consistent_outperformance_is_positive(self):
+        """Strategy consistently beating the benchmark has positive IR."""
+        strategy = np.array([0.02, 0.03, 0.025, 0.028])
+        benchmark = np.array([0.01, 0.01, 0.012, 0.011])
+        calc = PerformanceMetricsCalculator()
+        ir = calc.calculate_information_ratio(strategy, benchmark)
+        assert ir > 0.0
 
 
 class TestCalculateAllMetrics:
