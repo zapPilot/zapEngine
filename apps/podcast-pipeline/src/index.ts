@@ -17,12 +17,7 @@ import {
   getTelegramWebhookSecret,
 } from './lib/env.js';
 import { isRecord } from './lib/typeGuards.js';
-import {
-  compactUsageCostLines,
-  nonZeroUsageCostLines,
-  sortUsageCostLinesByCostDesc,
-  type UsageCostLine,
-} from './services/cost.js';
+import { buildIngestSummary } from './services/cost.js';
 import {
   type Cursor,
   decodeCursor,
@@ -351,7 +346,10 @@ async function runTelegramIngest(
 
   try {
     const result = await performMultilingualIngest(url, languageCode);
-    await sendTelegramNotification(chatId, formatTelegramIngestResult(result));
+    await sendTelegramNotification(
+      chatId,
+      buildIngestSummaryFromResult(result),
+    );
   } catch (error) {
     await sendTelegramNotification(
       chatId,
@@ -380,47 +378,13 @@ async function sendTelegramNotification(
   }
 }
 
-function formatTelegramIngestResult(result: IngestResult): string {
-  const status = result.statusCode === 200 ? '✅ 已存在' : '✅ 完成';
-  const lines = [status, `《${result.episode.title}》`];
-  if (result.episode.hlsUrl) {
-    lines.push(result.episode.hlsUrl);
-  }
-
-  const costLines = sortUsageCostLinesByCostDesc(
-    compactUsageCostLines(nonZeroUsageCostLines(result.costDetails.breakdown)),
-  );
-  if (result.costDetails.totalUsd > 0 && costLines.length > 0) {
-    lines.push(`💰 Total $${formatUsd(result.costDetails.totalUsd)}`);
-    lines.push('Breakdown');
-    lines.push(...costLines.map(formatCostLine));
-  }
-
-  return lines.join('\n');
-}
-
-function formatCostLine(line: UsageCostLine): string {
-  const usage = line.usage ? `, ${formatUsage(line.usage)}` : '';
-  return `- ${line.label} (${line.provider}/${line.model}${usage}): $${formatUsd(
-    line.costUsd,
-  )}`;
-}
-
-function formatUsage(usage: NonNullable<UsageCostLine['usage']>): string {
-  let unitLabel = usage.unit;
-  if (usage.unit === 'utf8_bytes') {
-    unitLabel = 'UTF-8 bytes';
-  } else if (usage.unit === 'characters') {
-    unitLabel = 'chars';
-  }
-
-  return `${usage.quantity} ${unitLabel} @ $${formatUsd(
-    usage.unitPriceUsd * 1_000_000,
-  )}/M`;
-}
-
-function formatUsd(value: number): string {
-  return value.toFixed(5);
+function buildIngestSummaryFromResult(result: IngestResult): string {
+  return buildIngestSummary({
+    status: result.statusCode,
+    title: result.episode.title,
+    hlsUrl: result.episode.hlsUrl,
+    costDetails: result.costDetails,
+  });
 }
 
 function publicTelegramErrorMessage(error: unknown): string {
