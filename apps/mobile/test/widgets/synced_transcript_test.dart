@@ -52,8 +52,9 @@ void main() {
       await handler.dispose();
     });
 
-    testWidgets('displays plain transcript when no script timing',
-        (tester) async {
+    testWidgets('displays plain transcript when no script timing', (
+      tester,
+    ) async {
       final handler = FakePodcastAudioHandler();
       final provider = PlaybackProvider(handler);
       final episode = Episode(
@@ -85,8 +86,9 @@ void main() {
       await handler.dispose();
     });
 
-    testWidgets('shows "No script available yet" when script is null',
-        (tester) async {
+    testWidgets('shows "No script available yet" when script is null', (
+      tester,
+    ) async {
       final handler = FakePodcastAudioHandler();
       final provider = PlaybackProvider(handler);
       final episode = Episode(
@@ -117,8 +119,9 @@ void main() {
       await handler.dispose();
     });
 
-    testWidgets('shows "No script available yet" when script is empty',
-        (tester) async {
+    testWidgets('shows "No script available yet" when script is empty', (
+      tester,
+    ) async {
       final handler = FakePodcastAudioHandler();
       final provider = PlaybackProvider(handler);
       final episode = Episode(

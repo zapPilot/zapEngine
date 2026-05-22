@@ -1,7 +1,6 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
-  entry: ['src/main.ts'],
   project: ['src/**/*.ts'],
   ignore: [
     '**/*.spec.ts',

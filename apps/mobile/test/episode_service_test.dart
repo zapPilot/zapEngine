@@ -143,10 +143,7 @@ void main() {
     });
 
     test('creates page without cursor when no more pages', () {
-      final page = EpisodePage(
-        items: [],
-        nextCursor: null,
-      );
+      final page = EpisodePage(items: [], nextCursor: null);
 
       expect(page.items, isEmpty);
       expect(page.nextCursor, isNull);

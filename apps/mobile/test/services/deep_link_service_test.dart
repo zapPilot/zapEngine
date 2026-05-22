@@ -70,16 +70,12 @@ void main() {
       final service = DeepLinkService(
         navigatorKey: navigatorKey,
         loadEpisode: (id) async => _episode(id),
-        episodeDetailBuilder: (episode) => Scaffold(
-          body: Text('detail:${episode.id}'),
-        ),
+        episodeDetailBuilder: (episode) =>
+            Scaffold(body: Text('detail:${episode.id}')),
       );
 
       await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: navigatorKey,
-          home: const SizedBox.shrink(),
-        ),
+        MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
       );
 
       final opened = await service.openEpisodeUri(

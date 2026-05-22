@@ -28,12 +28,7 @@ const kLanguageOptions = <LanguageOption>[
     nativeName: '繁體中文',
     enabled: true,
   ),
-  LanguageOption(
-    code: 'ja',
-    shortLabel: '日',
-    nativeName: '日本語',
-    enabled: true,
-  ),
+  LanguageOption(code: 'ja', shortLabel: '日', nativeName: '日本語', enabled: true),
 ];
 
 LanguageOption languageOptionFor(String code) {

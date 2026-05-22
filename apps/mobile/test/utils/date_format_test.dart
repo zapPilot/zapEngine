@@ -30,10 +30,7 @@ void main() {
     });
 
     test('formats minutes with padded seconds', () {
-      expect(
-        formatDuration(const Duration(minutes: 1, seconds: 5)),
-        '1:05',
-      );
+      expect(formatDuration(const Duration(minutes: 1, seconds: 5)), '1:05');
     });
 
     test('formats hours with padded minutes and seconds', () {

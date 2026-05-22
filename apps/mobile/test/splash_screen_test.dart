@@ -8,16 +8,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 void main() {
-  testWidgets('renders the podcast wordmark and Zap endorsement',
-      (tester) async {
+  testWidgets('renders the podcast wordmark and Zap endorsement', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeSplashApp());
 
     expect(find.text('From Fed to Chain'), findsOneWidget);
     expect(find.text('A ZAP PRODUCTION'), findsOneWidget);
   });
 
-  testWidgets('replaces the splash with AuthGate after the dwell',
-      (tester) async {
+  testWidgets('replaces the splash with AuthGate after the dwell', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeSplashApp());
 
     await tester.pump(const Duration(seconds: 3));
@@ -27,8 +29,9 @@ void main() {
     expect(find.byType(SplashScreen), findsNothing);
   });
 
-  testWidgets('can unmount before the dwell completes without throwing',
-      (tester) async {
+  testWidgets('can unmount before the dwell completes without throwing', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeSplashApp());
     await tester.pump(const Duration(milliseconds: 100));
 

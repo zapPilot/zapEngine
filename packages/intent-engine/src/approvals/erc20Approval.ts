@@ -27,7 +27,19 @@ export async function needsApproval(params: {
     })) as bigint;
 
     return allowance < params.requirement.amount;
-  } catch {
+  } catch (error) {
+    // Fail open: an RPC hiccup or non-ERC20 contract must not silently skip
+    // an approval the deposit needs. Surface the cause so a wrong
+    // tokenAddress / paused contract / RPC outage is not invisible.
+    console.warn(
+      '[needsApproval] allowance lookup failed; assuming approval needed',
+      {
+        token: params.requirement.tokenAddress,
+        spender: params.requirement.spenderAddress,
+        owner: params.owner,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return true;
   }
 }

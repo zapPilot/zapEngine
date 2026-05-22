@@ -16,25 +16,19 @@ void main() {
 
   group('SettingsScreen', () {
     testWidgets('displays language section title', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.text('語言'), findsOneWidget);
     });
 
     testWidgets('displays account section title', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.text('帳戶'), findsOneWidget);
     });
 
     testWidgets('shows all language options', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.text('English'), findsOneWidget);
       expect(find.text('繁體中文'), findsOneWidget);
@@ -42,24 +36,22 @@ void main() {
     });
 
     testWidgets('shows checkmark on selected language', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
-    testWidgets('does not show lock icon on available languages',
-        (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+    testWidgets('does not show lock icon on available languages', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.byIcon(Icons.lock_rounded), findsNothing);
     });
 
-    testWidgets('tapping a language updates the selected content language',
-        (tester) async {
+    testWidgets('tapping a language updates the selected content language', (
+      tester,
+    ) async {
       final languageProvider = ContentLanguageProvider();
       await tester.pumpWidget(
         _makeSettingsScreen(languageProvider: languageProvider),
@@ -72,12 +64,11 @@ void main() {
       expect(find.text(kComingSoonTooltip), findsNothing);
     });
 
-    testWidgets('displays default user title when not logged in',
-        (tester) async {
+    testWidgets('displays default user title when not logged in', (
+      tester,
+    ) async {
       SharedPreferences.setMockInitialValues({});
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
       await tester.pump();
 
       expect(find.text('未登入帳戶'), findsOneWidget);
@@ -85,14 +76,10 @@ void main() {
 
     testWidgets('displays user display name when available', (tester) async {
       final authProvider = _FakeAuthProvider(
-          user: const PodcastUser(
-        id: 'user-1',
-        displayName: 'Test User',
-      ));
-      await authProvider.restore();
-      await tester.pumpWidget(
-        _makeSettingsScreen(authProvider: authProvider),
+        user: const PodcastUser(id: 'user-1', displayName: 'Test User'),
       );
+      await authProvider.restore();
+      await tester.pumpWidget(_makeSettingsScreen(authProvider: authProvider));
       await tester.pump();
 
       expect(find.text('Test User'), findsOneWidget);
@@ -100,14 +87,10 @@ void main() {
 
     testWidgets('displays user email when no display name', (tester) async {
       final authProvider = _FakeAuthProvider(
-          user: const PodcastUser(
-        id: 'user-1',
-        email: 'test@example.com',
-      ));
-      await authProvider.restore();
-      await tester.pumpWidget(
-        _makeSettingsScreen(authProvider: authProvider),
+        user: const PodcastUser(id: 'user-1', email: 'test@example.com'),
       );
+      await authProvider.restore();
+      await tester.pumpWidget(_makeSettingsScreen(authProvider: authProvider));
       await tester.pump();
 
       expect(find.text('test@example.com'), findsWidgets);
@@ -115,23 +98,17 @@ void main() {
 
     testWidgets('displays device login subtitle', (tester) async {
       final authProvider = _FakeAuthProvider(
-          user: const PodcastUser(
-        id: 'user-1',
-        deviceId: 'device-123',
-      ));
-      await authProvider.restore();
-      await tester.pumpWidget(
-        _makeSettingsScreen(authProvider: authProvider),
+        user: const PodcastUser(id: 'user-1', deviceId: 'device-123'),
       );
+      await authProvider.restore();
+      await tester.pumpWidget(_makeSettingsScreen(authProvider: authProvider));
       await tester.pump();
 
       expect(find.text('裝置登入'), findsOneWidget);
     });
 
     testWidgets('displays sign out button', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.text('登出'), findsOneWidget);
     });
@@ -143,10 +120,8 @@ void main() {
       });
 
       final authProvider = _FakeAuthProvider(
-          user: const PodcastUser(
-        id: 'user-1',
-        displayName: 'Test User',
-      ));
+        user: const PodcastUser(id: 'user-1', displayName: 'Test User'),
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -168,23 +143,16 @@ void main() {
     });
 
     testWidgets('has Scaffold with AppBar', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
       expect(find.byType(Scaffold), findsOneWidget);
       expect(find.byType(AppBar), findsOneWidget);
     });
 
     testWidgets('shows language description text', (tester) async {
-      await tester.pumpWidget(
-        _makeSettingsScreen(),
-      );
+      await tester.pumpWidget(_makeSettingsScreen());
 
-      expect(
-        find.text('語言會影響內容與音訊版本，收聽紀錄會保留。'),
-        findsOneWidget,
-      );
+      expect(find.text('語言會影響內容與音訊版本，收聽紀錄會保留。'), findsOneWidget);
     });
   });
 
@@ -264,9 +232,7 @@ Widget _makeSettingsScreen({
 }
 
 AuthProvider _defaultAuthProvider() {
-  final provider = AuthProvider(
-    authService: _FakeAuthService(),
-  );
+  final provider = AuthProvider(authService: _FakeAuthService());
   return provider;
 }
 

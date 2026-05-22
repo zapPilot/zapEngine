@@ -139,10 +139,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          const SliverAppBar(
-            pinned: true,
-            title: Text('收藏'),
-          ),
+          const SliverAppBar(pinned: true, title: Text('收藏')),
           ...buildEpisodeCollectionSlivers(
             loading: _loading,
             error: _error,
@@ -205,10 +202,7 @@ class _DismissBackground extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: Padding(
             padding: EdgeInsets.only(right: 20),
-            child: Icon(
-              Icons.delete_outline_rounded,
-              color: Colors.redAccent,
-            ),
+            child: Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
           ),
         ),
       ),

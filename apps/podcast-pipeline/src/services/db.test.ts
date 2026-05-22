@@ -591,6 +591,103 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
       message: expect.stringContaining('PGRST204'),
     });
   });
+
+  it('includes classroom_hls_url and classroom_r2_prefix when provided', async () => {
+    const row = localizationRow({
+      classroom_hls_url: 'https://r2.example/classroom.m3u8',
+      classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
+    });
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    await insertEpisodeLocalization({
+      id: row.id,
+      episodeId: row.episode_id,
+      languageCode: row.language_code,
+      title: row.title,
+      hlsUrl: row.hls_url,
+      rawText: row.raw_text ?? '',
+      script: row.script ?? '',
+      llmModel: row.llm_model ?? '',
+      llmThinkingModel: row.llm_thinking_model,
+      llmProvider: row.llm_provider ?? '',
+      ttsLanguageCode: null,
+      ttsVoiceName: null,
+      r2Prefix: null,
+      status: row.status,
+      classroomHlsUrl: row.classroom_hls_url,
+      classroomR2Prefix: row.classroom_r2_prefix,
+    });
+
+    const insertCalls = state.query!.insert.mock.calls as unknown as [
+      Record<string, unknown>,
+    ][];
+    const payload = insertCalls[0]![0];
+    expect(payload).toMatchObject({
+      classroom_hls_url: 'https://r2.example/classroom.m3u8',
+      classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
+    });
+  });
+
+  it('formats record errors with details and the fallback message string', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: {
+        code: 'PGRST116',
+        // No `message` field, exercises the 'Supabase request failed' fallback
+        details: 'Row not found',
+        hint: 'Reload schema cache',
+      },
+    });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('Supabase request failed'),
+    });
+  });
+
+  it('stringifies non-record errors when normalizing a Supabase failure', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: 'plain string failure',
+    });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toMatchObject({
+      message: 'plain string failure',
+    });
+  });
 });
 
 describe('language classrooms', () => {
@@ -879,6 +976,26 @@ describe('updates', () => {
         classroom_r2_prefix: expect.any(String),
       }),
     );
+  });
+
+  it('rethrows unrelated update errors without stripping classroom fields', async () => {
+    const row = localizationRow();
+    state.query!.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: new Error('connection refused'),
+    });
+
+    await expect(
+      updateEpisodeLocalizationStatus(row.id, 'completed', {
+        hlsUrl: 'https://cdn.example.com/playlist.m3u8',
+        r2Prefix: 'episodes/e/localizations/zh-Hant/main',
+        classroomHlsUrl:
+          'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        classroomR2Prefix: 'episodes/e/localizations/zh-Hant/classroom',
+      }),
+    ).rejects.toThrow('connection refused');
+
+    expect(state.query!.update).toHaveBeenCalledTimes(1);
   });
 
   it('updates localized script metadata fields', async () => {

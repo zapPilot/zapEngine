@@ -108,7 +108,9 @@ class _SyncedTranscriptState extends State<SyncedTranscript> {
   }
 
   int _currentSegmentIndex(
-      List<TranscriptSegment> segments, Duration position) {
+    List<TranscriptSegment> segments,
+    Duration position,
+  ) {
     if (segments.isEmpty) return -1;
     final index = segments.indexWhere(
       (segment) => position >= segment.start && position < segment.end,

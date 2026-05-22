@@ -16,6 +16,7 @@ import {
   getPort,
   getTelegramWebhookSecret,
 } from './lib/env.js';
+import { isRecord } from './lib/typeGuards.js';
 import {
   compactUsageCostLines,
   nonZeroUsageCostLines,
@@ -430,10 +431,6 @@ function publicTelegramErrorMessage(error: unknown): string {
 
 function emptyTelegramResponse(c: Context): Response {
   return c.body(null, 200);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 app.onError((error, c) => {
