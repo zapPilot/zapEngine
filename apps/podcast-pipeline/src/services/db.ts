@@ -91,12 +91,16 @@ function isMissingSupabaseColumnsError(
   error: unknown,
   columns: readonly string[],
 ): boolean {
-  const message =
-    error instanceof Error ? error.message : formatSupabaseError(error);
-
+  // Errors here come from `throwSupabaseError`, which always rethrows or wraps
+  // into a real Error; the non-Error branch is defensive only.
+  /* v8 ignore start -- @preserve */
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  /* v8 ignore stop -- @preserve */
   return (
-    message.includes('PGRST204') &&
-    columns.some((column) => message.includes(column))
+    error.message.includes('PGRST204') &&
+    columns.some((column) => error.message.includes(column))
   );
 }
 
