@@ -17,7 +17,7 @@ import {
   getTelegramWebhookSecret,
 } from './lib/env.js';
 import { isRecord } from './lib/typeGuards.js';
-import { buildIngestSummary } from './services/cost.js';
+import { buildIngestSummary, presentCostBreakdown } from './services/cost.js';
 import {
   type Cursor,
   decodeCursor,
@@ -152,7 +152,18 @@ app.post('/ingest', async (c) => {
     `[/ingest] done episode=${result.episode.id} status=${result.statusCode}`,
   );
 
-  return c.json(result.episode, result.statusCode);
+  return c.json(
+    {
+      episode: result.episode,
+      costUsd: result.costUsd,
+      costDetails: {
+        totalUsd: result.costDetails.totalUsd,
+        breakdown: presentCostBreakdown(result.costDetails.breakdown),
+      },
+      summary: buildIngestSummaryFromResult(result),
+    },
+    result.statusCode,
+  );
 });
 
 app.post('/telegram/webhook', async (c) => {

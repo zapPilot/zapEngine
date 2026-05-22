@@ -417,7 +417,7 @@ describe('POST /ingest authorization', () => {
       },
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
-    const body = (await response.json()) as EpisodeResponse;
+    const body = (await response.json()) as { episode: EpisodeResponse };
 
     expect(response.status).toBe(200);
     expect(mockFindEpisodeBySourceUrl).toHaveBeenCalledWith(
@@ -427,8 +427,8 @@ describe('POST /ingest authorization', () => {
       episodeRow().id,
       'zh-Hant',
     );
-    expect(body.languageCode).toBe('zh-Hant');
-    expect(body.localizationId).toBe(localizationRow().id);
+    expect(body.episode.languageCode).toBe('zh-Hant');
+    expect(body.episode.localizationId).toBe(localizationRow().id);
   });
 
   it('normalizes legacy zh-TW language aliases', async () => {
@@ -609,7 +609,7 @@ describe('POST /ingest pipeline', () => {
       },
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
-    const body = (await response.json()) as EpisodeResponse;
+    const body = (await response.json()) as { episode: EpisodeResponse };
 
     expect(response.status).toBe(201);
     expect(mockConvertArticleToZhTW).toHaveBeenCalledWith({
@@ -666,8 +666,52 @@ describe('POST /ingest pipeline', () => {
       }),
     );
     expect(
-      body.languageClassrooms.map((lesson) => lesson.targetLanguageCode),
+      body.episode.languageClassrooms.map(
+        (lesson) => lesson.targetLanguageCode,
+      ),
     ).toEqual(['ja', 'en']);
+  });
+
+  it('returns the cost envelope and a Telegram-equivalent summary string', async () => {
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as {
+      episode: { id: string; title: string; hlsUrl: string };
+      costUsd: number;
+      costDetails: {
+        totalUsd: number;
+        breakdown: {
+          category: string;
+          label: string;
+          provider: string;
+          model: string;
+          costUsd: number;
+        }[];
+      };
+      summary: string;
+    };
+
+    expect(body.episode.id).toBe(episodeRow().id);
+    expect(body.costUsd).toBeGreaterThan(0);
+    expect(body.costDetails.totalUsd).toBeCloseTo(body.costUsd, 10);
+    expect(body.costDetails.breakdown.length).toBeGreaterThan(0);
+    for (const line of body.costDetails.breakdown) {
+      expect(line.costUsd).toBeGreaterThan(0);
+    }
+    const costs = body.costDetails.breakdown.map((l) => l.costUsd);
+    expect([...costs].sort((a, b) => b - a)).toEqual(costs);
+    expect(body.summary).toContain('✅ 完成');
+    expect(body.summary).toContain('💰 Total $');
+    expect(body.summary).toContain('Breakdown');
+    expect(body.summary).toContain('- LLM classrooms (');
   });
 
   it('persists code-owned Fish Audio metadata even when TTS env overrides are present', async () => {
