@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildIngestSummary,
   buildUsageCostDetails,
   compactUsageCostLines,
+  formatCostLine,
+  formatUsage,
+  formatUsd,
   nonZeroUsageCostLines,
+  presentCostBreakdown,
   sortUsageCostLinesByCostDesc,
   sumUsageCostLines,
+  type UsageCostLine,
 } from './cost.js';
+
+const baseLine = (overrides: Partial<UsageCostLine> = {}): UsageCostLine => ({
+  category: 'llm',
+  label: 'LLM classrooms',
+  provider: 'test-provider',
+  model: 'test-model',
+  costUsd: 0.00027,
+  ...overrides,
+});
 
 describe('compactUsageCostLines', () => {
   it('groups lines with same key and sums costs', () => {
@@ -222,5 +237,134 @@ describe('translate cost category', () => {
 
     expect(details.totalUsd).toBeCloseTo(0.0123, 10);
     expect(details.breakdown[0]?.category).toBe('translate');
+  });
+});
+
+describe('formatUsd', () => {
+  it('renders 5 decimal places', () => {
+    expect(formatUsd(0.00027)).toBe('0.00027');
+    expect(formatUsd(0)).toBe('0.00000');
+  });
+});
+
+describe('formatUsage', () => {
+  it('relabels utf8_bytes to "UTF-8 bytes"', () => {
+    expect(
+      formatUsage({ unit: 'utf8_bytes', quantity: 12, unitPriceUsd: 0.000015 }),
+    ).toBe('12 UTF-8 bytes @ $15.00000/M');
+  });
+
+  it('relabels characters to "chars"', () => {
+    expect(
+      formatUsage({ unit: 'characters', quantity: 5, unitPriceUsd: 0.00002 }),
+    ).toBe('5 chars @ $20.00000/M');
+  });
+
+  it('passes other units through verbatim', () => {
+    expect(
+      formatUsage({ unit: 'tokens', quantity: 100, unitPriceUsd: 0.00001 }),
+    ).toBe('100 tokens @ $10.00000/M');
+  });
+});
+
+describe('formatCostLine', () => {
+  it('renders a cost line without usage', () => {
+    expect(formatCostLine(baseLine())).toBe(
+      '- LLM classrooms (test-provider/test-model): $0.00027',
+    );
+  });
+
+  it('appends usage when present', () => {
+    expect(
+      formatCostLine(
+        baseLine({
+          label: 'TTS main audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00018,
+          usage: { unit: 'utf8_bytes', quantity: 12, unitPriceUsd: 0.000015 },
+        }),
+      ),
+    ).toBe(
+      '- TTS main audio (fish-audio/s2-pro, 12 UTF-8 bytes @ $15.00000/M): $0.00018',
+    );
+  });
+});
+
+describe('presentCostBreakdown', () => {
+  it('filters out zero-cost lines, compacts duplicates, then sorts desc', () => {
+    const lines: UsageCostLine[] = [
+      baseLine({ model: 'low', costUsd: 0.00001 }),
+      baseLine({ model: 'high', costUsd: 0.00009 }),
+      baseLine({ model: 'noop', costUsd: 0 }),
+      baseLine({ model: 'middle', costUsd: 0.00004 }),
+    ];
+    const result = presentCostBreakdown(lines);
+    expect(result.map((l) => l.model)).toEqual(['high', 'middle', 'low']);
+  });
+
+  it('returns [] for an all-zero breakdown', () => {
+    expect(presentCostBreakdown([baseLine({ costUsd: 0 })])).toEqual([]);
+  });
+});
+
+describe('buildIngestSummary', () => {
+  it('renders status, title, hls, and cost breakdown', () => {
+    expect(
+      buildIngestSummary({
+        status: 200,
+        title: 'Localization title',
+        hlsUrl: 'https://cdn.example.com/playlist.m3u8',
+        costDetails: {
+          totalUsd: 0.00027,
+          breakdown: [baseLine()],
+        },
+      }),
+    ).toBe(
+      [
+        '✅ 已存在',
+        '《Localization title》',
+        'https://cdn.example.com/playlist.m3u8',
+        '💰 Total $0.00027',
+        'Breakdown',
+        '- LLM classrooms (test-provider/test-model): $0.00027',
+      ].join('\n'),
+    );
+  });
+
+  it('uses ✅ 完成 for status 201', () => {
+    const out = buildIngestSummary({
+      status: 201,
+      title: 'X',
+      hlsUrl: undefined,
+      costDetails: { totalUsd: 0, breakdown: [] },
+    });
+    expect(out.startsWith('✅ 完成')).toBe(true);
+  });
+
+  it('omits the cost section when totalUsd is 0', () => {
+    expect(
+      buildIngestSummary({
+        status: 200,
+        title: 'X',
+        hlsUrl: 'https://cdn.example.com/playlist.m3u8',
+        costDetails: { totalUsd: 0, breakdown: [] },
+      }),
+    ).toBe(
+      ['✅ 已存在', '《X》', 'https://cdn.example.com/playlist.m3u8'].join(
+        '\n',
+      ),
+    );
+  });
+
+  it('skips the hls line when hlsUrl is empty/undefined', () => {
+    expect(
+      buildIngestSummary({
+        status: 200,
+        title: 'X',
+        hlsUrl: '',
+        costDetails: { totalUsd: 0, breakdown: [] },
+      }),
+    ).toBe(['✅ 已存在', '《X》'].join('\n'));
   });
 });
