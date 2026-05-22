@@ -242,3 +242,90 @@ jobs:
 
       - name: Check for dead env vars
         run: bash scripts/check-dead-env.sh
+
+  coverage:
+    # Parallel to lint-test. Aggregates per-workspace coverage into a single
+    # coverage/summary.json and (when coverage/baseline.json exists) gates on
+    # no-regression vs. that committed baseline.
+    #
+    # Intentionally NOT part of check:ci:core — frontend sharded coverage is
+    # ~6 min on its own; keeping this in its own job preserves fast feedback
+    # on lint-test.
+    #
+    # See scripts/COVERAGE.md for baseline generation procedure.
+    #
+    # Security note: only admin-controlled secrets/vars are referenced via
+    # ${{ }}. No github.event.* user input is used in run: steps.
+    runs-on: ubuntu-latest
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      DATABASE_READ_ONLY: 'true'
+      DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install uv (for analytics-engine pytest-cov)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.8.13'
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prebuild internal packages
+        run: pnpm prebuild:packages
+
+      - name: Self-test the coverage scripts
+        run: pnpm run coverage:scripts:test
+
+      - name: Detect baseline presence
+        id: baseline
+        run: |
+          if [ -f coverage/baseline.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::coverage/baseline.json not committed yet — running summary only. See scripts/COVERAGE.md to generate one."
+          fi
+
+      - name: Coverage check (strict, with no-regression gate)
+        if: steps.baseline.outputs.exists == 'true'
+        run: pnpm coverage:check
+
+      - name: Coverage summary only (no baseline yet)
+        if: steps.baseline.outputs.exists == 'false'
+        run: pnpm coverage:summary
+
+      - name: Upload coverage summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/summary.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload per-workspace HTML reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: |
+            apps/*/coverage/index.html
+            apps/*/coverage/**/*.html
+            packages/*/coverage/index.html
+            packages/*/coverage/**/*.html
+          if-no-files-found: ignore
+          retention-days: 7

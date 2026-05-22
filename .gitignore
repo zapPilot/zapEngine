@@ -71,3 +71,4 @@ apps/analytics-engine/*.md
 
 # podcast-pipeline
 service-account.json
+**/coverage/**

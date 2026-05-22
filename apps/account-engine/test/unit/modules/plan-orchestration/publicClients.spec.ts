@@ -15,8 +15,8 @@ vi.mock('viem', () => {
 import { createPublicClient, http } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 
-import { createDepositPublicClients } from '../../../../src/modules/plan-orchestration/publicClients';
 import type { ConfigService } from '../../../../src/config/config.service';
+import { createDepositPublicClients } from '../../../../src/modules/plan-orchestration/publicClients';
 
 function makeConfig(values: Record<string, string> = {}): {
   get: Mock<ConfigService['get']>;
@@ -39,9 +39,11 @@ describe('createDepositPublicClients', () => {
     );
     const clients = factory();
 
-    expect(Object.keys(clients).map(Number).sort((a, b) => a - b)).toEqual(
-      [mainnet.id, base.id, arbitrum.id].sort((a, b) => a - b),
-    );
+    expect(
+      Object.keys(clients)
+        .map(Number)
+        .sort((a, b) => a - b),
+    ).toEqual([mainnet.id, base.id, arbitrum.id].sort((a, b) => a - b));
   });
 
   it('falls back to public RPC URLs when no env keys are configured', () => {
@@ -83,7 +85,7 @@ describe('createDepositPublicClients', () => {
     createDepositPublicClients(config as unknown as ConfigService);
 
     const calls = (createPublicClient as unknown as ReturnType<typeof vi.fn>)
-      .mock.calls as Array<[{ chain: { id: number } }]>;
+      .mock.calls as [{ chain: { id: number } }][];
     const chainIds = calls.map(([opts]) => opts.chain.id);
     expect(chainIds).toContain(mainnet.id);
     expect(chainIds).toContain(base.id);
