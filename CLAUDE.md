@@ -2,10 +2,16 @@ See @README.md for project overview and @package.json for root scripts.
 
 # Build order
 
-Internal packages (`packages/*`) are built automatically by `pnpm check:local`, `check:ci`, and `check:ci:core` via the `prebuild:packages` step. `pnpm contracts:check` also runs that prebuild before exporting schemas. When invoking type-check or tests directly:
+Internal `packages/*` are built on demand — `turbo run` tasks declare `dependsOn: ["^build"]`, so `pnpm type-check`, `pnpm test`, `pnpm build` from the root always see fresh package output.
 
-- **Prefer**: `pnpm type-check` / `pnpm test` from the root (Turbo handles `^build` upstream deps).
-- **If TS2307 appears** on `@zapengine/*` imports when running `pnpm --filter X type-check` directly: run `pnpm prebuild:packages` first.
+For single-workspace runs, **use Turbo, not pnpm filter**:
+
+- ✅ `pnpm turbo run type-check --filter=@zapengine/frontend` — respects `^build` deps
+- ❌ `pnpm --filter @zapengine/frontend type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
+
+Escape hatches if you do hit a stale build: `pnpm prebuild:packages` (rebuild all internal packages) or `pnpm --filter @zapengine/types build`.
+
+The contracts pipeline (`pnpm contracts:check`) bypasses Turbo because `contracts:export` is raw `tsx`, so it keeps the explicit `prebuild:packages` prefix.
 
 # Per-app tooling
 
@@ -69,9 +75,13 @@ proxy, where the bounded module lives, and when to extract
 `apps/plan-orchestration`): see
 [apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md).
 
-# Pre-commit
+# Pre-commit & local verification
 
-Hooks run from the repo root via Turbo. To run local checks for a workspace manually, use `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>`. For `analytics-engine`, include `sql:audit service-reachability pylint:duplicate-check` in the Turbo command when you need the full local gate.
+Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-instant when unchanged), `lint:repo` drift checks, and `lint-staged` ESLint/Prettier on staged files.
+
+The full CI gate is **opt-in** locally — run `pnpm verify` (alias for `check:local`) before pushing if you want pre-push assurance. CI itself is still authoritative.
+
+Per-workspace manual checks: `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>`. For `analytics-engine`, add `sql:audit service-reachability pylint:duplicate-check` for the full local gate.
 
 # Python environment (analytics-engine)
 

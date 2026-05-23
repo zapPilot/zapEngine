@@ -44,6 +44,10 @@ describe('NavbarV2', () => {
         'href',
         '/docs/',
       );
+      expect(screen.getByRole('link', { name: 'Pitch' })).toHaveAttribute(
+        'href',
+        '/pitch/',
+      );
     });
   });
 

@@ -4,6 +4,7 @@ packages:
 
 catalog:
   '@hono/node-server': ^1.19.6
+  '@lifi/sdk': ^3.4.0
   '@supabase/supabase-js': ^2.84.0
   '@tailwindcss/postcss': ^4
   '@testing-library/jest-dom': ^6.9.1
@@ -21,10 +22,12 @@ catalog:
   jsdom: ^25.0.1
   knip: ^5.68.0
   lucide-react: ^0.523.0
+  nodemailer: ^8.0.5
   prettier: ^3.8.3
   react: ^19.0.0
   react-dom: ^19.0.0
   tailwindcss: ^4
+  telegraf: ^4.16.3
   tsx: ^4.20.6
   typescript: ^5.7.3
   viem: ^2.47.12

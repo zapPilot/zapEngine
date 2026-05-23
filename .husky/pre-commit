@@ -1,23 +1,18 @@
 #!/usr/bin/env sh
-# Pre-commit hook: run lint-staged for auto-fixing, then turbo for other checks.
-# CI runs the same turbo tasks with check-variants on all workspaces.
-# Task orchestration + parallelism + dependency graph are handled by turbo.
+# Pre-commit hook: fast feedback only.
+# Runs lint-staged + drift checks on staged files. CI is the real gate.
+# To run the full local gate manually before pushing: `pnpm verify`.
 set -eu
 
-# Run pnpm install --check to ensure all dependencies are installed and up-to-date
+# Keep deps in sync; near-instant when lockfile hasn't changed.
 pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
 
-#Run some config and script drifts checkings
 # Auto-sync strategy snapshot mirror (analytics-engine fixture -> landing-page data)
 # so the strict drift check in lint:repo will pass.
 pnpm lint:snapshot-sync:fix
 git add apps/landing-page/src/data/strategy-snapshot.json
 pnpm lint:repo
 
-# 🎯 Auto-fix and re-stage files that are about to be committed
 pnpm lint-staged
 
-# 🔍 Run the local subset of the CI gate on affected workspaces
-pnpm run check:local
-
-printf '\n✅ Pre-commit passed\n'
+printf '\n✅ Pre-commit passed (CI runs the full gate)\n'

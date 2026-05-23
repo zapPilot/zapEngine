@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-05-23T12:20:44.561Z",
+  "workspaces": [
+    {
+      "name": "apps/frontend",
+      "statements": {
+        "total": 5680,
+        "covered": 5458,
+        "pct": 96.09
+      },
+      "branches": {
+        "total": 4082,
+        "covered": 3753,
+        "pct": 91.94
+      },
+      "functions": {
+        "total": 1667,
+        "covered": 1598,
+        "pct": 95.86
+      },
+      "lines": {
+        "total": 5440,
+        "covered": 5238,
+        "pct": 96.28
+      }
+    },
+    {
+      "name": "packages/intent-engine",
+      "statements": {
+        "total": 372,
+        "covered": 353,
+        "pct": 94.89
+      },
+      "branches": {
+        "total": 223,
+        "covered": 192,
+        "pct": 86.09
+      },
+      "functions": {
+        "total": 100,
+        "covered": 98,
+        "pct": 98
+      },
+      "lines": {
+        "total": 368,
+        "covered": 349,
+        "pct": 94.83
+      }
+    },
+    {
+      "name": "packages/types",
+      "statements": {
+        "total": 82,
+        "covered": 82,
+        "pct": 100
+      },
+      "branches": {
+        "total": 8,
+        "covered": 8,
+        "pct": 100
+      },
+      "functions": {
+        "total": 7,
+        "covered": 7,
+        "pct": 100
+      },
+      "lines": {
+        "total": 82,
+        "covered": 82,
+        "pct": 100
+      }
+    }
+  ],
+  "total": {
+    "statements": {
+      "total": 6134,
+      "covered": 5893,
+      "pct": 96.07
+    },
+    "branches": {
+      "total": 4313,
+      "covered": 3953,
+      "pct": 91.65
+    },
+    "functions": {
+      "total": 1774,
+      "covered": 1703,
+      "pct": 96
+    },
+    "lines": {
+      "total": 5890,
+      "covered": 5669,
+      "pct": 96.25
+    }
+  }
+}

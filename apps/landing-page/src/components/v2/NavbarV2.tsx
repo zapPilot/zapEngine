@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '#proof', label: 'Performance' },
   { href: '#protocols', label: 'Protocols' },
   { href: '/docs/', label: 'Docs' },
+  { href: '/pitch/', label: 'Pitch' },
 ] as const;
 
 export function NavbarV2() {

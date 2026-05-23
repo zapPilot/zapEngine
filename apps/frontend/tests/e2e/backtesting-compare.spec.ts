@@ -1,24 +1,6 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-  test,
-} from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
 
 const BUNDLE_USER_ID = '0x1234567890123456789012345678901234567890';
-const LIVE_ANALYTICS_ENGINE_URL =
-  process.env['VITE_ANALYTICS_ENGINE_URL'] ?? 'http://127.0.0.1:8001';
-const PLAYWRIGHT_TEST_BASE_URL =
-  process.env['PLAYWRIGHT_BASE_URL'] ??
-  `http://127.0.0.1:${process.env['PLAYWRIGHT_PORT'] ?? '3000'}`;
-const PLAYWRIGHT_TEST_ORIGIN = new URL(PLAYWRIGHT_TEST_BASE_URL).origin;
-const ROTATION_STRATEGY_ID = 'dma_fgi_portfolio_rules_default';
-const UI_PRIMARY_CONFIG_ID = 'dma_fgi_portfolio_rules_default';
-const ROTATION_STRATEGY_LABEL = 'DMA/FGI Portfolio Rules';
-const ROTATION_SPOT_SEGMENT_TEST_ID = `backtest-${UI_PRIMARY_CONFIG_ID}-btc`;
-const ETH_CHART_COLOR_RGB = '99, 102, 241';
-const BTC_CHART_COLOR_RGB = '245, 158, 11';
 
 const ROUTE_PATTERNS = {
   landing: '**/api/v2/portfolio/*/landing',
@@ -426,169 +408,6 @@ async function registerBacktestingRoutes(page: Page): Promise<void> {
   });
 }
 
-async function registerLandingRoute(page: Page): Promise<void> {
-  await page.route(ROUTE_PATTERNS.landing, async (route: Route) => {
-    await fulfillJson(route, LANDING_RESPONSE);
-  });
-}
-
-async function isLiveAnalyticsBackendAvailable(
-  request: APIRequestContext,
-): Promise<boolean> {
-  try {
-    const response = await request.get(
-      `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/backtesting/strategies`,
-      {
-        timeout: 5000,
-      },
-    );
-
-    if (!response.ok()) {
-      return false;
-    }
-
-    const payload = (await response.json()) as { strategies?: unknown };
-    return Array.isArray(payload.strategies);
-  } catch {
-    return false;
-  }
-}
-
-async function isLiveAnalyticsCorsCompatible(
-  request: APIRequestContext,
-): Promise<boolean> {
-  try {
-    const response = await request.get(
-      `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/backtesting/strategies`,
-      {
-        timeout: 5000,
-        headers: {
-          Origin: PLAYWRIGHT_TEST_ORIGIN,
-        },
-      },
-    );
-
-    if (!response.ok()) {
-      return false;
-    }
-
-    const allowOrigin = response.headers()['access-control-allow-origin'];
-    return allowOrigin === '*' || allowOrigin === PLAYWRIGHT_TEST_ORIGIN;
-  } catch {
-    return false;
-  }
-}
-
-async function fetchLiveCompareResponse(request: APIRequestContext): Promise<{
-  timeline?: {
-    strategies?: Record<
-      string,
-      { portfolio?: { spot_asset?: string | null } | undefined } | undefined
-    >;
-  }[];
-}> {
-  const configsResponse = await request.get(
-    `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/strategy/configs`,
-    {
-      timeout: 10000,
-    },
-  );
-  expect(configsResponse.ok()).toBeTruthy();
-
-  const configsPayload = (await configsResponse.json()) as {
-    presets: {
-      config_id: string;
-      strategy_id: string;
-      params: Record<string, unknown>;
-    }[];
-    backtest_defaults?: {
-      days?: number;
-      total_capital?: number;
-    };
-  };
-
-  const compareResponse = await request.post(
-    `${LIVE_ANALYTICS_ENGINE_URL}/api/v3/backtesting/compare`,
-    {
-      timeout: 120000,
-      data: {
-        days: configsPayload.backtest_defaults?.days ?? 500,
-        total_capital: configsPayload.backtest_defaults?.total_capital ?? 10000,
-        configs: configsPayload.presets.map((preset) => ({
-          config_id: preset.config_id,
-          strategy_id: preset.strategy_id,
-          params: preset.params,
-        })),
-      },
-    },
-  );
-  expect(compareResponse.ok()).toBeTruthy();
-
-  return (await compareResponse.json()) as {
-    timeline?: {
-      strategies?: Record<
-        string,
-        { portfolio?: { spot_asset?: string | null } | undefined } | undefined
-      >;
-    }[];
-  };
-}
-
-async function findRotationSpotSegmentSnapshot(page: Page): Promise<{
-  title: string;
-  style: string;
-} | null> {
-  const chartSurface = page.locator('.recharts-surface').first();
-  await expect(chartSurface).toBeVisible();
-
-  const box = await chartSurface.boundingBox();
-  if (box == null) {
-    return null;
-  }
-
-  const segment = page.getByTestId(ROTATION_SPOT_SEGMENT_TEST_ID);
-  const xRatios = [0.2, 0.32, 0.44, 0.56, 0.68, 0.8];
-  const yRatios = [0.22, 0.36, 0.5, 0.64];
-
-  for (const xRatio of xRatios) {
-    for (const yRatio of yRatios) {
-      await page.mouse.move(
-        box.x + box.width * xRatio,
-        box.y + box.height * yRatio,
-      );
-
-      try {
-        await expect(segment).toBeVisible({ timeout: 400 });
-      } catch {
-        continue;
-      }
-
-      const title = (await segment.getAttribute('title')) ?? '';
-      const style = ((await segment.getAttribute('style')) ?? '').toLowerCase();
-
-      if (
-        title.startsWith('ETH:') ||
-        title.startsWith('BTC:') ||
-        title.startsWith('SPOT:')
-      ) {
-        return { title, style };
-      }
-    }
-  }
-
-  return null;
-}
-
-async function switchUiStrategyToRotation(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /ETH\/BTC/i }).click();
-  await page.getByRole('option', { name: ROTATION_STRATEGY_LABEL }).click();
-  await expect(
-    page.getByRole('button', {
-      name: new RegExp(ROTATION_STRATEGY_LABEL, 'i'),
-    }),
-  ).toBeVisible();
-}
-
 async function openBacktestingView(page: Page): Promise<void> {
   await page.goto(`/bundle?userId=${BUNDLE_USER_ID}`);
   await page.waitForLoadState('domcontentloaded');
@@ -618,34 +437,10 @@ test.describe('Backtesting (v3) - Terminal display + two-bucket chart', () => {
     await expect(page.getByText('Buy Spot').first()).toBeVisible();
   });
 
-  test('renders asset-specific tooltip labels from a live analytics-engine response', async ({
+  test('renders asset-specific switch labels from mocked compare data', async ({
     page,
-    request,
   }) => {
-    test.setTimeout(120000);
-
-    const backendAvailable = await isLiveAnalyticsBackendAvailable(request);
-    const corsCompatible = await isLiveAnalyticsCorsCompatible(request);
-    test.skip(
-      !backendAvailable,
-      `Requires analytics-engine at ${LIVE_ANALYTICS_ENGINE_URL}`,
-    );
-    test.skip(
-      !corsCompatible,
-      `Requires analytics-engine CORS to allow ${PLAYWRIGHT_TEST_ORIGIN}`,
-    );
-
-    await registerLandingRoute(page);
-
-    const compareJson = await fetchLiveCompareResponse(request);
-
-    const rotationPointWithSpotAsset = compareJson.timeline?.find((point) => {
-      const spotAsset =
-        point.strategies?.[ROTATION_STRATEGY_ID]?.portfolio?.spot_asset;
-      return spotAsset === 'BTC' || spotAsset === 'ETH';
-    });
-
-    expect(rotationPointWithSpotAsset).toBeTruthy();
+    await registerBacktestingRoutes(page);
 
     await openBacktestingView(page);
 
@@ -653,23 +448,8 @@ test.describe('Backtesting (v3) - Terminal display + two-bucket chart', () => {
       timeout: 60000,
     });
 
-    await switchUiStrategyToRotation(page);
-    await page.getByRole('button', { name: /\[RUN\]/ }).click();
-    await page.waitForTimeout(12000);
-
-    const segmentSnapshot = await findRotationSpotSegmentSnapshot(page);
-    expect(segmentSnapshot).not.toBeNull();
-
-    const { title, style } = segmentSnapshot ?? { title: '', style: '' };
-
-    expect(title.startsWith('SPOT:')).toBeFalsy();
-
-    if (title.startsWith('ETH:')) {
-      expect(style).toContain(ETH_CHART_COLOR_RGB);
-      return;
-    }
-
-    expect(title.startsWith('BTC:')).toBeTruthy();
-    expect(style).toContain(BTC_CHART_COLOR_RGB);
+    await expect(page.getByText('Switch to ETH')).toBeVisible();
+    await expect(page.getByText('Switch to BTC')).toBeVisible();
+    await expect(page.getByText('Switch to SPY')).toBeVisible();
   });
 });

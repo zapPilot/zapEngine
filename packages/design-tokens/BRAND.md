@@ -40,7 +40,7 @@ The three pillars:
 | BTC / ETH   | Digital asset beta when the regime rewards risk               |
 | Stablecoins | Defensive cash leg when rules call for capital preservation   |
 
-From the pitch deck:
+From the pitch narrative in `apps/landing-page/src/config/pitch.ts`:
 
 > The engine uses 200MA, Fear & Greed, and ETH/BTC relative strength to decide
 > when the portfolio should buy risk, defend in cash, or rotate inside crypto.
@@ -364,7 +364,8 @@ Live copy and V2 landing context:
 `apps/landing-page/src/components/v2/PillarsV2.tsx`, and
 `apps/landing-page/src/components/v2/HowItWorksV2.tsx`.
 
-Product narrative: `apps/pitch-deck/site/slides/deck.md`,
+Product narrative: `apps/landing-page/src/app/pitch/page.tsx`,
+`apps/landing-page/src/config/pitch.ts`,
 `apps/landing-page/content/docs/index.mdx`,
 `apps/landing-page/content/docs/architecture.mdx`, and
 `apps/landing-page/content/docs/how-it-works.mdx`.
