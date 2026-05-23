@@ -97,5 +97,5 @@ After linking, Turbo checks remote cache on local misses — `pnpm check:local` 
 ## Deployment
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
-- **Frontend / Landing** → Vercel
+- **Frontend / Landing / Docs** → Vercel
 - CI triggers on push to `main` and PRs; deploys only on `main`
