@@ -160,19 +160,26 @@ describe('RegimeStripV2', () => {
       expectSkeleton(container);
     });
 
-    it('stays skeleton when one telemetry endpoint fails', async () => {
+    it('renders remaining items when one telemetry endpoint fails persistently', async () => {
       mockLiveTelemetryFetch({ dashboard: 'reject' });
 
       const { container } = render(<RegimeStripV2 />);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledTimes(3);
+        expect(screen.getByText('Extreme Fear')).toBeInTheDocument();
       });
 
-      expectSkeleton(container);
-      expect(screen.queryByText('Extreme Fear')).not.toBeInTheDocument();
-      expect(screen.queryByText('21')).not.toBeInTheDocument();
+      expect(screen.getByText('21')).toBeInTheDocument();
       expect(screen.queryByText('+25.0%')).not.toBeInTheDocument();
+      expect(
+        container.querySelectorAll('.regime-strip-item.is-skeleton'),
+      ).toHaveLength(0);
+      expect(container.querySelector('.regime-strip')).not.toHaveAttribute(
+        'aria-busy',
+      );
+      expect(
+        screen.getByText(MESSAGES.regimeStrip.liveStatus),
+      ).toBeInTheDocument();
     });
 
     it('renders fetched telemetry values when all endpoints succeed', async () => {

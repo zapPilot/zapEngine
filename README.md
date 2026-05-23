@@ -13,7 +13,6 @@ zapEngine/
 │   ├── frontend            # React 19 + Vite — dashboard SPA
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── mobile              # Flutter — From Fed to Chain podcast app
-│   ├── pitch-deck          # Static Reveal.js — Markdown pitch deck (port 3010)
 │   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
     ├── design-tokens       # Shared Zap Pilot brand tokens for web + Flutter
@@ -24,16 +23,15 @@ zapEngine/
     └── types               # Shared TypeScript types & Zod schemas
 ```
 
-| App              | Language      | Framework         | Deploy                 |
-| ---------------- | ------------- | ----------------- | ---------------------- |
-| account-engine   | TypeScript    | Hono 4.12         | Fly.io                 |
-| alpha-etl        | TypeScript    | Express 4.18      | Fly.io                 |
-| analytics-engine | Python 3.11+  | FastAPI           | Fly.io                 |
-| frontend         | TypeScript    | React 19 + Vite 7 | Vercel                 |
-| landing-page     | TypeScript    | Next.js 15        | Vercel                 |
-| mobile           | Dart          | Flutter           | App Store / Play Store |
-| pitch-deck       | HTML/Markdown | Reveal.js         | GitHub Pages           |
-| podcast-pipeline | TypeScript    | Hono 4.12         | Fly.io                 |
+| App              | Language     | Framework         | Deploy                 |
+| ---------------- | ------------ | ----------------- | ---------------------- |
+| account-engine   | TypeScript   | Hono 4.12         | Fly.io                 |
+| alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
+| analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
+| frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
+| landing-page     | TypeScript   | Next.js 15        | Vercel                 |
+| mobile           | Dart         | Flutter           | App Store / Play Store |
+| podcast-pipeline | TypeScript   | Hono 4.12         | Fly.io                 |
 
 ## Prerequisites
 
@@ -66,11 +64,8 @@ pnpm --filter @zapengine/analytics-engine run build   # wraps `uv sync --locked`
 # Start frontend + account-engine + analytics-engine (typical daily dev)
 pnpm dev
 
-# Start landing page only
+# Start landing page only (includes /pitch/)
 pnpm dev:landing
-
-# Start pitch deck only
-pnpm --filter @zapengine/pitch-deck dev
 
 # Run the mobile app
 pnpm --filter @zapengine/mobile dev

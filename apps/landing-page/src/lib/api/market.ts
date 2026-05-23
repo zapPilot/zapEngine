@@ -35,7 +35,9 @@ type MarketDashboardResponse = {
   }>;
 };
 
-const REQUEST_TIMEOUT_MS = 3_000;
+const REQUEST_TIMEOUT_MS = 8_000;
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 250;
 const REGIME_LABELS: Record<string, string> = {
   ef: 'Extreme Fear',
   f: 'Fear',
@@ -65,7 +67,22 @@ function getAnalyticsApiUrl(): string | null {
   return baseUrl.replace(/\/+$/, '');
 }
 
-async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
+function sleep(ms: number): Promise<void> {
+  if (process.env['NODE_ENV'] === 'test') return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === 'AbortError') return true;
+  const httpMatch = error.message.match(/failed with (\d{3})/);
+  if (httpMatch) {
+    return Number(httpMatch[1]) >= 500;
+  }
+  return true;
+}
+
+async function fetchJsonOnce<T>(baseUrl: string, path: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -85,6 +102,22 @@ async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fetchJsonOnce<T>(baseUrl, path);
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_ATTEMPTS - 1 || !isRetryableError(error)) {
+        throw error;
+      }
+      await sleep(RETRY_BASE_DELAY_MS * Math.pow(2, attempt));
+    }
+  }
+  throw lastError;
 }
 
 function buildRegimeItem(
@@ -188,22 +221,24 @@ export async function fetchRegimeStrip(): Promise<RegimeStripData | null> {
       ),
     ]);
 
-  const regimeItem =
-    regimeResult.status === 'fulfilled'
-      ? buildRegimeItem(regimeResult.value)
-      : null;
-  const sentimentItem =
-    sentimentResult.status === 'fulfilled'
-      ? buildSentimentItem(sentimentResult.value)
-      : null;
-  const dashboardItem =
-    dashboardResult.status === 'fulfilled'
-      ? buildDashboardItem(dashboardResult.value)
-      : null;
+  const items: RegimeStripItem[] = [];
 
-  if (regimeItem === null || sentimentItem === null || dashboardItem === null) {
+  if (regimeResult.status === 'fulfilled') {
+    const item = buildRegimeItem(regimeResult.value);
+    if (item !== null) items.push(item);
+  }
+  if (sentimentResult.status === 'fulfilled') {
+    const item = buildSentimentItem(sentimentResult.value);
+    if (item !== null) items.push(item);
+  }
+  if (dashboardResult.status === 'fulfilled') {
+    const item = buildDashboardItem(dashboardResult.value);
+    if (item !== null) items.push(item);
+  }
+
+  if (items.length === 0) {
     return null;
   }
 
-  return { items: [regimeItem, sentimentItem, dashboardItem] };
+  return { items };
 }

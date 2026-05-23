@@ -29,6 +29,9 @@ describe('LandingPageV2', () => {
       expect(
         screen.getAllByRole('link', { name: 'Docs' }).length,
       ).toBeGreaterThan(0);
+      expect(
+        screen.getAllByRole('link', { name: 'Pitch' }).length,
+      ).toBeGreaterThan(0);
     });
   });
 

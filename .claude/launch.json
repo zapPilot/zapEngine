@@ -4,8 +4,8 @@
     {
       "name": "landing-page",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:landing"],
-      "port": 3000
+      "runtimeArgs": ["--filter", "@zapengine/landing-page", "exec", "next", "dev"],
+      "autoPort": true
     },
     {
       "name": "frontend",
