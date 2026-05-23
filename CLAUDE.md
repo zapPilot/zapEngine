@@ -9,9 +9,7 @@ For single-workspace runs, **use Turbo, not pnpm filter**:
 - ✅ `pnpm turbo run type-check --filter=@zapengine/frontend` — respects `^build` deps
 - ❌ `pnpm --filter @zapengine/frontend type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
 
-Escape hatches if you do hit a stale build: `pnpm prebuild:packages` (rebuild all internal packages) or `pnpm --filter @zapengine/types build`.
-
-The contracts pipeline (`pnpm contracts:check`) bypasses Turbo because `contracts:export` is raw `tsx`, so it keeps the explicit `prebuild:packages` prefix.
+If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any specific package) is the targeted fix; `pnpm prebuild:packages` rebuilds all packages but is rarely needed — the `contracts:check` pipeline calls it internally because `contracts:export` is raw `tsx` and bypasses Turbo.
 
 # Per-app tooling
 
