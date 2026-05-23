@@ -36,8 +36,8 @@
     "@supabase/supabase-js": "catalog:",
     "dotenv": "catalog:",
     "hono": "catalog:",
-    "nodemailer": "^8.0.5",
-    "telegraf": "^4.16.3",
+    "nodemailer": "catalog:",
+    "telegraf": "catalog:",
     "viem": "catalog:",
     "zod": "catalog:"
   },

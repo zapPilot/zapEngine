@@ -9,6 +9,9 @@ catalogs:
     '@hono/node-server':
       specifier: ^1.19.6
       version: 1.19.14
+    '@lifi/sdk':
+      specifier: ^3.4.0
+      version: 3.16.3
     '@supabase/supabase-js':
       specifier: ^2.84.0
       version: 2.103.1
@@ -60,6 +63,9 @@ catalogs:
     lucide-react:
       specifier: ^0.523.0
       version: 0.523.0
+    nodemailer:
+      specifier: ^8.0.5
+      version: 8.0.7
     prettier:
       specifier: ^3.8.3
       version: 3.8.3
@@ -72,6 +78,9 @@ catalogs:
     tailwindcss:
       specifier: ^4
       version: 4.2.2
+    telegraf:
+      specifier: ^4.16.3
+      version: 4.16.3
     tsx:
       specifier: ^4.20.6
       version: 4.21.0
@@ -147,10 +156,10 @@ importers:
         specifier: 'catalog:'
         version: 4.12.18
       nodemailer:
-        specifier: ^8.0.5
+        specifier: 'catalog:'
         version: 8.0.7
       telegraf:
-        specifier: ^4.16.3
+        specifier: 'catalog:'
         version: 4.16.3
       viem:
         specifier: 'catalog:'
@@ -702,7 +711,7 @@ importers:
   packages/intent-engine:
     dependencies:
       '@lifi/sdk':
-        specifier: ^3.4.0
+        specifier: 'catalog:'
         version: 3.16.3(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.5))(utf-8-validate@6.0.6)(viem@2.47.18(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(zod@4.3.6)
       '@zapengine/types':
         specifier: workspace:*

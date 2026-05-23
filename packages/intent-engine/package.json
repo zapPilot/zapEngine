@@ -45,7 +45,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@lifi/sdk": "^3.4.0",
+    "@lifi/sdk": "catalog:",
     "@zapengine/types": "workspace:*",
     "viem": "catalog:",
     "zod": "catalog:"
