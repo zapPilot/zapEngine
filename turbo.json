@@ -111,18 +111,6 @@
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
-    "sql:audit": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "outputs": []
-    },
-    "service-reachability": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "outputs": []
-    },
-    "pylint:duplicate-check": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "outputs": []
-    },
     "security:audit": {
       "outputs": [],
       "cache": false
