@@ -2,7 +2,6 @@
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [
     ".nvmrc",
-    ".env",
     ".env.example",
     ".jscpd.json",
     "pnpm-lock.yaml",
