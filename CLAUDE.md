@@ -24,6 +24,7 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 - Validation: Zod v4 (not v3 — import paths and APIs differ slightly)
 - Path alias: `@/*` → `src/*` in frontend only
 - ESLint: flat config (`eslint.config.mjs`), not legacy `.eslintrc`
+- App `src/` layout (TS server apps): see [docs/app-layout.md](./docs/app-layout.md)
 
 # Key ports
 
