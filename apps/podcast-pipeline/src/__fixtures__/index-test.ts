@@ -6,6 +6,8 @@ import type {
   LanguageClassroomRow,
 } from '../types.js';
 
+const FIXED_TIMESTAMP = '2024-01-01T00:00:00.000Z';
+
 export function localizationResponse(
   episode: EpisodeRow,
   localization: EpisodeLocalizationRow,
@@ -91,7 +93,7 @@ export function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
     id: '00000000-0000-4000-8000-000000000001',
     source_url: 'https://example.com/article',
     source_title: 'Source title',
-    created_at: '2024-01-01T00:00:00.000Z',
+    created_at: FIXED_TIMESTAMP,
     listened: false,
     ...overrides,
   };
@@ -117,8 +119,8 @@ export function localizationRow(
     r2_prefix: null,
     classroom_r2_prefix: null,
     status: 'completed',
-    created_at: '2024-01-01T00:00:00.000Z',
-    updated_at: '2024-01-01T00:00:00.000Z',
+    created_at: FIXED_TIMESTAMP,
+    updated_at: FIXED_TIMESTAMP,
     ...overrides,
   };
 }
@@ -139,7 +141,7 @@ export function listRow(
     llm_thinking_model: null,
     llm_provider: 'provider',
     status: 'completed',
-    created_at: '2024-01-01T00:00:00.000Z',
+    created_at: FIXED_TIMESTAMP,
     listened: false,
     like_count: 0,
     language_classrooms: [],
@@ -160,8 +162,8 @@ export function classroomRow(
     llm_model: 'model',
     llm_thinking_model: null,
     llm_provider: 'provider',
-    created_at: '2024-01-01T00:00:00.000Z',
-    updated_at: '2024-01-01T00:00:00.000Z',
+    created_at: FIXED_TIMESTAMP,
+    updated_at: FIXED_TIMESTAMP,
     ...overrides,
   };
 }
