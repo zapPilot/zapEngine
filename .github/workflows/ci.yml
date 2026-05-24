@@ -284,9 +284,6 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Prebuild internal packages
-        run: pnpm prebuild:packages
-
       - name: Self-test the coverage scripts
         run: pnpm run coverage:scripts:test
 

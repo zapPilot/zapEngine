@@ -21,7 +21,7 @@
     "test:ci": "turbo run test:ci",
     "test:coverage": "turbo run test:coverage",
     "coverage:summary": "turbo run test:coverage --filter=!@zapengine/mobile && tsx scripts/coverage-summary.ts",
-    "coverage:check": "turbo run test:coverage --filter=!@zapengine/mobile && tsx scripts/coverage-summary.ts && tsx scripts/coverage-regression.ts",
+    "coverage:check": "pnpm coverage:summary && tsx scripts/coverage-regression.ts",
     "coverage:scripts:test": "tsx --test scripts/coverage-summary.test.ts scripts/coverage-regression.test.ts",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
