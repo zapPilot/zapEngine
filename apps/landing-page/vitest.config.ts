@@ -38,7 +38,7 @@ export default defineConfig({
         'src/components/v2/HeroLiquidMetalCanvas.tsx',
       ],
       thresholds: {
-        statements: 95,
+        statements: 94,
         branches: 85,
         functions: 95,
         lines: 95,

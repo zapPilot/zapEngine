@@ -7,11 +7,11 @@ new PRs cannot drop below by more than 0.3 percentage points.
 
 ## Scripts
 
-| Script                             | Purpose                                                                |
-| ---------------------------------- | ---------------------------------------------------------------------- |
-| `pnpm coverage:summary`            | Run all coverage suites + aggregate into `coverage/summary.json`.      |
-| `pnpm coverage:check`              | Read summary.json + baseline.json, exit 1 if any workspace regressed.  |
-| `pnpm coverage:scripts:test`       | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`. |
+| Script                       | Purpose                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm coverage:summary`      | Run all coverage suites + aggregate into `coverage/summary.json`.             |
+| `pnpm coverage:check`        | Run all coverage suites + exit 1 if any workspace regressed vs baseline.json. |
+| `pnpm coverage:scripts:test` | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`.      |
 
 The aggregator walks `apps/*/coverage/coverage-summary.json` (vitest v8) and
 `apps/analytics-engine/htmlcov/coverage.xml` (pytest-cov Cobertura). New
@@ -84,16 +84,16 @@ with a markdown diff table in the run log.
 In addition to the no-regression gate above, each workspace enforces its own
 hard floor via vitest/pytest config:
 
-| Workspace                | Statements | Branches | Functions | Lines |
-| ------------------------ | ---------- | -------- | --------- | ----- |
-| `packages/intent-engine` | 90         | 85       | 90        | 90    |
-| `packages/types`         | 90         | 85       | 90        | 90    |
-| `apps/account-engine`    | 90         | 85       | 90        | 90    |
-| `apps/alpha-etl`         | 80         | 75       | 80        | 80    |
-| `apps/frontend`          | 75         | 70       | 75        | 75    |
-| `apps/podcast-pipeline`  | 75         | 70       | 75        | 75    |
-| `apps/landing-page`      | 70         | 65       | 70        | 70    |
-| `apps/analytics-engine`  | 95 line (pytest)                          |       |
+| Workspace                | Statements       | Branches | Functions | Lines |
+| ------------------------ | ---------------- | -------- | --------- | ----- |
+| `packages/intent-engine` | 90               | 85       | 90        | 90    |
+| `packages/types`         | 90               | 85       | 90        | 90    |
+| `apps/account-engine`    | 90               | 85       | 90        | 90    |
+| `apps/alpha-etl`         | 80               | 75       | 80        | 80    |
+| `apps/frontend`          | 75               | 70       | 75        | 75    |
+| `apps/podcast-pipeline`  | 75               | 70       | 75        | 75    |
+| `apps/landing-page`      | 70               | 65       | 70        | 70    |
+| `apps/analytics-engine`  | 95 line (pytest) |          |
 
 These are aspirational starting floors. When `pnpm coverage:check` shows a
 workspace consistently above its floor, ratchet the config-level threshold

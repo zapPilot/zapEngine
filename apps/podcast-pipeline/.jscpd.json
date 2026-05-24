@@ -1,5 +1,11 @@
 {
-  "ignore": ["**/*.test.ts", "dist/**", "node_modules/**", "coverage/**"],
+  "ignore": [
+    "**/*.test.ts",
+    "**/__fixtures__/**",
+    "dist/**",
+    "node_modules/**",
+    "coverage/**"
+  ],
   "ignorePattern": [
     "import\\s.*from\\s.*",
     "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
