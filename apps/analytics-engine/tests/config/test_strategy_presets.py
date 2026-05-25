@@ -27,10 +27,16 @@ from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
     presets = list_strategy_presets()
     assert [preset.config_id for preset in presets] == [
-        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID
+        DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
+        "fixed_interval_balanced_30d",
+        "fixed_interval_conservative_30d",
+        "fixed_interval_aggressive_90d",
     ]
-    assert [preset.strategy_id for preset in presets] == ["dma_fgi_portfolio_rules"]
+    assert presets[0].strategy_id == "dma_fgi_portfolio_rules"
     assert presets[0].params["signal"]["cross_cooldown_days"] == 30
+    assert all(
+        preset.strategy_id == "fixed_interval_rebalance" for preset in presets[1:]
+    )
 
 
 def test_default_preset_is_dma_fgi_portfolio_rules() -> None:

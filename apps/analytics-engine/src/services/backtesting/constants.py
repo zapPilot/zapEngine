@@ -16,10 +16,12 @@ ALLOCATION_STATES = {
 
 STRATEGY_DCA_CLASSIC = "dca_classic"
 STRATEGY_DMA_FGI_PORTFOLIO_RULES = "dma_fgi_portfolio_rules"
+STRATEGY_FIXED_INTERVAL_REBALANCE = "fixed_interval_rebalance"
 
 STRATEGY_DISPLAY_NAMES = {
     STRATEGY_DCA_CLASSIC: "DCA Classic",
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: "DMA/FGI Portfolio Rules",
+    STRATEGY_FIXED_INTERVAL_REBALANCE: "[RESEARCH] Fixed Interval Rebalance",
 }
 
 APR_BY_REGIME: dict[str, dict[str, float | dict[str, float]]] = {
