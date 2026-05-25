@@ -1,5 +1,3 @@
-import { createIntentEngine, LiFiAdapter } from '@zapengine/intent-engine';
-
 import { ActivityTracker } from './common/interceptors';
 import { AlphaEtlHttpService } from './common/services';
 import { ConfigService } from './config/config.service';
@@ -20,7 +18,7 @@ import { TelegramTokenService } from './modules/notifications/telegram-token.ser
 import { TemplateService } from './modules/notifications/template.service';
 import {
   createDepositPublicClients,
-  createPlanOrchestrationService,
+  createPlanOrchestrationModule,
   type PlanOrchestrationService,
 } from './modules/plan-orchestration';
 import { UsersService } from './users/users.service';
@@ -100,18 +98,11 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
-  const lifiAdapter = new LiFiAdapter({
-    integrator: env.LIFI_INTEGRATOR,
-    ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
-  });
-  const planOrchestrationService = createPlanOrchestrationService({
-    adapter: lifiAdapter,
-    intentEngine: createIntentEngine({
-      lifi: {
-        integrator: env.LIFI_INTEGRATOR,
-        ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
-      },
-    }),
+  const planOrchestrationService = createPlanOrchestrationModule({
+    lifi: {
+      integrator: env.LIFI_INTEGRATOR,
+      ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
+    },
     publicClients: createDepositPublicClients(configService)(),
   });
 
