@@ -17,17 +17,11 @@ export function WalletMenuButton({
   isConnected,
   isConnecting,
   isMenuOpen,
-  onConnectClick,
   onToggleMenu,
 }: WalletMenuButtonProps): ReactElement {
   const showConnectedAddress = isConnected && Boolean(accountAddress);
 
   function handleButtonClick(): void {
-    if (!isConnected) {
-      void onConnectClick();
-      return;
-    }
-
     onToggleMenu();
   }
 

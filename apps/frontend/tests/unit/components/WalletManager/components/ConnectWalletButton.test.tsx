@@ -33,7 +33,7 @@ describe('ConnectWalletButton', () => {
     });
     mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
     mockUseConnect.mockReturnValue({
-      mutate: mockConnect,
+      mutateAsync: mockConnect,
       isPending: false,
     });
   });
@@ -46,29 +46,47 @@ describe('ConnectWalletButton', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls connect with the first connector directly and does not render a picker', () => {
+  it('opens connector choices before connecting the selected wallet', () => {
     const connectors = [
-      { id: 'io.rabby', name: 'Rabby' },
+      { id: 'io.rabby', name: 'Rabby', icon: 'data:image/svg+xml,<svg />' },
       { id: 'io.metamask', name: 'MetaMask' },
     ];
     mockUseConnectors.mockReturnValue(connectors);
 
     render(<ConnectWalletButton />);
 
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole('button', { name: WALLET_LABELS.CONNECT }),
     );
 
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Rabby' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'MetaMask' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('wallet-connector-icon')).toHaveAttribute(
+      'src',
+      connectors[0].icon,
+    );
+    expect(
+      screen.getByTestId('wallet-connector-fallback-icon'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Choose Wallet')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
+
     expect(mockConnect).toHaveBeenCalledWith({
-      connector: connectors[0],
+      connector: connectors[1],
     });
     expect(mockConnect).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it("shows 'Connecting...' when connection is pending", () => {
     mockUseConnect.mockReturnValue({
-      mutate: mockConnect,
+      mutateAsync: mockConnect,
       isPending: true,
     });
 
@@ -108,7 +126,7 @@ describe('ConnectWalletButton', () => {
   it('does not call connect when no connectors available', () => {
     mockUseConnectors.mockReturnValue([]);
     mockUseConnect.mockReturnValue({
-      mutate: mockConnect,
+      mutateAsync: mockConnect,
       isPending: false,
     });
 
@@ -119,5 +137,6 @@ describe('ConnectWalletButton', () => {
     );
 
     expect(mockConnect).not.toHaveBeenCalled();
+    expect(screen.getByText('No wallets detected')).toBeInTheDocument();
   });
 });

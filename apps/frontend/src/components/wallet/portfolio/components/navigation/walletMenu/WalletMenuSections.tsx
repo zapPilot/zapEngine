@@ -2,11 +2,13 @@ import { Check, Copy, LogOut, Plus, Settings, Wallet } from 'lucide-react';
 import { type ReactElement } from 'react';
 
 import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
+import { WalletConnectorPicker } from '@/components/WalletManager/components/WalletConnectorPicker';
 import { formatAddress } from '@/utils/formatters';
 
 import type {
   CopyAddressButtonProps,
   DisconnectButtonProps,
+  WalletConnectorSectionProps,
   WalletMenuItemsProps,
   WalletMultipleWalletSectionProps,
   WalletSectionFooterProps,
@@ -120,6 +122,24 @@ function WalletSectionFooter({
       </div>
       <DisconnectButton label={disconnectLabel} onDisconnect={onDisconnect} />
     </>
+  );
+}
+
+export function WalletConnectorSection({
+  connectors,
+  isConnecting,
+  selectedConnectorId,
+  onSelectConnector,
+}: WalletConnectorSectionProps): ReactElement {
+  return (
+    <div className="border-b border-gray-800 px-3 py-3">
+      <WalletConnectorPicker
+        connectors={connectors}
+        isConnecting={isConnecting}
+        selectedConnectorId={selectedConnectorId}
+        onSelectConnector={onSelectConnector}
+      />
+    </div>
   );
 }
 

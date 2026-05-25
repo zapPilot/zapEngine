@@ -100,9 +100,9 @@ describe('WalletMenu Component', () => {
       expect(button).toBeInTheDocument();
     });
 
-    it('calls connect with the first connector when not connected', () => {
+    it('opens connector choices without connecting immediately when not connected', () => {
       const connectors = [
-        { id: 'io.rabby', name: 'Rabby' },
+        { id: 'io.rabby', name: 'Rabby', icon: 'data:image/svg+xml,<svg />' },
         { id: 'io.metamask', name: 'MetaMask' },
       ];
       mockUseConnectors.mockReturnValue(connectors);
@@ -110,8 +110,40 @@ describe('WalletMenu Component', () => {
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
       const button = screen.getByTestId('unified-wallet-menu-button');
       fireEvent.click(button);
+
+      expect(mockConnectAsync).not.toHaveBeenCalled();
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(
+        screen.getByTestId('unified-wallet-menu-dropdown'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: 'Rabby' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: 'MetaMask' }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('wallet-connector-icon')).toHaveAttribute(
+        'src',
+        connectors[0].icon,
+      );
+      expect(
+        screen.getByTestId('wallet-connector-fallback-icon'),
+      ).toBeInTheDocument();
+    });
+
+    it('connects the selected connector from the wallet picker', () => {
+      const connectors = [
+        { id: 'io.rabby', name: 'Rabby' },
+        { id: 'io.metamask', name: 'MetaMask' },
+      ];
+      mockUseConnectors.mockReturnValue(connectors);
+
+      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
+      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
+
       expect(mockConnectAsync).toHaveBeenCalledWith({
-        connector: connectors[0],
+        connector: connectors[1],
       });
       expect(mockConnectAsync).toHaveBeenCalledTimes(1);
     });
