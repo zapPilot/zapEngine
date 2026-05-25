@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { portSchema } from '@zapengine/types';
 import { config } from 'dotenv';
 import { z } from 'zod';
 
@@ -21,7 +22,7 @@ function parsePort(defaultValue: string) {
 }
 
 function parseOptionalPort() {
-  return z.coerce.number().int().min(1).max(65535).optional();
+  return portSchema.optional();
 }
 
 function parsePositiveInteger(defaultValue: string) {

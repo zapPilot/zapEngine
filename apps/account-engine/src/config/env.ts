@@ -1,8 +1,7 @@
+import { portSchema } from '@zapengine/types';
 import { z } from 'zod';
 
 import { BadRequestException } from '../common/http';
-
-const portSchema = z.coerce.number().int().min(1).max(65535);
 
 const envSchema = z.object({
   SUPABASE_URL: z.string().min(1),
