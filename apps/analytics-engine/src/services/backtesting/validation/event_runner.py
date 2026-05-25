@@ -1,4 +1,27 @@
-"""Fixture-backed event validation for backtesting timelines."""
+"""Fixture-backed event validation for backtesting timelines.
+
+Sections in this file (1278 LOC — use these as a folding map):
+- Exceptions: ``ValidationEventError``, ``ConstraintValidationFailed``
+- Data classes: ``ValidationEvent``, ``AssertionResult``, ``EventResult``
+- Public API: ``load_validation_events``, ``evaluate_event``,
+  ``build_constraint_validation``
+- Assertion predicates: ``assert_target_asset_equals`` /
+  ``_increased_from_previous`` / ``_decreased_from_previous``
+- Constraint case evaluator: ``_validate_constraint_case``,
+  ``_evaluate_constraint_assertion``
+- Trigger-failure detectors: ``_constraint_event_trigger_failure``,
+  ``_crypto_cross_trigger_failure``, ``_dma_cross_trigger_failure``,
+  ``_inner_ratio_cross_trigger_failure``
+- Constraint predicates (``_constraint_*``): asset compare / vs-previous /
+  vs-current / crypto-vs-previous / eventual / decision-action / matched-rule /
+  decision-reason / ratio-zone / current-to-previous / comparison-passes
+- Constraint accessors (``_constraint_*``): asset, tolerance, target_asset,
+  portfolio_asset, target_crypto, portfolio_crypto, decision, signal, dma,
+  inner_ratio_zone, sentiment_label, macro_sentiment_label
+- Window / point / date helpers: ``_point_for_date``,
+  ``_previous_constraint_point``, ``_parse_date``, ``_coerce_points``,
+  ``_window_contains_extreme_fear_below_dma``
+"""
 
 from __future__ import annotations
 

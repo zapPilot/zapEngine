@@ -6,6 +6,25 @@ DMA overextension DCA sell, then FGI downshift DCA sell.
 If different assets emit cross-up and cross-down on the same day, cross-down
 exits win and the cross-up rebalance can be reconsidered on the next eligible
 day.
+
+Sections in this file (729 LOC — use these as a folding map):
+- Protocols & types: ``_PortfolioRuleParams``, ``RuleExecutionState``,
+  ``RuleMatchOutcome``, ``RuleExecutionContext``
+- Rule evaluator: ``RulesEvaluator``
+- Policy implementation: ``DmaFgiPortfolioRulesDecisionPolicy``
+- Snapshot construction: ``build_portfolio_snapshot``, ``_advance_context``
+- Rule builders: ``build_portfolio_rules_for_params``, ``fresh_portfolio_rule``,
+  ``required_rule``, ``assert_known_rule_names``, ``build_risk_guards_for_params``
+- Active-rule selection: ``active_rules``, ``_rule_is_active``,
+  ``_apply_risk_guards``
+- Intent post-processing: ``_preserve_rule_trace_diagnostics``,
+  ``_apply_post_intent_adjustments``, ``_matched_rule_priority``,
+  ``_matched_rule_name``, ``_apply_shadowing``
+- Public resolver: ``resolve_portfolio_rules_intent``
+- Cycle / regime accessors: ``_update_cycle_state``, ``_macro_regime``,
+  ``_crypto_regime``, ``_macro_value``, ``_crypto_value``
+- Snapshot accessors: ``_assets_from_flat_state``,
+  ``_current_fgi_regime_by_symbol``, ``_rule_match_outcome_dicts``
 """
 
 from __future__ import annotations
