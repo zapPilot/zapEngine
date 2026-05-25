@@ -4,7 +4,7 @@
  * Tests for the wagmi-based connect wallet button.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
@@ -46,6 +46,26 @@ describe('ConnectWalletButton', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the compact gradient connect button shell', () => {
+    render(<ConnectWalletButton />);
+
+    const button = screen.getByRole('button', {
+      name: WALLET_LABELS.CONNECT,
+    });
+
+    expect(button).toHaveClass(
+      'w-full',
+      'rounded-xl',
+      'font-semibold',
+      'text-white',
+    );
+    expect(button).toHaveStyle({
+      background:
+        'linear-gradient(135deg, rgb(168 85 247) 0%, rgb(124 58 237) 100%)',
+      border: '1px solid rgba(168, 85, 247, 0.3)',
+    });
+  });
+
   it('opens connector choices before connecting the selected wallet', () => {
     const connectors = [
       { id: 'io.rabby', name: 'Rabby', icon: 'data:image/svg+xml,<svg />' },
@@ -82,6 +102,67 @@ describe('ConnectWalletButton', () => {
       connector: connectors[1],
     });
     expect(mockConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles the connector picker closed when the connect button is clicked again', () => {
+    render(<ConnectWalletButton />);
+
+    const button = screen.getByRole('button', { name: WALLET_LABELS.CONNECT });
+
+    fireEvent.click(button);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.click(button);
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(mockConnect).not.toHaveBeenCalled();
+  });
+
+  it('closes the connector picker after the selected wallet connects', async () => {
+    const connectors = [
+      { id: 'io.rabby', name: 'Rabby' },
+      { id: 'io.metamask', name: 'MetaMask' },
+    ];
+    mockUseConnectors.mockReturnValue(connectors);
+    mockConnect.mockResolvedValueOnce(undefined);
+
+    render(<ConnectWalletButton />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: WALLET_LABELS.CONNECT }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+    expect(mockConnect).toHaveBeenCalledWith({
+      connector: connectors[1],
+    });
+  });
+
+  it('keeps the connector picker open when the selected wallet fails to connect', async () => {
+    const connectors = [
+      { id: 'io.rabby', name: 'Rabby' },
+      { id: 'io.metamask', name: 'MetaMask' },
+    ];
+    mockUseConnectors.mockReturnValue(connectors);
+    mockConnect.mockRejectedValueOnce(new Error('User rejected request'));
+
+    render(<ConnectWalletButton />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: WALLET_LABELS.CONNECT }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
+
+    await waitFor(() => {
+      expect(mockConnect).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'MetaMask' }),
+    ).toBeInTheDocument();
   });
 
   it("shows 'Connecting...' when connection is pending", () => {

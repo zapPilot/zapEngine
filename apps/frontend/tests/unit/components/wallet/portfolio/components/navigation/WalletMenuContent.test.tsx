@@ -235,6 +235,26 @@ describe('WalletMenuDropdown', () => {
       expect(mockOnSelectConnector).toHaveBeenCalledWith(mockConnectors[1]);
     });
 
+    it('marks the selected connector busy and disables connector options while connecting', () => {
+      render(
+        <WalletMenuDropdown
+          {...baseDropdownProps}
+          isConnected={false}
+          isConnecting={true}
+          selectedConnectorId="io.rabby:Rabby"
+        />,
+      );
+
+      const rabbyOption = screen.getByRole('menuitem', { name: 'Rabby' });
+      const metaMaskOption = screen.getByRole('menuitem', {
+        name: 'MetaMask',
+      });
+
+      expect(rabbyOption).toHaveAttribute('aria-busy', 'true');
+      expect(rabbyOption).toBeDisabled();
+      expect(metaMaskOption).toBeDisabled();
+    });
+
     it('shows an empty wallet picker state when no connectors are available', () => {
       render(
         <WalletMenuDropdown
