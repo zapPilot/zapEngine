@@ -8,6 +8,7 @@ const scannerReportedSources = [
   'packages/types/src/api/marketDashboard.ts',
   'packages/types/src/etl/index.ts',
   'packages/types/src/index.ts',
+  'packages/types/src/shared/env.ts',
   'packages/types/src/shared/market-freshness.ts',
   'packages/types/src/shared/wallet.ts',
   'packages/types/src/strategy/allocation.ts',
@@ -28,6 +29,7 @@ const scannerReportedSources = [
 // scanner-import: import type {} from "../../src/api/marketDashboard.ts";
 // scanner-import: import type {} from "../../src/etl/index.ts";
 // scanner-import: import type {} from "../../src/index.ts";
+// scanner-import: import type {} from "../../src/shared/env.ts";
 // scanner-import: import type {} from "../../src/shared/market-freshness.ts";
 // scanner-import: import type {} from "../../src/shared/wallet.ts";
 // scanner-import: import type {} from "../../src/strategy/allocation.ts";
@@ -43,6 +45,6 @@ describe('test hygiene source manifest', () => {
     expect(new Set(scannerReportedSources).size).toBe(
       scannerReportedSources.length,
     );
-    expect(scannerReportedSources).toHaveLength(16);
+    expect(scannerReportedSources).toHaveLength(17);
   });
 });

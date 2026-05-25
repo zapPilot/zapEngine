@@ -7,8 +7,6 @@ const scannerReportedSources = [
   'apps/alpha-etl/scripts/backfill-sp500.ts',
   'apps/alpha-etl/scripts/check-coverage-final.cjs',
   'apps/alpha-etl/scripts/check-coverage.cjs',
-  'apps/alpha-etl/scripts/diagnose-debank-portfolio.ts',
-  'apps/alpha-etl/scripts/validate-vip-users.ts',
   'apps/alpha-etl/src/config/constants.ts',
   'apps/alpha-etl/src/middleware/errorResolution.ts',
   'apps/alpha-etl/src/modules/core/dmaSnapshot.ts',
@@ -56,8 +54,6 @@ const scannerReportedSources = [
 // scanner-import: import type {} from "../../../scripts/backfill-sp500.ts";
 // scanner-import: import type {} from "../../../scripts/check-coverage-final.cjs";
 // scanner-import: import type {} from "../../../scripts/check-coverage.cjs";
-// scanner-import: import type {} from "../../../scripts/diagnose-debank-portfolio.ts";
-// scanner-import: import type {} from "../../../scripts/validate-vip-users.ts";
 // scanner-import: import type {} from "../../../src/config/constants.ts";
 // scanner-import: import type {} from "../../../src/middleware/errorResolution.ts";
 // scanner-import: import type {} from "../../../src/modules/core/dmaSnapshot.ts";
@@ -101,6 +97,6 @@ describe('test hygiene source manifest', () => {
     expect(new Set(scannerReportedSources).size).toBe(
       scannerReportedSources.length,
     );
-    expect(scannerReportedSources).toHaveLength(45);
+    expect(scannerReportedSources).toHaveLength(43);
   });
 });
