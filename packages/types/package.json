@@ -25,6 +25,11 @@
       "types": "./dist/strategy/index.d.ts",
       "import": "./dist/strategy/index.js",
       "require": "./dist/strategy/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js",
+      "require": "./dist/shared/index.js"
     }
   },
   "scripts": {
