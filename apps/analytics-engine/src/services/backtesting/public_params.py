@@ -86,6 +86,21 @@ class _TopEscapePublicParams(BaseModel):
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
+class _TargetWeightsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    btc: float = Field(default=0.25, ge=0.0, le=1.0)
+    eth: float = Field(default=0.25, ge=0.0, le=1.0)
+    spy: float = Field(default=0.25, ge=0.0, le=1.0)
+    stable: float = Field(default=0.25, ge=0.0, le=1.0)
+
+
+def _validate_target_weights_sum(weights: _TargetWeightsParams) -> None:
+    total = weights.btc + weights.eth + weights.spy + weights.stable
+    if not math.isclose(total, 1.0, abs_tol=1e-4):
+        raise ValueError(f"target_weights must sum to 1.0 (got {total:.6f})")
+
+
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -111,15 +126,6 @@ class DmaGatedFgiPublicParams(BaseModel):
         return value
 
 
-class _TargetWeightsParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    btc: float = Field(default=0.25, ge=0.0, le=1.0)
-    eth: float = Field(default=0.25, ge=0.0, le=1.0)
-    spy: float = Field(default=0.25, ge=0.0, le=1.0)
-    stable: float = Field(default=0.25, ge=0.0, le=1.0)
-
-
 class FixedIntervalRebalancePublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -129,14 +135,7 @@ class FixedIntervalRebalancePublicParams(BaseModel):
 
     @model_validator(mode="after")
     def _weights_sum_to_one(self) -> Self:
-        total = (
-            self.target_weights.btc
-            + self.target_weights.eth
-            + self.target_weights.spy
-            + self.target_weights.stable
-        )
-        if not math.isclose(total, 1.0, abs_tol=1e-4):
-            raise ValueError(f"target_weights must sum to 1.0 (got {total:.6f})")
+        _validate_target_weights_sum(self.target_weights)
         return self
 
 

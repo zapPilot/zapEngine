@@ -39,6 +39,20 @@ def test_strategy_registry_exposes_portfolio_rules_recipe_with_macro_requirement
     )
 
 
+def test_strategy_registry_exposes_fixed_interval_recipe_with_eth_spy_spot_assets() -> (
+    None
+):
+    recipe = get_strategy_recipe(STRATEGY_FIXED_INTERVAL_REBALANCE)
+
+    assert recipe.primary_asset == "BTC"
+    assert recipe.supports_daily_suggestion is False
+    assert recipe.market_data_requirements.requires_sentiment is True
+    assert recipe.market_data_requirements.requires_macro_fear_greed is False
+    assert recipe.market_data_requirements.required_spot_assets == frozenset(
+        {"BTC", "ETH", "SPY"}
+    )
+
+
 def test_catalog_is_derived_from_strategy_registry() -> None:
     catalog = get_strategy_catalog_v3()
     recipe_ids = {recipe.strategy_id for recipe in list_strategy_recipes()}

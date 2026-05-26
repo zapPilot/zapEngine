@@ -253,9 +253,17 @@ def _build_fixed_interval_recipe() -> StrategyRecipe:
         primary_asset="BTC",
         warmup_lookback_days=0,
         market_data_requirements=MarketDataRequirements(
-            requires_sentiment=False,
+            # Strategy decisions are sentiment-free, but the engine applies
+            # regime-conditional APRs to stable yield (engine.py:_apply_yield).
+            # Declaring sentiment keeps standalone runs apples-to-apples with
+            # comparisons against sentiment-aware strategies.
+            requires_sentiment=True,
             requires_macro_fear_greed=False,
-            required_price_features=frozenset(),
+            # Pulls ETH/SPY spot prices through the feature loader; the SPY/ETH/BTC/stable
+            # bucket mapper needs them at runtime. The DMA values themselves are unused.
+            required_price_features=frozenset(
+                {ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+            ),
             required_aux_series=frozenset(),
             max_lag_days=1,
         ),

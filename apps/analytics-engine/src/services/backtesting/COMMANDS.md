@@ -33,8 +33,24 @@ single fixture event and `--no-constraints` for diagnostics-only output.
 ## Fixed-Interval Rebalance experiments
 
 Research-only strategy `fixed_interval_rebalance` (auto-excluded from the
-500-day snapshot by its `[RESEARCH] ` display-name prefix). Compare the
-production default against weight × interval combinations in one call:
+500-day snapshot by its `[RESEARCH] ` display-name prefix). All three seed
+presets run standalone — the recipe now declares the asset-coverage and
+sentiment requirements it needs for the SPY/ETH/BTC/stable bucket mapper and
+the engine's regime-aware stable yield:
+
+```bash
+curl -s -X POST http://localhost:8001/api/v3/backtesting/compare \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "token_symbol": "BTC", "total_capital": 10000,
+    "start_date": "2024-04-15", "end_date": "2026-04-15",
+    "configs": [
+      {"config_id": "fir_balanced_30d",     "saved_config_id": "fixed_interval_balanced_30d"}
+    ]
+  }' | jq '.strategies | to_entries | map({config: .key, roi: .value.roi_percent, trades: .value.trade_count})'
+```
+
+Compare all three presets against the production default in one call:
 
 ```bash
 curl -s -X POST http://localhost:8001/api/v3/backtesting/compare \
