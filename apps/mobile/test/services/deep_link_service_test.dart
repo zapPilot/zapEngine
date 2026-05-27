@@ -1,5 +1,6 @@
 import 'package:ai_podcast_mobile/services/deep_link_service.dart';
 import 'package:ai_podcast_mobile/models/episode.dart';
+import 'package:ai_podcast_mobile/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,13 +58,8 @@ void main() {
   testWidgets('loads and pushes the episode detail for supported links', (
     tester,
   ) async {
-    final debugMessages = <String>[];
-    final originalDebugPrint = debugPrint;
-    debugPrint = (message, {wrapWidth}) {
-      if (message != null) {
-        debugMessages.add(message);
-      }
-    };
+    final logMessages = <String>[];
+    AppLogger.sink = (record) => logMessages.add(record.message);
 
     try {
       final navigatorKey = GlobalKey<NavigatorState>();
@@ -86,13 +82,13 @@ void main() {
       expect(opened, isTrue);
       expect(find.text('detail:episode-42'), findsOneWidget);
       expect(
-        debugMessages,
+        logMessages,
         contains(
           '[DeepLink] openEpisodeUri uri=https://from-fed-to-chain-api.fly.dev/e/episode-42 parsedEpisodeId=episode-42 episodeFound=true navigated=true',
         ),
       );
     } finally {
-      debugPrint = originalDebugPrint;
+      AppLogger.sink = null;
     }
   });
 }

@@ -4,6 +4,7 @@ import 'package:zapengine_tokens/design_tokens.dart';
 
 import '../state/auth_provider.dart';
 import '../theme/colors.dart';
+import '../utils/app_logger.dart';
 import '../utils/snackbar.dart';
 import '../widgets/branded_backdrop.dart';
 import 'home_shell.dart';
@@ -190,7 +191,8 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _runSignIn(Future<void> Function() action) async {
     try {
       await action();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warn('Sign in failed', error, stackTrace);
       if (!mounted) return;
       final message = context.read<AuthProvider>().error ?? 'Sign in failed.';
       context.showMessage(message);
@@ -210,7 +212,7 @@ class _ConfigWarning extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Text(
-          'Missing SUPABASE_ANON_KEY build define.',
+          'Missing Supabase build defines.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w700,

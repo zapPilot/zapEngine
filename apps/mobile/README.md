@@ -10,16 +10,22 @@ README links here instead of duplicating mobile commands.
 
 ## Supabase Config
 
-The production Supabase URL, anon key, and schema are built into
-`lib/main.dart` as `String.fromEnvironment` defaults:
+The Supabase URL and anon key are not built into the app. Provide them with
+`--dart-define` for any configured run:
 
-- `SUPABASE_URL`: defaults to `https://urplxsioxepxopuababf.supabase.co`
-- `SUPABASE_ANON_KEY`: defaults to the production anon key
-- `SUPABASE_DB_SCHEMA`: defaults to `from_fed_to_chain`
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon-key>
+```
 
-Pass `--dart-define` only when intentionally overriding one of these values.
+`SUPABASE_DB_SCHEMA` defaults to `from_fed_to_chain`, and can be overridden with
+`--dart-define=SUPABASE_DB_SCHEMA=<schema>` for staging or test schemas.
 Supabase Data API must expose `from_fed_to_chain`; otherwise the mobile client
 will get schema-cache errors even though the tables exist in SQL.
+
+If either `SUPABASE_URL` or `SUPABASE_ANON_KEY` is missing, the app launches in
+the unconfigured auth state instead of initializing Supabase.
 
 ## Command Line
 
@@ -63,6 +69,11 @@ settings into `ios/Flutter/Generated.xcconfig`.
 When you intentionally override any `--dart-define` value, include it in the
 `flutter build ios --simulator ...` command and rerun that command before
 running from Xcode again.
+
+For Xcode-run builds, add matching values under
+`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or generate
+the Flutter iOS config with the `flutter build ios ... --dart-define=...`
+command before opening the workspace.
 
 ## iOS App Store Release
 

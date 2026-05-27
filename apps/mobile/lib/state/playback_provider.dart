@@ -8,6 +8,7 @@ import '../models/episode.dart';
 import '../models/episode_status.dart';
 import '../services/audio_player_handler.dart';
 import '../services/episode_service.dart';
+import '../utils/app_logger.dart';
 
 class PlaybackProvider extends ChangeNotifier {
   PlaybackProvider(this._handler, {EpisodeService? episodeService})
@@ -212,7 +213,8 @@ class PlaybackProvider extends ChangeNotifier {
 
     try {
       await _handler.setAudioTrack(episode, track);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.error('Playback source failed', error, stackTrace);
       _currentAudioTrack = previousTrack;
       notifyListeners();
       rethrow;
@@ -394,8 +396,12 @@ class PlaybackProvider extends ChangeNotifier {
         episodeId: episode.id,
         seconds: seconds,
       );
-    } catch (error) {
-      debugPrint('Playback position persistence failed: $error');
+    } catch (error, stackTrace) {
+      AppLogger.warn(
+        'Playback position persistence failed',
+        error,
+        stackTrace,
+      );
     }
   }
 
