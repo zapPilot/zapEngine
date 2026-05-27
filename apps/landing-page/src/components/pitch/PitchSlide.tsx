@@ -19,9 +19,9 @@ function classNames(...values: (string | false | undefined)[]) {
 /**
  * Snap-aligned slide primitive for the /pitch deck.
  *
- * `variant="wrapped"` removes inner horizontal padding so a child V2 component
- * (HowItWorksV2 / PillarsV2 / BacktestProofV2) can supply its own
- * `.v2-section` chrome. Otherwise the slide draws its own kicker/title/subtitle.
+ * `variant="wrapped"` removes inner horizontal padding so a child landing component
+ * (HowItWorks / Pillars / BacktestProof) can supply its own
+ * `.shell-section` chrome. Otherwise the slide draws its own kicker/title/subtitle.
  */
 export function PitchSlide({
   id,

@@ -1,4 +1,4 @@
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
 const PILLARS = [
   {
@@ -24,7 +24,7 @@ const PILLARS = [
   },
 ] as const;
 
-export function PillarsV2() {
+export function Pillars() {
   return (
     <Section
       className="pillars-deep"

@@ -41,7 +41,7 @@ let mockUserId: string | null = null;
 let mockLoading = false;
 let mockConnectedWallet: string | null = null;
 
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: () => ({
     userInfo: mockUserId ? { userId: mockUserId } : null,
     isConnected: mockIsConnected,

@@ -1,16 +1,16 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { TrustStripV2 } from '../TrustStripV2';
+import { TrustStrip } from '../TrustStrip';
 
-describe('TrustStripV2', () => {
+describe('TrustStrip', () => {
   describe('rendering', () => {
     it('renders trust strip section', () => {
-      const { container } = render(<TrustStripV2 />);
+      const { container } = render(<TrustStrip />);
       expect(container.querySelector('.trust-strip')).toBeInTheDocument();
     });
 
     it('renders trust badges', () => {
-      render(<TrustStripV2 />);
+      render(<TrustStrip />);
 
       expect(screen.getByText('100% Self-Custody · EOA')).toBeInTheDocument();
       expect(screen.getByText('Live on Mainnet')).toBeInTheDocument();
@@ -20,7 +20,7 @@ describe('TrustStripV2', () => {
 
   describe('links', () => {
     it('links open-source badge to GitHub', () => {
-      render(<TrustStripV2 />);
+      render(<TrustStrip />);
 
       const githubLink = screen.getByRole('link', {
         name: /Open-source strategy/,
@@ -33,7 +33,7 @@ describe('TrustStripV2', () => {
 
   describe('accessibility', () => {
     it('labels the trust signal region', () => {
-      const { container } = render(<TrustStripV2 />);
+      const { container } = render(<TrustStrip />);
       expect(container.querySelector('.trust-strip')).toHaveAttribute(
         'aria-label',
         'Trust signals',

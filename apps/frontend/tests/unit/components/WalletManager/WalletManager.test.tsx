@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletManager } from '@/components/WalletManager/WalletManager';
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 
 // Mock Child Components
@@ -46,7 +46,7 @@ vi.mock('@/components/WalletManager/components/EditWalletModal', () => ({
 }));
 
 // Mock Hooks
-vi.mock('@/contexts/UserContext');
+vi.mock('@/hooks/queries/wallet/useUser');
 vi.mock('@/hooks/ui/useAsyncRetryButton');
 
 const mockSetNewWallet = vi.fn();

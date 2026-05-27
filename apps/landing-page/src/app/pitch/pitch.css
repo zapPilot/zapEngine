@@ -1,7 +1,7 @@
 /*
- * /pitch route styles. Layered on top of v2.css under the same .v2-root scope.
+ * /pitch route styles. Layered on top of landing.css under the same .shell-root scope.
  *
- * The page composes both classes: `.v2-root .pitch-root`. v2.css provides
+ * The page composes both classes: `.shell-root .pitch-root`. landing.css provides
  * brand tokens, section primitives, and reused components (HowItWorks/Pillars/
  * Backtest/TrustStrip). This file adds the deck-only chrome: slide layout,
  * fixed navbar, progress bar, dot nav, and print-to-PDF behavior.
@@ -18,7 +18,7 @@ html:has(.pitch-root) {
   }
 }
 
-.v2-root.pitch-root {
+.shell-root.pitch-root {
   min-height: 100vh;
 }
 
@@ -39,7 +39,7 @@ html:has(.pitch-root) {
   padding: 96px 0 64px;
 }
 
-.pitch-root .pitch-slide--wrapped .v2-section {
+.pitch-root .pitch-slide--wrapped .shell-section {
   padding: 24px 40px;
 }
 

@@ -1,8 +1,7 @@
-import 'package:flutter/foundation.dart';
-
 import '../models/episode.dart';
 import '../models/episode_page.dart';
 import '../config/app_config.dart';
+import '../utils/app_logger.dart';
 import '../utils/json_utils.dart';
 import 'supabase_service.dart';
 
@@ -136,8 +135,8 @@ class EpisodeService {
           lastPositionSeconds: state.lastPositionSeconds,
         );
       }).toList(growable: false);
-    } catch (error) {
-      debugPrint('User state hydration failed: $error');
+    } catch (error, stackTrace) {
+      AppLogger.warn('User state hydration failed', error, stackTrace);
       return episodes;
     }
   }

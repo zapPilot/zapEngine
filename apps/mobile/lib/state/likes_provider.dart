@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/episode.dart';
 import '../services/likes_service.dart';
+import '../utils/app_logger.dart';
 
 @immutable
 class EpisodeLikeState {
@@ -104,7 +105,8 @@ class LikesProvider extends ChangeNotifier {
         userId: userId,
         currentlyLiked: current.liked,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warn('Likes sync failed', error, stackTrace);
       _states[episode.id] = current;
       notifyListeners();
       rethrow;

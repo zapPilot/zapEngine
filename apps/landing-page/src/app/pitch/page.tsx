@@ -1,27 +1,27 @@
-import { NavbarPitch } from '@/components/v2/pitch/NavbarPitch';
-import { PitchAskSlide } from '@/components/v2/pitch/PitchAskSlide';
-import { PitchExecutionSlide } from '@/components/v2/pitch/PitchExecutionSlide';
-import { PitchNav } from '@/components/v2/pitch/PitchNav.client';
-import { PitchPillarsSlide } from '@/components/v2/pitch/PitchPillarsSlide';
-import { PitchProblemSlide } from '@/components/v2/pitch/PitchProblemSlide';
-import { PitchProgressBar } from '@/components/v2/pitch/PitchProgressBar.client';
-import { PitchProofSlide } from '@/components/v2/pitch/PitchProofSlide';
-import { PitchSolutionSlide } from '@/components/v2/pitch/PitchSolutionSlide';
-import { PitchStrategySlide } from '@/components/v2/pitch/PitchStrategySlide';
-import { PitchTitleSlide } from '@/components/v2/pitch/PitchTitleSlide';
-import { PitchWhyNowSlide } from '@/components/v2/pitch/PitchWhyNowSlide';
+import { NavbarPitch } from '@/components/pitch/NavbarPitch';
+import { PitchAskSlide } from '@/components/pitch/PitchAskSlide';
+import { PitchExecutionSlide } from '@/components/pitch/PitchExecutionSlide';
+import { PitchNav } from '@/components/pitch/PitchNav.client';
+import { PitchPillarsSlide } from '@/components/pitch/PitchPillarsSlide';
+import { PitchProblemSlide } from '@/components/pitch/PitchProblemSlide';
+import { PitchProgressBar } from '@/components/pitch/PitchProgressBar.client';
+import { PitchProofSlide } from '@/components/pitch/PitchProofSlide';
+import { PitchSolutionSlide } from '@/components/pitch/PitchSolutionSlide';
+import { PitchStrategySlide } from '@/components/pitch/PitchStrategySlide';
+import { PitchTitleSlide } from '@/components/pitch/PitchTitleSlide';
+import { PitchWhyNowSlide } from '@/components/pitch/PitchWhyNowSlide';
 
 /**
  * /pitch — investor deck.
  *
- * The page is wrapped in `.v2-root .pitch-root` so all V2 component CSS
- * (scoped to `.v2-root`) keeps working for the wrapped slides
- * (HowItWorksV2 / PillarsV2 / BacktestProofV2 / TrustStripV2), while
+ * The page is wrapped in `.shell-root .pitch-root` so all landing component CSS
+ * (scoped to `.shell-root`) keeps working for the wrapped slides
+ * (HowItWorks / Pillars / BacktestProof / TrustStrip), while
  * `.pitch-root` adds deck-only chrome and scroll-snap.
  */
 export default function PitchPage() {
   return (
-    <div className="v2-root pitch-root">
+    <div className="shell-root pitch-root">
       <PitchProgressBar />
       <NavbarPitch />
       <PitchNav />

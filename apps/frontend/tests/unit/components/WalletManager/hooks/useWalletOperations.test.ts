@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWalletOperations } from '@/components/WalletManager/hooks/useWalletOperations';
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useToast } from '@/providers/ToastContext';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/services';
 
 // Mock dependencies
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 

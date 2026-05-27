@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 
 import { TIMINGS } from '@/constants/timings';
 import { WALLET_MESSAGES } from '@/constants/wallet';
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
 import { queryKeys } from '@/lib/state/queryClient';
 import { handleWalletError } from '@/lib/validation/walletUtils';

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { PITCH_CTAS, PITCH_SLIDES } from '@/config/pitch';
-import { BrandMark } from '../BrandMark';
+import { BrandMark } from '@/components/landing/BrandMark';
 
 export function NavbarPitch() {
   return (

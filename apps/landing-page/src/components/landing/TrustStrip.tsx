@@ -8,7 +8,7 @@ const TRUST_ICONS = {
   KeyRound,
 } satisfies Record<string, LucideIcon>;
 
-export function TrustStripV2() {
+export function TrustStrip() {
   return (
     <section className="trust-strip" aria-label="Trust signals">
       <div className="trust-strip-inner">

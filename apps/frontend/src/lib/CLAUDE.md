@@ -26,14 +26,14 @@ lib/
 
 ## lib vs services vs hooks vs utils
 
-| Concern                                              | Put it in                               |
-| ---------------------------------------------------- | --------------------------------------- |
-| Calls an upstream API or chain RPC                   | `services/`                             |
-| Returns React state / subscribes to a service        | `hooks/`                                |
-| Pure helper that needs to run in services AND hooks  | `lib/<domain>/`                         |
-| One-off util used by a single component              | Co-locate next to that component        |
-| Cross-app reusable type or schema                    | `@zapengine/types` (not `lib/`)         |
-| Cross-app reusable intent / routing logic            | `@zapengine/intent-engine` (not `lib/`) |
+| Concern                                             | Put it in                               |
+| --------------------------------------------------- | --------------------------------------- |
+| Calls an upstream API or chain RPC                  | `services/`                             |
+| Returns React state / subscribes to a service       | `hooks/`                                |
+| Pure helper that needs to run in services AND hooks | `lib/<domain>/`                         |
+| One-off util used by a single component             | Co-locate next to that component        |
+| Cross-app reusable type or schema                   | `@zapengine/types` (not `lib/`)         |
+| Cross-app reusable intent / routing logic           | `@zapengine/intent-engine` (not `lib/`) |
 
 There is no `utils/` — pick the right `lib/` subdomain or extend an existing one.
 

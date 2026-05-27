@@ -1,7 +1,6 @@
-import type { ReactNode } from 'react';
 import { vi } from 'vitest';
 
-vi.mock('@/contexts/UserContext', () => {
+vi.mock('@/hooks/queries/wallet/useUser', () => {
   return {
     useUser: () => ({
       userInfo: null,
@@ -11,6 +10,5 @@ vi.mock('@/contexts/UserContext', () => {
       connectedWallet: null,
       refetch: vi.fn(),
     }),
-    UserProvider: ({ children }: { children: ReactNode }) => children,
   };
 });

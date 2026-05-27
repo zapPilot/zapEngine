@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react';
 
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useOperationStateHandlers } from '@/hooks/utils/useOperationState';
 import { handleWalletError } from '@/lib/validation/walletUtils';
 import { useToast } from '@/providers/ToastContext';

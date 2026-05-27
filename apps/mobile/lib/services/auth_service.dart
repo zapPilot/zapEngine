@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/json_utils.dart';
+import '../utils/app_logger.dart';
 import 'supabase_service.dart';
 
 class PodcastUser {
@@ -67,7 +68,8 @@ class AuthService {
       final supported = await _localAuth.isDeviceSupported();
       final canCheck = await _localAuth.canCheckBiometrics;
       return supported && canCheck;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warn('Biometric unavailable', error, stackTrace);
       return false;
     }
   }

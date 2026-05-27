@@ -1,7 +1,11 @@
 'use client';
 
 import React, { Component, ReactNode } from 'react';
-import { MESSAGES } from '@/config/messages';
+
+const ERROR_TITLE = 'Something went wrong';
+const ERROR_DESCRIPTION =
+  'We encountered an unexpected error. Please try refreshing the page.';
+const ERROR_REFRESH_LABEL = 'Refresh Page';
 
 interface Props {
   children: ReactNode;
@@ -55,12 +59,10 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-3">
-              {MESSAGES.errors.generic.title}
+              {ERROR_TITLE}
             </h2>
 
-            <p className="text-gray-300 mb-6">
-              {MESSAGES.errors.generic.description}
-            </p>
+            <p className="text-gray-300 mb-6">{ERROR_DESCRIPTION}</p>
 
             {this.state.error && process.env.NODE_ENV === 'development' && (
               <div className="mb-6 p-4 bg-gray-950 rounded-lg text-left">
@@ -74,7 +76,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={() => window.location.reload()}
               className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300"
             >
-              {MESSAGES.errors.generic.refreshButton}
+              {ERROR_REFRESH_LABEL}
             </button>
           </div>
         </div>

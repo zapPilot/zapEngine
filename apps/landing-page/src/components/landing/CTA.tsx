@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { ArrowRight, BookOpen } from 'lucide-react';
 import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
-export function CTAV2() {
+export function CTA() {
   return (
-    <Section className="cta-v2" innerClassName="cta-inner">
+    <Section className="cta" innerClassName="cta-inner">
       <p className="cta-quote">
         “{MESSAGES.cta.title}
         <br />

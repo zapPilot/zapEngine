@@ -1,31 +1,31 @@
-import { BacktestProofV2 } from '@/components/v2/BacktestProofV2';
-import { CTAV2 } from '@/components/v2/CTAV2';
-import { FAQV2 } from '@/components/v2/FAQV2';
-import { FooterV2 } from '@/components/v2/FooterV2';
-import { HeroV2 } from '@/components/v2/HeroV2';
-import { HowItWorksV2 } from '@/components/v2/HowItWorksV2';
-import { NavbarV2 } from '@/components/v2/NavbarV2';
-import { PillarsV2 } from '@/components/v2/PillarsV2';
-import { ProtocolsV2 } from '@/components/v2/ProtocolsV2';
-import { RegimeStripV2 } from '@/components/v2/RegimeStripV2';
-import { TrustStripV2 } from '@/components/v2/TrustStripV2';
+import { BacktestProof } from '@/components/landing/BacktestProof';
+import { CTA } from '@/components/landing/CTA';
+import { FAQ } from '@/components/landing/FAQ';
+import { Footer } from '@/components/landing/Footer';
+import { Hero } from '@/components/landing/Hero';
+import { HowItWorks } from '@/components/landing/HowItWorks';
+import { Navbar } from '@/components/landing/Navbar';
+import { Pillars } from '@/components/landing/Pillars';
+import { Protocols } from '@/components/landing/Protocols';
+import { RegimeStrip } from '@/components/landing/RegimeStrip';
+import { TrustStrip } from '@/components/landing/TrustStrip';
 
-export default function LandingPageV2() {
+export default function LandingPage() {
   return (
-    <div className="v2-root">
-      <NavbarV2 />
+    <div className="shell-root">
+      <Navbar />
       <main>
-        <HeroV2 />
-        <RegimeStripV2 />
-        <HowItWorksV2 />
-        <PillarsV2 />
-        <BacktestProofV2 />
-        <FAQV2 />
-        <ProtocolsV2 />
-        <CTAV2 />
+        <Hero />
+        <RegimeStrip />
+        <HowItWorks />
+        <Pillars />
+        <BacktestProof />
+        <FAQ />
+        <Protocols />
+        <CTA />
       </main>
-      <TrustStripV2 />
-      <FooterV2 />
+      <TrustStrip />
+      <Footer />
     </div>
   );
 }

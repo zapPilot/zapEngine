@@ -2,13 +2,13 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useEmailSubscription } from '@/components/WalletManager/hooks/useEmailSubscription';
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useToast } from '@/providers/ToastContext';
 import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
 import { validateEmail } from '@/utils';
 
 // Mock dependencies
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 

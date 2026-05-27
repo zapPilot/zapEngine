@@ -15,28 +15,18 @@ import 'state/likes_provider.dart';
 import 'state/playback_provider.dart';
 import 'theme/app_theme.dart';
 
-const _defaultSupabaseUrl = 'https://urplxsioxepxopuababf.supabase.co';
-const _defaultSupabaseAnonKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVycGx4c2lveGVweG9wdWFiYWJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc4MDQ2NzcsImV4cCI6MjA2MzM4MDY3N30.yQN-ss-WABHUC4eLebPLU7UrIYEAdRt6M9TX09apISs';
-const _defaultSupabaseDbSchema = 'from_fed_to_chain';
-
-const _supabaseUrl = String.fromEnvironment(
-  'SUPABASE_URL',
-  defaultValue: _defaultSupabaseUrl,
-);
-const _supabaseAnonKey = String.fromEnvironment(
-  'SUPABASE_ANON_KEY',
-  defaultValue: _defaultSupabaseAnonKey,
-);
+const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 const _supabaseDbSchema = String.fromEnvironment(
   'SUPABASE_DB_SCHEMA',
-  defaultValue: _defaultSupabaseDbSchema,
+  defaultValue: 'from_fed_to_chain',
 );
+const _supabaseConfigured = _supabaseUrl != '' && _supabaseAnonKey != '';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (_supabaseAnonKey.isNotEmpty) {
+  if (_supabaseConfigured) {
     await Supabase.initialize(
       url: _supabaseUrl,
       anonKey: _supabaseAnonKey,
@@ -59,7 +49,7 @@ Future<void> main() async {
   final navigatorKey = GlobalKey<NavigatorState>();
   runApp(
     AiPodcastApp(
-      supabaseConfigured: _supabaseAnonKey.isNotEmpty,
+      supabaseConfigured: _supabaseConfigured,
       audioHandler: audioHandler,
       navigatorKey: navigatorKey,
       deepLinkService: DeepLinkService(navigatorKey: navigatorKey),

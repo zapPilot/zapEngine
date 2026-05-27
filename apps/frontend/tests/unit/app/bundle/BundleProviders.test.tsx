@@ -23,12 +23,6 @@ vi.mock('@/providers/WalletProvider', () => ({
   ),
 }));
 
-vi.mock('@/contexts/UserContext', () => ({
-  UserProvider: ({ children }: { children: ReactNode }) => (
-    <div data-testid="user-provider">{children}</div>
-  ),
-}));
-
 vi.mock('@/components/errors/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: ReactNode }) => (
     <div data-testid="error-boundary">{children}</div>
@@ -127,15 +121,5 @@ describe('BundleProviders', () => {
     );
 
     expect(screen.getByTestId('global-error-handler')).toBeInTheDocument();
-  });
-
-  it('includes UserProvider', () => {
-    render(
-      <BundleProviders>
-        <div>Child</div>
-      </BundleProviders>,
-    );
-
-    expect(screen.getByTestId('user-provider')).toBeInTheDocument();
   });
 });

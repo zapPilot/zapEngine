@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
 import { useWalletMutations } from '@/hooks/wallet/useWalletMutations';
 import {
@@ -26,7 +26,7 @@ vi.mock('@/utils', () => ({
   validateNewWallet: vi.fn(),
 }));
 
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(() => ({ refetch: vi.fn() })),
 }));
 

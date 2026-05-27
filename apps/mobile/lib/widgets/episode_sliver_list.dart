@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/episode.dart';
 import '../state/playback_provider.dart';
+import 'episode_collection_slivers.dart';
 import 'episode_card.dart';
 
 typedef EpisodeCardWrapper = Widget Function(
@@ -42,6 +43,17 @@ class EpisodeSliverList extends StatelessWidget {
 
         return wrapper?.call(context, episode, card) ?? card;
       },
+    );
+  }
+}
+
+class EpisodeListBottomSpacer extends StatelessWidget {
+  const EpisodeListBottomSpacer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SliverToBoxAdapter(
+      child: SizedBox(height: kEpisodeListBottomPadding),
     );
   }
 }

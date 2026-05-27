@@ -5,7 +5,7 @@
 @source '../../node_modules/fumadocs-ui/dist/**/*.js';
 
 /*
- * V2 brand palette comes from @zapengine/design-tokens.
+ * site brand palette comes from @zapengine/design-tokens.
  * The generated import defines --bg/--ink/--accent and the Fumadocs aliases.
  */
 :root {
@@ -14,10 +14,10 @@
 }
 
 /*
- * Override Fumadocs's neutral preset with V2 tokens.
+ * Override Fumadocs's neutral preset with site tokens.
  * Replaces `@import 'fumadocs-ui/css/neutral.css'`. Both light and dark are
- * mapped to the same dark palette because the V2 design has no light variant
- * (the marketing site is tokenized dark in v2.css). Keeping both prevents
+ * mapped to the same dark palette because the site design has no light variant
+ * (the marketing site is tokenized dark in landing.css). Keeping both prevents
  * a flash if next-themes flips the .dark class.
  */
 @theme {
@@ -88,7 +88,7 @@ section {
 
 /*
  * Global focus states.
- * Uses the V2 accent token so marketing and docs focus visuals stay aligned.
+ * Uses the site accent token so marketing and docs focus visuals stay aligned.
  */
 *:focus {
   outline: 2px solid var(--accent);

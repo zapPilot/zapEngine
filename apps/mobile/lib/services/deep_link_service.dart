@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/episode.dart';
 import '../screens/episode_detail_screen.dart';
+import '../utils/app_logger.dart';
 import 'episode_service.dart';
 
 typedef EpisodeLoader = Future<Episode?> Function(String episodeId);
@@ -70,12 +71,12 @@ class DeepLinkService {
 
     final appLinks = _appLinks ??= AppLinks();
     _subscription = appLinks.uriLinkStream.listen((uri) {
-      debugPrint('[DeepLink] stream uri=$uri');
+      AppLogger.info('[DeepLink] stream uri=$uri');
       unawaited(openEpisodeUri(uri));
     });
 
     final initialUri = await appLinks.getInitialLink();
-    debugPrint('[DeepLink] initialUri=${initialUri?.toString() ?? 'null'}');
+    AppLogger.info('[DeepLink] initialUri=${initialUri?.toString() ?? 'null'}');
     if (initialUri != null) {
       await openEpisodeUri(initialUri);
     }
@@ -101,7 +102,7 @@ class DeepLinkService {
       }
     }
 
-    debugPrint(
+    AppLogger.info(
       '[DeepLink] openEpisodeUri uri=$uri parsedEpisodeId=${episodeId ?? 'null'} episodeFound=${episode != null} navigated=$navigated',
     );
     return navigated;

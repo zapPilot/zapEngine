@@ -9,8 +9,8 @@ export default defineKnipConfig({
     // and the source-manifest baseline test.
     'src/test-utils/**',
     // Auto-loaded by vitest's __mocks__ resolution adjacent to vi.mock()
-    // calls (see HeroV2.test.tsx). Knip can't trace this convention.
-    'src/components/v2/__mocks__/**',
+    // calls (see Hero.test.tsx). Knip can't trace this convention.
+    'src/components/landing/__mocks__/**',
   ],
   ignoreDependencies: [
     'postcss',

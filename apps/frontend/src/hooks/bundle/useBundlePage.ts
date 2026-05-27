@@ -1,7 +1,7 @@
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useAppRouter } from '@/lib/routing';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import {

@@ -24,14 +24,14 @@ components/
 
 ## Where new components go
 
-| Component is…                                         | Put it in                                            |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| A design-system primitive with no business semantics  | `ui/`                                                |
-| Composed from `ui/` and used by ≥2 features           | `shared/`                                            |
-| Specific to one feature                               | The feature folder (or create one named after it)    |
-| App-shell-level (always-on chrome)                    | `layout/`                                            |
-| Dev-only / debug overlay                              | `debug/` (gated behind env var)                      |
-| An error boundary or fallback                         | `errors/`                                            |
+| Component is…                                        | Put it in                                         |
+| ---------------------------------------------------- | ------------------------------------------------- |
+| A design-system primitive with no business semantics | `ui/`                                             |
+| Composed from `ui/` and used by ≥2 features          | `shared/`                                         |
+| Specific to one feature                              | The feature folder (or create one named after it) |
+| App-shell-level (always-on chrome)                   | `layout/`                                         |
+| Dev-only / debug overlay                             | `debug/` (gated behind env var)                   |
+| An error boundary or fallback                        | `errors/`                                         |
 
 ## Conventions
 

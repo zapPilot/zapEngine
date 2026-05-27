@@ -35,12 +35,19 @@ flutter test test/ios_background_audio_config_test.dart
 The simulator is not a reliable test for lock-screen/background audio.
 
 ```sh
-flutter run --release -d <device-id>
+flutter run --release -d <device-id> \
+  --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon-key>
 plutil -p build/ios/iphoneos/Runner.app/Info.plist | grep -E 'AVAudioSessionCategory|UIBackgroundModes|audio'
 ```
 
 Start an episode, press the side button to lock the phone, and confirm audio
 continues for at least 30 seconds with lock-screen controls.
+
+For Xcode-run release checks, add the same Supabase values under
+`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or regenerate
+Flutter's iOS config with a `flutter build ios ... --dart-define=...` command
+before opening the workspace.
 
 ## App Store release versioning
 

@@ -30,7 +30,7 @@ export function Section({
   return (
     <section
       id={id}
-      className={classNames('v2-section', className)}
+      className={classNames('shell-section', className)}
       aria-labelledby={ariaLabelledBy}
     >
       <div className={classNames('section-inner', innerClassName)}>

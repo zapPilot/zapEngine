@@ -4,10 +4,10 @@ import { PITCH_SLIDES } from '@/config/pitch';
 import PitchPage from '../page';
 
 describe('PitchPage', () => {
-  it('wraps content in v2-root and pitch-root for shared V2 styling', () => {
+  it('wraps content in shell-root and pitch-root for shared landing styling', () => {
     const { container } = render(<PitchPage />);
     const root = container.firstChild as HTMLElement;
-    expect(root).toHaveClass('v2-root');
+    expect(root).toHaveClass('shell-root');
     expect(root).toHaveClass('pitch-root');
   });
 
@@ -36,9 +36,9 @@ describe('PitchPage', () => {
   it('reuses backtest, pillars and how-it-works content via wrapped slides', () => {
     const { container } = render(<PitchPage />);
     const text = container.textContent ?? '';
-    expect(text).toMatch(/Three steps/); // HowItWorksV2
-    expect(text).toMatch(/What the engine trades into/); // PillarsV2
-    expect(text).toMatch(/Trades drove the return/); // BacktestProofV2
-    expect(text).toMatch(/100% Self-Custody/); // TrustStripV2
+    expect(text).toMatch(/Three steps/); // HowItWorks
+    expect(text).toMatch(/What the engine trades into/); // Pillars
+    expect(text).toMatch(/Trades drove the return/); // BacktestProof
+    expect(text).toMatch(/100% Self-Custody/); // TrustStrip
   });
 });

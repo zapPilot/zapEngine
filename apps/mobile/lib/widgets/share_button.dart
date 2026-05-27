@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../config/share_config.dart';
 import '../models/episode.dart';
 import '../theme/colors.dart';
+import '../utils/app_logger.dart';
 import '../utils/snackbar.dart';
 
 class ShareButton extends StatelessWidget {
@@ -52,7 +53,8 @@ class ShareButton extends StatelessWidget {
         ),
       );
     } catch (error, stackTrace) {
-      debugPrint('Failed to share episode ${episode.id}: $error\n$stackTrace');
+      AppLogger.warn(
+          'Failed to share episode ${episode.id}', error, stackTrace);
       if (!context.mounted) return;
 
       context.showMessage('分享失敗，請稍後再試');

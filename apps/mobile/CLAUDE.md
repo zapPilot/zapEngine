@@ -23,6 +23,23 @@ Regression guard: `flutter test test/ios_background_audio_config_test.dart`.
 The simulator is not a reliable test surface — verify on a real device before
 claiming a fix.
 
+## Supabase Runtime Config
+
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` must be provided with Dart defines for
+any configured run. The schema remains a public metadata default:
+`SUPABASE_DB_SCHEMA=from_fed_to_chain`.
+
+```sh
+flutter run \
+  --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon-key>
+```
+
+For Xcode-run builds, add the same values under
+`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or include
+the `--dart-define` values in the `flutter build ios ...` command that
+generates `ios/Flutter/Generated.xcconfig` before opening Xcode.
+
 ## iOS Versioning (invariants)
 
 - `pubspec.yaml` is the source of truth in `x.y.z+build` format

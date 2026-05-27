@@ -8,27 +8,27 @@ All external API and chain access for the frontend lives here. **Services are pl
 
 Each service file matches an upstream domain:
 
-| File                                | Talks to                              | Owns                                            |
-| ----------------------------------- | ------------------------------------- | ----------------------------------------------- |
-| `accountService.ts`                 | account-engine                        | User profile, settings, bundle membership       |
-| `walletService.ts`                  | account-engine                        | Wallet CRUD within a bundle                     |
-| `bundleService.ts`                  | account-engine                        | Bundle aggregation requests                     |
-| `tokenBalanceService.ts`            | account-engine + chain RPCs           | Per-wallet token balances                       |
-| `transactionService.mock.ts`        | (mock)                                | Transaction history fixtures for dev            |
-| `chainService.mock.ts`              | (mock)                                | Chain metadata fixtures                         |
-| `intentClient.ts`                   | `@zapengine/intent-engine`            | Building intents client-side                    |
-| `planOrchestrationService.ts`       | account-engine `/plan-orchestration/*`| Deposit/rotate plan requests                    |
-| `analyticsService.ts`               | analytics-engine                      | Portfolio analytics (TVL, returns)              |
-| `analyticsExportService.ts`         | analytics-engine                      | CSV / chart export endpoints                    |
-| `backtestingService.ts`             | analytics-engine                      | Backtest runs                                   |
-| `backtestingTimelineService.ts`     | analytics-engine                      | Backtest timeline data                          |
-| `btcPriceService.ts`                | analytics-engine                      | BTC price reference series                      |
-| `regimeHistoryService.ts`           | analytics-engine                      | Market regime history                           |
-| `sentimentService.ts`               | analytics-engine                      | Sentiment indicators                            |
-| `strategyService.ts`                | analytics-engine                      | Strategy suggestions (user-facing)              |
-| `strategyAdminService.ts`           | analytics-engine                      | Strategy admin endpoints                        |
-| `telegramService.ts`                | account-engine                        | Telegram link/unlink                            |
-| `suggestion/`                       | analytics-engine                      | Per-flow suggestion composition                 |
+| File                            | Talks to                               | Owns                                      |
+| ------------------------------- | -------------------------------------- | ----------------------------------------- |
+| `accountService.ts`             | account-engine                         | User profile, settings, bundle membership |
+| `walletService.ts`              | account-engine                         | Wallet CRUD within a bundle               |
+| `bundleService.ts`              | account-engine                         | Bundle aggregation requests               |
+| `tokenBalanceService.ts`        | account-engine + chain RPCs            | Per-wallet token balances                 |
+| `transactionService.mock.ts`    | (mock)                                 | Transaction history fixtures for dev      |
+| `chainService.mock.ts`          | (mock)                                 | Chain metadata fixtures                   |
+| `intentClient.ts`               | `@zapengine/intent-engine`             | Building intents client-side              |
+| `planOrchestrationService.ts`   | account-engine `/plan-orchestration/*` | Deposit/rotate plan requests              |
+| `analyticsService.ts`           | analytics-engine                       | Portfolio analytics (TVL, returns)        |
+| `analyticsExportService.ts`     | analytics-engine                       | CSV / chart export endpoints              |
+| `backtestingService.ts`         | analytics-engine                       | Backtest runs                             |
+| `backtestingTimelineService.ts` | analytics-engine                       | Backtest timeline data                    |
+| `btcPriceService.ts`            | analytics-engine                       | BTC price reference series                |
+| `regimeHistoryService.ts`       | analytics-engine                       | Market regime history                     |
+| `sentimentService.ts`           | analytics-engine                       | Sentiment indicators                      |
+| `strategyService.ts`            | analytics-engine                       | Strategy suggestions (user-facing)        |
+| `strategyAdminService.ts`       | analytics-engine                       | Strategy admin endpoints                  |
+| `telegramService.ts`            | account-engine                         | Telegram link/unlink                      |
+| `suggestion/`                   | analytics-engine                       | Per-flow suggestion composition           |
 
 `index.ts` re-exports the public surface. Import via `@/services` — never deep paths.
 

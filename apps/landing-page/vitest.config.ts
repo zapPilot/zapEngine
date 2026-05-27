@@ -36,6 +36,10 @@ export default defineConfig({
         'src/lib/source.ts',
         'src/components/v2/__mocks__/**',
         'src/components/v2/HeroLiquidMetalCanvas.tsx',
+        'src/components/landing/__mocks__/**',
+        'src/components/landing/HeroLiquidMetalCanvas.tsx',
+        'src/components/landing/HeroLiquidMetalCanvas.client.tsx',
+        'src/components/landing/heroCanvas/**',
       ],
       thresholds: {
         statements: 94,

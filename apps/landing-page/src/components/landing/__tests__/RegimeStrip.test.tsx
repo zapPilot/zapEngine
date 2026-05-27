@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MESSAGES } from '@/config/messages';
-import { RegimeStripV2 } from '../RegimeStripV2';
+import { RegimeStrip } from '../RegimeStrip';
 
 function okResponse(json: object): Promise<Response> {
   return Promise.resolve(
@@ -90,7 +90,7 @@ function expectSkeleton(container: HTMLElement) {
   expect(screen.queryByText('+14.2%')).not.toBeInTheDocument();
 }
 
-describe('RegimeStripV2', () => {
+describe('RegimeStrip', () => {
   const originalAnalyticsApiUrl =
     process.env['NEXT_PUBLIC_ANALYTICS_API_URL'] ?? undefined;
 
@@ -114,14 +114,14 @@ describe('RegimeStripV2', () => {
 
   describe('rendering', () => {
     it('renders section element', () => {
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
       expect(
         container.querySelector('.regime-strip-section'),
       ).toBeInTheDocument();
     });
 
     it('has aria-label for regime data', () => {
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
       expect(container.querySelector('.regime-strip-section')).toHaveAttribute(
         'aria-label',
         MESSAGES.regimeStrip.ariaLabel,
@@ -129,7 +129,7 @@ describe('RegimeStripV2', () => {
     });
 
     it('renders telemetry header copy', () => {
-      render(<RegimeStripV2 />);
+      render(<RegimeStrip />);
       expect(screen.getByText(MESSAGES.regimeStrip.header)).toBeInTheDocument();
     });
   });
@@ -140,7 +140,7 @@ describe('RegimeStripV2', () => {
         () => new Promise<Response>(() => {}),
       );
 
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
 
       expectSkeleton(container);
       expect(
@@ -151,7 +151,7 @@ describe('RegimeStripV2', () => {
     it('stays skeleton when the market API fails', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('network unavailable'));
 
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
 
       await waitFor(() => {
         expect(fetch).toHaveBeenCalledTimes(3);
@@ -163,7 +163,7 @@ describe('RegimeStripV2', () => {
     it('renders remaining items when one telemetry endpoint fails persistently', async () => {
       mockLiveTelemetryFetch({ dashboard: 'reject' });
 
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
 
       await waitFor(() => {
         expect(screen.getByText('Extreme Fear')).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe('RegimeStripV2', () => {
     it('renders fetched telemetry values when all endpoints succeed', async () => {
       mockLiveTelemetryFetch();
 
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
 
       await waitFor(() => {
         expect(screen.getByText('Extreme Fear')).toBeInTheDocument();
@@ -213,7 +213,7 @@ describe('RegimeStripV2', () => {
 
   describe('accessibility', () => {
     it('has regime strip container with polite live announcements', () => {
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
       expect(container.querySelector('.regime-strip')).toHaveAttribute(
         'aria-live',
         'polite',
@@ -225,7 +225,7 @@ describe('RegimeStripV2', () => {
         () => new Promise<Response>(() => {}),
       );
 
-      const { container } = render(<RegimeStripV2 />);
+      const { container } = render(<RegimeStrip />);
 
       expect(
         container.querySelectorAll('.regime-strip-item.is-skeleton'),

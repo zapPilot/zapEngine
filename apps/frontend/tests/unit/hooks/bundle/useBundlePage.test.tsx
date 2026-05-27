@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useUser } from '@/contexts/UserContext';
 import {
   computeIsDifferentUser,
   computeRedirectUrl,
@@ -10,6 +9,7 @@ import {
   computeShowQuickSwitch,
   useBundlePage,
 } from '@/hooks/bundle/useBundlePage';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useAppRouter } from '@/lib/routing';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { getBundleUser, isOwnBundle } from '@/services/bundleService';
@@ -22,7 +22,7 @@ vi.mock('@/lib/routing', () => ({
   useAppSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 

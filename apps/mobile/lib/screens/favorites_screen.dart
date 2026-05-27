@@ -11,6 +11,7 @@ import '../state/content_language_provider.dart';
 import '../state/likes_provider.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
+import '../utils/app_logger.dart';
 import '../utils/episode_screen_state.dart';
 import '../widgets/centered_state_message.dart';
 import '../widgets/episode_collection_slivers.dart';
@@ -101,7 +102,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     } while (cursor != null && pages < _kFavoritesMaxPages);
 
     if (cursor != null) {
-      debugPrint(
+      AppLogger.warn(
         'FavoritesScreen: hit _kFavoritesMaxPages=$_kFavoritesMaxPages '
         '(~${_kFavoritesMaxPages * _kFavoritesPageSize} episodes); '
         'remaining favorites are not loaded.',
@@ -155,9 +156,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                 deleteLabel: '從收藏移除',
                 wrapper: _wrapFavoriteCard,
               ),
-              const SliverToBoxAdapter(
-                child: SizedBox(height: kEpisodeListBottomPadding),
-              ),
+              const EpisodeListBottomSpacer(),
             ],
           ),
         ],

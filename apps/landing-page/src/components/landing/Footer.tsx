@@ -1,10 +1,10 @@
 import { MESSAGES } from '@/config/messages';
 
-export function FooterV2() {
+export function Footer() {
   return (
-    <footer className="footer-v2">
+    <footer className="footer">
       <span>{MESSAGES.common.brandName}</span>
-      <span>v2 · liquid-metal</span>
+      <span>liquid-metal</span>
       <span className="live-status">
         <span aria-hidden />
         mainnet status

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { HeroV2 } from '../HeroV2';
+import { Hero } from '../Hero';
 import { vi } from 'vitest';
 
 vi.mock('../HeroLiquidMetalCanvas.client', () => ({
@@ -12,27 +12,27 @@ vi.mock('../HeroLiquidMetalCanvas.client', () => ({
   ),
 }));
 
-describe('HeroV2', () => {
+describe('Hero', () => {
   describe('rendering', () => {
     it('renders hero section', () => {
-      const { container } = render(<HeroV2 />);
+      const { container } = render(<Hero />);
       expect(container.querySelector('section.hero')).toBeInTheDocument();
     });
 
     it('renders main heading', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
         'A Non-Custodial BlackRock in Your Wallet.',
       );
     });
 
     it('renders eyebrow text', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       expect(screen.getByText(/Non-custodial/)).toBeInTheDocument();
     });
 
     it('renders mocked canvas component', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       expect(
         screen.getByTestId('hero-liquid-metal-canvas'),
       ).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe('HeroV2', () => {
 
   describe('pillars', () => {
     it('renders all three hero pillars', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
 
       expect(screen.getByText('S&P 500')).toBeInTheDocument();
       expect(screen.getByText('BTC / ETH')).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('HeroV2', () => {
     });
 
     it('renders pillar tags', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
 
       expect(screen.getByText('Trade into equities')).toBeInTheDocument();
       expect(screen.getByText('Trade into beta')).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('HeroV2', () => {
 
   describe('CTA buttons', () => {
     it('renders primary CTA link to telegram bot', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       const ctaLink = screen.getByRole('link', {
         name: /Connect Telegram Bot/,
       });
@@ -68,7 +68,7 @@ describe('HeroV2', () => {
     });
 
     it('renders secondary CTA link to proof section', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       const proofLink = screen.getByRole('link', { name: /See the Backtest/ });
       expect(proofLink).toHaveAttribute('href', '#proof');
     });
@@ -76,7 +76,7 @@ describe('HeroV2', () => {
 
   describe('accessibility', () => {
     it('has hero section with correct aria-label', () => {
-      const { container } = render(<HeroV2 />);
+      const { container } = render(<Hero />);
       expect(container.querySelector('.hero-visual')).toHaveAttribute(
         'aria-label',
         'Liquid metal allocation scene',
@@ -84,7 +84,7 @@ describe('HeroV2', () => {
     });
 
     it('has CTA row with proper aria-label', () => {
-      const { container } = render(<HeroV2 />);
+      const { container } = render(<Hero />);
       expect(container.querySelector('.cta-row')).toHaveAttribute(
         'aria-label',
         'Primary actions',
@@ -92,7 +92,7 @@ describe('HeroV2', () => {
     });
 
     it('uses semantic heading hierarchy', () => {
-      render(<HeroV2 />);
+      render(<Hero />);
       expect(
         screen.getAllByRole('heading', { level: 1 }).length,
       ).toBeGreaterThan(0);

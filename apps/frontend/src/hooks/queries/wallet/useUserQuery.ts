@@ -7,6 +7,17 @@ import { connectWallet, getUserProfile } from '@/services';
 
 import { createQueryConfig } from '../queryDefaults';
 
+/**
+ * Query key factory for all user-related queries.
+ *
+ * Use this to build stable query keys and to invalidate user cache slices:
+ *
+ * @example
+ * queryClient.invalidateQueries({ queryKey: userQueryKeys.all });
+ * queryClient.invalidateQueries({ queryKey: userQueryKeys.byWallet('0x…') });
+ */
+export const userQueryKeys = queryKeys.user;
+
 // Removed ApiBundleResponse in favor of account API wallets
 
 export interface UserInfo {

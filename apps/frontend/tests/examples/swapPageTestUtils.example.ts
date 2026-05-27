@@ -7,8 +7,8 @@
 
 import { vi } from 'vitest';
 
-import * as UserContext from '@/contexts/UserContext';
 import * as useStrategiesQuery from '@/hooks/queries/useStrategiesQuery';
+import * as UserContext from '@/hooks/queries/wallet/useUser';
 import * as useChainModule from '@/hooks/useChain';
 import * as intentService from '@/services/intentService';
 
@@ -22,7 +22,7 @@ import {
 
 // Example 1: Basic mock setup for SwapPage component tests
 // Mock all dependencies
-vi.mock('@/contexts/UserContext');
+vi.mock('@/hooks/queries/wallet/useUser');
 vi.mock('@/hooks/useChain');
 vi.mock('@/hooks/queries/useStrategiesQuery');
 vi.mock('@/services/intentService');

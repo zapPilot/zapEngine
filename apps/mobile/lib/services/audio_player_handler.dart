@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../models/episode.dart';
+import '../utils/app_logger.dart';
 
 enum PlaybackSection { main, classroom }
 
@@ -183,7 +184,8 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
 
     try {
       await _setEpisodeSource(episode, audioTrack: track);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warn('Audio source load failed', error, stackTrace);
       _markPlaybackError();
       rethrow;
     }
@@ -214,7 +216,8 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
       if (wasPlaying) {
         await _player.play();
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.warn('Audio track switch failed', error, stackTrace);
       _markPlaybackError();
       rethrow;
     }
