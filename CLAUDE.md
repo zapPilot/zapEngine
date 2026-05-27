@@ -11,11 +11,35 @@ For single-workspace runs, **use Turbo, not pnpm filter**:
 
 If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any specific package) is the targeted fix; `pnpm prebuild:packages` rebuilds all packages but is rarely needed — the `contracts:check` pipeline calls it internally because `contracts:export` is raw `tsx` and bypasses Turbo.
 
+## Turbo task glossary
+
+| Task                  | Cache | dependsOn | Notes                                                                                |
+| --------------------- | :---: | --------- | ------------------------------------------------------------------------------------ |
+| `build`               |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`. |
+| `dev`                 |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                  |
+| `lint`                |   ✓   | none      | Pure file scan; no build needed.                                                     |
+| `type-check`          |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.             |
+| `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine. |
+| `test:ci`             |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                     |
+| `deadcode` / `dup:check` | ✓ | none      | Pure file scans.                                                                     |
+| `codegen*`            |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                               |
+
+Cache miss heuristics: changing any `.env*` file invalidates `build`/`type-check`/`test*` caches because they're listed in `inputs`. If you only intend to flip a runtime value, prefer `process.env` overrides at run time rather than editing `.env`.
+
 # Per-app tooling
 
 All apps — including analytics-engine (Python/FastAPI) — expose the same `pnpm <script>` surface (`dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, `security:audit`, etc.). Under the hood, analytics-engine scripts wrap `uv run …`, but the CLI is uniform.
 
 First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`). Frontend uses `pnpm test:unit` (not `pnpm test`) for unit tests.
+
+## Mobile (Flutter) exclusion
+
+The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:
+
+- `pnpm verify:no-mobile` ≡ `pnpm check:ci:core` — full CI gate excluding `@zapengine/mobile`
+- `pnpm build:core` / `format:check:core` / `security:audit:core` — same `--filter=!@zapengine/mobile`
+
+If you install Flutter, just use the regular non-`:core` commands. CI runs the full matrix in parallel; mobile failures only block mobile deploys.
 
 # Code style
 
@@ -78,9 +102,26 @@ proxy, where the bounded module lives, and when to extract
 
 Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-instant when unchanged), `lint:repo` drift checks, and `lint-staged` ESLint/Prettier on staged files.
 
-The full CI gate is **opt-in** locally — run `pnpm verify` (alias for `check:local`) before pushing if you want pre-push assurance. CI itself is still authoritative.
+The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if you want pre-push assurance. CI itself is still authoritative.
 
-Per-workspace manual checks: `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>`. For `analytics-engine`, add `sql:audit service-reachability pylint:duplicate-check` for the full local gate.
+## Verify cheat sheet
+
+Prefer the `verify` alias surface. The older `check:*` names are kept for CI compatibility but should be treated as internal.
+
+| Command                          | Equivalent                  | What it runs                                                                                          | When to use                                  |
+| -------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `pnpm verify`                    | `pnpm check:local`          | format + lint:repo + contracts + (lint/type-check/deadcode:fix/test --affected) + dead-env             | Daily pre-push fast check                    |
+| `pnpm verify:full`               | `pnpm check:ci`             | adds `dup:check` + `test:ci` + analytics-engine `sql:audit service-reachability pylint:duplicate-check` | Match CI exactly before opening a PR        |
+| `pnpm verify:no-mobile`          | `pnpm check:ci:core`        | `verify:full` excluding `@zapengine/mobile`                                                            | Skip Flutter checks when you don't have it   |
+| `pnpm verify:frontend`           | —                           | `turbo run lint type-check test --filter=@zapengine/frontend`                                          | Single-app fast loop                          |
+| `pnpm verify:account-engine`     | —                           | Same shape for `@zapengine/account-engine`                                                             |                                              |
+| `pnpm verify:analytics-engine`   | —                           | Same shape — **needs `DATABASE_READ_ONLY_URL`** (see *Analytics strategy measurement* below)            |                                              |
+| `pnpm verify:alpha-etl`          | —                           | Same shape for `@zapengine/alpha-etl`                                                                  |                                              |
+| `pnpm verify:landing-page`       | —                           | Same shape for `@zapengine/landing-page`                                                               |                                              |
+| `pnpm verify:podcast-pipeline`   | —                           | Same shape for `@zapengine/podcast-pipeline`                                                           |                                              |
+| `pnpm verify:packages`           | —                           | `turbo run lint type-check test --filter=./packages/*`                                                 | Verify shared packages only                  |
+
+Need a custom subset? `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>` still works directly. For `analytics-engine`, append `sql:audit service-reachability pylint:duplicate-check`.
 
 # Python environment (analytics-engine)
 
