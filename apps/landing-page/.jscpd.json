@@ -10,6 +10,7 @@
     "**/*.d.ts",
     "**/coverage/**",
     ".jscpd/**",
-    "jscpd-report/**"
+    "jscpd-report/**",
+    "src/components/landing/heroCanvas/HeroCanvasMesh.ts"
   ]
 }

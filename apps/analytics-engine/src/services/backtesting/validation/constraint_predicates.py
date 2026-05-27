@@ -155,9 +155,9 @@ def constraint_target_crypto(point: dict[str, Any]) -> float:
 
 
 def constraint_portfolio_crypto(point: dict[str, Any]) -> float:
-    return constraint_portfolio_asset(
-        point, asset="btc"
-    ) + constraint_portfolio_asset(point, asset="eth")
+    return constraint_portfolio_asset(point, asset="btc") + constraint_portfolio_asset(
+        point, asset="eth"
+    )
 
 
 # ---------------------------------------------------------------------------

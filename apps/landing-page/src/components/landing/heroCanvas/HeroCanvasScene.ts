@@ -104,7 +104,7 @@ export function get2dContext(canvas: HTMLCanvasElement) {
   return context;
 }
 
-export function disposeMaterial(material: THREE.Material) {
+function disposeMaterial(material: THREE.Material) {
   for (const value of Object.values(material)) {
     if (value instanceof THREE.Texture) {
       value.dispose();

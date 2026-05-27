@@ -23,6 +23,12 @@ import {
   userQueryKeys,
 } from '@/hooks/queries/wallet/useUserQuery';
 
+// Disable the global useUser mock from tests/setup/context-mocks.ts —
+// we want to exercise the real `useUser` implementation here.
+// (vi.unmock is hoisted by vitest, so position relative to imports is purely
+// a lint concern.)
+vi.unmock('@/hooks/queries/wallet/useUser');
+
 vi.mock('@/hooks/queries/wallet/useUserQuery', () => ({
   useCurrentUser: vi.fn(),
   userQueryKeys: {

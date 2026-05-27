@@ -572,7 +572,7 @@ function makeCoin({ radius, thickness, palette, drawFace }: CoinDefinition) {
 // Flow texture
 // ---------------------------------------------------------------------------
 
-export function makeFlowTexture(): THREE.CanvasTexture {
+function makeFlowTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 64;

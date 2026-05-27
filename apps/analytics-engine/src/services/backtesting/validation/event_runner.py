@@ -514,9 +514,13 @@ def _constraint_event_trigger_failure(
             expected_cross="cross_up",
         )
     if event_type == "extreme_fear_below_crypto_dma":
-        return _trigger_extreme_fear_below_crypto_dma(case=case, point=point, points=points)
+        return _trigger_extreme_fear_below_crypto_dma(
+            case=case, point=point, points=points
+        )
     if event_type == "extreme_fear_below_spy_dma":
-        return _trigger_extreme_fear_below_spy_dma(case=case, point=point, points=points)
+        return _trigger_extreme_fear_below_spy_dma(
+            case=case, point=point, points=points
+        )
     if event_type == "crypto_dma_fgi_sell":
         return _trigger_crypto_dma_fgi_sell(point=point)
     if event_type == "eth_btc_ratio_cross_up":
