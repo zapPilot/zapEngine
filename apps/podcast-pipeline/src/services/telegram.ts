@@ -1,8 +1,25 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { getTelegramBotToken } from '../lib/env.js';
+import { isRecord } from '../lib/typeGuards.js';
 
 export type TelegramChatId = number | string;
+
+export interface TelegramMessagePayload {
+  text?: unknown;
+  from?: {
+    id?: unknown;
+  };
+  chat?: {
+    id?: unknown;
+  };
+}
+
+export const TELEGRAM_HELP_TEXT =
+  '貼一個文章 URL，我會幫你產生新一集 podcast。\n支援任何 Mozilla Readability 能讀的網站（含 panews.io）。';
+export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
+export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
+export const TELEGRAM_START_TEXT = '收到，開始處理文章。';
 
 export async function sendMessage(
   chatId: TelegramChatId,
@@ -58,6 +75,53 @@ export function extractUrlFromMessage(text: string): string | null {
   return null;
 }
 
+export function isTelegramHelpCommand(text: string): boolean {
+  const command = text.split(/\s+/, 1)[0]?.toLowerCase();
+  return (
+    command === '/start' ||
+    command === '/help' ||
+    command?.startsWith('/start@') === true ||
+    command?.startsWith('/help@') === true
+  );
+}
+
+export function buildTelegramFailureMessage(error: unknown): string {
+  return `❌ 失敗 ${publicTelegramErrorMessage(error)}`;
+}
+
+export function getTelegramMessage(
+  update: unknown,
+): TelegramMessagePayload | null {
+  if (!isRecord(update)) {
+    return null;
+  }
+
+  const message = update['message'] ?? update['edited_message'];
+  if (!isRecord(message)) {
+    return null;
+  }
+
+  return {
+    text: message['text'],
+    from: isRecord(message['from']) ? { id: message['from']['id'] } : undefined,
+    chat: isRecord(message['chat']) ? { id: message['chat']['id'] } : undefined,
+  };
+}
+
+export async function sendTelegramNotification(
+  chatId: TelegramChatId,
+  text: string,
+): Promise<void> {
+  try {
+    await sendMessage(chatId, text);
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[/telegram/webhook] sendMessage failed:', {
+      message: err.message,
+    });
+  }
+}
+
 function findUrlEnd(text: string, start: number): number {
   let end = start;
   while (end < text.length && !isUrlTerminator(text[end]!)) {
@@ -83,6 +147,12 @@ function trimTrailingMessagePunctuation(value: string): string {
     end -= 1;
   }
   return value.slice(0, end);
+}
+
+function publicTelegramErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const firstLine = message.split(/\r?\n/, 1)[0]?.trim() || 'Unknown error';
+  return firstLine.length > 500 ? `${firstLine.slice(0, 497)}...` : firstLine;
 }
 
 export function isAllowedUser(

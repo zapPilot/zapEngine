@@ -19,6 +19,7 @@ from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DISPLAY_NAMES,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+    STRATEGY_FIXED_INTERVAL_REBALANCE,
 )
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -29,6 +30,7 @@ from src.services.backtesting.features import (
 )
 from src.services.backtesting.public_params import (
     DmaGatedFgiPublicParams,
+    FixedIntervalRebalancePublicParams,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
@@ -37,9 +39,12 @@ from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
     DmaGatedFgiParams,
     build_initial_portfolio_rules_asset_allocation,
 )
+from src.services.backtesting.strategies.fixed_interval_rebalance import (
+    FixedIntervalRebalanceStrategy,
+)
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
-ParamFamily = Literal["dma", "none"]
+ParamFamily = Literal["dma", "fixed_interval_rebalance", "none"]
 PublicParamNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
 StrategyBuilder = Callable[["StrategyBuildRequest"], BaseStrategy]
 InitialAllocationBuilder = Callable[..., dict[str, float]]
@@ -206,6 +211,72 @@ def _build_portfolio_rules_recipe() -> StrategyRecipe:
     )
 
 
+def _normalize_fixed_interval_params(params: dict[str, Any]) -> dict[str, Any]:
+    return FixedIntervalRebalancePublicParams.model_validate(params).model_dump(
+        mode="json"
+    )
+
+
+def _build_fixed_interval_strategy(request: StrategyBuildRequest) -> BaseStrategy:
+    _require_compare_mode(request)
+    validated = FixedIntervalRebalancePublicParams.model_validate(request.params)
+    weights = {
+        "btc": validated.target_weights.btc,
+        "eth": validated.target_weights.eth,
+        "spy": validated.target_weights.spy,
+        "stable": validated.target_weights.stable,
+    }
+    strategy_id = request.resolved_config_id or STRATEGY_FIXED_INTERVAL_REBALANCE
+    return FixedIntervalRebalanceStrategy(
+        total_capital=request.total_capital,
+        target_weights=weights,
+        interval_days=validated.interval_days,
+        min_drift_pct=validated.min_drift_pct,
+        user_start_date=request.user_start_date,
+        strategy_id=strategy_id,
+        display_name=strategy_id,
+        canonical_strategy_id=STRATEGY_FIXED_INTERVAL_REBALANCE,
+        public_params=dict(request.params),
+    )
+
+
+def _build_fixed_interval_recipe() -> StrategyRecipe:
+    return StrategyRecipe(
+        strategy_id=STRATEGY_FIXED_INTERVAL_REBALANCE,
+        display_name=STRATEGY_DISPLAY_NAMES[STRATEGY_FIXED_INTERVAL_REBALANCE],
+        description=(
+            "Calendar-driven SPY/BTC/ETH/Stable target-weight rebalancer with "
+            "optional drift-threshold gating. No DMA/FGI signals; experimental "
+            "baseline for evaluating rule-based strategies."
+        ),
+        signal_id=None,
+        primary_asset="BTC",
+        warmup_lookback_days=0,
+        market_data_requirements=MarketDataRequirements(
+            # Strategy decisions are sentiment-free, but the engine applies
+            # regime-conditional APRs to stable yield (engine.py:_apply_yield).
+            # Declaring sentiment keeps standalone runs apples-to-apples with
+            # comparisons against sentiment-aware strategies.
+            requires_sentiment=True,
+            requires_macro_fear_greed=False,
+            # Pulls ETH/SPY spot prices through the feature loader; the SPY/ETH/BTC/stable
+            # bucket mapper needs them at runtime. The DMA values themselves are unused.
+            required_price_features=frozenset(
+                {ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
+            ),
+            required_aux_series=frozenset(),
+            max_lag_days=1,
+        ),
+        portfolio_bucket_mapper=map_portfolio_to_spy_eth_btc_stable_buckets,
+        public_params_model=FixedIntervalRebalancePublicParams,
+        param_family="fixed_interval_rebalance",
+        runtime_portfolio_mode="asset",
+        normalize_public_params=_normalize_fixed_interval_params,
+        build_strategy=_build_fixed_interval_strategy,
+        supports_daily_suggestion=False,
+    )
+
+
 def _build_dca_classic_recipe() -> StrategyRecipe:
     return StrategyRecipe(
         strategy_id=STRATEGY_DCA_CLASSIC,
@@ -228,6 +299,7 @@ def _build_dca_classic_recipe() -> StrategyRecipe:
 _RECIPES: dict[str, StrategyRecipe] = {
     STRATEGY_DCA_CLASSIC: _build_dca_classic_recipe(),
     STRATEGY_DMA_FGI_PORTFOLIO_RULES: _build_portfolio_rules_recipe(),
+    STRATEGY_FIXED_INTERVAL_REBALANCE: _build_fixed_interval_recipe(),
 }
 
 

@@ -20,22 +20,6 @@ export const MESSAGES = {
   // Common / Brand info
   common: {
     brandName: 'Zap Pilot',
-    logoAlt: 'Zap Pilot Logo',
-  },
-
-  // Navbar section
-  navbar: {
-    launchApp: 'Launch App',
-  },
-
-  // Error messages
-  errors: {
-    generic: {
-      title: 'Something went wrong',
-      description:
-        'We encountered an unexpected error. Please try refreshing the page.',
-      refreshButton: 'Refresh Page',
-    },
   },
 
   // Philosophy
@@ -57,89 +41,11 @@ export const MESSAGES = {
     ctaSecondary: 'See the Backtest',
   },
 
-  // Regime Visualizer section (second screen)
-  regimeVisualizer: {
-    title: 'Regime Signals, Not Emotion',
-    subtitle:
-      'Using the 200-Day Moving Average (200MA), Fear & Greed Index (FGI), and ETH/BTC relative strength to decide when the three-pillar portfolio should buy risk, defend in cash, or rotate inside crypto.',
-    interactionHint: '👆 Explore each regime to see how we respond',
-    errorMessage: 'Unable to load regime visualizer',
-    errorRetry: 'Please refresh the page or try again later.',
-    loadingMessage: 'Loading regime visualizer...',
-  },
-
   regimeStrip: {
     ariaLabel: 'Regime data',
     header: 'Telemetry feeding the next bundle',
     liveStatus: 'live · mainnet',
     pendingStatus: 'awaiting live telemetry',
-  },
-
-  // Features section
-  features: {
-    title: 'Why Zap Pilot?',
-    subtitle:
-      'A disciplined portfolio autopilot across S&P500, BTC/ETH, and cash — powered by macro regime signals and your own wallet.',
-    learnMore: 'Learn more',
-    items: [
-      {
-        title: 'The Three Pillars',
-        description:
-          "S&P500 via Ondo's tokenized index, BTC/ETH for crypto risk-on, and stablecoins for defense. Three assets, one disciplined allocator. No tokens you can't pronounce, no protocols you don't understand.",
-      },
-      {
-        title: 'Macro Regime Engine',
-        description:
-          'Two objective signals — price vs the 200-Day Moving Average and the Fear & Greed Index — decide risk-on, risk-off, or in-between. ETH/BTC relative strength adds a 30-day-cooldown rotation overlay on top. No discretion, no overrides.',
-      },
-      {
-        title: 'Strategy First, Yield Second',
-        description:
-          '~90% of returns come from regime trading itself — buying weakness, selling froth. While idle, your capital earns baseline yield (Ondo for S&P500, GMX for BTC/ETH, Morpho/Hyperliquid for stables) — but yield is the icing, not the strategy.',
-      },
-      {
-        title: '100% Self-Custody EOA',
-        description:
-          'Your funds live in your own externally-owned account. We never custody, never approve, never hold keys. Each rebalance is a pre-packaged bundle delivered to you — you review, you sign, you move on.',
-      },
-      {
-        title: 'One-Click Bundled Rebalance',
-        description:
-          'EIP-7702 atomic batch on supported wallets; unsupported wallets execute approval and rebalance transactions sequentially. Every regime shift stays fully self-custodial and transparent.',
-      },
-    ],
-  },
-
-  // How It Works section
-  howItWorks: {
-    title: 'Execution Engine',
-    subtitle: 'How Zap Pilot operates seamlessly in the background.',
-    steps: [
-      {
-        number: 1,
-        icon: 'LineChart' as const,
-        title: 'Monitor',
-        description:
-          'We watch 200MA, FGI, and ETH/BTC relative strength 24/7 — looking for regime shifts across S&P500, crypto, and cash.',
-        color: 'from-purple-500 to-violet-600',
-      },
-      {
-        number: 2,
-        icon: 'Bell' as const,
-        title: 'Signal',
-        description:
-          'When the regime moves, you get a Telegram message with the new target allocation across all three pillars and a pre-built bundle ready to sign.',
-        color: 'from-blue-500 to-cyan-600',
-      },
-      {
-        number: 3,
-        icon: 'Zap' as const,
-        title: 'Execute',
-        description:
-          'Sign an atomic EIP-7702 bundle when your wallet supports it, or approve then execute sequentially from your own wallet. Idle capital quietly earns baseline yield until the next signal.',
-        color: 'from-green-500 to-emerald-600',
-      },
-    ],
   },
 
   // Backtest proof section
@@ -208,8 +114,8 @@ export const MESSAGES = {
     ctaSecondary: 'Read the Strategy',
   },
 
-  // V2 How It Works section
-  howItWorksV2: {
+  // How It Works section
+  howItWorks: {
     title: 'Three steps. Your signature.',
     subtitle:
       'The engine turns regime data into a concrete allocation change, then hands execution back to your wallet.',
@@ -233,72 +139,6 @@ export const MESSAGES = {
           'Telegram delivers a pre-built plan. Atomic wallets sign one EIP-7702 bundle; other wallets approve and execute sequentially. Your keys stay in control.',
       },
     ],
-  },
-
-  // Use Cases section
-  useCases: {
-    title: 'Use Cases',
-    subtitle: 'Real scenarios where Zap Pilot keeps you disciplined.',
-    bottomMessage: {
-      line1:
-        'Let the 200MA, FGI, and ETH/BTC ratio guide your three-pillar allocation.',
-      line2:
-        'Zap Pilot bundles the rebalance — you sign once, inside your own wallet.',
-    },
-  },
-
-  // Footer section
-  footer: {
-    brand: {
-      description:
-        'A regime-driven 3-pillar allocator (S&P500 · BTC/ETH · Stables), executed from your own wallet. 100% self-custody.',
-    },
-    sections: {
-      product: 'Product',
-      resources: 'Resources',
-    },
-    newsletter: {
-      title: 'Stay Updated',
-      description: 'Get the latest features and insights.',
-      buttonText: 'Subscribe',
-      disclaimer: 'No spam, unsubscribe anytime.',
-    },
-    copyright: '© {year} Zap Pilot. All rights reserved.',
-    builtWith: {
-      prefix: 'Built with',
-      suffix: 'for disciplined self-custody',
-    },
-  },
-
-  // Allocation visualizer
-  allocation: {
-    categories: {
-      spot: 'Spot',
-      stable: 'Stable',
-      lp: 'LP',
-    },
-    strategies: {
-      lending: 'Lending',
-      perps: 'Perps',
-    },
-    transition: {
-      show: 'Show Transition',
-      hide: 'Hide Transition',
-    },
-    timeframe: 'Wallet-signed execution',
-    maintaining: {
-      message: 'Maintaining current allocation',
-      subtitle: 'Zero rebalancing — Holiday Mode',
-    },
-  },
-
-  // Core value propositions (reusable)
-  values: {
-    selfCustody: 'Your keys, your crypto, always',
-    sentimentDriven: 'Driven by macro regime, not emotion',
-    manualSigning: 'You sign every transaction',
-    oneClickExecution: 'Atomic when supported',
-    notAFund: 'Not a fund. You are in control.',
   },
 
   // Protocols section

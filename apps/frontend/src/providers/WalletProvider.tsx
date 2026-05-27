@@ -103,6 +103,23 @@ export function WalletProvider({
   }, []);
 
   const handleConnect = useCallback(async () => {
+    if (connectors.length === 0) {
+      setError({
+        message:
+          'No wallet detected. Please install MetaMask or another wallet extension.',
+        code: 'NO_WALLET',
+      });
+      return;
+    }
+
+    if (connectors.length > 1) {
+      setError({
+        message: 'Multiple wallets detected. Please choose a wallet first.',
+        code: 'WALLET_SELECTION_REQUIRED',
+      });
+      return;
+    }
+
     const connector = connectors[0];
     if (!connector) {
       setError({

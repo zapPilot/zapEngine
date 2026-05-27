@@ -83,6 +83,23 @@ export function presentCostBreakdown(lines: UsageCostLine[]): UsageCostLine[] {
   );
 }
 
+export function buildLlmCostLine(
+  label: string,
+  generated: {
+    provider: string;
+    model: string;
+    costUsd: number;
+  },
+): UsageCostLine {
+  return {
+    category: 'llm',
+    label,
+    provider: generated.provider,
+    model: generated.model,
+    costUsd: generated.costUsd,
+  };
+}
+
 export function formatUsd(value: number): string {
   return value.toFixed(5);
 }
@@ -113,6 +130,15 @@ export interface IngestSummaryInput {
   costDetails: UsageCostDetails;
 }
 
+export interface IngestSummaryResult {
+  statusCode: 200 | 201;
+  episode: {
+    title: string;
+    hlsUrl?: string | null;
+  };
+  costDetails: UsageCostDetails;
+}
+
 export function buildIngestSummary(input: IngestSummaryInput): string {
   const status = input.status === 200 ? '✅ 已存在' : '✅ 完成';
   const lines = [status, `《${input.title}》`];
@@ -128,4 +154,15 @@ export function buildIngestSummary(input: IngestSummaryInput): string {
   }
 
   return lines.join('\n');
+}
+
+export function buildIngestSummaryFromResult(
+  result: IngestSummaryResult,
+): string {
+  return buildIngestSummary({
+    status: result.statusCode,
+    title: result.episode.title,
+    hlsUrl: result.episode.hlsUrl,
+    costDetails: result.costDetails,
+  });
 }

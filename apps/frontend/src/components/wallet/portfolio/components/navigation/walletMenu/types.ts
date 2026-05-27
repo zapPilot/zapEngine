@@ -1,7 +1,11 @@
+import type { Connector } from 'wagmi';
+
 export interface ConnectedWalletItem {
   address: string;
   isActive?: boolean;
 }
+
+export type WalletConnectorItem = Connector;
 
 export type CopyButtonVariant = 'text' | 'icon-only';
 
@@ -38,8 +42,14 @@ export interface WalletMenuButtonProps {
   accountAddress: string | undefined;
   hasMultipleWallets: boolean;
   connectedWalletCount: number;
-  onConnectClick: () => Promise<void>;
   onToggleMenu: () => void;
+}
+
+export interface WalletConnectorSectionProps {
+  connectors: readonly WalletConnectorItem[];
+  isConnecting: boolean;
+  selectedConnectorId: string | null;
+  onSelectConnector: (connector: WalletConnectorItem) => void;
 }
 
 export interface WalletSectionCopyProps extends WalletSectionActionsProps {
@@ -61,4 +71,8 @@ export interface WalletMenuDropdownProps extends WalletSectionCopyProps {
   hasMultipleWallets: boolean;
   accountAddress: string | undefined;
   connectedWallets: ConnectedWalletItem[];
+  connectors: readonly WalletConnectorItem[];
+  isConnecting: boolean;
+  selectedConnectorId: string | null;
+  onSelectConnector: (connector: WalletConnectorItem) => void;
 }

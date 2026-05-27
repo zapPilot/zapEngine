@@ -4,7 +4,7 @@ import { MESSAGES } from './messages';
 export const PITCH_CTAS = {
   bookCall: LINKS.support.contactUs,
   emailFounder: LINKS.support.contactUs,
-  liveApp: LINKS.v2,
+  liveApp: LINKS.app,
 } as const;
 
 export const PITCH_META = {

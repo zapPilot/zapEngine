@@ -26,6 +26,10 @@ vi.mock('@/lib/ui/animationVariants', () => ({
 
 const mockAddress = '0x1234567890abcdef1234567890abcdef12345678';
 const mockAddress2 = '0xabcdef1234567890abcdef1234567890abcdef12';
+const mockConnectors = [
+  { id: 'io.rabby', name: 'Rabby', icon: 'data:image/svg+xml,<svg />' },
+  { id: 'io.metamask', name: 'MetaMask' },
+];
 
 describe('WalletMenuButton', () => {
   const defaultProps = {
@@ -35,7 +39,6 @@ describe('WalletMenuButton', () => {
     accountAddress: undefined as string | undefined,
     hasMultipleWallets: false,
     connectedWalletCount: 0,
-    onConnectClick: vi.fn(() => Promise.resolve()),
     onToggleMenu: vi.fn(),
   };
 
@@ -58,20 +61,12 @@ describe('WalletMenuButton', () => {
       expect(screen.getByText(WALLET_LABELS.CONNECT)).toBeInTheDocument();
     });
 
-    it('calls onConnectClick when button is clicked while disconnected', () => {
+    it('calls onToggleMenu when button is clicked while disconnected', () => {
       render(<WalletMenuButton {...defaultProps} />);
 
       fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
 
-      expect(defaultProps.onConnectClick).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not call onToggleMenu when not connected', () => {
-      render(<WalletMenuButton {...defaultProps} />);
-
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      expect(defaultProps.onToggleMenu).not.toHaveBeenCalled();
+      expect(defaultProps.onToggleMenu).toHaveBeenCalledTimes(1);
     });
 
     it('is disabled when isConnecting is true', () => {
@@ -108,14 +103,6 @@ describe('WalletMenuButton', () => {
       fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
 
       expect(connectedProps.onToggleMenu).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not call onConnectClick when already connected', () => {
-      render(<WalletMenuButton {...connectedProps} />);
-
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      expect(connectedProps.onConnectClick).not.toHaveBeenCalled();
     });
 
     it('sets aria-expanded to true when isMenuOpen is true', () => {
@@ -185,6 +172,7 @@ describe('WalletMenuDropdown', () => {
   const mockOnOpenSettings = vi.fn();
   const mockOnCloseMenu = vi.fn();
   const mockOnDisconnect = vi.fn();
+  const mockOnSelectConnector = vi.fn();
 
   const baseDropdownProps = {
     isConnected: true,
@@ -193,7 +181,11 @@ describe('WalletMenuDropdown', () => {
     accountAddress: mockAddress,
     connectedWallets: [{ address: mockAddress, isActive: true }],
     copiedAddress: null as string | null,
+    connectors: mockConnectors,
+    isConnecting: false,
+    selectedConnectorId: null as string | null,
     onCopyAddress: mockOnCopyAddress,
+    onSelectConnector: mockOnSelectConnector,
     onOpenWalletManager: mockOnOpenWalletManager,
     onOpenSettings: mockOnOpenSettings,
     onCloseMenu: mockOnCloseMenu,
@@ -213,12 +205,66 @@ describe('WalletMenuDropdown', () => {
       ).toBeInTheDocument();
     });
 
-    it('returns null when isConnected is false', () => {
+    it('renders connector choices when disconnected and open', () => {
       render(<WalletMenuDropdown {...baseDropdownProps} isConnected={false} />);
 
       expect(
-        screen.queryByTestId('unified-wallet-menu-dropdown'),
-      ).not.toBeInTheDocument();
+        screen.getByTestId('unified-wallet-menu-dropdown'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: 'Rabby' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: 'MetaMask' }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('wallet-connector-icon')).toHaveAttribute(
+        'src',
+        mockConnectors[0].icon,
+      );
+      expect(
+        screen.getByTestId('wallet-connector-fallback-icon'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Choose Wallet')).not.toBeInTheDocument();
+    });
+
+    it('calls onSelectConnector when a disconnected connector option is clicked', () => {
+      render(<WalletMenuDropdown {...baseDropdownProps} isConnected={false} />);
+
+      fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
+
+      expect(mockOnSelectConnector).toHaveBeenCalledWith(mockConnectors[1]);
+    });
+
+    it('marks the selected connector busy and disables connector options while connecting', () => {
+      render(
+        <WalletMenuDropdown
+          {...baseDropdownProps}
+          isConnected={false}
+          isConnecting={true}
+          selectedConnectorId="io.rabby:Rabby"
+        />,
+      );
+
+      const rabbyOption = screen.getByRole('menuitem', { name: 'Rabby' });
+      const metaMaskOption = screen.getByRole('menuitem', {
+        name: 'MetaMask',
+      });
+
+      expect(rabbyOption).toHaveAttribute('aria-busy', 'true');
+      expect(rabbyOption).toBeDisabled();
+      expect(metaMaskOption).toBeDisabled();
+    });
+
+    it('shows an empty wallet picker state when no connectors are available', () => {
+      render(
+        <WalletMenuDropdown
+          {...baseDropdownProps}
+          connectors={[]}
+          isConnected={false}
+        />,
+      );
+
+      expect(screen.getByText('No wallets detected')).toBeInTheDocument();
     });
 
     it('returns null when isMenuOpen is false', () => {

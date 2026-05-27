@@ -404,7 +404,7 @@ describe('WalletProvider', () => {
       });
     });
 
-    it('should use the first connector when multiple connectors are available', async () => {
+    it('should not auto-select the first connector when multiple connectors are available', async () => {
       const connectors = [
         { id: 'io.rabby', name: 'Rabby' },
         { id: 'io.metamask', name: 'MetaMask' },
@@ -419,10 +419,13 @@ describe('WalletProvider', () => {
 
       await invokeWalletProviderAction(() => result.current.connect());
 
-      expect(mockConnectAsync).toHaveBeenCalledWith({
-        connector: connectors[0],
+      expect(mockConnectAsync).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(result.current.error).toEqual({
+          message: 'Multiple wallets detected. Please choose a wallet first.',
+          code: 'WALLET_SELECTION_REQUIRED',
+        });
       });
-      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
     });
 
     it('should set NO_WALLET when no connectors are available', async () => {

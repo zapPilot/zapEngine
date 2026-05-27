@@ -188,6 +188,9 @@ def resolve_saved_strategy_config(
             raise ValueError(
                 f"Strategy family '{saved_config.strategy_id}' is missing a benchmark builder"
             )
+        # The recipe owns the strategy's data requirements (e.g. which spot-asset
+        # prices the bucket mapper needs); the saved config only carries params.
+        recipe = get_strategy_recipe(saved_config.strategy_id)
         return ResolvedSavedStrategyConfig(
             **_resolved_saved_config_fields(
                 saved_config,
@@ -195,9 +198,9 @@ def resolve_saved_strategy_config(
                 runtime_portfolio_mode=family.runtime_portfolio_mode,
                 public_params=dict(saved_config.params),
             ),
-            summary_signal_id=None,
-            warmup_lookback_days=0,
-            market_data_requirements=MarketDataRequirements(),
+            summary_signal_id=recipe.signal_id,
+            warmup_lookback_days=recipe.warmup_lookback_days,
+            market_data_requirements=recipe.market_data_requirements,
             build_strategy=family.benchmark_strategy_builder_factory(saved_config),
         )
 

@@ -1,3 +1,7 @@
+import { isRecord } from '../lib/typeGuards.js';
+import type { LanguageClassroomLanguageCode } from '../types.js';
+import { findEpisodeLocalizationByEpisodeId } from './db.js';
+
 export type SharePagePlatform = 'ios' | 'android' | 'desktop';
 
 export interface SharePageEpisode {
@@ -18,10 +22,33 @@ export interface RenderEpisodeSharePageInput {
 }
 
 const APP_NAME = 'From Fed to Chain';
+const IOS_APP_STORE_URL =
+  'https://apps.apple.com/app/from-fed-to-chain/id6749248542';
+const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
+const ANDROID_AVAILABLE = false;
+const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
+const IOS_CUSTOM_SCHEME = 'fromfedtochain';
+// Keep this in sync with the final iOS bundle ID before App Store submission.
+const APPLE_APP_ID = 'LP8CA4MT6U.com.example.fromFedToChainApp';
 const DEFAULT_SHARE_IMAGE_URL =
   'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/03/5b/2f/035b2fde-5258-a71b-86af-e5a7c3b9987d/AppIcon-0-0-1x_U007emarketing-0-8-0-0-85-220.png/512x512bb.jpg';
 const DEFAULT_DESCRIPTION =
   'Listen to From Fed to Chain for clear stories about global finance, blockchain, and DeFi.';
+
+export const APPLE_APP_SITE_ASSOCIATION = {
+  applinks: {
+    details: [
+      {
+        appIDs: [APPLE_APP_ID],
+        components: [{ '/': '/e/*' }],
+      },
+      {
+        appID: APPLE_APP_ID,
+        paths: ['/e/*'],
+      },
+    ],
+  },
+};
 
 export function detectPlatform(
   userAgent: string | undefined,
@@ -38,6 +65,36 @@ export function detectPlatform(
   }
 
   return 'desktop';
+}
+
+export async function buildEpisodeSharePageHtml(input: {
+  id: string;
+  languageCode: LanguageClassroomLanguageCode;
+  userAgent: string | undefined;
+}): Promise<string | null> {
+  const localization = await findEpisodeLocalizationByEpisodeId(
+    input.id,
+    input.languageCode,
+  );
+
+  if (!localization) {
+    return null;
+  }
+
+  return renderEpisodeSharePage({
+    episode: {
+      id: localization.episode_id,
+      title: localization.title,
+      description: localization.raw_text ?? localization.script ?? '',
+      coverUrl: getLocalizationCoverUrl(localization),
+    },
+    platform: detectPlatform(input.userAgent),
+    iosAppId: IOS_APP_ID,
+    iosAppStoreUrl: IOS_APP_STORE_URL,
+    androidAvailable: ANDROID_AVAILABLE,
+    canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}`,
+    appDeepLinkUrl: `${IOS_CUSTOM_SCHEME}://e/${encodeURIComponent(input.id)}`,
+  });
 }
 
 export function renderEpisodeSharePage(
@@ -329,6 +386,26 @@ function summarizeDescription(description: string, title: string): string {
   }
 
   return `${normalized.slice(0, 217).trimEnd()}...`;
+}
+
+function getLocalizationCoverUrl(localization: unknown): string {
+  if (!isRecord(localization)) {
+    return '';
+  }
+
+  const coverUrl = localization['cover_url'] ?? localization['coverUrl'];
+  return typeof coverUrl === 'string' ? coverUrl : '';
+}
+
+function extractIosAppId(appStoreUrl: string): string {
+  const appId = /\/id(\d+)(?:\D|$)/.exec(appStoreUrl)?.[1];
+  if (!appId) {
+    // IOS_APP_STORE_URL is a module constant with a validated App Store /id segment.
+    /* v8 ignore next -- @preserve */
+    throw new Error('IOS_APP_STORE_URL must include a numeric /id value');
+  }
+
+  return appId;
 }
 
 function htmlEscape(value: string): string {
