@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
 import { queryKeys } from '@/lib/state/queryClient';
 import {

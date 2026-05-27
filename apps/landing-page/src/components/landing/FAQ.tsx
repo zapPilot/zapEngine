@@ -1,11 +1,11 @@
 import { MESSAGES } from '@/config/messages';
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
-export function FAQV2() {
+export function FAQ() {
   return (
     <Section
       id="faq"
-      className="faq-v2"
+      className="faq"
       innerClassName="faq-inner"
       kicker="FAQ"
       title={MESSAGES.faq.title}

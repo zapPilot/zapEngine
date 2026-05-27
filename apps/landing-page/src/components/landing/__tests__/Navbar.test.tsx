@@ -1,32 +1,32 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { LINKS } from '@/config/links';
-import { NavbarV2 } from '../NavbarV2';
+import { Navbar } from '../Navbar';
 
-describe('NavbarV2', () => {
+describe('Navbar', () => {
   describe('rendering', () => {
     it('renders navigation element with aria-label', () => {
-      const { container } = render(<NavbarV2 />);
+      const { container } = render(<Navbar />);
       const nav = container.querySelector('nav');
-      expect(nav).toHaveAttribute('aria-label', 'Zap Pilot v2 navigation');
+      expect(nav).toHaveAttribute('aria-label', 'Zap Pilot navigation');
     });
 
     it('renders brand link', () => {
-      const { container } = render(<NavbarV2 />);
+      const { container } = render(<Navbar />);
       const brand = container.querySelector('.brand');
       expect(brand).toHaveAttribute('href', '/');
-      expect(brand).toHaveAttribute('aria-label', 'Zap Pilot v2 home');
+      expect(brand).toHaveAttribute('aria-label', 'Zap Pilot home');
     });
 
     it('renders brand name', () => {
-      render(<NavbarV2 />);
+      render(<Navbar />);
       expect(screen.getByText(/Zap Pilot/)).toBeInTheDocument();
     });
   });
 
   describe('navigation links', () => {
     it('renders all NAV_ITEMS links', () => {
-      render(<NavbarV2 />);
+      render(<Navbar />);
 
       expect(screen.getByRole('link', { name: 'Strategy' })).toHaveAttribute(
         'href',
@@ -52,17 +52,10 @@ describe('NavbarV2', () => {
   });
 
   describe('action links', () => {
-    it('renders v1 toggle link', () => {
-      render(<NavbarV2 />);
-      const v1Link = screen.getByRole('link', { name: '← v1' });
-      expect(v1Link).toHaveAttribute('href', LINKS.app);
-      expect(v1Link).toHaveAttribute('target', '_blank');
-      expect(v1Link).toHaveAttribute('rel', 'noopener noreferrer');
-    });
-
     it('renders Launch App CTA', () => {
-      render(<NavbarV2 />);
+      render(<Navbar />);
       const ctaLink = screen.getByRole('link', { name: 'Launch App' });
+      expect(ctaLink).toHaveAttribute('href', LINKS.app);
       expect(ctaLink).toHaveAttribute('target', '_blank');
       expect(ctaLink).toHaveAttribute('rel', 'noopener noreferrer');
     });
@@ -70,12 +63,12 @@ describe('NavbarV2', () => {
 
   describe('accessibility', () => {
     it('has proper nav landmark', () => {
-      const { container } = render(<NavbarV2 />);
+      const { container } = render(<Navbar />);
       expect(container.querySelector('nav')).toBeInTheDocument();
     });
 
     it('has nav-links with proper aria-label', () => {
-      const { container } = render(<NavbarV2 />);
+      const { container } = render(<Navbar />);
       const navLinks = container.querySelector('.nav-links');
       expect(navLinks).toHaveAttribute('aria-label', 'Page sections');
     });

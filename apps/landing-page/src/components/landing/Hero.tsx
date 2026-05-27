@@ -26,7 +26,7 @@ const HERO_PILLARS = [
   },
 ] as const;
 
-export function HeroV2() {
+export function Hero() {
   const heroRef = useRef<HTMLElement | null>(null);
 
   return (

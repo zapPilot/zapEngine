@@ -1,30 +1,30 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { CTAV2 } from '../CTAV2';
+import { CTA } from '../CTA';
 
-describe('CTAV2', () => {
+describe('CTA', () => {
   describe('rendering', () => {
     it('renders CTA section', () => {
-      const { container } = render(<CTAV2 />);
-      expect(container.querySelector('section.cta-v2')).toBeInTheDocument();
+      const { container } = render(<CTA />);
+      expect(container.querySelector('section.cta')).toBeInTheDocument();
     });
 
     it('renders quote text', () => {
-      render(<CTAV2 />);
+      render(<CTA />);
       expect(
         screen.getByText(/The goal isn't to trade more/),
       ).toBeInTheDocument();
     });
 
     it('renders subtitle', () => {
-      render(<CTAV2 />);
+      render(<CTA />);
       expect(screen.getByText(/A rules engine/)).toBeInTheDocument();
     });
   });
 
   describe('CTA links', () => {
     it('renders primary CTA to telegram bot', () => {
-      render(<CTAV2 />);
+      render(<CTA />);
       const primaryCta = screen.getByRole('link', {
         name: /Connect Telegram Bot/,
       });
@@ -33,7 +33,7 @@ describe('CTAV2', () => {
     });
 
     it('renders secondary CTA to docs', () => {
-      render(<CTAV2 />);
+      render(<CTA />);
       const secondaryCta = screen.getByRole('link', {
         name: /Read the Strategy/,
       });
@@ -43,12 +43,12 @@ describe('CTAV2', () => {
 
   describe('accessibility', () => {
     it('has proper section structure', () => {
-      const { container } = render(<CTAV2 />);
-      expect(container.querySelector('.cta-v2')).toBeInTheDocument();
+      const { container } = render(<CTA />);
+      expect(container.querySelector('.cta')).toBeInTheDocument();
     });
 
     it('has centered CTA row', () => {
-      const { container } = render(<CTAV2 />);
+      const { container } = render(<CTA />);
       expect(container.querySelector('.cta-row.center')).toBeInTheDocument();
     });
   });

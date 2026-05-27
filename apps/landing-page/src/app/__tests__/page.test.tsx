@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import LandingPageV2 from '../page';
+import LandingPage from '../page';
 
-describe('LandingPageV2', () => {
+describe('LandingPage', () => {
   describe('section rendering', () => {
     it('should render all major sections', () => {
-      const { container } = render(<LandingPageV2 />);
+      const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
       expect(content).toMatch(/A Non-Custodial BlackRock in Your Wallet/);
@@ -18,7 +18,7 @@ describe('LandingPageV2', () => {
     });
 
     it('should render navigation links', () => {
-      render(<LandingPageV2 />);
+      render(<LandingPage />);
 
       expect(
         screen.getAllByRole('link', { name: 'Strategy' }).length,
@@ -36,16 +36,16 @@ describe('LandingPageV2', () => {
   });
 
   describe('layout structure', () => {
-    it('should have v2-root class on main container', () => {
-      const { container } = render(<LandingPageV2 />);
+    it('should have shell-root class on main container', () => {
+      const { container } = render(<LandingPage />);
       const mainDiv = container.firstChild as HTMLElement;
-      expect(mainDiv).toHaveClass('v2-root');
+      expect(mainDiv).toHaveClass('shell-root');
     });
   });
 
   describe('section order', () => {
     it('should render sections in correct visual order', () => {
-      const { container } = render(<LandingPageV2 />);
+      const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
       const heroIndex = content.indexOf(
@@ -63,7 +63,7 @@ describe('LandingPageV2', () => {
 
   describe('accessibility', () => {
     it('should have proper heading hierarchy', () => {
-      render(<LandingPageV2 />);
+      render(<LandingPage />);
 
       const h1Elements = screen.getAllByRole('heading', { level: 1 });
       expect(h1Elements.length).toBeGreaterThan(0);
@@ -73,24 +73,24 @@ describe('LandingPageV2', () => {
     });
 
     it('should have navigation landmark', () => {
-      const { container } = render(<LandingPageV2 />);
+      const { container } = render(<LandingPage />);
       expect(container.querySelector('nav')).toBeInTheDocument();
     });
 
     it('should have main landmark', () => {
-      const { container } = render(<LandingPageV2 />);
+      const { container } = render(<LandingPage />);
       expect(container.querySelector('main')).toBeInTheDocument();
     });
 
     it('should have footer landmark', () => {
-      const { container } = render(<LandingPageV2 />);
+      const { container } = render(<LandingPage />);
       expect(container.querySelector('footer')).toBeInTheDocument();
     });
   });
 
   describe('interactive elements', () => {
     it('should render CTA links', () => {
-      render(<LandingPageV2 />);
+      render(<LandingPage />);
 
       const ctaLinks = screen.getAllByRole('link');
       const hasLaunchApp = ctaLinks.some((link) =>

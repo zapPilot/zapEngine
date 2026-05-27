@@ -1,16 +1,16 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { FAQV2 } from '../FAQV2';
+import { FAQ } from '../FAQ';
 
-describe('FAQV2', () => {
+describe('FAQ', () => {
   describe('rendering', () => {
     it('renders section element', () => {
-      const { container } = render(<FAQV2 />);
-      expect(container.querySelector('.faq-v2')).toBeInTheDocument();
+      const { container } = render(<FAQ />);
+      expect(container.querySelector('.faq')).toBeInTheDocument();
     });
 
     it('renders heading and subtitle', () => {
-      render(<FAQV2 />);
+      render(<FAQ />);
 
       expect(screen.getByText('FAQ')).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
@@ -22,7 +22,7 @@ describe('FAQV2', () => {
 
   describe('questions', () => {
     it('renders objection-handling questions', () => {
-      render(<FAQV2 />);
+      render(<FAQ />);
 
       expect(
         screen.getByText('How is Zap Pilot truly non-custodial?'),
@@ -34,7 +34,7 @@ describe('FAQV2', () => {
     });
 
     it('uses native details elements', () => {
-      const { container } = render(<FAQV2 />);
+      const { container } = render(<FAQ />);
 
       expect(container.querySelectorAll('details.faq-item').length).toBe(8);
       expect(container.querySelectorAll('summary').length).toBe(8);
@@ -43,7 +43,7 @@ describe('FAQV2', () => {
 
   describe('accessibility', () => {
     it('has section with id', () => {
-      const { container } = render(<FAQV2 />);
+      const { container } = render(<FAQ />);
       expect(container.querySelector('#faq')).toBeInTheDocument();
     });
   });

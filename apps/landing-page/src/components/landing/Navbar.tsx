@@ -10,10 +10,10 @@ const NAV_ITEMS = [
   { href: '/pitch/', label: 'Pitch' },
 ] as const;
 
-export function NavbarV2() {
+export function Navbar() {
   return (
-    <nav className="nav" aria-label="Zap Pilot v2 navigation">
-      <Link className="brand" href="/" aria-label="Zap Pilot v2 home">
+    <nav className="nav" aria-label="Zap Pilot navigation">
+      <Link className="brand" href="/" aria-label="Zap Pilot home">
         <BrandMark />
       </Link>
 
@@ -27,16 +27,8 @@ export function NavbarV2() {
 
       <div className="nav-actions">
         <a
-          className="version-toggle"
-          href={LINKS.app}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          ← v1
-        </a>
-        <a
           className="nav-cta"
-          href={LINKS.v2}
+          href={LINKS.app}
           target="_blank"
           rel="noopener noreferrer"
         >

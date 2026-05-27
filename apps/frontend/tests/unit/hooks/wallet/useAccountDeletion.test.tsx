@@ -34,7 +34,7 @@ vi.mock('@/providers/WalletProvider', () => ({
   }),
 }));
 
-vi.mock('@/contexts/UserContext', () => ({
+vi.mock('@/hooks/queries/wallet/useUser', () => ({
   useUser: () => ({ refetch: hoisted.mockRefetch }),
 }));
 

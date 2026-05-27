@@ -2,16 +2,16 @@
 import type { CSSProperties } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { MESSAGES } from '@/config/messages';
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
 type ProtocolCardStyle = CSSProperties & {
   '--protocol-accent': string;
   '--protocol-glow': string;
 };
 
-export function ProtocolsV2() {
+export function Protocols() {
   return (
-    <Section id="protocols" className="protocols-v2" kicker="Between trades">
+    <Section id="protocols" className="protocols" kicker="Between trades">
       <h2>{MESSAGES.protocols.title}</h2>
       <p className="protocol-copy">{MESSAGES.protocols.subtitle}</p>
 

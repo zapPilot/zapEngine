@@ -247,10 +247,10 @@ export interface SwapPageMockConfig {
  * @example
  * ```typescript
  * import { setupSwapPageMocks } from 'tests/helpers/swapPageTestUtils';
- * import * as UserContext from '@/contexts/UserContext';
+ * import * as UserContext from '@/hooks/queries/wallet/useUser';
  * import * as useChainModule from '@/hooks/useChain';
  *
- * vi.mock('@/contexts/UserContext');
+ * vi.mock('@/hooks/queries/wallet/useUser');
  * vi.mock('@/hooks/useChain');
  * vi.mock('@/hooks/queries/useStrategiesQuery');
  * vi.mock('@/services/intentService');

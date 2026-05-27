@@ -4,8 +4,8 @@ import { QuickSwitchFAB } from '@/components/bundle';
 import { EmailReminderBanner } from '@/components/layout/banners/EmailReminderBanner';
 import { SwitchPromptBanner } from '@/components/layout/banners/SwitchPromptBanner';
 import { DashboardShell } from '@/components/wallet/portfolio/DashboardShell';
-import { useUser } from '@/contexts/UserContext';
 import { useBundlePage } from '@/hooks/bundle/useBundlePage';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { lazyImport } from '@/lib/lazy/lazyImport';
 import {
   useAppPathname,

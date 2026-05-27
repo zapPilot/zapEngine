@@ -7,6 +7,7 @@ import { TokenAmountField, TokenSelectorList } from '@/components/shared/token';
 import { useTransactionForm } from '@/components/wallet/portfolio/modals/hooks/useTransactionForm';
 import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
 import { useWatchedTransactionData } from '@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData';
+import { getChainName } from '@/constants/chains';
 import { useTokenBalances } from '@/hooks/queries/wallet/useTokenBalances';
 import { useGmxDeposit } from '@/hooks/useGmxDeposit';
 import { useInvestStrategy } from '@/hooks/useInvestStrategy';
@@ -41,13 +42,6 @@ const GMX_V2_DEV_MARKETS = [
   key: GmxV2MarketKey;
   label: string;
 }[];
-
-function chainName(chainId: number): string {
-  if (chainId === base.id) return 'Base';
-  if (chainId === 1) return 'Ethereum';
-  if (chainId === 42161) return 'Arbitrum';
-  return `Chain ${chainId}`;
-}
 
 function formatBaseUnits(value: string): string {
   return new Intl.NumberFormat('en-US', {
@@ -412,7 +406,8 @@ function InvestStrategyButton({
               {lastPlan.legs.map((leg) => (
                 <div key={`${leg.kind}-${leg.chainId}`}>
                   {leg.kind === 'supply' ? 'Supply' : 'Bridge'} ·{' '}
-                  {chainName(leg.chainId)} · {formatBaseUnits(leg.fromAmount)} ·{' '}
+                  {getChainName(leg.chainId)} ·{' '}
+                  {formatBaseUnits(leg.fromAmount)} ·{' '}
                   {progressByLeg.get(`${leg.kind}-${leg.chainId}`)?.status ??
                     'pending'}
                 </div>

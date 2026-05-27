@@ -34,7 +34,7 @@ function RegimeSkeletonItem() {
   );
 }
 
-export function RegimeStripV2() {
+export function RegimeStrip() {
   const [data, setData] = useState<RegimeStripData | null>(null);
   const [loading, setLoading] = useState(true);
   const { regimeStrip } = MESSAGES;

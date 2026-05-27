@@ -3,9 +3,9 @@ import { MESSAGES } from '@/config/messages';
 /**
  * Cross-surface brand identity (marketing nav + docs nav).
  *
- * Inline styles instead of CSS classes because v2.css's `.brand-mark` /
- * `.brand-name` rules are scoped under `.v2-root`, which doesn't wrap docs
- * pages. Inlining keeps this component portable without splitting v2.css.
+ * Inline styles instead of CSS classes because landing.css's `.brand-mark` /
+ * `.brand-name` rules are scoped under `.shell-root`, which doesn't wrap docs
+ * pages. Inlining keeps this component portable without splitting landing.css.
  */
 export function BrandMark() {
   return (

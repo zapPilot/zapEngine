@@ -1,10 +1,10 @@
 import { PITCH_ASK } from '@/config/pitch';
-import { TrustStripV2 } from '../TrustStripV2';
+import { TrustStrip } from '@/components/landing/TrustStrip';
 import { PitchSlide } from './PitchSlide';
 
 /**
  * Slide 9 — The Ask. Closes with the call-to-action plus the canonical
- * TrustStripV2 so the deck ends on the same self-custody guarantees as the
+ * TrustStrip so the deck ends on the same self-custody guarantees as the
  * home page footer.
  */
 export function PitchAskSlide() {
@@ -37,7 +37,7 @@ export function PitchAskSlide() {
             );
           })}
         </div>
-        <TrustStripV2 />
+        <TrustStrip />
       </div>
     </PitchSlide>
   );

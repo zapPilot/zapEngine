@@ -4,7 +4,7 @@ import { GoogleAnalytics } from '@next/third-parties/google';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
-import './v2.css';
+import './landing.css';
 
 const instrumentSerif = Instrument_Serif({
   variable: '--font-serif',
@@ -20,14 +20,15 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Zap Pilot v2 — Liquid Metal Allocator',
+  metadataBase: new URL('https://zap-pilot.org'),
+  title: 'Zap Pilot — Liquid Metal Allocator',
   description:
     'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
   keywords:
     'tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
   authors: [{ name: 'Zap Pilot Team' }],
   openGraph: {
-    title: 'Zap Pilot v2 — Liquid Metal Allocator',
+    title: 'Zap Pilot — Liquid Metal Allocator',
     description:
       'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
     url: 'https://zap-pilot.org',
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zap Pilot v2 — Liquid Metal Allocator',
+    title: 'Zap Pilot — Liquid Metal Allocator',
     description:
       'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
     images: ['/zap-pilot-logo.svg'],

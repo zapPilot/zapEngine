@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 
 import { ErrorBoundary } from '@/components/errors/ErrorBoundary';
 import { GlobalErrorHandler } from '@/components/errors/GlobalErrorHandler';
-import { UserProvider } from '@/contexts/UserContext';
 import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { lazyImport } from '@/lib/lazy/lazyImport';
 import { QueryProvider } from '@/providers/QueryProvider';
@@ -40,13 +39,11 @@ export function BundleProviders({ children }: BundleProvidersProps) {
     <QueryProvider>
       <SimpleWeb3Provider>
         <WalletProvider>
-          <UserProvider>
-            <ErrorBoundary resetKeys={['user-context']}>
-              <GlobalErrorHandler />
-              <DeferredToastProvider>{children}</DeferredToastProvider>
-              <LogViewer />
-            </ErrorBoundary>
-          </UserProvider>
+          <ErrorBoundary resetKeys={['user-context']}>
+            <GlobalErrorHandler />
+            <DeferredToastProvider>{children}</DeferredToastProvider>
+            <LogViewer />
+          </ErrorBoundary>
         </WalletProvider>
       </SimpleWeb3Provider>
     </QueryProvider>

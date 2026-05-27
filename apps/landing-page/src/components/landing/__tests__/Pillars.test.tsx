@@ -1,27 +1,27 @@
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
-import { PillarsV2 } from '../PillarsV2';
+import { Pillars } from '../Pillars';
 
-describe('PillarsV2', () => {
+describe('Pillars', () => {
   describe('rendering', () => {
     it('renders section element', () => {
-      const { container } = render(<PillarsV2 />);
+      const { container } = render(<Pillars />);
       expect(container.querySelector('.pillars-deep')).toBeInTheDocument();
     });
 
     it('renders section kicker', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
       expect(screen.getByText('Three-pillar allocator')).toBeInTheDocument();
     });
 
     it('renders main heading with aria-labelledby', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
       const heading = screen.getByRole('heading', { level: 2 });
       expect(heading).toHaveTextContent(/What the engine trades into/);
     });
 
     it('renders the example allocation disclaimer', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
       expect(
         screen.getByText(
           'Example regime-based allocation. Actual weights shift with the live regime.',
@@ -32,7 +32,7 @@ describe('PillarsV2', () => {
 
   describe('pillars', () => {
     it('renders all three pillar cards', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
 
       expect(
         screen.getByRole('heading', { name: 'S&P 500' }),
@@ -44,7 +44,7 @@ describe('PillarsV2', () => {
     });
 
     it('renders pillar tags', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
 
       expect(screen.getByText('TRADE INTO EQUITIES')).toBeInTheDocument();
       expect(screen.getByText('TRADE INTO CRYPTO BETA')).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe('PillarsV2', () => {
     });
 
     it('renders pillar statistics', () => {
-      render(<PillarsV2 />);
+      render(<Pillars />);
 
       expect(screen.getByText('42%')).toBeInTheDocument();
       expect(screen.getByText('38%')).toBeInTheDocument();
@@ -62,13 +62,13 @@ describe('PillarsV2', () => {
 
   describe('accessibility', () => {
     it('has section with aria-labelledby', () => {
-      const { container } = render(<PillarsV2 />);
+      const { container } = render(<Pillars />);
       const section = container.querySelector('.pillars-deep');
       expect(section).toHaveAttribute('aria-labelledby', 'pillars-title');
     });
 
     it('uses article elements for pillar cards', () => {
-      const { container } = render(<PillarsV2 />);
+      const { container } = render(<Pillars />);
       expect(container.querySelectorAll('article.pillar-card').length).toBe(3);
     });
   });

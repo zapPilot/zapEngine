@@ -6,7 +6,7 @@ import { BaseCard } from '@/components/ui';
 import { Skeleton } from '@/components/ui/LoadingSystem';
 import { ModalBackdrop } from '@/components/ui/modal';
 import { GRADIENTS } from '@/constants/designSystem';
-import { useUser } from '@/contexts/UserContext';
+import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 import type { WalletManagerProps } from '@/types';
 import { logger } from '@/utils';

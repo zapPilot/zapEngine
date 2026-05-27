@@ -1,20 +1,20 @@
 import { GitBranch, Radar, Signature } from 'lucide-react';
 import { MESSAGES } from '@/config/messages';
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
 const STEP_ICONS = [Radar, GitBranch, Signature] as const;
 
-export function HowItWorksV2() {
+export function HowItWorks() {
   return (
     <Section
       id="how-it-works"
-      className="how-it-works-v2"
+      className="how-it-works"
       kicker="How it works"
-      title={MESSAGES.howItWorksV2.title}
-      subtitle={MESSAGES.howItWorksV2.subtitle}
+      title={MESSAGES.howItWorks.title}
+      subtitle={MESSAGES.howItWorks.subtitle}
     >
       <div className="how-step-grid">
-        {MESSAGES.howItWorksV2.steps.map((step, index) => {
+        {MESSAGES.howItWorks.steps.map((step, index) => {
           const Icon = STEP_ICONS[index] ?? Radar;
 
           return (

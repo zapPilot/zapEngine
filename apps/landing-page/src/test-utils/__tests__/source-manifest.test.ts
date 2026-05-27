@@ -16,13 +16,12 @@ const scannerReportedSources = [
   'apps/landing-page/src/app/api/search/static.json/route.ts',
   'apps/landing-page/src/app/docs/[[...slug]]/page.tsx',
   'apps/landing-page/src/app/layout.tsx',
-  'apps/landing-page/src/components/v2/BrandMark.tsx',
-  'apps/landing-page/src/components/v2/HeroLiquidMetalCanvas.client.tsx',
-  'apps/landing-page/src/components/v2/HeroLiquidMetalCanvas.tsx',
-  'apps/landing-page/src/components/v2/__mocks__/HeroLiquidMetalCanvas.client.tsx',
+  'apps/landing-page/src/components/landing/BrandMark.tsx',
+  'apps/landing-page/src/components/landing/HeroLiquidMetalCanvas.client.tsx',
+  'apps/landing-page/src/components/landing/HeroLiquidMetalCanvas.tsx',
+  'apps/landing-page/src/components/landing/__mocks__/HeroLiquidMetalCanvas.client.tsx',
   'apps/landing-page/src/config/index.ts',
   'apps/landing-page/src/lib/api/market.ts',
-  'apps/landing-page/src/lib/index.ts',
   'apps/landing-page/src/lib/source.ts',
   'apps/landing-page/src/test-utils/index.ts',
   'apps/landing-page/src/test-utils/mocks/next-image.ts',
@@ -51,13 +50,12 @@ const scannerReportedSources = [
 // scanner-import: import type {} from "../../app/api/search/static.json/route.ts";
 // scanner-import: import type {} from "../../app/docs/[[...slug]]/page.tsx";
 // scanner-import: import type {} from "../../app/layout.tsx";
-// scanner-import: import type {} from "../../components/v2/BrandMark.tsx";
-// scanner-import: import type {} from "../../components/v2/HeroLiquidMetalCanvas.client.tsx";
-// scanner-import: import type {} from "../../components/v2/HeroLiquidMetalCanvas.tsx";
-// scanner-import: import type {} from "../../components/v2/__mocks__/HeroLiquidMetalCanvas.client.tsx";
+// scanner-import: import type {} from "../../components/landing/BrandMark.tsx";
+// scanner-import: import type {} from "../../components/landing/HeroLiquidMetalCanvas.client.tsx";
+// scanner-import: import type {} from "../../components/landing/HeroLiquidMetalCanvas.tsx";
+// scanner-import: import type {} from "../../components/landing/__mocks__/HeroLiquidMetalCanvas.client.tsx";
 // scanner-import: import type {} from "../../config/index.ts";
 // scanner-import: import type {} from "../../lib/api/market.ts";
-// scanner-import: import type {} from "../../lib/index.ts";
 // scanner-import: import type {} from "../../lib/source.ts";
 // scanner-import: import type {} from "../index.ts";
 // scanner-import: import type {} from "../mocks/next-image.ts";
@@ -73,6 +71,6 @@ describe('test hygiene source manifest', () => {
     expect(new Set(scannerReportedSources).size).toBe(
       scannerReportedSources.length,
     );
-    expect(scannerReportedSources).toHaveLength(31);
+    expect(scannerReportedSources).toHaveLength(30);
   });
 });

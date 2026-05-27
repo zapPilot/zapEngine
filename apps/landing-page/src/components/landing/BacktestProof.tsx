@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import { MESSAGES } from '@/config/messages';
 import equityCurve from '@/data/equity-curve.json';
-import { Section } from './primitives/Section';
+import { Section } from '@/components/primitives/Section';
 
 type EquityPoint = {
   date: string;
@@ -76,7 +76,7 @@ function lastPointForSeries(seriesId: string): EquityPoint {
   return lastPoint(series);
 }
 
-export function BacktestProofV2() {
+export function BacktestProof() {
   const drawdownTop = yForValue(100);
   const drawdownBottom = yForValue(100 + equityCurve.drawdownBand.dcaPercent);
   const strategyEndValue = lastPointForSeries('strategy').value.toFixed(2);
