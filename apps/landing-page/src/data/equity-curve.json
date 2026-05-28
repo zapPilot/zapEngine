@@ -4,7 +4,7 @@
     "end": "2026-04-15",
     "days": 500
   },
-  "source": "Generated from sweep_production_window.py --update-snapshot on 2026-05-14. Strategy/DCA final values match strategy-snapshot.json within 1pp tolerance.",
+  "source": "Generated from sweep_production_window.py --update-snapshot on 2026-05-29. Strategy/DCA final values match strategy-snapshot.json within 1pp tolerance.",
   "drawdownBand": {
     "label": "Max drawdown range",
     "strategyPercent": -8.93,
