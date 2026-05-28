@@ -37,8 +37,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["^build"],
-      "with": ["dev"]
+      "dependsOn": ["^build"]
     },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

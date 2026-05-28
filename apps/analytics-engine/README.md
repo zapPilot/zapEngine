@@ -9,7 +9,7 @@ pnpm --filter @zapengine/analytics-engine build   # uv sync --locked (first-time
 pnpm --filter @zapengine/analytics-engine dev     # http://localhost:8001
 ```
 
-From inside this directory, drop the `--filter …` prefix: `pnpm build`, `pnpm dev`, etc.
+From inside this directory, drop the `--filter …` prefix: `pnpm build`, `pnpm dev`, etc. From the monorepo root, the default `pnpm dev` already includes analytics-engine; use `pnpm dev:analytics` only when you want this service by itself.
 
 See [CLAUDE.md](./CLAUDE.md) for the full command list and gotchas.
 

@@ -14,7 +14,8 @@ Playwright.
 nvm use            # Node 24 (matches root .nvmrc)
 pnpm install
 # env lives at the monorepo root — `cp .env.example .env` at repo root if you haven't
-pnpm dev           # http://localhost:3000
+pnpm dev           # Vite prints the local URL; debug UI is off by default
+pnpm dev:debug     # same app with React Query Devtools + log viewer on
 ```
 
 ## Architecture
@@ -33,6 +34,8 @@ All client-exposed variables must be prefixed `VITE_`. Key ones:
 
 - `VITE_ACCOUNT_API_URL` — account-engine base URL
 - `VITE_ANALYTICS_ENGINE_URL` — analytics-engine base URL
+- `VITE_ENABLE_RQ_DEVTOOLS` — set to `1` only when debugging React Query state
+- `VITE_ENABLE_LOG_VIEWER` — set to `1` only when debugging in-app logs
 
 See the monorepo root `.env.example` for the full list.
 
