@@ -26,6 +26,7 @@ permissions:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:15-alpine
@@ -69,7 +70,16 @@ jobs:
         with:
           version: '0.8.13'
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Build core packages
@@ -135,7 +145,16 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Generate mobile token package and resolve Flutter deps
@@ -257,6 +276,7 @@ jobs:
     # Security note: only admin-controlled secrets/vars are referenced via
     # ${{ }}. No github.event.* user input is used in run: steps.
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -281,7 +301,16 @@ jobs:
         with:
           version: '0.8.13'
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Self-test the coverage scripts

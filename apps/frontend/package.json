@@ -5,7 +5,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "postinstall": "playwright install",
+    "postinstall": "playwright install chromium",
     "dev": "cross-env VITE_ENABLE_RQ_DEVTOOLS=1 VITE_ENABLE_LOG_VIEWER=0 vite",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
