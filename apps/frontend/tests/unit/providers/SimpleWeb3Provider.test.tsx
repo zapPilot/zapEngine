@@ -17,6 +17,12 @@ vi.mock('wagmi', () => ({
   ),
 }));
 
+vi.mock('@rainbow-me/rainbowkit', () => ({
+  RainbowKitProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="rainbowkit-provider">{children}</div>
+  ),
+}));
+
 vi.mock('@/config/wagmi', () => ({
   wagmiConfig: {},
 }));
@@ -41,5 +47,15 @@ describe('SimpleWeb3Provider', () => {
     );
 
     expect(screen.getByTestId('wagmi-provider')).toBeInTheDocument();
+  });
+
+  it('should wrap children with RainbowKitProvider', () => {
+    render(
+      <SimpleWeb3Provider>
+        <span>Content</span>
+      </SimpleWeb3Provider>,
+    );
+
+    expect(screen.getByTestId('rainbowkit-provider')).toBeInTheDocument();
   });
 });

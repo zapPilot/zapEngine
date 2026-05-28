@@ -17,11 +17,17 @@ export function WalletMenuButton({
   isConnected,
   isConnecting,
   isMenuOpen,
+  onConnectClick,
   onToggleMenu,
 }: WalletMenuButtonProps): ReactElement {
   const showConnectedAddress = isConnected && Boolean(accountAddress);
 
   function handleButtonClick(): void {
+    if (!isConnected) {
+      onConnectClick();
+      return;
+    }
+
     onToggleMenu();
   }
 
@@ -31,8 +37,8 @@ export function WalletMenuButton({
       onClick={handleButtonClick}
       disabled={isConnecting}
       className={getMenuButtonClassName(isConnecting)}
-      aria-expanded={isMenuOpen}
-      aria-haspopup="menu"
+      aria-expanded={isConnected ? isMenuOpen : false}
+      aria-haspopup={isConnected ? 'menu' : 'dialog'}
     >
       <Wallet className="w-4 h-4 text-purple-400" />
       {!isConnected && (
@@ -50,7 +56,7 @@ export function WalletMenuButton({
           )}
         </>
       )}
-      <ChevronDown className={getChevronClassName(isMenuOpen)} />
+      <ChevronDown className={getChevronClassName(isConnected && isMenuOpen)} />
     </button>
   );
 }

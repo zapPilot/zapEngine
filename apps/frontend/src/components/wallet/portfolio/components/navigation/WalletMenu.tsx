@@ -1,13 +1,11 @@
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { AnimatePresence } from 'framer-motion';
 import { type ReactElement, useRef, useState } from 'react';
-import { useConnect, useConnectors } from 'wagmi';
 
-import { getWalletConnectorKey } from '@/components/WalletManager/components/WalletConnectorPicker';
 import { useClickOutside } from '@/hooks/ui/useClickOutside';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { copyTextToClipboard } from '@/utils';
 
-import type { WalletConnectorItem } from './walletMenu/types';
 import { WalletMenuButton, WalletMenuDropdown } from './WalletMenuContent';
 
 interface WalletMenuProps {
@@ -27,16 +25,13 @@ export function WalletMenu({
     hasMultipleWallets,
     account,
     isConnected,
+    isConnecting,
     disconnect,
   } = useWalletProvider();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const connectors = useConnectors();
-  const { mutateAsync: connectAsync, isPending: isConnecting } = useConnect();
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
-    null,
-  );
+  const { openConnectModal } = useConnectModal();
 
   const closeMenu = (): void => {
     setIsMenuOpen(false);
@@ -48,22 +43,8 @@ export function WalletMenu({
 
   useClickOutside(menuRef, closeMenu, isMenuOpen);
 
-  const connectSelectedWallet = async (
-    connector: WalletConnectorItem,
-  ): Promise<void> => {
-    setSelectedConnectorId(getWalletConnectorKey(connector));
-    try {
-      await connectAsync({ connector });
-      closeMenu();
-    } catch {
-      // Wagmi owns connection error state; keep the picker open so the user can retry.
-    } finally {
-      setSelectedConnectorId(null);
-    }
-  };
-
-  const handleSelectConnector = (connector: WalletConnectorItem): void => {
-    void connectSelectedWallet(connector);
+  const handleConnectClick = (): void => {
+    openConnectModal?.();
   };
 
   const copyAddress = async (address: string): Promise<void> => {
@@ -90,6 +71,7 @@ export function WalletMenu({
         accountAddress={account?.address}
         hasMultipleWallets={hasMultipleWallets}
         connectedWalletCount={connectedWallets.length}
+        onConnectClick={handleConnectClick}
         onToggleMenu={toggleMenu}
       />
 
@@ -100,14 +82,10 @@ export function WalletMenu({
           hasMultipleWallets={hasMultipleWallets}
           accountAddress={account?.address}
           connectedWallets={connectedWallets}
-          connectors={connectors}
-          isConnecting={isConnecting}
-          selectedConnectorId={selectedConnectorId}
           copiedAddress={copiedAddress}
           onCopyAddress={(address) => {
             void copyAddress(address);
           }}
-          onSelectConnector={handleSelectConnector}
           onOpenWalletManager={onOpenWalletManager}
           onOpenSettings={onOpenSettings}
           onCloseMenu={closeMenu}

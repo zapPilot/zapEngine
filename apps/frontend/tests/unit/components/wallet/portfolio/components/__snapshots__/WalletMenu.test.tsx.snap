@@ -526,7 +526,7 @@ exports[`WalletMenu Component > Disconnected State > matches snapshot - disconne
   >
     <button
       aria-expanded="false"
-      aria-haspopup="menu"
+      aria-haspopup="dialog"
       class="h-10 px-2 md:px-4 bg-gray-800/50 hover:bg-gray-800 border border-purple-500/20 hover:border-purple-500/40 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium text-gray-200 hover:text-white "
       data-testid="unified-wallet-menu-button"
     >

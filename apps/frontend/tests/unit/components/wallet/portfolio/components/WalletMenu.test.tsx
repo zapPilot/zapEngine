@@ -7,6 +7,7 @@ import { WALLET_LABELS } from '@/constants/wallet';
 // Mock providers and hooks
 const mockConnectAsync = vi.fn();
 const mockDisconnect = vi.fn();
+const mockOpenConnectModal = vi.fn();
 const mockUseConnectors = vi.fn();
 
 // Create mutable mock state for different test scenarios
@@ -38,6 +39,12 @@ vi.mock('wagmi', () => ({
     isPending: false,
   }),
   useConnectors: () => mockUseConnectors(),
+}));
+
+vi.mock('@rainbow-me/rainbowkit', () => ({
+  useConnectModal: () => ({
+    openConnectModal: mockOpenConnectModal,
+  }),
 }));
 
 vi.mock('@/providers/WalletProvider', () => ({
@@ -100,99 +107,18 @@ describe('WalletMenu Component', () => {
       expect(button).toBeInTheDocument();
     });
 
-    it('opens connector choices without connecting immediately when not connected', () => {
-      const connectors = [
-        { id: 'io.rabby', name: 'Rabby', icon: 'data:image/svg+xml,<svg />' },
-        { id: 'io.metamask', name: 'MetaMask' },
-      ];
-      mockUseConnectors.mockReturnValue(connectors);
-
+    it('opens the RainbowKit connect modal without connecting immediately when not connected', () => {
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
       const button = screen.getByTestId('unified-wallet-menu-button');
       fireEvent.click(button);
 
+      expect(mockOpenConnectModal).toHaveBeenCalledTimes(1);
       expect(mockConnectAsync).not.toHaveBeenCalled();
-      expect(button).toHaveAttribute('aria-expanded', 'true');
       expect(
-        screen.getByTestId('unified-wallet-menu-dropdown'),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('menuitem', { name: 'Rabby' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('menuitem', { name: 'MetaMask' }),
-      ).toBeInTheDocument();
-      expect(screen.getByTestId('wallet-connector-icon')).toHaveAttribute(
-        'src',
-        connectors[0].icon,
-      );
-      expect(
-        screen.getByTestId('wallet-connector-fallback-icon'),
-      ).toBeInTheDocument();
-    });
-
-    it('connects the selected connector from the wallet picker', () => {
-      const connectors = [
-        { id: 'io.rabby', name: 'Rabby' },
-        { id: 'io.metamask', name: 'MetaMask' },
-      ];
-      mockUseConnectors.mockReturnValue(connectors);
-
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
-
-      expect(mockConnectAsync).toHaveBeenCalledWith({
-        connector: connectors[1],
-      });
-      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
-    });
-
-    it('closes the disconnected wallet picker after a selected connector connects', async () => {
-      const connectors = [
-        { id: 'io.rabby', name: 'Rabby' },
-        { id: 'io.metamask', name: 'MetaMask' },
-      ];
-      mockUseConnectors.mockReturnValue(connectors);
-      mockConnectAsync.mockResolvedValueOnce(undefined);
-
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      const button = screen.getByTestId('unified-wallet-menu-button');
-
-      fireEvent.click(button);
-      await flushMenuAction(() => {
-        fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
-      });
-
+        screen.queryByTestId('unified-wallet-menu-dropdown'),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
       expect(button).toHaveAttribute('aria-expanded', 'false');
-      expect(mockConnectAsync).toHaveBeenCalledWith({
-        connector: connectors[1],
-      });
-    });
-
-    it('keeps the disconnected wallet picker open when connector selection fails', async () => {
-      const connectors = [
-        { id: 'io.rabby', name: 'Rabby' },
-        { id: 'io.metamask', name: 'MetaMask' },
-      ];
-      mockUseConnectors.mockReturnValue(connectors);
-      mockConnectAsync.mockRejectedValueOnce(
-        new Error('User rejected request'),
-      );
-
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      const button = screen.getByTestId('unified-wallet-menu-button');
-
-      fireEvent.click(button);
-      await flushMenuAction(() => {
-        fireEvent.click(screen.getByRole('menuitem', { name: 'MetaMask' }));
-      });
-
-      expect(mockConnectAsync).toHaveBeenCalledTimes(1);
-      expect(button).toHaveAttribute('aria-expanded', 'true');
-      expect(
-        screen.getByRole('menuitem', { name: 'MetaMask' }),
-      ).toBeInTheDocument();
     });
 
     it('matches snapshot - disconnected state', () => {

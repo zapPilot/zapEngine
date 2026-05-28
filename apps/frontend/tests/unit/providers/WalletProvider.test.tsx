@@ -55,6 +55,10 @@ vi.mock('wagmi/actions', () => ({
   getWalletClient: mockGetWalletClient,
 }));
 
+vi.mock('@/config/wagmi', () => ({
+  wagmiConfig: {},
+}));
+
 vi.mock('viem', () => ({
   formatUnits: (value: bigint, decimals: number) => {
     return (Number(value) / 10 ** decimals).toString();

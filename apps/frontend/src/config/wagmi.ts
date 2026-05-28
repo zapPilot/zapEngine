@@ -1,11 +1,24 @@
-import { createConfig, http } from 'wagmi';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { http } from 'wagmi';
 import { arbitrum, base, optimism } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
 
-export const wagmiConfig = createConfig({
-  ssr: true,
+import { getRuntimeEnv } from '@/lib/env/runtimeEnv';
+
+const walletConnectProjectId = getRuntimeEnv(
+  'VITE_WALLETCONNECT_PROJECT_ID',
+)?.trim();
+
+if (!walletConnectProjectId) {
+  throw new Error(
+    'Missing required VITE_WALLETCONNECT_PROJECT_ID for RainbowKit WalletConnect configuration.',
+  );
+}
+
+export const wagmiConfig = getDefaultConfig({
+  appName: 'Zap Pilot',
+  projectId: walletConnectProjectId,
   chains: [arbitrum, base, optimism],
-  connectors: [injected()],
+  ssr: true,
   transports: {
     [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
     [base.id]: http('https://mainnet.base.org'),
