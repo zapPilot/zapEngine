@@ -246,26 +246,29 @@ def study_to_report(
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--strategy-id", default="dma_fgi_portfolio_rules")
     parser.add_argument(
-        "--strategy-id", default="dma_fgi_portfolio_rules"
-    )
-    parser.add_argument(
-        "--start-date", required=True, type=date.fromisoformat,
+        "--start-date",
+        required=True,
+        type=date.fromisoformat,
         help="Start of the full window the walk-forward will fold.",
     )
     parser.add_argument(
-        "--end-date", required=True, type=date.fromisoformat,
+        "--end-date",
+        required=True,
+        type=date.fromisoformat,
         help="End of the full window the walk-forward will fold.",
     )
     parser.add_argument("--in-sample-days", type=int, default=180)
     parser.add_argument("--out-of-sample-days", type=int, default=60)
     parser.add_argument("--step-days", type=int, default=30)
-    parser.add_argument("--anchored", action="store_true",
-                        help="Use anchored (growing) in-sample windows.")
-    parser.add_argument("--trials", type=int, default=30)
     parser.add_argument(
-        "--objective", choices=("sharpe", "calmar"), default="sharpe"
+        "--anchored",
+        action="store_true",
+        help="Use anchored (growing) in-sample windows.",
     )
+    parser.add_argument("--trials", type=int, default=30)
+    parser.add_argument("--objective", choices=("sharpe", "calmar"), default="sharpe")
     parser.add_argument("--token-symbol", default="BTC")
     parser.add_argument("--total-capital", type=float, default=10_000.0)
     parser.add_argument(

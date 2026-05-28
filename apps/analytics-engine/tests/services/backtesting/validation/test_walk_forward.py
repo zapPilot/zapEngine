@@ -164,14 +164,18 @@ class TestAggregateReport:
 
     def test_means_match_python_statistics(self) -> None:
         window = WalkForwardWindow(
-            date(2024, 1, 1), date(2024, 6, 28),
-            date(2024, 6, 29), date(2024, 8, 27),
+            date(2024, 1, 1),
+            date(2024, 6, 28),
+            date(2024, 6, 29),
+            date(2024, 8, 27),
         )
         folds = tuple(
             WalkForwardFoldResult(
                 window=window,
                 in_sample_summary=_summary(sharpe=2.0, calmar=3.0, roi=20.0),
-                out_of_sample_summary=_summary(sharpe=oos_sharpe, calmar=oos_calmar, roi=oos_roi),
+                out_of_sample_summary=_summary(
+                    sharpe=oos_sharpe, calmar=oos_calmar, roi=oos_roi
+                ),
             )
             for oos_sharpe, oos_calmar, oos_roi in (
                 (1.5, 2.5, 10.0),
@@ -246,7 +250,11 @@ class TestWalkForwardRunner:
 
         async def fake_run_compare_v3(request):  # type: ignore[no-untyped-def]
             config_id = request.configs[0].config_id
-            if config_id.endswith("_oos_0") or config_id.endswith("_oos_1") or config_id.endswith("_oos_2"):
+            if (
+                config_id.endswith("_oos_0")
+                or config_id.endswith("_oos_1")
+                or config_id.endswith("_oos_2")
+            ):
                 sharpe = next(oos_sharpes)
             else:
                 sharpe = 2.0  # in-sample
@@ -341,5 +349,3 @@ class TestWalkForwardRunner:
         assert report.folds == ()
         # No fold runs ⇒ service never called.
         service.run_compare_v3.assert_not_awaited()
-
-

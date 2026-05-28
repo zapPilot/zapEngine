@@ -60,9 +60,8 @@ class TestSuggestPublicParams:
         assert params["buy_gate"]["window_days"] == 5
         assert params["buy_gate"]["sideways_max_range"] == 0.04
         assert params["top_escape"]["dma_overextension_threshold"] == 0.30
-        assert (
-            params["top_escape"]["fgi_slope_reversal_threshold"]
-            == pytest.approx(-0.05)
+        assert params["top_escape"]["fgi_slope_reversal_threshold"] == pytest.approx(
+            -0.05
         )
 
     def test_uses_provided_bounds(self) -> None:
@@ -287,7 +286,9 @@ class TestStudyToReport:
 class TestArgParser:
     def test_required_dates_and_defaults(self) -> None:
         parser = _build_arg_parser()
-        args = parser.parse_args(["--start-date", "2024-01-01", "--end-date", "2025-01-01"])
+        args = parser.parse_args(
+            ["--start-date", "2024-01-01", "--end-date", "2025-01-01"]
+        )
         assert args.start_date == date(2024, 1, 1)
         assert args.end_date == date(2025, 1, 1)
         assert args.strategy_id == "dma_fgi_portfolio_rules"
@@ -311,9 +312,12 @@ class TestArgParser:
         with pytest.raises(SystemExit):
             parser.parse_args(
                 [
-                    "--start-date", "2024-01-01",
-                    "--end-date", "2025-01-01",
-                    "--objective", "omega",
+                    "--start-date",
+                    "2024-01-01",
+                    "--end-date",
+                    "2025-01-01",
+                    "--objective",
+                    "omega",
                 ]
             )
 
@@ -325,8 +329,10 @@ def _dummy_fold() -> WalkForwardFoldResult:
     from src.models.backtesting import StrategySummary
 
     window = WalkForwardWindow(
-        date(2024, 1, 1), date(2024, 6, 28),
-        date(2024, 6, 29), date(2024, 8, 27),
+        date(2024, 1, 1),
+        date(2024, 6, 28),
+        date(2024, 6, 29),
+        date(2024, 8, 27),
     )
     summary = StrategySummary(
         strategy_id="dma_fgi_portfolio_rules",
@@ -339,7 +345,11 @@ def _dummy_fold() -> WalkForwardFoldResult:
         calmar_ratio=2.0,
         final_allocation={"spot": 0.5, "stable": 0.5},
         final_asset_allocation={
-            "btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5, "alt": 0.0,
+            "btc": 0.5,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.5,
+            "alt": 0.0,
         },
     )
     return WalkForwardFoldResult(

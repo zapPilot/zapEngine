@@ -156,9 +156,7 @@ class WalkForwardRunner:
         config_id: str = "walk_forward",
     ) -> WalkForwardReport:
         if strategy_id is None and saved_config_id is None:
-            raise ValueError(
-                "Must provide either strategy_id or saved_config_id"
-            )
+            raise ValueError("Must provide either strategy_id or saved_config_id")
 
         windows = split_windows(full_start_date, full_end_date, self.config)
         folds: list[WalkForwardFoldResult] = []

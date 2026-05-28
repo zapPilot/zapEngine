@@ -34,9 +34,7 @@ class TestPainIndex:
         returns = rng.normal(loc=0.0005, scale=0.02, size=500)
         values = 100.0 * np.cumprod(1.0 + returns)
         running_max = np.maximum.accumulate(values)
-        worst_dd_pct = float(
-            np.min((values - running_max) / running_max) * 100.0
-        )
+        worst_dd_pct = float(np.min((values - running_max) / running_max) * 100.0)
         pain = PainIndex().compute(values)
         assert pain <= abs(worst_dd_pct) + 1e-9
 
