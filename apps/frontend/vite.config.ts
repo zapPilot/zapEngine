@@ -37,6 +37,10 @@ function getManualChunk(id: string): string | undefined {
     return "vendor-wagmi";
   }
 
+  if (/[\\/]node_modules[\\/]@rainbow-me[\\/]rainbowkit[\\/]/.test(id)) {
+    return "vendor-rainbowkit";
+  }
+
   if (id.includes(`${path.sep}node_modules${path.sep}framer-motion${path.sep}`)) {
     return "vendor-motion";
   }
