@@ -26,6 +26,7 @@ permissions:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:15-alpine
@@ -68,6 +69,14 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: '0.8.13'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
@@ -134,6 +143,14 @@ jobs:
           flutter-version: '3.32.6'
           channel: stable
           cache: true
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
@@ -257,6 +274,7 @@ jobs:
     # Security note: only admin-controlled secrets/vars are referenced via
     # ${{ }}. No github.event.* user input is used in run: steps.
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -280,6 +298,14 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: '0.8.13'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
