@@ -79,6 +79,7 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Build core packages
@@ -153,6 +154,7 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Generate mobile token package and resolve Flutter deps
@@ -308,6 +310,7 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install workspace dependencies
+        timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
       - name: Self-test the coverage scripts
