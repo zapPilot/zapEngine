@@ -7,6 +7,36 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
+### 2026-05-28 - Architectural refactor: extended-metrics registry + decision_policy.py split (no behavior change)
+- **Status**: structural refactor; no production-default behavior change; snapshot byte-identical claim pending local verification against `DATABASE_READ_ONLY_URL`
+- **Commits**: `219bffc` (extended metrics registry + 6 new metrics) and a follow-up on the same branch (`claude/analytics-backtesting-architecture-O2mf0`) for the decision_policy.py split
+- **Plan**: `~/.claude/plans/apps-analytics-engine-backtesting-rule-happy-donut.md`
+- **Hypothesis**: adding metrics and adding rules are the two most-requested extension points. Two friction points were getting in the way: (1) `execution/performance_metrics.py` is a single 336-line static-method class — every new metric requires editing both the calculator and `state.build_strategy_summaries` and risks invalidating the 500-day snapshot; (2) `portfolio_rules/decision_policy.py` is 729 LOC mixing evaluator / matcher / builders / snapshot construction / post-processing / state accessors — adding new rule groups or post-processing hooks meant finding the right section in a wall of code. Both are addressable as additive-only structural refactors that preserve every existing import path.
+- **Implementation A — extended-metrics registry (additive)**: new `execution/metrics/` subpackage with two Protocols (`ReturnsMetric` operating on daily returns; `ValuesMetric` operating on daily portfolio values) and a registry of six initial metrics: `OmegaRatio`, `TailRatio`, `Skewness`, `ExcessKurtosis`, `PainIndex`, `MaxDrawdownRecoveryTime`. Aggregator `compute_extended_metrics()` returns `{key: float}` for every registered metric and is **not** folded into `PerformanceMetricsCalculator.calculate_all_metrics()` — extended metrics are opt-in for saved configs / attribution scripts only, so the snapshot fixture stays byte-stable. Constant-input edge case uses `np.ptp` to dodge std-of-constant FP noise. Adding the 7th metric is one new file (~30 LOC) + one tuple entry in `metrics/registry.py`.
+- **Implementation B — decision_policy.py split (re-export hub)**: split into six focused private modules under `portfolio_rules/`:
+  - `_evaluator.py` — `RulesEvaluator` + `DmaFgiPortfolioRulesDecisionPolicy` + `PORTFOLIO_RULES_SIGNAL_ID`
+  - `_matcher.py` — `resolve_portfolio_rules_intent` + `_apply_shadowing` + `RuleMatchOutcome`
+  - `_builders.py` — `build_portfolio_rules_for_params` + `build_risk_guards_for_params` + `active_rules` + `_rule_is_active` + factory helpers + `_PortfolioRuleParams` Protocol
+  - `_snapshot_builder.py` — `build_portfolio_snapshot` + `_advance_context`
+  - `_post_processing.py` — `_apply_risk_guards` + `_preserve_rule_trace_diagnostics` + `_apply_post_intent_adjustments` + matched-rule helpers
+  - `_state_accessors.py` — `_update_cycle_state` + FGI regime / value extractors
+  - `_types.py` — shared `RuleExecutionContext` / `RuleExecutionState`
+  - `decision_policy.py` reduces to ~70 LOC re-export hub. Every public symbol (13 total) and both test-only private symbols (`_matched_rule_priority`, `_rule_with_public_params`) are re-imported, so `from src.services.backtesting.portfolio_rules.decision_policy import …` keeps working without touching any caller (2 production sites + 4 test files).
+- **Validation in this environment (no Supabase access)**:
+  - `uv run ruff check src/services/backtesting/execution/metrics/ tests/services/backtesting/execution/metrics/ src/services/backtesting/portfolio_rules/` → clean
+  - `uv run mypy src/services/backtesting/execution/metrics/ src/services/backtesting/portfolio_rules/` → clean (mypy strict)
+  - `uv run pytest tests/services/backtesting/execution/metrics/` → 50 new metric unit tests pass (DB-independent synthetic arrays)
+  - `uv run pytest tests/services/backtesting/portfolio_rules/ tests/services/backtesting/strategies/` → 159 pass
+  - `uv run pytest tests/services/backtesting/ --ignore=tests/test_strategy_performance_snapshot.py` → 764 pass
+- **Pending local verification by author** (requires `DATABASE_READ_ONLY_URL`):
+  - `pnpm --filter @zapengine/analytics-engine exec uv run pytest tests/test_strategy_performance_snapshot.py` — expected byte-identical against `tests/fixtures/strategy_performance_snapshot_500d.json` because no metric is folded into `calculate_all_metrics()` and the decision_policy split is structural only (no logic moved, only file boundaries redrawn).
+  - `scripts/attribution/sweep_production_window.py` + `scripts/attribution/per_rule_report.py` — should remain byte-stable; not required unless snapshot drifts.
+- **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed in this iteration.
+- **Next**:
+  1. Local snapshot byte-identical verification, then merge to main.
+  2. Phase D — walk-forward harness (`src/services/backtesting/validation/walk_forward.py`) — rolling in-sample / out-of-sample fold runner over an existing saved config, so any future param tune can be validated as not in-sample-overfit. Code is pure Python (in-process `BacktestingService.run_compare_v3`), tests mock data providers per the `test_backtesting_days_param.py` pattern; only end-to-end fold runs need DB.
+  3. Phase E — Optuna search script (`scripts/attribution/optuna_search.py`) — objective = walk-forward out-of-sample mean Sharpe / Calmar; tunes the leaf scalars on `DmaGatedFgiPublicParams` (`cross_cooldown_days`, `pacing.k`, `pacing.r_max`, `buy_gate.window_days`, `buy_gate.sideways_max_range`, the top-escape thresholds). Adds `optuna` via `uv add optuna`.
+
 ### 2026-05-26 - Broad-market DMA confirmation filter sweep, then cleanup (null on this window)
 - **Status**: rejected and cleaned up (null result — filter never engaged in this window)
 - **Commit**: pending local change (`broad-market buy filter sweep + delete plumbing`)
