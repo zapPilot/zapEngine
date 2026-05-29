@@ -529,9 +529,7 @@ def test_rules_evaluator_applies_guard_when_matched_rule_priority_is_unknown() -
 
 
 def test_policy_record_execution_ignores_non_executed_or_unmatched_intents() -> None:
-    policy = RuleBasedPortfolioDecisionPolicy(
-        rules=_as_rules(_FakeRule(name="alpha"))
-    )
+    policy = RuleBasedPortfolioDecisionPolicy(rules=_as_rules(_FakeRule(name="alpha")))
     context = SimpleNamespace(date=date(2025, 5, 1))
     intent = AllocationIntent(
         action="buy",
@@ -622,9 +620,7 @@ def test_policy_reset_clears_context_and_resets_components() -> None:
 
 
 def test_policy_tracks_local_execution_state_when_no_provider_is_set() -> None:
-    policy = RuleBasedPortfolioDecisionPolicy(
-        rules=_as_rules(_FakeRule(name="alpha"))
-    )
+    policy = RuleBasedPortfolioDecisionPolicy(rules=_as_rules(_FakeRule(name="alpha")))
 
     policy.decide(
         FlatMinimumState(
