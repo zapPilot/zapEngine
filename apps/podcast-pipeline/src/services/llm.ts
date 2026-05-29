@@ -69,7 +69,10 @@ export function buildUserMessage(title: string, text: string): string {
   return `標題：${title}\n\n內容：\n${text}`;
 }
 
-export function getOpenRouterConfig(): {
+export function getOpenRouterConfig(overrides?: {
+  model?: string;
+  thinkingModel?: string | null;
+}): {
   openai: OpenAI;
   model: string;
   thinkingModel: string | null;
@@ -82,8 +85,13 @@ export function getOpenRouterConfig(): {
   const baseURL =
     process.env['OPENROUTER_BASE_URL'] || 'https://openrouter.ai/api/v1';
   const model =
-    process.env['LLM_MODEL'] || 'anthropic/claude-3-5-sonnet-20241022';
-  const thinkingModel = process.env['LLM_THINKING_MODEL'] || null;
+    overrides?.model ||
+    process.env['LLM_MODEL'] ||
+    'anthropic/claude-3-5-sonnet-20241022';
+  const thinkingModel =
+    overrides?.thinkingModel !== undefined
+      ? overrides.thinkingModel
+      : process.env['LLM_THINKING_MODEL'] || null;
 
   const openai = new OpenAI({
     apiKey,

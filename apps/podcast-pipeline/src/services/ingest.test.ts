@@ -1306,15 +1306,15 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses default Fish Audio TTS metadata for zh-Hant', async () => {
+  it('uses default Google TTS metadata for zh-Hant', async () => {
     await performIngest('https://example.com/article', 'zh-Hant');
 
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'zh-Hant',
-        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
+        ttsLanguageCode: 'cmn-TW',
+        ttsVoiceName: 'cmn-TW-Wavenet-A',
       }),
     );
   });

@@ -18,10 +18,23 @@ const TARGET_LANGUAGE_NAME: Record<SecondaryLanguageCode, string> = {
   en: 'English',
 };
 
+// Translation is a low-difficulty task and does not justify the (pricier) model
+// used for script generation. It gets its own cheap, dedicated model, falling
+// back to a budget Google flash-lite model when LLM_TRANSLATION_MODEL is unset.
+// This is independent of LLM_MODEL (script/classroom generation are unaffected).
+const TRANSLATION_DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
+
 interface OpenRouterConfig {
   openai: OpenAI;
   model: string;
   thinkingModel: string | null;
+}
+
+function getTranslationConfig(): OpenRouterConfig {
+  return getOpenRouterConfig({
+    model: process.env['LLM_TRANSLATION_MODEL'] || TRANSLATION_DEFAULT_MODEL,
+    thinkingModel: null,
+  });
 }
 
 interface TranslationCompletion {
@@ -48,7 +61,7 @@ export async function translateCanonicalScript({
   script,
   targetLanguageCode,
 }: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  const config = getOpenRouterConfig();
+  const config = getTranslationConfig();
   const [translatedTitle, translatedScript] = await Promise.all([
     translateTextWithLLM(title, targetLanguageCode, config),
     translateTextWithLLM(script, targetLanguageCode, config),
@@ -71,7 +84,7 @@ export async function translateChineseText(
   text: string,
   targetLanguageCode: SecondaryLanguageCode,
 ): Promise<{ text: string; cost: UsageCostLine[] }> {
-  const config = getOpenRouterConfig();
+  const config = getTranslationConfig();
   const translated = await translateTextWithLLM(
     text,
     targetLanguageCode,

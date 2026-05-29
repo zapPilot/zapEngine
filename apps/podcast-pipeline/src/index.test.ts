@@ -653,8 +653,8 @@ describe('POST /ingest pipeline', () => {
           'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
         r2Prefix:
           'episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main',
-        ttsLanguageCode: 'zh-Hant',
-        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
+        ttsLanguageCode: 'cmn-TW',
+        ttsVoiceName: 'cmn-TW-Wavenet-A',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
@@ -724,8 +724,8 @@ describe('POST /ingest pipeline', () => {
     expect(body.summary).toContain('- LLM classrooms (');
   });
 
-  it('persists code-owned Fish Audio metadata even when TTS env overrides are present', async () => {
-    vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'google');
+  it('persists code-owned Google TTS metadata even when TTS env overrides are present', async () => {
+    vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'fish-audio');
 
     const response = await app.request('/ingest', {
       method: 'POST',
@@ -741,8 +741,8 @@ describe('POST /ingest pipeline', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'zh-Hant',
-        ttsVoiceName: 'debb4c1065114ffda03f3a60abdcc421',
+        ttsLanguageCode: 'cmn-TW',
+        ttsVoiceName: 'cmn-TW-Wavenet-A',
       }),
     );
   });

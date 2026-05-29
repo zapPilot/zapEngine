@@ -20,9 +20,7 @@ export type TtsLanguageConfig =
   | FishAudioTtsLanguageConfig
   | GoogleTtsLanguageConfig;
 
-const FISH_AUDIO_PROVIDER = 'fish-audio';
 const GOOGLE_PROVIDER = 'google';
-const DEFAULT_FISH_AUDIO_MODEL_ID = 'debb4c1065114ffda03f3a60abdcc421';
 const GOOGLE_ZH_HANT_CONFIG = {
   provider: GOOGLE_PROVIDER,
   languageCode: 'cmn-TW',
@@ -43,11 +41,7 @@ export const MAIN_TTS_CONFIG: Record<
   LanguageClassroomLanguageCode,
   TtsLanguageConfig
 > = {
-  'zh-Hant': {
-    provider: FISH_AUDIO_PROVIDER,
-    modelId: DEFAULT_FISH_AUDIO_MODEL_ID,
-    engine: 's2-pro',
-  },
+  'zh-Hant': GOOGLE_ZH_HANT_CONFIG,
   ja: GOOGLE_JA_CONFIG,
   en: GOOGLE_EN_CONFIG,
 };
