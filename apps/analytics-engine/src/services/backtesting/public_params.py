@@ -225,7 +225,7 @@ def public_params_to_runtime_params(
     normalized = _normalize_recipe_params(recipe, raw_params)
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+        from src.services.backtesting.strategies.rule_based_portfolio import (
             DmaGatedFgiParams,
         )
 
@@ -247,7 +247,7 @@ def runtime_params_to_public_params(
         return _as_json_params(raw_params)
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+        from src.services.backtesting.strategies.rule_based_portfolio import (
             DmaGatedFgiParams,
         )
 

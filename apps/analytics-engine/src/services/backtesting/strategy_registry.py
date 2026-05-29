@@ -30,9 +30,9 @@ from src.services.backtesting.features import (
 from src.services.backtesting.public_params import DmaGatedFgiPublicParams
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
+    RuleBasedPortfolioStrategy,
     build_initial_portfolio_rules_asset_allocation,
 )
 
@@ -155,7 +155,7 @@ def _build_portfolio_rules_strategy(
         if request.mode == "compare"
         else None
     )
-    return DmaFgiPortfolioRulesStrategy(
+    return RuleBasedPortfolioStrategy(
         total_capital=request.total_capital,
         params=params,
         strategy_id=strategy_id,

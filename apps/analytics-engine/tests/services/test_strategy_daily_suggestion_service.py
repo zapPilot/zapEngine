@@ -293,7 +293,7 @@ def test_get_daily_suggestion_builds_recipe_first_response(
         return StrategyAction(snapshot=_sell_snapshot(signal=_default_signal()))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         _fake_daily_recommendation,
     )
 
@@ -368,7 +368,7 @@ def test_get_daily_suggestion_rotation_preserves_asset_target_allocation(
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_rotation_snapshot(signal=_default_signal())
         ),
@@ -438,7 +438,7 @@ def test_get_daily_suggestion_exposes_debt_aware_totals_without_changing_runtime
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(signal=_default_signal())
         ),
@@ -499,7 +499,7 @@ def test_get_daily_suggestion_marks_hold_rotation_transfers_as_action_required(
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(
                 signal=_default_signal(),
@@ -566,7 +566,7 @@ def test_get_daily_suggestion_marks_hold_rotation_cooldown_as_blocked(
     )
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_hold_rotation_snapshot(
                 signal=_default_signal(),
@@ -709,7 +709,7 @@ def test_get_daily_suggestion_uses_store_default_config_when_config_id_missing(
     mocks["strategy_config_store"].resolve_config = lambda _config_id: custom_default
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         lambda self, input_data: StrategyAction(
             snapshot=_sell_snapshot(signal=_default_signal())
         ),
@@ -785,7 +785,7 @@ def test_get_daily_suggestion_uses_recipe_capabilities(
         return StrategyAction(snapshot=_sell_snapshot(signal=_default_signal()))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         _fake_daily_recommendation,
     )
 
@@ -846,7 +846,7 @@ def test_get_daily_suggestion_requires_serialized_signal(
         return StrategyAction(snapshot=_sell_snapshot(signal=None))
 
     monkeypatch.setattr(
-        "src.services.backtesting.strategies.dma_fgi_portfolio_rules.DmaFgiPortfolioRulesStrategy.get_daily_recommendation",
+        "src.services.backtesting.strategies.rule_based_portfolio.RuleBasedPortfolioStrategy.get_daily_recommendation",
         _missing_signal,
     )
     mocks["landing_page_service"].get_landing_page_data = (

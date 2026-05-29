@@ -21,7 +21,7 @@ from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
 )
 from src.services.backtesting.portfolio_rules.decision_policy import (
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
     build_portfolio_rules_for_params,
 )
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
@@ -34,9 +34,9 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
 from src.services.backtesting.strategies.base import StrategyContext, TransferIntent
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
+    RuleBasedPortfolioStrategy,
 )
 from tests.services.backtesting.portfolio_rules.helpers import state
 
@@ -46,7 +46,7 @@ def test_strategy_params_wire_disabled_rules_into_decision_policy() -> None:
         {"disabled_rules": ["cross_down_exit"]}
     )
 
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0, params=params)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0, params=params)
 
     assert strategy.decision_policy.disabled_rules == frozenset({"cross_down_exit"})
     assert "cross_down_exit" not in [
@@ -73,10 +73,10 @@ def test_strategy_params_wire_overextension_multipliers_into_rule() -> None:
 
 
 def test_strategy_feature_summary_reflects_default_active_rules() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
 
     assert strategy.feature_summary() == {
-        "policy": "DmaFgiPortfolioRulesStrategy",
+        "policy": "RuleBasedPortfolioStrategy",
         "active_features": [
             "portfolio_level_rules",
             "cross_down_exit",
@@ -131,7 +131,7 @@ def test_strategy_cross_down_exits_crypto_peers_to_stable() -> None:
         {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -159,7 +159,7 @@ def test_strategy_cross_down_exits_crypto_peers_to_stable() -> None:
 
 
 def test_strategy_uses_rule_based_executor_without_legacy_pacing() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
 
     assert isinstance(strategy.execution_engine, RuleBasedAllocationExecutor)
     assert not hasattr(strategy.execution_engine, "pacing_policy")
@@ -173,7 +173,7 @@ def test_strategy_cross_up_equal_weights_currently_above_assets() -> None:
         {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -207,7 +207,7 @@ def test_strategy_cross_down_cooldown_blocks_next_cross_up() -> None:
         {"btc": 1.0, "eth": 0.0, "spy": 0.0, "stable": 0.0},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -258,7 +258,7 @@ def test_crypto_peer_cross_down_starts_peer_cooldown_for_reentry() -> None:
         {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -336,7 +336,7 @@ def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> N
         {"btc": 0.40, "eth": 0.0, "spy": 0.40, "stable": 0.20},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -376,7 +376,7 @@ def test_cross_down_cooldown_keeps_spy_and_btc_blocked_for_default_window() -> N
 
 
 def test_decision_policy_persists_previous_fgi_regimes_for_downshift_rule() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    policy = RuleBasedPortfolioDecisionPolicy()
     first_snapshot = _flat_state(
         btc=state(symbol="BTC", fgi_regime="greed"),
         current={"btc": 0.50, "eth": 0.0, "spy": 0.0, "stable": 0.50, "alt": 0.0},
@@ -402,7 +402,7 @@ def test_strategy_ratio_cross_up_rotates_btc_and_stable_to_eth() -> None:
         {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -435,7 +435,7 @@ def test_portfolio_rules_swap_btc_to_eth_on_2025_07_15_cross_up() -> None:
     snapshot = _flat_minimum_state_with_ratio_cross_up(
         current_alloc={"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30}
     )
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    policy = RuleBasedPortfolioDecisionPolicy()
 
     intent = policy.decide(snapshot)
 
@@ -453,7 +453,7 @@ def test_strategy_ratio_cross_down_rotates_eth_to_btc() -> None:
         {"btc": 0.10, "eth": 0.30, "spy": 0.30, "stable": 0.30},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     warmup_context = _context(
         context_date=date(2025, 1, 1),
         portfolio=portfolio,
@@ -488,7 +488,7 @@ def test_strategy_ratio_rotation_cooldown_blocks_second_cross() -> None:
         {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
         prices,
     )
-    strategy = DmaFgiPortfolioRulesStrategy(total_capital=10_000.0)
+    strategy = RuleBasedPortfolioStrategy(total_capital=10_000.0)
     dma = {"btc": 99.0, "eth": 99.0, "spy": 99.0}
     warmup_context = _context(
         context_date=date(2025, 1, 1),
@@ -557,7 +557,7 @@ def test_strategy_ratio_rotation_cooldown_blocks_second_cross() -> None:
 
 
 def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy()
+    policy = RuleBasedPortfolioDecisionPolicy()
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.20, "stable": 0.80, "alt": 0.0}
 
     spy_cross_down = policy.decide(
@@ -608,7 +608,7 @@ def test_spy_cross_down_does_not_open_crypto_cycle() -> None:
 
 
 def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=(CrossUpEqualWeightRule(cooldown_days=7),),
     )
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
@@ -685,7 +685,7 @@ def test_per_rule_cooldown_skips_only_that_rule_after_execution() -> None:
 
 
 def test_per_rule_cooldown_requires_actual_transfers() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=(CrossUpEqualWeightRule(cooldown_days=7),),
     )
     current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
@@ -743,7 +743,7 @@ def test_cross_up_equal_weight_cooldown_allows_different_trigger_symbol(
     trigger_symbol: str,
     target_key: str,
 ) -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    policy = RuleBasedPortfolioDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
     stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
     btc_cross_up = policy.decide(
@@ -801,7 +801,7 @@ def test_cross_up_equal_weight_cooldown_allows_different_trigger_symbol(
 
 
 def test_cross_up_equal_weight_cooldown_skips_same_trigger_symbol() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    policy = RuleBasedPortfolioDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
     stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
     first_btc_cross_up = policy.decide(
@@ -863,7 +863,7 @@ def test_cross_up_equal_weight_cooldown_skips_same_trigger_symbol() -> None:
 
 
 def test_cross_up_equal_weight_cooldown_allows_same_symbol_after_expiry() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    policy = RuleBasedPortfolioDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
     stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
     first_btc_cross_up = policy.decide(
@@ -909,7 +909,7 @@ def test_cross_up_equal_weight_cooldown_allows_same_symbol_after_expiry() -> Non
 
 
 def test_cross_up_equal_weight_per_symbol_cooldown_requires_actual_transfers() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
+    policy = RuleBasedPortfolioDecisionPolicy(rules=(CrossUpEqualWeightRule(),))
     stable_current = {"btc": 0.0, "eth": 0.0, "spy": 0.0, "stable": 1.0, "alt": 0.0}
 
     first_btc_cross_up = policy.decide(
@@ -954,7 +954,7 @@ def test_cross_up_equal_weight_per_symbol_cooldown_requires_actual_transfers() -
 
 
 def test_strategy_wires_trade_quota_guard_from_params() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(
+    strategy = RuleBasedPortfolioStrategy(
         total_capital=10_000.0,
         params=DmaGatedFgiParams(min_trade_interval_days=3),
     )
@@ -965,7 +965,7 @@ def test_strategy_wires_trade_quota_guard_from_params() -> None:
 
 
 def test_policy_receives_executor_trade_dates_for_quota_guards() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(
+    strategy = RuleBasedPortfolioStrategy(
         total_capital=10_000.0,
         params=DmaGatedFgiParams(min_trade_interval_days=3),
     )
@@ -1003,7 +1003,7 @@ def _execution_context(context_date: date) -> StrategyContext:
 
 
 def _record_rebalance(
-    policy: DmaFgiPortfolioRulesDecisionPolicy,
+    policy: RuleBasedPortfolioDecisionPolicy,
     *,
     intent: AllocationIntent,
     execution_date: date,
@@ -1081,7 +1081,7 @@ def _portfolio_rules_context(
 
 
 def _step_signal(
-    strategy: DmaFgiPortfolioRulesStrategy,
+    strategy: RuleBasedPortfolioStrategy,
     context: StrategyContext,
 ) -> FlatMinimumState:
     snapshot = strategy.signal_component.observe(context)

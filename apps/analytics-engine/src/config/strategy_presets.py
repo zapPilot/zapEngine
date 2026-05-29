@@ -23,7 +23,7 @@ from src.services.backtesting.public_params import (
     normalize_nested_public_params,
     public_params_to_runtime_params,
 )
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
 )
 

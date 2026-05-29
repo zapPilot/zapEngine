@@ -40,7 +40,7 @@ from src.services.backtesting.portfolio_rules.base import (
 from src.services.backtesting.portfolio_rules.cross_down_exit import CrossDownExitRule
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
     RuleExecutionState,
     active_rules,
     assert_known_rule_names,
@@ -294,7 +294,7 @@ class DmaGatedFgiParams(BaseModel):
 
 
 @dataclass
-class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
+class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
     """Canonical flat SPY/BTC/ETH portfolio-rule strategy."""
 
     total_capital: float
@@ -304,7 +304,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
         default_factory=DmaGatedFgiParams
     )
     signal_component: FlatMinimumSignalComponent = field(init=False, repr=False)
-    decision_policy: DmaFgiPortfolioRulesDecisionPolicy = field(
+    decision_policy: RuleBasedPortfolioDecisionPolicy = field(
         init=False,
         repr=False,
     )
@@ -343,7 +343,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             resolved_params,
             include_inactive=True,
         )
-        self.decision_policy = DmaFgiPortfolioRulesDecisionPolicy(
+        self.decision_policy = RuleBasedPortfolioDecisionPolicy(
             rules=rules,
             disabled_rules=self.disabled_rules,
             enabled_rules=self.enabled_rules,
@@ -396,7 +396,7 @@ class DmaFgiPortfolioRulesStrategy(ComposedSignalStrategy):
             isinstance(rule, EthBtcRatioRotationRule) for rule in active
         )
         return {
-            "policy": "DmaFgiPortfolioRulesStrategy",
+            "policy": "RuleBasedPortfolioStrategy",
             "active_features": ["portfolio_level_rules", *rule_names],
             "ratio_rotation": has_ratio_rotation,
             "research_only": True,
@@ -428,14 +428,14 @@ def build_initial_portfolio_rules_asset_allocation(
     )
 
 
-def default_dma_fgi_portfolio_rules_params() -> dict[str, JsonValue]:
+def default_rule_based_portfolio_params() -> dict[str, JsonValue]:
     return DmaGatedFgiParams().to_public_params()
 
 
 __all__ = [
     "DMA_GATED_FGI_PUBLIC_PARAM_KEYS",
-    "DmaFgiPortfolioRulesStrategy",
+    "RuleBasedPortfolioStrategy",
     "DmaGatedFgiParams",
     "build_initial_portfolio_rules_asset_allocation",
-    "default_dma_fgi_portfolio_rules_params",
+    "default_rule_based_portfolio_params",
 ]

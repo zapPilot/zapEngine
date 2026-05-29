@@ -27,14 +27,14 @@ from src.services.backtesting.execution.trade_quota_guard_plugin import (
 from src.services.backtesting.portfolio_rules.base import DecisionPolicy
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
 )
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
 )
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
@@ -287,7 +287,7 @@ def build_default_composition_catalog() -> CompositionCatalog:
         },
         decision_policies={
             "dma_fgi_portfolio_rules_policy": lambda p: _build_decision_policy(
-                DmaFgiPortfolioRulesDecisionPolicy,
+                RuleBasedPortfolioDecisionPolicy,
                 p,
                 "dma_fgi_portfolio_rules_policy",
             ),

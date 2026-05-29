@@ -22,8 +22,8 @@ from src.services.backtesting.composition_catalog import (
     build_default_composition_catalog,
 )
 from src.services.backtesting.features import DMA_200_FEATURE, ETH_DMA_200_FEATURE
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
+    RuleBasedPortfolioStrategy,
 )
 from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from tests.services.backtesting.support import (
@@ -72,7 +72,7 @@ def test_resolved_seed_portfolio_rules_strategy_uses_rule_based_builder() -> Non
         )
     )
 
-    assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
+    assert isinstance(strategy, RuleBasedPortfolioStrategy)
     assert strategy.signal_component.ratio_cross_cooldown_days == 30
 
 

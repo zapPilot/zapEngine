@@ -12,8 +12,8 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
+    RuleBasedPortfolioStrategy,
 )
 from src.services.backtesting.strategy_catalog import get_strategy_catalog_v3
 from src.services.backtesting.strategy_registry import (
@@ -75,7 +75,7 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         )
     )
 
-    assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
+    assert isinstance(strategy, RuleBasedPortfolioStrategy)
     assert strategy.strategy_id == "portfolio-rules-test"
     assert strategy.initial_asset_allocation == {
         "btc": 1 / 3,
