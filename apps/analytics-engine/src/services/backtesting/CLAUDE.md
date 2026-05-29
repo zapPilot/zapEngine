@@ -9,7 +9,10 @@ If you are not working on strategy iteration, you can skip this file.
 
 ## Current Baseline
 
-`dma_fgi_portfolio_rules` is the canonical rule-only baseline. It evaluates
+`dma_fgi_portfolio_rules` is the canonical rule-only baseline. The Python class is
+`RuleBasedPortfolioStrategy` (`strategies/rule_based_portfolio.py`); the wire id /
+`strategy_id` stays `dma_fgi_portfolio_rules` on purpose — see the 2026-05-30
+ITERATION_LOG entry on why the code identity and the wire id diverge. It evaluates
 portfolio rules first-match-wins by priority, applies risk guards, then executes
 the final target atomically through `RuleBasedAllocationExecutor`.
 
@@ -25,6 +28,21 @@ Active default rules:
 Known non-default rules remain available for attribution diagnostics and
 `enabled_rules` isolation, but are not eligible to fire in the default strategy
 unless explicitly allowlisted.
+
+## Strategy isolation (frozen benchmarks)
+
+Rule experiments — toggling `enabled_rules` / `disabled_rules`, retuning rule
+priorities or thresholds — run **only** on the rule-based strategy
+(`RuleBasedPortfolioStrategy`, wire id `dma_fgi_portfolio_rules`). `dca_classic` is
+a **frozen benchmark**: a plain `BaseStrategy` with no rule engine whose params
+model rejects all params, so rule params can never leak into it and every backtest
+stays anchored to an untouched baseline. The registry guard
+`test_rule_experiment_params_isolated_to_rule_based_strategy` enforces this — a new
+non-rule strategy that accepts rule params will fail it.
+
+There is intentionally **no** `baselines/` or `experimental/` directory: with two
+strategies that would be premature abstraction. The `is_default` / `is_benchmark`
+flags on seed configs already carry the distinction.
 
 ## Known Retune Items
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from pydantic import ValidationError
+
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
@@ -47,6 +49,22 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
         STRATEGY_DCA_CLASSIC,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
     }
+
+
+def test_rule_experiment_params_isolated_to_rule_based_strategy() -> None:
+    """Isolation guard: rule-experiment params (``enabled_rules`` /
+    ``disabled_rules``) are accepted ONLY by the rule-based strategy. Benchmarks
+    such as ``dca_classic`` reject all params, so rule experiments stay isolated to
+    ``RuleBasedPortfolioStrategy`` and ``dca_classic`` remains a frozen benchmark.
+    A future non-rule strategy that silently accepts rule params trips this."""
+    accepting: list[str] = []
+    for recipe in list_strategy_recipes():
+        try:
+            recipe.normalize_public_params({"enabled_rules": ["cross_down_exit"]})
+        except (ValueError, ValidationError):
+            continue
+        accepting.append(recipe.strategy_id)
+    assert accepting == [STRATEGY_DMA_FGI_PORTFOLIO_RULES]
 
 
 def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
