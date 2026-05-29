@@ -6,7 +6,7 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 
 - Hono on Node.js - TypeScript
 - OpenRouter-compatible LLM API
-- Fish Audio and Google Cloud Text-to-Speech
+- Google Cloud Text-to-Speech (Fish Audio provider wired but currently unused)
 - FFmpeg HLS packaging
 - Cloudflare R2 (S3-compatible storage)
 - Supabase PostgreSQL
@@ -18,9 +18,9 @@ Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`, and `/epi
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `FISH_AUDIO_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS; title/script translation uses the same OpenRouter path as script generation.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS. Script generation and language-classroom generation use `LLM_MODEL`; title/script translation uses a separate, cheaper `LLM_TRANSLATION_MODEL` (defaults to `google/gemini-2.5-flash-lite`) over the same OpenRouter path. `FISH_AUDIO_API_KEY` is only needed if the Fish Audio provider is re-enabled.
 
-TTS provider selection is per classroom language and code-owned in `src/services/tts/tts-config.ts`. Defaults are `zh-Hant` via Fish Audio and `ja`/`en` via Google; changing providers, models, engines, or voices requires a code change and deploy.
+TTS provider selection is per classroom language and code-owned in `src/services/tts/tts-config.ts`. All languages (`zh-Hant`, `ja`, `en`) currently route to Google for both main and classroom audio; the Fish Audio provider remains wired but unused. Changing providers, models, engines, or voices requires a code change and deploy.
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 

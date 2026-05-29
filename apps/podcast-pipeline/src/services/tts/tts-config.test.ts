@@ -14,9 +14,9 @@ describe('TTS language config', () => {
 
   it('declares main-body and classroom routing in named config maps', () => {
     expect(MAIN_TTS_CONFIG['zh-Hant']).toEqual({
-      provider: 'fish-audio',
-      modelId: 'debb4c1065114ffda03f3a60abdcc421',
-      engine: 's2-pro',
+      provider: 'google',
+      languageCode: 'cmn-TW',
+      voiceName: 'cmn-TW-Wavenet-A',
     });
     expect(MAIN_TTS_CONFIG.ja).toEqual({
       provider: 'google',
@@ -46,7 +46,7 @@ describe('TTS language config', () => {
   });
 
   it.each([
-    ['main', 'zh-Hant', 'fish-audio'],
+    ['main', 'zh-Hant', 'google'],
     ['main', 'ja', 'google'],
     ['main', 'en', 'google'],
     ['classroom', 'zh-Hant', 'google'],
@@ -67,9 +67,9 @@ describe('TTS language config', () => {
     vi.stubEnv('TTS_JA_PROVIDER', 'elevenlabs');
 
     expect(getTtsConfig('main', 'zh-Hant')).toEqual({
-      provider: 'fish-audio',
-      modelId: 'debb4c1065114ffda03f3a60abdcc421',
-      engine: 's2-pro',
+      provider: 'google',
+      languageCode: 'cmn-TW',
+      voiceName: 'cmn-TW-Wavenet-A',
     });
     expect(getTtsConfig('main', 'ja')).toEqual({
       provider: 'google',

@@ -29,8 +29,10 @@ describe('translateChineseText', () => {
     vi.clearAllMocks();
     vi.stubEnv('OPENROUTER_API_KEY', 'test-openrouter-key');
     vi.stubEnv('OPENROUTER_BASE_URL', 'https://openrouter.test/api/v1');
-    vi.stubEnv('LLM_MODEL', 'openrouter/test-model');
-    vi.stubEnv('LLM_THINKING_MODEL', '');
+    // Translation must ignore LLM_MODEL / LLM_THINKING_MODEL and use its own model.
+    vi.stubEnv('LLM_MODEL', 'openrouter/should-not-be-used');
+    vi.stubEnv('LLM_TRANSLATION_MODEL', 'openrouter/test-model');
+    vi.stubEnv('LLM_THINKING_MODEL', 'openrouter/should-not-think');
     mockCreate.mockResolvedValue({
       model: 'openrouter/resolved-model',
       provider: 'openrouter-test',
@@ -74,6 +76,18 @@ describe('translateChineseText', () => {
         },
       ],
     });
+  });
+
+  it('defaults to google/gemini-2.5-flash-lite when LLM_TRANSLATION_MODEL is unset', async () => {
+    vi.stubEnv('LLM_TRANSLATION_MODEL', '');
+
+    await translateChineseText('滑鼠和腳踏車市場', 'en');
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'google/gemini-2.5-flash-lite',
+      }),
+    );
   });
 
   it('preserves empty text without calling the LLM', async () => {
@@ -123,7 +137,9 @@ describe('translateCanonicalScript', () => {
     vi.clearAllMocks();
     vi.stubEnv('OPENROUTER_API_KEY', 'test-openrouter-key');
     vi.stubEnv('OPENROUTER_BASE_URL', 'https://openrouter.test/api/v1');
-    vi.stubEnv('LLM_MODEL', 'openrouter/test-model');
+    // Translation must ignore LLM_MODEL / LLM_THINKING_MODEL and use its own model.
+    vi.stubEnv('LLM_MODEL', 'openrouter/should-not-be-used');
+    vi.stubEnv('LLM_TRANSLATION_MODEL', 'openrouter/test-model');
     vi.stubEnv('LLM_THINKING_MODEL', 'openrouter/thinking-model');
     mockCreate
       .mockResolvedValueOnce({
@@ -153,12 +169,10 @@ describe('translateCanonicalScript', () => {
       expect.objectContaining({
         model: 'openrouter/test-model',
         temperature: 0.2,
+        // Translation forces thinkingModel=null, so no thinking block is sent
+        // even when LLM_THINKING_MODEL is configured for script generation.
         extra_body: {
           usage: { include: true },
-          thinking: {
-            type: 'optimized',
-            model: 'openrouter/thinking-model',
-          },
         },
       }),
     );
