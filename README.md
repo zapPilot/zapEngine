@@ -61,8 +61,18 @@ pnpm --filter @zapengine/analytics-engine run build   # wraps `uv sync --locked`
 ## Development
 
 ```bash
-# Start frontend + account-engine + analytics-engine (typical daily dev)
+# Start the daily product stack: frontend + account-engine + analytics-engine + shared package watchers
 pnpm dev
+
+# Start analytics-engine only
+pnpm dev:analytics
+
+# Start the lighter stack only when you do not need backtesting or analytics pages
+pnpm dev:lite
+
+# Start just one side of the daily stack
+pnpm dev:frontend
+pnpm dev:api
 
 # Start landing page only (includes /pitch/)
 pnpm dev:landing
@@ -74,7 +84,7 @@ pnpm --filter @zapengine/mobile dev
 pnpm dev:all
 ```
 
-All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform.
+All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev:lite` only when you are not touching those pages.
 
 For build, test, lint, and type-check commands see [CLAUDE.md](./CLAUDE.md#per-app-tooling).
 

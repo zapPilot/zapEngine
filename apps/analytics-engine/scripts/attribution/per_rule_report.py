@@ -79,8 +79,7 @@ def render_text_report(report: PerRuleReport) -> str:
     lines = ["rule match_count win_count shadowed_count"]
     for row in _sorted_rows(report):
         lines.append(
-            f"{row.rule_name} {row.match_count} {row.win_count} "
-            f"{row.shadowed_count}"
+            f"{row.rule_name} {row.match_count} {row.win_count} {row.shadowed_count}"
         )
     if report.shadowing_matrix:
         lines.append("")

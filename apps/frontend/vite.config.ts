@@ -37,6 +37,10 @@ function getManualChunk(id: string): string | undefined {
     return "vendor-wagmi";
   }
 
+  if (/[\\/]node_modules[\\/]@rainbow-me[\\/]rainbowkit[\\/]/.test(id)) {
+    return "vendor-rainbowkit";
+  }
+
   if (id.includes(`${path.sep}node_modules${path.sep}framer-motion${path.sep}`)) {
     return "vendor-motion";
   }
@@ -164,6 +168,8 @@ export default defineConfig(({ mode }) => ({
         "src/**/*.stories.*",
         "src/**/*.test.*",
         "src/**/*.spec.*",
+        "src/main.tsx",
+        "src/shims/emptyModule.ts",
         "src/hooks/ui/useChartHover.ts",
         "src/hooks/ui/useClickOutside.ts",
         "src/hooks/ui/useAsyncRetryButton.ts",

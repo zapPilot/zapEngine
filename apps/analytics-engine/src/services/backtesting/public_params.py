@@ -6,10 +6,9 @@ translates it to the flat runtime params consumed by the strategy classes.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Self, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import (
     BaseModel,
@@ -17,7 +16,6 @@ from pydantic import (
     Field,
     JsonValue,
     field_validator,
-    model_validator,
 )
 
 from src.services.backtesting.portfolio_rules import RULE_NAMES
@@ -86,21 +84,6 @@ class _TopEscapePublicParams(BaseModel):
     fgi_slope_recovery_threshold: float = Field(default=0.05, ge=0.0)
 
 
-class _TargetWeightsParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    btc: float = Field(default=0.25, ge=0.0, le=1.0)
-    eth: float = Field(default=0.25, ge=0.0, le=1.0)
-    spy: float = Field(default=0.25, ge=0.0, le=1.0)
-    stable: float = Field(default=0.25, ge=0.0, le=1.0)
-
-
-def _validate_target_weights_sum(weights: _TargetWeightsParams) -> None:
-    total = weights.btc + weights.eth + weights.spy + weights.stable
-    if not math.isclose(total, 1.0, abs_tol=1e-4):
-        raise ValueError(f"target_weights must sum to 1.0 (got {total:.6f})")
-
-
 class DmaGatedFgiPublicParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,19 +107,6 @@ class DmaGatedFgiPublicParams(BaseModel):
             joined = ", ".join(invalid_rules)
             raise ValueError(f"Unsupported portfolio rule names: {joined}")
         return value
-
-
-class FixedIntervalRebalancePublicParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    interval_days: int = Field(default=30, ge=1, le=365, strict=True)
-    min_drift_pct: float | None = Field(default=None, ge=0.0, le=1.0)
-    target_weights: _TargetWeightsParams = Field(default_factory=_TargetWeightsParams)
-
-    @model_validator(mode="after")
-    def _weights_sum_to_one(self) -> Self:
-        _validate_target_weights_sum(self.target_weights)
-        return self
 
 
 def _get_recipe(strategy_id: str) -> StrategyRecipe:
@@ -255,7 +225,7 @@ def public_params_to_runtime_params(
     normalized = _normalize_recipe_params(recipe, raw_params)
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+        from src.services.backtesting.strategies.rule_based_portfolio import (
             DmaGatedFgiParams,
         )
 
@@ -277,7 +247,7 @@ def runtime_params_to_public_params(
         return _as_json_params(raw_params)
 
     if recipe.param_family == "dma":
-        from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+        from src.services.backtesting.strategies.rule_based_portfolio import (
             DmaGatedFgiParams,
         )
 
@@ -314,7 +284,6 @@ def normalize_saved_strategy_public_params(
 
 __all__ = [
     "DmaGatedFgiPublicParams",
-    "FixedIntervalRebalancePublicParams",
     "get_default_public_params",
     "get_nested_public_params_schema",
     "normalize_nested_public_params",

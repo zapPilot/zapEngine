@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import date
 
+from pydantic import ValidationError
+
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_FIXED_INTERVAL_REBALANCE,
 )
 from src.services.backtesting.features import (
     DMA_200_FEATURE,
@@ -13,8 +14,8 @@ from src.services.backtesting.features import (
     ETH_DMA_200_FEATURE,
     SPY_DMA_200_FEATURE,
 )
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
+    RuleBasedPortfolioStrategy,
 )
 from src.services.backtesting.strategy_catalog import get_strategy_catalog_v3
 from src.services.backtesting.strategy_registry import (
@@ -39,20 +40,6 @@ def test_strategy_registry_exposes_portfolio_rules_recipe_with_macro_requirement
     )
 
 
-def test_strategy_registry_exposes_fixed_interval_recipe_with_eth_spy_spot_assets() -> (
-    None
-):
-    recipe = get_strategy_recipe(STRATEGY_FIXED_INTERVAL_REBALANCE)
-
-    assert recipe.primary_asset == "BTC"
-    assert recipe.supports_daily_suggestion is False
-    assert recipe.market_data_requirements.requires_sentiment is True
-    assert recipe.market_data_requirements.requires_macro_fear_greed is False
-    assert recipe.market_data_requirements.required_spot_assets == frozenset(
-        {"BTC", "ETH", "SPY"}
-    )
-
-
 def test_catalog_is_derived_from_strategy_registry() -> None:
     catalog = get_strategy_catalog_v3()
     recipe_ids = {recipe.strategy_id for recipe in list_strategy_recipes()}
@@ -61,8 +48,23 @@ def test_catalog_is_derived_from_strategy_registry() -> None:
     assert recipe_ids == {
         STRATEGY_DCA_CLASSIC,
         STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-        STRATEGY_FIXED_INTERVAL_REBALANCE,
     }
+
+
+def test_rule_experiment_params_isolated_to_rule_based_strategy() -> None:
+    """Isolation guard: rule-experiment params (``enabled_rules`` /
+    ``disabled_rules``) are accepted ONLY by the rule-based strategy. Benchmarks
+    such as ``dca_classic`` reject all params, so rule experiments stay isolated to
+    ``RuleBasedPortfolioStrategy`` and ``dca_classic`` remains a frozen benchmark.
+    A future non-rule strategy that silently accepts rule params trips this."""
+    accepting: list[str] = []
+    for recipe in list_strategy_recipes():
+        try:
+            recipe.normalize_public_params({"enabled_rules": ["cross_down_exit"]})
+        except (ValueError, ValidationError):
+            continue
+        accepting.append(recipe.strategy_id)
+    assert accepting == [STRATEGY_DMA_FGI_PORTFOLIO_RULES]
 
 
 def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
@@ -91,7 +93,7 @@ def test_portfolio_rules_recipe_builds_compare_strategy() -> None:
         )
     )
 
-    assert isinstance(strategy, DmaFgiPortfolioRulesStrategy)
+    assert isinstance(strategy, RuleBasedPortfolioStrategy)
     assert strategy.strategy_id == "portfolio-rules-test"
     assert strategy.initial_asset_allocation == {
         "btc": 1 / 3,

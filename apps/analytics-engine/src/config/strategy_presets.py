@@ -17,14 +17,13 @@ from src.models.strategy_config import (
 from src.services.backtesting.constants import (
     STRATEGY_DCA_CLASSIC,
     STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_FIXED_INTERVAL_REBALANCE,
 )
 from src.services.backtesting.public_params import (
     get_default_public_params,
     normalize_nested_public_params,
     public_params_to_runtime_params,
 )
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
 )
 
@@ -184,77 +183,6 @@ def _build_composed_seed_config(
     )
 
 
-_FIXED_INTERVAL_PRESET_DEFINITIONS: Final[
-    tuple[tuple[str, str, str, dict[str, JsonValue]], ...]
-] = (
-    (
-        "fixed_interval_balanced_30d",
-        "Fixed Interval — Balanced 25/25/25/25, 30d",
-        "Experimental: monthly rebalance to equal-weight BTC/ETH/SPY/Stable.",
-        {
-            "interval_days": 30,
-            "target_weights": {
-                "btc": 0.25,
-                "eth": 0.25,
-                "spy": 0.25,
-                "stable": 0.25,
-            },
-        },
-    ),
-    (
-        "fixed_interval_conservative_30d",
-        "Fixed Interval — Conservative 10/10/10/70, 30d",
-        "Experimental: monthly rebalance to a 70% stable, 30% risk-on mix.",
-        {
-            "interval_days": 30,
-            "target_weights": {
-                "btc": 0.10,
-                "eth": 0.10,
-                "spy": 0.10,
-                "stable": 0.70,
-            },
-        },
-    ),
-    (
-        "fixed_interval_aggressive_90d",
-        "Fixed Interval — Aggressive 35/35/30/0, 90d",
-        "Experimental: quarterly rebalance to a 100% risk-on BTC/ETH/SPY mix.",
-        {
-            "interval_days": 90,
-            "target_weights": {
-                "btc": 0.35,
-                "eth": 0.35,
-                "spy": 0.30,
-                "stable": 0.0,
-            },
-        },
-    ),
-)
-
-
-def _build_fixed_interval_seed_config(
-    config_id: str,
-    display_name: str,
-    description: str,
-    params: dict[str, JsonValue],
-) -> SavedStrategyConfig:
-    return SavedStrategyConfig(
-        config_id=config_id,
-        display_name=display_name,
-        description=description,
-        strategy_id=STRATEGY_FIXED_INTERVAL_REBALANCE,
-        primary_asset="BTC",
-        params=params,
-        composition=StrategyComposition(
-            kind="benchmark",
-            bucket_mapper_id="spy_eth_btc_stable",
-        ),
-        supports_daily_suggestion=False,
-        is_default=False,
-        is_benchmark=False,
-    )
-
-
 SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
     *(
         _build_composed_seed_config(definition)
@@ -271,10 +199,6 @@ SEED_STRATEGY_CONFIGS: Final[list[SavedStrategyConfig]] = [
         supports_daily_suggestion=False,
         is_default=False,
         is_benchmark=True,
-    ),
-    *(
-        _build_fixed_interval_seed_config(*definition)
-        for definition in _FIXED_INTERVAL_PRESET_DEFINITIONS
     ),
 ]
 

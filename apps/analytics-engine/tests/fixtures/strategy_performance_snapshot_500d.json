@@ -10,7 +10,13 @@
     "calmar_ratio": 0.1,
     "sharpe_ratio": 0.1,
     "max_drawdown_percent": 1.0,
-    "trade_count": 5.0
+    "trade_count": 5.0,
+    "omega_ratio": 0.1,
+    "tail_ratio": 0.1,
+    "skewness": 0.05,
+    "excess_kurtosis": 0.1,
+    "pain_index": 0.01,
+    "max_drawdown_recovery_days": 5.0
   },
   "strategies": {
     "dca_classic": {
@@ -19,7 +25,16 @@
       "sharpe_ratio": -0.1686,
       "max_drawdown_percent": -42.9936,
       "roi_percent": -14.3192,
-      "trade_count": 500
+      "trade_count": 500,
+      "sortino_ratio": -0.2299,
+      "volatility": 0.336,
+      "ulcer_index": 18.0231,
+      "omega_ratio": 0.9748,
+      "tail_ratio": 0.9699,
+      "skewness": -0.1929,
+      "excess_kurtosis": 6.8506,
+      "pain_index": 12.7743,
+      "max_drawdown_recovery_days": 68.0
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "DMA/FGI Portfolio Rules",
@@ -27,7 +42,16 @@
       "sharpe_ratio": 2.6274,
       "max_drawdown_percent": -8.9254,
       "roi_percent": 76.8826,
-      "trade_count": 53
+      "trade_count": 53,
+      "sortino_ratio": 3.2014,
+      "volatility": 0.1639,
+      "ulcer_index": 1.6967,
+      "omega_ratio": 1.9242,
+      "tail_ratio": 1.3264,
+      "skewness": 2.3994,
+      "excess_kurtosis": 15.5032,
+      "pain_index": 0.979,
+      "max_drawdown_recovery_days": 17.0
     }
   }
 }

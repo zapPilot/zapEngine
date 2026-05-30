@@ -22,6 +22,18 @@ def _central_moment(returns: np.ndarray, order: int) -> float:
     return float(np.mean(centred**order))
 
 
+def _standardised_moment(
+    returns: np.ndarray, order: int, subtract: float = 0.0
+) -> float:
+    """Compute ``E[(r-μ)^n] / σ^n - subtract``, returning 0.0 for degenerate series."""
+    if returns.size < 2 or float(np.ptp(returns)) == 0.0:
+        return 0.0
+    std = float(np.std(returns))
+    if std <= 0.0:
+        return 0.0
+    return _central_moment(returns, order) / (std**order) - subtract
+
+
 @dataclass(frozen=True)
 class Skewness:
     """Skewness of the daily-return distribution (third standardised moment)."""
@@ -33,19 +45,7 @@ class Skewness:
     )
 
     def compute(self, returns: np.ndarray) -> float:
-        if returns.size < 2:
-            return 0.0
-        # Exact guard for constant series: ``np.std`` of ``np.full(...)`` is a
-        # tiny FP-noise number, not zero, which would cause catastrophic
-        # cancellation in the central-moment / std^3 ratio.
-        if float(np.ptp(returns)) == 0.0:
-            return 0.0
-
-        std = float(np.std(returns))
-        if std <= 0.0:
-            return 0.0
-
-        return _central_moment(returns, 3) / (std**3)
+        return _standardised_moment(returns, 3)
 
 
 @dataclass(frozen=True)
@@ -59,13 +59,4 @@ class ExcessKurtosis:
     )
 
     def compute(self, returns: np.ndarray) -> float:
-        if returns.size < 2:
-            return 0.0
-        if float(np.ptp(returns)) == 0.0:
-            return 0.0
-
-        std = float(np.std(returns))
-        if std <= 0.0:
-            return 0.0
-
-        return _central_moment(returns, 4) / (std**4) - 3.0
+        return _standardised_moment(returns, 4, subtract=3.0)

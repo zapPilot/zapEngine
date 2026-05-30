@@ -37,6 +37,12 @@ METRIC_KEYS = (
     "sharpe_ratio",
     "max_drawdown_percent",
     "trade_count",
+    "omega_ratio",
+    "tail_ratio",
+    "skewness",
+    "excess_kurtosis",
+    "pain_index",
+    "max_drawdown_recovery_days",
 )
 DEFAULT_TOLERANCES: dict[str, float] = {
     "roi_percent": 2.0,
@@ -44,6 +50,12 @@ DEFAULT_TOLERANCES: dict[str, float] = {
     "sharpe_ratio": 0.10,
     "max_drawdown_percent": 1.0,
     "trade_count": 5.0,
+    "omega_ratio": 0.10,
+    "tail_ratio": 0.10,
+    "skewness": 0.05,
+    "excess_kurtosis": 0.10,
+    "pain_index": 0.01,
+    "max_drawdown_recovery_days": 5.0,
 }
 TOLERANCE_ALIASES = {
     "roi": "roi_percent",
@@ -57,6 +69,20 @@ TOLERANCE_ALIASES = {
     "max_drawdown_percent": "max_drawdown_percent",
     "trades": "trade_count",
     "trade_count": "trade_count",
+    "omega": "omega_ratio",
+    "omega_ratio": "omega_ratio",
+    "tail": "tail_ratio",
+    "tail_ratio": "tail_ratio",
+    "skew": "skewness",
+    "skewness": "skewness",
+    "kurt": "excess_kurtosis",
+    "kurtosis": "excess_kurtosis",
+    "excess_kurtosis": "excess_kurtosis",
+    "pain": "pain_index",
+    "pain_index": "pain_index",
+    "recovery": "max_drawdown_recovery_days",
+    "recovery_time": "max_drawdown_recovery_days",
+    "max_drawdown_recovery_days": "max_drawdown_recovery_days",
 }
 EXCLUDED_DISPLAY_PREFIXES = ("[DEPRECATED] ", "[RESEARCH] ")
 DEPRECATED_STRATEGIES_FIELD = "deprecated_strategies"
@@ -229,6 +255,19 @@ def _snapshot_strategy_entry(
             summary,
             "trade_count",
             integer_keys=("trade_count",),
+        ),
+        "sortino_ratio": _metric(summary, "sortino_ratio", round_digits=4),
+        "volatility": _metric(summary, "volatility", round_digits=4),
+        "ulcer_index": _metric(summary, "ulcer_index", round_digits=4),
+        "omega_ratio": _metric(summary, "omega_ratio", round_digits=4),
+        "tail_ratio": _metric(summary, "tail_ratio", round_digits=4),
+        "skewness": _metric(summary, "skewness", round_digits=4),
+        "excess_kurtosis": _metric(summary, "excess_kurtosis", round_digits=4),
+        "pain_index": _metric(summary, "pain_index", round_digits=4),
+        "max_drawdown_recovery_days": _metric(
+            summary,
+            "max_drawdown_recovery_days",
+            round_digits=4,
         ),
     }
 

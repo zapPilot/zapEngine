@@ -179,7 +179,9 @@ def _post_compare(
     endpoint: str | None,
     request: dict[str, Any],
 ) -> dict[str, Any]:
-    compare_url = COMPARE_PATH if endpoint is None else f"{endpoint.rstrip('/')}{COMPARE_PATH}"
+    compare_url = (
+        COMPARE_PATH if endpoint is None else f"{endpoint.rstrip('/')}{COMPARE_PATH}"
+    )
     response = client.post(compare_url, json=request, timeout=600.0)
     response.raise_for_status()
     payload = response.json()
@@ -237,13 +239,9 @@ def _row_for_config(
     roi = float(_metric(summary, "roi_percent", round_digits=4))
     baseline_roi = float(_metric(baseline_summary, "roi_percent", round_digits=4))
     calmar = float(_metric(summary, "calmar_ratio", round_digits=4))
-    baseline_calmar = float(
-        _metric(baseline_summary, "calmar_ratio", round_digits=4)
-    )
+    baseline_calmar = float(_metric(baseline_summary, "calmar_ratio", round_digits=4))
     sharpe = float(_metric(summary, "sharpe_ratio", round_digits=4))
-    baseline_sharpe = float(
-        _metric(baseline_summary, "sharpe_ratio", round_digits=4)
-    )
+    baseline_sharpe = float(_metric(baseline_summary, "sharpe_ratio", round_digits=4))
     trades = int(_metric(summary, "trade_count", integer_keys=("trade_count",)))
     baseline_trades = int(
         _metric(baseline_summary, "trade_count", integer_keys=("trade_count",))

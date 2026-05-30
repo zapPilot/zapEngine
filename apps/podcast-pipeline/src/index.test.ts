@@ -484,6 +484,36 @@ describe('POST /ingest authorization', () => {
       'ja',
     );
   });
+
+  it('reads the primary language from the request body when present', async () => {
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) =>
+        Promise.resolve(
+          localizationRow({
+            language_code: languageCode,
+            status: 'completed',
+          }),
+        ),
+    );
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: 'https://example.com/article',
+        language: 'ja',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'ja',
+    );
+  });
 });
 
 describe('POST /ingest pipeline', () => {
@@ -942,6 +972,24 @@ describe('POST /telegram/webhook', () => {
     const response = await postTelegramUpdate(
       telegramUpdate({ text: 'please read http://' }),
     );
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(telegramMessageTexts()).toEqual(['請貼一個 http(s) 文章網址']);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('treats a non-string message text as empty and prompts for a URL', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        from: { id: 12345, is_bot: false, first_name: 'Tester' },
+        chat: { id: 67890, type: 'private' },
+        date: 1,
+        text: 123,
+      },
+    });
 
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));

@@ -17,33 +17,25 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 
 
+class _BaseMetric(Protocol):
+    """Shared ``key`` / ``description`` contract for all metric flavours."""
+
+    @property
+    def key(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+
 @runtime_checkable
-class ReturnsMetric(Protocol):
+class ReturnsMetric(_BaseMetric, Protocol):
     """Metric computed from a 1D array of daily returns."""
 
-    @property
-    def key(self) -> str:
-        """Stable identifier emitted into the metric dict (snake_case)."""
-
-    @property
-    def description(self) -> str:
-        """Short human-readable description for catalog / docs."""
-
-    def compute(self, returns: np.ndarray) -> float:
-        """Return the metric value. Must return ``0.0`` for insufficient data."""
+    def compute(self, returns: np.ndarray) -> float: ...
 
 
 @runtime_checkable
-class ValuesMetric(Protocol):
+class ValuesMetric(_BaseMetric, Protocol):
     """Metric computed from a 1D array of daily portfolio values."""
 
-    @property
-    def key(self) -> str:
-        """Stable identifier emitted into the metric dict (snake_case)."""
-
-    @property
-    def description(self) -> str:
-        """Short human-readable description for catalog / docs."""
-
-    def compute(self, values: np.ndarray) -> float:
-        """Return the metric value. Must return ``0.0`` for insufficient data."""
+    def compute(self, values: np.ndarray) -> float: ...

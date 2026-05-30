@@ -39,6 +39,7 @@ export function useTokenBalances(
         address ?? 'no-account',
       ],
       queryFn: () => {
+        /* v8 ignore next 3 -- @preserve: the `enabled` gate guarantees chainId + address are set */
         if (!chainId || !address) {
           throw new Error('Missing chain or wallet for balance lookup');
         }
@@ -57,6 +58,7 @@ export function useTokenBalances(
   const byAddress = new Map<string, TokenBalanceQuery>();
   for (const [index, result] of results.entries()) {
     const token = tokens[index];
+    /* v8 ignore next -- @preserve: results always aligns 1:1 with tokens */
     if (token) {
       byAddress.set(token.address, result);
     }

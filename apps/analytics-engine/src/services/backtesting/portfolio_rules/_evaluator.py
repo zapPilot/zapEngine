@@ -1,4 +1,4 @@
-"""RulesEvaluator and DmaFgiPortfolioRulesDecisionPolicy.
+"""RulesEvaluator and RuleBasedPortfolioDecisionPolicy.
 
 Top-level orchestration: builds the per-day snapshot, runs the first-match
 resolver, applies risk guards, then post-intent adjustments. The policy
@@ -131,7 +131,7 @@ class RulesEvaluator:
 
 
 @dataclass
-class DmaFgiPortfolioRulesDecisionPolicy(DecisionPolicy):
+class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
     """Decision policy that evaluates whole-portfolio rules."""
 
     decision_policy_id: str = "dma_fgi_portfolio_rules_policy"

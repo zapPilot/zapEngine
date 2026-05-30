@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src.services.backtesting.execution import drawdown_fraction_series
+
 
 @dataclass(frozen=True)
 class MaxDrawdownRecoveryTime:
@@ -29,20 +31,14 @@ class MaxDrawdownRecoveryTime:
         if values.size < 2:
             return 0.0
 
-        running_max = np.maximum.accumulate(values)
-        drawdown_pct = np.divide(
-            values - running_max,
-            running_max,
-            out=np.zeros_like(values, dtype=float),
-            where=running_max != 0,
-        )
+        drawdown_pct = drawdown_fraction_series(values)
 
         # No drawdown at all.
         if float(np.min(drawdown_pct)) >= 0.0:
             return 0.0
 
         trough_idx = int(np.argmin(drawdown_pct))
-        peak_value = float(running_max[trough_idx])
+        peak_value = float(np.max(values[: trough_idx + 1]))
 
         # First bar at or after the trough whose value >= the pre-drawdown peak.
         post_trough = values[trough_idx:]

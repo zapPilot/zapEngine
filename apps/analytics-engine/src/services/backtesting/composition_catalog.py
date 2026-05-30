@@ -16,10 +16,7 @@ from src.services.backtesting.capabilities import (
     map_portfolio_to_spy_eth_btc_stable_buckets,
     map_portfolio_to_two_buckets,
 )
-from src.services.backtesting.constants import (
-    STRATEGY_DMA_FGI_PORTFOLIO_RULES,
-    STRATEGY_FIXED_INTERVAL_REBALANCE,
-)
+from src.services.backtesting.constants import STRATEGY_DMA_FGI_PORTFOLIO_RULES
 from src.services.backtesting.execution.dma_buy_gate_plugin import (
     DmaBuyGateExecutionPlugin,
 )
@@ -30,20 +27,17 @@ from src.services.backtesting.execution.trade_quota_guard_plugin import (
 from src.services.backtesting.portfolio_rules.base import DecisionPolicy
 from src.services.backtesting.portfolio_rules.decision_policy import (
     PORTFOLIO_RULES_SIGNAL_ID,
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
 )
 from src.services.backtesting.signals.contracts import StatefulSignalComponent
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
 )
 from src.services.backtesting.strategies.base import BaseStrategy
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
 )
-from src.services.backtesting.strategy_registry import (
-    StrategyBuildRequest,
-    get_strategy_recipe,
-)
+from src.services.backtesting.strategy_registry import StrategyBuildRequest
 from src.services.backtesting.utils import (
     coerce_bool,
     coerce_float,
@@ -286,29 +280,6 @@ def _resolve_factory(
         raise ValueError(f"Unsupported {kind} '{component_id}'") from exc
 
 
-def _fixed_interval_benchmark_factory(
-    saved_config: SavedStrategyConfig,
-) -> Callable[[StrategyBuildRequest], BaseStrategy]:
-    recipe = get_strategy_recipe(STRATEGY_FIXED_INTERVAL_REBALANCE)
-
-    def _builder(request: StrategyBuildRequest) -> BaseStrategy:
-        effective_params = (
-            dict(request.params) if request.params else dict(saved_config.params)
-        )
-        effective_request = StrategyBuildRequest(
-            mode=request.mode,
-            total_capital=request.total_capital,
-            params=effective_params,
-            config_id=request.config_id or saved_config.config_id,
-            user_prices=request.user_prices,
-            initial_allocation=request.initial_allocation,
-            user_start_date=request.user_start_date,
-        )
-        return recipe.build_strategy(effective_request)
-
-    return _builder
-
-
 def build_default_composition_catalog() -> CompositionCatalog:
     return CompositionCatalog(
         signal_components={
@@ -316,7 +287,7 @@ def build_default_composition_catalog() -> CompositionCatalog:
         },
         decision_policies={
             "dma_fgi_portfolio_rules_policy": lambda p: _build_decision_policy(
-                DmaFgiPortfolioRulesDecisionPolicy,
+                RuleBasedPortfolioDecisionPolicy,
                 p,
                 "dma_fgi_portfolio_rules_policy",
             ),
@@ -343,14 +314,6 @@ def build_default_composition_catalog() -> CompositionCatalog:
                 runtime_portfolio_mode="asset",
                 required_slots=frozenset({"signal", "decision_policy"}),
                 supports_plugins=False,
-            ),
-            STRATEGY_FIXED_INTERVAL_REBALANCE: StrategyFamilySpec(
-                strategy_id=STRATEGY_FIXED_INTERVAL_REBALANCE,
-                composition_kind="benchmark",
-                mutable_via_admin=False,
-                runtime_portfolio_mode="asset",
-                supports_plugins=False,
-                benchmark_strategy_builder_factory=_fixed_interval_benchmark_factory,
             ),
         },
     )

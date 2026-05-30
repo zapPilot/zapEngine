@@ -42,6 +42,15 @@ class FakeCompareClient:
                 "max_drawdown_percent": -12.5,
                 "roi_percent": 24.75,
                 "trade_count": 8,
+                "sortino_ratio": 1.2,
+                "volatility": 0.18,
+                "ulcer_index": 4.5,
+                "omega_ratio": 1.4,
+                "tail_ratio": 1.1,
+                "skewness": -0.3,
+                "excess_kurtosis": 2.1,
+                "pain_index": 3.2,
+                "max_drawdown_recovery_days": 21.0,
             }
             for config in json["configs"]
         }

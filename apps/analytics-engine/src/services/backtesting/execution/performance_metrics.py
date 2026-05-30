@@ -15,6 +15,8 @@ Provides standardized calculations for:
 
 import numpy as np
 
+from src.services.backtesting.execution import drawdown_fraction_series
+
 
 class PerformanceMetricsCalculator:
     """Calculate financial performance metrics for backtesting."""
@@ -176,17 +178,7 @@ class PerformanceMetricsCalculator:
         """
         if values.size < 2:
             return 0.0
-
-        running_max = np.maximum.accumulate(values)
-        drawdown_pct = (
-            np.divide(
-                values - running_max,
-                running_max,
-                out=np.zeros_like(values, dtype=float),
-                where=running_max != 0,
-            )
-            * 100.0
-        )
+        drawdown_pct = drawdown_fraction_series(values) * 100.0
         return float(np.sqrt(np.mean(np.square(drawdown_pct))))
 
     @staticmethod

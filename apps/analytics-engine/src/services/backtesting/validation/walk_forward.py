@@ -132,6 +132,17 @@ def split_windows(
 
 
 @dataclass
+class _FoldSpec:
+    """Shared per-fold parameters passed from :meth:`WalkForwardRunner.run` to ``_run_fold``."""
+
+    strategy_id: StrategyId | None
+    saved_config_id: str | None
+    params: dict[str, Any]
+    token_symbol: str
+    total_capital: float
+
+
+@dataclass
 class WalkForwardRunner:
     """Run a saved-config + params over every walk-forward fold.
 
@@ -156,29 +167,26 @@ class WalkForwardRunner:
         config_id: str = "walk_forward",
     ) -> WalkForwardReport:
         if strategy_id is None and saved_config_id is None:
-            raise ValueError(
-                "Must provide either strategy_id or saved_config_id"
-            )
+            raise ValueError("Must provide either strategy_id or saved_config_id")
 
+        spec = _FoldSpec(
+            strategy_id=strategy_id,
+            saved_config_id=saved_config_id,
+            params=params,
+            token_symbol=token_symbol,
+            total_capital=total_capital,
+        )
         windows = split_windows(full_start_date, full_end_date, self.config)
         folds: list[WalkForwardFoldResult] = []
         for window in windows:
             in_summary = await self._run_fold(
-                strategy_id=strategy_id,
-                saved_config_id=saved_config_id,
-                params=params,
-                token_symbol=token_symbol,
-                total_capital=total_capital,
+                spec=spec,
                 start_date=window.in_sample_start,
                 end_date=window.in_sample_end,
                 config_id=f"{config_id}_in_{len(folds)}",
             )
             oos_summary = await self._run_fold(
-                strategy_id=strategy_id,
-                saved_config_id=saved_config_id,
-                params=params,
-                token_symbol=token_symbol,
-                total_capital=total_capital,
+                spec=spec,
                 start_date=window.out_of_sample_start,
                 end_date=window.out_of_sample_end,
                 config_id=f"{config_id}_oos_{len(folds)}",
@@ -196,26 +204,22 @@ class WalkForwardRunner:
     async def _run_fold(
         self,
         *,
-        strategy_id: StrategyId | None,
-        saved_config_id: str | None,
-        params: dict[str, Any],
-        token_symbol: str,
-        total_capital: float,
+        spec: _FoldSpec,
         start_date: date,
         end_date: date,
         config_id: str,
     ) -> StrategySummary:
         request = BacktestCompareRequestV3(
-            token_symbol=token_symbol,
+            token_symbol=spec.token_symbol,
             start_date=start_date,
             end_date=end_date,
-            total_capital=total_capital,
+            total_capital=spec.total_capital,
             configs=[
                 BacktestCompareConfigV3(
                     config_id=config_id,
-                    saved_config_id=saved_config_id,
-                    strategy_id=strategy_id,
-                    params=params,
+                    saved_config_id=spec.saved_config_id,
+                    strategy_id=spec.strategy_id,
+                    params=spec.params,
                 )
             ],
         )

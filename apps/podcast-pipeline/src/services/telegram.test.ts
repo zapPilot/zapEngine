@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  buildTelegramFailureMessage,
   extractUrlFromMessage,
+  getTelegramMessage,
   isAllowedUser,
   sendMessage,
+  sendTelegramNotification,
   verifySecret,
 } from './telegram.js';
 
@@ -90,5 +93,102 @@ describe('isAllowedUser', () => {
 
   it('rejects unsupported user id values', () => {
     expect(isAllowedUser(null, new Set(['123']))).toBe(false);
+  });
+});
+
+describe('getTelegramMessage', () => {
+  it('returns null for non-record updates and updates without a message', () => {
+    expect(getTelegramMessage('not-an-object')).toBeNull();
+    expect(getTelegramMessage({ update_id: 1 })).toBeNull();
+  });
+
+  it('maps from and chat ids when they are records', () => {
+    const message = getTelegramMessage({
+      message: { text: 'hi', from: { id: 1 }, chat: { id: 2 } },
+    });
+
+    expect(message).toEqual({ text: 'hi', from: { id: 1 }, chat: { id: 2 } });
+  });
+
+  it('omits from and chat when they are not records', () => {
+    const message = getTelegramMessage({
+      message: { text: 'hi', from: 'nope', chat: 42 },
+    });
+
+    expect(message).toEqual({ text: 'hi', from: undefined, chat: undefined });
+  });
+});
+
+describe('sendTelegramNotification', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('sends the message when the request succeeds', async () => {
+    await sendTelegramNotification(123, 'done');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('swallows Error failures and logs them', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(
+      sendTelegramNotification(123, 'done'),
+    ).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[/telegram/webhook] sendMessage failed:',
+      { message: 'Telegram sendMessage failed: 500' },
+    );
+  });
+
+  it('wraps non-Error rejections before logging', async () => {
+    fetchMock.mockRejectedValue('boom');
+
+    await expect(
+      sendTelegramNotification(123, 'done'),
+    ).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[/telegram/webhook] sendMessage failed:',
+      { message: 'boom' },
+    );
+  });
+});
+
+describe('buildTelegramFailureMessage', () => {
+  it('formats a non-Error value via String()', () => {
+    expect(buildTelegramFailureMessage('plain failure')).toBe(
+      '❌ 失敗 plain failure',
+    );
+  });
+
+  it('falls back to "Unknown error" when the first line is blank', () => {
+    expect(buildTelegramFailureMessage(new Error('   '))).toBe(
+      '❌ 失敗 Unknown error',
+    );
+  });
+
+  it('uses only the first line of an Error message', () => {
+    expect(buildTelegramFailureMessage(new Error('first\nsecond'))).toBe(
+      '❌ 失敗 first',
+    );
+  });
+
+  it('truncates very long first lines to 500 characters', () => {
+    const result = buildTelegramFailureMessage(new Error('x'.repeat(600)));
+
+    expect(result).toBe(`❌ 失敗 ${'x'.repeat(497)}...`);
+    expect(result.length).toBe('❌ 失敗 '.length + 500);
   });
 });

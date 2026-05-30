@@ -28,7 +28,7 @@ from src.services.backtesting.portfolio_rules.cooldown_tracker import (
     RuleCooldownTracker,
 )
 from src.services.backtesting.portfolio_rules.decision_policy import (
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
     RuleExecutionContext,
     RuleExecutionState,
     RulesEvaluator,
@@ -42,7 +42,7 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     resolve_portfolio_rules_intent,
 )
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
+from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
 )
 from tests.services.backtesting.portfolio_rules.helpers import snapshot, state
@@ -529,9 +529,7 @@ def test_rules_evaluator_applies_guard_when_matched_rule_priority_is_unknown() -
 
 
 def test_policy_record_execution_ignores_non_executed_or_unmatched_intents() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
-        rules=_as_rules(_FakeRule(name="alpha"))
-    )
+    policy = RuleBasedPortfolioDecisionPolicy(rules=_as_rules(_FakeRule(name="alpha")))
     context = SimpleNamespace(date=date(2025, 5, 1))
     intent = AllocationIntent(
         action="buy",
@@ -571,7 +569,7 @@ def test_policy_record_execution_ignores_non_executed_or_unmatched_intents() -> 
 
 
 def test_policy_record_execution_records_known_matched_rule() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=_as_rules(_FakeRule(name="alpha", cooldown_days=7))
     )
 
@@ -595,7 +593,7 @@ def test_policy_record_execution_records_known_matched_rule() -> None:
 
 def test_policy_reset_clears_context_and_resets_components() -> None:
     rule = _ResettableRule(name="alpha")
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=(cast(PortfolioRule, rule),))
+    policy = RuleBasedPortfolioDecisionPolicy(rules=(cast(PortfolioRule, rule),))
     policy.decide(
         FlatMinimumState(
             spy_dma_state=None,
@@ -622,9 +620,7 @@ def test_policy_reset_clears_context_and_resets_components() -> None:
 
 
 def test_policy_tracks_local_execution_state_when_no_provider_is_set() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
-        rules=_as_rules(_FakeRule(name="alpha"))
-    )
+    policy = RuleBasedPortfolioDecisionPolicy(rules=_as_rules(_FakeRule(name="alpha")))
 
     policy.decide(
         FlatMinimumState(
@@ -651,7 +647,7 @@ def test_policy_tracks_local_execution_state_when_no_provider_is_set() -> None:
 def test_policy_uses_external_execution_state_without_mutating_local_trade_dates() -> (
     None
 ):
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=_as_rules(_FakeRule(name="alpha")),
         execution_state_provider=lambda: RuleExecutionState(
             last_trade_date=date(2025, 5, 1),
@@ -679,7 +675,7 @@ def test_policy_uses_external_execution_state_without_mutating_local_trade_dates
 
 
 def test_policy_updates_cycle_state_from_spy_and_crypto_crosses() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(rules=())
+    policy = RuleBasedPortfolioDecisionPolicy(rules=())
 
     policy.decide(
         FlatMinimumState(

@@ -9,21 +9,21 @@ from src.services.backtesting.portfolio_rules.cross_up_equal_weight import (
     CrossUpEqualWeightRule,
 )
 from src.services.backtesting.portfolio_rules.decision_policy import (
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
 )
 from src.services.backtesting.portfolio_rules.dma_overextension_dca_sell import (
     DmaOverextensionDcaSellRule,
 )
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.signals.flat_minimum import FlatMinimumState
-from src.services.backtesting.strategies.dma_fgi_portfolio_rules import (
-    DmaFgiPortfolioRulesStrategy,
+from src.services.backtesting.strategies.rule_based_portfolio import (
+    RuleBasedPortfolioStrategy,
 )
 from tests.services.backtesting.portfolio_rules.helpers import state
 
 
 def test_decision_trace_records_shadowed_matching_rules() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=(CrossUpEqualWeightRule(), DmaOverextensionDcaSellRule()),
     )
 
@@ -62,7 +62,7 @@ def test_decision_trace_records_shadowed_matching_rules() -> None:
 
 
 def test_enabled_rules_can_isolate_lower_priority_rule() -> None:
-    policy = DmaFgiPortfolioRulesDecisionPolicy(
+    policy = RuleBasedPortfolioDecisionPolicy(
         rules=(CrossUpEqualWeightRule(), DmaOverextensionDcaSellRule()),
         enabled_rules=frozenset({"dma_overextension_dca_sell"}),
     )
@@ -94,7 +94,7 @@ def test_enabled_rules_can_isolate_lower_priority_rule() -> None:
 
 
 def test_strategy_enabled_rules_param_activates_default_rule_subset() -> None:
-    strategy = DmaFgiPortfolioRulesStrategy(
+    strategy = RuleBasedPortfolioStrategy(
         total_capital=10_000.0,
         params={"enabled_rules": ["dma_overextension_dca_sell"]},
     )

@@ -252,9 +252,6 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
     assert "dma_gated_fgi_eth_btc_control" not in strategy_ids
     assert {preset["config_id"] for preset in presets} == {
         "dma_fgi_portfolio_rules_default",
-        "fixed_interval_balanced_30d",
-        "fixed_interval_conservative_30d",
-        "fixed_interval_aggressive_90d",
     }
     assert sum(bool(preset["is_default"]) for preset in presets) == 1
     default_preset = next(
@@ -442,9 +439,6 @@ async def test_admin_strategy_configs_return_full_saved_config_payload(
     assert {config["config_id"] for config in configs} == {
         "dca_classic",
         "dma_fgi_portfolio_rules_default",
-        "fixed_interval_balanced_30d",
-        "fixed_interval_conservative_30d",
-        "fixed_interval_aggressive_90d",
     }
     default_config = next(
         config
@@ -558,9 +552,6 @@ async def test_admin_create_saved_config_surfaces_in_public_presets(
     presets = cast(list[dict[str, object]], presets_response.json()["presets"])
     assert {preset["config_id"] for preset in presets} == {
         "dma_fgi_portfolio_rules_default",
-        "fixed_interval_balanced_30d",
-        "fixed_interval_conservative_30d",
-        "fixed_interval_aggressive_90d",
         "portfolio_rules_custom",
     }
 

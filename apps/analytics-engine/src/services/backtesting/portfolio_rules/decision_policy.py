@@ -4,7 +4,7 @@ The implementation is split across focused sibling modules so that adding a
 new rule group / risk guard / shadowing tweak only touches one of them:
 
 - ``_evaluator`` — :class:`RulesEvaluator` and
-  :class:`DmaFgiPortfolioRulesDecisionPolicy` (the public entry points)
+  :class:`RuleBasedPortfolioDecisionPolicy` (the public entry points)
 - ``_matcher`` — :func:`resolve_portfolio_rules_intent` (first-match-wins)
   and shadowing of lower-priority matches
 - ``_builders`` — rule / risk-guard factories and active-rule filtering
@@ -32,7 +32,7 @@ from src.services.backtesting.portfolio_rules._builders import (
 )
 from src.services.backtesting.portfolio_rules._evaluator import (
     PORTFOLIO_RULES_SIGNAL_ID,
-    DmaFgiPortfolioRulesDecisionPolicy,
+    RuleBasedPortfolioDecisionPolicy,
     RulesEvaluator,
 )
 from src.services.backtesting.portfolio_rules._matcher import (
@@ -51,7 +51,7 @@ from src.services.backtesting.portfolio_rules._types import (
 
 __all__ = [
     "PORTFOLIO_RULES_SIGNAL_ID",
-    "DmaFgiPortfolioRulesDecisionPolicy",
+    "RuleBasedPortfolioDecisionPolicy",
     "RuleExecutionContext",
     "RuleExecutionState",
     "RulesEvaluator",
