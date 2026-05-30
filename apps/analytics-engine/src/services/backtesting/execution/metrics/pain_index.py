@@ -16,6 +16,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src.services.backtesting.execution import drawdown_fraction_series
+
 
 @dataclass(frozen=True)
 class PainIndex:
@@ -30,15 +32,5 @@ class PainIndex:
     def compute(self, values: np.ndarray) -> float:
         if values.size < 2:
             return 0.0
-
-        running_max = np.maximum.accumulate(values)
-        drawdown_pct = (
-            np.divide(
-                values - running_max,
-                running_max,
-                out=np.zeros_like(values, dtype=float),
-                where=running_max != 0,
-            )
-            * 100.0
-        )
+        drawdown_pct = drawdown_fraction_series(values) * 100.0
         return float(np.mean(np.abs(drawdown_pct)))
