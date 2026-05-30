@@ -661,6 +661,34 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
     });
   });
 
+  it('formats record errors without a code or hint using the bare message', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: { message: 'localization write rejected' },
+    });
+
+    await expect(
+      insertEpisodeLocalization({
+        id: 'loc-1',
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        title: 'Title',
+        hlsUrl: '',
+        rawText: 'Raw text',
+        script: '',
+        llmModel: '',
+        llmThinkingModel: null,
+        llmProvider: '',
+        ttsLanguageCode: null,
+        ttsVoiceName: null,
+        r2Prefix: null,
+        status: 'pending',
+      }),
+    ).rejects.toMatchObject({
+      message: 'localization write rejected',
+    });
+  });
+
   it('stringifies non-record errors when normalizing a Supabase failure', async () => {
     state.query!.single.mockResolvedValue({
       data: null,

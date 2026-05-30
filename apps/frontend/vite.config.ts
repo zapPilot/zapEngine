@@ -168,6 +168,8 @@ export default defineConfig(({ mode }) => ({
         "src/**/*.stories.*",
         "src/**/*.test.*",
         "src/**/*.spec.*",
+        "src/main.tsx",
+        "src/shims/emptyModule.ts",
         "src/hooks/ui/useChartHover.ts",
         "src/hooks/ui/useClickOutside.ts",
         "src/hooks/ui/useAsyncRetryButton.ts",

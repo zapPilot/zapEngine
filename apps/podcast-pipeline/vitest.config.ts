@@ -14,6 +14,7 @@ export default defineConfig({
       },
       exclude: [
         '**/*.test.ts',
+        '**/__fixtures__/**',
         '**/node_modules/**',
         '**/dist/**',
         '**/.git/**',

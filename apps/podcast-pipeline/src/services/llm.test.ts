@@ -139,6 +139,32 @@ describe('getSystemPrompt error handling', () => {
     );
   });
 
+  it('resolves a relative SCRIPT_PROMPT_PATH against the package root', async () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
+    vi.stubEnv('LLM_MODEL', 'test/model');
+    vi.stubEnv('LLM_THINKING_MODEL', '');
+    vi.stubEnv('SCRIPT_PROMPT_PATH', 'prompts/script-system-prompt.txt');
+    vi.mocked(readFileSync).mockClear();
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    const { generateScriptWithLLM: freshGenerate } = await import('./llm.js');
+    await freshGenerate('Title', 'Text');
+
+    expect(readFileSync).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /apps\/podcast-pipeline\/prompts\/script-system-prompt\.txt$/,
+      ),
+      'utf8',
+    );
+  });
+
   it('reuses the cached system prompt after the first read', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
     vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');

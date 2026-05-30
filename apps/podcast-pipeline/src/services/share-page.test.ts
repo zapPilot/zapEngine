@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { detectPlatform, renderEpisodeSharePage } from './share-page.js';
+import { localizationRow } from '../__fixtures__/index-test.js';
+import { findEpisodeLocalizationByEpisodeId } from './db.js';
+import {
+  buildEpisodeSharePageHtml,
+  detectPlatform,
+  renderEpisodeSharePage,
+} from './share-page.js';
+
+vi.mock('./db.js', () => ({
+  findEpisodeLocalizationByEpisodeId: vi.fn(),
+}));
+
+const findLocalizationMock = vi.mocked(findEpisodeLocalizationByEpisodeId);
 
 describe('detectPlatform', () => {
   it.each([
@@ -182,6 +194,53 @@ describe('renderEpisodeSharePage', () => {
     const desc = twitterCard![1]!;
     expect(desc).toContain('Listen to');
     expect(desc).toContain('global finance');
+  });
+});
+
+describe('buildEpisodeSharePageHtml', () => {
+  beforeEach(() => {
+    findLocalizationMock.mockReset();
+  });
+
+  it('uses the script as description when raw_text is null', async () => {
+    findLocalizationMock.mockResolvedValue(
+      localizationRow({ raw_text: null, script: 'Script body fallback' }),
+    );
+
+    const html = await buildEpisodeSharePageHtml({
+      id: 'episode-1',
+      languageCode: 'zh-Hant',
+      userAgent: undefined,
+    });
+
+    expect(html).toContain('Script body fallback');
+  });
+
+  it('uses an empty description when both raw_text and script are null', async () => {
+    findLocalizationMock.mockResolvedValue(
+      localizationRow({ raw_text: null, script: null }),
+    );
+
+    const html = await buildEpisodeSharePageHtml({
+      id: 'episode-1',
+      languageCode: 'zh-Hant',
+      userAgent: undefined,
+    });
+
+    expect(html).not.toBeNull();
+    expect(html).toContain('Localization title');
+  });
+
+  it('returns null when the localization does not exist', async () => {
+    findLocalizationMock.mockResolvedValue(null);
+
+    const html = await buildEpisodeSharePageHtml({
+      id: 'missing',
+      languageCode: 'zh-Hant',
+      userAgent: undefined,
+    });
+
+    expect(html).toBeNull();
   });
 });
 
