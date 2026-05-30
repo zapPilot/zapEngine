@@ -5,6 +5,7 @@ import { findEpisodeLocalizationByEpisodeId } from './db.js';
 import {
   buildEpisodeSharePageHtml,
   detectPlatform,
+  extractIosAppId,
   renderEpisodeSharePage,
 } from './share-page.js';
 
@@ -241,6 +242,14 @@ describe('buildEpisodeSharePageHtml', () => {
     });
 
     expect(html).toBeNull();
+  });
+});
+
+describe('extractIosAppId', () => {
+  it('throws when the URL contains no numeric /id segment', () => {
+    expect(() => extractIosAppId('https://apps.apple.com/app/name')).toThrow(
+      'IOS_APP_STORE_URL must include a numeric /id value',
+    );
   });
 });
 

@@ -237,12 +237,10 @@ async function persistScrapedLocalization(
   });
 }
 
-function normalizeArticleForLanguage(
+export function normalizeArticleForLanguage(
   article: Article,
   languageCode: string,
 ): Article {
-  // Secondary ingest currently normalizes through the canonical zh-Hant script path.
-  /* v8 ignore next 3 -- @preserve: secondary ingest always uses the canonical zh-Hant path */
   if (languageCode !== DEFAULT_LANGUAGE_CODE) {
     return article;
   }

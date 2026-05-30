@@ -397,10 +397,8 @@ function getLocalizationCoverUrl(localization: unknown): string {
   return typeof coverUrl === 'string' ? coverUrl : '';
 }
 
-function extractIosAppId(appStoreUrl: string): string {
+export function extractIosAppId(appStoreUrl: string): string {
   const appId = /\/id(\d+)(?:\D|$)/.exec(appStoreUrl)?.[1];
-  // IOS_APP_STORE_URL is a module constant with a validated App Store /id segment.
-  /* v8 ignore next 3 -- @preserve: unreachable defensive guard over a validated constant */
   if (!appId) {
     throw new Error('IOS_APP_STORE_URL must include a numeric /id value');
   }
