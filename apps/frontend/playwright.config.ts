@@ -160,6 +160,15 @@ export default defineConfig({
           command: `npm run dev -- --host 127.0.0.1 --port ${FALLBACK_PORT}`,
           url: PLAYWRIGHT_BASE_URL,
           reuseExistingServer: false,
+          // The real app's wagmi config (src/config/wagmi.ts) throws at import
+          // time without this. CI has no root .env, so provide a placeholder for
+          // the e2e dev server — Vite exposes process.env VITE_* on
+          // import.meta.env, so the app boots instead of white-screening.
+          env: {
+            VITE_WALLETCONNECT_PROJECT_ID:
+              process.env["VITE_WALLETCONNECT_PROJECT_ID"] ??
+              "test-walletconnect-project-id",
+          },
         },
       }),
 });

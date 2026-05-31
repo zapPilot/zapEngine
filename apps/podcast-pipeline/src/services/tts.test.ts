@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+type TtsConfigModule = typeof import('./tts/tts-config.js');
+
 const {
   mockFishGetMetadata,
   mockFishSynthesize,
   mockGoogleGetMetadata,
   mockGoogleSynthesize,
+  mockGetTtsConfig,
+  realTtsConfig,
 } = vi.hoisted(() => ({
   mockFishGetMetadata: vi.fn(),
   mockFishSynthesize: vi.fn(),
   mockGoogleGetMetadata: vi.fn(),
   mockGoogleSynthesize: vi.fn(),
+  mockGetTtsConfig: vi.fn(),
+  realTtsConfig: {} as { getTtsConfig?: TtsConfigModule['getTtsConfig'] },
 }));
 
 vi.mock('./tts/fish-audio.js', () => ({
@@ -22,11 +28,20 @@ vi.mock('./tts/google.js', () => ({
   synthesize: mockGoogleSynthesize,
 }));
 
+vi.mock('./tts/tts-config.js', async (importOriginal) => {
+  const actual = await importOriginal<TtsConfigModule>();
+  realTtsConfig.getTtsConfig = actual.getTtsConfig;
+  return { ...actual, getTtsConfig: mockGetTtsConfig };
+});
+
 import { getTtsMetadata, textToSpeech } from './tts.js';
 
 describe('TTS provider dispatcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetTtsConfig.mockImplementation((usage, languageCode) =>
+      realTtsConfig.getTtsConfig!(usage, languageCode),
+    );
     mockFishSynthesize.mockResolvedValue({
       audio: Buffer.from('fish-audio'),
       cost: [
@@ -264,5 +279,59 @@ describe('TTS provider dispatcher', () => {
       costLabel: 'TTS audio',
     });
     expect(mockFishGetMetadata).not.toHaveBeenCalled();
+  });
+
+  it('dispatches synthesis to the Fish Audio provider for a fish-audio config', async () => {
+    const fishConfig = {
+      provider: 'fish-audio' as const,
+      modelId: 'debb4c1065114ffda03f3a60abdcc421',
+      engine: 's2-pro' as const,
+    };
+    mockGetTtsConfig.mockReturnValue(fishConfig);
+
+    await expect(
+      textToSpeech('測試文字', { languageCode: 'zh-Hant', usage: 'main' }),
+    ).resolves.toEqual({
+      audio: Buffer.from('fish-audio'),
+      cost: [
+        {
+          category: 'tts',
+          label: 'TTS audio',
+          provider: 'fish-audio',
+          model: 's2-pro',
+          costUsd: 0.00001,
+        },
+      ],
+    });
+
+    expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
+      languageCode: 'zh-Hant',
+      usage: 'main',
+      config: fishConfig,
+      costLabel: 'TTS audio',
+    });
+    expect(mockGoogleSynthesize).not.toHaveBeenCalled();
+  });
+
+  it('returns Fish Audio metadata for a fish-audio config', () => {
+    const fishConfig = {
+      provider: 'fish-audio' as const,
+      modelId: 'debb4c1065114ffda03f3a60abdcc421',
+      engine: 's2-pro' as const,
+    };
+    mockGetTtsConfig.mockReturnValue(fishConfig);
+
+    expect(getTtsMetadata({ languageCode: 'zh-Hant', usage: 'main' })).toEqual({
+      provider: 'fish-audio',
+      languageCode: 'zh-Hant',
+      voiceName: 'debb4c1065114ffda03f3a60abdcc421',
+    });
+    expect(mockFishGetMetadata).toHaveBeenCalledWith({
+      languageCode: 'zh-Hant',
+      usage: 'main',
+      config: fishConfig,
+      costLabel: 'TTS audio',
+    });
+    expect(mockGoogleGetMetadata).not.toHaveBeenCalled();
   });
 });

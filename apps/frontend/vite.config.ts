@@ -152,6 +152,12 @@ export default defineConfig(({ mode }) => ({
     env: {
       IS_REACT_ACT_ENVIRONMENT: "true",
       NODE_ENV: "test",
+      // wagmi config (src/config/wagmi.ts) throws at import time when this is
+      // unset. Most suites mock the wallet stack, but tests that import the real
+      // module (e.g. BundlePageClient) need a value. The sharded coverage runner
+      // executes files in isolated processes, so this must be a config default
+      // rather than relying on cross-file env leakage.
+      VITE_WALLETCONNECT_PROJECT_ID: "test-walletconnect-project-id",
     },
     coverage: {
       provider: "v8",
