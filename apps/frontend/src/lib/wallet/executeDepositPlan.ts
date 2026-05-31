@@ -1,3 +1,4 @@
+import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import type { Hash, WalletClient } from 'viem';
 
@@ -127,8 +128,12 @@ export async function executeDepositPlan({
   // the source of truth. `wallet_getCapabilities` is unreliable through wallet
   // abstractions (e.g. MetaMask omits chains it does not advertise rather than
   // reporting them unsupported), so a capability pre-check would wrongly block
-  // wallets that can in fact batch. Only fall back to sequential when the
-  // wallet genuinely cannot do atomic execution.
+  // wallets that can in fact batch.
+  //
+  // A returned `callsId` only means the wallet ACCEPTED the batch — for EIP-7702
+  // the self-call can still revert on-chain (e.g. MetaMask's atomic path), so we
+  // gate success on the bundle receipt. A reverted bundle rolls back atomically,
+  // so re-running the same calls sequentially is safe and recovers those wallets.
   const result = await intentEngine.executeWithEIP7702(
     [...plan.approvals, ...plan.calls],
     walletClient,
@@ -137,11 +142,44 @@ export async function executeDepositPlan({
 
   if (result.success && result.callsId) {
     onBundleSubmitted?.(result.callsId);
-    onBundleConfirmed?.();
-    return {
-      kind: 'eip7702',
-      callsId: result.callsId,
-    };
+
+    const confirmation = await waitForEIP7702Confirmation(
+      result.callsId,
+      walletClient,
+    ).catch(() => null);
+
+    if (!confirmation) {
+      // Wallet accepted the batch but cannot report calls status (e.g.
+      // `wallet_getCallsStatus` unsupported). We cannot prove failure, so
+      // surface the submitted bundle rather than risk double-submitting.
+      onBundleConfirmed?.();
+      return {
+        kind: 'eip7702',
+        callsId: result.callsId,
+      };
+    }
+
+    if (confirmation.status === 'success') {
+      onBundleConfirmed?.(confirmation.transactionHash);
+      return {
+        kind: 'eip7702',
+        callsId: result.callsId,
+        ...(confirmation.transactionHash
+          ? { transactionHash: confirmation.transactionHash }
+          : {}),
+      };
+    }
+
+    // Bundle reverted on-chain (atomic rollback ⇒ no partial state). Recover by
+    // re-running the same calls as sequential EOA transactions.
+    return executeSequentially({
+      plan,
+      walletClient,
+      onApprovalSubmitted,
+      onApprovalConfirmed,
+      onCallSubmitted,
+      onCallConfirmed,
+    });
   }
 
   if (isAtomicUnsupportedError(result.error)) {

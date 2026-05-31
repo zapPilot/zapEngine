@@ -75,10 +75,14 @@ describe('executeDepositPlan', () => {
     mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'success' });
   });
 
-  it('optimistically attempts the EIP-7702 atomic bundle without a capability pre-check', async () => {
+  it('waits for the bundle receipt and confirms with the tx hash on success', async () => {
     mocks.executeWithEIP7702.mockResolvedValue({
       success: true,
       callsId: '0xbundle',
+    });
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({
+      status: 'success',
+      transactionHash: '0xreceipt',
     });
     const onBundleSubmitted = vi.fn();
     const onBundleConfirmed = vi.fn();
@@ -96,14 +100,49 @@ describe('executeDepositPlan', () => {
       walletClient,
       { chainId: 8453 },
     );
-    expect(mocks.waitForEIP7702Confirmation).not.toHaveBeenCalled();
+    expect(mocks.waitForEIP7702Confirmation).toHaveBeenCalledWith(
+      '0xbundle',
+      walletClient,
+    );
     expect(onBundleSubmitted).toHaveBeenCalledWith('0xbundle');
-    expect(onBundleConfirmed).toHaveBeenCalledWith();
+    expect(onBundleConfirmed).toHaveBeenCalledWith('0xreceipt');
     expect(result).toEqual({
       kind: 'eip7702',
       callsId: '0xbundle',
+      transactionHash: '0xreceipt',
     });
     expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it('falls back to sequential when the EIP-7702 bundle reverts on-chain', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: true,
+      callsId: '0xbundle',
+    });
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'failure' });
+    walletClient.sendTransaction
+      .mockResolvedValueOnce('0xapprove')
+      .mockResolvedValueOnce('0xcall');
+    const onCallConfirmed = vi.fn();
+
+    const result = await executeDepositPlan({
+      plan,
+      walletClient: walletClient as never,
+      chainId: 8453,
+      onCallConfirmed,
+    });
+
+    expect(mocks.waitForEIP7702Confirmation).toHaveBeenCalledWith(
+      '0xbundle',
+      walletClient,
+    );
+    expect(walletClient.sendTransaction).toHaveBeenCalledTimes(2);
+    expect(mocks.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+    expect(onCallConfirmed).toHaveBeenCalledWith(0, callTx, '0xcall');
+    expect(result).toEqual({
+      kind: 'sequential',
+      hashes: ['0xapprove', '0xcall'],
+    });
   });
 
   it('returns the submitted EIP-7702 bundle even when calls-status polling is unavailable', async () => {

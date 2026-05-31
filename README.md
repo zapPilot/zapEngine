@@ -1,5 +1,19 @@
 # zapEngine
 
+zapPilot is a **DeFi portfolio analytics and automation platform** that returns full control of investments to users. Users manage assets through their own EOA wallet — no need to trust third-party vault smart contracts. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
+
+This codebase powers the full stack: TypeScript/Python microservices, a React dashboard, a Next.js marketing site, and a Flutter podcast app.
+
+**Security** — Web3 projects are frequent targets for exploits and hacking. Code review and robust security practices are essential to protecting users' assets.
+
+---
+
+## License
+
+MIT License — see [LICENSE](./LICENSE) for details.
+
+---
+
 Turborepo + pnpm monorepo for Zap Pilot — a DeFi portfolio analytics and automation platform.
 
 ## Architecture

@@ -1,0 +1,66 @@
+{
+  "best_params": {
+    "buy_sideways_max_range": 0.048875051677790424,
+    "buy_sideways_window_days": 9,
+    "cross_cooldown_days": 76,
+    "cross_on_touch": true,
+    "dma_overextension_threshold": 0.24561457009902096,
+    "fgi_slope_recovery_threshold": 0.11624493455517058,
+    "fgi_slope_reversal_threshold": -0.21527805192478672,
+    "overextension_threshold_multiplier_extreme_greed": 0.3115950885216335,
+    "overextension_threshold_multiplier_greed": 0.6894823157779036,
+    "pacing_k": 4.484685687215243,
+    "pacing_r_max": 0.6780602616231216
+  },
+  "best_value": 1.7412027316150938,
+  "full_end_date": "2026-04-15",
+  "full_start_date": "2024-01-01",
+  "n_trials": 2,
+  "objective": "sharpe",
+  "strategy_id": "dma_fgi_portfolio_rules",
+  "study_name": "dma_fgi_walk_forward",
+  "token_symbol": "BTC",
+  "total_capital": 10000.0,
+  "trials": [
+    {
+      "number": 0,
+      "params": {
+        "buy_sideways_max_range": 0.015227525095137952,
+        "buy_sideways_window_days": 4,
+        "cross_cooldown_days": 38,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.5330880728874676,
+        "fgi_slope_recovery_threshold": 0.29127385712697834,
+        "fgi_slope_reversal_threshold": -0.29403049665421727,
+        "overextension_threshold_multiplier_extreme_greed": 0.7664580622368364,
+        "overextension_threshold_multiplier_greed": 0.6808920093945671,
+        "pacing_k": 12.374511199743695,
+        "pacing_r_max": 0.3964354168406294
+      },
+      "state": "TrialState.COMPLETE",
+      "value": 1.651356452154173
+    },
+    {
+      "number": 1,
+      "params": {
+        "buy_sideways_max_range": 0.048875051677790424,
+        "buy_sideways_window_days": 9,
+        "cross_cooldown_days": 76,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.24561457009902096,
+        "fgi_slope_recovery_threshold": 0.11624493455517058,
+        "fgi_slope_reversal_threshold": -0.21527805192478672,
+        "overextension_threshold_multiplier_extreme_greed": 0.3115950885216335,
+        "overextension_threshold_multiplier_greed": 0.6894823157779036,
+        "pacing_k": 4.484685687215243,
+        "pacing_r_max": 0.6780602616231216
+      },
+      "state": "TrialState.COMPLETE",
+      "value": 1.7412027316150938
+    }
+  ],
+  "wf_anchored": false,
+  "wf_in_sample_days": 180,
+  "wf_out_of_sample_days": 60,
+  "wf_step_days": 30
+}
