@@ -73,6 +73,26 @@ export function buildCompareConfigForStrategyId(
 }
 
 /**
+ * Build a compare config for a specific preset, selected by its config_id.
+ *
+ * This is the config-level counterpart to {@link buildCompareConfigForStrategyId}:
+ * the backtesting dropdown selects presets (so default vs optimized variants of
+ * the same strategy are distinct options). Falls back to a strategy-id lookup
+ * when the config_id is not a known preset (e.g. an adhoc catalog strategy_id).
+ */
+export function buildCompareConfigForConfigId(
+  configId: string,
+  presets: StrategyPreset[],
+  strategies: BacktestStrategyCatalogEntryV3[],
+): BacktestCompareConfigV3 {
+  const preset = presets.find((entry) => entry.config_id === configId);
+  if (preset) {
+    return buildPresetBackedCompareConfig(preset);
+  }
+  return buildCompareConfigForStrategyId(configId, presets, strategies);
+}
+
+/**
  * Build default backtest payload from curated strategy presets.
  * Sends only the default (first) preset to avoid unnecessary backend computation.
  */

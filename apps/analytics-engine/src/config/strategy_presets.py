@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final, cast
 
@@ -42,6 +43,9 @@ class _ComposedPresetDefinition:
     supports_daily_suggestion: bool = True
     is_default: bool = False
     is_benchmark: bool = False
+    # Nested public-params overlaid on the strategy defaults for this preset.
+    # Empty for the canonical default; populated for tuned research candidates.
+    public_params_override: Mapping[str, JsonValue] | None = None
 
 
 # ── Strategy Tuning ──────────────────────────────────────────────────────────
@@ -51,6 +55,32 @@ STRATEGY_TUNING_OVERRIDES: Final[dict[str, dict[str, JsonValue]]] = {}
 # ─────────────────────────────────────────────────────────────────────────────
 
 DMA_FGI_PORTFOLIO_RULES_CONFIG_ID: Final[str] = "dma_fgi_portfolio_rules_default"
+DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID: Final[str] = (
+    "dma_fgi_portfolio_rules_optimized"
+)
+
+# Walk-forward Optuna best trial (study dma_fgi_wf_2026_05_31, trial #13;
+# 30 TPE trials, in-sample 180d / out-of-sample 60d / step 30d over
+# 2024-01-01..2026-04-15). oos_sharpe_mean 1.8122 vs default 1.7455 with a
+# near-zero in/oos gap (0.0070). Research candidate only: on the full 500-day
+# production window it trails the default by ~0.47pp ROI, so it is NOT the
+# production default — it is exposed as a selectable comparison config.
+_DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS: Final[dict[str, JsonValue]] = {
+    "signal": {"cross_cooldown_days": 90, "cross_on_touch": False},
+    "pacing": {"k": 1.51880140214303, "r_max": 1.1968362039465772},
+    "buy_gate": {
+        "window_days": 14,
+        "sideways_max_range": 0.07407800219920704,
+        "leg_caps": [0.05, 0.1, 0.2],
+    },
+    "top_escape": {
+        "dma_overextension_threshold": 0.3805479178312311,
+        "overextension_threshold_multiplier_greed": 0.48080495964623104,
+        "overextension_threshold_multiplier_extreme_greed": 0.2014786078240635,
+        "fgi_slope_reversal_threshold": -0.25776836157984195,
+        "fgi_slope_recovery_threshold": 0.06534742319708678,
+    },
+}
 
 _DEFAULT_SIGNAL_PARAM_FIELDS: Final[tuple[str, ...]] = (
     "cross_cooldown_days",
@@ -75,6 +105,24 @@ _COMPOSED_PRESET_DEFINITIONS: Final[tuple[_ComposedPresetDefinition, ...]] = (
         bucket_mapper_id="spy_eth_btc_stable",
         supports_daily_suggestion=True,
         is_default=True,
+    ),
+    _ComposedPresetDefinition(
+        config_id=DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
+        display_name="DMA/FGI Portfolio Rules (Optimized)",
+        description=(
+            "Walk-forward Optuna-tuned variant of the rule-based strategy. "
+            "Higher out-of-sample Sharpe with a near-zero in/out-of-sample gap; "
+            "research candidate exposed for side-by-side comparison, not the "
+            "production default."
+        ),
+        strategy_id=STRATEGY_DMA_FGI_PORTFOLIO_RULES,
+        signal_component_id="dma_fgi_portfolio_rules_signal",
+        decision_component_id="dma_fgi_portfolio_rules_policy",
+        signal_param_fields=_DEFAULT_SIGNAL_PARAM_FIELDS,
+        bucket_mapper_id="spy_eth_btc_stable",
+        supports_daily_suggestion=False,
+        is_default=False,
+        public_params_override=_DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_PARAMS,
     ),
 )
 
@@ -103,20 +151,34 @@ def _merge_public_params(
     return merged
 
 
-def _resolve_default_public_params(strategy_id: str) -> dict[str, JsonValue]:
+def _resolve_public_params(
+    strategy_id: str,
+    *,
+    extra_override: Mapping[str, JsonValue] | None = None,
+) -> dict[str, JsonValue]:
     base_params = get_default_public_params(strategy_id)
     tuned_params = _merge_public_params(
         base_params,
-        STRATEGY_TUNING_OVERRIDES.get(strategy_id, {}),
+        dict(STRATEGY_TUNING_OVERRIDES.get(strategy_id, {})),
     )
+    if extra_override:
+        tuned_params = _merge_public_params(tuned_params, dict(extra_override))
     return normalize_nested_public_params(strategy_id, tuned_params)
 
 
-def _resolve_default_params_model(strategy_id: str) -> DmaGatedFgiParams:
+def _resolve_default_public_params(strategy_id: str) -> dict[str, JsonValue]:
+    return _resolve_public_params(strategy_id)
+
+
+def _resolve_params_model(
+    strategy_id: str,
+    *,
+    extra_override: Mapping[str, JsonValue] | None = None,
+) -> DmaGatedFgiParams:
     params_model = _get_params_model(strategy_id)
     runtime_params = public_params_to_runtime_params(
         strategy_id,
-        _resolve_default_public_params(strategy_id),
+        _resolve_public_params(strategy_id, extra_override=extra_override),
     )
     return params_model.from_public_params(runtime_params)
 
@@ -167,8 +229,15 @@ def _build_composed_strategy_composition(
 def _build_composed_seed_config(
     definition: _ComposedPresetDefinition,
 ) -> SavedStrategyConfig:
-    public_params = resolve_strategy_default_params(definition.strategy_id)
-    resolved_params = _resolve_default_params_model(definition.strategy_id)
+    override = definition.public_params_override
+    public_params = _resolve_public_params(
+        definition.strategy_id,
+        extra_override=override,
+    )
+    resolved_params = _resolve_params_model(
+        definition.strategy_id,
+        extra_override=override,
+    )
     return SavedStrategyConfig(
         config_id=definition.config_id,
         display_name=definition.display_name,

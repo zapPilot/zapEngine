@@ -8,6 +8,7 @@ import {
   DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
 } from '@/components/wallet/portfolio/views/backtesting/constants';
 import {
+  buildCompareConfigForConfigId,
   buildCompareConfigForStrategyId,
   buildDefaultPayloadFromPresets,
   buildDefaultPayloadFromStrategies,
@@ -361,5 +362,53 @@ describe('buildCompareConfigForStrategyId', () => {
 
     expect(result.strategy_id).toBe('unknown_strategy');
     expect(result.params).toBeUndefined();
+  });
+});
+
+describe('buildCompareConfigForConfigId', () => {
+  it('selects a preset by config_id, distinguishing variants of one strategy', () => {
+    const presets = [
+      createPreset({
+        config_id: 'dma_default',
+        strategy_id: 'dma_gated_fgi',
+        is_default: true,
+      }),
+      createPreset({
+        config_id: 'dma_optimized',
+        strategy_id: 'dma_gated_fgi',
+        is_default: false,
+      }),
+    ];
+
+    // Both presets share a strategy_id; selection must follow the config_id.
+    expect(buildCompareConfigForConfigId('dma_optimized', presets, [])).toEqual(
+      { config_id: 'dma_optimized', saved_config_id: 'dma_optimized' },
+    );
+    expect(buildCompareConfigForConfigId('dma_default', presets, [])).toEqual({
+      config_id: 'dma_default',
+      saved_config_id: 'dma_default',
+    });
+  });
+
+  it('falls back to a strategy-id lookup when the id is not a known preset', () => {
+    const strategies: BacktestStrategyCatalogEntryV3[] = [
+      {
+        strategy_id: 'custom_strategy',
+        display_name: 'Custom Strategy',
+        description: null,
+        param_schema: {},
+        default_params: { k: 3 },
+        supports_daily_suggestion: false,
+      },
+    ];
+
+    const result = buildCompareConfigForConfigId(
+      'custom_strategy',
+      [],
+      strategies,
+    );
+
+    expect(result.strategy_id).toBe('custom_strategy');
+    expect(result.params).toEqual({ k: 3 });
   });
 });

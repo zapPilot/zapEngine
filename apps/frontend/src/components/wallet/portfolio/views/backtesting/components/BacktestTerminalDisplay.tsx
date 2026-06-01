@@ -7,7 +7,7 @@ import type {
 import type { StrategyConfigsResponse } from '@/types/strategy';
 
 import { FIXED_PACING_ENGINE_ID } from '../constants';
-import { buildCompareConfigForStrategyId } from '../hooks/backtestConfigurationBuilders';
+import { buildCompareConfigForConfigId } from '../hooks/backtestConfigurationBuilders';
 import {
   type BacktestChartPoint,
   getPrimaryStrategyId,
@@ -51,9 +51,9 @@ export interface BacktestTerminalDisplayProps {
   strategyConfigs: StrategyConfigsResponse | null;
   /** Parsed days value from editor */
   days: number;
-  /** Selected strategy ID from editor */
-  selectedStrategyId: string;
-  /** Strategy options for dropdown */
+  /** Selected preset config_id from editor */
+  selectedConfigId: string;
+  /** Strategy options for dropdown (keyed by preset config_id) */
   strategyOptions: TerminalDropdownOption[];
 }
 
@@ -74,7 +74,7 @@ export function BacktestTerminalDisplay({
   onEditorValueChange,
   strategyConfigs,
   days,
-  selectedStrategyId,
+  selectedConfigId,
   strategyOptions,
 }: BacktestTerminalDisplayProps): React.ReactElement {
   const handleDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,9 +84,9 @@ export function BacktestTerminalDisplay({
   };
 
   const handleStrategyChange = useCallback(
-    (newStrategyId: string) => {
-      const nextConfig = buildCompareConfigForStrategyId(
-        newStrategyId,
+    (newConfigId: string) => {
+      const nextConfig = buildCompareConfigForConfigId(
+        newConfigId,
         strategyConfigs?.presets ?? [],
         strategyConfigs?.strategies ?? [],
       );
@@ -110,7 +110,7 @@ export function BacktestTerminalDisplay({
         days={days}
         onDaysChange={handleDaysChange}
         strategyOptions={strategyOptions}
-        selectedStrategyId={selectedStrategyId}
+        selectedStrategyId={selectedConfigId}
         onStrategyChange={handleStrategyChange}
         pacingEngineId={FIXED_PACING_ENGINE_ID}
         isPending={isPending}

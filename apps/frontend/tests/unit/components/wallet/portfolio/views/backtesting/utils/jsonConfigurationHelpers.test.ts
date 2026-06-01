@@ -2,9 +2,107 @@ import { describe, expect, it } from 'vitest';
 
 import {
   parseJsonField,
+  parseSelectedConfigId,
   updateConfigStrategy,
   updateJsonField,
 } from '@/components/wallet/portfolio/views/backtesting/utils/jsonConfigurationHelpers';
+import type { StrategyPreset } from '@/types/strategy';
+
+const PRESETS: StrategyPreset[] = [
+  {
+    config_id: 'dma_fgi_portfolio_rules_default',
+    display_name: 'DMA/FGI Portfolio Rules',
+    description: null,
+    strategy_id: 'dma_fgi_portfolio_rules',
+    params: {},
+    is_default: true,
+    is_benchmark: false,
+  },
+  {
+    config_id: 'dma_fgi_portfolio_rules_optimized',
+    display_name: 'DMA/FGI Portfolio Rules (Optimized)',
+    description: null,
+    strategy_id: 'dma_fgi_portfolio_rules',
+    params: {},
+    is_default: false,
+    is_benchmark: false,
+  },
+];
+
+describe('parseSelectedConfigId', () => {
+  it('returns the saved_config_id of the first non-DCA compare config', () => {
+    const json = JSON.stringify({
+      configs: [
+        { config_id: 'dca_classic', strategy_id: 'dca_classic', params: {} },
+        {
+          config_id: 'dma_fgi_portfolio_rules_optimized',
+          saved_config_id: 'dma_fgi_portfolio_rules_optimized',
+        },
+      ],
+    });
+    expect(parseSelectedConfigId(json, 'fallback', PRESETS)).toBe(
+      'dma_fgi_portfolio_rules_optimized',
+    );
+  });
+
+  it('distinguishes presets that share a strategy_id by config_id', () => {
+    const defaultJson = JSON.stringify({
+      configs: [
+        {
+          config_id: 'dma_fgi_portfolio_rules_default',
+          saved_config_id: 'dma_fgi_portfolio_rules_default',
+        },
+      ],
+    });
+    const optimizedJson = JSON.stringify({
+      configs: [
+        {
+          config_id: 'dma_fgi_portfolio_rules_optimized',
+          saved_config_id: 'dma_fgi_portfolio_rules_optimized',
+        },
+      ],
+    });
+    expect(parseSelectedConfigId(defaultJson, 'fallback', PRESETS)).toBe(
+      'dma_fgi_portfolio_rules_default',
+    );
+    expect(parseSelectedConfigId(optimizedJson, 'fallback', PRESETS)).toBe(
+      'dma_fgi_portfolio_rules_optimized',
+    );
+  });
+
+  it('falls back to config_id for adhoc strategy configs', () => {
+    const json = JSON.stringify({
+      configs: [
+        {
+          config_id: 'my_adhoc',
+          strategy_id: 'dma_fgi_portfolio_rules',
+          params: {},
+        },
+      ],
+    });
+    expect(parseSelectedConfigId(json, 'fallback', [])).toBe('my_adhoc');
+  });
+
+  it('returns the fallback for invalid or empty payloads', () => {
+    expect(parseSelectedConfigId('bad json', 'fallback', PRESETS)).toBe(
+      'fallback',
+    );
+    expect(parseSelectedConfigId('{"configs":[]}', 'fallback', PRESETS)).toBe(
+      'fallback',
+    );
+  });
+
+  it('returns the only DCA config_id when no other config is present', () => {
+    const json = JSON.stringify({
+      configs: [
+        { config_id: 'dca_classic', strategy_id: 'dca_classic', params: {} },
+      ],
+    });
+    expect(parseSelectedConfigId(json, 'fallback', PRESETS)).toBe(
+      'dca_classic',
+    );
+  });
+});
 
 describe('parseJsonField', () => {
   it('reads numeric top-level fields', () => {

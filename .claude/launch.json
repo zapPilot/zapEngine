@@ -10,8 +10,8 @@
     {
       "name": "frontend",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@zapengine/frontend", "dev", "--port", "5174", "--strictPort"],
-      "port": 5174
+      "runtimeArgs": ["--filter", "@zapengine/frontend", "dev", "--port", "3001", "--strictPort"],
+      "port": 3001
     }
   ]
 }
