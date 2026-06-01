@@ -1,10 +1,13 @@
 import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
-import type { Hash, WalletClient } from 'viem';
+import type { Address, Hash, WalletClient } from 'viem';
 
-import { getPublicClient, intentEngine } from '@/services/intentClient';
+import { intentEngine } from '@/services/intentClient';
 
-import { txRequest } from './txRequest';
+import {
+  type EIP7702DelegationInspection,
+  inspectDelegation,
+} from './eip7702Delegation';
 
 export type DepositExecutionTier = 'eip7702' | 'sequential';
 
@@ -40,32 +43,42 @@ export interface ExecuteDepositPlanInput {
   ) => void;
 }
 
-interface ExecuteSequentialInput {
-  plan: DepositPlan;
-  walletClient: WalletClient;
-  onApprovalSubmitted: ExecuteDepositPlanInput['onApprovalSubmitted'];
-  onApprovalConfirmed: ExecuteDepositPlanInput['onApprovalConfirmed'];
-  onCallSubmitted: ExecuteDepositPlanInput['onCallSubmitted'];
-  onCallConfirmed: ExecuteDepositPlanInput['onCallConfirmed'];
-}
-
-async function sendPreparedTransaction(
-  walletClient: WalletClient,
-  tx: PreparedTransaction,
-): Promise<Hash> {
-  if (!walletClient.account) {
+function getWalletAddress(walletClient: WalletClient): Address {
+  const account = walletClient.account;
+  if (!account) {
     throw new Error('Wallet client has no connected account');
   }
 
-  return walletClient.sendTransaction({
-    ...txRequest(tx, walletClient.account),
-    chain: undefined,
-  });
+  return typeof account === 'string' ? account : account.address;
 }
 
-async function waitForTransaction(tx: PreparedTransaction, hash: Hash) {
-  await getPublicClient(tx.chainId).waitForTransactionReceipt({ hash });
+function formatDelegation(delegation: EIP7702DelegationInspection): string {
+  if (delegation.kind === 'notDelegated') {
+    return 'no EIP-7702 delegation detected';
+  }
+
+  return `${delegation.label} (${delegation.implementation})`;
 }
+
+function formatIncompatibleDelegationError(
+  delegation: EIP7702DelegationInspection,
+): string {
+  return `This account is EIP-7702 delegated to ${formatDelegation(
+    delegation,
+  )} (another wallet). Reset or re-delegate via Ambire/OKX before depositing.`;
+}
+
+function formatBundleFailureError(
+  callsId: string,
+  delegation: EIP7702DelegationInspection,
+): string {
+  return `EIP-7702 bundle ${callsId} failed on-chain. Current delegation: ${formatDelegation(
+    delegation,
+  )}. Reset or re-delegate via Ambire/OKX before retrying.`;
+}
+
+const NEEDS_7702_WALLET_MESSAGE =
+  'This deposit needs an EIP-7702 wallet with atomic batching (e.g. Ambire or OKX).';
 
 function isAtomicUnsupportedError(error: string | undefined): boolean {
   if (!error) {
@@ -85,55 +98,29 @@ function isAtomicUnsupportedError(error: string | undefined): boolean {
   );
 }
 
-async function executeSequentially({
-  plan,
-  walletClient,
-  onApprovalSubmitted,
-  onApprovalConfirmed,
-  onCallSubmitted,
-  onCallConfirmed,
-}: ExecuteSequentialInput): Promise<DepositPlanExecutionResult> {
-  const hashes: Hash[] = [];
-  for (const [index, tx] of plan.approvals.entries()) {
-    const hash = await sendPreparedTransaction(walletClient, tx);
-    hashes.push(hash);
-    onApprovalSubmitted?.(index, tx, hash);
-    await waitForTransaction(tx, hash);
-    onApprovalConfirmed?.(index, tx, hash);
-  }
-
-  for (const [index, tx] of plan.calls.entries()) {
-    const hash = await sendPreparedTransaction(walletClient, tx);
-    hashes.push(hash);
-    onCallSubmitted?.(index, tx, hash);
-    await waitForTransaction(tx, hash);
-    onCallConfirmed?.(index, tx, hash);
-  }
-
-  return { kind: 'sequential', hashes };
-}
-
 export async function executeDepositPlan({
   plan,
   walletClient,
   chainId,
   onBundleSubmitted,
   onBundleConfirmed,
-  onApprovalSubmitted,
-  onApprovalConfirmed,
-  onCallSubmitted,
-  onCallConfirmed,
 }: ExecuteDepositPlanInput): Promise<DepositPlanExecutionResult> {
-  // Optimistic: attempt the EIP-5792 atomic batch first and let the wallet be
-  // the source of truth. `wallet_getCapabilities` is unreliable through wallet
-  // abstractions (e.g. MetaMask omits chains it does not advertise rather than
-  // reporting them unsupported), so a capability pre-check would wrongly block
-  // wallets that can in fact batch.
-  //
-  // A returned `callsId` only means the wallet ACCEPTED the batch — for EIP-7702
-  // the self-call can still revert on-chain (e.g. MetaMask's atomic path), so we
-  // gate success on the bundle receipt. A reverted bundle rolls back atomically,
-  // so re-running the same calls sequentially is safe and recovers those wallets.
+  const walletAddress = getWalletAddress(walletClient);
+
+  // Reliable on-chain pre-flight via eth_getCode. We deliberately do NOT pre-gate
+  // on wallet_getCapabilities: it is unreliable through wallet abstractions
+  // (wallets omit chains rather than reporting them unsupported), so a hard
+  // capability check would wrongly block the Ambire/OKX wallets we support. If
+  // the wallet genuinely cannot batch atomically, we surface that reactively
+  // from the submission error below.
+  const delegation = await inspectDelegation({
+    address: walletAddress,
+    chainId,
+  });
+  if (delegation.compatibility === 'unsupported') {
+    throw new Error(formatIncompatibleDelegationError(delegation));
+  }
+
   const result = await intentEngine.executeWithEIP7702(
     [...plan.approvals, ...plan.calls],
     walletClient,
@@ -170,27 +157,15 @@ export async function executeDepositPlan({
       };
     }
 
-    // Bundle reverted on-chain (atomic rollback ⇒ no partial state). Recover by
-    // re-running the same calls as sequential EOA transactions.
-    return executeSequentially({
-      plan,
-      walletClient,
-      onApprovalSubmitted,
-      onApprovalConfirmed,
-      onCallSubmitted,
-      onCallConfirmed,
-    });
+    const latestDelegation = await inspectDelegation({
+      address: walletAddress,
+      chainId,
+    }).catch(() => delegation);
+    throw new Error(formatBundleFailureError(result.callsId, latestDelegation));
   }
 
   if (isAtomicUnsupportedError(result.error)) {
-    return executeSequentially({
-      plan,
-      walletClient,
-      onApprovalSubmitted,
-      onApprovalConfirmed,
-      onCallSubmitted,
-      onCallConfirmed,
-    });
+    throw new Error(NEEDS_7702_WALLET_MESSAGE);
   }
 
   throw new Error(
