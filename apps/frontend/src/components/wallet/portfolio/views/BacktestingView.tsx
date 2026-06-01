@@ -20,7 +20,7 @@ export function BacktestingView(): ReactElement {
     error,
     isInitializing,
     isPending,
-    selectedStrategyId,
+    selectedConfigId,
     strategyOptions,
     handleRunBacktest,
     updateEditorValue,
@@ -63,7 +63,7 @@ export function BacktestingView(): ReactElement {
         onEditorValueChange={updateEditorValue}
         strategyConfigs={strategyConfigs}
         days={days}
-        selectedStrategyId={selectedStrategyId}
+        selectedConfigId={selectedConfigId}
         strategyOptions={strategyOptions}
       />
     );

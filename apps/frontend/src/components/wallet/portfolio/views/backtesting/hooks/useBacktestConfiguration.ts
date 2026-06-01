@@ -8,12 +8,12 @@ import type { StrategyConfigsResponse } from '@/types/strategy';
 import {
   DCA_CLASSIC_STRATEGY_ID,
   DEFAULT_DAYS,
-  DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+  DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
 } from '../constants';
 import {
   normalizePresetBackedConfigs,
-  parseConfigStrategyIdWithPresets,
   parseJsonField,
+  parseSelectedConfigId,
 } from '../utils/jsonConfigurationHelpers';
 import {
   buildDefaultPayloadFromPresets,
@@ -226,25 +226,29 @@ export function useBacktestConfiguration() {
     );
   };
 
-  // Compute display values from the editor JSON
+  // Compute display values from the editor JSON. Selection is keyed on the
+  // config_id of the first non-benchmark compare config so distinct presets
+  // that share a strategy_id (e.g. default vs optimized) are each selectable.
   const days = parseJsonField(editorValue, 'days', DEFAULT_DAYS);
-  const selectedStrategyId = parseConfigStrategyIdWithPresets(
+  const selectedConfigId = parseSelectedConfigId(
     editorValue,
-    DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID,
+    DMA_FGI_PORTFOLIO_RULES_DEFAULT_CONFIG_ID,
     strategyConfigs?.presets ?? [],
   );
 
   const strategyOptions = useMemo(() => {
-    if (!strategyConfigs?.strategies?.length) {
-      return [{ value: selectedStrategyId, label: selectedStrategyId }];
+    const presets = (strategyConfigs?.presets ?? []).filter(
+      (preset) =>
+        !preset.is_benchmark && preset.strategy_id !== DCA_CLASSIC_STRATEGY_ID,
+    );
+    if (!presets.length) {
+      return [{ value: selectedConfigId, label: selectedConfigId }];
     }
-    return strategyConfigs.strategies
-      .filter((s) => s.strategy_id !== DCA_CLASSIC_STRATEGY_ID)
-      .map((s) => ({
-        value: s.strategy_id,
-        label: s.display_name,
-      }));
-  }, [strategyConfigs?.strategies, selectedStrategyId]);
+    return presets.map((preset) => ({
+      value: preset.config_id,
+      label: preset.display_name,
+    }));
+  }, [strategyConfigs?.presets, selectedConfigId]);
 
   return {
     backtestData,
@@ -255,7 +259,7 @@ export function useBacktestConfiguration() {
     error,
     isInitializing,
     isPending,
-    selectedStrategyId,
+    selectedConfigId,
     setEditorError,
     strategyOptions,
     handleRunBacktest,
