@@ -59,26 +59,25 @@ interface DebugExecutionState {
   getErrorMessage: (e: unknown) => string;
 }
 
-function DebugExecutionPanel({
+const TIER_LABELS: Record<NonNullable<ExecutionTier>, string> = {
+  eip7702: 'EIP-7702',
+  sequential: 'Sequential',
+};
+
+function ExecutionDebugPanel({
+  execution,
   title,
-  tier,
-  lastTxHash,
-  lastTxHashes,
-  lastError,
-  getErrorMessage,
   explorerBaseUrl,
   renderDetails,
-}: DebugExecutionState & {
+}: {
+  execution: DebugExecutionState;
   title: string;
   explorerBaseUrl: (hash: Hash) => string;
   renderDetails: () => ReactNode;
 }) {
-  const tierLabel =
-    tier === 'eip7702'
-      ? 'EIP-7702'
-      : tier === 'sequential'
-        ? 'Sequential'
-        : null;
+  const { tier, lastTxHash, lastTxHashes, lastError, getErrorMessage } =
+    execution;
+  const tierLabel = tier ? TIER_LABELS[tier] : null;
 
   return (
     <div className="mt-4 p-3 border border-dashed border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 rounded-lg text-xs">
@@ -105,12 +104,12 @@ function DebugExecutionPanel({
                 <code className="font-mono">{formatAddress(lastTxHash)}</code>
               </a>
             </span>
-          ) : lastTxHashes.length > 0 ? (
+          ) : (
             <span>
               {lastTxHashes.length} transaction
               {lastTxHashes.length === 1 ? '' : 's'} submitted
             </span>
-          ) : null}
+          )}
         </div>
       ) : null}
       {tier === 'sequential' && lastTxHashes.length > 1 ? (
@@ -124,31 +123,6 @@ function DebugExecutionPanel({
         </pre>
       ) : null}
     </div>
-  );
-}
-
-function ExecutionDebugPanel({
-  execution,
-  title,
-  explorerBaseUrl,
-  renderDetails,
-}: {
-  execution: DebugExecutionState;
-  title: string;
-  explorerBaseUrl: (hash: Hash) => string;
-  renderDetails: () => ReactNode;
-}) {
-  return (
-    <DebugExecutionPanel
-      title={title}
-      tier={execution.tier}
-      lastTxHash={execution.lastTxHash}
-      lastTxHashes={execution.lastTxHashes}
-      lastError={execution.lastError}
-      getErrorMessage={execution.getErrorMessage}
-      explorerBaseUrl={explorerBaseUrl}
-      renderDetails={renderDetails}
-    />
   );
 }
 

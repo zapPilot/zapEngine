@@ -296,28 +296,9 @@ type TransactionFlow = 'deposit' | 'withdraw';
 
 /**
  * Shared render tail for the Deposit/Withdraw modals: both build their own
- * `assetContent` and action label, then hand off to the same
+ * `assetContent`, derive the action label, then hand off to the same
  * `TransactionModalContent` with the primary action gradient.
  */
-function renderTransactionModalBody(args: {
-  modalState: TransactionModalState;
-  dropdownState: TransactionDropdownState;
-  actionLabel: string;
-  handlePercentage: (pct: number) => void;
-  assetContent: ReactNode;
-}) {
-  return (
-    <TransactionModalContent
-      modalState={args.modalState}
-      dropdownState={args.dropdownState}
-      actionLabel={args.actionLabel}
-      actionGradient={GRADIENTS.PRIMARY}
-      handlePercentage={args.handlePercentage}
-      assetContent={args.assetContent}
-    />
-  );
-}
-
 function renderConfiguredTransactionModalBody(args: {
   modalState: TransactionModalState;
   dropdownState: TransactionDropdownState;
@@ -340,13 +321,16 @@ function renderConfiguredTransactionModalBody(args: {
     readyLabel: args.readyLabel,
   });
 
-  return renderTransactionModalBody({
-    modalState: args.modalState,
-    dropdownState: args.dropdownState,
-    actionLabel,
-    handlePercentage,
-    assetContent: args.assetContent,
-  });
+  return (
+    <TransactionModalContent
+      modalState={args.modalState}
+      dropdownState={args.dropdownState}
+      actionLabel={actionLabel}
+      actionGradient={GRADIENTS.PRIMARY}
+      handlePercentage={handlePercentage}
+      assetContent={args.assetContent}
+    />
+  );
 }
 
 function renderFlowTransactionModalBody(
@@ -354,12 +338,12 @@ function renderFlowTransactionModalBody(
   args: TransactionFlowBodyArgs,
 ) {
   const isDeposit = flow === 'deposit';
-  const { modalState } = args;
+  const { modalState, dropdownState, isConnected, assetContent } = args;
 
   return renderConfiguredTransactionModalBody({
-    modalState: args.modalState,
-    dropdownState: args.dropdownState,
-    isConnected: args.isConnected,
+    modalState,
+    dropdownState,
+    isConnected,
     getMaxAmount: () =>
       isDeposit
         ? parseFloat(
@@ -371,7 +355,7 @@ function renderFlowTransactionModalBody(
             ]?.balance || '0',
           ),
     readyLabel: isDeposit ? 'Review & Deposit' : 'Review & Withdraw',
-    assetContent: args.assetContent,
+    assetContent,
   });
 }
 
