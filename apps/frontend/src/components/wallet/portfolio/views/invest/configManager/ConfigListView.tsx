@@ -49,14 +49,14 @@ function ConfigActions({
   variant: 'desktop' | 'mobile';
 }): ReactElement | null {
   if (config.is_benchmark) return null;
-  const s = ACTION_STYLES[variant];
+  const styles = ACTION_STYLES[variant];
   const showIcon = variant === 'desktop';
   return (
-    <div className={s.wrap}>
+    <div className={styles.wrap}>
       <button
         onClick={() => handlers.onEdit(config.config_id)}
         title="Edit"
-        className={s.edit}
+        className={styles.edit}
       >
         {showIcon ? <Edit2 className="h-4 w-4" /> : 'Edit'}
       </button>
@@ -64,7 +64,7 @@ function ConfigActions({
         <button
           onClick={() => handlers.onSetDefault(config)}
           title="Set as Default"
-          className={s.setDefault}
+          className={styles.setDefault}
         >
           {showIcon ? <Star className="h-4 w-4" /> : 'Set Default'}
         </button>
@@ -72,7 +72,7 @@ function ConfigActions({
       <button
         onClick={() => handlers.onDuplicate(config)}
         title="Duplicate"
-        className={s.duplicate}
+        className={styles.duplicate}
       >
         {showIcon ? <Copy className="h-4 w-4" /> : 'Duplicate'}
       </button>

@@ -321,20 +321,29 @@ export function MarketOverviewChart({
             const strokeDasharrayProps = line.strokeDasharray
               ? { strokeDasharray: line.strokeDasharray }
               : {};
-            const activeDotProps = isFgi
-              ? { activeDot: renderFgiActiveDot }
-              : isMacroFgi
-                ? { activeDot: renderMacroFgiActiveDot }
-                : isBtcPrice
-                  ? {
-                      activeDot: {
-                        r: 5,
-                        fill: line.color,
-                        strokeWidth: 2,
-                        stroke: '#fff',
-                      },
-                    }
-                  : {};
+
+            let activeDotProps = {};
+            if (isFgi) {
+              activeDotProps = { activeDot: renderFgiActiveDot };
+            } else if (isMacroFgi) {
+              activeDotProps = { activeDot: renderMacroFgiActiveDot };
+            } else if (isBtcPrice) {
+              activeDotProps = {
+                activeDot: {
+                  r: 5,
+                  fill: line.color,
+                  strokeWidth: 2,
+                  stroke: '#fff',
+                },
+              };
+            }
+
+            let stroke = line.color;
+            if (isFgi) {
+              stroke = 'url(#fgiLineGradient)';
+            } else if (isMacroFgi) {
+              stroke = 'url(#macroFgiLineGradient)';
+            }
 
             return (
               <Line
@@ -343,13 +352,7 @@ export function MarketOverviewChart({
                 type="monotone"
                 name={line.label}
                 dataKey={line.dataKey}
-                stroke={
-                  isFgi
-                    ? 'url(#fgiLineGradient)'
-                    : isMacroFgi
-                      ? 'url(#macroFgiLineGradient)'
-                      : line.color
-                }
+                stroke={stroke}
                 strokeWidth={isFgi || isMacroFgi ? 2.5 : 2}
                 dot={false}
                 {...strokeDasharrayProps}

@@ -86,42 +86,37 @@ function buildTargetUnifiedSegments(
     target.alt !== undefined;
 
   if (hasAssetBreakdown) {
-    const btc = target.btc ?? 0;
-    const eth = target.eth ?? 0;
-    const spy = target.spy ?? 0;
-    const alt = target.alt ?? 0;
-
-    if (btc > 0) {
-      segments.push({
+    const assetSegments: UnifiedSegment[] = [
+      {
         category: 'btc',
         label: 'BTC',
-        percentage: btc,
+        percentage: target.btc ?? 0,
         color: UNIFIED_COLORS.BTC,
-      });
-    }
-    if (eth > 0) {
-      segments.push({
+      },
+      {
         category: 'eth',
         label: 'ETH',
-        percentage: eth,
+        percentage: target.eth ?? 0,
         color: UNIFIED_COLORS.ETH,
-      });
-    }
-    if (spy > 0) {
-      segments.push({
+      },
+      {
         category: 'spy',
         label: 'SPY',
-        percentage: spy,
+        percentage: target.spy ?? 0,
         color: UNIFIED_COLORS.SPY,
-      });
-    }
-    if (alt > 0) {
-      segments.push({
+      },
+      {
         category: 'alt',
         label: 'ALT',
-        percentage: alt,
+        percentage: target.alt ?? 0,
         color: UNIFIED_COLORS.ALT,
-      });
+      },
+    ];
+
+    for (const segment of assetSegments) {
+      if (segment.percentage > 0) {
+        segments.push(segment);
+      }
     }
   } else if (target.crypto > 0) {
     segments.push({

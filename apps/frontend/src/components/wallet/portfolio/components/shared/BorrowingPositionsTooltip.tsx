@@ -249,7 +249,7 @@ export function BorrowingPositionsTooltip({
 
   const riskLevel = mapBorrowingStatusToRiskLevel(summary.overall_status);
   const riskConfig = RISK_DISPLAY_CONFIG[riskLevel];
-  const riskLabel = RISK_DISPLAY_CONFIG[riskLevel].label;
+  const riskLabel = riskConfig.label;
 
   return (
     <div
