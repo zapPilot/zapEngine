@@ -1,0 +1,721 @@
+{
+  "best_oos_in_sample_gap": 0.020360270974651318,
+  "best_params": {
+    "buy_sideways_max_range": 0.09967228531794974,
+    "buy_sideways_window_days": 13,
+    "cross_cooldown_days": 134,
+    "cross_on_touch": true,
+    "dma_overextension_threshold": 0.3637475691412193,
+    "fgi_slope_recovery_threshold": 0.13107805388726446,
+    "fgi_slope_reversal_threshold": -0.19748850677776675,
+    "overextension_threshold_multiplier_extreme_greed": 0.31697239216203754,
+    "overextension_threshold_multiplier_greed": 0.20436686030185036,
+    "pacing_k": 16.576396116052848,
+    "pacing_r_max": 1.6908690606090044
+  },
+  "best_value": 1.8528516795940622,
+  "full_end_date": "2026-04-15",
+  "full_start_date": "2024-01-01",
+  "n_trials": 30,
+  "objective": "sharpe",
+  "strategy_id": "dma_fgi_portfolio_rules",
+  "study_name": "dma_fgi_walk_forward",
+  "token_symbol": "BTC",
+  "total_capital": 10000.0,
+  "trials": [
+    {
+      "number": 0,
+      "params": {
+        "buy_sideways_max_range": 0.015227525095137952,
+        "buy_sideways_window_days": 4,
+        "cross_cooldown_days": 72,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.5330880728874676,
+        "fgi_slope_recovery_threshold": 0.29127385712697834,
+        "fgi_slope_reversal_threshold": -0.29403049665421727,
+        "overextension_threshold_multiplier_extreme_greed": 0.7664580622368364,
+        "overextension_threshold_multiplier_greed": 0.6808920093945671,
+        "pacing_k": 12.374511199743695,
+        "pacing_r_max": 0.3964354168406294
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.6119626927624957,
+        "oos_in_sample_gap": 0.03939375939167733,
+        "oos_sharpe_mean": 1.651356452154173
+      },
+      "value": 1.651356452154173
+    },
+    {
+      "number": 1,
+      "params": {
+        "buy_sideways_max_range": 0.048875051677790424,
+        "buy_sideways_window_days": 9,
+        "cross_cooldown_days": 151,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.24561457009902096,
+        "fgi_slope_recovery_threshold": 0.11624493455517058,
+        "fgi_slope_reversal_threshold": -0.21527805192478672,
+        "overextension_threshold_multiplier_extreme_greed": 0.3115950885216335,
+        "overextension_threshold_multiplier_greed": 0.6894823157779036,
+        "pacing_k": 4.484685687215243,
+        "pacing_r_max": 0.6780602616231216
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7450274086419373,
+        "oos_in_sample_gap": -0.003824677026843526,
+        "oos_sharpe_mean": 1.7412027316150938
+      },
+      "value": 1.7412027316150938
+    },
+    {
+      "number": 2,
+      "params": {
+        "buy_sideways_max_range": 0.06467903667112945,
+        "buy_sideways_window_days": 3,
+        "cross_cooldown_days": 86,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.18526206184364577,
+        "fgi_slope_recovery_threshold": 0.2444352309537737,
+        "fgi_slope_reversal_threshold": -0.019966710408377795,
+        "overextension_threshold_multiplier_extreme_greed": 0.9591084298026666,
+        "overextension_threshold_multiplier_greed": 0.2520412743882236,
+        "pacing_k": 10.770454329858621,
+        "pacing_r_max": 1.2255876808378807
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7341504659227724,
+        "oos_in_sample_gap": -0.04884856804690796,
+        "oos_sharpe_mean": 1.6853018978758645
+      },
+      "value": 1.6853018978758645
+    },
+    {
+      "number": 3,
+      "params": {
+        "buy_sideways_max_range": 0.013094966900369657,
+        "buy_sideways_window_days": 8,
+        "cross_cooldown_days": 60,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.5546602010393911,
+        "fgi_slope_recovery_threshold": 0.16081972614156512,
+        "fgi_slope_reversal_threshold": -0.2096037879340708,
+        "overextension_threshold_multiplier_extreme_greed": 0.7300178274831857,
+        "overextension_threshold_multiplier_greed": 0.40702398528001354,
+        "pacing_k": 9.362897381052425,
+        "pacing_r_max": 0.3318726462050798
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7374471142152594,
+        "oos_in_sample_gap": -0.035247170255459315,
+        "oos_sharpe_mean": 1.7021999439598001
+      },
+      "value": 1.7021999439598001
+    },
+    {
+      "number": 4,
+      "params": {
+        "buy_sideways_max_range": 0.06381099809299767,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 102,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.5609371175115584,
+        "fgi_slope_recovery_threshold": 0.10434579592134666,
+        "fgi_slope_reversal_threshold": -0.28688408621594397,
+        "overextension_threshold_multiplier_extreme_greed": 0.3567862899353162,
+        "overextension_threshold_multiplier_greed": 0.2707940016415356,
+        "pacing_k": 15.727523643861176,
+        "pacing_r_max": 1.8850479889719591
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8304127413689304,
+        "oos_in_sample_gap": -0.060455364102050435,
+        "oos_sharpe_mean": 1.76995737726688
+      },
+      "value": 1.76995737726688
+    },
+    {
+      "number": 5,
+      "params": {
+        "buy_sideways_max_range": 0.02268318024772864,
+        "buy_sideways_window_days": 9,
+        "cross_cooldown_days": 74,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.5010984903770198,
+        "fgi_slope_recovery_threshold": 0.06762754764491,
+        "fgi_slope_reversal_threshold": -0.07604901690396935,
+        "overextension_threshold_multiplier_extreme_greed": 0.9895095492804139,
+        "overextension_threshold_multiplier_greed": 0.2596405149438167,
+        "pacing_k": 7.778313207178196,
+        "pacing_r_max": 0.6337755684060234
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7352101836240164,
+        "oos_in_sample_gap": -0.04584272507378606,
+        "oos_sharpe_mean": 1.6893674585502303
+      },
+      "value": 1.6893674585502303
+    },
+    {
+      "number": 6,
+      "params": {
+        "buy_sideways_max_range": 0.04226191556898454,
+        "buy_sideways_window_days": 3,
+        "cross_cooldown_days": 7,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.15793452976256486,
+        "fgi_slope_recovery_threshold": 0.028431921582946853,
+        "fgi_slope_reversal_threshold": -0.20403957279273174,
+        "overextension_threshold_multiplier_extreme_greed": 0.6986385014620464,
+        "overextension_threshold_multiplier_greed": 0.8904827407004748,
+        "pacing_k": 14.851136192778759,
+        "pacing_r_max": 1.5654136587032967
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.4983729957725223,
+        "oos_in_sample_gap": 0.10907462985203309,
+        "oos_sharpe_mean": 1.6074476256245553
+      },
+      "value": 1.6074476256245553
+    },
+    {
+      "number": 7,
+      "params": {
+        "buy_sideways_max_range": 0.020763482134447155,
+        "buy_sideways_window_days": 8,
+        "cross_cooldown_days": 61,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.4566223936114975,
+        "fgi_slope_recovery_threshold": 0.1532007229456733,
+        "fgi_slope_reversal_threshold": -0.07641951781317732,
+        "overextension_threshold_multiplier_extreme_greed": 0.649021758055597,
+        "overextension_threshold_multiplier_greed": 0.808628038893518,
+        "pacing_k": 13.11359195574905,
+        "pacing_r_max": 1.7857042108950203
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.5818484145858194,
+        "oos_in_sample_gap": 0.0616280795122921,
+        "oos_sharpe_mean": 1.6434764940981115
+      },
+      "value": 1.6434764940981115
+    },
+    {
+      "number": 8,
+      "params": {
+        "buy_sideways_max_range": 0.038292038296869405,
+        "buy_sideways_window_days": 10,
+        "cross_cooldown_days": 97,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.35428534558235136,
+        "fgi_slope_recovery_threshold": 0.2291098301774841,
+        "fgi_slope_reversal_threshold": -0.18098895231966738,
+        "overextension_threshold_multiplier_extreme_greed": 0.39943378331909996,
+        "overextension_threshold_multiplier_greed": 0.9260531791408745,
+        "pacing_k": 3.049937112872785,
+        "pacing_r_max": 0.15971545280479507
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.615925647601244,
+        "oos_in_sample_gap": 0.09159805415688793,
+        "oos_sharpe_mean": 1.707523701758132
+      },
+      "value": 1.707523701758132
+    },
+    {
+      "number": 9,
+      "params": {
+        "buy_sideways_max_range": 0.06700633808593812,
+        "buy_sideways_window_days": 12,
+        "cross_cooldown_days": 46,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.5357302950938588,
+        "fgi_slope_recovery_threshold": 0.1664092501555387,
+        "fgi_slope_reversal_threshold": -0.04115789043790645,
+        "overextension_threshold_multiplier_extreme_greed": 0.3492560471088287,
+        "overextension_threshold_multiplier_greed": 0.8429376615192916,
+        "pacing_k": 4.0632044578260835,
+        "pacing_r_max": 1.8664255394508888
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.694821870699925,
+        "oos_in_sample_gap": 0.04511722620185954,
+        "oos_sharpe_mean": 1.7399390969017845
+      },
+      "value": 1.7399390969017845
+    },
+    {
+      "number": 10,
+      "params": {
+        "buy_sideways_max_range": 0.0916898315754266,
+        "buy_sideways_window_days": 14,
+        "cross_cooldown_days": 142,
+        "cross_on_touch": false,
+        "dma_overextension_threshold": 0.40372078087772606,
+        "fgi_slope_recovery_threshold": 0.09142067672951422,
+        "fgi_slope_reversal_threshold": -0.2964297608261681,
+        "overextension_threshold_multiplier_extreme_greed": 0.46783614097858917,
+        "overextension_threshold_multiplier_greed": 0.46938425762836633,
+        "pacing_k": 19.42120510496945,
+        "pacing_r_max": 1.252899318381104
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7859463526091115,
+        "oos_in_sample_gap": -0.06752463671530506,
+        "oos_sharpe_mean": 1.7184217158938064
+      },
+      "value": 1.7184217158938064
+    },
+    {
+      "number": 11,
+      "params": {
+        "buy_sideways_max_range": 0.08147978624005653,
+        "buy_sideways_window_days": 14,
+        "cross_cooldown_days": 171,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.25672330842328234,
+        "fgi_slope_recovery_threshold": 0.11025118612199733,
+        "fgi_slope_reversal_threshold": -0.2464459132181388,
+        "overextension_threshold_multiplier_extreme_greed": 0.20602822207087237,
+        "overextension_threshold_multiplier_greed": 0.6184715070593414,
+        "pacing_k": 17.412807445585337,
+        "pacing_r_max": 0.8119931820798516
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7338617589288248,
+        "oos_in_sample_gap": 0.05997491017956591,
+        "oos_sharpe_mean": 1.7938366691083907
+      },
+      "value": 1.7938366691083907
+    },
+    {
+      "number": 12,
+      "params": {
+        "buy_sideways_max_range": 0.0888151149907437,
+        "buy_sideways_window_days": 14,
+        "cross_cooldown_days": 180,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.25740749456891004,
+        "fgi_slope_recovery_threshold": 0.01740935349505754,
+        "fgi_slope_reversal_threshold": -0.2549548347405915,
+        "overextension_threshold_multiplier_extreme_greed": 0.2014786078240635,
+        "overextension_threshold_multiplier_greed": 0.5247543000220952,
+        "pacing_k": 17.867379975050895,
+        "pacing_r_max": 0.9034602859538918
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.818877747223059,
+        "oos_in_sample_gap": -0.016078158007888366,
+        "oos_sharpe_mean": 1.8027995892151707
+      },
+      "value": 1.8027995892151707
+    },
+    {
+      "number": 13,
+      "params": {
+        "buy_sideways_max_range": 0.09731663753028527,
+        "buy_sideways_window_days": 12,
+        "cross_cooldown_days": 180,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.25833137863048616,
+        "fgi_slope_recovery_threshold": 0.03506045995635365,
+        "fgi_slope_reversal_threshold": -0.23549660175743903,
+        "overextension_threshold_multiplier_extreme_greed": 0.21580870680455894,
+        "overextension_threshold_multiplier_greed": 0.5307312797541702,
+        "pacing_k": 19.970761583511504,
+        "pacing_r_max": 0.9105749916552208
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8176148902213292,
+        "oos_in_sample_gap": -0.014815301006158466,
+        "oos_sharpe_mean": 1.8027995892151707
+      },
+      "value": 1.8027995892151707
+    },
+    {
+      "number": 14,
+      "params": {
+        "buy_sideways_max_range": 0.09741987870657227,
+        "buy_sideways_window_days": 11,
+        "cross_cooldown_days": 171,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.2851091769898989,
+        "fgi_slope_recovery_threshold": 0.011374634699395925,
+        "fgi_slope_reversal_threshold": -0.1310718441492303,
+        "overextension_threshold_multiplier_extreme_greed": 0.20223467139084572,
+        "overextension_threshold_multiplier_greed": 0.48676252656260655,
+        "pacing_k": 19.947086101815003,
+        "pacing_r_max": 1.012096470911752
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8191591672224596,
+        "oos_in_sample_gap": -0.006973137954247699,
+        "oos_sharpe_mean": 1.812186029268212
+      },
+      "value": 1.812186029268212
+    },
+    {
+      "number": 15,
+      "params": {
+        "buy_sideways_max_range": 0.08469388875298679,
+        "buy_sideways_window_days": 11,
+        "cross_cooldown_days": 128,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.1136095131955984,
+        "fgi_slope_recovery_threshold": 0.015183154693386394,
+        "fgi_slope_reversal_threshold": -0.13006921458498805,
+        "overextension_threshold_multiplier_extreme_greed": 0.5236030287042468,
+        "overextension_threshold_multiplier_greed": 0.40435753717829753,
+        "pacing_k": 17.118148048476264,
+        "pacing_r_max": 1.1687744283481485
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7564318048200058,
+        "oos_in_sample_gap": -0.028377676238869887,
+        "oos_sharpe_mean": 1.728054128581136
+      },
+      "value": 1.728054128581136
+    },
+    {
+      "number": 16,
+      "params": {
+        "buy_sideways_max_range": 0.07877320247035416,
+        "buy_sideways_window_days": 6,
+        "cross_cooldown_days": 119,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.3202668435157928,
+        "fgi_slope_recovery_threshold": 0.06257431790358475,
+        "fgi_slope_reversal_threshold": -0.14937336554425476,
+        "overextension_threshold_multiplier_extreme_greed": 0.26048404660829927,
+        "overextension_threshold_multiplier_greed": 0.5283710659926639,
+        "pacing_k": 18.018942084289577,
+        "pacing_r_max": 1.519028706895604
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8131394307516935,
+        "oos_in_sample_gap": -0.07183990495505799,
+        "oos_sharpe_mean": 1.7412995257966355
+      },
+      "value": 1.7412995257966355
+    },
+    {
+      "number": 17,
+      "params": {
+        "buy_sideways_max_range": 0.09918998896528718,
+        "buy_sideways_window_days": 11,
+        "cross_cooldown_days": 156,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.31475724352839834,
+        "fgi_slope_recovery_threshold": 0.05407117983880848,
+        "fgi_slope_reversal_threshold": -0.11602474574773158,
+        "overextension_threshold_multiplier_extreme_greed": 0.530078506874205,
+        "overextension_threshold_multiplier_greed": 0.37461283063792267,
+        "pacing_k": 15.08502154929198,
+        "pacing_r_max": 1.019999403057286
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7573948950241007,
+        "oos_in_sample_gap": -0.02911650376122532,
+        "oos_sharpe_mean": 1.7282783912628754
+      },
+      "value": 1.7282783912628754
+    },
+    {
+      "number": 18,
+      "params": {
+        "buy_sideways_max_range": 0.07466103545462027,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 169,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.39388902872358666,
+        "fgi_slope_recovery_threshold": 0.013282917529342946,
+        "fgi_slope_reversal_threshold": -0.1093999457476026,
+        "overextension_threshold_multiplier_extreme_greed": 0.8355642071792428,
+        "overextension_threshold_multiplier_greed": 0.748008656246638,
+        "pacing_k": 18.561384970506698,
+        "pacing_r_max": 1.4666094008595685
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.5821489262733608,
+        "oos_in_sample_gap": 0.06730733268785438,
+        "oos_sharpe_mean": 1.6494562589612152
+      },
+      "value": 1.6494562589612152
+    },
+    {
+      "number": 19,
+      "params": {
+        "buy_sideways_max_range": 0.08794198538360973,
+        "buy_sideways_window_days": 11,
+        "cross_cooldown_days": 133,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.20144585761251557,
+        "fgi_slope_recovery_threshold": 0.07825629169330793,
+        "fgi_slope_reversal_threshold": -0.17043561846922992,
+        "overextension_threshold_multiplier_extreme_greed": 0.4130149915739915,
+        "overextension_threshold_multiplier_greed": 0.5659338680276216,
+        "pacing_k": 6.827969053985649,
+        "pacing_r_max": 0.5973898525034638
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.7468797400454281,
+        "oos_in_sample_gap": -0.016547784335953608,
+        "oos_sharpe_mean": 1.7303319557094745
+      },
+      "value": 1.7303319557094745
+    },
+    {
+      "number": 20,
+      "params": {
+        "buy_sideways_max_range": 0.07209349494761402,
+        "buy_sideways_window_days": 6,
+        "cross_cooldown_days": 114,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.28263597682153496,
+        "fgi_slope_recovery_threshold": 0.13867526508572636,
+        "fgi_slope_reversal_threshold": -0.25782415218186344,
+        "overextension_threshold_multiplier_extreme_greed": 0.2812423716930973,
+        "overextension_threshold_multiplier_greed": 0.34870740891707286,
+        "pacing_k": 13.537393932695721,
+        "pacing_r_max": 0.8877555605272552
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8252749087764595,
+        "oos_in_sample_gap": -0.04875640778743562,
+        "oos_sharpe_mean": 1.7765185009890239
+      },
+      "value": 1.7765185009890239
+    },
+    {
+      "number": 21,
+      "params": {
+        "buy_sideways_max_range": 0.09912303233743441,
+        "buy_sideways_window_days": 12,
+        "cross_cooldown_days": 179,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.23589031054770976,
+        "fgi_slope_recovery_threshold": 0.043270938210962395,
+        "fgi_slope_reversal_threshold": -0.2533119010278539,
+        "overextension_threshold_multiplier_extreme_greed": 0.22150005198188352,
+        "overextension_threshold_multiplier_greed": 0.4985774620751716,
+        "pacing_k": 19.861218051166116,
+        "pacing_r_max": 0.9803198769487216
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8105940861104468,
+        "oos_in_sample_gap": -0.003643627884831302,
+        "oos_sharpe_mean": 1.8069504582256155
+      },
+      "value": 1.8069504582256155
+    },
+    {
+      "number": 22,
+      "params": {
+        "buy_sideways_max_range": 0.0930493823901176,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 160,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.22187240866307814,
+        "fgi_slope_recovery_threshold": 0.043361836345756063,
+        "fgi_slope_reversal_threshold": -0.26032548637230657,
+        "overextension_threshold_multiplier_extreme_greed": 0.20028964235459054,
+        "overextension_threshold_multiplier_greed": 0.47108917304144843,
+        "pacing_k": 16.467389272165533,
+        "pacing_r_max": 1.1368429002828933
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8194235031148458,
+        "oos_in_sample_gap": -0.007237473846633868,
+        "oos_sharpe_mean": 1.812186029268212
+      },
+      "value": 1.812186029268212
+    },
+    {
+      "number": 23,
+      "params": {
+        "buy_sideways_max_range": 0.09861294030740649,
+        "buy_sideways_window_days": 12,
+        "cross_cooldown_days": 157,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.2090579461193976,
+        "fgi_slope_recovery_threshold": 0.04565524266136233,
+        "fgi_slope_reversal_threshold": -0.1826109931770427,
+        "overextension_threshold_multiplier_extreme_greed": 0.28036331188736957,
+        "overextension_threshold_multiplier_greed": 0.4642889474113722,
+        "pacing_k": 16.42896413220353,
+        "pacing_r_max": 1.3496424594395222
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8497276410625723,
+        "oos_in_sample_gap": -0.08658458836922756,
+        "oos_sharpe_mean": 1.7631430526933447
+      },
+      "value": 1.7631430526933447
+    },
+    {
+      "number": 24,
+      "params": {
+        "buy_sideways_max_range": 0.09266409132288878,
+        "buy_sideways_window_days": 10,
+        "cross_cooldown_days": 163,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.12639600354442418,
+        "fgi_slope_recovery_threshold": 0.1901157808563067,
+        "fgi_slope_reversal_threshold": -0.2655732701007372,
+        "overextension_threshold_multiplier_extreme_greed": 0.43423814264854715,
+        "overextension_threshold_multiplier_greed": 0.5982680645366908,
+        "pacing_k": 19.11579988322709,
+        "pacing_r_max": 1.032393528131294
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.6958779452660662,
+        "oos_in_sample_gap": -0.011501776549862175,
+        "oos_sharpe_mean": 1.684376168716204
+      },
+      "value": 1.684376168716204
+    },
+    {
+      "number": 25,
+      "params": {
+        "buy_sideways_max_range": 0.08223140851966097,
+        "buy_sideways_window_days": 10,
+        "cross_cooldown_days": 142,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.3112421000520742,
+        "fgi_slope_recovery_threshold": 0.04560680031514704,
+        "fgi_slope_reversal_threshold": -0.22747877859964752,
+        "overextension_threshold_multiplier_extreme_greed": 0.3501185894431046,
+        "overextension_threshold_multiplier_greed": 0.4683915364929867,
+        "pacing_k": 19.900640914982997,
+        "pacing_r_max": 1.1130994628959923
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.854271208700387,
+        "oos_in_sample_gap": -0.09184006687620028,
+        "oos_sharpe_mean": 1.7624311418241867
+      },
+      "value": 1.7624311418241867
+    },
+    {
+      "number": 26,
+      "params": {
+        "buy_sideways_max_range": 0.05719906458342989,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 150,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.2192656883025254,
+        "fgi_slope_recovery_threshold": 0.0837427915521472,
+        "fgi_slope_reversal_threshold": -0.15108042572947875,
+        "overextension_threshold_multiplier_extreme_greed": 0.2537185529185107,
+        "overextension_threshold_multiplier_greed": 0.32698680383600276,
+        "pacing_k": 1.1966203404128333,
+        "pacing_r_max": 0.7619144687275177
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.822543436416645,
+        "oos_in_sample_gap": -0.057128948613407005,
+        "oos_sharpe_mean": 1.765414487803238
+      },
+      "value": 1.765414487803238
+    },
+    {
+      "number": 27,
+      "params": {
+        "buy_sideways_max_range": 0.09252865390068273,
+        "buy_sideways_window_days": 12,
+        "cross_cooldown_days": 172,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.17310582128677474,
+        "fgi_slope_recovery_threshold": 0.040688673915835916,
+        "fgi_slope_reversal_threshold": -0.2740756735619228,
+        "overextension_threshold_multiplier_extreme_greed": 0.5697121780545681,
+        "overextension_threshold_multiplier_greed": 0.9986268689328026,
+        "pacing_k": 14.376558995673461,
+        "pacing_r_max": 1.357199770369479
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.5086120904741698,
+        "oos_in_sample_gap": 0.1483868815112459,
+        "oos_sharpe_mean": 1.6569989719854157
+      },
+      "value": 1.6569989719854157
+    },
+    {
+      "number": 28,
+      "params": {
+        "buy_sideways_max_range": 0.09967228531794974,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 134,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.3637475691412193,
+        "fgi_slope_recovery_threshold": 0.13107805388726446,
+        "fgi_slope_reversal_threshold": -0.19748850677776675,
+        "overextension_threshold_multiplier_extreme_greed": 0.31697239216203754,
+        "overextension_threshold_multiplier_greed": 0.20436686030185036,
+        "pacing_k": 16.576396116052848,
+        "pacing_r_max": 1.6908690606090044
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.8324914086194108,
+        "oos_in_sample_gap": 0.020360270974651318,
+        "oos_sharpe_mean": 1.8528516795940622
+      },
+      "value": 1.8528516795940622
+    },
+    {
+      "number": 29,
+      "params": {
+        "buy_sideways_max_range": 0.07791395750340593,
+        "buy_sideways_window_days": 13,
+        "cross_cooldown_days": 134,
+        "cross_on_touch": true,
+        "dma_overextension_threshold": 0.3665859403789826,
+        "fgi_slope_recovery_threshold": 0.28537780653340356,
+        "fgi_slope_reversal_threshold": -0.19519153717375448,
+        "overextension_threshold_multiplier_extreme_greed": 0.3197843387832489,
+        "overextension_threshold_multiplier_greed": 0.6696499075799218,
+        "pacing_k": 11.999697768891725,
+        "pacing_r_max": 1.6809881967832583
+      },
+      "state": "TrialState.COMPLETE",
+      "user_attrs": {
+        "in_sample_sharpe_mean": 1.712882751196236,
+        "oos_in_sample_gap": 0.025768977077468724,
+        "oos_sharpe_mean": 1.7386517282737046
+      },
+      "value": 1.7386517282737046
+    }
+  ],
+  "wf_anchored": false,
+  "wf_in_sample_days": 180,
+  "wf_out_of_sample_days": 60,
+  "wf_step_days": 30
+}
