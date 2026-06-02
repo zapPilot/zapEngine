@@ -146,19 +146,29 @@ describe('useBacktestConfiguration', () => {
     });
   });
 
-  it('excludes DCA Classic from strategy picker options when the catalog includes it', async () => {
+  it('builds preset-level options and excludes benchmark presets from the picker', async () => {
     vi.mocked(getStrategyConfigs).mockResolvedValue({
       ...mockStrategyConfigs,
-      strategies: [
+      presets: [
+        ...mockStrategyConfigs.presets,
         {
-          strategy_id: 'dca_classic' as const,
+          config_id: 'dma_fgi_portfolio_rules_optimized',
+          display_name: 'DMA/FGI Portfolio Rules (Optimized)',
+          description: 'Walk-forward tuned research candidate',
+          strategy_id: 'dma_fgi_portfolio_rules' as const,
+          params: mockRotationPresetParams,
+          is_benchmark: false,
+          is_default: false,
+        },
+        {
+          config_id: 'dca_classic',
           display_name: 'DCA Classic',
           description: 'Dollar-cost averaging baseline',
-          param_schema: {},
-          default_params: {},
-          supports_daily_suggestion: false,
+          strategy_id: 'dca_classic' as const,
+          params: {},
+          is_benchmark: true,
+          is_default: false,
         },
-        ...mockStrategyConfigs.strategies,
       ],
     });
     vi.mocked(getBacktestingStrategiesV3).mockResolvedValue(mockCatalog);
@@ -168,11 +178,20 @@ describe('useBacktestConfiguration', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.selectedStrategyId).toBe('dma_fgi_portfolio_rules');
+      // Selection is keyed on the default preset's config_id, and the picker
+      // surfaces every non-benchmark preset (default + optimized), so the two
+      // variants that share a strategy_id are each selectable.
+      expect(result.current.selectedConfigId).toBe(
+        'dma_fgi_portfolio_rules_default',
+      );
       expect(result.current.strategyOptions).toEqual([
         {
-          value: 'dma_fgi_portfolio_rules',
+          value: 'dma_fgi_portfolio_rules_default',
           label: 'DMA/FGI Portfolio Rules',
+        },
+        {
+          value: 'dma_fgi_portfolio_rules_optimized',
+          label: 'DMA/FGI Portfolio Rules (Optimized)',
         },
       ]);
     });
