@@ -238,7 +238,7 @@ export function createEmptyPortfolioState(
 
     // Market sentiment - REAL data
     sentimentValue,
-    sentimentStatus: sentimentData?.status ?? 'Neutral',
+    sentimentStatus,
     sentimentQuote:
       sentimentData?.quote?.quote ?? getDefaultQuoteForRegime(currentRegime),
 
