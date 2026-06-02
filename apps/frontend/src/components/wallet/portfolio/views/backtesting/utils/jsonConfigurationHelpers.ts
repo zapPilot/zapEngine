@@ -107,44 +107,52 @@ export function updateJsonField(
   return JSON.stringify(parsed, null, 2);
 }
 
+function findPresetStrategyId(
+  presets: StrategyPreset[],
+  configId: unknown,
+): string | undefined {
+  if (typeof configId !== 'string') {
+    return undefined;
+  }
+  return presets.find((item) => item.config_id === configId)?.strategy_id;
+}
+
+/**
+ * Resolve a single config entry's strategy ID, preferring an explicit
+ * `strategy_id` and otherwise looking up a preset by `saved_config_id` then
+ * `config_id`.
+ */
+function resolveEntryStrategyId(
+  entry: unknown,
+  presets: StrategyPreset[],
+): string | undefined {
+  const config = entry as Record<string, unknown> | undefined;
+
+  const strategyId = config?.['strategy_id'];
+  if (typeof strategyId === 'string') {
+    return strategyId;
+  }
+
+  return (
+    findPresetStrategyId(presets, config?.['saved_config_id']) ??
+    findPresetStrategyId(presets, config?.['config_id'])
+  );
+}
+
 export function parseConfigStrategyIdWithPresets(
   json: string,
   fallback: string,
   presets: StrategyPreset[],
 ): string {
-  const parsed = parseJsonObject(json);
-  if (!parsed) {
-    return fallback;
-  }
-
-  const configs = parsed['configs'];
-  if (!Array.isArray(configs) || configs.length === 0) {
+  const result = parseJsonConfigs(json);
+  if (!result) {
     return fallback;
   }
 
   let firstResolvedStrategyId: string | null = null;
 
-  for (const entry of configs) {
-    const config = entry as Record<string, unknown> | undefined;
-    let resolvedStrategyId: string | undefined;
-
-    const strategyId = config?.['strategy_id'];
-    if (typeof strategyId === 'string') {
-      resolvedStrategyId = strategyId;
-    }
-
-    const savedConfigId = config?.['saved_config_id'];
-    if (!resolvedStrategyId && typeof savedConfigId === 'string') {
-      const preset = presets.find((item) => item.config_id === savedConfigId);
-      resolvedStrategyId = preset?.strategy_id;
-    }
-
-    const configId = config?.['config_id'];
-    if (!resolvedStrategyId && typeof configId === 'string') {
-      const preset = presets.find((item) => item.config_id === configId);
-      resolvedStrategyId = preset?.strategy_id;
-    }
-
+  for (const entry of result.configs) {
+    const resolvedStrategyId = resolveEntryStrategyId(entry, presets);
     if (!resolvedStrategyId) {
       continue;
     }
