@@ -314,47 +314,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def _build_service_factory() -> Callable[[], BacktestingService]:
     """Lazy factory so unit tests can import this module without DB init.
 
-    Mirrors the wiring in ``src.services.dependencies.get_backtesting_service``
-    but skips ``Depends(...)`` because we're outside FastAPI. Each call
-    opens its own ``session_scope()`` so the BacktestingService instance
-    carries a fresh Session — Optuna trials run sequentially in this
-    script so we never reuse a closed session across trials.
+    Delegates the service wiring to
+    ``src.services.dependencies.build_backtesting_service`` (the single
+    construction point shared with the FastAPI provider). Each call opens its
+    own ``session_scope()`` so the BacktestingService carries a fresh Session —
+    Optuna trials run sequentially in this script so we never reuse a closed
+    session across trials.
     """
     from src.core.database import (  # pragma: no cover - import inside factory
         db_manager,
         init_database,
         session_scope,
     )
-    from src.services.market.macro_fear_greed_service import (
-        MacroFearGreedDatabaseService,
-    )
-    from src.services.market.sentiment_database_service import (
-        SentimentDatabaseService,
-    )
-    from src.services.market.stock_price_service import StockPriceService
-    from src.services.market.token_price_service import TokenPriceService
-    from src.services.shared.query_service import QueryService
-    from src.services.strategy.backtesting_service import (
-        BacktestingService,
-    )
-    from src.services.strategy.strategy_config_store import StrategyConfigStore
+    from src.services.dependencies import build_backtesting_service
 
     if db_manager.SessionLocal is None:  # pragma: no cover - first-call init
         init_database()
 
     def factory() -> BacktestingService:
         with session_scope() as db:
-            query_service = QueryService()
-            return BacktestingService(
-                db,
-                TokenPriceService(db, query_service),
-                SentimentDatabaseService(db, query_service),
-                strategy_config_store=StrategyConfigStore(db),
-                stock_price_service=StockPriceService(db, query_service),
-                macro_fear_greed_service=MacroFearGreedDatabaseService(
-                    db, query_service
-                ),
-            )
+            return build_backtesting_service(db)
 
     return factory
 
