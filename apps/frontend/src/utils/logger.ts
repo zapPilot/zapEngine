@@ -81,8 +81,7 @@ export class Logger {
   }
 
   private formatLogEntry(entry: LogEntry): string {
-    const levelNames = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-    const levelName = levelNames[entry.level] || 'UNKNOWN';
+    const levelName = LogLevel[entry.level] ?? 'UNKNOWN';
     const contextStr = entry.context ? `[${entry.context}] ` : '';
     const dataStr = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
     const errorStr = entry.error ? ` Error: ${entry.error.message}` : '';

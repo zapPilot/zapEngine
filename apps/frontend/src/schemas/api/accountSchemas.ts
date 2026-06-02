@@ -95,11 +95,11 @@ export const healthCheckResponseSchema = z.object({
 // ============================================================================
 
 /**
- * Lenient ETL job status schema - accepts API's snake_case directly
+ * Schema for ETL job status response - accepts the API's snake_case directly
  *
- * Only requires job_id and status (the fields we actually use).
- * Makes all other fields optional to handle partial API responses gracefully.
- * Uses passthrough() to handle future API additions without breaking validation.
+ * Only requires job_id and status (the fields we actually use). All other
+ * fields are optional to handle partial API responses gracefully, and
+ * passthrough() allows future API additions without breaking validation.
  *
  * This schema accepts the API response as-is without transformation, which:
  * - Prevents accidentally dropping fields (like message, rate_limited)
@@ -107,7 +107,7 @@ export const healthCheckResponseSchema = z.object({
  * - Matches the existing snake_case convention at the top level
  * - Future-proofs against new API fields
  */
-const lenientEtlJobStatusSchema = z
+export const etlJobStatusResponseSchema = z
   .object({
     job_id: z.string(),
     status: z.enum(['pending', 'processing', 'completed', 'failed']),
@@ -128,14 +128,6 @@ const lenientEtlJobStatusSchema = z
   })
   // eslint-disable-next-line sonarjs/deprecation
   .passthrough(); // Allow additional fields without failing validation
-
-/**
- * Schema for ETL job status response
- *
- * Accepts API's snake_case fields directly without transformation.
- * No preprocessing needed - what the API sends is what we validate.
- */
-export const etlJobStatusResponseSchema = lenientEtlJobStatusSchema;
 
 export const connectWalletResponseSchema = z.object({
   user_id: z.string(),
