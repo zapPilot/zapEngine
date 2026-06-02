@@ -74,6 +74,10 @@ function WalletManagerHeader({
   );
 }
 
+interface WalletManagerLoadingStateProps {
+  isRefreshing: boolean;
+}
+
 function WalletManagerLoadingState({
   isRefreshing,
 }: WalletManagerLoadingStateProps): ReactElement {
@@ -93,10 +97,6 @@ function WalletManagerLoadingState({
       </p>
     </div>
   );
-}
-
-interface WalletManagerLoadingStateProps {
-  isRefreshing: boolean;
 }
 
 interface WalletManagerErrorStateProps {
