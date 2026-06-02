@@ -30,9 +30,6 @@ from src.services.backtesting.domain import (
 from src.services.backtesting.execution.block_reasons import (
     resolve_effective_block_reason,
 )
-from src.services.backtesting.execution.metrics.registry import (
-    compute_extended_metrics,
-)
 from src.services.backtesting.execution.performance_metrics import (
     PerformanceMetricsCalculator,
 )
@@ -119,9 +116,6 @@ def build_strategy_summaries(
             strategy_daily_values[strategy.strategy_id],
             benchmark_daily_prices,
         )
-        extended_metrics = compute_extended_metrics(
-            strategy_daily_values[strategy.strategy_id],
-        )
         canonical_strategy_id = cast(
             StrategyId,
             getattr(strategy, "canonical_strategy_id", strategy.strategy_id),
@@ -144,12 +138,6 @@ def build_strategy_summaries(
             ulcer_index=performance_metrics["ulcer_index"],
             alpha=performance_metrics["alpha"],
             information_ratio=performance_metrics["information_ratio"],
-            omega_ratio=extended_metrics["omega_ratio"],
-            tail_ratio=extended_metrics["tail_ratio"],
-            skewness=extended_metrics["skewness"],
-            excess_kurtosis=extended_metrics["excess_kurtosis"],
-            pain_index=extended_metrics["pain_index"],
-            max_drawdown_recovery_days=extended_metrics["max_drawdown_recovery_days"],
             final_allocation=Allocation(**allocation),
             final_asset_allocation=asset_allocation,
             parameters={**parameters, **(result.metrics or {})},

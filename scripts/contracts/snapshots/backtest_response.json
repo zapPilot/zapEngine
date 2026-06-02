@@ -138,9 +138,6 @@
           "display_name": {
             "type": "string"
           },
-          "excess_kurtosis": {
-            "type": "number"
-          },
           "final_allocation": {
             "additionalProperties": false,
             "properties": {
@@ -209,15 +206,6 @@
           "max_drawdown_percent": {
             "type": "number"
           },
-          "max_drawdown_recovery_days": {
-            "type": "number"
-          },
-          "omega_ratio": {
-            "type": "number"
-          },
-          "pain_index": {
-            "type": "number"
-          },
           "parameters": {
             "additionalProperties": {
               "$ref": "#/$defs/__schema0"
@@ -243,17 +231,11 @@
               }
             ]
           },
-          "skewness": {
-            "type": "number"
-          },
           "sortino_ratio": {
             "type": "number"
           },
           "strategy_id": {
             "type": "string"
-          },
-          "tail_ratio": {
-            "type": "number"
           },
           "total_invested": {
             "minimum": 0,
