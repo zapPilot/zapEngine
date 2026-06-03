@@ -103,6 +103,23 @@ function decodeMulticallSendTokens(data: Hex) {
   return sendTokens.args;
 }
 
+function decodeMulticallSendTokensList(
+  data: Hex,
+): ReadonlyArray<readonly [Address, Address, bigint]> {
+  const decoded = decodeFunctionData({
+    abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+    data,
+  });
+  expect(decoded.functionName).toBe('multicall');
+  const calls = decoded.args[0] as Hex[];
+  return calls
+    .map((call) =>
+      decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: call }),
+    )
+    .filter((d) => d.functionName === 'sendTokens')
+    .map((d) => d.args as readonly [Address, Address, bigint]);
+}
+
 describe('buildGmxV2SupplyTx', () => {
   it.each(['btc-usdc', 'eth-usdc'] as const)(
     'builds a direct USDC deposit plan for %s without a LiFi swap',
@@ -134,6 +151,10 @@ describe('buildGmxV2SupplyTx', () => {
       expect(deposit.to).toBe(GMX_V2_ADDRESSES.exchangeRouter);
       expect(deposit.value).toBe(GMX_V2_EXECUTION_FEE_WEI);
 
+      // Two-token markets fund a single side, so exactly one sendTokens.
+      expect(decodeMulticallSendTokensList(deposit.data as Hex)).toHaveLength(
+        1,
+      );
       const [fundedToken, receiver, fundedAmount] = decodeMulticallSendTokens(
         deposit.data as Hex,
       );
@@ -199,12 +220,21 @@ describe('buildGmxV2SupplyTx', () => {
       expect(deposit.to).toBe(GMX_V2_ADDRESSES.exchangeRouter);
       expect(deposit.value).toBe(GMX_V2_EXECUTION_FEE_WEI);
 
-      const [fundedToken, receiver, fundedAmount] = decodeMulticallSendTokens(
-        deposit.data as Hex,
-      );
-      expect(fundedToken).toBe(market.collateralToken);
-      expect(receiver).toBe(GMX_V2_ADDRESSES.depositVault);
-      expect(fundedAmount).toBe(BigInt(SWAPPED_MIN));
+      // Single-collateral GM markets (longToken === shortToken) must be funded
+      // on BOTH sides — half long, half short — or GMX's createDeposit reverts
+      // before the DepositHandler runs. The multicall therefore carries two
+      // sendTokens that sum to the swapped collateral.
+      // See docs/gmx-v2-implementation-notes.md (Gate 1).
+      const sends = decodeMulticallSendTokensList(deposit.data as Hex);
+      expect(sends).toHaveLength(2);
+      for (const [token, receiver] of sends) {
+        expect(token).toBe(market.collateralToken);
+        expect(receiver).toBe(GMX_V2_ADDRESSES.depositVault);
+      }
+      const expectedLong = BigInt(SWAPPED_MIN) / 2n;
+      expect(sends[0]![2]).toBe(expectedLong);
+      expect(sends[1]![2]).toBe(BigInt(SWAPPED_MIN) - expectedLong);
+      expect(sends[0]![2] + sends[1]![2]).toBe(BigInt(SWAPPED_MIN));
 
       for (const tx of [...plan.approvals, ...plan.steps]) {
         expect(PreparedTransactionSchema.parse(tx)).toEqual(tx);
@@ -245,4 +275,44 @@ describe('buildGmxV2SupplyTx', () => {
       ),
     ).rejects.toThrow('GMX deposit amount must be greater than zero');
   });
+
+  it.each(['btc-btc', 'eth-eth'] as const)(
+    'rejects a dust %s deposit whose swap output has no slippage buffer',
+    async (marketKey) => {
+      const market = GMX_V2_MARKETS[marketKey];
+      // At dust sizes the swap output is a 2-digit number of 8-decimal WBTC
+      // units, so LiFi's slippage buffer rounds away to nothing
+      // (toAmountMin === toAmount). The on-chain swap then has zero tolerance
+      // and reverts inside LiFi GenericSwapFacetV3, taking the whole EIP-7702
+      // atomic batch with it. The builder must reject this early.
+      // See docs/gmx-v2-implementation-notes.md (Gate 2).
+      const getSwapQuote = vi.fn().mockResolvedValue({
+        ...makeSwapQuote({
+          fromToken: GMX_V2_TOKENS.USDC.address,
+          toToken: market.collateralToken,
+          fromAmount: USDC_AMOUNT,
+        }),
+        estimate: {
+          fromAmount: USDC_AMOUNT,
+          toAmount: '15',
+          toAmountMin: '15',
+          gasCostUsd: '0.02',
+          executionDuration: 30,
+        },
+      });
+      const adapter = { getSwapQuote } as unknown as LiFiAdapter;
+
+      await expect(
+        buildGmxV2SupplyTx(
+          {
+            marketKey,
+            fromToken: GMX_V2_TOKENS.USDC.address,
+            fromAmount: USDC_AMOUNT,
+            userAddress: USER,
+          },
+          adapter,
+        ),
+      ).rejects.toThrow('deposit too small');
+    },
+  );
 });

@@ -379,7 +379,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-
-
-# Re-export marker so ruff treats _build_service_factory as live module API.
-_BUILD_SERVICE_FACTORY = _build_service_factory
