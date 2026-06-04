@@ -85,14 +85,7 @@ class DmaBuySidewaysGate:
             return
 
         if (
-            self._episode_state == "armed"
-            and sideways_range > self.sideways_range_threshold
-        ):
-            self._clear_active_episode()
-            return
-
-        if (
-            self._episode_state == "consumed"
+            self._episode_state in ("armed", "consumed")
             and sideways_range > self.sideways_range_threshold
         ):
             self._clear_active_episode()

@@ -19,24 +19,8 @@ def build_bucket_transfers(
     step_plan: dict[str, float] | None = None,
     eps: float = 1e-6,
 ) -> list[TransferIntent]:
-    demand = [
-        BucketAmount(
-            bucket=bucket,
-            amount=_bounded_delta_amount(delta, bucket=bucket, step_plan=step_plan),
-        )
-        for bucket, delta in sorted(deltas.items())
-        if float(delta) > eps
-    ]
-    supply = [
-        BucketAmount(
-            bucket=bucket,
-            amount=_bounded_delta_amount(-delta, bucket=bucket, step_plan=step_plan),
-        )
-        for bucket, delta in sorted(deltas.items())
-        if float(delta) < -eps
-    ]
-    demand = [entry for entry in demand if entry.amount > eps]
-    supply = [entry for entry in supply if entry.amount > eps]
+    demand = _bounded_bucket_amounts(deltas, sign=1.0, step_plan=step_plan, eps=eps)
+    supply = _bounded_bucket_amounts(deltas, sign=-1.0, step_plan=step_plan, eps=eps)
 
     transfers: list[TransferIntent] = []
     demand_idx = 0
@@ -60,6 +44,25 @@ def build_bucket_transfers(
         if supply_entry.amount <= eps:
             supply_idx += 1
     return transfers
+
+
+def _bounded_bucket_amounts(
+    deltas: dict[str, float],
+    *,
+    sign: float,
+    step_plan: dict[str, float] | None,
+    eps: float,
+) -> list[BucketAmount]:
+    """Return bounded demand (sign=1) or supply (sign=-1) entries above eps."""
+    entries: list[BucketAmount] = []
+    for bucket, delta in sorted(deltas.items()):
+        magnitude = sign * float(delta)
+        if magnitude <= eps:
+            continue
+        amount = _bounded_delta_amount(magnitude, bucket=bucket, step_plan=step_plan)
+        if amount > eps:
+            entries.append(BucketAmount(bucket=bucket, amount=amount))
+    return entries
 
 
 def _bounded_delta_amount(

@@ -58,6 +58,12 @@ def build_strategy_state(
         current_asset_allocation=asset_allocation.model_dump(),
     )
     bucket_values = portfolio.bucket_values(price)
+    serializable_spot_asset = portfolio.serializable_spot_asset()
+    spot_asset = (
+        cast(SpotAssetType, serializable_spot_asset)
+        if bucket_values["spot"] > 0 and serializable_spot_asset is not None
+        else None
+    )
     return StrategyState(
         portfolio=PortfolioState(
             spot_usd=bucket_values["spot"],
@@ -65,10 +71,7 @@ def build_strategy_state(
             total_value=total_value,
             allocation=Allocation(**allocation),
             asset_allocation=asset_allocation,
-            spot_asset=cast(SpotAssetType, portfolio.serializable_spot_asset())
-            if bucket_values["spot"] > 0
-            and portfolio.serializable_spot_asset() is not None
-            else None,
+            spot_asset=spot_asset,
         ),
         signal=_build_signal_state(snapshot),
         decision=DecisionState(

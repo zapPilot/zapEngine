@@ -90,10 +90,9 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
             and float(delta) < -_EPSILON
             and float(capped_plan.get(bucket, 0.0)) > 0.0
         )
+        stable_is_supply = float(deltas.get("stable", 0.0)) < -_EPSILON
         stable_supply = (
-            float(capped_plan.get("stable", 0.0))
-            if float(deltas.get("stable", 0.0)) < -_EPSILON
-            else 0.0
+            float(capped_plan.get("stable", 0.0)) if stable_is_supply else 0.0
         )
         buy_strength = self._buy_strength(hints)
         snapshot = self._gate.snapshot(buy_strength=buy_strength)
@@ -106,7 +105,7 @@ class DmaBuyGateExecutionPlugin(DmaBuyGateConfigMixin):
             scale = allowed_risk_buy / total_risk_buy
             for bucket in risk_buy_buckets:
                 capped_plan[bucket] = float(capped_plan[bucket]) * scale
-        if "stable" in capped_plan and float(deltas.get("stable", 0.0)) < -_EPSILON:
+        if "stable" in capped_plan and stable_is_supply:
             capped_plan["stable"] = capped_stable_buy
         return ExecutionPluginResult(
             step_plan=capped_plan,
