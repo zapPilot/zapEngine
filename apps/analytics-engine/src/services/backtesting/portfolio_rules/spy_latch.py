@@ -94,11 +94,12 @@ class SpyLatchRule:
         ):
             return intent
 
+        is_activation_tick = snapshot.current_date == self._activated_on
         target_before = normalize_target_allocation(intent.target_allocation)
         target_after = _apply_spy_latch_to_target(
             target_allocation=target_before,
             pre_existing_stable_share=self._pre_existing_stable_share,
-            redeploy_existing_stable=snapshot.current_date == self._activated_on,
+            redeploy_existing_stable=is_activation_tick,
         )
         redeployed = max(
             0.0,
@@ -112,7 +113,7 @@ class SpyLatchRule:
         existing_adjustments = existing if isinstance(existing, list) else []
         adjustment_name = (
             "spy_latch_redeploy_existing_stable"
-            if snapshot.current_date == self._activated_on
+            if is_activation_tick
             else "spy_latch_absorb_fresh_stable"
         )
         diagnostics["post_intent_adjustments"] = [

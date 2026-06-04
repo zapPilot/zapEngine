@@ -22,7 +22,7 @@ def _macro_regime(assets: Mapping[str, DmaMarketState]) -> str | None:
 
 
 def _crypto_regime(assets: Mapping[str, DmaMarketState]) -> str | None:
-    for symbol in ("BTC", "ETH"):
+    for symbol in _CRYPTO_CYCLE_SYMBOLS:
         state = assets.get(symbol)
         if state is not None:
             return state.fgi_regime
@@ -37,7 +37,7 @@ def _macro_value(assets: Mapping[str, DmaMarketState]) -> float | None:
 
 
 def _crypto_value(assets: Mapping[str, DmaMarketState]) -> float | None:
-    for symbol in ("BTC", "ETH"):
+    for symbol in _CRYPTO_CYCLE_SYMBOLS:
         state = assets.get(symbol)
         if state is not None:
             return state.fgi_value
@@ -50,13 +50,13 @@ def _update_cycle_state(
 ) -> dict[str, bool]:
     updated = dict(previous)
     crypto_crossed_down = any(
-        snapshot.assets.get(symbol) is not None
-        and snapshot.assets[symbol].cross_event == "cross_down"
+        (state := snapshot.assets.get(symbol)) is not None
+        and state.cross_event == "cross_down"
         for symbol in _CRYPTO_CYCLE_SYMBOLS
     )
     crypto_crossed_up = any(
-        snapshot.assets.get(symbol) is not None
-        and snapshot.assets[symbol].actionable_cross_event == "cross_up"
+        (state := snapshot.assets.get(symbol)) is not None
+        and state.actionable_cross_event == "cross_up"
         for symbol in _CRYPTO_CYCLE_SYMBOLS
     )
     for symbol, state in snapshot.assets.items():
