@@ -52,30 +52,38 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _setupPlaybackListener();
+
+    final userId = _setupUserState();
+    _reloadIfNeeded(userId);
+  }
+
+  void _setupPlaybackListener() {
     _completionSub ??= context
         .read<PlaybackProvider>()
         .completedEpisodeIds
-        .listen(_onEpisodeCompleted);
+        .listen(_controller.onEpisodeCompleted);
+  }
 
-    final user = Provider.of<AuthProvider>(context).currentUser;
+  /// Subscribes likes/playback to the signed-in user and returns their id.
+  String? _setupUserState() {
+    final user = context.watch<AuthProvider>().currentUser;
     if (user != null) {
       context.read<LikesProvider>().watchUser(user.id);
       _bindPlaybackUser(user.id);
     }
+    return user?.id;
+  }
 
+  void _reloadIfNeeded(String? userId) {
     final languageCode =
-        Provider.of<ContentLanguageProvider?>(context)?.languageCode ??
+        context.watch<ContentLanguageProvider?>()?.languageCode ??
             AppConfig.contentLanguageCode;
-    final userId = user?.id;
 
-    if (_controller.needsReload(
-      languageCode: languageCode,
-      userId: userId,
-    )) {
-      unawaited(_controller.loadFirstPage(
-        languageCode: languageCode,
-        userId: userId,
-      ));
+    if (_controller.needsReload(languageCode: languageCode, userId: userId)) {
+      unawaited(
+        _controller.loadFirstPage(languageCode: languageCode, userId: userId),
+      );
     }
   }
 
@@ -98,19 +106,11 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Future<void> _loadMore() async {
-    return _controller.loadMore();
-  }
-
-  void _onEpisodeCompleted(String id) {
-    _controller.onEpisodeCompleted(id);
-  }
-
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
     if (position.pixels > position.maxScrollExtent - 360) {
-      unawaited(_loadMore());
+      unawaited(_controller.loadMore());
     }
   }
 
@@ -125,7 +125,7 @@ class _FeedScreenState extends State<FeedScreen> {
           () => _listenedExpanded = !_listenedExpanded,
         ),
         onRefresh: _loadFirstPage,
-        onLoadMore: () => unawaited(_loadMore()),
+        onLoadMore: () => unawaited(_controller.loadMore()),
         onSmartPlay: (episode) => unawaited(_handleSmartPlay(episode)),
       ),
     );
@@ -154,10 +154,7 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   String _currentLanguageCode() {
-    return Provider.of<ContentLanguageProvider?>(
-          context,
-          listen: false,
-        )?.languageCode ??
+    return context.read<ContentLanguageProvider?>()?.languageCode ??
         AppConfig.contentLanguageCode;
   }
 

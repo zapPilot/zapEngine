@@ -284,9 +284,7 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   AudioTrack? _defaultAudioTrackFor(Episode episode) {
-    final tracks = episode.playableAudioTracks;
-    if (tracks.isEmpty) return null;
-    return tracks.first;
+    return episode.playableAudioTracks.firstOrNull;
   }
 
   Duration _resumePositionFor(Episode episode) {
@@ -296,6 +294,15 @@ class PlaybackProvider extends ChangeNotifier {
     return Duration.zero;
   }
 
+  void _resetPlaybackState() {
+    _currentSection = PlaybackSection.main;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    _lastPersistedSecond = null;
+    _lastNotifiedSecond = null;
+    _processingState = null;
+  }
+
   Future<void> _setEpisode(Episode episode, {Duration? startAt}) async {
     final selectedTrack = _defaultAudioTrackFor(episode);
 
@@ -303,12 +310,7 @@ class PlaybackProvider extends ChangeNotifier {
     _currentEpisode = episode;
     _finalizedEpisodeIds.remove(episode.id);
     _currentAudioTrack = selectedTrack;
-    _currentSection = PlaybackSection.main;
-    _position = Duration.zero;
-    _duration = Duration.zero;
-    _lastPersistedSecond = null;
-    _lastNotifiedSecond = null;
-    _processingState = null;
+    _resetPlaybackState();
     notifyListeners();
 
     try {
@@ -361,12 +363,7 @@ class PlaybackProvider extends ChangeNotifier {
       _queueIndex = -1;
       _currentEpisode = null;
       _currentAudioTrack = null;
-      _currentSection = PlaybackSection.main;
-      _position = Duration.zero;
-      _duration = Duration.zero;
-      _lastPersistedSecond = null;
-      _lastNotifiedSecond = null;
-      _processingState = null;
+      _resetPlaybackState();
       notifyListeners();
       return;
     }

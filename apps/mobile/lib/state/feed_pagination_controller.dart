@@ -101,24 +101,11 @@ class FeedPaginationController extends ChangeNotifier {
   }
 
   void onEpisodeCompleted(String id) {
-    var changed = false;
-    final nextEpisodes = [
-      for (final episode in _episodes)
-        if (episode.id == id) ...[
-          episode.copyWith(listened: true),
-        ] else ...[
-          episode,
-        ],
-    ];
+    final index = _episodes.indexWhere((episode) => episode.id == id);
+    if (index == -1) return;
 
-    for (var index = 0; index < _episodes.length; index += 1) {
-      if (!identical(_episodes[index], nextEpisodes[index])) {
-        changed = true;
-        break;
-      }
-    }
-
-    if (!changed) return;
+    final nextEpisodes = List.of(_episodes);
+    nextEpisodes[index] = nextEpisodes[index].copyWith(listened: true);
     _episodes = nextEpisodes;
     _notifyEpisodesChanged();
     notifyListeners();

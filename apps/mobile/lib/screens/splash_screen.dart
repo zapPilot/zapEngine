@@ -28,32 +28,22 @@ class _SplashScreenState extends State<SplashScreen>
     vsync: this,
     duration: _animationDuration,
   );
-  late final Animation<double> _markProgress = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0, 0.7, curve: _primaryCurve),
-  );
-  late final Animation<double> _wordmarkOpacity = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0.42, 0.82, curve: _primaryCurve),
-  );
+  late final Animation<double> _markProgress = _intervalCurve(0, 0.7);
+  late final Animation<double> _wordmarkOpacity = _intervalCurve(0.42, 0.82);
   late final Animation<Offset> _wordmarkOffset =
-      Tween<Offset>(begin: const Offset(0, 0.16), end: Offset.zero).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.42, 0.82, curve: _primaryCurve),
-    ),
-  );
-  late final Animation<double> _endorsementOpacity = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0.62, 1, curve: _primaryCurve),
-  );
+      Tween<Offset>(begin: const Offset(0, 0.16), end: Offset.zero)
+          .animate(_intervalCurve(0.42, 0.82));
+  late final Animation<double> _endorsementOpacity = _intervalCurve(0.62, 1);
   late final Animation<Offset> _endorsementOffset =
-      Tween<Offset>(begin: const Offset(0, 0.22), end: Offset.zero).animate(
-    CurvedAnimation(
+      Tween<Offset>(begin: const Offset(0, 0.22), end: Offset.zero)
+          .animate(_intervalCurve(0.62, 1));
+
+  CurvedAnimation _intervalCurve(double begin, double end) {
+    return CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.62, 1, curve: _primaryCurve),
-    ),
-  );
+      curve: Interval(begin, end, curve: _primaryCurve),
+    );
+  }
 
   Timer? _navigationTimer;
   bool _started = false;
@@ -131,37 +121,45 @@ class _SplashScreenState extends State<SplashScreen>
                       },
                     ),
                     const SizedBox(height: 28),
-                    FadeTransition(
-                      opacity: _wordmarkOpacity,
-                      child: SlideTransition(
-                        position: _wordmarkOffset,
-                        child: Text(
-                          'From Fed to Chain',
-                          textAlign: TextAlign.center,
-                          style: textTheme.headlineLarge,
-                        ),
-                      ),
-                    ),
+                    _buildWordmark(textTheme),
                     const SizedBox(height: 12),
-                    FadeTransition(
-                      opacity: _endorsementOpacity,
-                      child: SlideTransition(
-                        position: _endorsementOffset,
-                        child: Text(
-                          'A ZAP PRODUCTION',
-                          textAlign: TextAlign.center,
-                          style: textTheme.labelMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.8,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildEndorsement(textTheme),
                   ],
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWordmark(TextTheme textTheme) {
+    return FadeTransition(
+      opacity: _wordmarkOpacity,
+      child: SlideTransition(
+        position: _wordmarkOffset,
+        child: Text(
+          'From Fed to Chain',
+          textAlign: TextAlign.center,
+          style: textTheme.headlineLarge,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEndorsement(TextTheme textTheme) {
+    return FadeTransition(
+      opacity: _endorsementOpacity,
+      child: SlideTransition(
+        position: _endorsementOffset,
+        child: Text(
+          'A ZAP PRODUCTION',
+          textAlign: TextAlign.center,
+          style: textTheme.labelMedium?.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.8,
           ),
         ),
       ),

@@ -60,6 +60,9 @@ class _AuthGateState extends State<AuthGate> {
       return const HomeShell();
     }
 
+    final supabaseConfigured = widget.supabaseConfigured;
+    final actionsDisabled = auth.signingIn || !supabaseConfigured;
+
     return BrandedBackdrop(
       child: SafeArea(
         child: Padding(
@@ -101,7 +104,7 @@ class _AuthGateState extends State<AuthGate> {
                     ),
               ),
               const SizedBox(height: 36),
-              if (!widget.supabaseConfigured) ...[
+              if (!supabaseConfigured) ...[
                 _ConfigWarning(),
                 const SizedBox(height: 16),
               ],
@@ -115,7 +118,7 @@ class _AuthGateState extends State<AuthGate> {
                 )
               else if (_canUseBiometrics)
                 FilledButton.icon(
-                  onPressed: auth.signingIn || !widget.supabaseConfigured
+                  onPressed: actionsDisabled
                       ? null
                       : () => _runSignIn(auth.signInWithFaceId),
                   icon: const Icon(Icons.face_rounded),
@@ -123,7 +126,7 @@ class _AuthGateState extends State<AuthGate> {
                 ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: auth.signingIn || !widget.supabaseConfigured
+                onPressed: actionsDisabled
                     ? null
                     : () => setState(() => _emailVisible = !_emailVisible),
                 icon: const Icon(Icons.alternate_email_rounded),
@@ -132,40 +135,7 @@ class _AuthGateState extends State<AuthGate> {
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
                 child: _emailVisible
-                    ? Padding(
-                        key: const ValueKey('email-form'),
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.email],
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
-                                hintText: 'you@example.com',
-                              ),
-                              onSubmitted: (_) => _submitEmail(auth),
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: auth.signingIn
-                                  ? null
-                                  : () => _submitEmail(auth),
-                              child: auth.signingIn
-                                  ? const SizedBox.square(
-                                      dimension: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Continue'),
-                            ),
-                          ],
-                        ),
-                      )
+                    ? _buildEmailForm(auth)
                     : const SizedBox.shrink(),
               ),
               if (auth.error != null) ...[
@@ -180,6 +150,39 @@ class _AuthGateState extends State<AuthGate> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmailForm(AuthProvider auth) {
+    return Padding(
+      key: const ValueKey('email-form'),
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.email],
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'you@example.com',
+            ),
+            onSubmitted: (_) => _submitEmail(auth),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: auth.signingIn ? null : () => _submitEmail(auth),
+            child: auth.signingIn
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Continue'),
+          ),
+        ],
       ),
     );
   }

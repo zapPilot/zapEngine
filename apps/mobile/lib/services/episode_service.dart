@@ -30,6 +30,10 @@ class EpisodeService {
   final UserEpisodeStateWriter _userEpisodeStateWriter;
   final DateTime Function() _now;
 
+  static const _episodeColumns =
+      'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms';
+  static const _userEpisodeStateConflict = 'user_id,episode_id';
+
   Future<EpisodePage> getEpisodes({
     int limit = 20,
     String? cursor,
@@ -39,9 +43,7 @@ class EpisodeService {
     final end = offset + limit;
     final rows = await _supabaseService.client
         .from('episodes_with_stats')
-        .select(
-          'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms',
-        )
+        .select(_episodeColumns)
         .eq('language_code', languageCode)
         .order('created_at', ascending: false)
         .order('id', ascending: false)
@@ -64,9 +66,7 @@ class EpisodeService {
   }) async {
     final rows = await _supabaseService.client
         .from('episodes_with_stats')
-        .select(
-          'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms',
-        )
+        .select(_episodeColumns)
         .eq('id', id)
         .eq('language_code', languageCode)
         .limit(1);
@@ -150,8 +150,8 @@ class EpisodeService {
       'user_id': userId,
       'episode_id': episodeId,
       'listened': listened,
-      'updated_at': _now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,episode_id');
+      'updated_at': _timestampNow(),
+    }, onConflict: _userEpisodeStateConflict);
   }
 
   Future<void> setPosition({
@@ -163,9 +163,11 @@ class EpisodeService {
       'user_id': userId,
       'episode_id': episodeId,
       'last_position_seconds': seconds,
-      'updated_at': _now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,episode_id');
+      'updated_at': _timestampNow(),
+    }, onConflict: _userEpisodeStateConflict);
   }
+
+  String _timestampNow() => _now().toUtc().toIso8601String();
 }
 
 Map<String, dynamic> _withDefaultAudioTrack(Map<String, dynamic> row) {

@@ -51,12 +51,12 @@ class _LanguageSection extends StatelessWidget {
         _SettingsCard(
           child: Column(
             children: [
-              for (final option in kLanguageOptions) ...[
+              for (final (index, option) in kLanguageOptions.indexed) ...[
                 _LanguageTile(
                   option: option,
                   selected: option.code == languageCode,
                 ),
-                if (option != kLanguageOptions.last)
+                if (index < kLanguageOptions.length - 1)
                   const Divider(height: 1, indent: 16, endIndent: 16),
               ],
             ],
@@ -206,23 +206,19 @@ class _AccountSection extends StatelessWidget {
   }
 
   _AccountDisplay _resolveAccountDisplay(PodcastUser? user) {
-    final displayName = user?.displayName?.trim();
-    final email = user?.email?.trim();
-    final deviceId = user?.deviceId?.trim();
-    final hasDisplayName = displayName?.isNotEmpty ?? false;
-    final hasEmail = email?.isNotEmpty ?? false;
-    final hasDeviceId = deviceId?.isNotEmpty ?? false;
+    final displayName = _nonEmptyOrNull(user?.displayName);
+    final email = _nonEmptyOrNull(user?.email);
+    final hasDeviceId = _nonEmptyOrNull(user?.deviceId) != null;
 
     return _AccountDisplay(
-      title: _accountTitle(
-        displayName: hasDisplayName ? displayName : null,
-        email: hasEmail ? email : null,
-      ),
-      subtitle: _accountSubtitle(
-        email: hasEmail ? email : null,
-        hasDeviceId: hasDeviceId,
-      ),
+      title: _accountTitle(displayName: displayName, email: email),
+      subtitle: _accountSubtitle(email: email, hasDeviceId: hasDeviceId),
     );
+  }
+
+  String? _nonEmptyOrNull(String? value) {
+    final trimmed = value?.trim();
+    return (trimmed?.isNotEmpty ?? false) ? trimmed : null;
   }
 
   String _accountTitle({String? displayName, String? email}) {
