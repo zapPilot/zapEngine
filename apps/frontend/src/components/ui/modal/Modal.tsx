@@ -4,6 +4,14 @@ import { useEffect } from 'react';
 import { ModalBackdrop } from './ModalBackdrop';
 import type { ModalProps } from './types';
 
+const MAX_WIDTH_CLASSES = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+} as const;
+
 export function Modal({
   isOpen,
   onClose,
@@ -40,14 +48,7 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const maxWidthClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    '2xl': 'max-w-2xl',
-  } as const;
-  const maxWidthClass = maxWidthClasses[maxWidth] ?? maxWidthClasses.md;
+  const maxWidthClass = MAX_WIDTH_CLASSES[maxWidth] ?? MAX_WIDTH_CLASSES.md;
 
   const handleDismiss = closeOnBackdropClick
     ? onClose

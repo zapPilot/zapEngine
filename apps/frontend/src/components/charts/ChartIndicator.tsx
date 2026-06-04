@@ -52,14 +52,14 @@ function getAriaLabel(point: ChartHoverState): string {
 
   if (isAllocationHover(point)) {
     const items = [
-      { l: 'BTC', v: point.btc },
-      { l: 'ETH', v: point.eth },
-      { l: 'Stablecoin', v: point.stablecoin },
-      { l: 'Altcoin', v: point.altcoin },
+      { label: 'BTC', value: point.btc },
+      { label: 'ETH', value: point.eth },
+      { label: 'Stablecoin', value: point.stablecoin },
+      { label: 'Altcoin', value: point.altcoin },
     ];
     const text = items
-      .filter((i) => i.v >= 1)
-      .map((i) => `${i.l} ${formatters.percent(i.v)}`)
+      .filter((item) => item.value >= 1)
+      .map((item) => `${item.label} ${formatters.percent(item.value)}`)
       .join(', ');
     if (text) {
       return `Allocation on ${date}: ${text}.`;

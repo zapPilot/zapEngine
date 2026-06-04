@@ -138,11 +138,11 @@ export const MultiCircle = memo(function MultiCircle({
   }
 
   const colors = [
-    { v: point.btc, c: CHART_COLORS.btc },
-    { v: point.eth, c: CHART_COLORS.eth },
-    { v: point.stablecoin, c: CHART_COLORS.stablecoin },
-    { v: point.altcoin, c: CHART_COLORS.altcoin },
-  ].filter((i) => i.v > 1);
+    { value: point.btc, color: CHART_COLORS.btc },
+    { value: point.eth, color: CHART_COLORS.eth },
+    { value: point.stablecoin, color: CHART_COLORS.stablecoin },
+    { value: point.altcoin, color: CHART_COLORS.altcoin },
+  ].filter((item) => item.value > 1);
 
   if (colors.length <= 1) {
     return (
@@ -151,7 +151,7 @@ export const MultiCircle = memo(function MultiCircle({
           point={point}
           r={r}
           sw={sw}
-          fill={colors[0]?.c ?? CHART_COLORS.btc}
+          fill={colors[0]?.color ?? CHART_COLORS.btc}
         />
       </IndicatorWrapper>
     );
@@ -165,7 +165,7 @@ export const MultiCircle = memo(function MultiCircle({
           point={point}
           r={r - i * 0.5}
           sw={sw}
-          fill={item.c}
+          fill={item.color}
           dx={i * 3}
           dy={-i * 3}
           delay={i * 0.05}

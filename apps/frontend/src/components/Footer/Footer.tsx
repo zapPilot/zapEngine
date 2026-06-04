@@ -95,13 +95,13 @@ export function Footer({
     <footer className={`${STYLES.base} ${className}`}>
       <div className={`${containerClassName} ${STYLES.container}`}>
         {/* Mobile: stacked layout */}
-        <div className="flex flex-col items-center gap-4 md:hidden">
+        <div className={STYLES.mobileLayout}>
           <SocialLinksSection />
           <CopyrightText year={currentYear} />
         </div>
 
         {/* Desktop: single row with space-between */}
-        <div className="hidden md:flex items-center justify-between">
+        <div className={STYLES.desktopLayout}>
           <SocialLinksSection />
           <CopyrightText year={currentYear} />
         </div>

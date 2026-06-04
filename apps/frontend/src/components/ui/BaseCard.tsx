@@ -101,30 +101,21 @@ export function BaseCard({
     .filter(Boolean)
     .join(' ');
 
-  // Conditional animation wrapper
+  const commonProps = {
+    className: fullClassName,
+    'data-testid': testId,
+    role,
+    'aria-live': ariaLive,
+  };
+
+  // Conditional animation wrapper — render a plain div when animation is off
   if (animate) {
     return (
-      <motion.div
-        {...fadeInUp}
-        transition={SMOOTH_TRANSITION}
-        className={fullClassName}
-        data-testid={testId}
-        role={role}
-        aria-live={ariaLive}
-      >
+      <motion.div {...fadeInUp} transition={SMOOTH_TRANSITION} {...commonProps}>
         {children}
       </motion.div>
     );
   }
 
-  return (
-    <div
-      className={fullClassName}
-      data-testid={testId}
-      role={role}
-      aria-live={ariaLive}
-    >
-      {children}
-    </div>
-  );
+  return <div {...commonProps}>{children}</div>;
 }
