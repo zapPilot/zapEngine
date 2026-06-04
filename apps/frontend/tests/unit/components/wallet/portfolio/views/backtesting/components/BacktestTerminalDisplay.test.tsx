@@ -101,7 +101,7 @@ describe('BacktestTerminalDisplay', () => {
     onEditorValueChange: mockOnEditorValueChange,
     strategyConfigs: null,
     days: 500,
-    selectedStrategyId: 'dma_gated_fgi',
+    selectedConfigId: 'dma_gated_fgi',
     strategyOptions: [],
   };
 

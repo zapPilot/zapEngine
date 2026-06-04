@@ -8,6 +8,7 @@ import pytest
 
 from src.config.strategy_presets import (
     DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
+    DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
     STRATEGY_PRESETS,
     STRATEGY_TUNING_OVERRIDES,
     _get_params_model,
@@ -28,9 +29,28 @@ def test_list_strategy_presets_returns_live_non_benchmark_presets() -> None:
     presets = list_strategy_presets()
     assert [preset.config_id for preset in presets] == [
         DMA_FGI_PORTFOLIO_RULES_CONFIG_ID,
+        DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID,
     ]
     assert presets[0].strategy_id == "dma_fgi_portfolio_rules"
     assert presets[0].params["signal"]["cross_cooldown_days"] == 30
+
+
+def test_optimized_preset_exposes_tuned_params_and_is_not_default() -> None:
+    optimized = resolve_seed_strategy_config(
+        DMA_FGI_PORTFOLIO_RULES_OPTIMIZED_CONFIG_ID
+    )
+    # Same strategy family as the default — only the params differ, so the
+    # snapshot universe (keyed on strategy_id) is unchanged.
+    assert optimized.strategy_id == "dma_fgi_portfolio_rules"
+    assert optimized.is_default is False
+    assert optimized.is_benchmark is False
+    assert optimized.params["signal"]["cross_cooldown_days"] == 90
+    assert optimized.params["signal"]["cross_on_touch"] is False
+    assert optimized.params["pacing"]["k"] == pytest.approx(1.51880140214303)
+    # The default preset stays anchored to its canonical params.
+    default = resolve_seed_strategy_config(DMA_FGI_PORTFOLIO_RULES_CONFIG_ID)
+    assert default.params["signal"]["cross_cooldown_days"] == 30
+    assert default.params["signal"]["cross_on_touch"] is True
 
 
 def test_default_preset_is_dma_fgi_portfolio_rules() -> None:

@@ -107,39 +107,17 @@ export function updateJsonField(
   return JSON.stringify(parsed, null, 2);
 }
 
-function findPresetStrategyId(
-  presets: StrategyPreset[],
-  configId: unknown,
-): string | undefined {
-  if (typeof configId !== 'string') {
-    return undefined;
-  }
-  return presets.find((item) => item.config_id === configId)?.strategy_id;
-}
-
 /**
- * Resolve a single config entry's strategy ID, preferring an explicit
- * `strategy_id` and otherwise looking up a preset by `saved_config_id` then
- * `config_id`.
+ * Resolve the selected preset config_id from the editor JSON. Selection is
+ * config-level (not strategy-level) so distinct presets sharing a strategy_id
+ * — e.g. the default and the optimized DMA/FGI configs — are each selectable.
+ *
+ * Reads the first compare config whose resolved strategy_id is not DCA Classic,
+ * preferring its `saved_config_id`, then its `config_id`. Adhoc configs (raw
+ * `strategy_id` + params) fall back to their `config_id`. Returns `fallback`
+ * when nothing resolves.
  */
-function resolveEntryStrategyId(
-  entry: unknown,
-  presets: StrategyPreset[],
-): string | undefined {
-  const config = entry as Record<string, unknown> | undefined;
-
-  const strategyId = config?.['strategy_id'];
-  if (typeof strategyId === 'string') {
-    return strategyId;
-  }
-
-  return (
-    findPresetStrategyId(presets, config?.['saved_config_id']) ??
-    findPresetStrategyId(presets, config?.['config_id'])
-  );
-}
-
-export function parseConfigStrategyIdWithPresets(
+export function parseSelectedConfigId(
   json: string,
   fallback: string,
   presets: StrategyPreset[],
@@ -149,21 +127,37 @@ export function parseConfigStrategyIdWithPresets(
     return fallback;
   }
 
-  let firstResolvedStrategyId: string | null = null;
+  let firstResolvedConfigId: string | null = null;
 
   for (const entry of result.configs) {
-    const resolvedStrategyId = resolveEntryStrategyId(entry, presets);
-    if (!resolvedStrategyId) {
+    const config = entry as Record<string, unknown> | undefined;
+    const savedConfigId = config?.['saved_config_id'];
+    const configId = config?.['config_id'];
+    const strategyId = config?.['strategy_id'];
+
+    const resolvedConfigId =
+      typeof savedConfigId === 'string'
+        ? savedConfigId
+        : typeof configId === 'string'
+          ? configId
+          : undefined;
+    if (!resolvedConfigId) {
       continue;
     }
 
-    firstResolvedStrategyId ??= resolvedStrategyId;
+    // Resolve the strategy behind this entry to skip the DCA baseline line.
+    const preset = presets.find((item) => item.config_id === resolvedConfigId);
+    const resolvedStrategyId =
+      preset?.strategy_id ??
+      (typeof strategyId === 'string' ? strategyId : undefined);
+
+    firstResolvedConfigId ??= resolvedConfigId;
     if (resolvedStrategyId !== DCA_CLASSIC_STRATEGY_ID) {
-      return resolvedStrategyId;
+      return resolvedConfigId;
     }
   }
 
-  return firstResolvedStrategyId ?? fallback;
+  return firstResolvedConfigId ?? fallback;
 }
 
 /**
