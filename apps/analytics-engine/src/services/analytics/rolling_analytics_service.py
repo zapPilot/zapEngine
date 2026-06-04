@@ -22,6 +22,11 @@ def _extract_latest(
     return float(value) if value is not None else default
 
 
+def _valid_floats(rows: list[dict[str, Any]], key: str) -> list[float]:
+    """Collect non-None values for ``key`` as floats, preserving row order."""
+    return [float(row[key]) for row in rows if row[key] is not None]
+
+
 class RollingAnalyticsService(BaseAnalyticsService):
     """Service for rolling window financial analytics and reliability assessment."""
 
@@ -75,11 +80,9 @@ class RollingAnalyticsService(BaseAnalyticsService):
             )
 
         # Calculate summary statistics
-        valid_sharpe_ratios = [
-            float(row["rolling_sharpe_ratio"])
-            for row in rolling_sharpe_timeseries
-            if row["rolling_sharpe_ratio"] is not None
-        ]
+        valid_sharpe_ratios = _valid_floats(
+            rolling_sharpe_timeseries, "rolling_sharpe_ratio"
+        )
 
         reliable_data_points = sum(
             1 for row in rolling_sharpe_timeseries if row["is_statistically_reliable"]
@@ -144,17 +147,13 @@ class RollingAnalyticsService(BaseAnalyticsService):
             )
 
         # Calculate summary statistics
-        valid_daily_volatilities = [
-            float(row["rolling_volatility_daily_pct"])
-            for row in rolling_volatility_timeseries
-            if row["rolling_volatility_daily_pct"] is not None
-        ]
+        valid_daily_volatilities = _valid_floats(
+            rolling_volatility_timeseries, "rolling_volatility_daily_pct"
+        )
 
-        valid_annualized_volatilities = [
-            float(row["annualized_volatility_pct"])
-            for row in rolling_volatility_timeseries
-            if row["annualized_volatility_pct"] is not None
-        ]
+        valid_annualized_volatilities = _valid_floats(
+            rolling_volatility_timeseries, "annualized_volatility_pct"
+        )
 
         reliable_data_points = sum(
             1
