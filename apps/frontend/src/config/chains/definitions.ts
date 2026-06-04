@@ -9,7 +9,7 @@ import { BaseChainConfig } from './types';
 
 /**
  * Mainnet Chain Configurations
- * Internal constant used by SUPPORTED_CHAINS and CHAIN_REGISTRY
+ * Internal constant that backs the exported SUPPORTED_CHAINS list.
  */
 const MAINNET_CHAINS: BaseChainConfig[] = [
   {

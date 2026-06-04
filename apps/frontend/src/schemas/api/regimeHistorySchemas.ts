@@ -39,9 +39,6 @@ const directionTypeSchema = z.enum(['fromLeft', 'fromRight', 'default']);
 /**
  * Duration information for time spent in current regime
  */
-/**
- * Duration information for time spent in current regime
- */
 const durationInfoSchema = z
   .object({
     /** Number of hours in current regime */

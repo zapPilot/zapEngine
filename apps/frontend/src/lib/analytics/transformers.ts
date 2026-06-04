@@ -102,11 +102,6 @@ export function transformToPerformanceChart(
   dashboard: UnifiedDashboardResponse | undefined,
 ): PerformanceChartData {
   const dailyValues = getPerformanceChartValues(dashboard);
-
-  if (dailyValues.length === 0) {
-    return { points: [], ...buildDateRange(dailyValues) };
-  }
-
   const portfolioValues = getPositivePortfolioValues(dailyValues);
 
   if (portfolioValues.length === 0) {

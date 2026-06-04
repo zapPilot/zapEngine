@@ -22,8 +22,6 @@ import {
 import { processSentimentData } from '@/adapters/portfolio/sentimentAdapter';
 import type { RegimeId } from '@/components/wallet/regime/regimeData';
 import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
-import { getDefaultQuoteForRegime } from '@/constants/regimes';
-import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
 import { extractROIChanges } from '@/lib/portfolio/portfolioUtils';
 import type {
   DirectionType,
@@ -215,10 +213,8 @@ export function createEmptyPortfolioState(
   sentimentData: MarketSentimentData | null,
   regimeHistoryData: RegimeHistoryData | null,
 ): WalletPortfolioDataWithDirection {
-  const sentimentValue = sentimentData?.value ?? 50;
-  const sentimentStatus = sentimentData?.status ?? 'Neutral';
-  const currentRegime = getRegimeFromStatus(sentimentStatus);
-  const targetAllocation = getTargetAllocation(currentRegime);
+  const sentimentInfo = processSentimentData(sentimentData);
+  const targetAllocation = getTargetAllocation(sentimentInfo.regime);
 
   // Use Ghost Mode preview data for enticing visual preview
   // This shows unconnected users what their dashboard could look like
@@ -237,13 +233,12 @@ export function createEmptyPortfolioState(
     roiChange30d: GHOST_MODE_PREVIEW.roiChange30d,
 
     // Market sentiment - REAL data
-    sentimentValue,
-    sentimentStatus,
-    sentimentQuote:
-      sentimentData?.quote?.quote ?? getDefaultQuoteForRegime(currentRegime),
+    sentimentValue: sentimentInfo.value,
+    sentimentStatus: sentimentInfo.status,
+    sentimentQuote: sentimentInfo.quote,
 
     // Regime - derived from REAL sentiment
-    currentRegime,
+    currentRegime: sentimentInfo.regime,
 
     // Allocations - use preview for visual, real target from regime
     currentAllocation: previewAllocation,

@@ -20,12 +20,40 @@ export interface PortfolioAllocation {
   simplifiedCrypto: AllocationConstituent[];
 }
 
-const CRYPTO_ASSET_META: Omit<AllocationConstituent, 'value'>[] = [
-  { asset: 'BTC', symbol: 'BTC', name: 'Bitcoin', color: ASSET_COLORS.BTC },
-  { asset: 'ETH', symbol: 'ETH', name: 'Ethereum', color: ASSET_COLORS.ETH },
-  { asset: 'SPY', symbol: 'SPY', name: 'S&P 500', color: ASSET_COLORS.SPY },
-  { asset: 'Others', symbol: 'ALT', name: 'Altcoins', color: ASSET_COLORS.ALT },
-];
+type CryptoAssetMeta = Omit<AllocationConstituent, 'value'>;
+
+const BTC_META: CryptoAssetMeta = {
+  asset: 'BTC',
+  symbol: 'BTC',
+  name: 'Bitcoin',
+  color: ASSET_COLORS.BTC,
+};
+const ETH_META: CryptoAssetMeta = {
+  asset: 'ETH',
+  symbol: 'ETH',
+  name: 'Ethereum',
+  color: ASSET_COLORS.ETH,
+};
+const SPY_META: CryptoAssetMeta = {
+  asset: 'SPY',
+  symbol: 'SPY',
+  name: 'S&P 500',
+  color: ASSET_COLORS.SPY,
+};
+const ALT_META: CryptoAssetMeta = {
+  asset: 'Others',
+  symbol: 'ALT',
+  name: 'Altcoins',
+  color: ASSET_COLORS.ALT,
+};
+
+/** Builds a constituent from its static metadata plus a computed percentage. */
+function constituent(
+  meta: CryptoAssetMeta,
+  value: number,
+): AllocationConstituent {
+  return { ...meta, value };
+}
 
 /**
  * Calculates current allocation from portfolio data
@@ -64,17 +92,11 @@ export function calculateAllocation(
 
   // Build constituents for detailed breakdown
   const safeCryptoDivisor = totalCrypto || 1;
-  const [btcMeta, ethMeta, spyMeta, altMeta] = CRYPTO_ASSET_META as [
-    Omit<AllocationConstituent, 'value'>,
-    Omit<AllocationConstituent, 'value'>,
-    Omit<AllocationConstituent, 'value'>,
-    Omit<AllocationConstituent, 'value'>,
-  ];
   const cryptoConstituents: AllocationConstituent[] = [
-    { ...btcMeta, value: (btcValue / safeCryptoDivisor) * 100 },
-    { ...ethMeta, value: (ethValue / safeCryptoDivisor) * 100 },
-    { ...spyMeta, value: (spyValue / safeCryptoDivisor) * 100 },
-    { ...altMeta, value: (othersValue / safeCryptoDivisor) * 100 },
+    constituent(BTC_META, (btcValue / safeCryptoDivisor) * 100),
+    constituent(ETH_META, (ethValue / safeCryptoDivisor) * 100),
+    constituent(SPY_META, (spyValue / safeCryptoDivisor) * 100),
+    constituent(ALT_META, (othersValue / safeCryptoDivisor) * 100),
   ].filter((c) => c.value > 0);
   const stableConstituents: AllocationConstituent[] = [];
 
@@ -104,10 +126,10 @@ export function calculateAllocation(
   // Create simplified crypto breakdown for composition bar
   // Using absolute portfolio percentages directly from API
   const simplifiedCrypto: AllocationConstituent[] = [
-    { ...btcMeta, value: allocation.btc.percentage_of_portfolio },
-    { ...ethMeta, value: allocation.eth.percentage_of_portfolio },
-    { ...spyMeta, value: allocation.spy?.percentage_of_portfolio ?? 0 },
-    { ...altMeta, value: allocation.others.percentage_of_portfolio },
+    constituent(BTC_META, allocation.btc.percentage_of_portfolio),
+    constituent(ETH_META, allocation.eth.percentage_of_portfolio),
+    constituent(SPY_META, allocation.spy?.percentage_of_portfolio ?? 0),
+    constituent(ALT_META, allocation.others.percentage_of_portfolio),
   ].filter((c) => c.value > 0);
 
   return {

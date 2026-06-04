@@ -14,7 +14,6 @@ import type { Transition, Variants } from 'framer-motion';
 // Transition Presets
 // ============================================================================
 
-// SMOOTH_TRANSITION is still used in components, so it remains exported
 /**
  * Smooth easeInOut transition
  *
@@ -53,12 +52,6 @@ export const SMOOTH_TRANSITION: Transition = {
  * >
  *   Content
  * </motion.div>
- * ```
- *
- * @example Custom offset
- * ```tsx
- * const customVariant = createFadeInUp(40); // 40px offset
- * <motion.div variants={customVariant} />
  * ```
  */
 export const fadeInUp: Variants = {
@@ -119,11 +112,3 @@ export const dropdownMenu: Variants = {
     scale: 0.95,
   },
 };
-
-// ============================================================================
-// Compound Variants
-// ============================================================================
-
-/**
- * Default export containing all variants and transitions
- */
