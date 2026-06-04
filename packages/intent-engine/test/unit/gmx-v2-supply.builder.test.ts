@@ -228,7 +228,11 @@ describe('buildGmxV2SupplyTx', () => {
       const sends = decodeMulticallSendTokensList(deposit.data as Hex);
       expect(sends).toHaveLength(2);
       for (const [token, receiver] of sends) {
+        // The deposit funds the pool in the swapped collateral (WBTC.b / WETH),
+        // NEVER in the USDC input — that's the whole point of the swap leg. Lock
+        // it so a config/builder change can't silently send USDC to a BTC pool.
         expect(token).toBe(market.collateralToken);
+        expect(token).not.toBe(GMX_V2_TOKENS.USDC.address);
         expect(receiver).toBe(GMX_V2_ADDRESSES.depositVault);
       }
       const expectedLong = BigInt(SWAPPED_MIN) / 2n;

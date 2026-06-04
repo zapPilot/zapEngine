@@ -199,4 +199,57 @@ describe('GMX v2 calldata encoders', () => {
       }),
     ).toThrow('GMX deposit amount must be greater than zero');
   });
+
+  it.each(['btc-btc', 'eth-eth'] as const)(
+    'funds both sides of the single-collateral %s market with two sendTokens',
+    (key) => {
+      // Single-collateral GM markets (longToken === shortToken, e.g. GM BTC/BTC
+      // [WBTC.b-WBTC.b]) must be funded on BOTH the long and short side, or GMX's
+      // createDeposit reverts before the DepositHandler runs. The encoder emits a
+      // SEPARATE sendTokens per side, so the two WBTC.b / WETH transfers seen
+      // on-chain (and on the GMX UI) are correct and intended, not a duplicate.
+      // See docs/gmx-v2-implementation-notes.md (Gate 1).
+      const market = GMX_V2_MARKETS[key];
+      expect(market.longToken).toBe(market.shortToken);
+
+      // Distinct halves prove the two legs are independent and ordered long→short.
+      const longTokenAmount = 745n;
+      const shortTokenAmount = 746n;
+      const { data } = encodeGmxV2CreateDepositMulticall({
+        receiver: USER,
+        market,
+        longTokenAmount,
+        shortTokenAmount,
+      });
+
+      const calls = decodeMulticallCalls(data);
+      // sendWnt + sendTokens(long) + sendTokens(short) + createDeposit
+      expect(calls).toHaveLength(4);
+
+      const sends = calls
+        .map((call) =>
+          decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: call }),
+        )
+        .filter((decoded) => decoded.functionName === 'sendTokens');
+      expect(sends).toHaveLength(2);
+      expect(sends[0]!.args).toEqual([
+        market.longToken,
+        GMX_V2_ADDRESSES.depositVault,
+        longTokenAmount,
+      ]);
+      expect(sends[1]!.args).toEqual([
+        market.shortToken,
+        GMX_V2_ADDRESSES.depositVault,
+        shortTokenAmount,
+      ]);
+
+      // Both legs fund the pool in the SAME collateral (WBTC.b / WETH), never USDC,
+      // and the two halves sum to the full deposit.
+      expect(sends[0]!.args[0]).toBe(sends[1]!.args[0]);
+      expect(sends[0]!.args[0]).toBe(market.collateralToken);
+      expect(
+        (sends[0]!.args[2] as bigint) + (sends[1]!.args[2] as bigint),
+      ).toBe(longTokenAmount + shortTokenAmount);
+    },
+  );
 });

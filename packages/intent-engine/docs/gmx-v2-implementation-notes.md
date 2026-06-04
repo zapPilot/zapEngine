@@ -256,3 +256,23 @@ Dust cannot succeed, so to prove the flow build a `btc-btc` plan with a realisti
 ($20–50) and replay swap + `ExchangeRouter.multicall` on a Tenderly Arbitrum fork. Acceptance
 bar identical to Gate 1: the swap delivers collateral and `createDeposit` submits without
 revert (keeper mint stays off-chain).
+
+## btc-btc funds the pool in WBTC, never USDC (clarification)
+
+`btc-btc`/`eth-eth` are **single-collateral BTC/ETH** markets: the deposit must fund the pool
+in **WBTC.b / WETH**, never the USDC input. That is exactly what the builder does — it swaps
+USDC→collateral and the GMX `sendTokens` use `market.longToken`/`shortToken` (the collateral),
+not USDC. Do not confuse this with the separate **`btc-usdc`** market, whose collateral _is_
+USDC and which therefore (correctly) deposits USDC and mints `btc-usdc` GM
+(`0x47c031…`) — a successful USDC deposit there is **not** a btc-btc bug.
+
+Guarantees / proof:
+
+- Unit test (`gmx-v2-supply.builder.test.ts`) asserts each `btc-btc`/`eth-eth` deposit
+  `sendTokens` token `=== collateralToken` **and `!== USDC`**.
+- `examples/gmx-v2-btc-btc-verify.ts` builds the real plan (live LI.FI) and self-asserts the
+  deposit funds the pool in the swapped collateral, refusing to emit a USDC-funded BTC deposit.
+- End-to-end fork replay of the real builder output (`buildGmxV2Supply('btc-btc')`, $100):
+  swap delivered `148827` WBTC; the GMX `multicall` moved exactly `148178` WBTC
+  (`74089 + 74089`) **out of the EOA into the DepositVault** (vault `48468 → 196646`), and
+  `createDeposit` submitted without revert. No USDC was sent to the pool.
