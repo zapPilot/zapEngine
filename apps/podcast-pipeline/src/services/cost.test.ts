@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   buildIngestSummary,
   buildUsageCostDetails,
+  classifyCostGroup,
   compactUsageCostLines,
-  formatCostLine,
-  formatUsage,
+  formatCostGroupLine,
   formatUsd,
   nonZeroUsageCostLines,
   presentCostBreakdown,
   sortUsageCostLinesByCostDesc,
+  summarizeCostByGroup,
   sumUsageCostLines,
   type UsageCostLine,
 } from './cost.js';
@@ -247,47 +248,92 @@ describe('formatUsd', () => {
   });
 });
 
-describe('formatUsage', () => {
-  it('relabels utf8_bytes to "UTF-8 bytes"', () => {
+describe('classifyCostGroup', () => {
+  it('maps translate category to translation regardless of label', () => {
     expect(
-      formatUsage({ unit: 'utf8_bytes', quantity: 12, unitPriceUsd: 0.000015 }),
-    ).toBe('12 UTF-8 bytes @ $15.00000/M');
+      classifyCostGroup(
+        baseLine({ category: 'translate', label: 'Translation ja' }),
+      ),
+    ).toBe('translation');
   });
 
-  it('relabels characters to "chars"', () => {
-    expect(
-      formatUsage({ unit: 'characters', quantity: 5, unitPriceUsd: 0.00002 }),
-    ).toBe('5 chars @ $20.00000/M');
+  it('maps LLM script to script', () => {
+    expect(classifyCostGroup(baseLine({ label: 'LLM script' }))).toBe('script');
   });
 
-  it('passes other units through verbatim', () => {
+  it('merges classroom LLM and classroom TTS into the classroom group', () => {
+    expect(classifyCostGroup(baseLine({ label: 'LLM classrooms' }))).toBe(
+      'classroom',
+    );
     expect(
-      formatUsage({ unit: 'tokens', quantity: 100, unitPriceUsd: 0.00001 }),
-    ).toBe('100 tokens @ $10.00000/M');
+      classifyCostGroup(
+        baseLine({ category: 'tts', label: 'TTS classroom audio' }),
+      ),
+    ).toBe('classroom');
+  });
+
+  it('maps TTS main audio to narration', () => {
+    expect(
+      classifyCostGroup(baseLine({ category: 'tts', label: 'TTS main audio' })),
+    ).toBe('narration');
+  });
+
+  it('falls back to other for unknown labels', () => {
+    expect(classifyCostGroup(baseLine({ label: 'Something new' }))).toBe(
+      'other',
+    );
   });
 });
 
-describe('formatCostLine', () => {
-  it('renders a cost line without usage', () => {
-    expect(formatCostLine(baseLine())).toBe(
-      '- LLM classrooms (test-provider/test-model): $0.00027',
-    );
+describe('summarizeCostByGroup', () => {
+  it('aggregates by group, drops zero lines, and sorts desc', () => {
+    const lines: UsageCostLine[] = [
+      baseLine({ category: 'tts', label: 'TTS main audio', costUsd: 0.07801 }),
+      baseLine({ category: 'tts', label: 'TTS main audio', costUsd: 0.02197 }),
+      baseLine({ label: 'LLM classrooms', costUsd: 0.02678 }),
+      baseLine({
+        category: 'tts',
+        label: 'TTS classroom audio',
+        costUsd: 0.0088,
+      }),
+      baseLine({ label: 'LLM script', costUsd: 0.01749 }),
+      baseLine({
+        category: 'translate',
+        label: 'Translation ja',
+        costUsd: 0.00188,
+      }),
+      baseLine({
+        category: 'translate',
+        label: 'Translation en',
+        costUsd: 0.0018,
+      }),
+      baseLine({ label: 'LLM script', costUsd: 0 }),
+    ];
+
+    const result = summarizeCostByGroup(lines);
+
+    expect(result).toEqual([
+      { group: 'narration', label: '旁白語音', costUsd: 0.09998 },
+      { group: 'classroom', label: '外語小教室', costUsd: 0.03558 },
+      { group: 'script', label: '文稿撰寫', costUsd: 0.01749 },
+      { group: 'translation', label: '翻譯', costUsd: 0.00368 },
+    ]);
   });
 
-  it('appends usage when present', () => {
+  it('returns [] for an all-zero breakdown', () => {
+    expect(summarizeCostByGroup([baseLine({ costUsd: 0 })])).toEqual([]);
+  });
+});
+
+describe('formatCostGroupLine', () => {
+  it('renders the group label and subtotal with no model detail', () => {
     expect(
-      formatCostLine(
-        baseLine({
-          label: 'TTS main audio',
-          provider: 'fish-audio',
-          model: 's2-pro',
-          costUsd: 0.00018,
-          usage: { unit: 'utf8_bytes', quantity: 12, unitPriceUsd: 0.000015 },
-        }),
-      ),
-    ).toBe(
-      '- TTS main audio (fish-audio/s2-pro, 12 UTF-8 bytes @ $15.00000/M): $0.00018',
-    );
+      formatCostGroupLine({
+        group: 'classroom',
+        label: '外語小教室',
+        costUsd: 0.03558,
+      }),
+    ).toBe('- 外語小教室: $0.03558');
   });
 });
 
@@ -326,8 +372,7 @@ describe('buildIngestSummary', () => {
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
         '💰 Total $0.00027',
-        'Breakdown',
-        '- LLM classrooms (test-provider/test-model): $0.00027',
+        '- 外語小教室: $0.00027',
       ].join('\n'),
     );
   });

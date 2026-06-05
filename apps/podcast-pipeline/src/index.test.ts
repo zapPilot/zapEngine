@@ -750,8 +750,8 @@ describe('POST /ingest pipeline', () => {
     expect([...costs].sort((a, b) => b - a)).toEqual(costs);
     expect(body.summary).toContain('✅ 完成');
     expect(body.summary).toContain('💰 Total $');
-    expect(body.summary).toContain('Breakdown');
-    expect(body.summary).toContain('- LLM classrooms (');
+    expect(body.summary).toContain('- 外語小教室:');
+    expect(body.summary).not.toContain('Breakdown');
   });
 
   it('persists code-owned Google TTS metadata even when TTS env overrides are present', async () => {
@@ -1014,8 +1014,7 @@ describe('POST /telegram/webhook', () => {
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
         '💰 Total $0.00027',
-        'Breakdown',
-        '- LLM classrooms (test-provider/test-model): $0.00027',
+        '- 外語小教室: $0.00027',
       ].join('\n'),
     ]);
   });
@@ -1039,7 +1038,7 @@ describe('POST /telegram/webhook', () => {
     );
   });
 
-  it('formats usage details in Telegram cost breakdowns', async () => {
+  it('groups the Telegram cost breakdown by activity and hides model detail', async () => {
     configureFreshTelegramIngest();
 
     const response = await postTelegramUpdate(
@@ -1049,15 +1048,15 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
     const resultMessage = telegramMessageTexts()[1]!;
-    expect(resultMessage).toContain(
-      '- TTS main audio (fish-audio/s2-pro, 12 UTF-8 bytes @ $15.00000/M): $0.00018',
-    );
-    expect(resultMessage).toContain(
-      '- Translation ja (google/nmt, 5 chars @ $20.00000/M): $0.00010',
-    );
+    expect(resultMessage).toContain('- 旁白語音: $');
+    expect(resultMessage).toContain('- 翻譯: $');
+    // Model / voice / usage detail is intentionally suppressed in the summary.
+    expect(resultMessage).not.toContain('fish-audio');
+    expect(resultMessage).not.toContain('UTF-8 bytes');
+    expect(resultMessage).not.toContain('/M)');
   });
 
-  it('sorts the Telegram cost breakdown by cost descending', async () => {
+  it('merges classroom costs into a single grouped subtotal', async () => {
     mockGenerateLanguageClassroomsWithLLM
       .mockResolvedValueOnce({
         lessons: [],
@@ -1094,10 +1093,7 @@ describe('POST /telegram/webhook', () => {
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
         '💰 Total $0.00014',
-        'Breakdown',
-        '- LLM classrooms (test-provider/high-model): $0.00009',
-        '- LLM classrooms (test-provider/middle-model): $0.00004',
-        '- LLM classrooms (test-provider/low-model): $0.00001',
+        '- 外語小教室: $0.00014',
       ].join('\n'),
     ]);
   });
