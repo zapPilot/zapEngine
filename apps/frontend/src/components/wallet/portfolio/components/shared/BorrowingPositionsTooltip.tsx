@@ -40,17 +40,54 @@ interface TooltipStateWrapperProps {
   children: React.ReactNode;
 }
 
+type RiskColorConfig =
+  (typeof RISK_DISPLAY_CONFIG)[keyof typeof RISK_DISPLAY_CONFIG];
+
+interface RiskBadgeProps {
+  config: Pick<RiskColorConfig, 'bg' | 'text' | 'border'>;
+  children: React.ReactNode;
+}
+
+/** Shared panel chrome for every tooltip state (loading, error, empty, content) */
+const PANEL_CLASS =
+  'w-96 bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-lg shadow-xl p-4';
+
+/** Pill badge rendered with risk-level colors (per-position rate + overall status) */
+function RiskBadge({ config, children }: RiskBadgeProps): ReactElement {
+  return (
+    <span
+      className={`
+        px-2 py-0.5 rounded text-xs font-medium
+        ${config.bg} ${config.text} ${config.border} border
+      `}
+    >
+      {children}
+    </span>
+  );
+}
+
+interface TokenRowProps {
+  label: string;
+  tokens: { symbol: string }[];
+}
+
+/** Labeled row of token icons (collateral / debt breakdown in a position card) */
+function TokenRow({ label, tokens }: TokenRowProps): ReactElement {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-gray-500 min-w-[60px]">{label}:</span>
+      <TokenIconStack tokens={tokens} maxVisible={3} />
+    </div>
+  );
+}
+
 /**
  * Common wrapper for tooltips in various states (loading, error, empty)
  */
 function TooltipStateWrapper({
   children,
 }: TooltipStateWrapperProps): ReactElement {
-  return (
-    <div className="w-96 bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-lg shadow-xl p-4">
-      {children}
-    </div>
-  );
+  return <div className={PANEL_CLASS}>{children}</div>;
 }
 
 /**
@@ -58,7 +95,7 @@ function TooltipStateWrapper({
  */
 function TooltipSkeleton(): ReactElement {
   return (
-    <div className="w-96 bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-lg shadow-xl p-4 animate-pulse">
+    <div className={`${PANEL_CLASS} animate-pulse`}>
       <div className="h-4 bg-gray-700 rounded w-3/4 mb-3" />
       <div className="space-y-2">
         {[1, 2, 3].map((i) => (
@@ -132,40 +169,28 @@ function PositionCard({ position }: PositionCardProps): ReactElement {
             <p className="text-xs text-gray-400 capitalize">{position.chain}</p>
           </div>
         </div>
-        <span
-          className={`
-            px-2 py-0.5 rounded text-xs font-medium
-            ${riskConfig.bg} ${riskConfig.text} ${riskConfig.border} border
-          `}
-        >
+        <RiskBadge config={riskConfig}>
           {position.health_rate.toFixed(2)}
-        </span>
+        </RiskBadge>
       </div>
 
       {/* Financial Details */}
       <div className="space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Collateral</span>
-          <span className="text-white font-medium">
-            ${position.collateral_usd.toLocaleString()}
-          </span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Debt</span>
-          <span className="text-white font-medium">
-            ${position.debt_usd.toLocaleString()}
-          </span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Net Value</span>
-          <span
-            className={`font-medium ${
-              position.net_value_usd >= 0 ? 'text-green-400' : 'text-rose-400'
-            }`}
-          >
-            ${position.net_value_usd.toLocaleString()}
-          </span>
-        </div>
+        <FinancialMetricRow
+          label="Collateral"
+          value={`$${position.collateral_usd.toLocaleString()}`}
+        />
+        <FinancialMetricRow
+          label="Debt"
+          value={`$${position.debt_usd.toLocaleString()}`}
+        />
+        <FinancialMetricRow
+          label="Net Value"
+          value={`$${position.net_value_usd.toLocaleString()}`}
+          valueClassName={`font-medium ${
+            position.net_value_usd >= 0 ? 'text-green-400' : 'text-rose-400'
+          }`}
+        />
       </div>
 
       {/* Token Lists with Icons */}
@@ -173,21 +198,10 @@ function PositionCard({ position }: PositionCardProps): ReactElement {
         position.debt_tokens.length > 0) && (
         <div className="pt-2 border-t border-gray-700 space-y-2">
           {position.collateral_tokens.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 min-w-[60px]">
-                Collateral:
-              </span>
-              <TokenIconStack
-                tokens={position.collateral_tokens}
-                maxVisible={3}
-              />
-            </div>
+            <TokenRow label="Collateral" tokens={position.collateral_tokens} />
           )}
           {position.debt_tokens.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 min-w-[60px]">Debt:</span>
-              <TokenIconStack tokens={position.debt_tokens} maxVisible={3} />
-            </div>
+            <TokenRow label="Debt" tokens={position.debt_tokens} />
           )}
         </div>
       )}
@@ -249,29 +263,17 @@ export function BorrowingPositionsTooltip({
 
   const riskLevel = mapBorrowingStatusToRiskLevel(summary.overall_status);
   const riskConfig = RISK_DISPLAY_CONFIG[riskLevel];
-  const riskLabel = riskConfig.label;
 
   return (
-    <div
-      className="
-        w-96 bg-gray-900/95 backdrop-blur-sm border border-gray-800
-        rounded-lg shadow-xl p-4 pointer-events-auto
-      "
-      role="tooltip"
-    >
+    <div className={`${PANEL_CLASS} pointer-events-auto`} role="tooltip">
       {/* Header with Overall Status */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-200">
           Borrowing Positions
         </h3>
-        <span
-          className={`
-            px-2 py-0.5 rounded text-xs font-medium
-            ${riskConfig.bg} ${riskConfig.text} ${riskConfig.border} border
-          `}
-        >
-          {riskConfig.emoji} {riskLabel}
-        </span>
+        <RiskBadge config={riskConfig}>
+          {riskConfig.emoji} {riskConfig.label}
+        </RiskBadge>
       </div>
 
       {/* Position Cards */}

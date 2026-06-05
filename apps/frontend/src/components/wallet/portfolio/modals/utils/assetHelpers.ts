@@ -20,13 +20,12 @@ export function getChainLogo(chainId: number | undefined): string {
 
 export function getProtocolLogo(protocolId: string | undefined): string {
   if (!protocolId) return '';
-  // Simple fuzzy matching or direct lookup
-  const key = Object.keys(PROTOCOL_LOGOS).find((k) =>
-    protocolId.toLowerCase().includes(k),
+  // Fuzzy match the protocol id against known logo keys.
+  const normalizedId = protocolId.toLowerCase();
+  const matchedKey = Object.keys(PROTOCOL_LOGOS).find((key) =>
+    normalizedId.includes(key),
   );
-  if (key) {
-    const logo = PROTOCOL_LOGOS[key];
-    if (logo) return logo;
-  }
-  return '/protocols/hyperliquid.webp'; // Fallback
+  return (
+    (matchedKey && PROTOCOL_LOGOS[matchedKey]) || '/protocols/hyperliquid.webp'
+  );
 }

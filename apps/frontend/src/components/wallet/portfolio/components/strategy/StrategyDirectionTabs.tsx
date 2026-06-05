@@ -21,12 +21,12 @@ export function StrategyDirectionTabs({
   activeDirection,
   onSelectDirection,
 }: StrategyDirectionTabsProps) {
-  // Only show tabs if we have multiple strategies (not just default)
-  const availableDirections = (
-    Object.keys(regime.strategies) as (keyof typeof regime.strategies)[]
-  ).filter((k) => k !== 'default');
+  // Only show tabs if we have directional strategies (not just default)
+  const hasDirectionalStrategies = Boolean(
+    regime.strategies.fromLeft || regime.strategies.fromRight,
+  );
 
-  if (availableDirections.length === 0) {
+  if (!hasDirectionalStrategies) {
     return null;
   }
 

@@ -51,17 +51,15 @@ interface DrawdownChartProps {
  */
 export const DrawdownChart = memo<DrawdownChartProps>(
   ({ chartData, maxDrawdown, width = 800, height = 200 }) => {
-    const data = chartData;
-
     // Calculate min/max for Y-axis scaling
     const minValue = useMemo(
-      () => Math.min(...data.map((d) => d.value), 0),
-      [data],
+      () => Math.min(...chartData.map((d) => d.value), 0),
+      [chartData],
     );
     const maxValue = 0; // Zero line at top
 
     // Chart hover with tooltip
-    const drawdownHover = useChartHover(data, {
+    const drawdownHover = useChartHover(chartData, {
       chartType: 'drawdown-recovery',
       chartWidth: width,
       chartHeight: height,
@@ -82,7 +80,7 @@ export const DrawdownChart = memo<DrawdownChartProps>(
     // 0% drawdown = y:0 (top), maxDrawdown = y:height (bottom)
     const drawdownScale = Math.abs(minValue) || 15; // Use actual min or fallback to 15%
     const points = buildPath(
-      data,
+      chartData,
       width,
       (point) => (Math.abs(point.value) / drawdownScale) * height,
     );

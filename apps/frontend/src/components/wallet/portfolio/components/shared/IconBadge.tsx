@@ -21,26 +21,24 @@ interface IconBadgeProps {
  * 3. Text label
  */
 export function IconBadge({ src, alt, size = 'md', fallback }: IconBadgeProps) {
-  const [imageStatus, setImageStatus] = useState<
-    'loading' | 'success' | 'error'
-  >('loading');
+  const [hasError, setHasError] = useState(false);
 
   const sizeClasses = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
 
   return (
     <div className={`relative ${sizeClasses}`}>
-      {imageStatus !== 'error' && (
+      {!hasError && (
         <img
           src={src}
           alt={alt}
           loading="lazy"
           className="rounded-full object-cover w-full h-full"
-          onLoad={() => setImageStatus('success')}
-          onError={() => setImageStatus('error')}
+          onLoad={() => setHasError(false)}
+          onError={() => setHasError(true)}
         />
       )}
 
-      {imageStatus === 'error' && (
+      {hasError && (
         <div
           className={`
           flex items-center justify-center rounded-full

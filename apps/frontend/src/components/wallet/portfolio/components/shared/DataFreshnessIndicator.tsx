@@ -92,10 +92,10 @@ function DataFreshnessIndicatorComponent({
   const Icon = styles.Icon;
 
   const isTextOnly = variant === 'text-only';
+  const chromeClasses = isTextOnly ? '' : `border ${styles.container}`;
   const baseClasses = `
     inline-flex items-center rounded-full
-    ${isTextOnly ? '' : 'border'}
-    ${isTextOnly ? '' : styles.container}
+    ${chromeClasses}
     ${sizeStyles.container}
     ${className}
   `;

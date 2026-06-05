@@ -21,17 +21,15 @@ export function buildTargetCryptoAssets(
     return [];
   }
 
-  const assets: AllocationConstituent[] = [];
-
-  assets.push({
-    asset: 'Crypto',
-    symbol: 'CRYPTO',
-    name: 'Crypto',
-    value: (breakdown.spot / totalCrypto) * 100,
-    color: ASSET_COLORS.ALT,
-  });
-
-  return assets;
+  return [
+    {
+      asset: 'Crypto',
+      symbol: 'CRYPTO',
+      name: 'Crypto',
+      value: (breakdown.spot / totalCrypto) * 100,
+      color: ASSET_COLORS.ALT,
+    },
+  ];
 }
 
 /**

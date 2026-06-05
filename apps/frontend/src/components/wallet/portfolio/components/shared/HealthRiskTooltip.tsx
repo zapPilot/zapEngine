@@ -53,7 +53,6 @@ export function HealthRiskTooltip({
   } = riskMetrics;
 
   const riskConfig = RISK_DISPLAY_CONFIG[riskLevel];
-  const riskLabel = riskConfig.label;
 
   // Calculate buffer from liquidation threshold
   const buffer = health_rate - liquidation_threshold;
@@ -94,7 +93,7 @@ export function HealthRiskTooltip({
             ${riskConfig.bg} ${riskConfig.text} ${riskConfig.border} border
           `}
         >
-          {riskConfig.emoji} {riskLabel}
+          {riskConfig.emoji} {riskConfig.label}
         </span>
       </div>
 
