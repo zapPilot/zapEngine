@@ -45,14 +45,12 @@ export function BundlePageClient({
     const shouldRedirectToUserBundle =
       isConnected && userInfo?.userId && !userId && pathname === '/';
     if (shouldRedirectToUserBundle) {
-      const current = new URLSearchParams(Array.from(searchParams.entries()));
+      const current = new URLSearchParams(searchParams);
       current.set('userId', userInfo.userId);
       if (userInfo.etlJobId) {
         current.set('etlJobId', userInfo.etlJobId);
       }
-      const queryString = current.toString();
-      const newUrl = `/bundle?${queryString}`;
-      router.replace(newUrl);
+      router.replace(`/bundle?${current.toString()}`);
     }
   }, [
     isConnected,
