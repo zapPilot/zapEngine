@@ -68,6 +68,14 @@ const DOLLAR_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
   ),
 );
 
+interface ChartPayloadRow {
+  sentiment_value?: number | null;
+  macro_fear_greed?: number | null;
+  regime?: string | null;
+  macro_regime?: string | null;
+  [key: string]: unknown;
+}
+
 export function formatTooltipValue(
   value: TooltipValueType | undefined,
   name: string | number | undefined,
@@ -102,20 +110,14 @@ export function formatTooltipValue(
   return [value as string | number, labelName];
 }
 
-interface ChartPayloadRow {
-  sentiment_value?: number | null;
-  macro_fear_greed?: number | null;
-  regime?: string | null;
-  macro_regime?: string | null;
-  [key: string]: unknown;
+interface RegimeRow {
+  regime: string | null;
+  macro_regime: string | null;
 }
 
 export function createGradientStops(
-  chartData: { regime: string | null; macro_regime: string | null }[],
-  getRegime: (d: {
-    regime: string | null;
-    macro_regime: string | null;
-  }) => string | null,
+  chartData: RegimeRow[],
+  getRegime: (d: RegimeRow) => string | null,
 ): JSX.Element[] {
   return chartData.map((d, i) => {
     const offset = chartData.length > 1 ? i / (chartData.length - 1) : 0;

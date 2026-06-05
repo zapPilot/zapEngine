@@ -169,25 +169,17 @@ export function getActiveJsonEditorState(
   compositionValidation: ParsedJsonResult<StrategyComposition>,
   setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
 ): JsonEditorPanelProps {
-  if (activeJsonTab === 'params') {
-    return {
-      value: formState.paramsJson,
-      onChange: function onChange(value: string): void {
-        setFormState((previous) => ({ ...previous, paramsJson: value }));
-      },
-      valid: paramsValidation.valid,
-      rows: 12,
-      disabled: false,
-    };
-  }
+  const field = activeJsonTab === 'params' ? 'paramsJson' : 'compositionJson';
+  const validation =
+    activeJsonTab === 'params' ? paramsValidation : compositionValidation;
 
   return {
-    value: formState.compositionJson,
+    value: formState[field],
     onChange: function onChange(value: string): void {
-      setFormState((previous) => ({ ...previous, compositionJson: value }));
+      setFormState((previous) => ({ ...previous, [field]: value }));
     },
-    valid: compositionValidation.valid,
-    rows: 16,
+    valid: validation.valid,
+    rows: activeJsonTab === 'params' ? 12 : 16,
     disabled: false,
   };
 }

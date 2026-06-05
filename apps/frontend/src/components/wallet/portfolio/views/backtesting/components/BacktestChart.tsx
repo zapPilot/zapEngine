@@ -27,7 +27,7 @@ import {
   StrategyArea,
 } from './BacktestChartLayers';
 import { BacktestChartLegend } from './BacktestChartLegend';
-import { BacktestTooltip, type BacktestTooltipProps } from './BacktestTooltip';
+import { BacktestTooltip } from './BacktestTooltip';
 
 export interface BacktestChartProps {
   chartData: BacktestChartPoint[];
@@ -93,18 +93,17 @@ export const BacktestChart = memo(function BacktestChart({
             <Tooltip
               allowEscapeViewBox={{ x: false, y: true }}
               wrapperStyle={{ zIndex: 20 }}
-              content={({ active, payload, label }) => {
-                const tooltipProps: BacktestTooltipProps =
-                  buildBacktestTooltipProps({
+              content={({ active, payload, label }) => (
+                <BacktestTooltip
+                  {...buildBacktestTooltipProps({
                     active,
                     payload,
                     label,
                     sortedStrategyIds,
                     chartDataIndex,
-                  });
-
-                return <BacktestTooltip {...tooltipProps} />;
-              }}
+                  })}
+                />
+              )}
             />
 
             {sortedStrategyIds.map((strategyId, index) => (

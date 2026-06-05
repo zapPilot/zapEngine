@@ -21,6 +21,41 @@ interface ConfigEditorStructuredFieldsProps {
   setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>;
 }
 
+const FIELD_LABEL_CLASS =
+  'mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500';
+const TEXT_INPUT_CLASS =
+  'w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500';
+const RULE_ACTION_BUTTON_CLASS =
+  'rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50';
+
+function LabeledTextInput({
+  label,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}): ReactElement {
+  return (
+    <div>
+      <label className={FIELD_LABEL_CLASS}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className={TEXT_INPUT_CLASS}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
 function updateField<Key extends keyof ConfigEditorFormState>(
   setFormState: Dispatch<SetStateAction<ConfigEditorFormState>>,
   key: Key,
@@ -74,9 +109,7 @@ export function ConfigEditorStructuredFields({
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 space-y-5">
       <div>
-        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
-          Config ID
-        </label>
+        <label className={FIELD_LABEL_CLASS}>Config ID</label>
         {mode === 'create' ? (
           <div>
             <input
@@ -106,26 +139,16 @@ export function ConfigEditorStructuredFields({
         )}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
-          Display Name *
-        </label>
-        <input
-          type="text"
-          value={formState.displayName}
-          onChange={(event) =>
-            updateField(setFormState, 'displayName', event.target.value)
-          }
-          placeholder="My Strategy Config"
-          className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
-          disabled={isBenchmark}
-        />
-      </div>
+      <LabeledTextInput
+        label="Display Name *"
+        value={formState.displayName}
+        placeholder="My Strategy Config"
+        disabled={isBenchmark}
+        onChange={(value) => updateField(setFormState, 'displayName', value)}
+      />
 
       <div>
-        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
-          Description
-        </label>
+        <label className={FIELD_LABEL_CLASS}>Description</label>
         <textarea
           value={formState.description}
           onChange={(event) =>
@@ -140,28 +163,18 @@ export function ConfigEditorStructuredFields({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
-            Strategy ID *
-          </label>
+          <label className={FIELD_LABEL_CLASS}>Strategy ID *</label>
           <span className="inline-flex min-h-10 w-full items-center rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 font-mono text-sm text-gray-200">
             {LOCKED_STRATEGY_ID}
           </span>
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
-            Primary Asset *
-          </label>
-          <input
-            type="text"
-            value={formState.primaryAsset}
-            onChange={(event) =>
-              updateField(setFormState, 'primaryAsset', event.target.value)
-            }
-            placeholder="BTC"
-            className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
-            disabled={isBenchmark}
-          />
-        </div>
+        <LabeledTextInput
+          label="Primary Asset *"
+          value={formState.primaryAsset}
+          placeholder="BTC"
+          disabled={isBenchmark}
+          onChange={(value) => updateField(setFormState, 'primaryAsset', value)}
+        />
       </div>
 
       <div className="space-y-3 rounded-lg border border-gray-800 bg-gray-950/30 p-4">
@@ -172,7 +185,7 @@ export function ConfigEditorStructuredFields({
               type="button"
               onClick={() => updateField(setFormState, 'disabledRules', [])}
               disabled={isBenchmark}
-              className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className={RULE_ACTION_BUTTON_CLASS}
             >
               Enable all
             </button>
@@ -180,7 +193,7 @@ export function ConfigEditorStructuredFields({
               type="button"
               onClick={() => resetRulesToDefaults(setFormState, rules)}
               disabled={isBenchmark}
-              className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className={RULE_ACTION_BUTTON_CLASS}
             >
               Reset to defaults
             </button>

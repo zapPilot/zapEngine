@@ -6,6 +6,14 @@ import {
   getDefaultConfigIdForStrategyId,
 } from '../constants';
 
+function readStringField(
+  source: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = source?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
 function parseJsonObject(json: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(json);
@@ -131,16 +139,10 @@ export function parseSelectedConfigId(
 
   for (const entry of result.configs) {
     const config = entry as Record<string, unknown> | undefined;
-    const savedConfigId = config?.['saved_config_id'];
-    const configId = config?.['config_id'];
-    const strategyId = config?.['strategy_id'];
 
     const resolvedConfigId =
-      typeof savedConfigId === 'string'
-        ? savedConfigId
-        : typeof configId === 'string'
-          ? configId
-          : undefined;
+      readStringField(config, 'saved_config_id') ??
+      readStringField(config, 'config_id');
     if (!resolvedConfigId) {
       continue;
     }
@@ -148,8 +150,7 @@ export function parseSelectedConfigId(
     // Resolve the strategy behind this entry to skip the DCA baseline line.
     const preset = presets.find((item) => item.config_id === resolvedConfigId);
     const resolvedStrategyId =
-      preset?.strategy_id ??
-      (typeof strategyId === 'string' ? strategyId : undefined);
+      preset?.strategy_id ?? readStringField(config, 'strategy_id');
 
     firstResolvedConfigId ??= resolvedConfigId;
     if (resolvedStrategyId !== DCA_CLASSIC_STRATEGY_ID) {

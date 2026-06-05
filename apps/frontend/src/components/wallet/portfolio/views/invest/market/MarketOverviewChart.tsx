@@ -33,6 +33,12 @@ import {
 
 type RegimeKey = keyof typeof REGIME_COLORS;
 
+interface RegimeBlock {
+  start: string;
+  end: string;
+  regime: RegimeKey;
+}
+
 /**
  * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
  * self-describing snapshot whose `values` map keys series ids (`btc`, `eth`,
@@ -123,19 +129,11 @@ export function MarketOverviewChart({
     });
   }, [data]);
 
-  const regimeBlocks = useMemo(() => {
+  const regimeBlocks = useMemo<RegimeBlock[]>(() => {
     if (!chartData.length) return [];
 
-    const blocks: {
-      start: string;
-      end: string;
-      regime: RegimeKey;
-    }[] = [];
-    let currentBlock: {
-      start: string;
-      end: string;
-      regime: RegimeKey;
-    } | null = null;
+    const blocks: RegimeBlock[] = [];
+    let currentBlock: RegimeBlock | null = null;
 
     for (const [i, d] of chartData.entries()) {
       const regime = (d.regime || 'n') as RegimeKey;
@@ -317,6 +315,7 @@ export function MarketOverviewChart({
             const isFgi = line.key === 'fgi';
             const isMacroFgi = line.key === 'macro_fear_greed';
             const isBtcPrice = line.key === 'btcPrice';
+            const isRegimeLine = isFgi || isMacroFgi;
 
             const strokeDasharrayProps = line.strokeDasharray
               ? { strokeDasharray: line.strokeDasharray }
@@ -353,7 +352,7 @@ export function MarketOverviewChart({
                 name={line.label}
                 dataKey={line.dataKey}
                 stroke={stroke}
-                strokeWidth={isFgi || isMacroFgi ? 2.5 : 2}
+                strokeWidth={isRegimeLine ? 2.5 : 2}
                 dot={false}
                 {...strokeDasharrayProps}
                 connectNulls
