@@ -125,11 +125,6 @@ function WalletManagerErrorState({
   );
 }
 
-interface WalletManagerContentProps {
-  isOwner: boolean;
-  walletSectionProps: WalletManagerSectionProps;
-}
-
 interface WalletManagerSectionProps {
   walletOperations: WalletOperationsState;
   emailSubscription: EmailSubscriptionState;
@@ -141,19 +136,19 @@ interface WalletManagerSectionProps {
   onCancelAdding: () => void;
 }
 
+interface WalletManagerContentProps extends WalletManagerSectionProps {
+  isOwner: boolean;
+}
+
 function WalletManagerContent({
   isOwner,
-  walletSectionProps,
+  walletOperations,
+  emailSubscription,
+  dropdownMenu,
+  onWalletChange,
+  onEditWallet,
+  onCancelAdding,
 }: WalletManagerContentProps): ReactElement {
-  const {
-    walletOperations,
-    emailSubscription,
-    dropdownMenu,
-    onWalletChange,
-    onEditWallet,
-    onCancelAdding,
-  } = walletSectionProps;
-
   return (
     <>
       <WalletListProvider
@@ -237,10 +232,7 @@ function WalletManagerStateSections({
         />
       )}
       {showContent && (
-        <WalletManagerContent
-          isOwner={isOwnerView}
-          walletSectionProps={walletSectionProps}
-        />
+        <WalletManagerContent isOwner={isOwnerView} {...walletSectionProps} />
       )}
     </>
   );

@@ -50,9 +50,11 @@ function getWalletOperationError(
   operations: WalletOperations,
   walletId: string,
 ): string | undefined {
-  const removeError = operations.removing[walletId]?.error ?? undefined;
-  const editError = operations.editing[walletId]?.error ?? undefined;
-  return removeError || editError;
+  return (
+    operations.removing[walletId]?.error ||
+    operations.editing[walletId]?.error ||
+    undefined
+  );
 }
 
 function WalletCardComponent({
@@ -71,7 +73,6 @@ function WalletCardComponent({
 
   return (
     <motion.div
-      key={wallet.id}
       layout
       {...fadeInUp}
       transition={SMOOTH_TRANSITION}
