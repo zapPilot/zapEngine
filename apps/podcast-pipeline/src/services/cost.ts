@@ -104,23 +104,70 @@ export function formatUsd(value: number): string {
   return value.toFixed(5);
 }
 
-export function formatUsage(usage: UsageCostUsage): string {
-  let unitLabel = usage.unit;
-  if (usage.unit === 'utf8_bytes') {
-    unitLabel = 'UTF-8 bytes';
-  } else if (usage.unit === 'characters') {
-    unitLabel = 'chars';
+/**
+ * High-level, human-facing cost groups — "what the money was spent on" rather
+ * than which model/voice produced it. Each raw {@link UsageCostLine} maps to one
+ * group via {@link classifyCostGroup}.
+ */
+export type UsageCostGroup =
+  | 'narration'
+  | 'classroom'
+  | 'script'
+  | 'translation'
+  | 'other';
+
+const GROUP_LABELS: Record<UsageCostGroup, string> = {
+  narration: '旁白語音',
+  classroom: '外語小教室',
+  script: '文稿撰寫',
+  translation: '翻譯',
+  other: '其他',
+};
+
+export function classifyCostGroup(line: UsageCostLine): UsageCostGroup {
+  if (line.category === 'translate') {
+    return 'translation';
   }
-  return `${usage.quantity} ${unitLabel} @ $${formatUsd(
-    usage.unitPriceUsd * 1_000_000,
-  )}/M`;
+  if (line.label === 'LLM script') {
+    return 'script';
+  }
+  if (line.label === 'LLM classrooms' || line.label === 'TTS classroom audio') {
+    return 'classroom';
+  }
+  if (line.label === 'TTS main audio') {
+    return 'narration';
+  }
+  return 'other';
 }
 
-export function formatCostLine(line: UsageCostLine): string {
-  const usage = line.usage ? `, ${formatUsage(line.usage)}` : '';
-  return `- ${line.label} (${line.provider}/${line.model}${usage}): $${formatUsd(
-    line.costUsd,
-  )}`;
+export interface UsageCostGroupSummary {
+  group: UsageCostGroup;
+  label: string;
+  costUsd: number;
+}
+
+/**
+ * Collapses the raw breakdown into one subtotal per high-level group, dropping
+ * model/voice/usage detail. Zero-cost lines and empty groups are removed, and
+ * the result is sorted by cost descending.
+ */
+export function summarizeCostByGroup(
+  lines: UsageCostLine[],
+): UsageCostGroupSummary[] {
+  const totals = new Map<UsageCostGroup, number>();
+
+  for (const line of nonZeroUsageCostLines(lines)) {
+    const group = classifyCostGroup(line);
+    totals.set(group, (totals.get(group) ?? 0) + line.costUsd);
+  }
+
+  return [...totals.entries()]
+    .map(([group, costUsd]) => ({ group, label: GROUP_LABELS[group], costUsd }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+}
+
+export function formatCostGroupLine(summary: UsageCostGroupSummary): string {
+  return `- ${summary.label}: $${formatUsd(summary.costUsd)}`;
 }
 
 export interface IngestSummaryInput {
@@ -146,11 +193,10 @@ export function buildIngestSummary(input: IngestSummaryInput): string {
     lines.push(input.hlsUrl);
   }
 
-  const costLines = presentCostBreakdown(input.costDetails.breakdown);
-  if (input.costDetails.totalUsd > 0 && costLines.length > 0) {
+  const costGroups = summarizeCostByGroup(input.costDetails.breakdown);
+  if (input.costDetails.totalUsd > 0 && costGroups.length > 0) {
     lines.push(`💰 Total $${formatUsd(input.costDetails.totalUsd)}`);
-    lines.push('Breakdown');
-    lines.push(...costLines.map(formatCostLine));
+    lines.push(...costGroups.map(formatCostGroupLine));
   }
 
   return lines.join('\n');
