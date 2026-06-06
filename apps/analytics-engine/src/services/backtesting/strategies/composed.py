@@ -214,7 +214,7 @@ class ComposedSignalStrategy(BaseStrategy):
             input_data=input_data,
             history_by_date=history_by_date,
         )
-        initial_context = self._build_recommendation_context(
+        recommendation_context = self._build_recommendation_context(
             input_data=input_data,
             context_date=input_data.current_date,
             price=input_data.price,
@@ -222,21 +222,13 @@ class ComposedSignalStrategy(BaseStrategy):
             price_map=dict(input_data.price_map),
             extra_data=dict(input_data.extra_data),
         )
-        self.initialize(input_data.portfolio, None, initial_context)
+        self.initialize(input_data.portfolio, None, recommendation_context)
         for warmup_context in self._build_warmup_contexts(
             input_data=input_data,
             history_by_date=history_by_date,
         ):
             self.warmup_day(warmup_context)
-        today_context = self._build_recommendation_context(
-            input_data=input_data,
-            context_date=input_data.current_date,
-            price=input_data.price,
-            sentiment=current_sentiment,
-            price_map=dict(input_data.price_map),
-            extra_data=dict(input_data.extra_data),
-        )
-        return self.on_day(today_context)
+        return self.on_day(recommendation_context)
 
     def _build_warmup_contexts(
         self,

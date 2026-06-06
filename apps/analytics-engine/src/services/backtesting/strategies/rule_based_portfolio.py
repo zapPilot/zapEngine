@@ -413,6 +413,7 @@ class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
         }
 
 
+# jscpd:ignore-start - intentional thin alias; signature mirrors the flat-minimum builder by design
 def build_initial_portfolio_rules_asset_allocation(
     *,
     aggregate_allocation: Mapping[str, float],
@@ -426,6 +427,9 @@ def build_initial_portfolio_rules_asset_allocation(
         price_map=price_map,
         primary_price=primary_price,
     )
+
+
+# jscpd:ignore-end
 
 
 def default_rule_based_portfolio_params() -> dict[str, JsonValue]:

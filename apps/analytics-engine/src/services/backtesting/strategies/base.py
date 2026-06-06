@@ -189,6 +189,7 @@ class BaseStrategy:
         """Return tracked deployed capital, defaulting to 0.0."""
         return getattr(strategy, "total_deployed", 0.0)
 
+    # jscpd:ignore-start - record_day signature is intentionally shared by BaseStrategy subclass overrides
     def record_day(
         self,
         context: StrategyContext,
@@ -203,6 +204,8 @@ class BaseStrategy:
 
         total_deployed = self._get_total_deployed(self)
         daily_data.append(self._build_daily_record(context, total_deployed))
+
+    # jscpd:ignore-end
 
     def parameters(self) -> dict[str, Any]:
         """Return configuration parameters for summary output."""
