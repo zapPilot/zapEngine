@@ -258,18 +258,16 @@ export const regimes: Regime[] = [
  */
 export function getRegimeById(regimeId: RegimeId): Regime {
   const regime = regimes.find((r) => r.id === regimeId);
-
-  if (!regime) {
-    // Fallback to neutral regime if not found
-    const neutralRegime = regimes.find((r) => r.id === 'n');
-    if (!neutralRegime) {
-      throw new Error('Critical: Neutral regime not found in regimes array');
-    }
-    return neutralRegime;
+  if (regime) {
+    return regime;
   }
 
-  // ... existing code ...
-  return regime;
+  // Fallback to neutral regime if the requested id is not found
+  const neutralRegime = regimes.find((r) => r.id === 'n');
+  if (!neutralRegime) {
+    throw new Error('Critical: Neutral regime not found in regimes array');
+  }
+  return neutralRegime;
 }
 
 /**
@@ -277,19 +275,19 @@ export function getRegimeById(regimeId: RegimeId): Regime {
  * @param regime - The regime configuration
  * @returns Allocation split (crypto/stable)
  */
-export function getRegimeAllocation(regime: Regime) {
+export function getRegimeAllocation(regime: Regime): RegimeAllocationBreakdown {
   // Try default first, then fromLeft (first tab) if default is missing
   const strategy = regime.strategies.default || regime.strategies.fromLeft;
   const target = strategy?.useCase?.allocationAfter;
 
-  if (target) {
-    return {
-      spot: target.spot,
-      stable: target.stable,
-    };
+  if (!target) {
+    throw new Error(
+      `Critical: No valid strategy found for regime ${regime.id} to determine allocation`,
+    );
   }
 
-  throw new Error(
-    `Critical: No valid strategy found for regime ${regime.id} to determine allocation`,
-  );
+  return {
+    spot: target.spot,
+    stable: target.stable,
+  };
 }

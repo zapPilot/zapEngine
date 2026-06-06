@@ -28,6 +28,25 @@ import {
   validateConfigsStrategyIdsAgainstCatalog,
 } from './backtestRequestValidation';
 
+/**
+ * Serialize the default editor JSON from strategy configs. Prefers curated
+ * presets when present and otherwise falls back to the live-strategy payload.
+ * Used for the initial editor value, the post-fetch hydration, and reset.
+ */
+function buildDefaultEditorValue(
+  configs: StrategyConfigsResponse | null,
+): string {
+  const defaults = configs?.backtest_defaults ?? FALLBACK_DEFAULTS;
+  const payload =
+    configs && configs.presets.length > 0
+      ? buildDefaultPayloadFromPresets(configs.presets, defaults)
+      : buildDefaultPayloadFromStrategies(
+          configs?.strategies ?? null,
+          defaults,
+        );
+  return JSON.stringify(payload, null, 2);
+}
+
 export function useBacktestConfiguration() {
   const {
     mutate,
@@ -39,11 +58,7 @@ export function useBacktestConfiguration() {
   const [strategyConfigs, setStrategyConfigs] =
     useState<StrategyConfigsResponse | null>(null);
   const [editorValue, setEditorValue] = useState<string>(() =>
-    JSON.stringify(
-      buildDefaultPayloadFromStrategies(null, FALLBACK_DEFAULTS),
-      null,
-      2,
-    ),
+    buildDefaultEditorValue(null),
   );
   const [editorError, setEditorError] = useState<string | null>(null);
   const [defaultsReady, setDefaultsReady] = useState(false);
@@ -62,21 +77,8 @@ export function useBacktestConfiguration() {
       if (configsResult.status === 'fulfilled') {
         const configs = configsResult.value;
         setStrategyConfigs(configs);
-        if (!userEdited.current && configs.presets.length > 0) {
-          const payload = buildDefaultPayloadFromPresets(
-            configs.presets,
-            configs.backtest_defaults,
-          );
-          setEditorValue(JSON.stringify(payload, null, 2));
-          setDefaultsReady(true);
-          return;
-        }
         if (!userEdited.current) {
-          const payload = buildDefaultPayloadFromStrategies(
-            configs.strategies,
-            configs.backtest_defaults,
-          );
-          setEditorValue(JSON.stringify(payload, null, 2));
+          setEditorValue(buildDefaultEditorValue(configs));
         }
       }
 
@@ -206,16 +208,8 @@ export function useBacktestConfiguration() {
     !initialRunSettled && !backtestData && !error && !editorError;
 
   const resetConfiguration = () => {
-    const defaults = strategyConfigs?.backtest_defaults ?? FALLBACK_DEFAULTS;
-    const payload =
-      strategyConfigs && strategyConfigs.presets.length > 0
-        ? buildDefaultPayloadFromPresets(strategyConfigs.presets, defaults)
-        : buildDefaultPayloadFromStrategies(
-            strategyConfigs?.strategies ?? null,
-            defaults,
-          );
     userEdited.current = false;
-    setEditorValue(JSON.stringify(payload, null, 2));
+    setEditorValue(buildDefaultEditorValue(strategyConfigs));
     setEditorError(null);
   };
 

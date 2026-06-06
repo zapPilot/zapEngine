@@ -31,6 +31,38 @@ const CLASSROOM_MEDIA_COLUMNS = [
   'classroom_r2_prefix',
 ] as const;
 
+type LocalizationStatusUpdates = Partial<
+  Pick<
+    NewEpisodeLocalization,
+    | 'script'
+    | 'llmModel'
+    | 'llmThinkingModel'
+    | 'llmProvider'
+    | 'hlsUrl'
+    | 'r2Prefix'
+    | 'classroomHlsUrl'
+    | 'classroomR2Prefix'
+    | 'ttsLanguageCode'
+    | 'ttsVoiceName'
+  >
+>;
+
+const LOCALIZATION_UPDATE_COLUMNS: Record<
+  keyof LocalizationStatusUpdates,
+  string
+> = {
+  script: 'script',
+  llmModel: 'llm_model',
+  llmThinkingModel: 'llm_thinking_model',
+  llmProvider: 'llm_provider',
+  hlsUrl: 'hls_url',
+  r2Prefix: 'r2_prefix',
+  classroomHlsUrl: 'classroom_hls_url',
+  classroomR2Prefix: 'classroom_r2_prefix',
+  ttsLanguageCode: 'tts_language_code',
+  ttsVoiceName: 'tts_voice_name',
+};
+
 function getSupabaseDbSchema(): string {
   return (
     process.env['SUPABASE_DB_SCHEMA']?.trim() || DEFAULT_SUPABASE_DB_SCHEMA
@@ -465,41 +497,13 @@ export async function updateEpisodeLocalizationArticleContent(
 export async function updateEpisodeLocalizationStatus(
   id: string,
   status: EpisodeStatus,
-  updates?: Partial<
-    Pick<
-      NewEpisodeLocalization,
-      | 'script'
-      | 'llmModel'
-      | 'llmThinkingModel'
-      | 'llmProvider'
-      | 'hlsUrl'
-      | 'r2Prefix'
-      | 'classroomHlsUrl'
-      | 'classroomR2Prefix'
-      | 'ttsLanguageCode'
-      | 'ttsVoiceName'
-    >
-  >,
+  updates?: LocalizationStatusUpdates,
 ): Promise<EpisodeLocalizationRow | null> {
   const setFields: Record<string, unknown> = { status };
-  if (updates?.script !== undefined) setFields['script'] = updates.script;
-  if (updates?.llmModel !== undefined)
-    setFields['llm_model'] = updates.llmModel;
-  if (updates?.llmThinkingModel !== undefined)
-    setFields['llm_thinking_model'] = updates.llmThinkingModel;
-  if (updates?.llmProvider !== undefined)
-    setFields['llm_provider'] = updates.llmProvider;
-  if (updates?.hlsUrl !== undefined) setFields['hls_url'] = updates.hlsUrl;
-  if (updates?.r2Prefix !== undefined)
-    setFields['r2_prefix'] = updates.r2Prefix;
-  if (updates?.classroomHlsUrl !== undefined)
-    setFields['classroom_hls_url'] = updates.classroomHlsUrl;
-  if (updates?.classroomR2Prefix !== undefined)
-    setFields['classroom_r2_prefix'] = updates.classroomR2Prefix;
-  if (updates?.ttsLanguageCode !== undefined)
-    setFields['tts_language_code'] = updates.ttsLanguageCode;
-  if (updates?.ttsVoiceName !== undefined)
-    setFields['tts_voice_name'] = updates.ttsVoiceName;
+  for (const [field, column] of Object.entries(LOCALIZATION_UPDATE_COLUMNS)) {
+    const value = updates?.[field as keyof LocalizationStatusUpdates];
+    if (value !== undefined) setFields[column] = value;
+  }
 
   const includesClassroomMediaFields = CLASSROOM_MEDIA_COLUMNS.some(
     (column) => column in setFields,

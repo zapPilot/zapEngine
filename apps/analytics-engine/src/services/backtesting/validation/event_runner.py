@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -688,8 +689,6 @@ def _window_contains_extreme_fear_below_dma(
     include_crypto_sentiment: bool,
     include_macro_sentiment: bool,
 ) -> bool:
-    from datetime import timedelta
-
     event_date = parse_date(str(event_point["date"]))
     end_date = event_date + timedelta(days=within_days)
     for point in points:

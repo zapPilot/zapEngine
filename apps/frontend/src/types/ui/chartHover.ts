@@ -124,10 +124,6 @@ export interface DailyYieldHoverData extends BaseHoverData {
 }
 
 /**
- * Underwater chart hover data
- * Shows underwater periods and recovery status
- */
-/**
  * Discriminated union of all chart hover states
  * Use the chartType discriminator to narrow the type
  */

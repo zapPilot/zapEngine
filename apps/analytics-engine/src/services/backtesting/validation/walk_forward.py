@@ -107,13 +107,12 @@ def split_windows(
     windows: list[WalkForwardWindow] = []
     fold_index = 0
     while True:
+        fold_offset = config.step_days * fold_index
         in_sample_start = (
-            full_start
-            if config.anchored
-            else full_start + timedelta(days=config.step_days * fold_index)
+            full_start if config.anchored else full_start + timedelta(days=fold_offset)
         )
         in_sample_end = full_start + timedelta(
-            days=config.step_days * fold_index + config.in_sample_days - 1
+            days=fold_offset + config.in_sample_days - 1
         )
         oos_start = in_sample_end + timedelta(days=1)
         oos_end = oos_start + timedelta(days=config.out_of_sample_days - 1)

@@ -33,6 +33,12 @@ import {
 
 type RegimeKey = keyof typeof REGIME_COLORS;
 
+interface RegimeBlock {
+  start: string;
+  end: string;
+  regime: RegimeKey;
+}
+
 /**
  * Flat row shape consumed by recharts. Source `MarketDashboardPoint` is the
  * self-describing snapshot whose `values` map keys series ids (`btc`, `eth`,
@@ -123,19 +129,11 @@ export function MarketOverviewChart({
     });
   }, [data]);
 
-  const regimeBlocks = useMemo(() => {
+  const regimeBlocks = useMemo<RegimeBlock[]>(() => {
     if (!chartData.length) return [];
 
-    const blocks: {
-      start: string;
-      end: string;
-      regime: RegimeKey;
-    }[] = [];
-    let currentBlock: {
-      start: string;
-      end: string;
-      regime: RegimeKey;
-    } | null = null;
+    const blocks: RegimeBlock[] = [];
+    let currentBlock: RegimeBlock | null = null;
 
     for (const [i, d] of chartData.entries()) {
       const regime = (d.regime || 'n') as RegimeKey;
@@ -317,24 +315,34 @@ export function MarketOverviewChart({
             const isFgi = line.key === 'fgi';
             const isMacroFgi = line.key === 'macro_fear_greed';
             const isBtcPrice = line.key === 'btcPrice';
+            const isRegimeLine = isFgi || isMacroFgi;
 
             const strokeDasharrayProps = line.strokeDasharray
               ? { strokeDasharray: line.strokeDasharray }
               : {};
-            const activeDotProps = isFgi
-              ? { activeDot: renderFgiActiveDot }
-              : isMacroFgi
-                ? { activeDot: renderMacroFgiActiveDot }
-                : isBtcPrice
-                  ? {
-                      activeDot: {
-                        r: 5,
-                        fill: line.color,
-                        strokeWidth: 2,
-                        stroke: '#fff',
-                      },
-                    }
-                  : {};
+
+            let activeDotProps = {};
+            if (isFgi) {
+              activeDotProps = { activeDot: renderFgiActiveDot };
+            } else if (isMacroFgi) {
+              activeDotProps = { activeDot: renderMacroFgiActiveDot };
+            } else if (isBtcPrice) {
+              activeDotProps = {
+                activeDot: {
+                  r: 5,
+                  fill: line.color,
+                  strokeWidth: 2,
+                  stroke: '#fff',
+                },
+              };
+            }
+
+            let stroke = line.color;
+            if (isFgi) {
+              stroke = 'url(#fgiLineGradient)';
+            } else if (isMacroFgi) {
+              stroke = 'url(#macroFgiLineGradient)';
+            }
 
             return (
               <Line
@@ -343,14 +351,8 @@ export function MarketOverviewChart({
                 type="monotone"
                 name={line.label}
                 dataKey={line.dataKey}
-                stroke={
-                  isFgi
-                    ? 'url(#fgiLineGradient)'
-                    : isMacroFgi
-                      ? 'url(#macroFgiLineGradient)'
-                      : line.color
-                }
-                strokeWidth={isFgi || isMacroFgi ? 2.5 : 2}
+                stroke={stroke}
+                strokeWidth={isRegimeLine ? 2.5 : 2}
                 dot={false}
                 {...strokeDasharrayProps}
                 connectNulls

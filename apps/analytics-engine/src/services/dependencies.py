@@ -6,7 +6,7 @@ coupling between services.
 """
 
 import logging
-from typing import Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -49,6 +49,9 @@ from src.services.shared.query_service import (
     get_query_service as _get_query_service_singleton,
 )
 from src.services.strategy.strategy_config_store import StrategyConfigStore
+
+if TYPE_CHECKING:
+    from src.services.strategy.backtesting_service import BacktestingService
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +323,43 @@ def get_market_dashboard_service(
     )
 
 
+def build_backtesting_service(
+    db: Session,
+    *,
+    token_price_service: TokenPriceServiceProtocol | None = None,
+    sentiment_service: SentimentDatabaseServiceProtocol | None = None,
+    stock_price_service: StockPriceServiceProtocol | None = None,
+    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
+) -> "BacktestingService":
+    """Assemble a BacktestingService — the single construction point.
+
+    FastAPI's :func:`get_backtesting_service` passes its Depends-injected
+    sub-services in; non-FastAPI callers (attribution scripts, Optuna search)
+    pass nothing and get a fresh stack built directly from ``db`` and the shared
+    QueryService.
+    """
+    from src.services.market.macro_fear_greed_service import (
+        MacroFearGreedDatabaseService,
+    )
+    from src.services.market.sentiment_database_service import (
+        SentimentDatabaseService,
+    )
+    from src.services.market.stock_price_service import StockPriceService
+    from src.services.market.token_price_service import TokenPriceService
+    from src.services.strategy.backtesting_service import BacktestingService
+
+    query_service = get_query_service()
+    return BacktestingService(  # pragma: no cover
+        db,
+        token_price_service or TokenPriceService(db, query_service),
+        sentiment_service or SentimentDatabaseService(db, query_service),
+        strategy_config_store=StrategyConfigStore(db),
+        stock_price_service=stock_price_service or StockPriceService(db, query_service),
+        macro_fear_greed_service=macro_fear_greed_service
+        or MacroFearGreedDatabaseService(db, query_service),
+    )
+
+
 # jscpd:ignore-start
 # Reason: FastAPI dependency providers repeat DI signatures for explicit wiring.
 def get_backtesting_service(
@@ -334,19 +374,13 @@ def get_backtesting_service(
     ),
 ) -> BacktestingServiceProtocol:
     """Create BacktestingService instance for DCA strategy comparison."""
-    from src.services.strategy.backtesting_service import (
-        BacktestingService,  # pragma: no cover
-    )
-    from src.services.strategy.strategy_config_store import StrategyConfigStore
-
-    return BacktestingService(
+    return build_backtesting_service(  # pragma: no cover
         db,
-        token_price_service,
-        sentiment_service,
-        strategy_config_store=StrategyConfigStore(db),
+        token_price_service=token_price_service,
+        sentiment_service=sentiment_service,
         stock_price_service=stock_price_service,
         macro_fear_greed_service=macro_fear_greed_service,
-    )  # pragma: no cover
+    )
 
 
 # jscpd:ignore-end

@@ -129,16 +129,6 @@ class DcaClassicStrategy(BaseStrategy):
             apply_yield=True,
         )
 
-    def record_day(
-        self,
-        context: StrategyContext,
-        action: StrategyAction,
-        yield_breakdown: dict[str, float],
-        trade_executed: bool,
-    ) -> None:
-        # Use base implementation which records standard fields
-        super().record_day(context, action, yield_breakdown, trade_executed)
-
     def parameters(self) -> dict[str, Any]:
         return {
             "total_capital": self.total_capital,

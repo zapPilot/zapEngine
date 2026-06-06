@@ -315,6 +315,19 @@ export function sortStrategyIds(ids: string[]): string[] {
   return [...dca, ...others];
 }
 
+function shouldSparseDcaPoint(
+  strategyId: string,
+  sparseContext: SparseContext | undefined,
+): boolean {
+  return (
+    strategyId === DCA_CLASSIC_STRATEGY_ID &&
+    sparseContext !== undefined &&
+    sparseContext.pointIndex !== 0 &&
+    sparseContext.pointIndex !== sparseContext.totalPoints - 1 &&
+    sparseContext.pointIndex % DCA_BASELINE_SPARSE_STRIDE !== 0
+  );
+}
+
 export function buildChartPoint(
   point: BacktestTimelinePoint,
   strategyIds: string[],
@@ -339,14 +352,7 @@ export function buildChartPoint(
   for (const id of strategyIds) {
     const strategy = point.strategies[id];
     if (strategy) {
-      const shouldSparseDca =
-        id === DCA_CLASSIC_STRATEGY_ID &&
-        sparseContext !== undefined &&
-        sparseContext.pointIndex !== 0 &&
-        sparseContext.pointIndex !== sparseContext.totalPoints - 1 &&
-        sparseContext.pointIndex % DCA_BASELINE_SPARSE_STRIDE !== 0;
-
-      data[`${id}_value`] = shouldSparseDca
+      data[`${id}_value`] = shouldSparseDcaPoint(id, sparseContext)
         ? null
         : strategy.portfolio.total_value;
     }

@@ -236,17 +236,13 @@ class DmaSignalEngine:
         if previous_zone is None:
             return None
 
-        if previous_zone == "above":
-            if self.config.cross_on_touch and current_zone in {"at", "below"}:
-                return "cross_down"
-            if not self.config.cross_on_touch and current_zone == "below":
-                return "cross_down"
-
-        if previous_zone == "below":
-            if self.config.cross_on_touch and current_zone in {"at", "above"}:
-                return "cross_up"
-            if not self.config.cross_on_touch and current_zone == "above":
-                return "cross_up"
+        cross_on_touch = self.config.cross_on_touch
+        down_zones = {"at", "below"} if cross_on_touch else {"below"}
+        up_zones = {"at", "above"} if cross_on_touch else {"above"}
+        if previous_zone == "above" and current_zone in down_zones:
+            return "cross_down"
+        if previous_zone == "below" and current_zone in up_zones:
+            return "cross_up"
 
         return None
 

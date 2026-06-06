@@ -78,11 +78,9 @@ const dailyYieldReturnSchema = z.object({
   tokens: z.array(dailyYieldTokenSchema),
 });
 
-const dailyYieldPeriodSchema = periodWindowSchema;
-
 export const dailyYieldReturnsResponseSchema = z.object({
   user_id: z.string(),
-  period: dailyYieldPeriodSchema,
+  period: periodWindowSchema,
   daily_returns: z.array(dailyYieldReturnSchema),
 });
 

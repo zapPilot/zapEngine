@@ -5,24 +5,6 @@
  * that match the wallet portfolio design system (glass morphism, purple gradients).
  */
 
-import type { ReactNode } from 'react';
-
-function IconCircle({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`w-16 h-16 rounded-full flex items-center justify-center ${className ?? ''}`.trim()}
-    >
-      {children}
-    </div>
-  );
-}
-
 function StatusIconCircle({
   className,
   svgClassName,
@@ -33,7 +15,9 @@ function StatusIconCircle({
   pathD: string;
 }) {
   return (
-    <IconCircle className={className}>
+    <div
+      className={`w-16 h-16 rounded-full flex items-center justify-center ${className}`}
+    >
       <svg
         className={svgClassName}
         fill="none"
@@ -47,7 +31,7 @@ function StatusIconCircle({
           d={pathD}
         />
       </svg>
-    </IconCircle>
+    </div>
   );
 }
 

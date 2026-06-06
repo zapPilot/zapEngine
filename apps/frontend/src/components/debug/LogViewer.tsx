@@ -1,9 +1,26 @@
-import { useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
 import { Z_INDEX } from '@/constants/designSystem';
 import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { type LogEntry, logger, LogLevel } from '@/utils/logger';
+
+function LogData({ data }: { data: LogEntry['data'] }): ReactElement | null {
+  if (!data) return null;
+
+  let dataStr: string;
+  try {
+    dataStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  } catch {
+    dataStr = '[Object]';
+  }
+
+  return (
+    <div className="ml-4 text-gray-500 text-xs">
+      <pre>{dataStr}</pre>
+    </div>
+  );
+}
 
 /**
  * Development Log Viewer Component
@@ -105,46 +122,21 @@ export function LogViewer() {
             </div>
 
             <div className="overflow-y-auto max-h-64 font-mono text-xs space-y-1">
-              {logs.slice(-50).map((log, index) => {
-                const renderData = () => {
-                  if (!log.data) return null;
-                  try {
-                    const dataStr =
-                      typeof log.data === 'string'
-                        ? log.data
-                        : JSON.stringify(log.data, null, 2);
-                    return (
-                      <div className="ml-4 text-gray-500 text-xs">
-                        <pre>{dataStr}</pre>
-                      </div>
-                    );
-                  } catch {
-                    return (
-                      <div className="ml-4 text-gray-500 text-xs">
-                        <pre>[Object]</pre>
-                      </div>
-                    );
-                  }
-                };
-
-                return (
-                  <div key={index} className={`${getLevelColor(log.level)}`}>
-                    <span className="text-gray-500">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="ml-2 font-semibold">
-                      {getLevelName(log.level)}
-                    </span>
-                    {log.context && (
-                      <span className="ml-1 text-gray-400">
-                        [{log.context}]
-                      </span>
-                    )}
-                    <span className="ml-2">{log.message}</span>
-                    {renderData()}
-                  </div>
-                );
-              })}
+              {logs.slice(-50).map((log, index) => (
+                <div key={index} className={getLevelColor(log.level)}>
+                  <span className="text-gray-500">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="ml-2 font-semibold">
+                    {getLevelName(log.level)}
+                  </span>
+                  {log.context && (
+                    <span className="ml-1 text-gray-400">[{log.context}]</span>
+                  )}
+                  <span className="ml-2">{log.message}</span>
+                  <LogData data={log.data} />
+                </div>
+              ))}
             </div>
           </div>
         </BaseCard>

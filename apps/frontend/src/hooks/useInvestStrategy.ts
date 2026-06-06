@@ -42,11 +42,14 @@ interface RunInvestStrategyInput {
 
 const investStrategyLogger = logger.createContextLogger('InvestStrategy');
 
-function initialLegProgress(plan: DepositPlan): InvestLegProgress[] {
+function legProgress(
+  plan: DepositPlan,
+  status: InvestLegStatus,
+): InvestLegProgress[] {
   return plan.legs.map((leg) => ({
     chainId: leg.chainId,
     kind: leg.kind,
-    status: 'pending',
+    status,
   }));
 }
 
@@ -97,13 +100,7 @@ export function useInvestStrategy() {
   );
 
   const markAllCallsSubmitted = useCallback((plan: DepositPlan) => {
-    setLegs(
-      plan.legs.map((leg) => ({
-        chainId: leg.chainId,
-        kind: leg.kind,
-        status: 'submitted',
-      })),
-    );
+    setLegs(legProgress(plan, 'submitted'));
   }, []);
 
   const run = useCallback(
@@ -134,7 +131,7 @@ export function useInvestStrategy() {
             sourceChainId,
           });
           actions.setLastPlan(plan);
-          setLegs(initialLegProgress(plan));
+          setLegs(legProgress(plan, 'pending'));
 
           const walletClient = await getWalletClient(base.id);
           const execution = await executeDepositPlan({

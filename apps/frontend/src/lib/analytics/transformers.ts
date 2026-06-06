@@ -102,11 +102,6 @@ export function transformToPerformanceChart(
   dashboard: UnifiedDashboardResponse | undefined,
 ): PerformanceChartData {
   const dailyValues = getPerformanceChartValues(dashboard);
-
-  if (dailyValues.length === 0) {
-    return { points: [], ...buildDateRange(dailyValues) };
-  }
-
   const portfolioValues = getPositivePortfolioValues(dailyValues);
 
   if (portfolioValues.length === 0) {
@@ -151,7 +146,7 @@ export function transformToDrawdownChart(
     };
   }
 
-  const points = underwaterData.map((d, idx: number) => ({
+  const points = underwaterData.map((d, idx) => ({
     x: (idx / (underwaterData.length - 1)) * 100,
     value: d.drawdown_pct ?? 0,
     date: d.date ?? new Date().toISOString(),
@@ -305,8 +300,6 @@ export function aggregateMonthlyPnL(
     );
   }
 
-  const monthNames = MONTH_ABBREVIATIONS;
-
   return Array.from(monthlyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-12)
@@ -325,7 +318,7 @@ export function aggregateMonthlyPnL(
           ?.total_value_usd ?? 100000;
 
       return {
-        month: monthNames[month - 1] ?? 'N/A',
+        month: MONTH_ABBREVIATIONS[month - 1] ?? 'N/A',
         year,
         value: portfolioValue > 0 ? (yieldUSD / portfolioValue) * 100 : 0,
       };

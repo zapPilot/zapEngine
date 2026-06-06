@@ -240,46 +240,55 @@ class Episode {
 }
 
 List<AudioTrack> _readAudioTracks(Map<String, dynamic> json) {
-  final value = json['audioTracks'] ?? json['audio_tracks'];
-  if (value is! List) return const [];
-
-  return value
-      .whereType<Map>()
-      .map((track) => AudioTrack.fromJson(Map<String, dynamic>.from(track)))
-      .where((track) => track.isPlayable)
-      .toList(growable: false);
+  return _readJsonList(
+    json,
+    const ['audioTracks', 'audio_tracks'],
+    AudioTrack.fromJson,
+    keep: (track) => track.isPlayable,
+  );
 }
 
 List<LanguageClassroomLesson> _readLanguageClassrooms(
   Map<String, dynamic> json,
 ) {
-  final value = json['languageClassrooms'] ?? json['language_classrooms'];
-  if (value is! List) return const [];
-
-  return value
-      .whereType<Map>()
-      .map(
-        (lesson) =>
-            LanguageClassroomLesson.fromJson(Map<String, dynamic>.from(lesson)),
-      )
-      .where((lesson) => lesson.oneLiner.trim().isNotEmpty)
-      .toList(growable: false);
+  return _readJsonList(
+    json,
+    const ['languageClassrooms', 'language_classrooms'],
+    LanguageClassroomLesson.fromJson,
+    keep: (lesson) => lesson.oneLiner.trim().isNotEmpty,
+  );
 }
 
 List<LanguageClassroomKeyword> _readLanguageClassroomKeywords(
   Map<String, dynamic> json,
 ) {
-  final value = json['keywords'];
+  return _readJsonList(
+    json,
+    const ['keywords'],
+    LanguageClassroomKeyword.fromJson,
+    keep: (keyword) => keyword.term.trim().isNotEmpty,
+  );
+}
+
+/// Reads the first of [keys] present in [json] as a list, decoding each map
+/// element via [fromJson] and retaining only entries that satisfy [keep].
+List<T> _readJsonList<T>(
+  Map<String, dynamic> json,
+  List<String> keys,
+  T Function(Map<String, dynamic>) fromJson, {
+  required bool Function(T) keep,
+}) {
+  Object? value;
+  for (final key in keys) {
+    value = json[key];
+    if (value != null) break;
+  }
   if (value is! List) return const [];
 
   return value
       .whereType<Map>()
-      .map(
-        (keyword) => LanguageClassroomKeyword.fromJson(
-          Map<String, dynamic>.from(keyword),
-        ),
-      )
-      .where((keyword) => keyword.term.trim().isNotEmpty)
+      .map((element) => fromJson(Map<String, dynamic>.from(element)))
+      .where(keep)
       .toList(growable: false);
 }
 

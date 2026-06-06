@@ -62,7 +62,7 @@ class SearchSpaceBounds:
     on the dma_fgi_portfolio_rules baseline.
     """
 
-    cross_cooldown_days: tuple[int, int] = (7, 90)
+    cross_cooldown_days: tuple[int, int] = (7, 180)
     pacing_k: tuple[float, float] = (1.0, 20.0)
     pacing_r_max: tuple[float, float] = (0.1, 2.0)
     buy_sideways_window_days: tuple[int, int] = (3, 14)
@@ -185,6 +185,16 @@ def build_objective(
                 config_id=f"optuna_trial_{trial.number}",
             )
         )
+        # Record the overfit guard per trial so study_to_report can surface the
+        # in-sample/OOS Sharpe gap without re-running the WalkForwardRunner
+        # (ITERATION_LOG 2026-05-28 followup #2). A large negative gap means the
+        # config looked good in-sample but collapsed out-of-sample.
+        trial.set_user_attr("in_sample_sharpe_mean", report.in_sample_sharpe_mean)
+        trial.set_user_attr("oos_sharpe_mean", report.oos_sharpe_mean)
+        trial.set_user_attr(
+            "oos_in_sample_gap",
+            report.oos_sharpe_mean - report.in_sample_sharpe_mean,
+        )
         return score_report(report, search_config.objective)
 
     return objective
@@ -229,12 +239,18 @@ def study_to_report(
         "n_trials": len(study.trials),
         "best_value": study.best_value if study.best_trial is not None else None,
         "best_params": dict(study.best_params),
+        "best_oos_in_sample_gap": (
+            study.best_trial.user_attrs.get("oos_in_sample_gap")
+            if study.best_trial is not None
+            else None
+        ),
         "trials": [
             {
                 "number": t.number,
                 "value": t.value,
                 "params": dict(t.params),
                 "state": str(t.state),
+                "user_attrs": dict(t.user_attrs),
             }
             for t in study.trials
         ],
@@ -268,6 +284,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Use anchored (growing) in-sample windows.",
     )
     parser.add_argument("--trials", type=int, default=30)
+    parser.add_argument(
+        "--cooldown-max",
+        type=int,
+        default=180,
+        help="Upper bound for the cross_cooldown_days search space "
+        "(default 180; widened from the original 90 per ITERATION_LOG "
+        "2026-05-28 followup #1, which found the 90 ceiling saturated).",
+    )
     parser.add_argument("--objective", choices=("sharpe", "calmar"), default="sharpe")
     parser.add_argument("--token-symbol", default="BTC")
     parser.add_argument("--total-capital", type=float, default=10_000.0)
@@ -290,47 +314,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def _build_service_factory() -> Callable[[], BacktestingService]:
     """Lazy factory so unit tests can import this module without DB init.
 
-    Mirrors the wiring in ``src.services.dependencies.get_backtesting_service``
-    but skips ``Depends(...)`` because we're outside FastAPI. Each call
-    opens its own ``session_scope()`` so the BacktestingService instance
-    carries a fresh Session — Optuna trials run sequentially in this
-    script so we never reuse a closed session across trials.
+    Delegates the service wiring to
+    ``src.services.dependencies.build_backtesting_service`` (the single
+    construction point shared with the FastAPI provider). Each call opens its
+    own ``session_scope()`` so the BacktestingService carries a fresh Session —
+    Optuna trials run sequentially in this script so we never reuse a closed
+    session across trials.
     """
     from src.core.database import (  # pragma: no cover - import inside factory
         db_manager,
         init_database,
         session_scope,
     )
-    from src.services.market.macro_fear_greed_service import (
-        MacroFearGreedDatabaseService,
-    )
-    from src.services.market.sentiment_database_service import (
-        SentimentDatabaseService,
-    )
-    from src.services.market.stock_price_service import StockPriceService
-    from src.services.market.token_price_service import TokenPriceService
-    from src.services.shared.query_service import QueryService
-    from src.services.strategy.backtesting_service import (
-        BacktestingService,
-    )
-    from src.services.strategy.strategy_config_store import StrategyConfigStore
+    from src.services.dependencies import build_backtesting_service
 
     if db_manager.SessionLocal is None:  # pragma: no cover - first-call init
         init_database()
 
     def factory() -> BacktestingService:
         with session_scope() as db:
-            query_service = QueryService()
-            return BacktestingService(
-                db,
-                TokenPriceService(db, query_service),
-                SentimentDatabaseService(db, query_service),
-                strategy_config_store=StrategyConfigStore(db),
-                stock_price_service=StockPriceService(db, query_service),
-                macro_fear_greed_service=MacroFearGreedDatabaseService(
-                    db, query_service
-                ),
-            )
+            return build_backtesting_service(db)
 
     return factory
 
@@ -355,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     objective_fn = build_objective(
         service_factory=_build_service_factory(),
         search_config=search_config,
+        bounds=SearchSpaceBounds(cross_cooldown_days=(7, args.cooldown_max)),
     )
     study = run_search(
         objective_fn=objective_fn,
@@ -375,7 +379,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-
-
-# Re-export marker so ruff treats _build_service_factory as live module API.
-_BUILD_SERVICE_FACTORY = _build_service_factory

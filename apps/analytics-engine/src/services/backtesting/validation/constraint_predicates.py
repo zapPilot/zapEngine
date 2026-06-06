@@ -11,6 +11,7 @@ All functions are pure — no I/O, no side-effects.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
@@ -73,8 +74,7 @@ def constraint_decision(point: dict[str, Any]) -> dict[str, Any]:
 
 
 def constraint_signal(point: dict[str, Any]) -> dict[str, Any]:
-    signal = point.get("signal")
-    return signal if isinstance(signal, dict) else {}
+    return safe_mapping(point.get("signal"))
 
 
 def constraint_dma(point: dict[str, Any], *, key: str) -> dict[str, Any]:
@@ -83,8 +83,7 @@ def constraint_dma(point: dict[str, Any], *, key: str) -> dict[str, Any]:
     if isinstance(direct, dict):
         return direct
     details = safe_mapping(signal.get("details"))
-    detail_value = details.get(key)
-    return detail_value if isinstance(detail_value, dict) else {}
+    return safe_mapping(details.get(key))
 
 
 def constraint_inner_ratio_zone(point: dict[str, Any]) -> str | None:
@@ -195,6 +194,16 @@ def previous_constraint_point(
 # ---------------------------------------------------------------------------
 
 
+_COMPARATORS: dict[str, Callable[[float, float, float], bool]] = {
+    "equals": lambda actual, previous, tolerance: abs(actual - previous) <= tolerance,
+    "greater_than": lambda actual, previous, tolerance: actual > previous + tolerance,
+    "less_than": lambda actual, previous, tolerance: actual < previous - tolerance,
+    "not_greater_than": lambda actual, previous, tolerance: actual
+    <= previous + tolerance,
+    "not_less_than": lambda actual, previous, tolerance: actual >= previous - tolerance,
+}
+
+
 def constraint_comparison_passes(
     *,
     actual: float,
@@ -202,17 +211,10 @@ def constraint_comparison_passes(
     comparator: str,
     tolerance: float = CONSTRAINT_EPSILON,
 ) -> bool:
-    if comparator == "equals":
-        return abs(actual - previous) <= tolerance
-    if comparator == "greater_than":
-        return actual > previous + tolerance
-    if comparator == "less_than":
-        return actual < previous - tolerance
-    if comparator == "not_greater_than":
-        return actual <= previous + tolerance
-    if comparator == "not_less_than":
-        return actual >= previous - tolerance
-    raise ValidationEventError(f"Unsupported constraint comparator: {comparator}")
+    predicate = _COMPARATORS.get(comparator)
+    if predicate is None:
+        raise ValidationEventError(f"Unsupported constraint comparator: {comparator}")
+    return predicate(actual, previous, tolerance)
 
 
 def constraint_compare_current_to_previous(

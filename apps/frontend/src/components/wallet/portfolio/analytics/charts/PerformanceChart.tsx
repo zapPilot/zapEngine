@@ -51,16 +51,14 @@ interface PerformanceChartProps {
  */
 export const PerformanceChart = memo<PerformanceChartProps>(
   ({ chartData, startDate, endDate, width = 800, height = 300 }) => {
-    const data = chartData;
-
     const { minValue, maxValue } = useMemo(() => {
-      if (data.length === 0) {
+      if (chartData.length === 0) {
         return { minValue: 0, maxValue: 0 };
       }
 
-      const initialValue = data[0]?.portfolioValue ?? 0;
+      const initialValue = chartData[0]?.portfolioValue ?? 0;
 
-      return data.reduce(
+      return chartData.reduce(
         (range, point) => ({
           minValue: Math.min(range.minValue, point.portfolioValue),
           maxValue: Math.max(range.maxValue, point.portfolioValue),
@@ -70,10 +68,10 @@ export const PerformanceChart = memo<PerformanceChartProps>(
           maxValue: initialValue,
         },
       );
-    }, [data]);
+    }, [chartData]);
 
     // Chart hover with tooltip
-    const performanceHover = useChartHover(data, {
+    const performanceHover = useChartHover(chartData, {
       chartType: 'performance',
       chartWidth: width,
       chartHeight: height,
@@ -92,7 +90,7 @@ export const PerformanceChart = memo<PerformanceChartProps>(
 
     // Build SVG paths - convert normalized 0-100 coords to pixel coords
     const portfolioPath = buildPath(
-      data,
+      chartData,
       width,
       (point) => (point.portfolio / 100) * height,
     );

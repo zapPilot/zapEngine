@@ -276,15 +276,6 @@ function TransactionModalLayout({
   );
 }
 
-interface TransactionModalContentProps {
-  modalState: TransactionModalState;
-  dropdownState: TransactionDropdownState;
-  actionLabel: string;
-  actionGradient: string;
-  handlePercentage: (pct: number) => void;
-  assetContent: ReactNode;
-}
-
 interface TransactionFlowBodyArgs {
   modalState: TransactionModalState;
   dropdownState: TransactionDropdownState;
@@ -292,99 +283,79 @@ interface TransactionFlowBodyArgs {
   assetContent: ReactNode;
 }
 
-type TransactionFlow = 'deposit' | 'withdraw';
-
 /**
  * Shared render tail for the Deposit/Withdraw modals: both build their own
- * `assetContent` and action label, then hand off to the same
- * `TransactionModalContent` with the primary action gradient.
+ * `assetContent` and pass in the flow's max-amount source + ready label, then
+ * hand off to the same `TransactionModalContent` with the primary gradient.
  */
-function renderTransactionModalBody(args: {
-  modalState: TransactionModalState;
-  dropdownState: TransactionDropdownState;
-  actionLabel: string;
-  handlePercentage: (pct: number) => void;
-  assetContent: ReactNode;
-}) {
-  return (
-    <TransactionModalContent
-      modalState={args.modalState}
-      dropdownState={args.dropdownState}
-      actionLabel={args.actionLabel}
-      actionGradient={GRADIENTS.PRIMARY}
-      handlePercentage={args.handlePercentage}
-      assetContent={args.assetContent}
-    />
-  );
-}
-
-function renderConfiguredTransactionModalBody(args: {
-  modalState: TransactionModalState;
-  dropdownState: TransactionDropdownState;
-  isConnected: boolean;
-  getMaxAmount: () => number;
-  readyLabel: string;
-  assetContent: ReactNode;
-}) {
+function renderTransactionModalBody(
+  args: TransactionFlowBodyArgs & {
+    getMaxAmount: () => number;
+    readyLabel: string;
+  },
+) {
+  const { modalState, dropdownState, isConnected, assetContent } = args;
   const { handlePercentage, isValid } = buildModalFormState(
-    args.modalState.form,
+    modalState.form,
     args.getMaxAmount,
   );
 
   const actionLabel = resolveActionLabel({
-    isConnected: args.isConnected,
-    hasSelection: Boolean(args.modalState.transactionData.selectedToken),
+    isConnected,
+    hasSelection: Boolean(modalState.transactionData.selectedToken),
     isReady: isValid,
     selectionLabel: 'Select Asset',
     notReadyLabel: 'Enter Amount',
     readyLabel: args.readyLabel,
   });
 
-  return renderTransactionModalBody({
-    modalState: args.modalState,
-    dropdownState: args.dropdownState,
-    actionLabel,
-    handlePercentage,
-    assetContent: args.assetContent,
-  });
-}
-
-function renderFlowTransactionModalBody(
-  flow: TransactionFlow,
-  args: TransactionFlowBodyArgs,
-) {
-  const isDeposit = flow === 'deposit';
-  const { modalState } = args;
-
-  return renderConfiguredTransactionModalBody({
-    modalState: args.modalState,
-    dropdownState: args.dropdownState,
-    isConnected: args.isConnected,
-    getMaxAmount: () =>
-      isDeposit
-        ? parseFloat(
-            modalState.transactionData.balanceQuery.data?.balance || '0',
-          )
-        : parseFloat(
-            modalState.transactionData.balances[
-              modalState.transactionData.selectedToken?.address || ''
-            ]?.balance || '0',
-          ),
-    readyLabel: isDeposit ? 'Review & Deposit' : 'Review & Withdraw',
-    assetContent: args.assetContent,
-  });
+  return (
+    <TransactionModalContent
+      modalState={modalState}
+      dropdownState={dropdownState}
+      actionLabel={actionLabel}
+      actionGradient={GRADIENTS.PRIMARY}
+      handlePercentage={handlePercentage}
+      assetContent={assetContent}
+    />
+  );
 }
 
 export function renderDepositTransactionModalBody(
   args: TransactionFlowBodyArgs,
 ) {
-  return renderFlowTransactionModalBody('deposit', args);
+  return renderTransactionModalBody({
+    ...args,
+    getMaxAmount: () =>
+      parseFloat(
+        args.modalState.transactionData.balanceQuery.data?.balance || '0',
+      ),
+    readyLabel: 'Review & Deposit',
+  });
 }
 
 export function renderWithdrawTransactionModalBody(
   args: TransactionFlowBodyArgs,
 ) {
-  return renderFlowTransactionModalBody('withdraw', args);
+  return renderTransactionModalBody({
+    ...args,
+    getMaxAmount: () =>
+      parseFloat(
+        args.modalState.transactionData.balances[
+          args.modalState.transactionData.selectedToken?.address || ''
+        ]?.balance || '0',
+      ),
+    readyLabel: 'Review & Withdraw',
+  });
+}
+
+interface TransactionModalContentProps {
+  modalState: TransactionModalState;
+  dropdownState: TransactionDropdownState;
+  actionLabel: string;
+  actionGradient: string;
+  handlePercentage: (pct: number) => void;
+  assetContent: ReactNode;
 }
 
 export function TransactionModalContent({

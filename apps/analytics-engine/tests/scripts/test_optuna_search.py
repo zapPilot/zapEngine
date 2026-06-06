@@ -98,6 +98,11 @@ class TestSuggestPublicParams:
         assert params["pacing"]["k"] == 2.0
         assert params["top_escape"]["overextension_threshold_multiplier_greed"] == 0.4
 
+    def test_cross_cooldown_days_default_bound_widened_to_180(self) -> None:
+        # ITERATION_LOG 2026-05-28 followup #1: the original (7, 90) ceiling
+        # saturated (top trials pinned at 90), so the search space was widened.
+        assert SearchSpaceBounds().cross_cooldown_days == (7, 180)
+
 
 # --------- score_report: empty folds vs sharpe vs calmar -----------------
 
@@ -147,6 +152,7 @@ class TestBuildObjective:
                     folds=(_dummy_fold(),),
                     oos_sharpe_mean=0.77,
                     oos_calmar_mean=1.23,
+                    in_sample_sharpe_mean=1.2,
                 )
 
         monkeypatch.setattr(
@@ -187,6 +193,11 @@ class TestBuildObjective:
         value = objective_fn(trial)
 
         assert value == 0.77
+        # The overfit guard (followup #2) is recorded on the trial so
+        # study_to_report can surface it without a WalkForwardRunner rerun.
+        assert trial.user_attrs["in_sample_sharpe_mean"] == 1.2
+        assert trial.user_attrs["oos_sharpe_mean"] == 0.77
+        assert trial.user_attrs["oos_in_sample_gap"] == pytest.approx(0.77 - 1.2)
         assert captured["service"] is service_sentinel
         assert captured["config"] is config.wf_config
         run_kwargs = captured["run_kwargs"]
@@ -256,10 +267,15 @@ class TestStudyToReport:
             optuna.trial.create_trial(
                 params={"cross_cooldown_days": 30, "pacing_k": 5.0},
                 distributions={
-                    "cross_cooldown_days": optuna.distributions.IntDistribution(7, 90),
+                    "cross_cooldown_days": optuna.distributions.IntDistribution(7, 180),
                     "pacing_k": optuna.distributions.FloatDistribution(1.0, 20.0),
                 },
                 value=1.5,
+                user_attrs={
+                    "in_sample_sharpe_mean": 2.0,
+                    "oos_sharpe_mean": 1.5,
+                    "oos_in_sample_gap": -0.5,
+                },
             )
         )
         config = OptunaSearchConfig(
@@ -320,6 +336,24 @@ class TestArgParser:
                     "omega",
                 ]
             )
+
+    def test_cooldown_max_default_and_override(self) -> None:
+        parser = _build_arg_parser()
+        args = parser.parse_args(
+            ["--start-date", "2024-01-01", "--end-date", "2025-01-01"]
+        )
+        assert args.cooldown_max == 180
+        overridden = parser.parse_args(
+            [
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2025-01-01",
+                "--cooldown-max",
+                "270",
+            ]
+        )
+        assert overridden.cooldown_max == 270
 
 
 # --------- helpers -------------------------------------------------------

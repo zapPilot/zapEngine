@@ -145,11 +145,12 @@ class _PlainTranscript extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final body = script?.trim();
+    final hasBody = body != null && body.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Text(
-        body?.isNotEmpty == true ? body! : 'No script available yet.',
+        hasBody ? body : 'No script available yet.',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
               height: 1.6,
@@ -190,7 +191,7 @@ class _TranscriptLine extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(

@@ -2,26 +2,9 @@
  * Data Validation and Type Conversion Utilities
  *
  * Provides safe type conversions with fallback values for untrusted data sources.
- * Consolidates validation logic previously duplicated across multiple files.
- *
- * This module eliminates ~200 lines of duplicated validation code across:
- * - useUnifiedZapStream.ts
- * - useChartData.ts
- * - Various component files
  *
  * @module lib/dataValidation
  */
-
-// Core type converters (toNumber, toString, toDateString, asPartialArray) removed - unused (2025-12-22)
-// safeNumber is the only utilized export from this module.
-
-// =============================================================================
-// OPTIONAL TYPE CONVERTERS
-// =============================================================================
-
-// NOTE: safeString, safeHexishString, isObject, isValidNumber, isNonEmptyString, isValidDate
-// were removed as unused exports (verified via deadcode analysis 2025-12-22).
-// core converters (toNumber, toString, toDateString, safeNumber, asPartialArray) remain.
 
 /**
  * Safely converts value to number, returning undefined if invalid.

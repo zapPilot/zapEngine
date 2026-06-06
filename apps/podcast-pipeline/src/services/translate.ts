@@ -1,11 +1,10 @@
-import OpenAI from 'openai';
-
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
 import {
   completionMetadata,
+  createOpenRouterChatCompletion,
   getOpenRouterConfig,
-  withThinkingModel,
+  type OpenRouterConfig,
 } from './llm.js';
 
 export type SecondaryLanguageCode = Exclude<
@@ -23,12 +22,6 @@ const TARGET_LANGUAGE_NAME: Record<SecondaryLanguageCode, string> = {
 // back to a budget Google flash-lite model when LLM_TRANSLATION_MODEL is unset.
 // This is independent of LLM_MODEL (script/classroom generation are unaffected).
 const TRANSLATION_DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
-
-interface OpenRouterConfig {
-  openai: OpenAI;
-  model: string;
-  thinkingModel: string | null;
-}
 
 function getTranslationConfig(): OpenRouterConfig {
   return getOpenRouterConfig({
@@ -117,24 +110,21 @@ async function translateTextWithLLM(
     };
   }
 
-  const completion = (await config.openai.chat.completions.create(
-    withThinkingModel(
-      {
-        model: config.model,
-        messages: [
-          {
-            role: 'system',
-            content: translationSystemPrompt(targetLanguageCode),
-          },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.2,
-      },
-      config.thinkingModel,
-    ),
-  )) as OpenAI.Chat.ChatCompletion & {
-    provider?: string | null;
-  };
+  const completion = await createOpenRouterChatCompletion(
+    config.openai,
+    {
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: translationSystemPrompt(targetLanguageCode),
+        },
+        { role: 'user', content: text },
+      ],
+      temperature: 0.2,
+    },
+    config.thinkingModel,
+  );
 
   const metadata = completionMetadata(
     completion,

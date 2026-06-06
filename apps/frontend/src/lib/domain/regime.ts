@@ -162,6 +162,18 @@ const DEFAULT_QUOTES: Record<RegimeId, string> = {
 // =============================================================================
 
 /**
+ * Normalizes either a RegimeId or a (deprecated) RegimeLabel into a RegimeId.
+ * Returns null when the input is empty or matches neither format.
+ */
+function resolveRegimeId(regime: string | null | undefined): RegimeId | null {
+  if (!regime) return null;
+  if (regime in REGIME_LABELS) return regime as RegimeId;
+  if (regime in LABEL_TO_REGIME_ID)
+    return LABEL_TO_REGIME_ID[regime as RegimeLabel];
+  return null;
+}
+
+/**
  * Maps a sentiment value (0-100) to the corresponding regime.
  *
  * Sentiment Ranges:
@@ -235,19 +247,8 @@ export function getRegimeColor(
   regime: string | null | undefined,
   fallback = '#eab308',
 ): string {
-  if (!regime) return fallback;
-
-  // Try as RegimeId first
-  if (regime in REGIME_COLORS) {
-    return REGIME_COLORS[regime as RegimeId] ?? fallback;
-  }
-
-  // Try as RegimeLabel
-  if (regime in LABEL_TO_REGIME_ID) {
-    return REGIME_COLORS[LABEL_TO_REGIME_ID[regime as RegimeLabel]] ?? fallback;
-  }
-
-  return fallback;
+  const id = resolveRegimeId(regime);
+  return id ? (REGIME_COLORS[id] ?? fallback) : fallback;
 }
 
 /**
@@ -256,19 +257,8 @@ export function getRegimeColor(
  * @param regime - Regime ID or label (accepts both formats for compatibility)
  */
 export function getRegimeLabel(regime: string | null | undefined): string {
-  if (!regime) return '';
-
-  // Try as RegimeId first
-  if (regime in REGIME_LABELS) {
-    return REGIME_LABELS[regime as RegimeId];
-  }
-
-  // Try as RegimeLabel - convert to RegimeId and get label
-  if (regime in LABEL_TO_REGIME_ID) {
-    return REGIME_LABELS[LABEL_TO_REGIME_ID[regime as RegimeLabel]];
-  }
-
-  return '';
+  const id = resolveRegimeId(regime);
+  return id ? REGIME_LABELS[id] : '';
 }
 
 /**
@@ -279,21 +269,8 @@ export function getRegimeLabel(regime: string | null | undefined): string {
 export function getRegimeConfig(
   regime: string | null | undefined,
 ): RegimeDisplayConfig {
-  if (!regime) {
-    return REGIME_DISPLAY_CONFIG.n;
-  }
-
-  // Try as RegimeId
-  if (regime in REGIME_DISPLAY_CONFIG) {
-    return REGIME_DISPLAY_CONFIG[regime as RegimeId];
-  }
-
-  // Try as RegimeLabel
-  if (regime in LABEL_TO_REGIME_ID) {
-    return REGIME_DISPLAY_CONFIG[LABEL_TO_REGIME_ID[regime as RegimeLabel]];
-  }
-
-  return REGIME_DISPLAY_CONFIG.n;
+  const id = resolveRegimeId(regime);
+  return id ? REGIME_DISPLAY_CONFIG[id] : REGIME_DISPLAY_CONFIG.n;
 }
 
 /**

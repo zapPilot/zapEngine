@@ -69,14 +69,16 @@ export function buildUserMessage(title: string, text: string): string {
   return `標題：${title}\n\n內容：\n${text}`;
 }
 
-export function getOpenRouterConfig(overrides?: {
-  model?: string;
-  thinkingModel?: string | null;
-}): {
+export interface OpenRouterConfig {
   openai: OpenAI;
   model: string;
   thinkingModel: string | null;
-} {
+}
+
+export function getOpenRouterConfig(overrides?: {
+  model?: string;
+  thinkingModel?: string | null;
+}): OpenRouterConfig {
   const apiKey = process.env['OPENROUTER_API_KEY'];
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY not set');
@@ -126,8 +128,22 @@ export function withThinkingModel(
   };
 }
 
+export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
+  provider?: string | null;
+};
+
+export async function createOpenRouterChatCompletion(
+  openai: OpenAI,
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+  thinkingModel: string | null,
+): Promise<OpenRouterChatCompletion> {
+  return (await openai.chat.completions.create(
+    withThinkingModel(params, thinkingModel),
+  )) as OpenRouterChatCompletion;
+}
+
 export function completionMetadata(
-  completion: OpenAI.Chat.ChatCompletion & { provider?: string | null },
+  completion: OpenRouterChatCompletion,
   fallbackModel: string,
   thinkingModel: string | null,
 ): Pick<ScriptResult, 'model' | 'thinkingModel' | 'provider' | 'costUsd'> {
@@ -150,7 +166,8 @@ export async function generateScriptWithLLM(
   const system = getSystemPrompt();
   const user = buildUserMessage(title, text);
 
-  const params = withThinkingModel(
+  const completion = await createOpenRouterChatCompletion(
+    openai,
     {
       model,
       messages: [
@@ -161,12 +178,6 @@ export async function generateScriptWithLLM(
     },
     thinkingModel,
   );
-
-  const completion = (await openai.chat.completions.create(
-    params,
-  )) as OpenAI.Chat.ChatCompletion & {
-    provider?: string | null;
-  };
 
   const script = completion.choices[0]?.message?.content || '';
 
@@ -193,24 +204,21 @@ export async function generateLanguageClassroomsWithLLM(
   input: LanguageClassroomInput,
 ): Promise<LanguageClassroomResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
-  const completion = (await openai.chat.completions.create(
-    withThinkingModel(
-      {
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: languageClassroomSystemPrompt(input.sourceLanguageCode),
-          },
-          { role: 'user', content: buildLanguageClassroomUserMessage(input) },
-        ],
-        temperature: 0.4,
-      },
-      thinkingModel,
-    ),
-  )) as OpenAI.Chat.ChatCompletion & {
-    provider?: string | null;
-  };
+  const completion = await createOpenRouterChatCompletion(
+    openai,
+    {
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+        },
+        { role: 'user', content: buildLanguageClassroomUserMessage(input) },
+      ],
+      temperature: 0.4,
+    },
+    thinkingModel,
+  );
 
   const content = completion.choices[0]?.message?.content || '';
   const lessons = parseLanguageClassroomLessons(

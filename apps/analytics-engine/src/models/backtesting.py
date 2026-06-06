@@ -189,12 +189,6 @@ class StrategySummary(BaseModel):
     ulcer_index: float = 0.0
     alpha: float = 0.0
     information_ratio: float = 0.0
-    omega_ratio: float = 0.0
-    tail_ratio: float = 0.0
-    skewness: float = 0.0
-    excess_kurtosis: float = 0.0
-    pain_index: float = 0.0
-    max_drawdown_recovery_days: float = 0.0
     # win_rate_percent stays None: a meaningful trade-level win rate needs
     # forward-PnL per executed decision (hot-path trade accounting, separate
     # track). Deriving it from daily returns would be positive-day rate, which

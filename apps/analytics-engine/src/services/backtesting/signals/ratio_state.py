@@ -43,16 +43,12 @@ def detect_ratio_cross(
 ) -> CrossEvent | None:
     if prev_zone is None or current_zone is None:
         return None
-    if prev_zone == "above":
-        if cross_on_touch and current_zone in {"at", "below"}:
-            return "cross_down"
-        if not cross_on_touch and current_zone == "below":
-            return "cross_down"
-    if prev_zone == "below":
-        if cross_on_touch and current_zone in {"at", "above"}:
-            return "cross_up"
-        if not cross_on_touch and current_zone == "above":
-            return "cross_up"
+    down_zones = {"at", "below"} if cross_on_touch else {"below"}
+    up_zones = {"at", "above"} if cross_on_touch else {"above"}
+    if prev_zone == "above" and current_zone in down_zones:
+        return "cross_down"
+    if prev_zone == "below" and current_zone in up_zones:
+        return "cross_up"
     return None
 
 

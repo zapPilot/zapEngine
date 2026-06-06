@@ -54,6 +54,26 @@ class _LanguageClassroomSection extends StatelessWidget {
   }
 }
 
+class _StyledCard extends StatelessWidget {
+  const _StyledCard({
+    required this.decoration,
+    required this.padding,
+    required this.child,
+  });
+
+  final BoxDecoration decoration;
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: decoration,
+      child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
 class _LanguageClassroomLessonCard extends StatelessWidget {
   const _LanguageClassroomLessonCard({required this.lesson});
 
@@ -65,44 +85,42 @@ class _LanguageClassroomLessonCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DecoratedBox(
+      child: _StyledCard(
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(ZapTokens.radiusCard),
           border: Border.all(color: AppColors.divider),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _LanguageBadge(languageCode: lesson.targetLanguageCode),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      lesson.oneLiner,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1.45,
-                        fontWeight: FontWeight.w700,
-                      ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _LanguageBadge(languageCode: lesson.targetLanguageCode),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    lesson.oneLiner,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                      height: 1.45,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final keyword in lesson.keywords)
-                    _KeywordChip(keyword: keyword),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final keyword in lesson.keywords)
+                  _KeywordChip(keyword: keyword),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -116,21 +134,19 @@ class _LanguageBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return _StyledCard(
       decoration: BoxDecoration(
         color: AppColors.accent.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Text(
-          languageShortLabelFor(languageCode),
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppColors.accent,
-                fontWeight: FontWeight.w800,
-              ),
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Text(
+        languageShortLabelFor(languageCode),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppColors.accent,
+              fontWeight: FontWeight.w800,
+            ),
       ),
     );
   }
@@ -143,48 +159,50 @@ class _KeywordChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reading = keyword.reading?.trim();
-    final note = keyword.note?.trim();
-    final supporting = [
-      if (reading != null && reading.isNotEmpty) reading,
-      keyword.meaning,
-      if (note != null && note.isNotEmpty) note,
-    ].join(' · ');
+    final supporting = _keywordSupportingText(keyword);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 54, maxWidth: 260),
-      child: DecoratedBox(
+      child: _StyledCard(
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                keyword.term,
-                softWrap: true,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                supporting,
-                softWrap: true,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.25,
-                    ),
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              keyword.term,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              supporting,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.25,
+                  ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+String _keywordSupportingText(LanguageClassroomKeyword keyword) {
+  final reading = keyword.reading?.trim();
+  final note = keyword.note?.trim();
+  return [
+    if (reading != null && reading.isNotEmpty) reading,
+    keyword.meaning,
+    if (note != null && note.isNotEmpty) note,
+  ].join(' · ');
 }

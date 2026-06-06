@@ -73,12 +73,10 @@ interface AnalyticsViewContainerProps {
 export function AnalyticsViewContainer({
   userId,
 }: AnalyticsViewContainerProps): ReactElement {
-  // Find default period (1Y)
-  const defaultPeriod: AnalyticsTimePeriod = DEFAULT_ANALYTICS_PERIOD;
-
   // State management
-  const [selectedPeriod, setSelectedPeriod] =
-    useState<AnalyticsTimePeriod>(defaultPeriod);
+  const [selectedPeriod, setSelectedPeriod] = useState<AnalyticsTimePeriod>(
+    DEFAULT_ANALYTICS_PERIOD,
+  );
   const [activeChartTab, setActiveChartTab] = useState<
     'performance' | 'drawdown'
   >('performance');
@@ -119,19 +117,19 @@ export function AnalyticsViewContainer({
     useAnalyticsData(userId, selectedPeriod, selectedWallet);
 
   // Handlers
-  const handlePeriodChange = (period: AnalyticsTimePeriod) => {
+  function handlePeriodChange(period: AnalyticsTimePeriod): void {
     setSelectedPeriod(period);
-  };
+  }
 
-  const handleChartTabChange = (tab: 'performance' | 'drawdown') => {
+  function handleChartTabChange(tab: 'performance' | 'drawdown'): void {
     setActiveChartTab(tab);
-  };
+  }
 
-  const handleWalletChange = (wallet: WalletFilter) => {
+  function handleWalletChange(wallet: WalletFilter): void {
     setSelectedWallet(wallet);
-  };
+  }
 
-  const handleExport = async () => {
+  async function handleExport(): Promise<void> {
     if (!data) {
       setExportError('No data available to export');
       return;
@@ -156,7 +154,7 @@ export function AnalyticsViewContainer({
     } finally {
       setIsExporting(false);
     }
-  };
+  }
 
   if (error && !data) {
     return <AnalyticsErrorState error={error} onRetry={refetch} />;

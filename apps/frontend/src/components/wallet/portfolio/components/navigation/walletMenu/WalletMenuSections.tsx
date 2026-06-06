@@ -18,6 +18,9 @@ import {
   getWalletStatusDotClassName,
 } from './walletMenuClassNames';
 
+const MENU_ITEM_CLASS_NAME =
+  'w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-purple-500/10 hover:text-white transition-colors flex items-center gap-3';
+
 function CopyAddressButton({
   address,
   copiedAddress,
@@ -68,16 +71,13 @@ function WalletMenuItems({
       {onOpenWalletManager && (
         <button
           onClick={handleOpenWalletManager}
-          className="w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-purple-500/10 hover:text-white transition-colors flex items-center gap-3"
+          className={MENU_ITEM_CLASS_NAME}
         >
           <Wallet className="w-4 h-4 text-purple-400" />
           View Bundles
         </button>
       )}
-      <button
-        onClick={handleOpenSettings}
-        className="w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-purple-500/10 hover:text-white transition-colors flex items-center gap-3"
-      >
+      <button onClick={handleOpenSettings} className={MENU_ITEM_CLASS_NAME}>
         <Settings className="w-4 h-4 text-purple-400" />
         Settings
       </button>

@@ -27,22 +27,6 @@ export function getBacktestSpotAssetColor(
   return BACKTEST_SPOT_ASSET_COLORS[asset];
 }
 
-/**
- * Normalizes arbitrary spot asset values from backtesting payloads.
- *
- * @param value - Unknown backend value for a spot asset.
- * @returns A normalized spot asset symbol or `null` when unsupported.
- * @example
- * ```ts
- * normalizeBacktestSpotAsset(" eth ");
- * ```
- */
-function normalizeBacktestSpotAsset(
-  value: unknown,
-): BacktestSpotAssetSymbol | null {
-  return normalizeSpotAsset(value);
-}
-
 type SpotAssetStrategyLike = Pick<
   BacktestStrategyPoint,
   'portfolio' | 'decision'
@@ -100,7 +84,7 @@ export function resolveBacktestSpotAsset(
     return null;
   }
 
-  const canonical = normalizeBacktestSpotAsset(strategy.portfolio.spot_asset);
+  const canonical = normalizeSpotAsset(strategy.portfolio.spot_asset);
   if (canonical) {
     return canonical;
   }

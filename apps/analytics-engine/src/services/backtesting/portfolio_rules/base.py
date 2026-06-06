@@ -420,7 +420,7 @@ def build_dca_buy_intent(
             target[key] = max(0.0, float(target.get(key, 0.0))) + per_asset_buy
         target["stable"] = max(
             0.0,
-            stable_available - sum(adjusted_step_by_symbol.values()) * stable_scale,
+            stable_available - total_desired * stable_scale,
         )
     return _finalize_allocation_intent(
         action="buy",

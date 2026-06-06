@@ -41,23 +41,16 @@ export function KeyMetricsGrid({
   metrics,
   isLoading = false,
 }: KeyMetricsGridProps): ReactElement {
-  const metricList: MetricData[] = [
-    metrics.timeWeightedReturn,
-    metrics.maxDrawdown,
-    metrics.sharpe,
-    metrics.winRate,
-  ];
-
-  const labels = [
-    'Time-Weighted Return',
-    'Max Drawdown',
-    'Sharpe Ratio',
-    'Win Rate',
+  const metricEntries: { label: string; metric: MetricData }[] = [
+    { label: 'Time-Weighted Return', metric: metrics.timeWeightedReturn },
+    { label: 'Max Drawdown', metric: metrics.maxDrawdown },
+    { label: 'Sharpe Ratio', metric: metrics.sharpe },
+    { label: 'Win Rate', metric: metrics.winRate },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {metricList.map((metric, idx) => (
+      {metricEntries.map(({ label, metric }, idx) => (
         <BaseCard
           key={idx}
           variant="glass"
@@ -65,7 +58,7 @@ export function KeyMetricsGrid({
         >
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
-              {labels[idx]}
+              {label}
             </span>
             {isLoading ? (
               // Skeleton: Trend indicator

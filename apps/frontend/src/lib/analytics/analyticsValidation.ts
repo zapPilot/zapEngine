@@ -60,7 +60,7 @@ export function validateExportData(data: AnalyticsData | null): boolean {
     }
   }
 
-  // Monthly PnL is optional but check if exists
+  // Monthly PnL is required for a complete export
   if (!data.monthlyPnL) {
     return false;
   }

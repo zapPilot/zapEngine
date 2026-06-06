@@ -13,35 +13,20 @@ import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './methods';
 type GetConfig = Omit<HttpRequestConfig, 'method' | 'body'>;
 type MutateConfig = Omit<HttpRequestConfig, 'method'>;
 
-function withBaseURL<Config extends Record<string, unknown> | undefined>(
-  baseURL: string,
-  config: Config,
-): Record<string, unknown> {
-  return {
-    ...(config ?? {}),
-    baseURL,
-  };
-}
-
 function createServiceHttpClient(baseURL: string) {
-  const withBase = <C extends Record<string, unknown> | undefined>(
-    config?: C,
-  ) => withBaseURL(baseURL, config) as C;
+  const withBase = <C extends GetConfig | MutateConfig>(config?: C): C =>
+    ({ ...config, baseURL }) as C;
 
-  const mutate = <T>(
-    fn: (
-      url: string,
-      body: unknown,
-      config: Record<string, unknown>,
+  const query =
+    (fn: typeof httpGet) =>
+    <T = unknown>(
+      endpoint: string,
+      config?: GetConfig,
       transformer?: ResponseTransformer<T>,
-    ) => Promise<T>,
-    endpoint: string,
-    body: unknown,
-    config?: MutateConfig,
-    transformer?: ResponseTransformer<T>,
-  ) => fn(endpoint, body, withBase(config), transformer);
+    ) =>
+      fn(endpoint, withBase(config), transformer);
 
-  const mutator =
+  const mutation =
     (fn: typeof httpPost) =>
     <T = unknown>(
       endpoint: string,
@@ -49,26 +34,14 @@ function createServiceHttpClient(baseURL: string) {
       config?: MutateConfig,
       transformer?: ResponseTransformer<T>,
     ) =>
-      mutate(fn, endpoint, body, config, transformer);
+      fn(endpoint, body, withBase(config), transformer);
 
   return {
-    get: <T = unknown>(
-      endpoint: string,
-      config?: GetConfig,
-      transformer?: ResponseTransformer<T>,
-    ) => httpGet(endpoint, withBase(config), transformer),
-
-    post: mutator(httpPost),
-
-    put: mutator(httpPut),
-
-    patch: mutator(httpPatch),
-
-    delete: <T = unknown>(
-      endpoint: string,
-      config?: GetConfig,
-      transformer?: ResponseTransformer<T>,
-    ) => httpDelete(endpoint, withBase(config), transformer),
+    get: query(httpGet),
+    post: mutation(httpPost),
+    put: mutation(httpPut),
+    patch: mutation(httpPatch),
+    delete: query(httpDelete),
   } as const;
 }
 

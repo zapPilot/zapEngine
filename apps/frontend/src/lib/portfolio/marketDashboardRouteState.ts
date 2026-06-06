@@ -47,18 +47,7 @@ function areLineSetsEqual(
   a: ReadonlySet<MarketLineKey>,
   b: ReadonlySet<MarketLineKey>,
 ): boolean {
-  if (a.size !== b.size) {
-    return false;
-  }
-
-  const compareMarketLineKeys = (
-    left: MarketLineKey,
-    right: MarketLineKey,
-  ): number => MARKET_LINE_KEYS.indexOf(left) - MARKET_LINE_KEYS.indexOf(right);
-  const sortedA = [...a].sort(compareMarketLineKeys);
-  const sortedB = [...b].sort(compareMarketLineKeys);
-
-  return sortedA.every((lineKey, index) => lineKey === sortedB[index]);
+  return a.size === b.size && [...a].every((lineKey) => b.has(lineKey));
 }
 
 export function readMarketDashboardRouteState(

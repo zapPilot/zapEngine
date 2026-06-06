@@ -146,11 +146,3 @@ export interface WalletOption {
   /** Whether this wallet is currently active/selected in UI */
   isActive?: boolean;
 }
-
-/**
- * ==========================================
- * Portfolio Chart Analytics Types
- * ==========================================
- * Types originally from PortfolioChart component module
- * Migrated to centralized types for reuse across analytics hooks
- */

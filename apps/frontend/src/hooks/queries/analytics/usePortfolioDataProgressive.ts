@@ -90,12 +90,12 @@ function getProgressiveError(
   sentimentQuery: SentimentQuery,
   regimeQuery: RegimeQuery,
 ): Error | null {
-  const firstError =
+  return (
     (landingQuery.error as Error) ||
     (sentimentQuery.error as Error) ||
     (regimeQuery.error as Error) ||
-    null;
-  return firstError;
+    null
+  );
 }
 
 /**

@@ -11,7 +11,8 @@ Helper functions for managing operation states (loading, error, success).
 ```typescript
 import { useOperationStateHandlers } from '@/hooks/utils';
 
-const { setLoading, setSuccess, setError } = useOperationStateHandlers();
+const { setLoading, setSuccess, setError } =
+  useOperationStateHandlers(setState);
 ```
 
 **Use cases**: Consistent operation state management across components
@@ -23,7 +24,11 @@ Utility for invalidating React Query cache and refetching queries.
 ```typescript
 import { invalidateAndRefetch } from '@/hooks/utils';
 
-await invalidateAndRefetch(queryClient, ['user', userId]);
+await invalidateAndRefetch({
+  queryClient,
+  queryKey: ['user', userId],
+  refetch,
+});
 ```
 
 **Use cases**: Manual cache invalidation, force refresh after mutations

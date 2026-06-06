@@ -61,7 +61,10 @@ class _FavoritesScreenState extends State<FavoritesScreen>
 
     try {
       final episodes = await _loadAllEpisodes();
-      final hydrated = await _applyUserState(episodes);
+      final hydrated = await hydrateEpisodesForCurrentUser(
+        _episodeService,
+        episodes,
+      );
       if (isStaleRequest(epoch)) return;
       _applyFavorites(hydrated);
     } catch (error) {
@@ -116,10 +119,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     });
 
     return episodes;
-  }
-
-  Future<List<Episode>> _applyUserState(List<Episode> episodes) async {
-    return hydrateEpisodesForCurrentUser(_episodeService, episodes);
   }
 
   @override

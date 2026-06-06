@@ -106,7 +106,7 @@ function calculatePosition(
   chartHeight: number,
   tooltipWidth: number,
   tooltipHeight: number,
-) {
+): HorizontalPosition & VerticalPosition {
   const bounds: ChartBounds = {
     width: hoveredPoint.containerWidth ?? chartWidth,
     height: hoveredPoint.containerHeight ?? chartHeight,

@@ -167,7 +167,7 @@ export function mapAssetAllocationToUnified(
  *   lp: 0.3,
  *   stable: 0.2
  * });
- * // Returns: [{ category: 'btc', percentage: 50 }, { category: 'btc-stable', percentage: 30 }, ...]
+ * // Returns: [{ category: 'btc', percentage: 50 }, { category: 'alt', percentage: 30 }, ...]
  * ```
  */
 export function mapStrategyToUnified(
@@ -222,16 +222,11 @@ export function mapBacktestToUnified(
   const spySpot = getRecordValue(data.spot, 'spy');
   const spyLp = getRecordValue(data.lp, 'spy');
 
-  // Calculate "others" as anything not explicitly BTC, ETH, or SPY
-  const othersSpot =
-    typeof data.spot === 'number'
-      ? data.spot // When spot is a number, it's all "others"
-      : spotTotal - btcSpot - ethSpot - spySpot;
-
-  const othersLp =
-    typeof data.lp === 'number'
-      ? data.lp // When lp is a number, it's all "others"
-      : lpTotal - btcLp - ethLp - spyLp;
+  // "others" is anything not explicitly BTC, ETH, or SPY.
+  // When spot/lp is a plain number, getRecordValue returns 0 for each named
+  // asset, so the subtraction below correctly attributes the full total here.
+  const othersSpot = spotTotal - btcSpot - ethSpot - spySpot;
+  const othersLp = lpTotal - btcLp - ethLp - spyLp;
 
   const segments: UnifiedSegment[] = [
     createSegment('btc', ((btcSpot + btcLp) / total) * 100),
