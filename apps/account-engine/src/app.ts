@@ -80,6 +80,7 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
     {
       fetch: app.fetch,
       port: services.env.server.port,
+      hostname: '0.0.0.0',
     },
     (info) => {
       logger.log(`Account Engine API running on http://localhost:${info.port}`);
