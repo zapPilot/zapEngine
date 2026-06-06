@@ -1,6 +1,8 @@
 import 'package:ai_podcast_mobile/services/auth_service.dart';
+import 'package:ai_podcast_mobile/services/supabase_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   setUp(() {
@@ -223,6 +225,30 @@ void main() {
       expect(exception, isA<Exception>());
     });
   });
+
+  group('AuthService - Uninitialized Supabase (Null Client)', () {
+    test('signInWithEmail throws AuthServiceException when client is null', () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final service = AuthService(supabaseService: fakeSupabase);
+
+      expect(
+        () => service.signInWithEmail('test@example.com'),
+        throwsA(isA<AuthServiceException>().having(
+          (e) => e.toString(),
+          'message',
+          'Supabase not configured.',
+        )),
+      );
+    });
+  });
+}
+
+class _FakeSupabaseService extends SupabaseService {
+  _FakeSupabaseService(this._client);
+  final SupabaseClient? _client;
+  
+  @override
+  SupabaseClient? get client => _client;
 }
 
 class _FakeAuthService extends AuthService {

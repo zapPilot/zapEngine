@@ -115,7 +115,11 @@ class AuthService {
   }
 
   Future<PodcastUser> _signInUser({String? email, String? deviceId}) async {
-    final row = await _supabaseService.client.rpc(
+    final client = _supabaseService.client;
+    if (client == null) {
+      throw const AuthServiceException('Supabase not configured.');
+    }
+    final row = await client.rpc(
       'sign_in_podcast_user',
       params: {'p_email': email, 'p_device_id': deviceId},
     ).single();

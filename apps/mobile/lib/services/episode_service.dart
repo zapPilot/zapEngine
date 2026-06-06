@@ -39,9 +39,13 @@ class EpisodeService {
     String? cursor,
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
+    final client = _supabaseService.client;
+    if (client == null) {
+      return const EpisodePage(items: [], nextCursor: null);
+    }
     final offset = int.tryParse(cursor ?? '') ?? 0;
     final end = offset + limit;
-    final rows = await _supabaseService.client
+    final rows = await client
         .from('episodes_with_stats')
         .select(_episodeColumns)
         .eq('language_code', languageCode)
@@ -64,7 +68,9 @@ class EpisodeService {
     String id, {
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
-    final rows = await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return null;
+    final rows = await client
         .from('episodes_with_stats')
         .select(_episodeColumns)
         .eq('id', id)
@@ -76,7 +82,9 @@ class EpisodeService {
   }
 
   Future<Set<String>> getListenedEpisodeIds(String userId) async {
-    final rows = await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return {};
+    final rows = await client
         .from('user_episode_state')
         .select('episode_id')
         .eq('user_id', userId)
@@ -89,10 +97,13 @@ class EpisodeService {
     String userId, {
     Iterable<String>? episodeIds,
   }) async {
+    final client = _supabaseService.client;
+    if (client == null) return {};
+
     final ids = episodeIds?.toSet().toList(growable: false);
     if (ids != null && ids.isEmpty) return const {};
 
-    var query = _supabaseService.client
+    var query = client
         .from('user_episode_state')
         .select('episode_id,listened,last_position_seconds')
         .eq('user_id', userId);
@@ -213,7 +224,9 @@ class SupabaseUserEpisodeStateWriter implements UserEpisodeStateWriter {
     Map<String, Object?> values, {
     required String onConflict,
   }) async {
-    await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return;
+    await client
         .from('user_episode_state')
         .upsert(values, onConflict: onConflict);
   }

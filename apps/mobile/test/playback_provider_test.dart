@@ -339,6 +339,41 @@ void main() {
   );
 
   test(
+    'playSmart starts the oldest in-progress episode',
+    () async {
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(
+        handler,
+        episodeService: _FakeEpisodeService(),
+      );
+      final newestInProgress = _episode('episode-3').copyWith(
+        createdAt: DateTime(2026, 5, 3),
+        lastPositionSeconds: 30,
+      );
+      final oldestInProgress = _episode('episode-1').copyWith(
+        createdAt: DateTime(2026, 5),
+        lastPositionSeconds: 45,
+      );
+      final newestUnplayed = _episode('episode-4').copyWith(
+        createdAt: DateTime(2026, 5, 4),
+      );
+
+      await provider.playSmart([
+        newestInProgress,
+        newestUnplayed,
+        oldestInProgress,
+      ]);
+
+      expect(handler.loadedEpisodeIds, ['episode-1']);
+      expect(handler.seekPositions, [const Duration(seconds: 45)]);
+      expect(provider.currentEpisode?.id, 'episode-1');
+
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
+  test(
     'playSmart starts the oldest unplayed episode when nothing is in progress',
     () async {
       final handler = FakePodcastAudioHandler();
