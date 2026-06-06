@@ -168,16 +168,13 @@ void main() {
       final service = EpisodeService(supabaseService: fakeSupabase);
 
       final ids = await service.getListenedEpisodeIds('user-1');
-
       expect(ids, isEmpty);
     });
 
     test('getUserState returns empty map when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
-
       final states = await service.getUserState('user-1');
-
       expect(states, isEmpty);
     });
   });
