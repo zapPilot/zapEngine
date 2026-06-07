@@ -56,11 +56,11 @@ class _AuthGateState extends State<AuthGate> {
       );
     }
 
-    if (auth.currentUser != null) {
+    final supabaseConfigured = widget.supabaseConfigured;
+    if (auth.currentUser != null && supabaseConfigured) {
       return const HomeShell();
     }
 
-    final supabaseConfigured = widget.supabaseConfigured;
     final actionsDisabled = auth.signingIn || !supabaseConfigured;
 
     return BrandedBackdrop(

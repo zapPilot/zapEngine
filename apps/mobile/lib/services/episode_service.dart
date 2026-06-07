@@ -33,6 +33,7 @@ class EpisodeService {
   static const _episodeColumns =
       'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms';
   static const _userEpisodeStateConflict = 'user_id,episode_id';
+  static const _supabaseNotConfiguredMessage = 'Supabase not configured.';
 
   Future<EpisodePage> getEpisodes({
     int limit = 20,
@@ -41,7 +42,7 @@ class EpisodeService {
   }) async {
     final client = _supabaseService.client;
     if (client == null) {
-      return const EpisodePage(items: [], nextCursor: null);
+      throw const EpisodeServiceException(_supabaseNotConfiguredMessage);
     }
     final offset = int.tryParse(cursor ?? '') ?? 0;
     final end = offset + limit;
@@ -230,4 +231,13 @@ class SupabaseUserEpisodeStateWriter implements UserEpisodeStateWriter {
         .from('user_episode_state')
         .upsert(values, onConflict: onConflict);
   }
+}
+
+class EpisodeServiceException implements Exception {
+  const EpisodeServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

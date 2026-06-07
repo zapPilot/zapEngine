@@ -22,6 +22,18 @@ void main() {
     }
   });
 
+  test('Runner app target inherits Flutter-generated Dart defines', () {
+    final projectFile = File('ios/Runner.xcodeproj/project.pbxproj');
+    final project = projectFile.readAsStringSync();
+
+    expect(
+      project,
+      isNot(contains('DART_DEFINES = "";')),
+      reason: 'Empty app-target DART_DEFINES overrides Generated.xcconfig and '
+          'strips SUPABASE_URL/SUPABASE_ANON_KEY from Xcode builds.',
+    );
+  });
+
   test('all iOS app plists declare background audio capability', () {
     final plists = {...activePlists, 'Base': 'Info.plist'};
 

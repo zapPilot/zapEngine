@@ -7,8 +7,9 @@
   },
   "scripts": {
     "build": "pnpm --dir ../../packages/design-tokens codegen:flutter && flutter pub get",
-    "dev": "flutter run",
+    "dev": "bash tool/flutter_run_with_env.sh",
     "icons:ios": "swift tool/flatten_ios_app_icons.swift",
+    "ios:debug:prepare": "bash tool/prepare_ios_debug_env.sh",
     "ios:release:prepare": "bash tool/prepare_ios_release.sh",
     "test": "flutter test",
     "test:ci": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",

@@ -153,40 +153,48 @@ void main() {
   });
 
   group('EpisodeService - Uninitialized Supabase (Null Client)', () {
-    test('getEpisodes returns empty page when client is null', () async {
+    test('getEpisodes reports a configuration error when client is null',
+        () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
-      
-      final page = await service.getEpisodes();
-      
-      expect(page.items, isEmpty);
-      expect(page.nextCursor, isNull);
+
+      await expectLater(
+        service.getEpisodes(),
+        throwsA(
+          isA<Exception>().having(
+            (error) => error.toString(),
+            'message',
+            'Supabase not configured.',
+          ),
+        ),
+      );
     });
 
     test('getEpisodeById returns null when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
-      
+
       final episode = await service.getEpisodeById('episode-1');
-      
+
       expect(episode, isNull);
     });
 
-    test('getListenedEpisodeIds returns empty set when client is null', () async {
+    test('getListenedEpisodeIds returns empty set when client is null',
+        () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
-      
+
       final ids = await service.getListenedEpisodeIds('user-1');
-      
+
       expect(ids, isEmpty);
     });
 
     test('getUserState returns empty map when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
-      
+
       final states = await service.getUserState('user-1');
-      
+
       expect(states, isEmpty);
     });
   });
@@ -247,7 +255,7 @@ class _FakeUserEpisodeStateWriter implements UserEpisodeStateWriter {
 class _FakeSupabaseService extends SupabaseService {
   _FakeSupabaseService(this._client);
   final SupabaseClient? _client;
-  
+
   @override
   SupabaseClient? get client => _client;
 }

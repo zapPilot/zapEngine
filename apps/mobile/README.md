@@ -70,10 +70,18 @@ When you intentionally override any `--dart-define` value, include it in the
 `flutter build ios --simulator ...` command and rerun that command before
 running from Xcode again.
 
-For Xcode-run builds, add matching values under
-`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or generate
-the Flutter iOS config with the `flutter build ios ... --dart-define=...`
-command before opening the workspace.
+For local Xcode-run debug builds, regenerate Flutter's iOS config from the
+repo-root `.env` before pressing Run:
+
+```bash
+pnpm --filter @zapengine/mobile ios:debug:prepare
+open apps/mobile/ios/Runner.xcworkspace
+```
+
+Do not rely on `Runner` scheme > `Run` > `Arguments` > `Environment Variables`
+for these values. The app reads them with Dart `String.fromEnvironment`, so
+they must be compile-time `--dart-define` values in
+`ios/Flutter/Generated.xcconfig`.
 
 ## iOS App Store Release
 
