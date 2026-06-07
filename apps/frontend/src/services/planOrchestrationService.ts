@@ -3,6 +3,10 @@ import {
   DepositPlanSchema,
   type PlanOrchestrationDepositRequest,
   PlanOrchestrationDepositRequestSchema,
+  type PlanOrchestrationWithdrawRequest,
+  PlanOrchestrationWithdrawRequestSchema,
+  type WithdrawPlan,
+  WithdrawPlanSchema,
 } from '@zapengine/types/api';
 
 import { httpUtils } from '@/lib/http';
@@ -19,5 +23,18 @@ async function postDepositPlan(
   return DepositPlanSchema.parse(response);
 }
 
+async function postWithdrawPlan(
+  request: PlanOrchestrationWithdrawRequest,
+): Promise<WithdrawPlan> {
+  const body = PlanOrchestrationWithdrawRequestSchema.parse(request);
+  const response = await httpUtils.accountApi.post<unknown>(
+    '/plan-orchestration/withdraw',
+    body,
+  );
+
+  return WithdrawPlanSchema.parse(response);
+}
+
 export const getDepositPlan = postDepositPlan;
 export const getGmxDepositPlan = postDepositPlan;
+export const getWithdrawPlan = postWithdrawPlan;

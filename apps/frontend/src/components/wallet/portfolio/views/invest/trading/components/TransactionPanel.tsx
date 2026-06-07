@@ -1,4 +1,4 @@
-import type { GmxV2MarketKey } from '@zapengine/intent-engine';
+import { type GmxV2MarketKey, MORPHO_VAULTS } from '@zapengine/intent-engine';
 import { type ReactNode, useState } from 'react';
 import { type Address, type Hash, parseUnits } from 'viem';
 import { arbitrum, base } from 'viem/chains';
@@ -11,6 +11,8 @@ import { getChainName } from '@/constants/chains';
 import { useTokenBalances } from '@/hooks/queries/wallet/useTokenBalances';
 import { useGmxDeposit } from '@/hooks/useGmxDeposit';
 import { useInvestStrategy } from '@/hooks/useInvestStrategy';
+import { useWithdraw } from '@/hooks/useWithdraw';
+import { isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { transactionServiceMock } from '@/services';
 import type { TransactionToken } from '@/types/domain/transaction';
@@ -42,6 +44,8 @@ const GMX_V2_DEV_MARKETS = [
   key: GmxV2MarketKey;
   label: string;
 }[];
+const shouldShowExecutionDebugControls =
+  isRuntimeMode('development') || isRuntimeMode('test');
 
 function formatBaseUnits(value: string): string {
   return new Intl.NumberFormat('en-US', {
@@ -174,13 +178,23 @@ export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
             Review {config.buttonLabel}
           </button>
 
-          {mode === 'deposit' && import.meta.env.DEV ? (
+          {mode === 'deposit' && shouldShowExecutionDebugControls ? (
             <>
               <InvestStrategyButton
                 amount={amount}
                 selectedToken={transactionData.selectedToken}
               />
               <GmxV2TestButtons amount={amount} />
+            </>
+          ) : null}
+
+          {mode === 'withdraw' && shouldShowExecutionDebugControls ? (
+            <>
+              <MorphoWithdrawButton
+                amount={amount}
+                selectedToken={transactionData.selectedToken}
+              />
+              <GmxV2WithdrawButtons amount={amount} />
             </>
           ) : null}
         </>
@@ -394,6 +408,151 @@ function InvestStrategyButton({
               <code className="font-mono">{formatAddress(resultId)}</code>
             </div>
           ) : null}
+        </>
+      )}
+    />
+  );
+}
+
+function WithdrawStepList({
+  steps,
+}: {
+  steps: { index: number; label: string; status: string; txHash?: Hash }[];
+}) {
+  if (!steps.length) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
+      {steps.map((step) => (
+        <div key={step.index}>
+          {step.label} · {step.status}
+          {step.txHash ? (
+            <>
+              {' · '}
+              <code className="font-mono">{formatAddress(step.txHash)}</code>
+            </>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GmxV2WithdrawButtons({ amount }: { amount: string }) {
+  const { chain } = useWalletProvider();
+  const withdraw = useWithdraw();
+  const { run, pending, steps } = withdraw;
+  const isOnArbitrum = chain?.id === arbitrum.id;
+
+  const handleRun = async (marketKey: GmxV2MarketKey) => {
+    try {
+      // GM market tokens are 18-decimal ERC-20s.
+      await run({
+        kind: 'gmx-v2',
+        marketKey,
+        gmAmount: parseUnits(amount, 18).toString(),
+      });
+    } catch {
+      // The hook logs and stores the error for this debug panel.
+    }
+  };
+
+  const disabled = pending || !amount || parseFloat(amount) <= 0;
+
+  return (
+    <ExecutionDebugPanel
+      execution={withdraw}
+      title="GMX v2 GM withdrawals · Arbitrum (amount = GM tokens)"
+      explorerBaseUrl={(hash) => `https://arbiscan.io/tx/${hash}`}
+      renderDetails={() => (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            {GMX_V2_DEV_MARKETS.map((market) => (
+              <button
+                key={market.key}
+                type="button"
+                onClick={() => void handleRun(market.key)}
+                disabled={disabled}
+                className="px-3 py-1.5 rounded bg-rose-500 text-white disabled:opacity-50 text-left"
+              >
+                {pending
+                  ? 'Running...'
+                  : !isOnArbitrum
+                    ? `Switch to Arbitrum & Withdraw GM ${market.label}`
+                    : `Withdraw GM ${market.label}`}
+              </button>
+            ))}
+          </div>
+          <WithdrawStepList steps={steps} />
+          <div className="mt-1 text-gray-600 dark:text-gray-400">
+            GM burned; long/short tokens settled by keeper - verify in GMX UI
+          </div>
+        </>
+      )}
+    />
+  );
+}
+
+function MorphoWithdrawButton({
+  amount,
+  selectedToken,
+}: {
+  amount: string;
+  selectedToken: TransactionToken | null;
+}) {
+  const { chain } = useWalletProvider();
+  const withdraw = useWithdraw();
+  const { run, pending, steps } = withdraw;
+  const isOnBase = chain?.id === base.id;
+  // Dev-only Morpho vault on Base (Moonwell USDC, ERC-4626).
+  const devVault = MORPHO_VAULTS[base.id].MOONWELL_USDC;
+
+  const handleRun = async () => {
+    try {
+      // MetaMorpho vault shares are 18-decimal.
+      await run({
+        kind: 'morpho',
+        vaultAddress: devVault,
+        shareAmount: parseUnits(amount, 18).toString(),
+        chainId: base.id,
+        ...(selectedToken ? { toToken: selectedToken.address as Address } : {}),
+      });
+    } catch {
+      // The hook logs and stores the error for this debug panel.
+    }
+  };
+
+  const disabled = pending || !amount || parseFloat(amount) <= 0;
+
+  return (
+    <ExecutionDebugPanel
+      execution={withdraw}
+      title="Morpho redeem + LiFi swap · Base (amount = vault shares)"
+      explorerBaseUrl={(hash) => `https://basescan.io/tx/${hash}`}
+      renderDetails={() => (
+        <>
+          <button
+            type="button"
+            onClick={() => void handleRun()}
+            disabled={disabled}
+            className="px-3 py-1.5 rounded bg-rose-500 text-white disabled:opacity-50"
+          >
+            {pending
+              ? 'Running...'
+              : !isOnBase
+                ? 'Switch to Base & Withdraw'
+                : selectedToken
+                  ? `Redeem Moonwell USDC → ${selectedToken.symbol}`
+                  : 'Redeem Moonwell USDC'}
+          </button>
+          <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+            {selectedToken
+              ? `Output swapped to ${selectedToken.symbol} via LiFi.`
+              : 'Select an asset above to swap the redeemed USDC into it.'}
+          </div>
+          <WithdrawStepList steps={steps} />
         </>
       )}
     />

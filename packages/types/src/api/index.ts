@@ -73,3 +73,4 @@ export type Nullable<T> = T | null;
 
 export * from './marketDashboard.js';
 export * from './deposit.js';
+export * from './withdraw.js';

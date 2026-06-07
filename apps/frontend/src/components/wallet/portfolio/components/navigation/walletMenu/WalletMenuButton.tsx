@@ -17,6 +17,7 @@ export function WalletMenuButton({
   isConnected,
   isConnecting,
   isMenuOpen,
+  opensDisconnectedMenu,
   onConnectClick,
   onToggleMenu,
 }: WalletMenuButtonProps): ReactElement {
@@ -24,6 +25,10 @@ export function WalletMenuButton({
 
   function handleButtonClick(): void {
     if (!isConnected) {
+      if (opensDisconnectedMenu) {
+        onToggleMenu();
+        return;
+      }
       onConnectClick();
       return;
     }
@@ -37,8 +42,8 @@ export function WalletMenuButton({
       onClick={handleButtonClick}
       disabled={isConnecting}
       className={getMenuButtonClassName(isConnecting)}
-      aria-expanded={isConnected ? isMenuOpen : false}
-      aria-haspopup={isConnected ? 'menu' : 'dialog'}
+      aria-expanded={isConnected || opensDisconnectedMenu ? isMenuOpen : false}
+      aria-haspopup={isConnected || opensDisconnectedMenu ? 'menu' : 'dialog'}
     >
       <Wallet className="w-4 h-4 text-purple-400" />
       {!isConnected && (

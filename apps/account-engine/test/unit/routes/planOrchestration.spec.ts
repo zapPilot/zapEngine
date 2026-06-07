@@ -1,4 +1,4 @@
-import type { DepositPlan } from '@zapengine/types/api';
+import type { DepositPlan, WithdrawPlan } from '@zapengine/types/api';
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -15,8 +15,19 @@ const plan: DepositPlan = {
   sourceChainId: 42161,
 };
 
+const withdrawPlan: WithdrawPlan = {
+  legs: [],
+  approvals: [],
+  calls: [],
+  totalGasUsd: '0',
+  sourceChainId: 42161,
+};
+
 function createApp(
-  service = { buildDeposit: vi.fn().mockResolvedValue(plan) },
+  service = {
+    buildDeposit: vi.fn().mockResolvedValue(plan),
+    buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+  },
 ) {
   const app = new Hono();
   app.route('/plan-orchestration', createPlanOrchestrationRoutes(service));
@@ -124,5 +135,85 @@ describe('POST /plan-orchestration/deposit', () => {
 
     expect(response.status).toBe(400);
     expect(service.buildDeposit).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /plan-orchestration/withdraw', () => {
+  it('validates the GMX withdraw request and returns the WithdrawPlan', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/withdraw',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'gmx-v2',
+          marketKey: 'eth-usdc',
+          gmAmount: '5000',
+          userAddress: USER,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(withdrawPlan);
+    expect(service.buildWithdraw).toHaveBeenCalledWith({
+      kind: 'gmx-v2',
+      marketKey: 'eth-usdc',
+      gmAmount: '5000',
+      userAddress: USER,
+    });
+  });
+
+  it('validates the Morpho withdraw request with an optional toToken', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/withdraw',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'morpho',
+          userAddress: USER,
+          vaultAddress: '0x4444444444444444444444444444444444444444',
+          shareAmount: '1000000000000000000',
+          chainId: 8453,
+          toToken: '0x5555555555555555555555555555555555555555',
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildWithdraw).toHaveBeenCalledWith({
+      kind: 'morpho',
+      userAddress: USER,
+      vaultAddress: '0x4444444444444444444444444444444444444444',
+      shareAmount: '1000000000000000000',
+      chainId: 8453,
+      toToken: '0x5555555555555555555555555555555555555555',
+    });
+  });
+
+  it('rejects invalid withdraw bodies before service execution', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/withdraw',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'gmx-v2',
+          marketKey: 'not-a-market',
+          gmAmount: '5000',
+          userAddress: USER,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(service.buildWithdraw).not.toHaveBeenCalled();
   });
 });

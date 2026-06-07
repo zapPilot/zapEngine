@@ -70,6 +70,26 @@ const investStrategyMocks = vi.hoisted(() => {
     })),
   };
 });
+const withdrawMocks = vi.hoisted(() => {
+  const run = vi.fn();
+
+  return {
+    run,
+    useWithdraw: vi.fn(() => ({
+      run,
+      pending: false,
+      lastError: null,
+      tier: null,
+      lastCallsId: null,
+      lastTxHash: null,
+      lastTxHashes: [],
+      lastPlan: null,
+      steps: [],
+      getErrorMessage: (error: unknown) =>
+        error instanceof Error ? error.message : String(error),
+    })),
+  };
+});
 
 vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: walletProviderMocks.useWalletProvider,
@@ -77,6 +97,10 @@ vi.mock('@/providers/WalletProvider', () => ({
 
 vi.mock('@/hooks/useInvestStrategy', () => ({
   useInvestStrategy: investStrategyMocks.useInvestStrategy,
+}));
+
+vi.mock('@/hooks/useWithdraw', () => ({
+  useWithdraw: withdrawMocks.useWithdraw,
 }));
 
 vi.mock('@/hooks/queries/wallet/useTokenBalances', () => ({
@@ -217,6 +241,7 @@ describe('TransactionPanel', () => {
     mockSetValue.mockClear();
     mockHandleSubmit.mockClear();
     investStrategyMocks.run.mockClear();
+    withdrawMocks.run.mockClear();
     walletProviderMocks.useWalletProvider.mockReturnValue({
       isConnected: true,
       chain: { id: 8453 },
@@ -334,6 +359,22 @@ describe('TransactionPanel', () => {
       fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
       fromAmount: '100000000',
       sourceChainId: 8453,
+    });
+  });
+
+  it('submits a GMX v2 withdraw request on Arbitrum with 18-decimal GM token units', () => {
+    render(<TransactionPanel mode="withdraw" />);
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Switch to Arbitrum & Withdraw GM ETH/USDC',
+      }),
+    );
+
+    expect(withdrawMocks.run).toHaveBeenCalledWith({
+      kind: 'gmx-v2',
+      marketKey: 'eth-usdc',
+      gmAmount: '100000000000000000000',
     });
   });
 

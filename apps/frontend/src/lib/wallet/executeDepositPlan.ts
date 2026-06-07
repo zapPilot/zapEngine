@@ -3,6 +3,7 @@ import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import type { Address, Hash, WalletClient } from 'viem';
 
 import { intentEngine } from '@/services/intentClient';
+import type { WalletAtomicBatchExecutor } from '@/types';
 
 import {
   type EIP7702DelegationInspection,
@@ -15,10 +16,18 @@ export type DepositPlanExecutionResult =
   | { kind: 'eip7702'; callsId: string; transactionHash?: Hash }
   | { kind: 'sequential'; hashes: Hash[] };
 
+/**
+ * The execution layer only needs the on-chain transactions to batch — the
+ * approvals followed by the calls. Typing it as this structural subset (rather
+ * than DepositPlan) lets WithdrawPlan reuse the exact same EIP-7702 path.
+ */
+export type ExecutablePlan = Pick<DepositPlan, 'approvals' | 'calls'>;
+
 export interface ExecuteDepositPlanInput {
-  plan: DepositPlan;
+  plan: ExecutablePlan;
   walletClient: WalletClient;
   chainId: number;
+  executeAtomicBatch?: WalletAtomicBatchExecutor;
   onBundleSubmitted?: (callsId: string) => void;
   onBundleConfirmed?: (transactionHash?: Hash) => void;
   onApprovalSubmitted?: (
@@ -102,9 +111,25 @@ export async function executeDepositPlan({
   plan,
   walletClient,
   chainId,
+  executeAtomicBatch,
   onBundleSubmitted,
   onBundleConfirmed,
 }: ExecuteDepositPlanInput): Promise<DepositPlanExecutionResult> {
+  const transactions = [...plan.approvals, ...plan.calls];
+
+  if (executeAtomicBatch) {
+    const result = await executeAtomicBatch(transactions, chainId);
+    onBundleSubmitted?.(result.callsId);
+    onBundleConfirmed?.(result.transactionHash);
+    return {
+      kind: 'eip7702',
+      callsId: result.callsId,
+      ...(result.transactionHash
+        ? { transactionHash: result.transactionHash }
+        : {}),
+    };
+  }
+
   const walletAddress = getWalletAddress(walletClient);
 
   // Reliable on-chain pre-flight via eth_getCode. We deliberately do NOT pre-gate
@@ -122,7 +147,7 @@ export async function executeDepositPlan({
   }
 
   const result = await intentEngine.executeWithEIP7702(
-    [...plan.approvals, ...plan.calls],
+    transactions,
     walletClient,
     { chainId },
   );

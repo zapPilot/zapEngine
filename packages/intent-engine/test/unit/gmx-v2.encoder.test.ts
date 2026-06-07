@@ -4,6 +4,8 @@ import { decodeFunctionData, type Address, type Hex } from 'viem';
 import {
   encodeGmxV2CreateDeposit,
   encodeGmxV2CreateDepositMulticall,
+  encodeGmxV2CreateWithdrawal,
+  encodeGmxV2CreateWithdrawalMulticall,
   encodeGmxV2SendTokens,
   encodeGmxV2SendWnt,
 } from '../../src/protocols/gmx-v2/gmx-v2.encoder.js';
@@ -170,7 +172,7 @@ describe('GMX v2 calldata encoders', () => {
         data: calls[2]!,
       });
       expect(createDeposit.functionName).toBe('createDeposit');
-      const [params] = createDeposit.args as [
+      const [params] = createDeposit.args as unknown as [
         {
           addresses: {
             receiver: Address;
@@ -198,6 +200,120 @@ describe('GMX v2 calldata encoders', () => {
         shortTokenAmount: 0n,
       }),
     ).toThrow('GMX deposit amount must be greater than zero');
+  });
+
+  it('encodes createWithdrawal with the live GMX tuple order', () => {
+    const market = GMX_V2_MARKETS['eth-usdc'];
+    const data = encodeGmxV2CreateWithdrawal({
+      receiver: USER,
+      marketToken: market.marketToken,
+      executionFee: BigInt(GMX_V2_EXECUTION_FEE_WEI),
+    });
+
+    const decoded = decodeFunctionData({
+      abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+      data,
+    });
+    expect(decoded.functionName).toBe('createWithdrawal');
+    const [params] = decoded.args as [
+      {
+        addresses: {
+          receiver: Address;
+          callbackContract: Address;
+          uiFeeReceiver: Address;
+          market: Address;
+          longTokenSwapPath: Address[];
+          shortTokenSwapPath: Address[];
+        };
+        minLongTokenAmount: bigint;
+        minShortTokenAmount: bigint;
+        shouldUnwrapNativeToken: boolean;
+        executionFee: bigint;
+        callbackGasLimit: bigint;
+        dataList: Hex[];
+      },
+    ];
+
+    // Withdrawal addresses tuple has NO initialLong/ShortToken (unlike deposit).
+    expect(params.addresses).toMatchObject({
+      receiver: USER,
+      callbackContract: '0x0000000000000000000000000000000000000000',
+      uiFeeReceiver: '0x0000000000000000000000000000000000000000',
+      market: market.marketToken,
+    });
+    expect(params.addresses.longTokenSwapPath).toEqual([]);
+    expect(params.addresses.shortTokenSwapPath).toEqual([]);
+    expect(params.minLongTokenAmount).toBe(0n);
+    expect(params.minShortTokenAmount).toBe(0n);
+    expect(params.shouldUnwrapNativeToken).toBe(false);
+    expect(params.executionFee).toBe(BigInt(GMX_V2_EXECUTION_FEE_WEI));
+    expect(params.callbackGasLimit).toBe(0n);
+    expect(params.dataList).toEqual([]);
+  });
+
+  it.each(Object.entries(GMX_V2_MARKETS))(
+    'encodes the %s createWithdrawal multicall (sendWnt + sendTokens + createWithdrawal)',
+    (_key, market) => {
+      const gmAmount = 5_000n;
+      const { data, value } = encodeGmxV2CreateWithdrawalMulticall({
+        receiver: USER,
+        market,
+        gmTokenAmount: gmAmount,
+      });
+
+      expect(data.slice(0, 10)).toBe(SELECTORS.multicall);
+      expect(value).toBe(GMX_V2_EXECUTION_FEE_WEI);
+
+      const calls = decodeMulticallCalls(data);
+      expect(calls).toHaveLength(3);
+
+      const sendWnt = decodeFunctionData({
+        abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+        data: calls[0]!,
+      });
+      expect(sendWnt.functionName).toBe('sendWnt');
+      expect(sendWnt.args).toEqual([
+        GMX_V2_ADDRESSES.withdrawalVault,
+        BigInt(GMX_V2_EXECUTION_FEE_WEI),
+      ]);
+
+      // The GM market token itself is sent to the WithdrawalVault to be burned.
+      const sendTokens = decodeFunctionData({
+        abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+        data: calls[1]!,
+      });
+      expect(sendTokens.functionName).toBe('sendTokens');
+      expect(sendTokens.args).toEqual([
+        market.marketToken,
+        GMX_V2_ADDRESSES.withdrawalVault,
+        gmAmount,
+      ]);
+
+      const createWithdrawal = decodeFunctionData({
+        abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+        data: calls[2]!,
+      });
+      expect(createWithdrawal.functionName).toBe('createWithdrawal');
+      const [params] = createWithdrawal.args as unknown as [
+        {
+          addresses: { receiver: Address; market: Address };
+          executionFee: bigint;
+        },
+      ];
+      expect(params.addresses.receiver).toBe(USER);
+      expect(params.addresses.market).toBe(market.marketToken);
+      expect(params.executionFee).toBe(BigInt(GMX_V2_EXECUTION_FEE_WEI));
+    },
+  );
+
+  it('rejects a withdrawal multicall with zero GM amount', () => {
+    expect(() =>
+      encodeGmxV2CreateWithdrawalMulticall({
+        receiver: USER,
+        market: GMX_V2_MARKETS['btc-usdc'],
+        gmTokenAmount: 0n,
+      }),
+    ).toThrow('GMX withdrawal amount must be greater than zero');
   });
 
   it.each(['btc-btc', 'eth-eth'] as const)(

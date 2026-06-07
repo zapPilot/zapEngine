@@ -5,6 +5,7 @@ export const GMX_V2_ARBITRUM_CHAIN_ID = 42161;
 export const GMX_V2_ADDRESSES = {
   exchangeRouter: '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41',
   depositVault: '0xF89e77e8Dc11691C9e8757e84aaFbCD8A67d7A55',
+  withdrawalVault: '0x0628D46b5D145f183AdB6Ef1f2c97eD1C4701C55',
   dataStore: '0xFD70de6b91282D8017aA4E741e9Ae325CAb992d8',
   syntheticsReader: '0x470fbC46bcC0f16532691Df360A07d8Bf5ee0789',
   router: '0x7452c558d45f8afC8c83dAe62C3f8A5BE19c71f6',
@@ -98,6 +99,7 @@ export const GMX_V2_EXECUTION_FEE_WEI = '1000000000000000';
 export const GMX_V2_GAS_ESTIMATES = {
   approve: '60000',
   multicall: '1200000',
+  withdrawalMulticall: '1200000',
 } as const;
 
 const ADDRESS = 'address';
@@ -173,6 +175,44 @@ export const GMX_V2_EXCHANGE_ROUTER_ABI = [
             ],
           },
           { name: 'minMarketTokens', type: UINT256 },
+          { name: 'shouldUnwrapNativeToken', type: 'bool' },
+          { name: 'executionFee', type: UINT256 },
+          { name: 'callbackGasLimit', type: UINT256 },
+          { name: 'dataList', type: `${BYTES32}[]` },
+        ],
+      },
+    ],
+    outputs: [{ name: 'key', type: BYTES32 }],
+  },
+  {
+    // GMX v2 IWithdrawalUtils.CreateWithdrawalParams. Like createDeposit, the
+    // params nest a `addresses` tuple — but the withdrawal addresses tuple has
+    // no initialLong/ShortToken (you burn GM, you don't supply collateral) and
+    // the numeric fields are minLong/minShortTokenAmount instead of
+    // minMarketTokens. Shape verified against the on-chain verified ABI of the
+    // ExchangeRouter (Arbitrum 0x1C3f…6A41).
+    name: 'createWithdrawal',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      {
+        name: 'params',
+        type: 'tuple',
+        components: [
+          {
+            name: 'addresses',
+            type: 'tuple',
+            components: [
+              { name: 'receiver', type: ADDRESS },
+              { name: 'callbackContract', type: ADDRESS },
+              { name: 'uiFeeReceiver', type: ADDRESS },
+              { name: 'market', type: ADDRESS },
+              { name: 'longTokenSwapPath', type: 'address[]' },
+              { name: 'shortTokenSwapPath', type: 'address[]' },
+            ],
+          },
+          { name: 'minLongTokenAmount', type: UINT256 },
+          { name: 'minShortTokenAmount', type: UINT256 },
           { name: 'shouldUnwrapNativeToken', type: 'bool' },
           { name: 'executionFee', type: UINT256 },
           { name: 'callbackGasLimit', type: UINT256 },

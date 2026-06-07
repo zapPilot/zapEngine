@@ -1,7 +1,11 @@
 import type { GmxV2MarketKey } from '@zapengine/intent-engine';
-import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
+import type {
+  PlanOrchestrationWithdrawRequest,
+  PreparedTransaction,
+  WithdrawPlan,
+} from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
-import type { Hash } from 'viem';
+import type { Address, Hash } from 'viem';
 import { arbitrum } from 'viem/chains';
 
 import {
@@ -11,28 +15,33 @@ import {
 } from '@/hooks/useDepositExecutionState';
 import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@/providers/WalletProvider';
-import { getGmxDepositPlan } from '@/services/planOrchestrationService';
+import { getWithdrawPlan } from '@/services/planOrchestrationService';
 import { logger } from '@/utils/logger';
 
-export type GmxDepositStepStatus = 'pending' | 'submitted' | 'confirmed';
+export type WithdrawStepStatus = 'pending' | 'submitted' | 'confirmed';
 
-export interface GmxDepositStepProgress {
+export interface WithdrawStepProgress {
   index: number;
   label: string;
-  status: GmxDepositStepStatus;
+  status: WithdrawStepStatus;
   txHash?: Hash;
 }
 
-interface RunGmxDepositInput {
-  marketKey: GmxV2MarketKey;
-  amount: string;
-}
+export type RunWithdrawInput =
+  | { kind: 'gmx-v2'; marketKey: GmxV2MarketKey; gmAmount: string }
+  | {
+      kind: 'morpho';
+      vaultAddress: Address;
+      shareAmount: string;
+      chainId: number;
+      toToken?: Address;
+    };
 
-export type GmxDepositResult =
+export type WithdrawResult =
   | { kind: 'eip7702'; callsId: string; transactionHash?: Hash }
   | { kind: 'sequential'; hashes: Hash[] };
 
-const gmxDepositLogger = logger.createContextLogger('GmxDeposit');
+const withdrawLogger = logger.createContextLogger('Withdraw');
 
 function stepLabel(tx: PreparedTransaction): string {
   if (
@@ -44,10 +53,10 @@ function stepLabel(tx: PreparedTransaction): string {
   if (tx.meta.intentType === 'SWAP') {
     return 'Swap';
   }
-  return 'GMX deposit';
+  return 'Withdraw';
 }
 
-function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
+function initialSteps(plan: WithdrawPlan): WithdrawStepProgress[] {
   return [...plan.approvals, ...plan.calls].map((tx, index) => ({
     index,
     label: stepLabel(tx),
@@ -55,14 +64,48 @@ function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
   }));
 }
 
-export function useGmxDeposit() {
+function targetChainId(input: RunWithdrawInput): number {
+  return input.kind === 'gmx-v2' ? arbitrum.id : input.chainId;
+}
+
+function planRequest(
+  input: RunWithdrawInput,
+  userAddress: Address,
+): PlanOrchestrationWithdrawRequest {
+  if (input.kind === 'gmx-v2') {
+    return {
+      kind: 'gmx-v2',
+      marketKey: input.marketKey,
+      gmAmount: input.gmAmount,
+      userAddress,
+    };
+  }
+  return {
+    kind: 'morpho',
+    userAddress,
+    vaultAddress: input.vaultAddress,
+    shareAmount: input.shareAmount,
+    chainId: input.chainId,
+    ...(input.toToken ? { toToken: input.toToken } : {}),
+  };
+}
+
+/**
+ * Dev-only withdraw execution hook, mirroring `useGmxDeposit`. Handles both the
+ * GMX-v2 GM-market withdrawal (Arbitrum, keeper-settled native tokens) and the
+ * Morpho redeem (+ optional LiFi swap into a chosen token). Reuses the shared
+ * deposit execution state machine and the EIP-7702 plan executor.
+ *
+ * Instantiate once per panel — each call owns its own pending/steps state.
+ */
+export function useWithdraw() {
   const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
     useWalletProvider();
-  const { state, actions } = useDepositExecutionState();
-  const [steps, setSteps] = useState<GmxDepositStepProgress[]>([]);
+  const { state, actions } = useDepositExecutionState<WithdrawPlan>();
+  const [steps, setSteps] = useState<WithdrawStepProgress[]>([]);
 
   const updateStep = useCallback(
-    (index: number, patch: Partial<GmxDepositStepProgress>) => {
+    (index: number, patch: Partial<WithdrawStepProgress>) => {
       setSteps((current) =>
         current.map((step) =>
           step.index === index ? { ...step, ...patch } : step,
@@ -73,7 +116,7 @@ export function useGmxDeposit() {
   );
 
   const markAllSteps = useCallback(
-    (status: GmxDepositStepStatus, txHash?: Hash) => {
+    (status: WithdrawStepStatus, txHash?: Hash) => {
       setSteps((current) =>
         current.map((step) => ({
           ...step,
@@ -86,28 +129,24 @@ export function useGmxDeposit() {
   );
 
   const run = useCallback(
-    ({ marketKey, amount }: RunGmxDepositInput): Promise<GmxDepositResult> =>
+    (input: RunWithdrawInput): Promise<WithdrawResult> =>
       actions.run(
         async () => {
           setSteps([]);
 
           const userAddress = requireUserAddress(account?.address);
-          await ensureChain(chain?.id, arbitrum.id, switchChain);
+          const chainId = targetChainId(input);
+          await ensureChain(chain?.id, chainId, switchChain);
 
-          const plan = await getGmxDepositPlan({
-            kind: 'gmx-v2',
-            marketKey,
-            amount,
-            userAddress,
-          });
+          const plan = await getWithdrawPlan(planRequest(input, userAddress));
           actions.setLastPlan(plan);
           setSteps(initialSteps(plan));
 
-          const walletClient = await getWalletClient(arbitrum.id);
+          const walletClient = await getWalletClient(chainId);
           const execution = await executeDepositPlan({
             plan,
             walletClient,
-            chainId: arbitrum.id,
+            chainId,
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               actions.markBundleSubmitted(callsId);
@@ -138,7 +177,7 @@ export function useGmxDeposit() {
 
           return actions.applyExecutionResult(execution);
         },
-        (error) => gmxDepositLogger.error('[gmx-deposit] failed:', error),
+        (error) => withdrawLogger.error('[withdraw] failed:', error),
       ),
     [
       account?.address,

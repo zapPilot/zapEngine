@@ -1,5 +1,8 @@
 import { zValidator } from '@hono/zod-validator';
-import { PlanOrchestrationDepositRequestSchema } from '@zapengine/types/api';
+import {
+  PlanOrchestrationDepositRequestSchema,
+  PlanOrchestrationWithdrawRequestSchema,
+} from '@zapengine/types/api';
 import { Hono } from 'hono';
 
 import type { PlanOrchestrationService } from './service';
@@ -15,6 +18,17 @@ export function createPlanOrchestrationRoutes(
     async (c) => {
       const body = c.req.valid('json');
       const plan = await service.buildDeposit(body);
+
+      return c.json(plan, { status: 200 });
+    },
+  );
+
+  app.post(
+    '/withdraw',
+    zValidator('json', PlanOrchestrationWithdrawRequestSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const plan = await service.buildWithdraw(body);
 
       return c.json(plan, { status: 200 });
     },

@@ -30,18 +30,18 @@ export async function ensureChain(
   }
 }
 
-export interface DepositExecutionState {
+export interface DepositExecutionState<TPlan = DepositPlan> {
   pending: boolean;
   lastError: unknown;
   tier: DepositExecutionTier | null;
   lastTxHash: Hash | null;
   lastTxHashes: Hash[];
   lastCallsId: string | null;
-  lastPlan: DepositPlan | null;
+  lastPlan: TPlan | null;
   getErrorMessage: (error: unknown) => string;
 }
 
-export interface DepositExecutionActions {
+export interface DepositExecutionActions<TPlan = DepositPlan> {
   /**
    * Wraps the begin → try → catch → finally lifecycle: resets state,
    * runs `execute`, and on failure calls `onError` (per-hook logging),
@@ -51,7 +51,7 @@ export interface DepositExecutionActions {
     execute: () => Promise<T>,
     onError: (error: unknown) => void,
   ) => Promise<T>;
-  setLastPlan: (plan: DepositPlan) => void;
+  setLastPlan: (plan: TPlan) => void;
   markBundleSubmitted: (callsId: string) => void;
   markBundleConfirmed: (transactionHash?: Hash) => void;
   applyExecutionResult: (
@@ -69,9 +69,9 @@ export interface DepositExecutionActions {
  * public surface and depend on the single stable `actions` reference,
  * keeping the wiring out of each hook.
  */
-export function useDepositExecutionState(): {
-  state: DepositExecutionState;
-  actions: DepositExecutionActions;
+export function useDepositExecutionState<TPlan = DepositPlan>(): {
+  state: DepositExecutionState<TPlan>;
+  actions: DepositExecutionActions<TPlan>;
 } {
   const [pending, setPending] = useState(false);
   const [lastError, setLastError] = useState<unknown>(null);
@@ -79,7 +79,7 @@ export function useDepositExecutionState(): {
   const [lastTxHash, setLastTxHash] = useState<Hash | null>(null);
   const [lastTxHashes, setLastTxHashes] = useState<Hash[]>([]);
   const [lastCallsId, setLastCallsId] = useState<string | null>(null);
-  const [lastPlan, setLastPlan] = useState<DepositPlan | null>(null);
+  const [lastPlan, setLastPlan] = useState<TPlan | null>(null);
 
   const run = useCallback(
     async <T>(
@@ -132,7 +132,7 @@ export function useDepositExecutionState(): {
     [],
   );
 
-  const actions = useMemo<DepositExecutionActions>(
+  const actions = useMemo<DepositExecutionActions<TPlan>>(
     () => ({
       run,
       setLastPlan,
@@ -143,7 +143,7 @@ export function useDepositExecutionState(): {
     [run, markBundleSubmitted, markBundleConfirmed, applyExecutionResult],
   );
 
-  const state: DepositExecutionState = {
+  const state: DepositExecutionState<TPlan> = {
     pending,
     lastError,
     tier,

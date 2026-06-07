@@ -1,4 +1,5 @@
-import type { Account, Chain, Hex, Transport, WalletClient } from 'viem';
+import type { PreparedTransaction } from '@zapengine/types/api';
+import type { Account, Chain, Hash, Hex, Transport, WalletClient } from 'viem';
 
 /**
  * Simplified Wallet Types
@@ -21,6 +22,16 @@ import type { Account, Chain, Hex, Transport, WalletClient } from 'viem';
  */
 
 export type ConnectedWalletClient = WalletClient<Transport, Chain, Account>;
+
+export interface WalletAtomicBatchResult {
+  callsId: string;
+  transactionHash?: Hash;
+}
+
+export type WalletAtomicBatchExecutor = (
+  transactions: PreparedTransaction[],
+  chainId: number,
+) => Promise<WalletAtomicBatchResult>;
 
 export interface WalletTypedData {
   domain: Record<string, unknown>;
@@ -51,6 +62,7 @@ export interface WalletProviderInterface {
     gas?: bigint;
   }): Promise<`0x${string}`>;
   getWalletClient(chainId?: number): Promise<ConnectedWalletClient>;
+  executeAtomicBatch?: WalletAtomicBatchExecutor;
   signMessage(message: string): Promise<string>;
   signTypedData(typedData: WalletTypedData): Promise<Hex>;
   isConnected: boolean;

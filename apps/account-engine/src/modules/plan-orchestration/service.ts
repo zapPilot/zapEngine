@@ -14,7 +14,10 @@ import {
   type DepositPlan,
   DepositPlanSchema,
   type PlanOrchestrationDepositRequest,
+  type PlanOrchestrationWithdrawRequest,
   type PreparedTransaction,
+  type WithdrawPlan,
+  WithdrawPlanSchema,
 } from '@zapengine/types/api';
 import {
   type Address,
@@ -27,10 +30,16 @@ import type { DepositPublicClients } from './publicClients';
 
 export interface PlanOrchestrationService {
   buildDeposit(request: PlanOrchestrationDepositRequest): Promise<DepositPlan>;
+  buildWithdraw(
+    request: PlanOrchestrationWithdrawRequest,
+  ): Promise<WithdrawPlan>;
 }
 
 export interface PlanOrchestrationServiceDeps {
-  intentEngine: Pick<IntentEngine, 'buildGmxV2Supply'>;
+  intentEngine: Pick<
+    IntentEngine,
+    'buildGmxV2Supply' | 'buildGmxV2Withdraw' | 'buildWithdrawSwap'
+  >;
   adapter: LiFiAdapter;
   publicClients: DepositPublicClients;
   composeDeposit?: typeof composeDeposit;
@@ -96,6 +105,47 @@ async function filterNeededApprovals(params: {
   }
 
   return neededApprovals;
+}
+
+// The Morpho withdraw-swap plan surfaces a single LiFi approval as a
+// requirement (token/spender/amount), not a prepared tx. Convert it into an
+// approve tx only when the on-chain allowance is insufficient.
+async function neededApprovalFromRequirement(params: {
+  approval:
+    | { tokenAddress: Address; spenderAddress: Address; amount: string }
+    | undefined;
+  owner: Address;
+  publicClient: PublicClient;
+  chainId: number;
+}): Promise<PreparedTransaction[]> {
+  if (!params.approval) {
+    return [];
+  }
+
+  const requirement: ApprovalRequirement = {
+    tokenAddress: params.approval.tokenAddress,
+    spenderAddress: params.approval.spenderAddress,
+    amount: BigInt(params.approval.amount),
+  };
+
+  if (
+    !(await needsApproval({
+      publicClient: params.publicClient,
+      owner: params.owner,
+      requirement,
+    }))
+  ) {
+    return [];
+  }
+
+  return [
+    buildApproveTx({
+      token: requirement.tokenAddress,
+      spender: requirement.spenderAddress,
+      amount: requirement.amount.toString(),
+      chainId: params.chainId,
+    }),
+  ];
 }
 
 function gmxCollateralAmount(approvals: PreparedTransaction[]): string {
@@ -167,6 +217,101 @@ export function createPlanOrchestrationService({
         calls: gmxPlan.steps,
         totalGasUsd: '0',
         sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+      });
+    },
+
+    async buildWithdraw(request): Promise<WithdrawPlan> {
+      if (request.kind === 'gmx-v2') {
+        const publicClient = publicClientFor(
+          publicClients,
+          GMX_V2_ARBITRUM_CHAIN_ID,
+        );
+        const userAddress = request.userAddress as Address;
+        const gmxPlan = await intentEngine.buildGmxV2Withdraw({
+          marketKey: request.marketKey,
+          gmAmount: request.gmAmount,
+          userAddress,
+        });
+        const approvals = await filterNeededApprovals({
+          approvals: gmxPlan.approvals as PreparedTransaction[],
+          owner: userAddress,
+          publicClient,
+        });
+
+        // GMX settles long+short asynchronously via the keeper; the leg's
+        // toToken is the market's representative collateral token. No swap.
+        return WithdrawPlanSchema.parse({
+          legs: [
+            {
+              chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+              kind: 'withdraw',
+              protocol: 'gmx-v2',
+              toToken: gmxPlan.market.collateralToken,
+              fromAmount: request.gmAmount,
+              toAmountMin: '0',
+              gasUsd: '0',
+              durationSec: 60,
+            },
+          ],
+          approvals,
+          calls: gmxPlan.steps,
+          totalGasUsd: '0',
+          sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+        });
+      }
+
+      const { chainId } = request;
+      const publicClient = publicClientFor(publicClients, chainId);
+      const userAddress = request.userAddress as Address;
+      const plan = await intentEngine.buildWithdrawSwap(
+        {
+          vaultAddress: request.vaultAddress as Address,
+          shareAmount: request.shareAmount,
+          ...(request.toToken ? { toToken: request.toToken as Address } : {}),
+          fromAddress: userAddress,
+          chainId,
+        },
+        publicClient,
+      );
+      const approvals = await neededApprovalFromRequirement({
+        approval: plan.approval,
+        owner: userAddress,
+        publicClient,
+        chainId,
+      });
+
+      const legs: WithdrawPlan['legs'] = [
+        {
+          chainId,
+          kind: 'withdraw',
+          protocol: 'morpho',
+          toToken: plan.assetToken,
+          fromAmount: request.shareAmount,
+          toAmountMin: plan.redeemAmount,
+          gasUsd: '0',
+          durationSec: 0,
+        },
+      ];
+      // A second step means the redeemed asset is swapped into the chosen token.
+      if (plan.steps.length > 1 && request.toToken) {
+        legs.push({
+          chainId,
+          kind: 'swap',
+          protocol: 'lifi',
+          toToken: request.toToken,
+          fromAmount: plan.redeemAmount,
+          toAmountMin: plan.estimates.expectedOutput,
+          gasUsd: plan.estimates.totalGasUsd,
+          durationSec: plan.estimates.totalDuration,
+        });
+      }
+
+      return WithdrawPlanSchema.parse({
+        legs,
+        approvals,
+        calls: plan.steps,
+        totalGasUsd: plan.estimates.totalGasUsd,
+        sourceChainId: chainId,
       });
     },
   };

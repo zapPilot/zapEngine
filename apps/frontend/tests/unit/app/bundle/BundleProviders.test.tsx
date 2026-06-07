@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BundleProviders } from '@/app/bundle/BundleProviders';
 
+const envMocks = vi.hoisted(() => ({
+  getRuntimeEnv: vi.fn(() => undefined as string | undefined),
+}));
+
 // Mock all providers to keep tests focused on BundleProviders composition
 vi.mock('@/providers/QueryProvider', () => ({
   QueryProvider: ({ children }: { children: ReactNode }) => (
@@ -20,6 +24,15 @@ vi.mock('@/providers/SimpleWeb3Provider', () => ({
 vi.mock('@/providers/WalletProvider', () => ({
   WalletProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="wallet-provider">{children}</div>
+  ),
+  UnifiedWalletProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="unified-wallet-provider">{children}</div>
+  ),
+}));
+
+vi.mock('@/providers/PrivyAuthProvider', () => ({
+  PrivyAuthProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="privy-auth-provider">{children}</div>
   ),
 }));
 
@@ -58,10 +71,14 @@ vi.mock('@/lib/lazy/lazyImport', () => ({
 // Mock env to control shouldLoadLogViewer
 vi.mock('@/lib/env/runtimeEnv', () => ({
   isRuntimeMode: () => false,
-  getRuntimeEnv: () => undefined,
+  getRuntimeEnv: envMocks.getRuntimeEnv,
 }));
 
 describe('BundleProviders', () => {
+  beforeEach(() => {
+    envMocks.getRuntimeEnv.mockReturnValue(undefined);
+  });
+
   it('renders children inside providers', () => {
     render(
       <BundleProviders>
@@ -91,6 +108,22 @@ describe('BundleProviders', () => {
     );
 
     expect(screen.getByTestId('wallet-provider')).toBeInTheDocument();
+  });
+
+  it('uses PrivyAuthProvider and UnifiedWalletProvider when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
+    render(
+      <BundleProviders>
+        <div>Child</div>
+      </BundleProviders>,
+    );
+
+    expect(screen.getByTestId('privy-auth-provider')).toBeInTheDocument();
+    expect(screen.getByTestId('unified-wallet-provider')).toBeInTheDocument();
+    expect(screen.queryByTestId('wallet-provider')).not.toBeInTheDocument();
   });
 
   it('wraps content with ToastProvider', () => {
