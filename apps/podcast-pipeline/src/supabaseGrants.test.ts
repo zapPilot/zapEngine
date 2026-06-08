@@ -109,10 +109,38 @@ describe('Supabase user_episode_state grants', () => {
     );
   });
 
+  it('grants mobile classroom HLS source columns to Data API roles', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const { sql: latestMigration } = readLatestMigration();
+
+    expect(grantedEpisodeLocalizationSelectColumns(schema)).toContain(
+      'classroom_hls_url',
+    );
+    expect(grantedEpisodeLocalizationSelectColumns(latestMigration)).toContain(
+      'classroom_hls_url',
+    );
+  });
+
+  it('keeps the mobile episode REST select columns in episodes_with_stats', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const { sql: latestMigration } = readLatestMigration();
+    const mobileColumns = mobileEpisodeViewSelectColumns();
+
+    expectEpisodesWithStatsColumns(schema, mobileColumns, 'schema.sql');
+    expectEpisodesWithStatsColumns(
+      latestMigration,
+      mobileColumns,
+      'latest migration',
+    );
+  });
+
   it('latest migration restores language classroom data in the mobile episode view', () => {
     const { filename, sql } = readLatestMigration();
 
     expect(filename).toMatch(/restore_language_classrooms/i);
+    expect(sql).toMatch(
+      /alter\s+table\s+from_fed_to_chain\.episode_localizations[\s\S]+?add\s+column\s+if\s+not\s+exists\s+classroom_hls_url\s+text/i,
+    );
     expect(sql).toMatch(
       /drop\s+view\s+if\s+exists\s+from_fed_to_chain\.episodes_with_stats\s*;/i,
     );
@@ -150,6 +178,19 @@ function mobileUserEpisodeStateSelectColumns(): string[] {
   return [...columns];
 }
 
+function mobileEpisodeViewSelectColumns(): string[] {
+  const service = readRepoFile('apps/mobile/lib/services/episode_service.dart');
+  const match = /static\s+const\s+_episodeColumns\s*=\s*'([^']+)';/m.exec(
+    service,
+  );
+
+  if (!match) {
+    throw new Error('Could not find mobile _episodeColumns select list');
+  }
+
+  return splitColumns(match[1]!);
+}
+
 function grantedUserEpisodeStateSelectColumns(sql: string): string[] {
   const grants = [
     ...sql.matchAll(
@@ -163,6 +204,48 @@ function grantedUserEpisodeStateSelectColumns(sql: string): string[] {
   }
 
   return splitColumns(latestGrant[1]!);
+}
+
+function grantedEpisodeLocalizationSelectColumns(sql: string): string[] {
+  const columns = new Set<string>();
+  const pattern =
+    /grant\s+select\s*\(([^)]*)\)\s+on\s+from_fed_to_chain\.episode_localizations\s+to\s+anon,\s*authenticated\s*;/gi;
+
+  for (const match of sql.matchAll(pattern)) {
+    for (const column of splitColumns(match[1]!)) {
+      columns.add(column);
+    }
+  }
+
+  return [...columns].sort();
+}
+
+function expectEpisodesWithStatsColumns(
+  sql: string,
+  expectedColumns: string[],
+  sourceName: string,
+): void {
+  const view = extractEpisodesWithStatsView(sql);
+
+  for (const column of expectedColumns) {
+    expect(
+      view,
+      `${sourceName} episodes_with_stats must expose mobile REST column "${column}"`,
+    ).toMatch(new RegExp(`\\b${escapeRegExp(column)}\\b`, 'i'));
+  }
+}
+
+function extractEpisodesWithStatsView(sql: string): string {
+  const match =
+    /create\s+view\s+from_fed_to_chain\.episodes_with_stats[\s\S]+?;/i.exec(
+      sql,
+    );
+
+  if (!match) {
+    throw new Error('Could not find episodes_with_stats view definition');
+  }
+
+  return match[0];
 }
 
 function effectiveDataApiTableGrants(
@@ -213,6 +296,10 @@ function splitColumns(value: string): string[] {
     .split(',')
     .map((column) => column.trim().toLowerCase())
     .filter(Boolean);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function readSortedMigrations(): string[] {

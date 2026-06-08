@@ -35,10 +35,11 @@ flutter run \
   --dart-define=SUPABASE_ANON_KEY=<anon-key>
 ```
 
-For Xcode-run builds, add the same values under
-`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or include
-the `--dart-define` values in the `flutter build ios ...` command that
-generates `ios/Flutter/Generated.xcconfig` before opening Xcode.
+For Xcode-run builds, the Runner target's Flutter build phase reads the same
+values from the repo-root `.env` and injects them into `DART_DEFINES` before it
+delegates to Flutter's `xcode_backend.sh`. Do not rely on `Runner` scheme >
+`Run` > `Arguments` > `Environment Variables`; `String.fromEnvironment` only
+sees compile-time `--dart-define` values.
 
 ## iOS Versioning (invariants)
 

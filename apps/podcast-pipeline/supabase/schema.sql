@@ -341,6 +341,7 @@ grant select (
   language_code,
   title,
   hls_url,
+  classroom_hls_url,
   script,
   llm_model,
   llm_thinking_model,
