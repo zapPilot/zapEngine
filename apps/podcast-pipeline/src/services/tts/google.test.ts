@@ -314,6 +314,29 @@ describe('textToSpeech', () => {
     );
   });
 
+  it('includes chunk diagnostics when Google TTS fails', async () => {
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('13 INTERNAL: Internal error encountered.'), {
+        code: 13,
+        details: 'Internal error encountered.',
+        metadata: { getMap: () => ({ request: 'abc' }) },
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toMatchObject({
+      message: expect.stringContaining(
+        'Google TTS chunk 1/1 failed: 13 INTERNAL: Internal error encountered.',
+      ),
+      cause: expect.objectContaining({
+        code: 13,
+        details: 'Internal error encountered.',
+      }),
+    });
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'voice=cmn-TW-Wavenet-A language=cmn-TW bytes=4 chars=4',
+    );
+  });
+
   it('synthesizes multiple chunks via Promise.all and concatenates', async () => {
     vi.mocked(mockSynthesize).mockResolvedValue([
       { audioContent: new Uint8Array(512) },

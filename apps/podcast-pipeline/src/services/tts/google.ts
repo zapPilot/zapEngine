@@ -140,18 +140,116 @@ export async function synthesize(
 
   if (chunks.length === 1) {
     return {
-      audio: await synthesizeChunk(chunks[0]!, voiceOptions),
+      audio: await synthesizeChunkWithDiagnostics(
+        chunks[0]!,
+        0,
+        chunks.length,
+        voiceOptions,
+      ),
       cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
     };
   }
 
   const audioBuffers = await Promise.all(
-    chunks.map((chunk) => synthesizeChunk(chunk, voiceOptions)),
+    chunks.map((chunk, index) =>
+      synthesizeChunkWithDiagnostics(chunk, index, chunks.length, voiceOptions),
+    ),
   );
   return {
     audio: await concatenateAudioChunks(audioBuffers),
     cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
   };
+}
+
+async function synthesizeChunkWithDiagnostics(
+  chunk: string,
+  index: number,
+  total: number,
+  voiceOptions: GoogleVoiceOptions,
+): Promise<Buffer> {
+  try {
+    return await synthesizeChunk(chunk, voiceOptions);
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const wrapped = new Error(
+      [
+        `Google TTS chunk ${index + 1}/${total} failed: ${err.message}`,
+        `voice=${voiceOptions.voiceName}`,
+        `language=${voiceOptions.languageCode}`,
+        `bytes=${Buffer.byteLength(chunk, 'utf8')}`,
+        `chars=${[...chunk].length}`,
+        ...googleErrorDetails(error),
+      ].join(' '),
+      { cause: err },
+    );
+    copyGoogleErrorMetadata(error, wrapped);
+    throw wrapped;
+  }
+}
+
+function googleErrorDetails(error: unknown): string[] {
+  if (!isRecord(error)) {
+    return [];
+  }
+
+  const details: string[] = [];
+  const code = error['code'];
+  const grpcDetails = error['details'];
+  const metadata = formatGrpcMetadata(error['metadata']);
+  const dollarMetadata = formatGrpcMetadata(error['$metadata']);
+
+  if (typeof code === 'number' || typeof code === 'string') {
+    details.push(`code=${code}`);
+  }
+  if (typeof grpcDetails === 'string' && grpcDetails.length > 0) {
+    details.push(`details=${grpcDetails}`);
+  }
+  if (metadata) {
+    details.push(`metadata=${metadata}`);
+  }
+  if (dollarMetadata) {
+    details.push(`$metadata=${dollarMetadata}`);
+  }
+
+  return details;
+}
+
+function copyGoogleErrorMetadata(error: unknown, target: Error): void {
+  if (!isRecord(error)) {
+    return;
+  }
+
+  const fields: Record<string, unknown> = {};
+  for (const field of ['code', 'details', 'metadata', '$metadata']) {
+    if (error[field] !== undefined) {
+      fields[field] = error[field];
+    }
+  }
+  Object.assign(target, fields);
+}
+
+function formatGrpcMetadata(metadata: unknown): string | null {
+  if (isRecord(metadata) && typeof metadata['getMap'] === 'function') {
+    return safeJsonStringify((metadata['getMap'] as () => unknown)());
+  }
+
+  return safeJsonStringify(metadata);
+}
+
+function safeJsonStringify(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function getGoogleVoiceOptions(

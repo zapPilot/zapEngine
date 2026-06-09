@@ -1284,6 +1284,59 @@ describe('performIngest failure paths', () => {
     ).toEqual(['zh-Hant', 'ja', 'en']);
   });
 
+  it('regenerates an obviously corrupted secondary script before TTS', async () => {
+    const episode = episodeRow();
+    const canonical = localizationRow({
+      episode_id: episode.id,
+      script: '正常中文腳本。',
+      status: 'completed',
+    });
+    const corrupted = localizationRow({
+      id: 'en-localization',
+      episode_id: episode.id,
+      language_code: 'en',
+      script: `English opening. ${'-侥幸心理 '.repeat(2500)}`,
+      status: 'script_generated',
+    });
+
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episode);
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) => {
+        if (languageCode === 'zh-Hant') return Promise.resolve(canonical);
+        if (languageCode === 'en') return Promise.resolve(corrupted);
+        return Promise.resolve(null);
+      },
+    );
+    mockTranslateCanonicalScript.mockResolvedValue({
+      title: 'English title',
+      script: 'Healthy English script.',
+      cost: [],
+    });
+    mockUpdateEpisodeLocalizationArticleContent.mockResolvedValue(corrupted);
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id: string, status: EpisodeLocalizationRow['status'], updates = {}) =>
+        Promise.resolve(
+          localizationRow({
+            ...corrupted,
+            status,
+            script: (updates as { script?: string }).script ?? corrupted.script,
+          }),
+        ),
+    );
+
+    await performIngest('https://example.com/article', 'en');
+
+    expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
+      title: canonical.title,
+      script: canonical.script,
+      targetLanguageCode: 'en',
+    });
+    expect(mockTextToSpeech).toHaveBeenCalledWith(
+      'Healthy English script.',
+      expect.objectContaining({ languageCode: 'en', usage: 'main' }),
+    );
+  });
+
   it('wraps non-Error step failures', async () => {
     mockScrapeArticle.mockRejectedValue('network down');
 
