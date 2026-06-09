@@ -1,31 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getZeroDevConfig } from '@/lib/env/zerodev';
 
 const ZERO_DEV_PROJECT_ID = '61016d2a-e0df-4350-929c-d5f2110700d1';
-
-function stashEnv(key: string): {
-  restore: () => void;
-} {
-  const originalMeta = (import.meta.env as Record<string, unknown>)[key];
-  const originalProcess = process.env[key];
-
-  return {
-    restore: () => {
-      if (originalMeta === undefined) {
-        Reflect.deleteProperty(import.meta.env, key);
-      } else {
-        (import.meta.env as Record<string, unknown>)[key] = originalMeta;
-      }
-
-      if (originalProcess === undefined) {
-        Reflect.deleteProperty(process.env, key);
-      } else {
-        process.env[key] = originalProcess;
-      }
-    },
-  };
-}
 
 describe('getZeroDevConfig', () => {
   const envKeys = [
@@ -34,11 +11,18 @@ describe('getZeroDevConfig', () => {
     'VITE_ZERODEV_BUNDLER_RPC',
     'VITE_ZERODEV_PAYMASTER_RPC',
   ];
-  const stashes = envKeys.map(stashEnv);
+
+  beforeEach(() => {
+    for (const key of envKeys) {
+      Reflect.deleteProperty(import.meta.env, key);
+      Reflect.deleteProperty(process.env, key);
+    }
+  });
 
   afterEach(() => {
-    for (const stash of stashes) {
-      stash.restore();
+    for (const key of envKeys) {
+      Reflect.deleteProperty(import.meta.env, key);
+      Reflect.deleteProperty(process.env, key);
     }
   });
 
