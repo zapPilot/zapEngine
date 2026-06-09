@@ -68,9 +68,7 @@ class SupabaseLikesStore implements LikesStore {
   Stream<List<Map<String, dynamic>>> streamLikeRows() {
     final client = _supabaseService.client;
     if (client == null) return const Stream.empty();
-    return client
-        .from('likes')
-        .stream(primaryKey: ['user_id', 'episode_id']);
+    return client.from('likes').stream(primaryKey: ['user_id', 'episode_id']);
   }
 
   @override

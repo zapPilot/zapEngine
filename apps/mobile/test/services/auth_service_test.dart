@@ -227,7 +227,8 @@ void main() {
   });
 
   group('AuthService - Uninitialized Supabase (Null Client)', () {
-    test('signInWithEmail throws AuthServiceException when client is null', () async {
+    test('signInWithEmail throws AuthServiceException when client is null',
+        () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = AuthService(supabaseService: fakeSupabase);
 
@@ -246,7 +247,7 @@ void main() {
 class _FakeSupabaseService extends SupabaseService {
   _FakeSupabaseService(this._client);
   final SupabaseClient? _client;
-  
+
   @override
   SupabaseClient? get client => _client;
 }

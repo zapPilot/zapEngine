@@ -74,14 +74,14 @@ void main() {
     test('streamLikeRows returns empty stream when client is null', () {
       final fakeSupabase = _FakeSupabaseService(null);
       final store = SupabaseLikesStore(fakeSupabase);
-      
+
       expect(store.streamLikeRows(), emitsInOrder([emitsDone]));
     });
 
     test('deleteLike completes without crashing when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final store = SupabaseLikesStore(fakeSupabase);
-      
+
       await expectLater(
         store.deleteLike(userId: 'user-1', episodeId: 'episode-1'),
         completes,
@@ -91,7 +91,7 @@ void main() {
     test('upsertLike completes without crashing when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final store = SupabaseLikesStore(fakeSupabase);
-      
+
       await expectLater(
         store.upsertLike(userId: 'user-1', episodeId: 'episode-1'),
         completes,
@@ -103,7 +103,7 @@ void main() {
 class _FakeSupabaseService extends SupabaseService {
   _FakeSupabaseService(this._client);
   final SupabaseClient? _client;
-  
+
   @override
   SupabaseClient? get client => _client;
 }
