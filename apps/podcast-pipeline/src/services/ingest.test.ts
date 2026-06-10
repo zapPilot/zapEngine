@@ -360,7 +360,7 @@ describe('performIngest failure paths', () => {
     ]);
   });
 
-  it('publishes separate HLS playlists for main audio and generated classroom audio', async () => {
+  it('publishes main HLS with appended classroom audio and a separate classroom playlist', async () => {
     const lessons = [
       {
         sourceLanguageCode: 'zh-Hant',
@@ -419,6 +419,9 @@ describe('performIngest failure paths', () => {
           },
         ],
       });
+    mockConcatMp3Buffers
+      .mockResolvedValueOnce(Buffer.from('classroom-audio'))
+      .mockResolvedValueOnce(Buffer.from('main-with-classroom'));
 
     const result = await performIngest(
       'https://example.com/article',
@@ -461,16 +464,23 @@ describe('performIngest failure paths', () => {
       expect.objectContaining({ targetLanguageCode: 'en' }),
       { episodeId: episodeRow().id },
     );
-    expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(1);
-    expect(mockConcatMp3Buffers).toHaveBeenCalledWith([
+    expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(2);
+    expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(1, [
       Buffer.from('ja-classroom'),
       Buffer.from('en-classroom'),
     ]);
+    expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(2, [
+      Buffer.from('audio'),
+      Buffer.from('classroom-audio'),
+    ]);
     expect(mockGenerateHls).toHaveBeenCalledTimes(2);
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(
+      1,
+      Buffer.from('main-with-classroom'),
+    );
     expect(mockGenerateHls).toHaveBeenNthCalledWith(
       2,
-      Buffer.from('combined-audio'),
+      Buffer.from('classroom-audio'),
     );
     expect(mockUploadHlsToR2).toHaveBeenCalledTimes(2);
     expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
@@ -587,16 +597,22 @@ describe('performIngest failure paths', () => {
         ],
       })
       .mockResolvedValueOnce({ audio: null, cost: [] });
+    mockConcatMp3Buffers
+      .mockResolvedValueOnce(Buffer.from('classroom-audio'))
+      .mockResolvedValueOnce(Buffer.from('main-with-classroom'));
 
     await performIngest('https://example.com/article', 'zh-Hant');
 
-    expect(mockConcatMp3Buffers).toHaveBeenCalledWith([
+    expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(1, [
       Buffer.from('ja-classroom'),
     ]);
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(
+      1,
+      Buffer.from('main-with-classroom'),
+    );
     expect(mockGenerateHls).toHaveBeenNthCalledWith(
       2,
-      Buffer.from('combined-audio'),
+      Buffer.from('classroom-audio'),
     );
   });
 
@@ -731,12 +747,8 @@ describe('performIngest failure paths', () => {
         ttsVoiceName: 'en-US-Wavenet-A',
       }),
     );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceLanguageCode: 'en',
-        targetLanguageCodes: ['zh-Hant', 'ja'],
-      }),
-    );
+    expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
   });
 
   it('returns ordered existing classrooms without calling the LLM', async () => {
@@ -768,7 +780,6 @@ describe('performIngest failure paths', () => {
       localizationRow({ status: 'scraped' }),
     );
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
-      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
       classroomRow({ id: 'classroom-ko', target_language_code: 'ko' }),
       classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
     ]);
@@ -778,12 +789,6 @@ describe('performIngest failure paths', () => {
           sourceLanguageCode: 'zh-Hant',
           targetLanguageCode: 'en',
           oneLiner: 'English lesson',
-          keywords: [],
-        },
-        {
-          sourceLanguageCode: 'zh-Hant',
-          targetLanguageCode: 'ko',
-          oneLiner: 'Korean lesson',
           keywords: [],
         },
       ],
@@ -999,6 +1004,8 @@ describe('performIngest failure paths', () => {
         ttsVoiceName: 'ja-JP-Wavenet-A',
       }),
     );
+    expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
   });
 
   it('creates a secondary localization by translating the committed Chinese script before TTS', async () => {
@@ -1751,13 +1758,8 @@ describe('performIngest failure paths', () => {
         llmProvider: '',
       }),
     );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        articleText: '',
-        script: '',
-        sourceLanguageCode: 'en',
-      }),
-    );
+    expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
     expect(mockTextToSpeech).toHaveBeenCalledWith('', {
       languageCode: 'en',
       usage: 'main',

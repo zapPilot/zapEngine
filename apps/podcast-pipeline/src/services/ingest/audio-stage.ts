@@ -17,10 +17,8 @@ import { generateLanguageClassroomsWithLLM } from '../llm.js';
 import { synthesizeClassroomAudio } from '../podcast/classroom-audio.js';
 import { getTtsMetadata, textToSpeech } from '../tts.js';
 import { concatMp3Buffers } from '../tts/audio-concat.js';
-import {
-  existingLanguageClassroomResult,
-  getClassroomTargetLanguageCodes,
-} from './result-builder.js';
+import { getClassroomTargetLanguageCodes } from './classroom-config.js';
+import { existingLanguageClassroomResult } from './result-builder.js';
 import { step } from './step.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
@@ -52,11 +50,6 @@ export async function ensureLocalizationCompleted(
       classroomRows,
     );
     costBreakdown.push(...classroomAudios.cost);
-    const uploadedMain = await packageMainHls(
-      mainAudio,
-      episode.id,
-      languageCode,
-    );
     const classroomAudio = await combineClassroomAudio(
       classroomAudios.audioBuffers,
       {
@@ -64,6 +57,20 @@ export async function ensureLocalizationCompleted(
         localizationId: localization.id,
         languageCode,
       },
+    );
+    const publicMainAudio = await appendClassroomAudioToMainAudio(
+      mainAudio,
+      classroomAudio,
+      {
+        episodeId: episode.id,
+        localizationId: localization.id,
+        languageCode,
+      },
+    );
+    const uploadedMain = await packageMainHls(
+      publicMainAudio,
+      episode.id,
+      languageCode,
     );
     const uploadedClassroom = classroomAudio
       ? await packageAndUploadHls({
@@ -213,6 +220,36 @@ async function combineClassroomAudio(
       cause: err.cause,
     });
     return null;
+  }
+}
+
+async function appendClassroomAudioToMainAudio(
+  mainAudio: Buffer,
+  classroomAudio: Buffer | null,
+  context: {
+    episodeId: string;
+    localizationId: string;
+    languageCode: LanguageClassroomLanguageCode;
+  },
+): Promise<Buffer> {
+  if (!classroomAudio) {
+    return mainAudio;
+  }
+
+  try {
+    return await step('concatMainWithClassroomAudio', () =>
+      concatMp3Buffers([mainAudio, classroomAudio]),
+    );
+  } catch (error) {
+    /* v8 ignore next -- @preserve */
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[/ingest] main classroom append failed:', {
+      ...context,
+      message: err.message,
+      stack: err.stack,
+      cause: err.cause,
+    });
+    return mainAudio;
   }
 }
 

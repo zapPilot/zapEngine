@@ -100,6 +100,12 @@ function createServices(): AppServices {
         sourceChainId: 42161,
       }),
     },
+    privyWalletExecutionService: {
+      sendCalls: vi.fn().mockResolvedValue({
+        transactionId: 'privy-transaction-id',
+        caip2: 'eip155:8453',
+      }),
+    },
   } as unknown as AppServices;
 }
 
@@ -137,6 +143,71 @@ describe('Hono app routes', () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it('forwards authenticated atomic batches to the Privy Wallets API service', async () => {
+    const services = createServices();
+    const app = createApp(services);
+    const body = {
+      walletId: 'privy-wallet-id',
+      walletAddress: '0x1111111111111111111111111111111111111111',
+      chainId: 8453,
+      calls: [
+        {
+          to: '0x2222222222222222222222222222222222222222',
+          data: '0x1234',
+          value: '0x0',
+        },
+      ],
+      idempotencyKey: 'batch-request-id',
+    };
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/send-calls',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer privy-access-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      transactionId: 'privy-transaction-id',
+      caip2: 'eip155:8453',
+    });
+    expect(services.privyWalletExecutionService.sendCalls).toHaveBeenCalledWith(
+      body,
+      'privy-access-token',
+    );
+  });
+
+  it('rejects Privy atomic batches without an access token', async () => {
+    const services = createServices();
+    const app = createApp(services);
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/send-calls',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          walletId: 'privy-wallet-id',
+          walletAddress: '0x1111111111111111111111111111111111111111',
+          chainId: 8453,
+          calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+          idempotencyKey: 'batch-request-id',
+        }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(
+      services.privyWalletExecutionService.sendCalls,
+    ).not.toHaveBeenCalled();
   });
 
   it('handles connect-wallet with validated JSON body', async () => {

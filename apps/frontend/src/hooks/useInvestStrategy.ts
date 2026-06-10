@@ -134,11 +134,13 @@ export function useInvestStrategy() {
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
 
-          const walletClient = await getWalletClient(base.id);
+          const walletClient = executeAtomicBatch
+            ? undefined
+            : await getWalletClient(base.id);
           const execution = await executeDepositPlan({
             plan,
-            walletClient,
             chainId: sourceChainId,
+            ...(walletClient ? { walletClient } : {}),
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');

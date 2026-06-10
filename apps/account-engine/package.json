@@ -29,11 +29,12 @@
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
-    "@zapengine/intent-engine": "workspace:*",
-    "@zapengine/types": "workspace:*",
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "^0.7.4",
+    "@privy-io/node": "^0.21.0",
     "@supabase/supabase-js": "catalog:",
+    "@zapengine/intent-engine": "workspace:*",
+    "@zapengine/types": "workspace:*",
     "dotenv": "catalog:",
     "hono": "catalog:",
     "nodemailer": "catalog:",
@@ -42,12 +43,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@zapengine/eslint-config": "workspace:*",
-    "@zapengine/knip-config": "workspace:*",
-    "@zapengine/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/nodemailer": "^7.0.2",
     "@vitest/coverage-v8": "catalog:",
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
     "eslint": "catalog:",
     "knip": "catalog:",
     "prettier": "catalog:",

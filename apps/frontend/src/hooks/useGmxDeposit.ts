@@ -1,7 +1,11 @@
-import type { GmxV2MarketKey } from '@zapengine/intent-engine';
+import {
+  GMX_V2_EXECUTION_FEE_WEI,
+  GMX_V2_TOKENS,
+  type GmxV2MarketKey,
+} from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
-import type { Hash } from 'viem';
+import { type Address, erc20Abi, formatUnits, type Hash } from 'viem';
 import { arbitrum } from 'viem/chains';
 
 import {
@@ -11,7 +15,9 @@ import {
 } from '@/hooks/useDepositExecutionState';
 import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@/providers/WalletProvider';
+import { getPublicClient } from '@/services/intentClient';
 import { getGmxDepositPlan } from '@/services/planOrchestrationService';
+import type { ConnectedWalletClient } from '@/types';
 import { logger } from '@/utils/logger';
 
 export type GmxDepositStepStatus = 'pending' | 'submitted' | 'confirmed';
@@ -33,6 +39,59 @@ export type GmxDepositResult =
   | { kind: 'sequential'; hashes: Hash[] };
 
 const gmxDepositLogger = logger.createContextLogger('GmxDeposit');
+const GMX_EXECUTION_FEE = BigInt(GMX_V2_EXECUTION_FEE_WEI);
+
+function walletClientAddress(
+  walletClient: ConnectedWalletClient,
+  fallback: Address,
+): Address {
+  const account = walletClient.account;
+  if (!account) {
+    return fallback;
+  }
+
+  return typeof account === 'string' ? account : account.address;
+}
+
+function formatEth(value: bigint): string {
+  return formatUnits(value, 18);
+}
+
+function formatUsdc(value: bigint): string {
+  return formatUnits(value, GMX_V2_TOKENS.USDC.decimals);
+}
+
+async function assertGmxDepositPreflight(params: {
+  address: Address;
+  amount: bigint;
+}): Promise<void> {
+  const publicClient = getPublicClient(arbitrum.id);
+  const [usdcBalance, nativeBalance] = await Promise.all([
+    publicClient.readContract({
+      address: GMX_V2_TOKENS.USDC.address,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [params.address],
+    }),
+    publicClient.getBalance({ address: params.address }),
+  ]);
+
+  if (usdcBalance < params.amount) {
+    throw new Error(
+      `GMX Arbitrum USDC balance too low: need ${formatUsdc(
+        params.amount,
+      )} USDC, have ${formatUsdc(usdcBalance)} USDC.`,
+    );
+  }
+
+  if (nativeBalance < GMX_EXECUTION_FEE) {
+    throw new Error(
+      `GMX execution fee requires 0.001 ETH on Arbitrum (have ${formatEth(
+        nativeBalance,
+      )} ETH).`,
+    );
+  }
+}
 
 function stepLabel(tx: PreparedTransaction): string {
   if (
@@ -94,16 +153,34 @@ export function useGmxDeposit() {
           const userAddress = requireUserAddress(account?.address);
           await ensureChain(chain?.id, arbitrum.id, switchChain);
 
+          const walletClient = await getWalletClient(arbitrum.id);
+          const effectiveAddress = walletClientAddress(
+            walletClient,
+            userAddress,
+          );
+          const parsedAmount = BigInt(amount);
+
+          gmxDepositLogger.info('[gmx-deposit] preflight', {
+            currentChainId: chain?.id,
+            targetChainId: arbitrum.id,
+            accountAddress: userAddress,
+            effectiveAddress,
+            amount,
+          });
+          await assertGmxDepositPreflight({
+            address: effectiveAddress,
+            amount: parsedAmount,
+          });
+
           const plan = await getGmxDepositPlan({
             kind: 'gmx-v2',
             marketKey,
             amount,
-            userAddress,
+            userAddress: effectiveAddress,
           });
           actions.setLastPlan(plan);
           setSteps(initialSteps(plan));
 
-          const walletClient = await getWalletClient(arbitrum.id);
           const execution = await executeDepositPlan({
             plan,
             walletClient,

@@ -21,6 +21,10 @@ import {
   createPlanOrchestrationModule,
   type PlanOrchestrationService,
 } from './modules/plan-orchestration';
+import {
+  createPrivyWalletExecutionService,
+  type PrivyWalletExecutionService,
+} from './services/privy-wallet-execution.service';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
@@ -44,6 +48,7 @@ export interface AppServices {
   dailySuggestionProcessor: DailySuggestionProcessor;
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
+  privyWalletExecutionService: PrivyWalletExecutionService;
 }
 
 export function createContainer(
@@ -105,6 +110,10 @@ export function createContainer(
     },
     publicClients: createDepositPublicClients(configService)(),
   });
+  const privyWalletExecutionService = createPrivyWalletExecutionService({
+    ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),
+    ...(env.PRIVY_APP_SECRET ? { appSecret: env.PRIVY_APP_SECRET } : {}),
+  });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
   jobProcessorService.registerProcessor(dailySuggestionProcessor);
@@ -130,6 +139,7 @@ export function createContainer(
     dailySuggestionProcessor,
     activityTracker,
     planOrchestrationService,
+    privyWalletExecutionService,
   };
 }
 

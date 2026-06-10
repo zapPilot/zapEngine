@@ -16,6 +16,8 @@ const envSchema = z.object({
   RPC_URL_ETHEREUM: z.string().optional(),
   RPC_URL_ARBITRUM: z.string().optional(),
   BASE_RPC_URL: z.string().optional(),
+  PRIVY_APP_ID: z.string().optional(),
+  PRIVY_APP_SECRET: z.string().optional(),
   ACCOUNT_ENGINE_PORT: portSchema.optional(),
   PORT: portSchema.optional(),
   NODE_ENV: z.string().default('development'),

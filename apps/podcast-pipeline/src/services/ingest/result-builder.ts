@@ -2,7 +2,6 @@ import {
   type EpisodeLocalizationRow,
   type EpisodeResponse,
   type EpisodeRow,
-  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
   type LanguageClassroomLanguageCode,
   type LanguageClassroomRow,
 } from '../../types.js';
@@ -12,6 +11,7 @@ import {
   type UsageCostLine,
 } from '../cost.js';
 import { toEpisodeResponseFromLocalization } from '../db.js';
+import { getClassroomTargetLanguageCodes } from './classroom-config.js';
 
 export interface IngestResult {
   episode: EpisodeResponse;
@@ -84,14 +84,6 @@ export function existingLanguageClassroomResult(
     rows: orderLanguageClassrooms(existing, sourceLanguageCode),
     cost,
   };
-}
-
-export function getClassroomTargetLanguageCodes(
-  sourceLanguageCode: LanguageClassroomLanguageCode,
-): LanguageClassroomLanguageCode[] {
-  return LANGUAGE_CLASSROOM_LANGUAGE_CODES.filter(
-    (languageCode) => languageCode !== sourceLanguageCode,
-  );
 }
 
 function orderLanguageClassrooms(

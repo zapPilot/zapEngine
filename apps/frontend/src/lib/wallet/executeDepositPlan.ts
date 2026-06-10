@@ -25,7 +25,7 @@ export type ExecutablePlan = Pick<DepositPlan, 'approvals' | 'calls'>;
 
 export interface ExecuteDepositPlanInput {
   plan: ExecutablePlan;
-  walletClient: WalletClient;
+  walletClient?: WalletClient;
   chainId: number;
   executeAtomicBatch?: WalletAtomicBatchExecutor;
   onBundleSubmitted?: (callsId: string) => void;
@@ -120,7 +120,9 @@ export async function executeDepositPlan({
   if (executeAtomicBatch) {
     const result = await executeAtomicBatch(transactions, chainId);
     onBundleSubmitted?.(result.callsId);
-    onBundleConfirmed?.(result.transactionHash);
+    if (result.transactionHash) {
+      onBundleConfirmed?.(result.transactionHash);
+    }
     return {
       kind: 'eip7702',
       callsId: result.callsId,
@@ -128,6 +130,10 @@ export async function executeDepositPlan({
         ? { transactionHash: result.transactionHash }
         : {}),
     };
+  }
+
+  if (!walletClient) {
+    throw new Error('Wallet client is required for generic EIP-7702 execution');
   }
 
   const walletAddress = getWalletAddress(walletClient);

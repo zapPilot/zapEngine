@@ -1,35 +1,23 @@
-import {
-  usePrivy,
-  useSign7702Authorization,
-  useWallets,
-} from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import type { PreparedTransaction } from '@zapengine/types/api';
-import { createKernelAccount, createKernelAccountClient } from '@zerodev/sdk';
-import {
-  getEntryPoint,
-  KERNEL_V3_3,
-  KernelVersionToAddressesMap,
-} from '@zerodev/sdk/constants';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  type Address,
   type Chain,
   createWalletClient,
   custom,
-  type Hash,
+  decodeFunctionData,
+  erc20Abi,
   type Hex,
-  http,
+  toHex,
 } from 'viem';
-import type { SignAuthorizationReturnType } from 'viem/accounts';
 import { arbitrum, base, optimism } from 'wagmi/chains';
 
-import { getZeroDevConfig } from '@/lib/env/zerodev';
 import {
   buildWalletAccount,
   buildWalletChain,
   type WalletError,
 } from '@/providers/walletProviderUtils';
-import { getPublicClient } from '@/services/intentClient';
+import { sendPrivyAtomicBatch } from '@/services/privyWalletService';
 import type {
   ConnectedWalletClient,
   WalletAtomicBatchResult,
@@ -46,14 +34,10 @@ const PRIVY_CHAINS: readonly Chain[] = [arbitrum, base, optimism];
 const CHAIN_BY_ID = new Map<number, Chain>(
   PRIVY_CHAINS.map((chain) => [chain.id, chain]),
 );
-const PRIVY_7702_CHAINS = new Map<number, Chain>(
+const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
   [arbitrum, base].map((chain) => [chain.id, chain]),
 );
 const DEFAULT_CHAIN = arbitrum;
-const ZERO_DEV_ENTRY_POINT = getEntryPoint('0.7');
-const ZERO_DEV_KERNEL_VERSION = KERNEL_V3_3;
-const ZERO_DEV_KERNEL_ADDRESSES =
-  KernelVersionToAddressesMap[ZERO_DEV_KERNEL_VERSION];
 
 /**
  * Parse a CAIP-2 chain id (e.g. `"eip155:42161"`) into its numeric chain id.
@@ -65,34 +49,105 @@ function parseChainId(caip2: string | undefined): number | undefined {
   return Number.isFinite(id) ? id : undefined;
 }
 
-function getPrivy7702Chain(chainId: number): Chain {
-  const chain = PRIVY_7702_CHAINS.get(chainId);
+function getPrivyAtomicBatchChain(chainId: number): Chain {
+  const chain = PRIVY_ATOMIC_BATCH_CHAINS.get(chainId);
   if (!chain) {
     throw new Error(
-      `Privy EIP-7702 execution is not configured for chain ${chainId}`,
+      `Privy EOA EIP-7702 atomic batching is not configured for chain ${chainId}`,
     );
   }
   return chain;
 }
 
-function extractTransactionHash(receipt: unknown): Hash | undefined {
-  if (typeof receipt !== 'object' || receipt === null) {
+function summarizeTransaction(tx: PreparedTransaction, index: number) {
+  return {
+    index,
+    to: tx.to,
+    value: tx.value,
+    chainId: tx.chainId,
+    intentType: tx.meta.intentType,
+  };
+}
+
+function approvalSummary(tx: PreparedTransaction):
+  | {
+      token: string;
+      spender: string;
+      amount: string;
+    }
+  | undefined {
+  try {
+    const decoded = decodeFunctionData({
+      abi: erc20Abi,
+      data: tx.data as Hex,
+    });
+
+    if (decoded.functionName !== 'approve') {
+      return undefined;
+    }
+
+    const [spender, amount] = decoded.args;
+    return {
+      token: tx.to,
+      spender,
+      amount: amount.toString(),
+    };
+  } catch {
     return undefined;
   }
+}
 
-  const topLevelHash = (receipt as { transactionHash?: unknown })
-    .transactionHash;
-  if (typeof topLevelHash === 'string' && topLevelHash.startsWith('0x')) {
-    return topLevelHash as Hash;
+function atomicBatchSummary(transactions: PreparedTransaction[]):
+  | {
+      approvals: {
+        token: string;
+        spender: string;
+        amount: string;
+      }[];
+    }
+  | undefined {
+  const approvals = transactions.flatMap((tx) => {
+    const approval = approvalSummary(tx);
+    return approval ? [approval] : [];
+  });
+
+  return { approvals };
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function assertSameChainTransactions(
+  transactions: PreparedTransaction[],
+  chainId: number,
+): void {
+  const mismatch = transactions.find((tx) => tx.chainId !== chainId);
+  if (!mismatch) {
+    return;
   }
 
-  const nestedHash = (receipt as { receipt?: { transactionHash?: unknown } })
-    .receipt?.transactionHash;
-  if (typeof nestedHash === 'string' && nestedHash.startsWith('0x')) {
-    return nestedHash as Hash;
-  }
+  throw new Error(
+    `Privy EOA atomic batch contains a transaction for chain ${mismatch.chainId}, expected ${chainId}`,
+  );
+}
 
-  return undefined;
+function toWalletSendCall(tx: PreparedTransaction) {
+  return {
+    to: tx.to,
+    data: tx.data,
+    value: toHex(BigInt(tx.value)),
+  };
+}
+
+function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export interface PrivyWalletBackend {
@@ -108,17 +163,18 @@ export interface PrivyWalletBackend {
 /**
  * Privy-backed implementation of {@link WalletProviderInterface}.
  *
- * Uses Privy's core hooks (no `@privy-io/wagmi`): the embedded wallet's
- * EIP-1193 provider is wrapped in a viem `WalletClient` via `custom()`, which
- * satisfies the full signing/sending surface using the repo's existing viem.
+ * Uses Privy's core hooks (no `@privy-io/wagmi`). Single transactions and
+ * signatures use the embedded wallet's EIP-1193 provider. Atomic batches use
+ * the server-side Privy Wallets API and never forward `wallet_sendCalls` to a
+ * chain RPC provider.
  *
  * Must be rendered inside a `PrivyProvider` (see `PrivyAuthProvider`).
  *
  * @returns The Privy backend plus an `isActive` flag for provider selection.
  */
 export function usePrivyWalletBackend(): PrivyWalletBackend {
-  const { ready, authenticated, login, logout } = usePrivy();
-  const { signAuthorization } = useSign7702Authorization();
+  const { ready, authenticated, login, logout, getAccessToken, user } =
+    usePrivy();
   const { wallets } = useWallets();
   const [error, setError] = useState<WalletError | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -252,9 +308,10 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       if (transactions.length === 0) {
         throw new Error('Cannot execute empty Privy EIP-7702 batch');
       }
+      assertSameChainTransactions(transactions, chainId);
 
-      const chain = getPrivy7702Chain(chainId);
-      const { rpc: zeroDevRpc } = getZeroDevConfig(chainId);
+      const chain = getPrivyAtomicBatchChain(chainId);
+      const caip2 = `eip155:${chain.id}`;
 
       if (currentChainId !== chainId) {
         walletLogger.info('[privy.executeAtomicBatch] switching chain', {
@@ -264,53 +321,63 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         await embeddedWallet.switchChain(chainId);
       }
 
-      const walletClient = await buildClient(chainId);
-      const publicClient = getPublicClient(chainId);
-      const authorization = (await signAuthorization(
+      const calls = transactions.map(toWalletSendCall);
+      const walletId = user?.linkedAccounts
+        .flatMap((account) =>
+          account.type === 'wallet' &&
+          account.walletClientType === 'privy' &&
+          account.chainType === 'ethereum' &&
+          account.address.toLowerCase() ===
+            embeddedWallet.address.toLowerCase() &&
+          'id' in account &&
+          typeof account.id === 'string'
+            ? [account.id]
+            : [],
+        )
+        .at(0);
+      if (!walletId) {
+        throw new Error('Privy wallet resource id is unavailable');
+      }
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error('Privy access token is unavailable');
+      }
+
+      walletLogger.info(
+        '[privy.executeAtomicBatch] sending Privy Wallets API batch',
         {
-          contractAddress:
-            ZERO_DEV_KERNEL_ADDRESSES.accountImplementationAddress,
           chainId,
+          caip2,
+          embeddedWalletAddress: embeddedWallet.address,
+          transactionCount: transactions.length,
+          transactions: transactions.map(summarizeTransaction),
+          atomicBatch: atomicBatchSummary(transactions),
         },
-        { address: embeddedWallet.address },
-      )) as SignAuthorizationReturnType;
+      );
 
-      const account = await createKernelAccount(publicClient, {
-        eip7702Account: walletClient,
-        eip7702Auth: authorization,
-        entryPoint: ZERO_DEV_ENTRY_POINT,
-        kernelVersion: ZERO_DEV_KERNEL_VERSION,
+      const result = await sendPrivyAtomicBatch(
+        {
+          walletId,
+          walletAddress: embeddedWallet.address,
+          chainId: chain.id as 8453 | 42161,
+          calls,
+          idempotencyKey: createIdempotencyKey(),
+        },
+        accessToken,
+      ).catch((error: unknown) => {
+        throw new Error(
+          `Privy EOA EIP-7702 atomic batch failed: ${errorMessage(error)}`,
+        );
       });
 
-      const kernelClient = createKernelAccountClient({
-        account,
-        chain,
-        client: publicClient,
-        bundlerTransport: http(zeroDevRpc),
+      walletLogger.info('[privy.executeAtomicBatch] Privy transaction id', {
+        transactionId: result.transactionId,
+        caip2: result.caip2,
       });
 
-      const userOpHash = await kernelClient.sendUserOperation({
-        callData: await kernelClient.account.encodeCalls(
-          transactions.map((tx) => ({
-            to: tx.to as Address,
-            data: tx.data as Hex,
-            value: BigInt(tx.value),
-          })),
-        ),
-      });
-
-      walletLogger.info('[privy.executeAtomicBatch] userOp hash', userOpHash);
-      const receipt = await kernelClient.waitForUserOperationReceipt({
-        hash: userOpHash,
-      });
-      const transactionHash = extractTransactionHash(receipt);
-
-      return {
-        callsId: userOpHash,
-        ...(transactionHash ? { transactionHash } : {}),
-      };
+      return { callsId: result.transactionId };
     },
-    [embeddedWallet, currentChainId, buildClient, signAuthorization],
+    [embeddedWallet, currentChainId, getAccessToken, user?.linkedAccounts],
   );
 
   const walletList = useMemo(

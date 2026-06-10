@@ -693,18 +693,7 @@ describe('POST /ingest pipeline', () => {
         targetLanguageCodes: ['ja', 'en'],
       }),
     );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceLanguageCode: 'ja',
-        targetLanguageCodes: ['zh-Hant', 'en'],
-      }),
-    );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceLanguageCode: 'en',
-        targetLanguageCodes: ['zh-Hant', 'ja'],
-      }),
-    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledTimes(1);
     expect(
       body.episode.languageClassrooms.map(
         (lesson) => lesson.targetLanguageCode,
@@ -1013,8 +1002,8 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 Total $0.00027',
-        '- 外語小教室: $0.00027',
+        '💰 Total $0.00009',
+        '- 外語小教室: $0.00009',
       ].join('\n'),
     ]);
   });
@@ -1092,8 +1081,8 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 Total $0.00014',
-        '- 外語小教室: $0.00014',
+        '💰 Total $0.00001',
+        '- 外語小教室: $0.00001',
       ].join('\n'),
     ]);
   });

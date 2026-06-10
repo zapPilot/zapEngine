@@ -92,9 +92,13 @@ describe('loadEnv', () => {
       ...validEnv,
       ADMIN_API_KEY: 'admin-secret',
       NODE_ENV: 'production',
+      PRIVY_APP_ID: 'privy-app-id',
+      PRIVY_APP_SECRET: 'privy-app-secret',
     });
     expect(result.ADMIN_API_KEY).toBe('admin-secret');
     expect(result.NODE_ENV).toBe('production');
+    expect(result.PRIVY_APP_ID).toBe('privy-app-id');
+    expect(result.PRIVY_APP_SECRET).toBe('privy-app-secret');
   });
 
   it('spreads all raw env fields through to the returned object', () => {
