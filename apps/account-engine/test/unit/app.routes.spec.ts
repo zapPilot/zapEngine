@@ -101,6 +101,10 @@ function createServices(): AppServices {
       }),
     },
     privyWalletExecutionService: {
+      prepareSendCalls: vi.fn().mockResolvedValue({
+        authorizationPayload: 'base64-authorization-payload',
+        requestExpiry: 1_800_000_000_000,
+      }),
       sendCalls: vi.fn().mockResolvedValue({
         transactionId: 'privy-transaction-id',
         caip2: 'eip155:8453',
@@ -160,6 +164,8 @@ describe('Hono app routes', () => {
         },
       ],
       idempotencyKey: 'batch-request-id',
+      authorizationSignature: 'base64-authorization-signature',
+      requestExpiry: 1_800_000_000_000,
     };
 
     const response = await app.request(
@@ -185,6 +191,35 @@ describe('Hono app routes', () => {
     );
   });
 
+  it('prepares Privy authorization payloads for authenticated atomic batches', async () => {
+    const services = createServices();
+    const app = createApp(services);
+    const body = {
+      walletId: 'privy-wallet-id',
+      walletAddress: '0x1111111111111111111111111111111111111111',
+      chainId: 8453,
+      calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+      idempotencyKey: 'batch-request-id',
+    };
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/send-calls/prepare',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer privy-access-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      services.privyWalletExecutionService.prepareSendCalls,
+    ).toHaveBeenCalledWith(body, 'privy-access-token');
+  });
+
   it('rejects Privy atomic batches without an access token', async () => {
     const services = createServices();
     const app = createApp(services);
@@ -200,6 +235,8 @@ describe('Hono app routes', () => {
           chainId: 8453,
           calls: [{ to: '0x2222222222222222222222222222222222222222' }],
           idempotencyKey: 'batch-request-id',
+          authorizationSignature: 'base64-authorization-signature',
+          requestExpiry: 1_800_000_000_000,
         }),
       },
     );

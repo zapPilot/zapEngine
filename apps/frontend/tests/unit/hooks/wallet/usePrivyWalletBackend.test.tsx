@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   logout: vi.fn(),
   getAccessToken: vi.fn(),
+  generateAuthorizationSignature: vi.fn(),
   getEthereumProvider: vi.fn(),
   switchChain: vi.fn(),
   sendCalls: vi.fn(),
@@ -42,6 +43,9 @@ vi.mock('@privy-io/react-auth', () => ({
         switchChain: mocks.switchChain,
       },
     ],
+  }),
+  useAuthorizationSignature: () => ({
+    generateAuthorizationSignature: mocks.generateAuthorizationSignature,
   }),
 }));
 
@@ -84,9 +88,13 @@ const supplyTx = {
 describe('usePrivyWalletBackend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.accountApiPost.mockReset();
     mocks.getEthereumProvider.mockResolvedValue({ request: vi.fn() });
     mocks.switchChain.mockResolvedValue(undefined);
     mocks.getAccessToken.mockResolvedValue('privy-access-token');
+    mocks.generateAuthorizationSignature.mockResolvedValue({
+      signature: 'base64-authorization-signature',
+    });
     mocks.privyLinkedAccounts.splice(0, mocks.privyLinkedAccounts.length, {
       type: 'wallet',
       id: 'privy-wallet-id',
@@ -94,10 +102,15 @@ describe('usePrivyWalletBackend', () => {
       chainType: 'ethereum',
       walletClientType: 'privy',
     });
-    mocks.accountApiPost.mockResolvedValue({
-      transactionId: 'privy-transaction-id',
-      caip2: 'eip155:8453',
-    });
+    mocks.accountApiPost
+      .mockResolvedValueOnce({
+        authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
+        requestExpiry: 1_800_000_000_000,
+      })
+      .mockResolvedValueOnce({
+        transactionId: 'privy-transaction-id',
+        caip2: 'eip155:8453',
+      });
     mocks.sendCalls.mockResolvedValue({ id: '0xcalls' });
     mocks.waitForCallsStatus.mockResolvedValue({
       status: 'success',
@@ -118,8 +131,38 @@ describe('usePrivyWalletBackend', () => {
     });
 
     expect(mocks.switchChain).toHaveBeenCalledWith(8453);
-    expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
-    expect(mocks.accountApiPost).toHaveBeenCalledWith(
+    expect(mocks.getAccessToken).toHaveBeenCalledTimes(2);
+    expect(mocks.accountApiPost).toHaveBeenNthCalledWith(
+      1,
+      '/wallet-execution/privy/send-calls/prepare',
+      {
+        walletId: 'privy-wallet-id',
+        walletAddress: PRIVY_ADDRESS,
+        chainId: 8453,
+        calls: [
+          {
+            to: approvalTx.to,
+            data: approvalTx.data,
+            value: '0x0',
+          },
+          {
+            to: supplyTx.to,
+            data: supplyTx.data,
+            value: '0x0',
+          },
+        ],
+        idempotencyKey: expect.any(String),
+      },
+      {
+        headers: { Authorization: 'Bearer privy-access-token' },
+        retries: 0,
+      },
+    );
+    expect(
+      Array.from(mocks.generateAuthorizationSignature.mock.calls[0][0]),
+    ).toEqual(Array.from(new TextEncoder().encode('server-formatted-payload')));
+    expect(mocks.accountApiPost).toHaveBeenNthCalledWith(
+      2,
       '/wallet-execution/privy/send-calls',
       {
         walletId: 'privy-wallet-id',
@@ -138,6 +181,8 @@ describe('usePrivyWalletBackend', () => {
           },
         ],
         idempotencyKey: expect.any(String),
+        authorizationSignature: 'base64-authorization-signature',
+        requestExpiry: 1_800_000_000_000,
       },
       {
         headers: { Authorization: 'Bearer privy-access-token' },
@@ -205,9 +250,13 @@ describe('usePrivyWalletBackend', () => {
   });
 
   it('surfaces Privy Wallets API errors without falling back to a chain RPC', async () => {
-    mocks.accountApiPost.mockRejectedValueOnce(
-      new Error('Privy API rejected batch'),
-    );
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce({
+        authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
+        requestExpiry: 1_800_000_000_000,
+      })
+      .mockRejectedValueOnce(new Error('Privy API rejected batch'));
     const { result } = renderHook(() => usePrivyWalletBackend());
 
     await act(async () => {

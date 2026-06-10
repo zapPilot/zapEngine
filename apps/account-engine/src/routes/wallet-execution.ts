@@ -1,4 +1,7 @@
-import { PrivyAtomicBatchRequestSchema } from '@zapengine/types/api';
+import {
+  PrivyAtomicBatchPayloadSchema,
+  PrivyAtomicBatchRequestSchema,
+} from '@zapengine/types/api';
 import { Hono } from 'hono';
 
 import { UnauthorizedException } from '../common/http';
@@ -17,6 +20,19 @@ export function createWalletExecutionRoutes(
   service: PrivyWalletExecutionService,
 ) {
   const app = new Hono();
+
+  app.post(
+    '/privy/send-calls/prepare',
+    jsonValidator(PrivyAtomicBatchPayloadSchema),
+    async (c) => {
+      const accessToken = requireBearerToken(c.req.header('authorization'));
+      const response = await service.prepareSendCalls(
+        c.req.valid('json'),
+        accessToken,
+      );
+      return c.json(response, { status: 200 });
+    },
+  );
 
   app.post(
     '/privy/send-calls',

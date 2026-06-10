@@ -17,7 +17,7 @@ export const PrivyAtomicBatchCallSchema = z.object({
   value: HexQuantitySchema.optional(),
 });
 
-export const PrivyAtomicBatchRequestSchema = z.object({
+export const PrivyAtomicBatchPayloadSchema = z.object({
   walletId: z.string().min(1),
   walletAddress: z
     .string()
@@ -27,12 +27,29 @@ export const PrivyAtomicBatchRequestSchema = z.object({
   idempotencyKey: z.string().min(1).max(128),
 });
 
+export const PrivyAtomicBatchAuthorizationResponseSchema = z.object({
+  authorizationPayload: z.string().min(1),
+  requestExpiry: z.number().int().positive(),
+});
+
+export const PrivyAtomicBatchRequestSchema =
+  PrivyAtomicBatchPayloadSchema.extend({
+    authorizationSignature: z.string().min(1).max(4096),
+    requestExpiry: z.number().int().positive(),
+  });
+
 export const PrivyAtomicBatchResponseSchema = z.object({
   transactionId: z.string().min(1),
   caip2: z.string().regex(/^eip155:\d+$/),
 });
 
 export type PrivyAtomicBatchCall = z.infer<typeof PrivyAtomicBatchCallSchema>;
+export type PrivyAtomicBatchPayload = z.infer<
+  typeof PrivyAtomicBatchPayloadSchema
+>;
+export type PrivyAtomicBatchAuthorizationResponse = z.infer<
+  typeof PrivyAtomicBatchAuthorizationResponseSchema
+>;
 export type PrivyAtomicBatchRequest = z.infer<
   typeof PrivyAtomicBatchRequestSchema
 >;

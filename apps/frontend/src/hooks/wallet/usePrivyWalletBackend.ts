@@ -1,4 +1,8 @@
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import {
+  useAuthorizationSignature,
+  usePrivy,
+  useWallets,
+} from '@privy-io/react-auth';
 import type { PreparedTransaction } from '@zapengine/types/api';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -17,7 +21,10 @@ import {
   buildWalletChain,
   type WalletError,
 } from '@/providers/walletProviderUtils';
-import { sendPrivyAtomicBatch } from '@/services/privyWalletService';
+import {
+  preparePrivyAtomicBatch,
+  sendPrivyAtomicBatch,
+} from '@/services/privyWalletService';
 import type {
   ConnectedWalletClient,
   WalletAtomicBatchResult,
@@ -121,6 +128,10 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
+function decodeBase64(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
 function assertSameChainTransactions(
   transactions: PreparedTransaction[],
   chainId: number,
@@ -175,6 +186,7 @@ export interface PrivyWalletBackend {
 export function usePrivyWalletBackend(): PrivyWalletBackend {
   const { ready, authenticated, login, logout, getAccessToken, user } =
     usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
   const { wallets } = useWallets();
   const [error, setError] = useState<WalletError | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -338,10 +350,13 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       if (!walletId) {
         throw new Error('Privy wallet resource id is unavailable');
       }
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error('Privy access token is unavailable');
-      }
+      const batch = {
+        walletId,
+        walletAddress: embeddedWallet.address,
+        chainId: chain.id as 8453 | 42161,
+        calls,
+        idempotencyKey: createIdempotencyKey(),
+      };
 
       walletLogger.info(
         '[privy.executeAtomicBatch] sending Privy Wallets API batch',
@@ -355,16 +370,36 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         },
       );
 
-      const result = await sendPrivyAtomicBatch(
-        {
-          walletId,
-          walletAddress: embeddedWallet.address,
-          chainId: chain.id as 8453 | 42161,
-          calls,
-          idempotencyKey: createIdempotencyKey(),
-        },
-        accessToken,
-      ).catch((error: unknown) => {
+      const result = await (async () => {
+        const prepareAccessToken = await getAccessToken();
+        if (!prepareAccessToken) {
+          throw new Error(
+            'Privy user access token is invalid or expired. Please re-login.',
+          );
+        }
+        const authorization = await preparePrivyAtomicBatch(
+          batch,
+          prepareAccessToken,
+        );
+        const { signature } = await generateAuthorizationSignature(
+          decodeBase64(authorization.authorizationPayload),
+        );
+
+        const executeAccessToken = await getAccessToken();
+        if (!executeAccessToken) {
+          throw new Error(
+            'Privy user access token is invalid or expired. Please re-login.',
+          );
+        }
+        return sendPrivyAtomicBatch(
+          {
+            ...batch,
+            authorizationSignature: signature,
+            requestExpiry: authorization.requestExpiry,
+          },
+          executeAccessToken,
+        );
+      })().catch((error: unknown) => {
         throw new Error(
           `Privy EOA EIP-7702 atomic batch failed: ${errorMessage(error)}`,
         );
@@ -377,7 +412,13 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
 
       return { callsId: result.transactionId };
     },
-    [embeddedWallet, currentChainId, getAccessToken, user?.linkedAccounts],
+    [
+      embeddedWallet,
+      currentChainId,
+      generateAuthorizationSignature,
+      getAccessToken,
+      user?.linkedAccounts,
+    ],
   );
 
   const walletList = useMemo(
