@@ -113,6 +113,14 @@ export function createContainer(
   const privyWalletExecutionService = createPrivyWalletExecutionService({
     ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),
     ...(env.PRIVY_APP_SECRET ? { appSecret: env.PRIVY_APP_SECRET } : {}),
+    ...(env.TENDERLY_ACCOUNT ? { tenderlyAccount: env.TENDERLY_ACCOUNT } : {}),
+    ...(env.TENDERLY_PROJECT ? { tenderlyProject: env.TENDERLY_PROJECT } : {}),
+    ...(env.TENDERLY_ACCESS_KEY
+      ? { tenderlyAccessKey: env.TENDERLY_ACCESS_KEY }
+      : {}),
+    ...(env.TENDERLY_BASE_RPC_URL
+      ? { tenderlyBaseRpcUrl: env.TENDERLY_BASE_RPC_URL }
+      : {}),
   });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);

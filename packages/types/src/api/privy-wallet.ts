@@ -43,6 +43,31 @@ export const PrivyAtomicBatchResponseSchema = z.object({
   caip2: z.string().regex(/^eip155:\d+$/),
 });
 
+export const PrivyPrepareSendCallsRequestSchema =
+  PrivyAtomicBatchPayloadSchema.extend({});
+
+export const PrivyPrepareSendCallsResponseSchema = z.object({
+  previewId: z.string().min(1),
+  batchHash: z.string().min(1),
+  decodedCalls: z.array(z.any()),
+  tenderlyResult: z.any(),
+  assetChanges: z.array(z.any()),
+  gasEstimate: z.string().min(1),
+  typedDataPayload: z.any(),
+  expiresAt: z.number().int().positive(),
+  authorizationPayload: z.string().min(1),
+  requestExpiry: z.number().int().positive(),
+});
+
+export const PrivyConfirmSendCallsRequestSchema = z.object({
+  previewId: z.string().min(1),
+  userSignature: z.string().min(1),
+  authorizationSignature: z.string().min(1),
+});
+
+export const PrivyConfirmSendCallsResponseSchema =
+  PrivyAtomicBatchResponseSchema.extend({});
+
 export type PrivyAtomicBatchCall = z.infer<typeof PrivyAtomicBatchCallSchema>;
 export type PrivyAtomicBatchPayload = z.infer<
   typeof PrivyAtomicBatchPayloadSchema
@@ -55,4 +80,17 @@ export type PrivyAtomicBatchRequest = z.infer<
 >;
 export type PrivyAtomicBatchResponse = z.infer<
   typeof PrivyAtomicBatchResponseSchema
+>;
+
+export type PrivyPrepareSendCallsRequest = z.infer<
+  typeof PrivyPrepareSendCallsRequestSchema
+>;
+export type PrivyPrepareSendCallsResponse = z.infer<
+  typeof PrivyPrepareSendCallsResponseSchema
+>;
+export type PrivyConfirmSendCallsRequest = z.infer<
+  typeof PrivyConfirmSendCallsRequestSchema
+>;
+export type PrivyConfirmSendCallsResponse = z.infer<
+  typeof PrivyConfirmSendCallsResponseSchema
 >;

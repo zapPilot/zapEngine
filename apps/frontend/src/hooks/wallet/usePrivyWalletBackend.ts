@@ -3,8 +3,11 @@ import {
   usePrivy,
   useWallets,
 } from '@privy-io/react-auth';
-import type { PreparedTransaction } from '@zapengine/types/api';
-import { useCallback, useMemo, useState } from 'react';
+import type {
+  PreparedTransaction,
+  PrivyPrepareSendCallsResponse,
+} from '@zapengine/types/api';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   type Chain,
   createWalletClient,
@@ -45,6 +48,7 @@ const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
   [arbitrum, base].map((chain) => [chain.id, chain]),
 );
 const DEFAULT_CHAIN = arbitrum;
+const WALLET_NOT_CONNECTED_ERROR = 'No Privy wallet connected';
 
 /**
  * Parse a CAIP-2 chain id (e.g. `"eip155:42161"`) into its numeric chain id.
@@ -76,13 +80,7 @@ function summarizeTransaction(tx: PreparedTransaction, index: number) {
   };
 }
 
-function approvalSummary(tx: PreparedTransaction):
-  | {
-      token: string;
-      spender: string;
-      amount: string;
-    }
-  | undefined {
+function approvalSummary(tx: PreparedTransaction) {
   try {
     const decoded = decodeFunctionData({
       abi: erc20Abi,
@@ -90,7 +88,7 @@ function approvalSummary(tx: PreparedTransaction):
     });
 
     if (decoded.functionName !== 'approve') {
-      return undefined;
+      return;
     }
 
     const [spender, amount] = decoded.args;
@@ -100,19 +98,11 @@ function approvalSummary(tx: PreparedTransaction):
       amount: amount.toString(),
     };
   } catch {
-    return undefined;
+    return;
   }
 }
 
-function atomicBatchSummary(transactions: PreparedTransaction[]):
-  | {
-      approvals: {
-        token: string;
-        spender: string;
-        amount: string;
-      }[];
-    }
-  | undefined {
+function atomicBatchSummary(transactions: PreparedTransaction[]) {
   const approvals = transactions.flatMap((tx) => {
     const approval = approvalSummary(tx);
     return approval ? [approval] : [];
@@ -169,6 +159,10 @@ export interface PrivyWalletBackend {
    * user is authenticated and an embedded wallet exists.
    */
   isActive: boolean;
+  simulationPreview: PrivyPrepareSendCallsResponse | null;
+  confirmBatchExecution: () => Promise<void>;
+  cancelBatchExecution: () => void;
+  isSigningAndSending: boolean;
 }
 
 /**
@@ -191,6 +185,17 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const [error, setError] = useState<WalletError | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
+  // States and refs to coordinate two-step execution
+  const [simulationPreview, setSimulationPreview] =
+    useState<PrivyPrepareSendCallsResponse | null>(null);
+  const [isSigningAndSending, setIsSigningAndSending] = useState(false);
+  const pendingExecutionRef = useRef<{
+    resolve: (result: WalletAtomicBatchResult) => void;
+    reject: (err: Error) => void;
+    preview: PrivyPrepareSendCallsResponse;
+    batch: Parameters<typeof preparePrivyAtomicBatch>[0];
+  } | null>(null);
+
   const embeddedWallet = useMemo(
     () => wallets.find((wallet) => wallet.walletClientType === 'privy'),
     [wallets],
@@ -203,7 +208,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const buildClient = useCallback(
     async (chainId?: number): Promise<ConnectedWalletClient> => {
       if (!embeddedWallet) {
-        throw new Error('No Privy wallet connected');
+        throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
       const provider = await embeddedWallet.getEthereumProvider();
       const chain =
@@ -223,8 +228,6 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   }, []);
 
   const connect = useCallback(async (): Promise<void> => {
-    // Privy's `login()` opens the auth modal and returns synchronously; the
-    // resulting connection is observed reactively via `authenticated`/`wallets`.
     setError(null);
     login();
   }, [login]);
@@ -245,7 +248,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const switchChain = useCallback(
     async (chainId: number): Promise<void> => {
       if (!embeddedWallet) {
-        throw new Error('No Privy wallet connected');
+        throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
       try {
         await embeddedWallet.switchChain(chainId);
@@ -287,7 +290,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       gas?: bigint;
     }): Promise<`0x${string}`> => {
       if (!embeddedWallet) {
-        throw new Error('No Privy wallet connected');
+        throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
       if (currentChainId !== tx.chainId) {
         walletLogger.info('[privy.sendTransaction] switching chain', {
@@ -315,7 +318,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       chainId: number,
     ): Promise<WalletAtomicBatchResult> => {
       if (!embeddedWallet) {
-        throw new Error('No Privy wallet connected');
+        throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
       if (transactions.length === 0) {
         throw new Error('Cannot execute empty Privy EIP-7702 batch');
@@ -359,7 +362,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       };
 
       walletLogger.info(
-        '[privy.executeAtomicBatch] sending Privy Wallets API batch',
+        '[privy.executeAtomicBatch] preparing Privy Wallets API batch',
         {
           chainId,
           caip2,
@@ -370,56 +373,111 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         },
       );
 
-      const result = await (async () => {
-        const prepareAccessToken = await getAccessToken();
-        if (!prepareAccessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
-        }
-        const authorization = await preparePrivyAtomicBatch(
-          batch,
-          prepareAccessToken,
-        );
-        const { signature } = await generateAuthorizationSignature(
-          decodeBase64(authorization.authorizationPayload),
-        );
-
-        const executeAccessToken = await getAccessToken();
-        if (!executeAccessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
-        }
-        return sendPrivyAtomicBatch(
-          {
-            ...batch,
-            authorizationSignature: signature,
-            requestExpiry: authorization.requestExpiry,
-          },
-          executeAccessToken,
-        );
-      })().catch((error: unknown) => {
+      const prepareAccessToken = await getAccessToken();
+      if (!prepareAccessToken) {
         throw new Error(
-          `Privy EOA EIP-7702 atomic batch failed: ${errorMessage(error)}`,
+          'Privy user access token is invalid or expired. Please re-login.',
+        );
+      }
+
+      // 1. Prepare batch and simulation
+      const preview = await preparePrivyAtomicBatch(
+        batch,
+        prepareAccessToken,
+      ).catch((error: unknown) => {
+        throw new Error(
+          `Privy EOA EIP-7702 atomic batch preparation failed: ${errorMessage(error)}`,
         );
       });
 
-      walletLogger.info('[privy.executeAtomicBatch] Privy transaction id', {
+      // 2. Intercept flow and return promise waiting for user signature & confirmation
+      return new Promise<WalletAtomicBatchResult>((resolve, reject) => {
+        pendingExecutionRef.current = {
+          resolve,
+          reject,
+          preview,
+          batch,
+        };
+        setSimulationPreview(preview);
+      });
+    },
+    [embeddedWallet, currentChainId, getAccessToken, user?.linkedAccounts],
+  );
+
+  const confirmBatchExecution = useCallback(async (): Promise<void> => {
+    const pending = pendingExecutionRef.current;
+    if (!pending) return;
+
+    if (!embeddedWallet) {
+      throw new Error(WALLET_NOT_CONNECTED_ERROR);
+    }
+
+    setIsSigningAndSending(true);
+    try {
+      // 1. User signs EIP-712 Intent via Privy modal
+      walletLogger.info('[privy.confirmBatchExecution] signing EIP-712 intent');
+      const userSignature = await (
+        embeddedWallet as unknown as {
+          signTypedData: (
+            data: unknown,
+            options: { showWalletUIs: boolean },
+          ) => Promise<string>;
+        }
+      ).signTypedData(pending.preview.typedDataPayload, {
+        showWalletUIs: true,
+      });
+
+      // 2. User signs Privy SendCalls authorization payload
+      walletLogger.info('[privy.confirmBatchExecution] signing EIP-7702 auth');
+      const { signature: authorizationSignature } =
+        await generateAuthorizationSignature(
+          decodeBase64(pending.preview.authorizationPayload),
+        );
+
+      const executeAccessToken = await getAccessToken();
+      if (!executeAccessToken) {
+        throw new Error(
+          'Privy user access token is invalid or expired. Please re-login.',
+        );
+      }
+
+      // 3. Post to confirm endpoint
+      walletLogger.info(
+        '[privy.confirmBatchExecution] broadcasting transaction',
+      );
+      const result = await sendPrivyAtomicBatch(
+        {
+          previewId: pending.preview.previewId,
+          userSignature,
+          authorizationSignature,
+        },
+        executeAccessToken,
+      );
+
+      walletLogger.info('[privy.confirmBatchExecution] success', {
         transactionId: result.transactionId,
         caip2: result.caip2,
       });
 
-      return { callsId: result.transactionId };
-    },
-    [
-      embeddedWallet,
-      currentChainId,
-      generateAuthorizationSignature,
-      getAccessToken,
-      user?.linkedAccounts,
-    ],
-  );
+      pending.resolve({ callsId: result.transactionId });
+    } catch (err: unknown) {
+      walletLogger.error('[privy.confirmBatchExecution] failed:', err);
+      pending.reject(err instanceof Error ? err : new Error(errorMessage(err)));
+    } finally {
+      setIsSigningAndSending(false);
+      setSimulationPreview(null);
+      pendingExecutionRef.current = null;
+    }
+  }, [embeddedWallet, generateAuthorizationSignature, getAccessToken]);
+
+  const cancelBatchExecution = useCallback((): void => {
+    const pending = pendingExecutionRef.current;
+    if (pending) {
+      pending.reject(new Error('Transaction rejected by the user.'));
+    }
+    setSimulationPreview(null);
+    pendingExecutionRef.current = null;
+  }, []);
 
   const walletList = useMemo(
     () =>
@@ -430,7 +488,6 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   );
 
   const handleSwitchActiveWallet = useCallback(async (): Promise<void> => {
-    // Privy embedded wallet is single-account; switching is not applicable.
     walletLogger.info('switchActiveWallet is a no-op in Privy mode');
   }, []);
 
@@ -476,5 +533,12 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     ],
   );
 
-  return { backend, isActive };
+  return {
+    backend,
+    isActive,
+    simulationPreview,
+    confirmBatchExecution,
+    cancelBatchExecution,
+    isSigningAndSending,
+  };
 }

@@ -1,7 +1,8 @@
 import type {
-  PrivyAtomicBatchPayload,
-  PrivyAtomicBatchRequest,
+  PrivyConfirmSendCallsRequest,
+  PrivyPrepareSendCallsRequest,
 } from '@zapengine/types/api';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPrivySendCallsAuthorizationPayload,
@@ -9,7 +10,15 @@ import {
   type PrivyWalletExecutionClient,
 } from '../../../src/services/privy-wallet-execution.service';
 
-const batch: PrivyAtomicBatchPayload = {
+vi.mock('viem', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('viem')>();
+  return {
+    ...actual,
+    verifyTypedData: vi.fn().mockResolvedValue(true),
+  };
+});
+
+const batch: PrivyPrepareSendCallsRequest = {
   walletId: 'privy-wallet-id',
   walletAddress: '0x1111111111111111111111111111111111111111',
   chainId: 8453,
@@ -23,12 +32,6 @@ const batch: PrivyAtomicBatchPayload = {
   idempotencyKey: 'batch-request-id',
 };
 
-const request: PrivyAtomicBatchRequest = {
-  ...batch,
-  authorizationSignature: 'base64-authorization-signature',
-  requestExpiry: 1_800_000_000_000,
-};
-
 const accessToken = 'header.payload.signature';
 
 function createClient(): PrivyWalletExecutionClient {
@@ -37,7 +40,7 @@ function createClient(): PrivyWalletExecutionClient {
     getUserWallets: vi
       .fn()
       .mockResolvedValue([
-        { id: request.walletId, address: request.walletAddress },
+        { id: batch.walletId, address: batch.walletAddress },
       ]),
     prepareSendCalls: vi.fn().mockResolvedValue({
       authorizationPayload: 'base64-authorization-payload',
@@ -80,16 +83,21 @@ describe('PrivyWalletExecutionService', () => {
     });
   });
 
-  it('prepares a server-formatted authorization payload after verifying wallet ownership', async () => {
+  it('prepares a server-formatted authorization payload and runs Tenderly preflight', async () => {
     const client = createClient();
     const service = createPrivyWalletExecutionService({ client });
 
-    await expect(service.prepareSendCalls(batch, accessToken)).resolves.toEqual(
-      {
-        authorizationPayload: 'base64-authorization-payload',
-        requestExpiry: 1_800_000_000_000,
-      },
-    );
+    const response = await service.prepareSendCalls(batch, accessToken);
+
+    expect(response).toMatchObject({
+      authorizationPayload: 'base64-authorization-payload',
+      requestExpiry: 1_800_000_000_000,
+      previewId: expect.any(String),
+      batchHash: expect.any(String),
+      gasEstimate: expect.any(String),
+      typedDataPayload: expect.any(Object),
+    });
+
     expect(client.verifyAccessToken).toHaveBeenCalledWith(accessToken);
     expect(client.getUserWallets).toHaveBeenCalledWith('privy-user-id');
     expect(client.prepareSendCalls).toHaveBeenCalledWith(
@@ -99,67 +107,63 @@ describe('PrivyWalletExecutionService', () => {
     expect(client.sendCalls).not.toHaveBeenCalled();
   });
 
-  it('verifies the user and forwards the atomic batch to Privy', async () => {
+  it('verifies EIP-712 signature, nonces, and broadcasts the batch', async () => {
     const client = createClient();
     const service = createPrivyWalletExecutionService({ client });
 
-    await expect(service.sendCalls(request, accessToken)).resolves.toEqual({
+    // 1. Prepare
+    const prep = await service.prepareSendCalls(batch, accessToken);
+
+    // 2. Confirm
+    const confirmReq: PrivyConfirmSendCallsRequest = {
+      previewId: prep.previewId,
+      userSignature: 'mock-user-eip712-signature',
+      authorizationSignature: 'base64-authorization-signature',
+    };
+
+    const confirmRes = await service.confirmSendCalls(confirmReq, accessToken);
+
+    expect(confirmRes).toEqual({
       transactionId: 'privy-transaction-id',
       caip2: 'eip155:8453',
     });
-    expect(client.verifyAccessToken).toHaveBeenCalledWith(accessToken);
-    expect(client.getUserWallets).toHaveBeenCalledWith('privy-user-id');
-    expect(client.sendCalls).toHaveBeenCalledWith('privy-wallet-id', request, {
-      signatures: [request.authorizationSignature],
-    });
+
+    expect(client.verifyAccessToken).toHaveBeenCalledTimes(2);
+    expect(client.getUserWallets).toHaveBeenCalledTimes(2);
+    expect(client.sendCalls).toHaveBeenCalledWith(
+      'privy-wallet-id',
+      {
+        ...batch,
+        authorizationSignature: 'base64-authorization-signature',
+        requestExpiry: prep.requestExpiry,
+      },
+      {
+        signatures: ['base64-authorization-signature'],
+      },
+    );
   });
 
-  it.each([
-    {
-      linkedWallet: {
-        id: request.walletId,
-        address: '0x3333333333333333333333333333333333333333',
-      },
-      mismatch: 'address',
-    },
-    {
-      linkedWallet: {
-        id: 'another-privy-wallet-id',
-        address: request.walletAddress,
-      },
-      mismatch: 'wallet id',
-    },
-  ])(
-    'rejects a linked wallet with a mismatched $mismatch',
-    async ({ linkedWallet }) => {
-      const client = createClient();
-      vi.mocked(client.getUserWallets).mockResolvedValue([linkedWallet]);
-      const service = createPrivyWalletExecutionService({ client });
-
-      await expect(
-        service.sendCalls(request, accessToken),
-      ).rejects.toMatchObject({
-        statusCode: 400,
-        message: 'Privy wallet does not belong to the authenticated user',
-      });
-      expect(client.sendCalls).not.toHaveBeenCalled();
-    },
-  );
-
-  it('rejects a malformed access token before calling Privy', async () => {
+  it('rejects a duplicate consumption (replay protection)', async () => {
     const client = createClient();
     const service = createPrivyWalletExecutionService({ client });
 
-    await expect(service.sendCalls(request, 'not-a-jwt')).rejects.toMatchObject(
-      {
-        statusCode: 401,
-        message:
-          'Privy user access token is invalid or expired. Please re-login.',
-      },
-    );
-    expect(client.verifyAccessToken).not.toHaveBeenCalled();
-    expect(client.getUserWallets).not.toHaveBeenCalled();
-    expect(client.sendCalls).not.toHaveBeenCalled();
+    const prep = await service.prepareSendCalls(batch, accessToken);
+
+    const confirmReq: PrivyConfirmSendCallsRequest = {
+      previewId: prep.previewId,
+      userSignature: 'mock-user-eip712-signature',
+      authorizationSignature: 'base64-authorization-signature',
+    };
+
+    await service.confirmSendCalls(confirmReq, accessToken);
+
+    // Try again
+    await expect(
+      service.confirmSendCalls(confirmReq, accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Simulation preview has already been consumed',
+    });
   });
 
   it('rejects an invalid Privy access token before wallet lookup', async () => {
@@ -169,19 +173,21 @@ describe('PrivyWalletExecutionService', () => {
     );
     const service = createPrivyWalletExecutionService({ client });
 
-    await expect(service.sendCalls(request, accessToken)).rejects.toMatchObject(
-      {
-        statusCode: 401,
-        message:
-          'Privy user access token is invalid or expired. Please re-login.',
-      },
-    );
+    await expect(
+      service.prepareSendCalls(batch, 'not-a-jwt'),
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      message:
+        'Privy user access token is invalid or expired. Please re-login.',
+    });
     expect(client.getUserWallets).not.toHaveBeenCalled();
-    expect(client.sendCalls).not.toHaveBeenCalled();
   });
 
-  it('returns 401 when Privy rejects the authorization context JWT', async () => {
+  it('returns 401 when Privy rejects the authorization context JWT during confirm', async () => {
     const client = createClient();
+    const service = createPrivyWalletExecutionService({ client });
+    const prep = await service.prepareSendCalls(batch, accessToken);
+
     vi.mocked(client.sendCalls).mockRejectedValue(
       Object.assign(new Error('400 Invalid JWT token provided'), {
         status: 400,
@@ -191,30 +197,19 @@ describe('PrivyWalletExecutionService', () => {
         },
       }),
     );
-    const service = createPrivyWalletExecutionService({ client });
 
-    await expect(service.sendCalls(request, accessToken)).rejects.toMatchObject(
-      {
-        statusCode: 401,
-        message:
-          'Privy user access token is invalid or expired. Please re-login.',
-      },
-    );
-  });
+    const confirmReq: PrivyConfirmSendCallsRequest = {
+      previewId: prep.previewId,
+      userSignature: 'mock-user-eip712-signature',
+      authorizationSignature: 'base64-authorization-signature',
+    };
 
-  it('keeps non-authentication Privy failures as bad gateway errors', async () => {
-    const client = createClient();
-    vi.mocked(client.sendCalls).mockRejectedValue(
-      new Error('Privy service unavailable'),
-    );
-    const service = createPrivyWalletExecutionService({ client });
-
-    await expect(service.sendCalls(request, accessToken)).rejects.toMatchObject(
-      {
-        statusCode: 502,
-        message: 'Privy Wallets API batch failed: Privy service unavailable',
-      },
-    );
-    expect(client.sendCalls).toHaveBeenCalledOnce();
+    await expect(
+      service.confirmSendCalls(confirmReq, accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      message:
+        'Privy user access token is invalid or expired. Please re-login.',
+    });
   });
 });

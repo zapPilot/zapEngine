@@ -1,8 +1,10 @@
 import {
-  PrivyAtomicBatchPayloadSchema,
-  PrivyAtomicBatchRequestSchema,
+  type PrivyConfirmSendCallsRequest,
+  PrivyConfirmSendCallsRequestSchema,
+  type PrivyPrepareSendCallsRequest,
+  PrivyPrepareSendCallsRequestSchema,
 } from '@zapengine/types/api';
-import { Hono } from 'hono';
+import { type Context, Hono, type MiddlewareHandler } from 'hono';
 
 import { UnauthorizedException } from '../common/http';
 import type { PrivyWalletExecutionService } from '../services/privy-wallet-execution.service';
@@ -16,35 +18,46 @@ function requireBearerToken(authorization: string | undefined): string {
   return token;
 }
 
+async function requireAuthHandler(c: Context, next: () => Promise<void>) {
+  requireBearerToken(c.req.header('authorization'));
+  return next();
+}
+
+function requireAuth(): MiddlewareHandler {
+  return requireAuthHandler;
+}
+
+async function handlePrivyCall<
+  T extends PrivyPrepareSendCallsRequest | PrivyConfirmSendCallsRequest,
+>(
+  c: Context,
+  serviceCall: (request: T, accessToken: string) => Promise<unknown>,
+) {
+  const accessToken = requireBearerToken(c.req.header('authorization'));
+  const response = await serviceCall(
+    c.req.valid('json' as never) as T,
+    accessToken,
+  );
+  return c.json(response, { status: 200 });
+}
+
 export function createWalletExecutionRoutes(
   service: PrivyWalletExecutionService,
 ) {
   const app = new Hono();
 
   app.post(
-    '/privy/send-calls/prepare',
-    jsonValidator(PrivyAtomicBatchPayloadSchema),
-    async (c) => {
-      const accessToken = requireBearerToken(c.req.header('authorization'));
-      const response = await service.prepareSendCalls(
-        c.req.valid('json'),
-        accessToken,
-      );
-      return c.json(response, { status: 200 });
-    },
+    '/privy/prepare-send-calls',
+    requireAuth(),
+    jsonValidator(PrivyPrepareSendCallsRequestSchema),
+    (c) => handlePrivyCall(c, service.prepareSendCalls.bind(service)),
   );
 
   app.post(
-    '/privy/send-calls',
-    jsonValidator(PrivyAtomicBatchRequestSchema),
-    async (c) => {
-      const accessToken = requireBearerToken(c.req.header('authorization'));
-      const response = await service.sendCalls(
-        c.req.valid('json'),
-        accessToken,
-      );
-      return c.json(response, { status: 200 });
-    },
+    '/privy/confirm-send-calls',
+    requireAuth(),
+    jsonValidator(PrivyConfirmSendCallsRequestSchema),
+    (c) => handlePrivyCall(c, service.confirmSendCalls.bind(service)),
   );
 
   return app;

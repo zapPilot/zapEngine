@@ -6,6 +6,7 @@ import {
   useMemo,
 } from 'react';
 
+import { TenderlyPreviewModal } from '@/components/wallet/portfolio/modals/TenderlyPreviewModal';
 import { usePrivyWalletBackend } from '@/hooks/wallet/usePrivyWalletBackend';
 import { useWagmiWalletBackend } from '@/hooks/wallet/useWagmiWalletBackend';
 import type { WalletProviderInterface } from '@/types';
@@ -48,8 +49,14 @@ export function UnifiedWalletProvider({
   children,
 }: WalletProviderProps): ReactElement {
   const wagmiBackend = useWagmiWalletBackend();
-  const { backend: privyBackend, isActive: isPrivyActive } =
-    usePrivyWalletBackend();
+  const {
+    backend: privyBackend,
+    isActive: isPrivyActive,
+    simulationPreview,
+    confirmBatchExecution,
+    cancelBatchExecution,
+    isSigningAndSending,
+  } = usePrivyWalletBackend();
 
   const value = useMemo<WalletContextValue>(
     () => (isPrivyActive ? privyBackend : wagmiBackend),
@@ -57,7 +64,18 @@ export function UnifiedWalletProvider({
   );
 
   return (
-    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
+    <WalletContext.Provider value={value}>
+      {children}
+      {simulationPreview && (
+        <TenderlyPreviewModal
+          isOpen={!!simulationPreview}
+          onClose={cancelBatchExecution}
+          previewData={simulationPreview}
+          onConfirm={confirmBatchExecution}
+          isSigningAndSending={isSigningAndSending}
+        />
+      )}
+    </WalletContext.Provider>
   );
 }
 

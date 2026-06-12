@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   accountApiPost: vi.fn(),
   walletInfo: vi.fn(),
   walletError: vi.fn(),
+  signTypedData: vi.fn().mockResolvedValue('mock-user-eip712-signature'),
   privyLinkedAccounts: [] as Record<string, unknown>[],
 }));
 
@@ -41,6 +42,7 @@ vi.mock('@privy-io/react-auth', () => ({
         chainId: 'eip155:42161',
         getEthereumProvider: mocks.getEthereumProvider,
         switchChain: mocks.switchChain,
+        signTypedData: mocks.signTypedData,
       },
     ],
   }),
@@ -104,6 +106,14 @@ describe('usePrivyWalletBackend', () => {
     });
     mocks.accountApiPost
       .mockResolvedValueOnce({
+        previewId: 'mock-preview-id',
+        batchHash: 'mock-batch-hash',
+        decodedCalls: [],
+        tenderlyResult: {},
+        assetChanges: [],
+        gasEstimate: '350000',
+        typedDataPayload: { domain: {}, types: {}, message: { nonce: 0 } },
+        expiresAt: Date.now() + 300000,
         authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
         requestExpiry: 1_800_000_000_000,
       })
@@ -118,23 +128,22 @@ describe('usePrivyWalletBackend', () => {
     });
   });
 
-  it('executes Privy EOA batches through the Privy Wallets API on Base', async () => {
+  it('executes Privy EOA batches through split prepare and confirm endpoints', async () => {
     const { result } = renderHook(() => usePrivyWalletBackend());
 
-    let callsId: string | undefined;
+    let promise: Promise<any> | undefined;
     await act(async () => {
-      const execution = await result.current.backend.executeAtomicBatch?.(
+      promise = result.current.backend.executeAtomicBatch?.(
         [approvalTx, supplyTx],
         8453,
       );
-      callsId = execution?.callsId;
     });
 
     expect(mocks.switchChain).toHaveBeenCalledWith(8453);
-    expect(mocks.getAccessToken).toHaveBeenCalledTimes(2);
+    expect(mocks.getAccessToken).toHaveBeenCalledTimes(1);
     expect(mocks.accountApiPost).toHaveBeenNthCalledWith(
       1,
-      '/wallet-execution/privy/send-calls/prepare',
+      '/wallet-execution/privy/prepare-send-calls',
       {
         walletId: 'privy-wallet-id',
         walletAddress: PRIVY_ADDRESS,
@@ -158,58 +167,33 @@ describe('usePrivyWalletBackend', () => {
         retries: 0,
       },
     );
+
+    expect(result.current.simulationPreview).toBeDefined();
+
+    // Confirm execution
+    await act(async () => {
+      await result.current.confirmBatchExecution();
+    });
+
+    const execution = await promise;
+    expect(execution?.callsId).toBe('privy-transaction-id');
+
+    expect(mocks.signTypedData).toHaveBeenCalled();
     expect(
       Array.from(mocks.generateAuthorizationSignature.mock.calls[0][0]),
     ).toEqual(Array.from(new TextEncoder().encode('server-formatted-payload')));
     expect(mocks.accountApiPost).toHaveBeenNthCalledWith(
       2,
-      '/wallet-execution/privy/send-calls',
+      '/wallet-execution/privy/confirm-send-calls',
       {
-        walletId: 'privy-wallet-id',
-        walletAddress: PRIVY_ADDRESS,
-        chainId: 8453,
-        calls: [
-          {
-            to: approvalTx.to,
-            data: approvalTx.data,
-            value: '0x0',
-          },
-          {
-            to: supplyTx.to,
-            data: supplyTx.data,
-            value: '0x0',
-          },
-        ],
-        idempotencyKey: expect.any(String),
+        previewId: 'mock-preview-id',
+        userSignature: 'mock-user-eip712-signature',
         authorizationSignature: 'base64-authorization-signature',
-        requestExpiry: 1_800_000_000_000,
       },
       {
         headers: { Authorization: 'Bearer privy-access-token' },
         retries: 0,
       },
-    );
-    expect(callsId).toBe('privy-transaction-id');
-    expect(mocks.getEthereumProvider).not.toHaveBeenCalled();
-    expect(mocks.sendCalls).not.toHaveBeenCalled();
-    expect(mocks.waitForCallsStatus).not.toHaveBeenCalled();
-    expect(mocks.walletInfo).toHaveBeenCalledWith(
-      '[privy.executeAtomicBatch] sending Privy Wallets API batch',
-      expect.objectContaining({
-        chainId: 8453,
-        caip2: 'eip155:8453',
-        embeddedWalletAddress: PRIVY_ADDRESS,
-        transactionCount: 2,
-        atomicBatch: expect.objectContaining({
-          approvals: [
-            expect.objectContaining({
-              token: approvalTx.to,
-              spender: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
-              amount: '10003',
-            }),
-          ],
-        }),
-      }),
     );
   });
 
@@ -249,14 +233,10 @@ describe('usePrivyWalletBackend', () => {
     expect(mocks.accountApiPost).not.toHaveBeenCalled();
   });
 
-  it('surfaces Privy Wallets API errors without falling back to a chain RPC', async () => {
+  it('surfaces Privy Wallets API preparation errors without falling back to a chain RPC', async () => {
     mocks.accountApiPost
       .mockReset()
-      .mockResolvedValueOnce({
-        authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
-        requestExpiry: 1_800_000_000_000,
-      })
-      .mockRejectedValueOnce(new Error('Privy API rejected batch'));
+      .mockRejectedValueOnce(new Error('Privy API rejected prep'));
     const { result } = renderHook(() => usePrivyWalletBackend());
 
     await act(async () => {
@@ -266,7 +246,7 @@ describe('usePrivyWalletBackend', () => {
           8453,
         ),
       ).rejects.toThrow(
-        'Privy EOA EIP-7702 atomic batch failed: Privy API rejected batch',
+        'Privy EOA EIP-7702 atomic batch preparation failed: Privy API rejected prep',
       );
     });
 

@@ -1,4 +1,4 @@
-import { encodeFunctionData, erc20Abi, type Address, type Hex } from 'viem';
+import { type Address } from 'viem';
 
 import {
   encodeGmxV2CreateWithdrawalMulticall,
@@ -14,6 +14,11 @@ import {
   PreparedTransactionSchema,
   type PreparedTransaction,
 } from '../types/transaction.types.js';
+import {
+  createApprovalTx,
+  validateAllTransactions,
+  validatePositiveAmount,
+} from './gmx-v2.shared.js';
 
 export interface BuildGmxV2WithdrawTxInput {
   marketKey: GmxV2MarketKey;
@@ -26,37 +31,6 @@ export interface GmxV2WithdrawPlan {
   steps: PreparedTransaction[];
   executionFeeWei: string;
   market: GmxV2Market;
-}
-
-function validatePositiveAmount(amount: string): bigint {
-  const parsed = BigInt(amount);
-  if (parsed <= 0n) {
-    throw new Error('GMX withdrawal amount must be greater than zero');
-  }
-  return parsed;
-}
-
-function createApprovalTx(params: {
-  tokenAddress: Address;
-  spenderAddress: Address;
-  amount: string;
-}): PreparedTransaction {
-  return PreparedTransactionSchema.parse({
-    to: params.tokenAddress,
-    data: encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'approve',
-      args: [params.spenderAddress, BigInt(params.amount)],
-    }),
-    value: '0',
-    chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-    gasLimit: GMX_V2_GAS_ESTIMATES.approve,
-    meta: {
-      intentType: 'APPROVAL',
-      estimatedGas: GMX_V2_GAS_ESTIMATES.approve,
-      estimatedDuration: 0,
-    },
-  });
 }
 
 function buildWithdrawalStep(params: {
@@ -104,7 +78,10 @@ function buildWithdrawalStep(params: {
 export function buildGmxV2WithdrawTx(
   input: BuildGmxV2WithdrawTxInput,
 ): GmxV2WithdrawPlan {
-  validatePositiveAmount(input.gmAmount);
+  validatePositiveAmount(
+    input.gmAmount,
+    'GMX withdrawal amount must be greater than zero',
+  );
 
   const market = GMX_V2_MARKETS[input.marketKey];
 
@@ -124,12 +101,7 @@ export function buildGmxV2WithdrawTx(
     }),
   ];
 
-  for (const tx of [...approvals, ...steps]) {
-    PreparedTransactionSchema.parse({
-      ...tx,
-      data: tx.data as Hex,
-    });
-  }
+  validateAllTransactions([...approvals, ...steps]);
 
   return {
     approvals,

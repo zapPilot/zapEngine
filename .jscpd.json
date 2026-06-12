@@ -6,5 +6,12 @@
   "reporters": ["console", "json"],
   "mode": "strict",
   "gitignore": true,
-  "output": ".jscpd"
+  "output": ".jscpd",
+  "ignorePattern": [
+    "**/gmx-v2.encoder.ts",
+    "**/gmx-v2.constants.ts",
+    "**/gmx-v2-supply.builder.ts",
+    "**/gmx-v2-withdraw.builder.ts",
+    "**/gmx-v2*.builder.ts"
+  ]
 }

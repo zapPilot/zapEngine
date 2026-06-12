@@ -19,8 +19,12 @@ function makePublicClient(asset: Address): PublicClient {
   const readContract = vi
     .fn()
     .mockImplementation(({ functionName }: { functionName: string }) => {
-      if (functionName === 'previewRedeem') return Promise.resolve(REDEEM_OUT);
-      if (functionName === 'asset') return Promise.resolve(asset);
+      if (functionName === 'previewRedeem') {
+        return Promise.resolve(REDEEM_OUT);
+      }
+      if (functionName === 'asset') {
+        return Promise.resolve(asset);
+      }
       throw new Error(`unexpected read ${functionName}`);
     });
   return { readContract } as unknown as PublicClient;

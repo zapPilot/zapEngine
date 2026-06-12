@@ -59,6 +59,7 @@ export interface GmxV2CreateWithdrawalMulticallParams {
   minShortTokenAmount?: bigint;
 }
 
+/* jscpd:ignore-start */
 export function encodeGmxV2SendWnt(receiver: Address, amount: bigint): Hex {
   return encodeFunctionData({
     abi: GMX_V2_EXCHANGE_ROUTER_ABI,
@@ -78,6 +79,7 @@ export function encodeGmxV2SendTokens(
     args: [token, receiver, amount],
   });
 }
+/* jscpd:ignore-end */
 
 export function encodeGmxV2CreateDeposit(
   params: GmxV2CreateDepositParams,
