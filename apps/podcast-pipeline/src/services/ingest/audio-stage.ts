@@ -189,6 +189,27 @@ async function synthesizeClassroomAudios(
   return { audioBuffers, cost };
 }
 
+async function wrapWithErrorHandling<T>(
+  promise: () => Promise<T>,
+  fallback: T,
+  errorMessage: string,
+  context: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await promise();
+  } catch (error) {
+    /* v8 ignore next -- @preserve */
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error(errorMessage, {
+      ...context,
+      message: err.message,
+      stack: err.stack,
+      cause: err.cause,
+    });
+    return fallback;
+  }
+}
+
 async function combineClassroomAudio(
   classroomAudios: Buffer[],
   context: {
@@ -201,26 +222,15 @@ async function combineClassroomAudio(
     return null;
   }
 
-  // Documented soft-failure: keep the main HLS / episode-completed state
-  // even when the classroom concat fails. Clients should treat
-  // classroom_hls_url as nullable. Failure is surfaced via console.error
-  // so it is searchable in logs; retry happens via a manual re-ingest of
-  // the episode after fixing the underlying ffmpeg issue.
-  try {
-    return await step('concatEpisodeClassroomAudio', () =>
-      concatMp3Buffers(classroomAudios),
-    );
-  } catch (error) {
-    /* v8 ignore next -- @preserve */
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[/ingest] classroom audio concat failed:', {
-      ...context,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return null;
-  }
+  return wrapWithErrorHandling(
+    () =>
+      step('concatEpisodeClassroomAudio', () =>
+        concatMp3Buffers(classroomAudios),
+      ),
+    null,
+    '[/ingest] classroom audio concat failed:',
+    context,
+  );
 }
 
 async function appendClassroomAudioToMainAudio(
@@ -236,21 +246,15 @@ async function appendClassroomAudioToMainAudio(
     return mainAudio;
   }
 
-  try {
-    return await step('concatMainWithClassroomAudio', () =>
-      concatMp3Buffers([mainAudio, classroomAudio]),
-    );
-  } catch (error) {
-    /* v8 ignore next -- @preserve */
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[/ingest] main classroom append failed:', {
-      ...context,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return mainAudio;
-  }
+  return wrapWithErrorHandling(
+    () =>
+      step('concatMainWithClassroomAudio', () =>
+        concatMp3Buffers([mainAudio, classroomAudio]),
+      ),
+    mainAudio,
+    '[/ingest] main classroom append failed:',
+    context,
+  );
 }
 
 async function ensureLanguageClassrooms(
