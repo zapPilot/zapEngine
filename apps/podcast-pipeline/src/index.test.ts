@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  classroomLesson,
   classroomRow,
   createDeferred,
   episodeListResponse,
@@ -15,7 +16,7 @@ import type {
   EpisodeLocalizationRow,
   EpisodeResponse,
   EpisodeRow,
-  LanguageClassroomRow,
+  LanguageClassroomLesson,
 } from './types.js';
 
 const {
@@ -89,20 +90,11 @@ vi.mock('./services/db.js', () => ({
   listLanguageClassroomsByLocalizationIds:
     mockListLanguageClassroomsByLocalizationIds,
   markEpisodeListened: mockMarkEpisodeListened,
-  toEpisodeResponse: (
-    row: EpisodeListRow,
-    languageClassrooms?: LanguageClassroomRow[],
-  ) => episodeListResponse(row, languageClassrooms),
-  toLanguageClassroomLesson: (row: LanguageClassroomRow) => ({
-    sourceLanguageCode: row.source_language_code,
-    targetLanguageCode: row.target_language_code,
-    oneLiner: row.one_liner,
-    keywords: row.keywords,
-  }),
+  toEpisodeResponse: (row: EpisodeListRow) => episodeListResponse(row),
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
     localization: EpisodeLocalizationRow,
-    languageClassrooms: LanguageClassroomRow[],
+    languageClassrooms: LanguageClassroomLesson[],
   ) => localizationResponse(episode, localization, languageClassrooms),
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
   updateEpisodeLocalizationArticleContent:
@@ -1201,12 +1193,12 @@ describe('GET /episodes', () => {
     });
   });
 
-  it('uses the default limit and row classrooms when the classroom map misses', async () => {
+  it('uses row classrooms directly without fallback', async () => {
     const row = listRow({
       language_classrooms: [
-        classroomRow({
-          target_language_code: 'en',
-          one_liner: 'This article explains liquidity.',
+        classroomLesson({
+          targetLanguageCode: 'en',
+          oneLiner: 'This article explains liquidity.',
         }),
       ],
     });
@@ -1214,7 +1206,6 @@ describe('GET /episodes', () => {
       rows: [row],
       nextCursor: null,
     });
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
 
     const response = await app.request('/episodes');
     const body = await response.json();

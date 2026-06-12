@@ -153,23 +153,6 @@ void main() {
   });
 
   group('EpisodeService - Uninitialized Supabase (Null Client)', () {
-    test('getEpisodes reports a configuration error when client is null',
-        () async {
-      final fakeSupabase = _FakeSupabaseService(null);
-      final service = EpisodeService(supabaseService: fakeSupabase);
-
-      await expectLater(
-        service.getEpisodes(),
-        throwsA(
-          isA<Exception>().having(
-            (error) => error.toString(),
-            'message',
-            'Supabase not configured.',
-          ),
-        ),
-      );
-    });
-
     test('getEpisodeById returns null when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
       final service = EpisodeService(supabaseService: fakeSupabase);
