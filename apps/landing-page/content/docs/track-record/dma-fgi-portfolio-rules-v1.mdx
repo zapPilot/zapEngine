@@ -1,0 +1,76 @@
+---
+title: DMA/FGI Portfolio Rules v1
+description: Strategy specification for the DMA/FGI regime-aware portfolio allocator
+---
+
+## Overview
+
+**Strategy ID:** `dma_fgi_portfolio_rules`
+**Version:** v1
+**Start Date:** 2024-12-02
+**Status:** Live
+
+## Goal
+
+Generate superior absolute and risk-adjusted returns by trading between three risk pillars — S&P 500 tokenized exposure, BTC/ETH, and stablecoins — in response to regime signals from the 200-day moving average (DMA) and Fear & Greed Index (FGI).
+
+## Assets
+
+| Pillar | Asset | Venue |
+|--------|-------|-------|
+| Equities | Ondo USDC (OUSG / USDY) | Ethereum |
+| Crypto | WBTC, WETH | Ethereum / Arbitrum |
+| Stablecoins | USDC, USDT | All supported chains |
+
+## Rebalance Rules
+
+### Signal Logic
+
+- **200-DMA (BTC):** Weekly close above/below 200-WMA triggers regime shift for the crypto pillar
+- **Fear & Greed Index:** Daily FGI reading below 30 = fear (defensive), above 70 = greed (aggressive), 30–70 = neutral
+- **ETH/BTC Ratio:** Cross of the 20-day EMA triggers crypto pillar rotation
+
+### Allocation Matrix
+
+| Regime | Equities | BTC/ETH | Stablecoins |
+|--------|----------|---------|-------------|
+| Risk-On (DMA+ + FGI > 70) | 60% | 30% | 10% |
+| Risk-On (DMA+ OR FGI) | 40% | 35% | 25% |
+| Neutral | 30% | 20% | 50% |
+| Risk-Off (DMA- OR FGI < 30) | 20% | 15% | 65% |
+| Risk-Off (DMA- AND FGI < 30) | 10% | 10% | 80% |
+
+### Rebalance Triggers
+
+1. **Weekly review:** Every Monday at 00:00 UTC, evaluate all signals
+2. **Threshold breach:** If any signal crosses its threshold by >5%, execute within 24h
+3. **Drift tolerance:** If any position drifts >10% from target, rebalance immediately
+
+## Risk Limits
+
+- Maximum single-pillar exposure: 70%
+- Minimum stablecoin allocation: 10%
+- Maximum single-asset concentration: 40%
+- No leverage
+- No derivatives
+- No lending (only LP and governance staking)
+
+## Cost Inclusions
+
+All costs below are deducted from NAV before performance calculation:
+
+- Network gas (estimated at time of execution)
+- Slippage (estimated at 0.5% for liquidity above $100k, 1% otherwise)
+- Protocol fees (Ondo: 0%, Morpho: variable, GMX: 0.02%)
+
+## Failure Conditions
+
+- NAV drops >40% from peak → suspend trading, publish incident report
+- Any single chain unavailable >72h → fallback to remaining chains
+- Price oracle stale >1h → use last known price, flag in daily snapshot
+
+## Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| v1 | 2024-12-02 | Initial live deployment |

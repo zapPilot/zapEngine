@@ -53,6 +53,7 @@
     "security:audit": "pnpm audit --audit-level=moderate && turbo run security:audit",
     "security:audit:core": "pnpm audit --audit-level=moderate && turbo run security:audit --filter=!@zapengine/mobile",
     "verify:account-engine-package": "bash scripts/verify-account-engine-package.sh",
+    "track-record:verify": "tsx scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },

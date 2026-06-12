@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",
+    "@zapengine/types": "workspace:*",
     "dotenv": "catalog:",
     "fumadocs-core": "^15.8.5",
     "fumadocs-mdx": "^13.0.8",
