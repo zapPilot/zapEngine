@@ -50,7 +50,7 @@ function buildValidationResponse(error: z.ZodError, requestId: string) {
 
 function jobRequestHandler(receivedLog: string, failedLog: string) {
   return async (req: Request, res: Response) => {
-    const requestId = getRequestId(req.headers as Record<string, unknown>);
+    const requestId = getRequestId(req.headers);
 
     try {
       const payload = webhookPayloadSchema.parse(req.body ?? {});
@@ -116,7 +116,7 @@ router.post(
  * address and returns immediately with a jobId for status tracking.
  */
 router.post('/wallet-fetch', async (req, res) => {
-  const requestId = getRequestId(req.headers as Record<string, unknown>);
+  const requestId = getRequestId(req.headers);
 
   try {
     const payload = walletFetchSchema.parse(req.body);
@@ -198,7 +198,7 @@ router.post('/wallet-fetch', async (req, res) => {
 
 router.get('/jobs/:jobId', async (req, res) => {
   const { jobId } = req.params;
-  const requestId = getRequestId(req.headers as Record<string, unknown>);
+  const requestId = getRequestId(req.headers);
 
   try {
     const job = etlJobQueue.getJob(jobId);

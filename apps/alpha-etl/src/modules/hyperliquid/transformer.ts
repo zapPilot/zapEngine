@@ -187,7 +187,7 @@ export class HyperliquidDataTransformer {
       is_closed: aprData.isClosed,
       allow_deposits: aprData.allowDeposits,
       pool_meta: this.buildAprPoolMeta(aprData, raw),
-      raw_data: raw as unknown as Record<string, unknown>,
+      raw_data: raw,
       snapshot_time: snapshotTime,
     };
   }

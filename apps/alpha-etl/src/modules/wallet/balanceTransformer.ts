@@ -39,7 +39,7 @@ export class WalletBalanceTransformer {
     } catch (error) {
       const rawRecord: Record<string, unknown> =
         rawData && typeof rawData === 'object' && !Array.isArray(rawData)
-          ? (rawData as Record<string, unknown>)
+          ? rawData
           : {};
       const walletAddress =
         typeof rawRecord['user_wallet_address'] === 'string'

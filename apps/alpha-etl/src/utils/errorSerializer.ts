@@ -82,7 +82,7 @@ export function serializeError(error: unknown): Record<string, unknown> {
 
   // Handle Error instances (including APIError, DatabaseError, etc.)
   if (error instanceof Error) {
-    return serializeKnownError(error as KnownError);
+    return serializeKnownError(error);
   }
 
   // Handle non-Error objects (fetch API errors, plain objects)

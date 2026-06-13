@@ -51,7 +51,7 @@ async function handleBackfillRequest<TPayload>(
   buildTask: (payload: TPayload) => ETLJobTask,
   failureMessage: string,
 ) {
-  const requestId = getRequestId(req.headers as Record<string, unknown>);
+  const requestId = getRequestId(req.headers);
 
   try {
     const payload = schema.parse(req.body);
