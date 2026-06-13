@@ -72,6 +72,12 @@
     "verify:staged": "bash scripts/verify-staged.sh",
     "verify:branch": "bash scripts/verify-branch.sh",
     "verify:full:parallel": "bash scripts/verify-full-parallel.sh",
+    "agent:loop": "bash scripts/agent-fix-loop.sh",
+    "agent:loop:changed": "bash scripts/agent-fix-loop.sh 'pnpm verify:changed'",
+    "agent:loop:staged": "bash scripts/agent-fix-loop.sh 'pnpm verify:staged'",
+    "agent:loop:ci": "AGENT_LOOP_DEFAULT_MAX_ITERS=3 bash scripts/agent-fix-loop.sh 'pnpm verify:ci'",
+    "agent:loop:typecheck": "bash scripts/agent-fix-loop.sh 'pnpm turbo run type-check --filter=!@zapengine/mobile'",
+    "agent:loop:test": "bash scripts/agent-fix-loop.sh 'pnpm turbo run test:ci --filter=!@zapengine/mobile'",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },

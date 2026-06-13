@@ -128,6 +128,47 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 Do NOT run `verify:ci` during the fix loop — it is too slow.
 
+### Agent fix loop (autonomous)
+
+For autonomous fail → fix → rerun cycles, use the agent loop wrapper. The loop is bash-controlled; the agent only does: read failure log → make the smallest targeted fix → stop. The outer loop provides stuck detection (3× same failure signature) and per-iteration timeout.
+
+Daily workflow:
+
+```bash
+pnpm agent:loop:changed
+pnpm agent:loop:typecheck
+```
+
+When the failing package is known:
+
+```bash
+pnpm agent:loop -- "pnpm turbo run test:ci --filter=@zapengine/account-engine"
+```
+
+Before push:
+
+```bash
+pnpm agent:loop:ci
+```
+
+Environment overrides:
+
+```bash
+MAX_ITERS=3
+ITER_TIMEOUT=900
+STUCK_LIMIT=3
+LOG_TAIL=600
+FULL_LOG=1
+SKIP_PERMS=1
+AGENT=ci-fixer
+```
+
+`MAX_ITERS` set on the command line wins over the per-script `AGENT_LOOP_DEFAULT_MAX_ITERS` (which is what `agent:loop:ci` uses to cap at 3).
+
+`SKIP_PERMS=1` uses `--dangerously-skip-permissions` and must only be used inside a disposable git worktree.
+
+The `ci-fixer` agent (`.opencode/agents/ci-fixer.md`) must not modify snapshots, coverage thresholds, CI config, lockfiles, dependency versions, lint rules, or verification scripts. If a correct fix requires touching those files, it stops and asks for manual review.
+
 ### CI stage scripts (for granular debugging)
 
 Run individually: `pnpm ci:turbo`, `pnpm ci:contracts`, `pnpm ci:analytics`, etc.
