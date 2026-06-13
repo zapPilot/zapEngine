@@ -587,9 +587,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.21
-      '@types/opencc-js':
-        specifier: ^1.0.3
-        version: 1.0.3
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.8(vitest@4.1.8)
@@ -4190,9 +4187,6 @@ packages:
 
   '@types/nodemailer@7.0.12':
     resolution: {integrity: sha512-80vKwiIsVSyFA1rRovH59jNPLBOuc6dRZIHEu40gXTkBkZnQv8vog1xSGEb9j5q/tdMAs5ivvDR2pLTU0hGHXA==}
-
-  '@types/opencc-js@1.0.3':
-    resolution: {integrity: sha512-TENp7YkI2hNlc4dplhivSHj0hU4DORCK56VY7rniaSfA5f87uD3uv+kPIRuH9h64TGv976iVFi4gEHZZtS2y8Q==}
 
   '@types/pg@8.20.0':
     resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
@@ -14556,8 +14550,6 @@ snapshots:
   '@types/nodemailer@7.0.12':
     dependencies:
       '@types/node': 22.19.21
-
-  '@types/opencc-js@1.0.3': {}
 
   '@types/pg@8.20.0':
     dependencies:
