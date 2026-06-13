@@ -192,13 +192,12 @@ export function createPlanOrchestrationService({
         userAddress,
       });
       const approvals = await filterNeededApprovals({
-        approvals: gmxPlan.approvals as PreparedTransaction[],
+        approvals: gmxPlan.approvals,
         owner: userAddress,
         publicClient,
       });
       const collateralAmount =
-        gmxCollateralAmount(gmxPlan.approvals as PreparedTransaction[]) ||
-        request.amount;
+        gmxCollateralAmount(gmxPlan.approvals) || request.amount;
 
       return DepositPlanSchema.parse({
         legs: [
@@ -233,7 +232,7 @@ export function createPlanOrchestrationService({
           userAddress,
         });
         const approvals = await filterNeededApprovals({
-          approvals: gmxPlan.approvals as PreparedTransaction[],
+          approvals: gmxPlan.approvals,
           owner: userAddress,
           publicClient,
         });

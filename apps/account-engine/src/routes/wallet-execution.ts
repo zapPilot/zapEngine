@@ -34,10 +34,7 @@ async function handlePrivyCall<
   serviceCall: (request: T, accessToken: string) => Promise<unknown>,
 ) {
   const accessToken = requireBearerToken(c.req.header('authorization'));
-  const response = await serviceCall(
-    c.req.valid('json' as never) as T,
-    accessToken,
-  );
+  const response = await serviceCall(c.req.valid('json' as never), accessToken);
   return c.json(response, { status: 200 });
 }
 

@@ -291,7 +291,7 @@ function tryDecodeApproveCall(call: {
 }): DecodedApproveArgs | null {
   const result = tryDecodeCall(call, erc20Abi, ['approve'], (decoded) => {
     const [spender, amt] = decoded.args;
-    return { spender, amt } as DecodedApproveArgs;
+    return { spender, amt };
   });
   return result as DecodedApproveArgs | null;
 }
@@ -307,7 +307,7 @@ function tryDecodeSupplyCall(call: {
     ['deposit', 'mint'],
     (decoded) => {
       const [assetsOrShares, receiver] = decoded.args;
-      return { assetsOrShares, receiver } as DecodedSupplyArgs;
+      return { assetsOrShares, receiver };
     },
   );
   return result as DecodedSupplyArgs | null;

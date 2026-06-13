@@ -302,8 +302,7 @@ export class UsersService extends BaseService {
       };
 
       if (subscriptionData) {
-        const { plans, ...rest } =
-          subscriptionData as typeof subscriptionData & { plans?: unknown };
+        const { plans, ...rest } = subscriptionData;
         result.subscription = {
           ...rest,
           plan: plans,

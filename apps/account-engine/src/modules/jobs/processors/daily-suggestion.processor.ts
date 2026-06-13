@@ -87,7 +87,7 @@ export class DailySuggestionProcessor implements JobProcessor {
       job,
       userIds,
       JobType.DAILY_SUGGESTION_SINGLE,
-      (userId) => ({ userId }) as Record<string, unknown>,
+      (userId) => ({ userId }),
     );
   }
 
