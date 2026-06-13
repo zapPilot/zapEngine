@@ -7,45 +7,45 @@ import { renderHook } from '../../../test-utils';
 
 const PRIVY_ADDRESS = '0xf8a6b8ce3a6c8F4E5a73600a89aE9A645EAEf940';
 
-const mocks = vi.hoisted(() => ({
-  login: vi.fn(),
-  logout: vi.fn(),
-  getAccessToken: vi.fn(),
-  generateAuthorizationSignature: vi.fn(),
-  getEthereumProvider: vi.fn(),
-  switchChain: vi.fn(),
-  sendCalls: vi.fn(),
-  waitForCallsStatus: vi.fn(),
-  accountApiPost: vi.fn(),
-  walletInfo: vi.fn(),
-  walletError: vi.fn(),
-  signTypedData: vi.fn().mockResolvedValue('mock-user-eip712-signature'),
-  privyLinkedAccounts: [] as Record<string, unknown>[],
-}));
+const mocks = vi.hoisted(() => {
+  const getEthereumProvider = vi.fn();
+  const switchChain = vi.fn();
+  const signTypedData = vi.fn().mockResolvedValue('mock-user-eip712-signature');
+
+  return {
+    login: vi.fn(),
+    logout: vi.fn(),
+    getAccessToken: vi.fn(),
+    generateAuthorizationSignature: vi.fn(),
+    getEthereumProvider,
+    switchChain,
+    sendCalls: vi.fn(),
+    waitForCallsStatus: vi.fn(),
+    accountApiPost: vi.fn(),
+    walletInfo: vi.fn(),
+    walletError: vi.fn(),
+    signTypedData,
+    privyLinkedAccounts: [] as Record<string, unknown>[],
+    privyWallets: [] as Record<string, unknown>[],
+    usePrivy: vi.fn(() => ({
+      ready: true,
+      authenticated: true,
+      login: mocks.login,
+      logout: mocks.logout,
+      getAccessToken: mocks.getAccessToken,
+      user: {
+        linkedAccounts: mocks.privyLinkedAccounts,
+      },
+    })),
+    useWallets: vi.fn(() => ({
+      wallets: [...mocks.privyWallets],
+    })),
+  };
+});
 
 vi.mock('@privy-io/react-auth', () => ({
-  usePrivy: () => ({
-    ready: true,
-    authenticated: true,
-    login: mocks.login,
-    logout: mocks.logout,
-    getAccessToken: mocks.getAccessToken,
-    user: {
-      linkedAccounts: mocks.privyLinkedAccounts,
-    },
-  }),
-  useWallets: () => ({
-    wallets: [
-      {
-        walletClientType: 'privy',
-        address: PRIVY_ADDRESS,
-        chainId: 'eip155:42161',
-        getEthereumProvider: mocks.getEthereumProvider,
-        switchChain: mocks.switchChain,
-        signTypedData: mocks.signTypedData,
-      },
-    ],
-  }),
+  usePrivy: mocks.usePrivy,
+  useWallets: mocks.useWallets,
   useAuthorizationSignature: () => ({
     generateAuthorizationSignature: mocks.generateAuthorizationSignature,
   }),
@@ -96,6 +96,24 @@ describe('usePrivyWalletBackend', () => {
     mocks.getAccessToken.mockResolvedValue('privy-access-token');
     mocks.generateAuthorizationSignature.mockResolvedValue({
       signature: 'base64-authorization-signature',
+    });
+    mocks.usePrivy.mockReturnValue({
+      ready: true,
+      authenticated: true,
+      login: mocks.login,
+      logout: mocks.logout,
+      getAccessToken: mocks.getAccessToken,
+      user: {
+        linkedAccounts: mocks.privyLinkedAccounts,
+      },
+    });
+    mocks.privyWallets.splice(0, mocks.privyWallets.length, {
+      walletClientType: 'privy',
+      address: PRIVY_ADDRESS,
+      chainId: 'eip155:42161',
+      getEthereumProvider: mocks.getEthereumProvider,
+      switchChain: mocks.switchChain,
+      signTypedData: mocks.signTypedData,
     });
     mocks.privyLinkedAccounts.splice(0, mocks.privyLinkedAccounts.length, {
       type: 'wallet',
@@ -252,5 +270,265 @@ describe('usePrivyWalletBackend', () => {
 
     expect(mocks.getEthereumProvider).not.toHaveBeenCalled();
     expect(mocks.sendCalls).not.toHaveBeenCalled();
+  });
+
+  it('throws when buildClient is called without an embedded wallet', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.backend.getWalletClient?.()).rejects.toThrow(
+        'No Privy wallet connected',
+      );
+    });
+  });
+
+  it('throws when switchChain is called without an embedded wallet', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.backend.switchChain?.(8453)).rejects.toThrow(
+        'No Privy wallet connected',
+      );
+    });
+  });
+
+  it('throws when sendTransaction is called without an embedded wallet', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(
+        result.current.backend.sendTransaction?.({
+          to: '0x123' as `0x${string}`,
+          chainId: 8453,
+        }),
+      ).rejects.toThrow('No Privy wallet connected');
+    });
+  });
+
+  it('throws when executeAtomicBatch is called with an empty batch', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(
+        result.current.backend.executeAtomicBatch?.([], 8453),
+      ).rejects.toThrow('Cannot execute empty Privy EIP-7702 batch');
+    });
+
+    expect(mocks.accountApiPost).not.toHaveBeenCalled();
+  });
+
+  it('throws when prepare access token is missing', async () => {
+    mocks.getAccessToken.mockResolvedValueOnce(null);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(
+        result.current.backend.executeAtomicBatch?.([approvalTx], 8453),
+      ).rejects.toThrow(
+        'Privy user access token is invalid or expired. Please re-login.',
+      );
+    });
+  });
+
+  it('confirmBatchExecution is a no-op when no pending execution', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await result.current.confirmBatchExecution();
+    });
+
+    // Should not throw, should not call any APIs
+    expect(mocks.signTypedData).not.toHaveBeenCalled();
+    expect(mocks.accountApiPost).not.toHaveBeenCalled();
+  });
+
+  it('cancelBatchExecution clears pending execution', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    let batchRejection: Promise<unknown> | undefined;
+    await act(async () => {
+      const promise = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+      batchRejection = expect(promise).rejects.toThrow(
+        'Transaction rejected by the user.',
+      );
+    });
+
+    expect(result.current.simulationPreview).toBeDefined();
+
+    act(() => {
+      result.current.cancelBatchExecution();
+    });
+
+    await batchRejection;
+    expect(result.current.simulationPreview).toBeNull();
+  });
+
+  it('cancelBatchExecution is safe when no pending execution', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    act(() => {
+      result.current.cancelBatchExecution();
+    });
+
+    // Should not throw
+    expect(result.current.simulationPreview).toBeNull();
+  });
+
+  it('throws when confirmBatchExecution has no wallet', async () => {
+    const { result, rerender } = renderHook(() => usePrivyWalletBackend());
+
+    let batchRejection: Promise<unknown> | undefined;
+    await act(async () => {
+      const promise = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+      batchRejection = expect(promise).rejects.toThrow(
+        'Transaction rejected by the user.',
+      );
+    });
+
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    rerender();
+
+    await act(async () => {
+      await expect(result.current.confirmBatchExecution()).rejects.toThrow(
+        'No Privy wallet connected',
+      );
+    });
+
+    act(() => {
+      result.current.cancelBatchExecution();
+    });
+    await batchRejection;
+  });
+
+  it('throws when executeAtomicBatch access token is missing on confirm', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    let batchRejection: Promise<unknown> | undefined;
+    await act(async () => {
+      const promise = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+      batchRejection = expect(promise).rejects.toThrow(
+        'Privy user access token is invalid or expired. Please re-login.',
+      );
+    });
+
+    mocks.getAccessToken.mockResolvedValueOnce(null);
+
+    await act(async () => {
+      await result.current.confirmBatchExecution();
+    });
+    await batchRejection;
+  });
+
+  it('getPrivyAtomicBatchChain throws for unsupported chain', async () => {
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      // 1 = Ethereum mainnet is not supported for atomic batching
+      await expect(
+        result.current.backend.executeAtomicBatch?.(
+          [{ ...approvalTx, chainId: 1 }],
+          1,
+        ),
+      ).rejects.toThrow(
+        'Privy EOA EIP-7702 atomic batching is not configured for chain 1',
+      );
+    });
+  });
+
+  it('signMessage throws when no wallet connected', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(
+        result.current.backend.signMessage?.('test message'),
+      ).rejects.toThrow('No Privy wallet connected');
+    });
+  });
+
+  it('signTypedData throws when no wallet connected', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(
+        result.current.backend.signTypedData?.({
+          domain: {},
+          types: {},
+          message: {},
+        }),
+      ).rejects.toThrow('No Privy wallet connected');
+    });
+  });
+
+  it('isActive is false when ready but not authenticated', async () => {
+    mocks.usePrivy.mockReturnValue({
+      ready: true,
+      authenticated: false,
+      login: mocks.login,
+      logout: mocks.logout,
+      getAccessToken: mocks.getAccessToken,
+      user: null,
+    } as any);
+
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    expect(result.current.isActive).toBe(false);
+  });
+
+  it('isActive is false when authenticated but no embedded wallet', async () => {
+    mocks.privyWallets.splice(0, mocks.privyWallets.length);
+
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    expect(result.current.isActive).toBe(false);
+  });
+
+  it('disconnect logs error when logout fails', async () => {
+    mocks.logout.mockRejectedValueOnce(new Error('Logout failed'));
+
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.backend.disconnect?.()).rejects.toThrow(
+        'Logout failed',
+      );
+    });
+
+    expect(mocks.walletError).toHaveBeenCalledWith(
+      'Failed to logout from Privy:',
+      expect.any(Error),
+    );
+  });
+
+  it('switchChain logs error when switch fails', async () => {
+    mocks.switchChain.mockRejectedValueOnce(
+      new Error('User rejected chain switch'),
+    );
+
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.backend.switchChain?.(137)).rejects.toThrow(
+        'User rejected chain switch',
+      );
+    });
+
+    expect(mocks.walletError).toHaveBeenCalledWith(
+      'Failed to switch chain (Privy):',
+      expect.any(Error),
+    );
   });
 });
