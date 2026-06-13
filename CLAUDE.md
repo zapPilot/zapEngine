@@ -104,24 +104,57 @@ Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-inst
 
 The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if you want pre-push assurance. CI itself is still authoritative.
 
-## Verify cheat sheet
+## Verification hierarchy
 
-Prefer the `verify` alias surface. The older `check:*` names are kept for CI compatibility but should be treated as internal.
+Use this order when fixing code — start at the top and move down:
 
-| Command                          | Equivalent                  | What it runs                                                                                          | When to use                                  |
-| -------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `pnpm verify`                    | `pnpm check:local`          | format + lint:repo + contracts + (lint/type-check/deadcode:fix/test --affected) + dead-env             | Daily pre-push fast check                    |
-| `pnpm verify:full`               | `pnpm check:ci`             | adds `dup:check` + `test:ci` + analytics-engine `sql:audit service-reachability pylint:duplicate-check` | Match CI exactly before opening a PR        |
-| `pnpm verify:no-mobile`          | `pnpm check:ci:core`        | `verify:full` excluding `@zapengine/mobile`                                                            | Skip Flutter checks when you don't have it   |
-| `pnpm verify:frontend`           | —                           | `turbo run lint type-check test --filter=@zapengine/frontend`                                          | Single-app fast loop                          |
-| `pnpm verify:account-engine`     | —                           | Same shape for `@zapengine/account-engine`                                                             |                                              |
-| `pnpm verify:analytics-engine`   | —                           | Same shape — **needs `DATABASE_READ_ONLY_URL`** (see *Analytics strategy measurement* below)            |                                              |
-| `pnpm verify:alpha-etl`          | —                           | Same shape for `@zapengine/alpha-etl`                                                                  |                                              |
-| `pnpm verify:landing-page`       | —                           | Same shape for `@zapengine/landing-page`                                                               |                                              |
-| `pnpm verify:podcast-pipeline`   | —                           | Same shape for `@zapengine/podcast-pipeline`                                                           |                                              |
-| `pnpm verify:packages`           | —                           | `turbo run lint type-check test --filter=./packages/*`                                                 | Verify shared packages only                  |
+| Command                     | Scope                               | When to run                        | Notes                                                    |
+| --------------------------- | ----------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `pnpm verify:changed`       | committed + staged + working tree  | AI fix inner loop                  | Uses synthetic WIP commit for Turbo `--affected`        |
+| `pnpm verify:staged`        | staged files only                   | Before commit (optional)            | `git diff --cached` based, fast                          |
+| `pnpm verify:branch`        | origin/main...HEAD                  | Before push / PR                   | Pure committed diff, uses `TURBO_SCM_BASE/HEAD` env     |
+| `pnpm verify:full:parallel` | Full, parallel                      | Local fast gate before push        | All CI stages run in parallel, logs in `.ai-verify/`    |
+| `pnpm verify:full`          | Full CI gate (alias)                | Match CI exactly                   | Alias for `pnpm check:ci:core`                           |
+| `pnpm check:ci:core`        | CI canonical gate                   | CI / final gate before merge       | Do not run this frequently — slow                        |
 
-Need a custom subset? `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>` still works directly. For `analytics-engine`, append `sql:audit service-reachability pylint:duplicate-check`.
+**Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
+
+### AI fix loop
+
+When modifying code as an AI:
+
+1. Make your changes
+2. Run `pnpm verify:changed` — fast, affected packages only
+3. If it fails, read `.ai-verify/logs/<step>.log` for the failing step
+4. Fix only errors related to the current change
+5. Re-run `pnpm verify:changed` until it passes
+6. Before push, run `pnpm verify:branch`
+7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm check:ci:core`
+
+Do NOT run `check:ci:core` during the fix loop — it is too slow and includes steps unrelated to your current change.
+
+### CI stage scripts (for granular debugging)
+
+```json
+"ci:format":    "pnpm format:check:core",
+"ci:repo":      "pnpm lint:repo",
+"ci:contracts":"pnpm contracts:check",
+"ci:turbo":     "turbo run lint type-check deadcode dup:check test:ci --filter=!@zapengine/mobile",
+"ci:analytics": "turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine"
+```
+
+Run individually for targeted debugging: `pnpm ci:turbo`, `pnpm ci:contracts`, etc.
+
+## Old verify aliases (deprecated)
+
+These are kept for backwards compatibility but the new `verify:*` hierarchy above is preferred:
+
+| Command             | Maps to                     | Notes                              |
+| ------------------- | --------------------------- | ---------------------------------- |
+| `pnpm verify`        | `pnpm check:local`          | Daily pre-push fast check          |
+| `pnpm verify:full`   | `pnpm check:ci`             | Full CI match before PR           |
+| `pnpm verify:no-mobile` | `pnpm check:ci:core`      | Excludes Flutter                   |
+| `pnpm verify:frontend` etc. | per-app checks        | Single-app loops (still useful)   |
 
 # Python environment (analytics-engine)
 

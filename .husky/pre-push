@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Pre-push hook: checks committed changes (origin/main...HEAD).
+# This uses Turbo --affected so only changed packages are verified.
+# Use `pnpm verify:changed` for AI inner loop (includes working tree).
+# Use `pnpm verify:full:parallel` for full local gate before opening PR.
+set -eu
+
+echo "Running pre-push verification (verify:branch)..."
+pnpm verify:branch
+
+printf '\n✅ Pre-push passed\n'
