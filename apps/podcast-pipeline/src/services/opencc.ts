@@ -2,7 +2,10 @@ import * as OpenCC from 'opencc-js';
 
 import type { Article } from '../types.js';
 
-const convertSimplifiedToTaiwan = OpenCC.Converter({ from: 'cn', to: 'twp' });
+const convertSimplifiedToTaiwan: (text: string) => string = OpenCC.Converter({
+  from: 'cn',
+  to: 'twp',
+});
 
 export function convertTextToZhTW(text: string): string {
   return convertSimplifiedToTaiwan(text);

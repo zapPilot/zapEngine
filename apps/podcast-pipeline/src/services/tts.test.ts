@@ -2,6 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type TtsConfigModule = typeof import('./tts/tts-config.js');
 
+interface RealTtsConfig {
+  getTtsConfig?: TtsConfigModule['getTtsConfig'];
+}
+
+const mocks = vi.hoisted(() => {
+  const realTtsConfig: RealTtsConfig = { getTtsConfig: undefined };
+  return {
+    mockFishGetMetadata: vi.fn(),
+    mockFishSynthesize: vi.fn(),
+    mockGoogleGetMetadata: vi.fn(),
+    mockGoogleSynthesize: vi.fn(),
+    mockGetTtsConfig: vi.fn(),
+    realTtsConfig,
+  };
+});
+
 const {
   mockFishGetMetadata,
   mockFishSynthesize,
@@ -9,14 +25,7 @@ const {
   mockGoogleSynthesize,
   mockGetTtsConfig,
   realTtsConfig,
-} = vi.hoisted(() => ({
-  mockFishGetMetadata: vi.fn(),
-  mockFishSynthesize: vi.fn(),
-  mockGoogleGetMetadata: vi.fn(),
-  mockGoogleSynthesize: vi.fn(),
-  mockGetTtsConfig: vi.fn(),
-  realTtsConfig: {} as { getTtsConfig?: TtsConfigModule['getTtsConfig'] },
-}));
+} = mocks;
 
 vi.mock('./tts/fish-audio.js', () => ({
   getMetadata: mockFishGetMetadata,

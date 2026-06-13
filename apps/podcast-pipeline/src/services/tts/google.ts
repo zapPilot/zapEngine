@@ -29,7 +29,7 @@ interface GoogleVoiceOptions {
 }
 
 export function getClientOptions(): TextToSpeechClientOptions | undefined {
-  return resolveGcpClientOptions() as TextToSpeechClientOptions | undefined;
+  return resolveGcpClientOptions();
 }
 
 export function splitTextIntoChunks(text: string, maxBytes: number): string[] {
