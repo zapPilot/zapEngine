@@ -91,12 +91,43 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   listLanguageClassroomsByLocalizationIds:
     mockListLanguageClassroomsByLocalizationIds,
   markEpisodeListened: mockMarkEpisodeListened,
-  toEpisodeResponse: (row: EpisodeListRow) => episodeListResponse(row),
+  toEpisodeResponse: (
+    row: EpisodeListRow,
+    languageClassrooms?: import('./types.js').LanguageClassroomRow[],
+  ) => {
+    const lessons: LanguageClassroomLesson[] = (
+      languageClassrooms ?? row.language_classrooms
+    ).map((lc) =>
+      'targetLanguageCode' in lc
+        ? lc
+        : {
+            sourceLanguageCode: lc.source_language_code,
+            targetLanguageCode: lc.target_language_code,
+            oneLiner: lc.one_liner,
+            keywords: lc.keywords,
+          },
+    );
+    return episodeListResponse({ ...row, language_classrooms: lessons });
+  },
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
     localization: EpisodeLocalizationRow,
-    languageClassrooms: LanguageClassroomLesson[],
-  ) => localizationResponse(episode, localization, languageClassrooms),
+    languageClassrooms:
+      | import('./types.js').LanguageClassroomRow[]
+      | LanguageClassroomLesson[],
+  ) => {
+    const lessons: LanguageClassroomLesson[] = languageClassrooms.map((lc) =>
+      'targetLanguageCode' in lc
+        ? lc
+        : {
+            sourceLanguageCode: lc.source_language_code,
+            targetLanguageCode: lc.target_language_code,
+            oneLiner: lc.one_liner,
+            keywords: lc.keywords,
+          },
+    );
+    return localizationResponse(episode, localization, lessons);
+  },
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
   updateEpisodeLocalizationArticleContent:
     mockUpdateEpisodeLocalizationArticleContent,
@@ -1159,23 +1190,26 @@ describe('GET /episodes', () => {
   });
 
   it('returns a paginated localization response for zh-Hant', async () => {
-    const row = listRow();
+    const row = listRow({
+      language_classrooms: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は市場流動性を説明します。',
+          keywords: [],
+        },
+      ],
+    });
     mockListEpisodesPaged.mockResolvedValue({
       rows: [row],
       nextCursor: 'next-cursor',
     });
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(
-      new Map([[row.localization_id, [classroomRow()]]]),
-    );
 
     const response = await app.request('/episodes?limit=5');
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(mockListEpisodesPaged).toHaveBeenCalledWith(5, null, 'zh-Hant');
-    expect(mockListLanguageClassroomsByLocalizationIds).toHaveBeenCalledWith([
-      row.localization_id,
-    ]);
     expect(body).toEqual({
       items: [
         {

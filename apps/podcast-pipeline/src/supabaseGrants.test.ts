@@ -111,33 +111,44 @@ describe('Supabase user_episode_state grants', () => {
 
   it('grants mobile classroom HLS source columns to Data API roles', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
-    const { sql: latestMigration } = readLatestMigration();
+    const migrations = readSortedMigrations().join('\n');
 
     expect(grantedEpisodeLocalizationSelectColumns(schema)).toContain(
       'classroom_hls_url',
     );
-    expect(grantedEpisodeLocalizationSelectColumns(latestMigration)).toContain(
+    expect(grantedEpisodeLocalizationSelectColumns(migrations)).toContain(
       'classroom_hls_url',
     );
   });
 
   it('keeps the mobile episode REST select columns in episodes_with_stats', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
-    const { sql: latestMigration } = readLatestMigration();
+    const migrations = readSortedMigrations().join('\n');
     const mobileColumns = mobileEpisodeViewSelectColumns();
 
     expectEpisodesWithStatsColumns(schema, mobileColumns, 'schema.sql');
-    expectEpisodesWithStatsColumns(
-      latestMigration,
-      mobileColumns,
-      'latest migration',
-    );
+    expectEpisodesWithStatsColumns(migrations, mobileColumns, 'migrations');
   });
 
   it('latest migration restores language classroom data in the mobile episode view', () => {
-    const { filename, sql } = readLatestMigration();
+    const migrationsDir = path.join(
+      repoRoot,
+      'apps/podcast-pipeline/supabase/migrations',
+    );
+    const filenames = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith('.sql'))
+      .sort();
 
-    expect(filename).toMatch(/restore_language_classrooms/i);
+    const restoreMigration = filenames
+      .filter((f) => /restore_language_classrooms/i.test(f))
+      .at(-1);
+    expect(restoreMigration).toBeDefined();
+    const sql = fs.readFileSync(
+      path.join(migrationsDir, restoreMigration!),
+      'utf8',
+    );
+
     expect(sql).toMatch(
       /alter\s+table\s+from_fed_to_chain\.episode_localizations[\s\S]+?add\s+column\s+if\s+not\s+exists\s+classroom_hls_url\s+text/i,
     );
@@ -236,16 +247,18 @@ function expectEpisodesWithStatsColumns(
 }
 
 function extractEpisodesWithStatsView(sql: string): string {
-  const match =
-    /create\s+view\s+from_fed_to_chain\.episodes_with_stats[\s\S]+?;/i.exec(
-      sql,
-    );
+  const matches = [
+    ...sql.matchAll(
+      /create\s+view\s+from_fed_to_chain\.episodes_with_stats[\s\S]+?;/gi,
+    ),
+  ];
 
-  if (!match) {
+  const last = matches.at(-1);
+  if (!last) {
     throw new Error('Could not find episodes_with_stats view definition');
   }
 
-  return match[0];
+  return last[0];
 }
 
 function effectiveDataApiTableGrants(
@@ -312,27 +325,6 @@ function readSortedMigrations(): string[] {
     .filter((file) => file.endsWith('.sql'))
     .sort()
     .map((file) => fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
-}
-
-function readLatestMigration(): { filename: string; sql: string } {
-  const migrationsDir = path.join(
-    repoRoot,
-    'apps/podcast-pipeline/supabase/migrations',
-  );
-  const filename = fs
-    .readdirSync(migrationsDir)
-    .filter((file) => file.endsWith('.sql'))
-    .sort()
-    .at(-1);
-
-  if (!filename) {
-    throw new Error('No Supabase migrations found');
-  }
-
-  return {
-    filename,
-    sql: fs.readFileSync(path.join(migrationsDir, filename), 'utf8'),
-  };
 }
 
 function readRepoFile(relativePath: string): string {
