@@ -9,8 +9,8 @@ import { DatabaseService } from '../../../src/database/database.service';
 import { UserValidationService } from '../../../src/database/user-validation.service';
 import { TelegramService } from '../../../src/modules/notifications/telegram.service';
 import { TelegramTokenService } from '../../../src/modules/notifications/telegram-token.service';
-import { createMockDatabaseService } from '../../test-utils';
 import { UsersService } from '../../../src/users/users.service';
+import { createMockDatabaseService } from '../../test-utils';
 
 function createMocks() {
   const dbMock = createMockDatabaseService();

@@ -15,6 +15,9 @@ mkdir -p "$LOG_DIR"
 
 echo "[verify:branch] Checking committed changes: origin/main...HEAD"
 
+# Disable set -e around the turbo run so we can capture its exit code
+# and surface a useful tail of the log instead of a silent non-zero exit.
+set +e
 TURBO_SCM_BASE="origin/main" \
 TURBO_SCM_HEAD="HEAD" \
 pnpm turbo run lint type-check test:ci deadcode dup:check \
@@ -22,12 +25,15 @@ pnpm turbo run lint type-check test:ci deadcode dup:check \
   --filter='!@zapengine/mobile' \
   > "$LOG_DIR/verify-branch.log" 2>&1
 turbo_status=$?
+set -e
 
 if [ $turbo_status -eq 0 ]; then
   echo "[verify:branch] ✅ PASSED"
   exit 0
 else
-  echo "[verify:branch] ❌ FAILED"
-  echo "See logs: $LOG_DIR/verify-branch.log"
+  echo "[verify:branch] ❌ FAILED (turbo exit $turbo_status)"
+  echo "Last 120 lines of $LOG_DIR/verify-branch.log:"
+  echo "------------------------------------------------------------"
+  tail -n 120 "$LOG_DIR/verify-branch.log"
   exit 1
 fi
