@@ -13,16 +13,16 @@ If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any 
 
 ## Turbo task glossary
 
-| Task                  | Cache | dependsOn | Notes                                                                                |
-| --------------------- | :---: | --------- | ------------------------------------------------------------------------------------ |
-| `build`               |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`. |
-| `dev`                 |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                  |
-| `lint`                |   ✓   | none      | Pure file scan; no build needed.                                                     |
-| `type-check`          |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.             |
+| Task                     | Cache | dependsOn | Notes                                                                                                                    |
+| ------------------------ | :---: | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `build`                  |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`.                            |
+| `dev`                    |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                                                      |
+| `lint`                   |   ✓   | none      | Pure file scan; no build needed.                                                                                         |
+| `type-check`             |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.                                                 |
 | `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine. |
-| `test:ci`             |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                     |
-| `deadcode` / `dup:check` | ✓ | none      | Pure file scans.                                                                     |
-| `codegen*`            |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                               |
+| `test:ci`                |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                                                         |
+| `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                         |
+| `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                   |
 
 Cache miss heuristics: changing any `.env*` file invalidates `build`/`type-check`/`test*` caches because they're listed in `inputs`. If you only intend to flip a runtime value, prefer `process.env` overrides at run time rather than editing `.env`.
 
@@ -106,13 +106,13 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 ## Verification hierarchy
 
-| Command | Scope | When to run |
-|---------|-------|-------------|
-| `pnpm verify:changed` | committed + staged + working tree | AI fix inner loop |
-| `pnpm verify:branch` | origin/main...HEAD | Before push / PR |
-| `pnpm verify:package -- --filter=...` | single package | Package-specific check |
-| `pnpm verify:full:parallel` | Full, parallel | Local fast gate before push |
-| `pnpm verify:ci` | CI canonical gate | CI / final gate before merge |
+| Command                               | Scope                             | When to run                  |
+| ------------------------------------- | --------------------------------- | ---------------------------- |
+| `pnpm verify:changed`                 | committed + staged + working tree | AI fix inner loop            |
+| `pnpm verify:branch`                  | origin/main...HEAD                | Before push / PR             |
+| `pnpm verify:package -- --filter=...` | single package                    | Package-specific check       |
+| `pnpm verify:full:parallel`           | Full, parallel                    | Local fast gate before push  |
+| `pnpm verify:ci`                      | CI canonical gate                 | CI / final gate before merge |
 
 **Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 
@@ -130,44 +130,41 @@ Do NOT run `verify:ci` during the fix loop — it is too slow.
 
 ### Agent fix loop (autonomous)
 
-For autonomous fail → fix → rerun cycles, use the agent loop wrapper. The loop is bash-controlled; the agent only does: read failure log → make the smallest targeted fix → stop. The outer loop provides stuck detection (3× same failure signature) and per-iteration timeout.
+For autonomous fail → fix → rerun cycles, use the agent loop wrapper. The loop is bash-controlled; the OpenCode agent only reads the supplied failure log and makes the smallest targeted edit. The outer loop owns validation, protected-path enforcement, no-progress detection, and timeouts.
+
+The working tree must be completely clean before startup. Every invocation requires an explicit OpenCode model ID; that model is fixed for the full run, while every repair attempt uses a fresh session.
 
 Daily workflow:
 
 ```bash
-pnpm agent:loop:changed
-pnpm agent:loop:typecheck
+pnpm agent:loop:changed -- --model provider/model
+pnpm agent:loop:typecheck -- --model provider/model
 ```
 
 When the failing package is known:
 
 ```bash
-pnpm agent:loop -- "pnpm turbo run test:ci --filter=@zapengine/account-engine"
+pnpm agent:loop -- --model provider/model \
+  --command "pnpm turbo run test:ci --filter=@zapengine/account-engine"
 ```
 
 Before push:
 
 ```bash
-pnpm agent:loop:ci
+pnpm agent:loop:ci -- --model provider/model
 ```
 
-Environment overrides:
+Optional CLI controls:
 
 ```bash
-MAX_ITERS=3
-ITER_TIMEOUT=900
-STUCK_LIMIT=3
-LOG_TAIL=600
-FULL_LOG=1
-SKIP_PERMS=1
-AGENT=ci-fixer
+--max-iters 20  # default: 0 (unlimited)
+--timeout 900   # default: 900 seconds; 0 disables the timeout
+--agent ci-fixer
 ```
 
-`MAX_ITERS` set on the command line wins over the per-script `AGENT_LOOP_DEFAULT_MAX_ITERS` (which is what `agent:loop:ci` uses to cap at 3).
+The default loop is unlimited. It stops only when validation passes, the optional iteration cap is reached, OpenCode fails three consecutive times without edits, the same failure receives no edits three times, or the agent touches a protected path. Protected edits are restored automatically and recorded in `.agent-loop/blocker-report.txt`.
 
-`SKIP_PERMS=1` uses `--dangerously-skip-permissions` and must only be used inside a disposable git worktree.
-
-The `ci-fixer` agent (`.opencode/agents/ci-fixer.md`) must not modify snapshots, coverage thresholds, CI config, lockfiles, dependency versions, lint rules, or verification scripts. If a correct fix requires touching those files, it stops and asks for manual review.
+The `ci-fixer` agent (`.opencode/agents/ci-fixer.md`) has no Bash, web, subagent, or external-directory access. It must not modify snapshots, coverage settings, CI config, lockfiles, package manifests, repository instructions, or verification scripts.
 
 ### CI stage scripts (for granular debugging)
 

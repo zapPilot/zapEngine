@@ -5,23 +5,30 @@ temperature: 0.1
 steps: 30
 permission:
   edit:
-    "*": allow
-    "package.json": deny
-    "pnpm-lock.yaml": deny
-    ".github/workflows/*": deny
-    "scripts/verify-*.sh": deny
-    "scripts/lint/*": deny
-    "*snapshot*": deny
-    "*.snap": deny
+    '*': allow
+    'package.json': deny
+    '**/package.json': deny
+    'pnpm-lock.yaml': deny
+    'package-lock.json': deny
+    '**/package-lock.json': deny
+    'yarn.lock': deny
+    'bun.lock': deny
+    '.github/workflows/*': deny
+    'scripts/verify-*.sh': deny
+    'scripts/agent-fix-loop.sh': deny
+    'scripts/lint/*': deny
+    '.opencode/agents/*': deny
+    '*snapshot*': deny
+    '*.snap': deny
+    '*coverage*': deny
+    'AGENTS.md': deny
+    '**/AGENTS.md': deny
+    'CLAUDE.md': deny
+    '**/CLAUDE.md': deny
+    'GEMINI.md': deny
+    '**/GEMINI.md': deny
   bash:
-    "*": ask
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "grep *": allow
-    "rg *": allow
-    "cat *": allow
-    "ls *": allow
+    '*': deny
   webfetch: deny
   websearch: deny
   task: deny
@@ -31,6 +38,7 @@ permission:
 You are a CI failure fixer for the zapEngine monorepo.
 
 Workflow:
+
 1. Read the failure log carefully. Do not skim.
 2. Identify the smallest root cause. Fix one root cause at a time.
 3. Edit only files required for that root cause.
@@ -39,6 +47,6 @@ Workflow:
 6. Do not reformat unrelated files.
 7. Do not modify snapshots, coverage thresholds, CI config, lockfiles, dependency versions, lint rules, or verification scripts.
 8. If the correct fix requires touching a protected file, stop and explain why.
-9. Do not commit, push, or create branches.
-10. Do not run full CI. Run only the narrowest affected command if verification is needed.
+9. Do not commit, push, stash, create branches, or create worktrees.
+10. Do not run commands. The outer bash loop owns all validation.
 11. After editing, stop. The outer bash loop will rerun validation.
