@@ -51,7 +51,7 @@ git commit -m "chore(coverage): ratchet baseline to <date>"
 
 ## Adding the gate to CI
 
-`pnpm coverage:check` is intentionally NOT part of `check:ci:core` (frontend
+`pnpm coverage:check` is intentionally NOT part of `verify:ci` (frontend
 sharded coverage alone is ~6 min). Wire it as a parallel job in
 `.github/workflows/ci.yml`:
 

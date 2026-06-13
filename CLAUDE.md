@@ -36,7 +36,7 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:
 
-- `pnpm verify:no-mobile` ≡ `pnpm check:ci:core` — full CI gate excluding `@zapengine/mobile`
+- `pnpm verify:ci` — full CI gate excluding `@zapengine/mobile`
 - `pnpm build:core` / `format:check:core` / `security:audit:core` — same `--filter=!@zapengine/mobile`
 
 If you install Flutter, just use the regular non-`:core` commands. CI runs the full matrix in parallel; mobile failures only block mobile deploys.
@@ -112,7 +112,7 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 | `pnpm verify:branch` | origin/main...HEAD | Before push / PR |
 | `pnpm verify:package -- --filter=...` | single package | Package-specific check |
 | `pnpm verify:full:parallel` | Full, parallel | Local fast gate before push |
-| `pnpm check:ci:core` | CI canonical gate | CI / final gate before merge |
+| `pnpm verify:ci` | CI canonical gate | CI / final gate before merge |
 
 **Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 
@@ -124,9 +124,9 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 4. Fix only errors related to the current change
 5. Re-run until it passes
 6. Before push, run `pnpm verify:branch`
-7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm check:ci:core`
+7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm verify:ci`
 
-Do NOT run `check:ci:core` during the fix loop — it is too slow.
+Do NOT run `verify:ci` during the fix loop — it is too slow.
 
 ### CI stage scripts (for granular debugging)
 

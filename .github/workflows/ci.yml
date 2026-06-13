@@ -86,7 +86,7 @@ jobs:
         run: pnpm run build:core
 
       - name: Run check-variant tasks
-        run: pnpm run check:ci:core
+        run: pnpm run verify:ci
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -267,7 +267,7 @@ jobs:
     # coverage/summary.json and (when coverage/baseline.json exists) gates on
     # no-regression vs. that committed baseline.
     #
-    # Intentionally NOT part of check:ci:core — frontend sharded coverage is
+    # Intentionally NOT part of verify:ci — frontend sharded coverage is
     # ~6 min on its own; keeping this in its own job preserves fast feedback
     # on lint-test.
     #

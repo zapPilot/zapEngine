@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop hook: run `pnpm check:local` before letting Claude end its turn.
+# Stop hook: run `pnpm verify` before letting Claude end its turn.
 # Skips when the working tree is clean or SKIP_STOP_CHECK=1.
 # On failure: returns a JSON "block" decision so Claude must fix and retry.
 # Degrades to a warning if Claude already retried once (stop_hook_active=true).
@@ -38,7 +38,7 @@ fi
 log_file=$(mktemp -t stop-check.XXXXXX)
 trap 'rm -f "$log_file"' EXIT
 
-if pnpm check:local >"$log_file" 2>&1; then
+if pnpm verify >"$log_file" 2>&1; then
   exit 0
 fi
 
@@ -47,7 +47,7 @@ tail_output=$(tail -n 80 "$log_file")
 
 reason=$(
   printf '%s\n%s\n\n%s' \
-    "pnpm check:local failed. Tail of output (last 80 lines):" \
+    "pnpm verify failed. Tail of output (last 80 lines):" \
     "$tail_output" \
     "Fix the failures and try to stop again. Set SKIP_STOP_CHECK=1 to bypass." \
   | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))'

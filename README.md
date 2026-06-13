@@ -111,7 +111,7 @@ pnpm dlx turbo login   # one-time browser auth
 pnpm dlx turbo link    # bind this repo to the Vercel team
 ```
 
-After linking, Turbo checks remote cache on local misses — `pnpm check:local` stays fast even after dependency upgrades.
+After linking, Turbo checks remote cache on local misses — `pnpm verify` stays fast even after dependency upgrades.
 
 ## Deployment
 
