@@ -28,19 +28,19 @@ const {
 } = mocks;
 
 vi.mock('./tts/fish-audio.js', () => ({
-  getMetadata: mockFishGetMetadata,
-  synthesize: mockFishSynthesize,
+  getMetadata: mocks.mockFishGetMetadata,
+  synthesize: mocks.mockFishSynthesize,
 }));
 
 vi.mock('./tts/google.js', () => ({
-  getMetadata: mockGoogleGetMetadata,
-  synthesize: mockGoogleSynthesize,
+  getMetadata: mocks.mockGoogleGetMetadata,
+  synthesize: mocks.mockGoogleSynthesize,
 }));
 
 vi.mock('./tts/tts-config.js', async (importOriginal) => {
   const actual = await importOriginal<TtsConfigModule>();
-  realTtsConfig.getTtsConfig = actual.getTtsConfig;
-  return { ...actual, getTtsConfig: mockGetTtsConfig };
+  mocks.realTtsConfig.getTtsConfig = actual.getTtsConfig;
+  return { ...actual, getTtsConfig: mocks.mockGetTtsConfig };
 });
 
 import { getTtsMetadata, textToSpeech } from './tts.js';
