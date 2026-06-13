@@ -13,11 +13,21 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { GhostModeOverlay } from '@/components/layout/overlays/GhostModeOverlay';
 
-// Mock the ConnectWalletButton to avoid wagmi dependencies in unit tests
+// Mock wallet dependencies to avoid wagmi/privy imports in unit tests
 vi.mock('@/components/WalletManager/components/ConnectWalletButton', () => ({
   ConnectWalletButton: () => (
     <button data-testid="connect-wallet-button">Connect Wallet</button>
   ),
+}));
+
+vi.mock('@/components/WalletManager/components/CreateZapWalletButton', () => ({
+  CreateZapWalletButton: () => (
+    <button data-testid="create-zap-wallet-button">Create Zap Wallet</button>
+  ),
+}));
+
+vi.mock('@/lib/env/privy', () => ({
+  isPrivyEnabled: () => false,
 }));
 
 describe('GhostModeOverlay', () => {

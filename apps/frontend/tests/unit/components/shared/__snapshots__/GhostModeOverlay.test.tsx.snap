@@ -37,19 +37,6 @@ exports[`GhostModeOverlay > Snapshot Tests - UI Design Freeze > should match sna
       >
         Connect Wallet
       </button>
-      <div
-        class=" relative"
-      >
-        <button
-          aria-haspopup="dialog"
-          class="w-full px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer transition-all duration-200 hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
-          disabled=""
-          style="background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%); border: 1px solid rgba(16, 185, 129, 0.3);"
-          type="button"
-        >
-          Create Zap Wallet
-        </button>
-      </div>
     </div>
   </div>
 </div>
