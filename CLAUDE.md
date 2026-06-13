@@ -106,55 +106,31 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 ## Verification hierarchy
 
-Use this order when fixing code — start at the top and move down:
-
-| Command                     | Scope                               | When to run                        | Notes                                                    |
-| --------------------------- | ----------------------------------- | ---------------------------------- | -------------------------------------------------------- |
-| `pnpm verify:changed`       | committed + staged + working tree  | AI fix inner loop                  | Uses synthetic WIP commit for Turbo `--affected`        |
-| `pnpm verify:staged`        | staged files only                   | Before commit (optional)            | `git diff --cached` based, fast                          |
-| `pnpm verify:branch`        | origin/main...HEAD                  | Before push / PR                   | Pure committed diff, uses `TURBO_SCM_BASE/HEAD` env     |
-| `pnpm verify:full:parallel` | Full, parallel                      | Local fast gate before push        | All CI stages run in parallel, logs in `.ai-verify/`    |
-| `pnpm verify:full`          | Full CI gate (alias)                | Match CI exactly                   | Alias for `pnpm check:ci:core`                           |
-| `pnpm check:ci:core`        | CI canonical gate                   | CI / final gate before merge       | Do not run this frequently — slow                        |
+| Command | Scope | When to run |
+|---------|-------|-------------|
+| `pnpm verify:changed` | committed + staged + working tree | AI fix inner loop |
+| `pnpm verify:branch` | origin/main...HEAD | Before push / PR |
+| `pnpm verify:package -- --filter=...` | single package | Package-specific check |
+| `pnpm verify:full:parallel` | Full, parallel | Local fast gate before push |
+| `pnpm check:ci:core` | CI canonical gate | CI / final gate before merge |
 
 **Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 
 ### AI fix loop
 
-When modifying code as an AI:
-
 1. Make your changes
 2. Run `pnpm verify:changed` — fast, affected packages only
 3. If it fails, read `.ai-verify/logs/<step>.log` for the failing step
 4. Fix only errors related to the current change
-5. Re-run `pnpm verify:changed` until it passes
+5. Re-run until it passes
 6. Before push, run `pnpm verify:branch`
 7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm check:ci:core`
 
-Do NOT run `check:ci:core` during the fix loop — it is too slow and includes steps unrelated to your current change.
+Do NOT run `check:ci:core` during the fix loop — it is too slow.
 
 ### CI stage scripts (for granular debugging)
 
-```json
-"ci:format":    "pnpm format:check:core",
-"ci:repo":      "pnpm lint:repo",
-"ci:contracts":"pnpm contracts:check",
-"ci:turbo":     "turbo run lint type-check deadcode dup:check test:ci --filter=!@zapengine/mobile",
-"ci:analytics": "turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine"
-```
-
-Run individually for targeted debugging: `pnpm ci:turbo`, `pnpm ci:contracts`, etc.
-
-## Old verify aliases (deprecated)
-
-These are kept for backwards compatibility but the new `verify:*` hierarchy above is preferred:
-
-| Command             | Maps to                     | Notes                              |
-| ------------------- | --------------------------- | ---------------------------------- |
-| `pnpm verify`        | `pnpm check:local`          | Daily pre-push fast check          |
-| `pnpm verify:full`   | `pnpm check:ci`             | Full CI match before PR           |
-| `pnpm verify:no-mobile` | `pnpm check:ci:core`      | Excludes Flutter                   |
-| `pnpm verify:frontend` etc. | per-app checks        | Single-app loops (still useful)   |
+Run individually: `pnpm ci:turbo`, `pnpm ci:contracts`, `pnpm ci:analytics`, etc.
 
 # Python environment (analytics-engine)
 
@@ -163,17 +139,5 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 # Analytics strategy measurement
 
 `pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it (no production `alpha_raw.*` series). DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
-
-# AI Tool Documentation
-
-This repository uses **CLAUDE.md** as the single source of truth for AI assistant context.
-
-| File        | Purpose                                  | Type                  |
-| ----------- | ---------------------------------------- | --------------------- |
-| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
-| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
-| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
-
-**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.

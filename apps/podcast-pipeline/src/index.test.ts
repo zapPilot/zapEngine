@@ -77,7 +77,8 @@ vi.mock('@hono/node-server', () => ({
   serve: mockServe,
 }));
 
-vi.mock('./services/db.js', () => ({
+vi.mock('./services/db.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/db.js')>()),
   DEFAULT_LIMIT: 20,
   decodeCursor: mockDecodeCursor,
   findEpisodeBySourceUrl: mockFindEpisodeBySourceUrl,
