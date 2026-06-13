@@ -51,7 +51,7 @@ export function parsePrimaryLanguageCode(
     });
   }
 
-  return languageCode as LanguageClassroomLanguageCode;
+  return languageCode;
 }
 
 export function requireAdminAuthorization(

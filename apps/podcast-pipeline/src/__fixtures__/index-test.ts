@@ -3,6 +3,7 @@ import type {
   EpisodeLocalizationRow,
   EpisodeResponse,
   EpisodeRow,
+  LanguageClassroomLesson,
   LanguageClassroomRow,
 } from '../types.js';
 
@@ -11,7 +12,7 @@ const FIXED_TIMESTAMP = '2024-01-01T00:00:00.000Z';
 export function localizationResponse(
   episode: EpisodeRow,
   localization: EpisodeLocalizationRow,
-  languageClassrooms: LanguageClassroomRow[],
+  languageClassrooms: LanguageClassroomLesson[],
 ): EpisodeResponse {
   return {
     id: episode.id,
@@ -34,33 +35,13 @@ export function localizationResponse(
     llmThinkingModel: localization.llm_thinking_model,
     llmProvider: localization.llm_provider,
     status: localization.status,
-    languageClassrooms: languageClassrooms.map((classroom) => ({
-      sourceLanguageCode: classroom.source_language_code,
-      targetLanguageCode: classroom.target_language_code,
-      oneLiner: classroom.one_liner,
-      keywords: classroom.keywords,
-    })),
+    languageClassrooms,
   };
 }
 
-export function episodeListResponse(
-  row: EpisodeListRow,
-  languageClassroomRows?: LanguageClassroomRow[],
-): EpisodeResponse {
-  const rawLanguageClassrooms =
-    languageClassroomRows ?? row.language_classrooms;
-  const languageClassrooms = Array.isArray(rawLanguageClassrooms)
-    ? rawLanguageClassrooms.map((classroom) => {
-        const value = classroom as Record<string, unknown>;
-        return {
-          sourceLanguageCode: (value['sourceLanguageCode'] ??
-            value['source_language_code']) as string,
-          targetLanguageCode: (value['targetLanguageCode'] ??
-            value['target_language_code']) as string,
-          oneLiner: (value['oneLiner'] ?? value['one_liner']) as string,
-          keywords: (value['keywords'] ?? []) as [],
-        };
-      })
+export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
+  const languageClassrooms = Array.isArray(row.language_classrooms)
+    ? row.language_classrooms
     : [];
 
   return {
@@ -145,6 +126,18 @@ export function listRow(
     listened: false,
     like_count: 0,
     language_classrooms: [],
+    ...overrides,
+  };
+}
+
+export function classroomLesson(
+  overrides: Partial<LanguageClassroomLesson> = {},
+): LanguageClassroomLesson {
+  return {
+    sourceLanguageCode: 'zh-Hant',
+    targetLanguageCode: 'ja',
+    oneLiner: 'この記事は市場流動性を説明します。',
+    keywords: [],
     ...overrides,
   };
 }

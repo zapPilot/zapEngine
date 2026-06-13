@@ -1,6 +1,10 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../models/episode_page.dart';
-import '../config/app_config.dart';
 import '../utils/app_logger.dart';
 import '../utils/json_utils.dart';
 import 'supabase_service.dart';
@@ -20,15 +24,18 @@ class EpisodeService {
     SupabaseService? supabaseService,
     UserEpisodeStateWriter? userEpisodeStateWriter,
     DateTime Function()? now,
+    http.Client? httpClient,
   })  : _supabaseService = supabaseService ?? SupabaseService(),
         _userEpisodeStateWriter = userEpisodeStateWriter ??
             SupabaseUserEpisodeStateWriter(
                 supabaseService ?? SupabaseService()),
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _httpClient = httpClient ?? http.Client();
 
   final SupabaseService _supabaseService;
   final UserEpisodeStateWriter _userEpisodeStateWriter;
   final DateTime Function() _now;
+  final http.Client _httpClient;
 
   static const _episodeColumns =
       'id,localization_id,title,language_code,hls_url,classroom_hls_url,created_at,listened,script,like_count,language_classrooms';
@@ -39,32 +46,40 @@ class EpisodeService {
     String? cursor,
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
-    final offset = int.tryParse(cursor ?? '') ?? 0;
-    final end = offset + limit;
-    final rows = await _supabaseService.client
-        .from('episodes_with_stats')
-        .select(_episodeColumns)
-        .eq('language_code', languageCode)
-        .order('created_at', ascending: false)
-        .order('id', ascending: false)
-        .range(offset, end);
+    final queryParams = <String, String>{
+      'limit': limit.toString(),
+      'language': languageCode,
+    };
+    if (cursor != null) {
+      queryParams['cursor'] = cursor;
+    }
 
-    final episodes = rows
-        .take(limit)
-        .map((row) => Episode.fromJson(_withDefaultAudioTrack(row)))
-        .toList(growable: false);
+    final uri = Uri.parse(AppConfig.podcastApiUrl)
+        .replace(path: '/episodes', queryParameters: queryParams);
 
-    return EpisodePage(
-      items: episodes,
-      nextCursor: rows.length > limit ? '${offset + limit}' : null,
-    );
+    try {
+      final response = await _httpClient.get(uri);
+      if (response.statusCode != 200) {
+        throw EpisodeServiceException(
+          'API error: ${response.statusCode} ${response.reasonPhrase}',
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return EpisodePage.fromJson(json);
+    } catch (e) {
+      if (e is EpisodeServiceException) rethrow;
+      AppLogger.warn('Failed to fetch episodes from API', e);
+      rethrow;
+    }
   }
 
   Future<Episode?> getEpisodeById(
     String id, {
     String languageCode = AppConfig.contentLanguageCode,
   }) async {
-    final rows = await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return null;
+    final rows = await client
         .from('episodes_with_stats')
         .select(_episodeColumns)
         .eq('id', id)
@@ -76,7 +91,9 @@ class EpisodeService {
   }
 
   Future<Set<String>> getListenedEpisodeIds(String userId) async {
-    final rows = await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return {};
+    final rows = await client
         .from('user_episode_state')
         .select('episode_id')
         .eq('user_id', userId)
@@ -89,10 +106,13 @@ class EpisodeService {
     String userId, {
     Iterable<String>? episodeIds,
   }) async {
+    final client = _supabaseService.client;
+    if (client == null) return {};
+
     final ids = episodeIds?.toSet().toList(growable: false);
     if (ids != null && ids.isEmpty) return const {};
 
-    var query = _supabaseService.client
+    var query = client
         .from('user_episode_state')
         .select('episode_id,listened,last_position_seconds')
         .eq('user_id', userId);
@@ -213,8 +233,19 @@ class SupabaseUserEpisodeStateWriter implements UserEpisodeStateWriter {
     Map<String, Object?> values, {
     required String onConflict,
   }) async {
-    await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return;
+    await client
         .from('user_episode_state')
         .upsert(values, onConflict: onConflict);
   }
+}
+
+class EpisodeServiceException implements Exception {
+  const EpisodeServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

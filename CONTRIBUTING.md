@@ -19,7 +19,7 @@ pnpm dev
 Run the local quality gate before opening a PR:
 
 ```bash
-pnpm check:local
+pnpm verify
 ```
 
 The pre-commit hook runs the same local gate through Turbo. For focused workspace checks, prefer root Turbo commands such as:
@@ -68,7 +68,7 @@ Use Zod v4 imports and APIs. Do not add Swagger/OpenAPI scaffolding unless the t
 1. Add the workspace to `pnpm-workspace.yaml` when needed.
 2. Include the standard package scripts: `build`, `dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, and `security:audit` where applicable.
 3. Confirm Turbo tasks fit the existing pipeline in `turbo.json`.
-4. Internal packages under `packages/*` are built by `pnpm prebuild:packages`, which is already wired into `check:local`, `check:ci`, `check:ci:core`, and `contracts:check`.
+4. Internal packages under `packages/*` are built by `pnpm prebuild:packages`, which is already wired into `verify`, `verify:ci`, and `contracts:check`.
 
 ## Common Gotchas
 

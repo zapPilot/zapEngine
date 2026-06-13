@@ -9,4 +9,9 @@ class AppConfig {
   );
 
   static String get defaultLanguageCode => contentLanguageCode;
+
+  static const podcastApiUrl = String.fromEnvironment(
+    'PODCAST_API_URL',
+    defaultValue: 'https://from-fed-to-chain-api.fly.dev',
+  );
 }

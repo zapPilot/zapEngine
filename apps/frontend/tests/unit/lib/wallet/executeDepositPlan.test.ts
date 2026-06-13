@@ -144,6 +144,61 @@ describe('executeDepositPlan', () => {
     expect(walletClient.sendTransaction).not.toHaveBeenCalled();
   });
 
+  it('prefers a wallet-provided atomic batch executor over wallet_sendCalls', async () => {
+    const executeAtomicBatch = vi.fn().mockResolvedValue({
+      callsId: '0xuserop',
+      transactionHash: '0xreceipt',
+    });
+    const onBundleSubmitted = vi.fn();
+    const onBundleConfirmed = vi.fn();
+
+    const result = await executeDepositPlan({
+      plan,
+      walletClient: walletClient as never,
+      chainId: 8453,
+      executeAtomicBatch,
+      onBundleSubmitted,
+      onBundleConfirmed,
+    });
+
+    expect(executeAtomicBatch).toHaveBeenCalledWith([approvalTx, callTx], 8453);
+    expect(mocks.getCode).not.toHaveBeenCalled();
+    expect(mocks.executeWithEIP7702).not.toHaveBeenCalled();
+    expect(onBundleSubmitted).toHaveBeenCalledWith('0xuserop');
+    expect(onBundleConfirmed).toHaveBeenCalledWith('0xreceipt');
+    expect(result).toEqual({
+      kind: 'eip7702',
+      callsId: '0xuserop',
+      transactionHash: '0xreceipt',
+    });
+  });
+
+  it('does not require a provider or mark an unconfirmed atomic batch as confirmed', async () => {
+    const executeAtomicBatch = vi.fn().mockResolvedValue({
+      callsId: 'privy-transaction-id',
+    });
+    const onBundleSubmitted = vi.fn();
+    const onBundleConfirmed = vi.fn();
+
+    const result = await executeDepositPlan({
+      plan,
+      chainId: 8453,
+      executeAtomicBatch,
+      onBundleSubmitted,
+      onBundleConfirmed,
+    });
+
+    expect(executeAtomicBatch).toHaveBeenCalledWith([approvalTx, callTx], 8453);
+    expect(mocks.getCode).not.toHaveBeenCalled();
+    expect(mocks.executeWithEIP7702).not.toHaveBeenCalled();
+    expect(onBundleSubmitted).toHaveBeenCalledWith('privy-transaction-id');
+    expect(onBundleConfirmed).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      kind: 'eip7702',
+      callsId: 'privy-transaction-id',
+    });
+  });
+
   it('allows an unknown delegated implementation instead of hard-failing', async () => {
     mocks.getCode.mockResolvedValue(delegatedCode(unknownDelegate));
     mocks.executeWithEIP7702.mockResolvedValue({

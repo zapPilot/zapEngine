@@ -201,7 +201,7 @@ describe('Fish Audio TTS provider', () => {
       status: 500,
       statusText: 'Internal Server Error',
       text: vi.fn().mockRejectedValue(new Error('text extraction failed')),
-    } as unknown as Response);
+    });
     vi.stubGlobal('fetch', mockFetch);
     vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
 

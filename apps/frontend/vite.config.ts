@@ -75,7 +75,7 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{css,html,ico,png,svg,webp,js}"],
         globIgnores: ["**/*.map", "**/vendor-*.js", "**/vendor-*.js.map"],
-        maximumFileSizeToCacheInBytes: 380 * 1024,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: "index.html",
         runtimeCaching: [
           {

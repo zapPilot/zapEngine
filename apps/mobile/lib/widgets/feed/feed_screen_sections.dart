@@ -4,6 +4,7 @@ import '../../models/episode.dart';
 import '../../models/episode_status.dart';
 import '../../state/playback_provider.dart';
 import '../../theme/colors.dart';
+import '../../utils/episode_sorting.dart';
 import '../centered_state_message.dart';
 import '../episode_sliver_list.dart';
 
@@ -35,6 +36,10 @@ FeedEpisodeGroups groupFeedEpisodesByStatus(List<Episode> episodes) {
     }
   }
 
+  inProgress.sort(compareEpisodesOldestFirst);
+  unplayed.sort(compareEpisodesOldestFirst);
+  completed.sort(compareEpisodesNewestFirst);
+
   return FeedEpisodeGroups(
     inProgress: inProgress,
     unplayed: unplayed,
@@ -47,8 +52,13 @@ Episode? heroEpisodeForFeed(
   FeedEpisodeGroups groups,
 ) {
   if (groups.inProgress.isNotEmpty) return groups.inProgress.first;
-  if (groups.unplayed.isNotEmpty) return groups.unplayed.last;
-  if (episodes.isNotEmpty) return episodes.last;
+  if (groups.unplayed.isNotEmpty) return groups.unplayed.first;
+  if (groups.completed.isNotEmpty) return groups.completed.last;
+  if (episodes.isNotEmpty) {
+    final oldestFirst = List<Episode>.of(episodes)
+      ..sort(compareEpisodesOldestFirst);
+    return oldestFirst.first;
+  }
   return null;
 }
 

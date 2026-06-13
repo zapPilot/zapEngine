@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:ai_podcast_mobile/services/likes_service.dart';
+import 'package:ai_podcast_mobile/services/supabase_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   test(
@@ -67,6 +69,43 @@ void main() {
     ]);
     store.dispose();
   });
+
+  group('SupabaseLikesStore - Uninitialized Supabase (Null Client)', () {
+    test('streamLikeRows returns empty stream when client is null', () {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final store = SupabaseLikesStore(fakeSupabase);
+
+      expect(store.streamLikeRows(), emitsInOrder([emitsDone]));
+    });
+
+    test('deleteLike completes without crashing when client is null', () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final store = SupabaseLikesStore(fakeSupabase);
+
+      await expectLater(
+        store.deleteLike(userId: 'user-1', episodeId: 'episode-1'),
+        completes,
+      );
+    });
+
+    test('upsertLike completes without crashing when client is null', () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final store = SupabaseLikesStore(fakeSupabase);
+
+      await expectLater(
+        store.upsertLike(userId: 'user-1', episodeId: 'episode-1'),
+        completes,
+      );
+    });
+  });
+}
+
+class _FakeSupabaseService extends SupabaseService {
+  _FakeSupabaseService(this._client);
+  final SupabaseClient? _client;
+
+  @override
+  SupabaseClient? get client => _client;
 }
 
 class _FakeLikesStore implements LikesStore {

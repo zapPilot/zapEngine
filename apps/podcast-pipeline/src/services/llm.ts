@@ -137,9 +137,9 @@ export async function createOpenRouterChatCompletion(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
 ): Promise<OpenRouterChatCompletion> {
-  return (await openai.chat.completions.create(
+  return await openai.chat.completions.create(
     withThinkingModel(params, thinkingModel),
-  )) as OpenRouterChatCompletion;
+  );
 }
 
 export function completionMetadata(

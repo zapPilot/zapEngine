@@ -9,6 +9,7 @@ import '../models/episode_status.dart';
 import '../services/audio_player_handler.dart';
 import '../services/episode_service.dart';
 import '../utils/app_logger.dart';
+import '../utils/episode_sorting.dart';
 
 class PlaybackProvider extends ChangeNotifier {
   PlaybackProvider(this._handler, {EpisodeService? episodeService})
@@ -123,22 +124,26 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   Future<void> playSmart(List<Episode> feed) async {
-    final inProgress = feed
+    final inProgressOldestFirst = feed
         .where((episode) => episode.status == EpisodeStatus.inProgress)
-        .toList(growable: false);
+        .toList()
+      ..sort(compareEpisodesOldestFirst);
     final unplayedOldestFirst = feed
         .where((episode) => episode.status == EpisodeStatus.unplayed)
-        .toList(growable: false)
-        .reversed
-        .toList(growable: false);
+        .toList()
+      ..sort(compareEpisodesOldestFirst);
+    final completedOldestFirst = feed
+        .where((episode) => episode.status == EpisodeStatus.completed)
+        .toList()
+      ..sort(compareEpisodesOldestFirst);
 
     Episode? start;
-    if (inProgress.isNotEmpty) {
-      start = inProgress.first;
+    if (inProgressOldestFirst.isNotEmpty) {
+      start = inProgressOldestFirst.first;
     } else if (unplayedOldestFirst.isNotEmpty) {
       start = unplayedOldestFirst.first;
-    } else if (feed.isNotEmpty) {
-      start = feed.last;
+    } else if (completedOldestFirst.isNotEmpty) {
+      start = completedOldestFirst.first;
     }
     if (start == null) return;
 
@@ -146,12 +151,12 @@ class PlaybackProvider extends ChangeNotifier {
     _queue
       ..clear()
       ..add(start)
-      ..addAll(inProgress.skip(1))
+      ..addAll(inProgressOldestFirst.skip(1))
       ..addAll(unplayedOldestFirst.where((episode) => episode.id != start!.id));
-    if (inProgress.isEmpty && unplayedOldestFirst.isEmpty) {
+    if (inProgressOldestFirst.isEmpty && unplayedOldestFirst.isEmpty) {
       _queue
         ..clear()
-        ..addAll(feed.reversed);
+        ..addAll(completedOldestFirst);
     }
     _queueIndex = 0;
 

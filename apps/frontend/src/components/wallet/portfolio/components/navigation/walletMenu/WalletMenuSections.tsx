@@ -2,6 +2,8 @@ import { Check, Copy, LogOut, Plus, Settings, Wallet } from 'lucide-react';
 import { type ReactElement } from 'react';
 
 import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
+import { CreateZapWalletButton } from '@/components/WalletManager/components/CreateZapWalletButton';
+import { isPrivyEnabled } from '@/lib/env/privy';
 import { formatAddress } from '@/utils/formatters';
 
 import type {
@@ -123,6 +125,18 @@ function WalletSectionFooter({
   );
 }
 
+export function WalletDisconnectedSection(): ReactElement {
+  return (
+    <div className="px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <Plus className="w-4 h-4" />
+        <ConnectWalletButton className="flex-1 text-sm" />
+      </div>
+      <CreateZapWalletButton className="text-sm" />
+    </div>
+  );
+}
+
 export function WalletSingleWalletSection({
   accountAddress,
   copiedAddress,
@@ -209,11 +223,12 @@ export function WalletMultipleWalletSection({
         </div>
       </div>
 
-      <div className="px-4 py-3 border-b border-gray-800">
+      <div className="px-4 py-3 border-b border-gray-800 space-y-2">
         <div className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           <ConnectWalletButton className="flex-1 text-sm" />
         </div>
+        {isPrivyEnabled() && <CreateZapWalletButton className="text-sm" />}
       </div>
 
       <WalletSectionFooter

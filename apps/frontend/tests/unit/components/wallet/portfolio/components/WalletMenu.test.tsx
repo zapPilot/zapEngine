@@ -9,6 +9,9 @@ const mockConnectAsync = vi.fn();
 const mockDisconnect = vi.fn();
 const mockOpenConnectModal = vi.fn();
 const mockUseConnectors = vi.fn();
+const privyEnvMocks = vi.hoisted(() => ({
+  isPrivyEnabled: vi.fn(() => false),
+}));
 
 // Create mutable mock state for different test scenarios
 function createMockWalletProvider(
@@ -56,11 +59,23 @@ vi.mock('@/utils/formatters', () => ({
     `${addr.substring(0, 6)}...${addr.slice(-4)}`,
 }));
 
+vi.mock('@/lib/env/privy', () => ({
+  isPrivyEnabled: privyEnvMocks.isPrivyEnabled,
+}));
+
 // Mock child components
 vi.mock('@/components/WalletManager/components/ConnectWalletButton', () => ({
   ConnectWalletButton: ({ className }: { className?: string }) => (
     <button className={className} data-testid="connect-wallet-btn">
       Connect Wallet Button
+    </button>
+  ),
+}));
+
+vi.mock('@/components/WalletManager/components/CreateZapWalletButton', () => ({
+  CreateZapWalletButton: ({ className }: { className?: string }) => (
+    <button className={className} data-testid="create-zap-wallet-btn">
+      Create Zap Wallet
     </button>
   ),
 }));
@@ -87,6 +102,7 @@ describe('WalletMenu Component', () => {
     vi.useFakeTimers();
     mockWalletProviderState = createMockWalletProvider();
     mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
+    privyEnvMocks.isPrivyEnabled.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -119,6 +135,20 @@ describe('WalletMenu Component', () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
       expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('opens a disconnected wallet chooser with RainbowKit and Zap Wallet when Privy is enabled', () => {
+      privyEnvMocks.isPrivyEnabled.mockReturnValue(true);
+
+      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
+      const button = screen.getByTestId('unified-wallet-menu-button');
+      fireEvent.click(button);
+
+      expect(mockOpenConnectModal).not.toHaveBeenCalled();
+      expect(screen.getByTestId('unified-wallet-menu-dropdown')).toBeDefined();
+      expect(screen.getByTestId('connect-wallet-btn')).toBeDefined();
+      expect(screen.getByTestId('create-zap-wallet-btn')).toBeDefined();
+      expect(button).toHaveAttribute('aria-expanded', 'true');
     });
 
     it('matches snapshot - disconnected state', () => {

@@ -35,6 +35,31 @@ export interface GmxV2CreateDepositMulticallParams {
   minMarketTokens?: bigint;
 }
 
+export interface GmxV2CreateWithdrawalParams {
+  receiver: Address;
+  marketToken: Address;
+  executionFee: bigint;
+  callbackContract?: Address;
+  uiFeeReceiver?: Address;
+  longTokenSwapPath?: readonly Address[];
+  shortTokenSwapPath?: readonly Address[];
+  minLongTokenAmount?: bigint;
+  minShortTokenAmount?: bigint;
+  shouldUnwrapNativeToken?: boolean;
+  callbackGasLimit?: bigint;
+  dataList?: readonly Hex[];
+}
+
+export interface GmxV2CreateWithdrawalMulticallParams {
+  receiver: Address;
+  market: GmxV2Market;
+  gmTokenAmount: bigint;
+  executionFee?: bigint;
+  minLongTokenAmount?: bigint;
+  minShortTokenAmount?: bigint;
+}
+
+/* jscpd:ignore-start */
 export function encodeGmxV2SendWnt(receiver: Address, amount: bigint): Hex {
   return encodeFunctionData({
     abi: GMX_V2_EXCHANGE_ROUTER_ABI,
@@ -54,6 +79,7 @@ export function encodeGmxV2SendTokens(
     args: [token, receiver, amount],
   });
 }
+/* jscpd:ignore-end */
 
 export function encodeGmxV2CreateDeposit(
   params: GmxV2CreateDepositParams,
@@ -125,6 +151,72 @@ export function encodeGmxV2CreateDepositMulticall(
       minMarketTokens: params.minMarketTokens ?? 0n,
     }),
   );
+
+  return {
+    data: encodeFunctionData({
+      abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+      functionName: 'multicall',
+      args: [calls],
+    }),
+    value: executionFee.toString(10),
+  };
+}
+
+export function encodeGmxV2CreateWithdrawal(
+  params: GmxV2CreateWithdrawalParams,
+): Hex {
+  return encodeFunctionData({
+    abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+    functionName: 'createWithdrawal',
+    args: [
+      {
+        addresses: {
+          receiver: params.receiver,
+          callbackContract: params.callbackContract ?? ZERO_ADDRESS,
+          uiFeeReceiver: params.uiFeeReceiver ?? ZERO_ADDRESS,
+          market: params.marketToken,
+          longTokenSwapPath: [...(params.longTokenSwapPath ?? [])],
+          shortTokenSwapPath: [...(params.shortTokenSwapPath ?? [])],
+        },
+        minLongTokenAmount: params.minLongTokenAmount ?? 0n,
+        minShortTokenAmount: params.minShortTokenAmount ?? 0n,
+        shouldUnwrapNativeToken: params.shouldUnwrapNativeToken ?? false,
+        executionFee: params.executionFee,
+        callbackGasLimit: params.callbackGasLimit ?? 0n,
+        dataList: [...(params.dataList ?? [])],
+      },
+    ],
+  });
+}
+
+export function encodeGmxV2CreateWithdrawalMulticall(
+  params: GmxV2CreateWithdrawalMulticallParams,
+): { data: Hex; value: string } {
+  if (params.gmTokenAmount <= 0n) {
+    throw new Error('GMX withdrawal amount must be greater than zero');
+  }
+
+  const executionFee = params.executionFee ?? BigInt(GMX_V2_EXECUTION_FEE_WEI);
+
+  // Mirror the deposit multicall, but route the GM market token into the
+  // WithdrawalVault: pay the keeper execution fee, send the GM tokens to burn,
+  // then create the withdrawal. The keeper settles long/short tokens back to
+  // `receiver` asynchronously.
+  const calls: Hex[] = [
+    encodeGmxV2SendWnt(GMX_V2_ADDRESSES.withdrawalVault, executionFee),
+    encodeGmxV2SendTokens(
+      params.market.marketToken,
+      GMX_V2_ADDRESSES.withdrawalVault,
+      params.gmTokenAmount,
+    ),
+    encodeGmxV2CreateWithdrawal({
+      receiver: params.receiver,
+      marketToken: params.market.marketToken,
+      executionFee,
+      minLongTokenAmount: params.minLongTokenAmount ?? 0n,
+      minShortTokenAmount: params.minShortTokenAmount ?? 0n,
+    }),
+  ];
 
   return {
     data: encodeFunctionData({

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  classroomLesson,
   classroomRow,
   createDeferred,
   episodeListResponse,
@@ -15,7 +16,7 @@ import type {
   EpisodeLocalizationRow,
   EpisodeResponse,
   EpisodeRow,
-  LanguageClassroomRow,
+  LanguageClassroomLesson,
 } from './types.js';
 
 const {
@@ -76,7 +77,8 @@ vi.mock('@hono/node-server', () => ({
   serve: mockServe,
 }));
 
-vi.mock('./services/db.js', () => ({
+vi.mock('./services/db.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/db.js')>()),
   DEFAULT_LIMIT: 20,
   decodeCursor: mockDecodeCursor,
   findEpisodeBySourceUrl: mockFindEpisodeBySourceUrl,
@@ -91,19 +93,41 @@ vi.mock('./services/db.js', () => ({
   markEpisodeListened: mockMarkEpisodeListened,
   toEpisodeResponse: (
     row: EpisodeListRow,
-    languageClassrooms?: LanguageClassroomRow[],
-  ) => episodeListResponse(row, languageClassrooms),
-  toLanguageClassroomLesson: (row: LanguageClassroomRow) => ({
-    sourceLanguageCode: row.source_language_code,
-    targetLanguageCode: row.target_language_code,
-    oneLiner: row.one_liner,
-    keywords: row.keywords,
-  }),
+    languageClassrooms?: import('./types.js').LanguageClassroomRow[],
+  ) => {
+    const lessons: LanguageClassroomLesson[] = (
+      languageClassrooms ?? row.language_classrooms
+    ).map((lc) =>
+      'targetLanguageCode' in lc
+        ? lc
+        : {
+            sourceLanguageCode: lc.source_language_code,
+            targetLanguageCode: lc.target_language_code,
+            oneLiner: lc.one_liner,
+            keywords: lc.keywords,
+          },
+    );
+    return episodeListResponse({ ...row, language_classrooms: lessons });
+  },
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
     localization: EpisodeLocalizationRow,
-    languageClassrooms: LanguageClassroomRow[],
-  ) => localizationResponse(episode, localization, languageClassrooms),
+    languageClassrooms:
+      | import('./types.js').LanguageClassroomRow[]
+      | LanguageClassroomLesson[],
+  ) => {
+    const lessons: LanguageClassroomLesson[] = languageClassrooms.map((lc) =>
+      'targetLanguageCode' in lc
+        ? lc
+        : {
+            sourceLanguageCode: lc.source_language_code,
+            targetLanguageCode: lc.target_language_code,
+            oneLiner: lc.one_liner,
+            keywords: lc.keywords,
+          },
+    );
+    return localizationResponse(episode, localization, lessons);
+  },
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
   updateEpisodeLocalizationArticleContent:
     mockUpdateEpisodeLocalizationArticleContent,
@@ -693,18 +717,7 @@ describe('POST /ingest pipeline', () => {
         targetLanguageCodes: ['ja', 'en'],
       }),
     );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceLanguageCode: 'ja',
-        targetLanguageCodes: ['zh-Hant', 'en'],
-      }),
-    );
-    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceLanguageCode: 'en',
-        targetLanguageCodes: ['zh-Hant', 'ja'],
-      }),
-    );
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledTimes(1);
     expect(
       body.episode.languageClassrooms.map(
         (lesson) => lesson.targetLanguageCode,
@@ -1013,8 +1026,8 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 Total $0.00027',
-        '- 外語小教室: $0.00027',
+        '💰 Total $0.00009',
+        '- 外語小教室: $0.00009',
       ].join('\n'),
     ]);
   });
@@ -1092,8 +1105,8 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
-        '💰 Total $0.00014',
-        '- 外語小教室: $0.00014',
+        '💰 Total $0.00001',
+        '- 外語小教室: $0.00001',
       ].join('\n'),
     ]);
   });
@@ -1177,23 +1190,26 @@ describe('GET /episodes', () => {
   });
 
   it('returns a paginated localization response for zh-Hant', async () => {
-    const row = listRow();
+    const row = listRow({
+      language_classrooms: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'この記事は市場流動性を説明します。',
+          keywords: [],
+        },
+      ],
+    });
     mockListEpisodesPaged.mockResolvedValue({
       rows: [row],
       nextCursor: 'next-cursor',
     });
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(
-      new Map([[row.localization_id, [classroomRow()]]]),
-    );
 
     const response = await app.request('/episodes?limit=5');
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(mockListEpisodesPaged).toHaveBeenCalledWith(5, null, 'zh-Hant');
-    expect(mockListLanguageClassroomsByLocalizationIds).toHaveBeenCalledWith([
-      row.localization_id,
-    ]);
     expect(body).toEqual({
       items: [
         {
@@ -1212,12 +1228,12 @@ describe('GET /episodes', () => {
     });
   });
 
-  it('uses the default limit and row classrooms when the classroom map misses', async () => {
+  it('uses row classrooms directly without fallback', async () => {
     const row = listRow({
       language_classrooms: [
-        classroomRow({
-          target_language_code: 'en',
-          one_liner: 'This article explains liquidity.',
+        classroomLesson({
+          targetLanguageCode: 'en',
+          oneLiner: 'This article explains liquidity.',
         }),
       ],
     });
@@ -1225,7 +1241,6 @@ describe('GET /episodes', () => {
       rows: [row],
       nextCursor: null,
     });
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
 
     const response = await app.request('/episodes');
     const body = await response.json();

@@ -63,17 +63,24 @@ Then in Xcode:
 2. Select an iPhone simulator.
 3. Press Run.
 
-The `flutter build ios --simulator` step writes the generated iOS build
-settings into `ios/Flutter/Generated.xcconfig`.
+The `flutter build ios --simulator` step writes generated iOS build settings
+into `ios/Flutter/Generated.xcconfig`.
 
-When you intentionally override any `--dart-define` value, include it in the
-`flutter build ios --simulator ...` command and rerun that command before
-running from Xcode again.
+For local Xcode-run debug builds, the Runner target reads `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, and optional `SUPABASE_DB_SCHEMA` from the repo-root
+`.env` during the Flutter build phase. If you change `.env`, just press Run
+again in Xcode.
 
-For Xcode-run builds, add matching values under
-`Runner` scheme > `Run` > `Arguments` > `Environment Variables`, or generate
-the Flutter iOS config with the `flutter build ios ... --dart-define=...`
-command before opening the workspace.
+You can also regenerate Flutter's iOS config manually before opening Xcode:
+
+```bash
+pnpm --filter @zapengine/mobile ios:debug:prepare
+open apps/mobile/ios/Runner.xcworkspace
+```
+
+Do not rely on `Runner` scheme > `Run` > `Arguments` > `Environment Variables`
+for these values. The app reads them with Dart `String.fromEnvironment`, so
+they must be compile-time `--dart-define` values.
 
 ## iOS App Store Release
 

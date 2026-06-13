@@ -13,16 +13,16 @@ If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any 
 
 ## Turbo task glossary
 
-| Task                  | Cache | dependsOn | Notes                                                                                |
-| --------------------- | :---: | --------- | ------------------------------------------------------------------------------------ |
-| `build`               |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`. |
-| `dev`                 |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                  |
-| `lint`                |   ✓   | none      | Pure file scan; no build needed.                                                     |
-| `type-check`          |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.             |
+| Task                     | Cache | dependsOn | Notes                                                                                                                    |
+| ------------------------ | :---: | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `build`                  |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`.                            |
+| `dev`                    |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                                                      |
+| `lint`                   |   ✓   | none      | Pure file scan; no build needed.                                                                                         |
+| `type-check`             |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.                                                 |
 | `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine. |
-| `test:ci`             |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                     |
-| `deadcode` / `dup:check` | ✓ | none      | Pure file scans.                                                                     |
-| `codegen*`            |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                               |
+| `test:ci`                |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                                                         |
+| `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                         |
+| `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                   |
 
 Cache miss heuristics: changing any `.env*` file invalidates `build`/`type-check`/`test*` caches because they're listed in `inputs`. If you only intend to flip a runtime value, prefer `process.env` overrides at run time rather than editing `.env`.
 
@@ -36,7 +36,7 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:
 
-- `pnpm verify:no-mobile` ≡ `pnpm check:ci:core` — full CI gate excluding `@zapengine/mobile`
+- `pnpm verify:ci` — full CI gate excluding `@zapengine/mobile`
 - `pnpm build:core` / `format:check:core` / `security:audit:core` — same `--filter=!@zapengine/mobile`
 
 If you install Flutter, just use the regular non-`:core` commands. CI runs the full matrix in parallel; mobile failures only block mobile deploys.
@@ -104,24 +104,71 @@ Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-inst
 
 The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if you want pre-push assurance. CI itself is still authoritative.
 
-## Verify cheat sheet
+## Verification hierarchy
 
-Prefer the `verify` alias surface. The older `check:*` names are kept for CI compatibility but should be treated as internal.
+| Command                               | Scope                             | When to run                  |
+| ------------------------------------- | --------------------------------- | ---------------------------- |
+| `pnpm verify:changed`                 | committed + staged + working tree | AI fix inner loop            |
+| `pnpm verify:branch`                  | origin/main...HEAD                | Before push / PR             |
+| `pnpm verify:package -- --filter=...` | single package                    | Package-specific check       |
+| `pnpm verify:full:parallel`           | Full, parallel                    | Local fast gate before push  |
+| `pnpm verify:ci`                      | CI canonical gate                 | CI / final gate before merge |
 
-| Command                          | Equivalent                  | What it runs                                                                                          | When to use                                  |
-| -------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `pnpm verify`                    | `pnpm check:local`          | format + lint:repo + contracts + (lint/type-check/deadcode:fix/test --affected) + dead-env             | Daily pre-push fast check                    |
-| `pnpm verify:full`               | `pnpm check:ci`             | adds `dup:check` + `test:ci` + analytics-engine `sql:audit service-reachability pylint:duplicate-check` | Match CI exactly before opening a PR        |
-| `pnpm verify:no-mobile`          | `pnpm check:ci:core`        | `verify:full` excluding `@zapengine/mobile`                                                            | Skip Flutter checks when you don't have it   |
-| `pnpm verify:frontend`           | —                           | `turbo run lint type-check test --filter=@zapengine/frontend`                                          | Single-app fast loop                          |
-| `pnpm verify:account-engine`     | —                           | Same shape for `@zapengine/account-engine`                                                             |                                              |
-| `pnpm verify:analytics-engine`   | —                           | Same shape — **needs `DATABASE_READ_ONLY_URL`** (see *Analytics strategy measurement* below)            |                                              |
-| `pnpm verify:alpha-etl`          | —                           | Same shape for `@zapengine/alpha-etl`                                                                  |                                              |
-| `pnpm verify:landing-page`       | —                           | Same shape for `@zapengine/landing-page`                                                               |                                              |
-| `pnpm verify:podcast-pipeline`   | —                           | Same shape for `@zapengine/podcast-pipeline`                                                           |                                              |
-| `pnpm verify:packages`           | —                           | `turbo run lint type-check test --filter=./packages/*`                                                 | Verify shared packages only                  |
+**Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 
-Need a custom subset? `pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>` still works directly. For `analytics-engine`, append `sql:audit service-reachability pylint:duplicate-check`.
+### AI fix loop
+
+1. Make your changes
+2. Run `pnpm verify:changed` — fast, affected packages only
+3. If it fails, read `.ai-verify/logs/<step>.log` for the failing step
+4. Fix only errors related to the current change
+5. Re-run until it passes
+6. Before push, run `pnpm verify:branch`
+7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm verify:ci`
+
+Do NOT run `verify:ci` during the fix loop — it is too slow.
+
+### Agent fix loop (autonomous)
+
+For autonomous fail → fix → rerun cycles, use the agent loop wrapper. The loop is bash-controlled; the OpenCode agent only reads the supplied failure log and makes the smallest targeted edit. The outer loop owns validation, protected-path enforcement, no-progress detection, and timeouts.
+
+The working tree must be completely clean before startup. Every invocation requires an explicit OpenCode model ID; that model is fixed for the full run, while every repair attempt uses a fresh session.
+
+Daily workflow:
+
+```bash
+pnpm agent:loop:changed -- --model provider/model
+pnpm agent:loop:typecheck -- --model provider/model
+```
+
+When the failing package is known:
+
+```bash
+pnpm agent:loop -- --model provider/model \
+  --command "pnpm turbo run test:ci --filter=@zapengine/account-engine"
+```
+
+Before push:
+
+```bash
+pnpm agent:loop:ci -- --model provider/model
+```
+
+Optional CLI controls:
+
+```bash
+--max-iters 20  # default: 0 (unlimited)
+--timeout 900   # default: 900 seconds; 0 disables the timeout
+--agent ci-fixer
+```
+
+The default loop is unlimited. It stops only when validation passes, the optional iteration cap is reached, OpenCode fails three consecutive times without edits, the same failure receives no edits three times, or the agent touches a protected path. Protected edits are restored automatically and recorded in `.agent-loop/blocker-report.txt`.
+
+The `ci-fixer` agent (`.opencode/agents/ci-fixer.md`) has no Bash, web, subagent, or external-directory access. It must not modify snapshots, coverage settings, CI config, lockfiles, package manifests, repository instructions, or verification scripts.
+
+### CI stage scripts (for granular debugging)
+
+Run individually: `pnpm ci:turbo`, `pnpm ci:contracts`, `pnpm ci:analytics`, etc.
 
 # Python environment (analytics-engine)
 
@@ -130,17 +177,5 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 # Analytics strategy measurement
 
 `pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it (no production `alpha_raw.*` series). DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
-
-# AI Tool Documentation
-
-This repository uses **CLAUDE.md** as the single source of truth for AI assistant context.
-
-| File        | Purpose                                  | Type                  |
-| ----------- | ---------------------------------------- | --------------------- |
-| `CLAUDE.md` | Canonical documentation for all AI tools | Regular file          |
-| `AGENTS.md` | Codex/Github Copilot compatibility       | Symlink → `CLAUDE.md` |
-| `GEMINI.md` | Google Gemini compatibility              | Symlink → `CLAUDE.md` |
-
-**Adding new AI tools:** Create a new `{TOOL}.md` as a symlink to `CLAUDE.md` for consistency.
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.

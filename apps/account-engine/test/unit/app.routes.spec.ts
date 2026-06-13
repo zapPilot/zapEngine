@@ -100,6 +100,24 @@ function createServices(): AppServices {
         sourceChainId: 42161,
       }),
     },
+    privyWalletExecutionService: {
+      prepareSendCalls: vi.fn().mockResolvedValue({
+        previewId: 'preview-1',
+        batchHash: 'batch-hash',
+        decodedCalls: [],
+        tenderlyResult: {},
+        assetChanges: [],
+        gasEstimate: '350000',
+        typedDataPayload: {},
+        expiresAt: 123456,
+        authorizationPayload: 'base64-authorization-payload',
+        requestExpiry: 1_800_000_000_000,
+      }),
+      confirmSendCalls: vi.fn().mockResolvedValue({
+        transactionId: 'privy-transaction-id',
+        caip2: 'eip155:8453',
+      }),
+    },
   } as unknown as AppServices;
 }
 
@@ -137,6 +155,89 @@ describe('Hono app routes', () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it('forwards authenticated atomic batch confirmations to the Privy Wallets API service', async () => {
+    const services = createServices();
+    const app = createApp(services);
+    const body = {
+      previewId: 'preview-1',
+      userSignature: 'mock-user-signature',
+      authorizationSignature: 'base64-authorization-signature',
+    };
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/confirm-send-calls',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer privy-access-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      transactionId: 'privy-transaction-id',
+      caip2: 'eip155:8453',
+    });
+    expect(
+      services.privyWalletExecutionService.confirmSendCalls,
+    ).toHaveBeenCalledWith(body, 'privy-access-token');
+  });
+
+  it('prepares Privy authorization payloads for authenticated atomic batches', async () => {
+    const services = createServices();
+    const app = createApp(services);
+    const body = {
+      walletId: 'privy-wallet-id',
+      walletAddress: '0x1111111111111111111111111111111111111111',
+      chainId: 8453,
+      calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+      idempotencyKey: 'batch-request-id',
+    };
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/prepare-send-calls',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer privy-access-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      services.privyWalletExecutionService.prepareSendCalls,
+    ).toHaveBeenCalledWith(body, 'privy-access-token');
+  });
+
+  it('rejects Privy atomic batches without an access token', async () => {
+    const services = createServices();
+    const app = createApp(services);
+
+    const response = await app.request(
+      'http://localhost/wallet-execution/privy/confirm-send-calls',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          previewId: 'preview-1',
+          userSignature: 'mock-user-signature',
+          authorizationSignature: 'base64-authorization-signature',
+        }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(
+      services.privyWalletExecutionService.confirmSendCalls,
+    ).not.toHaveBeenCalled();
   });
 
   it('handles connect-wallet with validated JSON body', async () => {

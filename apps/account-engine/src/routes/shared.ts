@@ -32,6 +32,10 @@ export function paramValidator<T>(schema: T) {
   return zValidator('param', schema as never, validationHook);
 }
 
-export function jsonResponse<T>(c: Context, payload: T, status: number) {
-  return c.json(payload, { status: status as never });
+export function jsonResponse<T>(
+  c: Context,
+  payload: T,
+  status: (typeof HttpStatus)[keyof typeof HttpStatus],
+) {
+  return c.json(payload, { status });
 }

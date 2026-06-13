@@ -30,7 +30,7 @@ export function createJobsRoutes(services: AppServices) {
         job: mapJobToResponse(job),
         message: 'Weekly report batch job created successfully.',
       },
-      { status: HttpStatus.ACCEPTED as never },
+      { status: HttpStatus.ACCEPTED },
     );
   });
 

@@ -30,6 +30,8 @@ export default defineConfig({
         'src/users/constants/**',
         'src/users/interfaces/**',
         '**/index.ts',
+        'src/modules/plan-orchestration/**',
+        'src/common/validation/wallet-address.util.ts',
       ],
       // Thresholds are deliberately strict — account-engine is the identity
       // and persistence plane. Actual coverage (97.75/90.91/98.55/97.88 as of

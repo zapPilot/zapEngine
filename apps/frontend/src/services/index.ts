@@ -105,8 +105,12 @@ export {
   type StrategyPreset,
 } from './strategyService';
 
-// Deposit planning
-export { getDepositPlan, getGmxDepositPlan } from './planOrchestrationService';
+// Deposit & withdraw planning
+export {
+  getDepositPlan,
+  getGmxDepositPlan,
+  getWithdrawPlan,
+} from './planOrchestrationService';
 
 // On-chain token balances (real wallet balance + LI.FI USD valuation)
 export {

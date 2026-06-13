@@ -17,10 +17,8 @@ import { generateLanguageClassroomsWithLLM } from '../llm.js';
 import { synthesizeClassroomAudio } from '../podcast/classroom-audio.js';
 import { getTtsMetadata, textToSpeech } from '../tts.js';
 import { concatMp3Buffers } from '../tts/audio-concat.js';
-import {
-  existingLanguageClassroomResult,
-  getClassroomTargetLanguageCodes,
-} from './result-builder.js';
+import { getClassroomTargetLanguageCodes } from './classroom-config.js';
+import { existingLanguageClassroomResult } from './result-builder.js';
 import { step } from './step.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
@@ -52,11 +50,6 @@ export async function ensureLocalizationCompleted(
       classroomRows,
     );
     costBreakdown.push(...classroomAudios.cost);
-    const uploadedMain = await packageMainHls(
-      mainAudio,
-      episode.id,
-      languageCode,
-    );
     const classroomAudio = await combineClassroomAudio(
       classroomAudios.audioBuffers,
       {
@@ -64,6 +57,20 @@ export async function ensureLocalizationCompleted(
         localizationId: localization.id,
         languageCode,
       },
+    );
+    const publicMainAudio = await appendClassroomAudioToMainAudio(
+      mainAudio,
+      classroomAudio,
+      {
+        episodeId: episode.id,
+        localizationId: localization.id,
+        languageCode,
+      },
+    );
+    const uploadedMain = await packageMainHls(
+      publicMainAudio,
+      episode.id,
+      languageCode,
     );
     const uploadedClassroom = classroomAudio
       ? await packageAndUploadHls({
@@ -182,6 +189,27 @@ async function synthesizeClassroomAudios(
   return { audioBuffers, cost };
 }
 
+async function wrapWithErrorHandling<T>(
+  promise: () => Promise<T>,
+  fallback: T,
+  errorMessage: string,
+  context: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await promise();
+  } catch (error) {
+    /* v8 ignore next -- @preserve */
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error(errorMessage, {
+      ...context,
+      message: err.message,
+      stack: err.stack,
+      cause: err.cause,
+    });
+    return fallback;
+  }
+}
+
 async function combineClassroomAudio(
   classroomAudios: Buffer[],
   context: {
@@ -194,26 +222,39 @@ async function combineClassroomAudio(
     return null;
   }
 
-  // Documented soft-failure: keep the main HLS / episode-completed state
-  // even when the classroom concat fails. Clients should treat
-  // classroom_hls_url as nullable. Failure is surfaced via console.error
-  // so it is searchable in logs; retry happens via a manual re-ingest of
-  // the episode after fixing the underlying ffmpeg issue.
-  try {
-    return await step('concatEpisodeClassroomAudio', () =>
-      concatMp3Buffers(classroomAudios),
-    );
-  } catch (error) {
-    /* v8 ignore next -- @preserve */
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[/ingest] classroom audio concat failed:', {
-      ...context,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return null;
+  return wrapWithErrorHandling(
+    () =>
+      step('concatEpisodeClassroomAudio', () =>
+        concatMp3Buffers(classroomAudios),
+      ),
+    null,
+    '[/ingest] classroom audio concat failed:',
+    context,
+  );
+}
+
+async function appendClassroomAudioToMainAudio(
+  mainAudio: Buffer,
+  classroomAudio: Buffer | null,
+  context: {
+    episodeId: string;
+    localizationId: string;
+    languageCode: LanguageClassroomLanguageCode;
+  },
+): Promise<Buffer> {
+  if (!classroomAudio) {
+    return mainAudio;
   }
+
+  return wrapWithErrorHandling(
+    () =>
+      step('concatMainWithClassroomAudio', () =>
+        concatMp3Buffers([mainAudio, classroomAudio]),
+      ),
+    mainAudio,
+    '[/ingest] main classroom append failed:',
+    context,
+  );
 }
 
 async function ensureLanguageClassrooms(

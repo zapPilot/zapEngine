@@ -27,7 +27,6 @@ import {
   findEpisodeLocalizationByEpisodeId,
   listEpisodesPaged,
   listLanguageClassroomsByLocalizationId,
-  listLanguageClassroomsByLocalizationIds,
   markEpisodeListened,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
@@ -61,7 +60,6 @@ import {
 import {
   DEFAULT_LANGUAGE_CODE,
   type LanguageClassroomLanguageCode,
-  type LanguageClassroomRow,
 } from './types.js';
 
 const app = new Hono();
@@ -206,16 +204,8 @@ app.get('/episodes', async (c) => {
     cursor,
     languageCode,
   );
-  const classroomMap = await listLanguageClassroomsByLocalizationIds(
-    rows.map((row) => row.localization_id),
-  );
   return c.json({
-    items: rows.map((row) => {
-      const classrooms =
-        classroomMap.get(row.localization_id) ??
-        (row.language_classrooms as LanguageClassroomRow[] | undefined);
-      return toEpisodeResponse(row, classrooms);
-    }),
+    items: rows.map((row) => toEpisodeResponse(row, row.language_classrooms)),
     nextCursor,
   });
 });
@@ -317,6 +307,7 @@ serve(
   {
     fetch: app.fetch,
     port,
+    hostname: '0.0.0.0',
   },
   (info) => {
     console.log(`Pipeline API listening on http://localhost:${info.port}`);

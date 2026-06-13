@@ -16,6 +16,8 @@ const envSchema = z.object({
   RPC_URL_ETHEREUM: z.string().optional(),
   RPC_URL_ARBITRUM: z.string().optional(),
   BASE_RPC_URL: z.string().optional(),
+  PRIVY_APP_ID: z.string().optional(),
+  PRIVY_APP_SECRET: z.string().optional(),
   ACCOUNT_ENGINE_PORT: portSchema.optional(),
   PORT: portSchema.optional(),
   NODE_ENV: z.string().default('development'),
@@ -29,6 +31,10 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
   TELEGRAM_BOT_NAME: z.string().optional(),
+  TENDERLY_ACCOUNT: z.string().optional(),
+  TENDERLY_PROJECT: z.string().optional(),
+  TENDERLY_ACCESS_KEY: z.string().optional(),
+  TENDERLY_BASE_RPC_URL: z.string().optional(),
 });
 
 export type RawEnv = z.infer<typeof envSchema>;

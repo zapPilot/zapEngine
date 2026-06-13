@@ -38,6 +38,7 @@ export interface WalletMenuButtonProps {
   accountAddress: string | undefined;
   hasMultipleWallets: boolean;
   connectedWalletCount: number;
+  opensDisconnectedMenu: boolean;
   onConnectClick: () => void;
   onToggleMenu: () => void;
 }
@@ -58,6 +59,7 @@ export interface WalletMultipleWalletSectionProps extends WalletSectionCopyProps
 export interface WalletMenuDropdownProps extends WalletSectionCopyProps {
   isConnected: boolean;
   isMenuOpen: boolean;
+  showDisconnectedWalletOptions: boolean;
   hasMultipleWallets: boolean;
   accountAddress: string | undefined;
   connectedWallets: ConnectedWalletItem[];

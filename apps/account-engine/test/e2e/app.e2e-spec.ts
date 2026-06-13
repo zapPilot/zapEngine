@@ -1,6 +1,5 @@
-import type { AppServices } from '../../src/container';
-
 import { createApp } from '../../src/app';
+import type { AppServices } from '../../src/container';
 
 describe('App e2e', () => {
   it('serves /health through the Hono app', async () => {

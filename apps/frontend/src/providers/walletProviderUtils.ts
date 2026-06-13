@@ -30,7 +30,7 @@ interface WalletChainSource {
 
 export const buildWalletAccount = (
   address: string | undefined,
-  balanceDisplayValue: string | undefined,
+  balanceDisplayValue?: string,
 ): SimplifiedWalletAccount | null => {
   if (!address) {
     return null;

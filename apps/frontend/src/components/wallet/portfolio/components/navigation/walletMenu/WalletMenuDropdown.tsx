@@ -5,6 +5,7 @@ import { dropdownMenu } from '@/lib/ui/animationVariants';
 
 import type { WalletMenuDropdownProps, WalletSectionCopyProps } from './types';
 import {
+  WalletDisconnectedSection,
   WalletMultipleWalletSection,
   WalletSingleWalletSection,
 } from './WalletMenuSections';
@@ -21,8 +22,9 @@ export function WalletMenuDropdown({
   onDisconnect,
   onOpenSettings,
   onOpenWalletManager,
+  showDisconnectedWalletOptions,
 }: WalletMenuDropdownProps): ReactElement | null {
-  if (!isMenuOpen || !isConnected) {
+  if (!isMenuOpen || (!isConnected && !showDisconnectedWalletOptions)) {
     return null;
   }
 
@@ -47,6 +49,10 @@ export function WalletMenuDropdown({
       role="menu"
       aria-label="Wallet menu"
     >
+      {!isConnected && showDisconnectedWalletOptions && (
+        <WalletDisconnectedSection />
+      )}
+
       {Boolean(accountAddress) && !hasMultipleWallets && accountAddress && (
         <WalletSingleWalletSection
           accountAddress={accountAddress}

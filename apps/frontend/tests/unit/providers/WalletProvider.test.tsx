@@ -59,11 +59,15 @@ vi.mock('@/config/wagmi', () => ({
   wagmiConfig: {},
 }));
 
-vi.mock('viem', () => ({
-  formatUnits: (value: bigint, decimals: number) => {
-    return (Number(value) / 10 ** decimals).toString();
-  },
-}));
+vi.mock('viem', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('viem')>();
+  return {
+    ...actual,
+    formatUnits: (value: bigint, decimals: number) => {
+      return (Number(value) / 10 ** decimals).toString();
+    },
+  };
+});
 
 // Mock logger
 vi.mock('@/utils/logger', () => ({

@@ -4,6 +4,9 @@ alter table from_fed_to_chain.episode_localizations
   add column if not exists classroom_hls_url text,
   add column if not exists classroom_r2_prefix text;
 
+grant select (classroom_hls_url)
+  on from_fed_to_chain.episode_localizations to anon, authenticated;
+
 drop view if exists from_fed_to_chain.episodes_with_stats;
 create view from_fed_to_chain.episodes_with_stats
 with (security_invoker = true) as

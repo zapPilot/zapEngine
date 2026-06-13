@@ -34,7 +34,7 @@ export function createDepositPublicClients(
           'https://ethereum-rpc.publicnode.com',
         ),
       ),
-    }) as DepositPublicClients[number],
+    }),
     [base.id]: createPublicClient({
       chain: base,
       transport: http(
@@ -56,7 +56,7 @@ export function createDepositPublicClients(
           'https://arb1.arbitrum.io/rpc',
         ),
       ),
-    }) as DepositPublicClients[number],
+    }),
   };
 
   return () => publicClients;

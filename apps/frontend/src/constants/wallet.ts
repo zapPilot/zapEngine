@@ -5,6 +5,7 @@
 
 export const WALLET_LABELS = {
   CONNECT: 'Connect Wallet',
+  CREATE_ZAP_WALLET: 'Create Zap Wallet',
   DISCONNECT: 'Disconnect',
   SWITCH: 'Switch Wallet',
   ADD: 'Add Wallet',

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
     useWalletProvider: vi.fn(),
     getDepositPlan: vi.fn(),
     executeDepositPlan: vi.fn(),
+    executeAtomicBatch: vi.fn(),
     getWalletClient: vi.fn(),
     switchChain: vi.fn(),
     getBridgeStatus: vi.fn(),
@@ -180,6 +181,33 @@ describe('useInvestStrategy', () => {
       'submitted',
       'submitted',
     ]);
+  });
+
+  it('does not create a chain RPC wallet client for the Privy atomic path', async () => {
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 8453 },
+      executeAtomicBatch: mocks.executeAtomicBatch,
+      getWalletClient: mocks.getWalletClient,
+      switchChain: mocks.switchChain,
+    });
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
+    });
+
+    expect(mocks.getWalletClient).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan,
+        chainId: 8453,
+        executeAtomicBatch: mocks.executeAtomicBatch,
+      }),
+    );
+    expect(mocks.executeDepositPlan.mock.calls[0]?.[0]).not.toHaveProperty(
+      'walletClient',
+    );
   });
 
   it('falls back to sequential approval then three leg transactions when atomic batching is unavailable', async () => {

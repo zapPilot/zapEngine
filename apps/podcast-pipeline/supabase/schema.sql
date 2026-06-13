@@ -189,7 +189,7 @@ select e.id,
        e.created_at,
        e.listened,
        coalesce(l.like_count, 0)::int as like_count,
-       coalesce(lc.language_classrooms, '[]'::jsonb) as language_classrooms
+        el.language_classrooms_jsonb as language_classrooms
 from from_fed_to_chain.episodes e
 join from_fed_to_chain.episode_localizations el on el.episode_id = e.id
 left join (
@@ -197,20 +197,6 @@ left join (
   from from_fed_to_chain.likes
   group by episode_id
 ) l on l.episode_id = e.id
-left join (
-  select episode_localization_id,
-         jsonb_agg(
-           jsonb_build_object(
-             'sourceLanguageCode', source_language_code,
-             'targetLanguageCode', target_language_code,
-             'oneLiner', one_liner,
-             'keywords', keywords
-           )
-           order by target_language_code
-         ) as language_classrooms
-  from from_fed_to_chain.language_classrooms
-  group by episode_localization_id
-) lc on lc.episode_localization_id = el.id
 where el.status = 'completed'
   and el.hls_url <> '';
 
@@ -341,6 +327,7 @@ grant select (
   language_code,
   title,
   hls_url,
+  classroom_hls_url,
   script,
   llm_model,
   llm_thinking_model,

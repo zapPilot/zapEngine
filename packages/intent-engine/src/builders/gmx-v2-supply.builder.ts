@@ -1,10 +1,4 @@
-import {
-  encodeFunctionData,
-  erc20Abi,
-  getAddress,
-  type Address,
-  type Hex,
-} from 'viem';
+import { getAddress, type Address } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
 import {
@@ -23,6 +17,11 @@ import {
   type PreparedTransaction,
   type TransactionQuote,
 } from '../types/transaction.types.js';
+import {
+  createApprovalTx,
+  validateAllTransactions,
+  validatePositiveAmount,
+} from './gmx-v2.shared.js';
 
 export interface BuildGmxV2SupplyTxInput {
   marketKey: GmxV2MarketKey;
@@ -40,37 +39,6 @@ export interface GmxV2SupplyPlan {
 
 function normalizeAddress(address: Address): string {
   return address.toLowerCase();
-}
-
-function validatePositiveAmount(amount: string): bigint {
-  const parsed = BigInt(amount);
-  if (parsed <= 0n) {
-    throw new Error('GMX deposit amount must be greater than zero');
-  }
-  return parsed;
-}
-
-function createApprovalTx(params: {
-  tokenAddress: Address;
-  spenderAddress: Address;
-  amount: string;
-}): PreparedTransaction {
-  return PreparedTransactionSchema.parse({
-    to: params.tokenAddress,
-    data: encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'approve',
-      args: [params.spenderAddress, BigInt(params.amount)],
-    }),
-    value: '0',
-    chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-    gasLimit: GMX_V2_GAS_ESTIMATES.approve,
-    meta: {
-      intentType: 'APPROVAL',
-      estimatedGas: GMX_V2_GAS_ESTIMATES.approve,
-      estimatedDuration: 0,
-    },
-  });
 }
 
 function approvalFromQuote(
@@ -151,7 +119,10 @@ export async function buildGmxV2SupplyTx(
   input: BuildGmxV2SupplyTxInput,
   adapter: LiFiAdapter,
 ): Promise<GmxV2SupplyPlan> {
-  validatePositiveAmount(input.fromAmount);
+  validatePositiveAmount(
+    input.fromAmount,
+    'GMX deposit amount must be greater than zero',
+  );
 
   if (
     normalizeAddress(getAddress(input.fromToken)) !==
@@ -187,7 +158,10 @@ export async function buildGmxV2SupplyTx(
 
     steps.push(parseStep(swapQuote.transaction));
     collateralAmount = swapQuote.estimate.toAmountMin;
-    validatePositiveAmount(collateralAmount);
+    validatePositiveAmount(
+      collateralAmount,
+      'GMX deposit amount must be greater than zero',
+    );
 
     // Dust guard: at tiny sizes the swap output is a 2-digit number of
     // 8-decimal WBTC units, so LiFi's slippage buffer rounds away to nothing
@@ -225,12 +199,7 @@ export async function buildGmxV2SupplyTx(
     }),
   );
 
-  for (const tx of [...approvals, ...steps]) {
-    PreparedTransactionSchema.parse({
-      ...tx,
-      data: tx.data as Hex,
-    });
-  }
+  validateAllTransactions([...approvals, ...steps]);
 
   return {
     approvals,

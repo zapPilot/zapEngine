@@ -21,6 +21,10 @@ import {
   createPlanOrchestrationModule,
   type PlanOrchestrationService,
 } from './modules/plan-orchestration';
+import {
+  createPrivyWalletExecutionService,
+  type PrivyWalletExecutionService,
+} from './services/privy-wallet-execution.service';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
@@ -44,6 +48,7 @@ export interface AppServices {
   dailySuggestionProcessor: DailySuggestionProcessor;
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
+  privyWalletExecutionService: PrivyWalletExecutionService;
 }
 
 export function createContainer(
@@ -105,6 +110,18 @@ export function createContainer(
     },
     publicClients: createDepositPublicClients(configService)(),
   });
+  const privyWalletExecutionService = createPrivyWalletExecutionService({
+    ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),
+    ...(env.PRIVY_APP_SECRET ? { appSecret: env.PRIVY_APP_SECRET } : {}),
+    ...(env.TENDERLY_ACCOUNT ? { tenderlyAccount: env.TENDERLY_ACCOUNT } : {}),
+    ...(env.TENDERLY_PROJECT ? { tenderlyProject: env.TENDERLY_PROJECT } : {}),
+    ...(env.TENDERLY_ACCESS_KEY
+      ? { tenderlyAccessKey: env.TENDERLY_ACCESS_KEY }
+      : {}),
+    ...(env.TENDERLY_BASE_RPC_URL
+      ? { tenderlyBaseRpcUrl: env.TENDERLY_BASE_RPC_URL }
+      : {}),
+  });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
   jobProcessorService.registerProcessor(dailySuggestionProcessor);
@@ -130,6 +147,7 @@ export function createContainer(
     dailySuggestionProcessor,
     activityTracker,
     planOrchestrationService,
+    privyWalletExecutionService,
   };
 }
 

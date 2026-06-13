@@ -9,7 +9,7 @@
 
 ## Test Plan
 
-- [ ] `pnpm check:local` passes locally
+- [ ] `pnpm verify` passes locally
 - [ ] <App-specific verification, for example `pnpm --filter @zapengine/frontend test:unit`>
 - [ ] <Manual verification, if any>
 

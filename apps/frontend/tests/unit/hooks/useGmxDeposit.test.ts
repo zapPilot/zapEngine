@@ -10,9 +10,12 @@ const USER = '0x1111111111111111111111111111111111111111';
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
   getGmxDepositPlan: vi.fn(),
+  getPublicClient: vi.fn(),
   executeDepositPlan: vi.fn(),
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
+  readContract: vi.fn(),
+  getBalance: vi.fn(),
   walletClient: {
     account: { address: '0x1111111111111111111111111111111111111111' },
   },
@@ -24,6 +27,10 @@ vi.mock('@/providers/WalletProvider', () => ({
 
 vi.mock('@/services/planOrchestrationService', () => ({
   getGmxDepositPlan: mocks.getGmxDepositPlan,
+}));
+
+vi.mock('@/services/intentClient', () => ({
+  getPublicClient: mocks.getPublicClient,
 }));
 
 vi.mock('@/lib/wallet/executeDepositPlan', () => ({
@@ -85,6 +92,12 @@ describe('useGmxDeposit', () => {
     });
     mocks.getWalletClient.mockResolvedValue(mocks.walletClient);
     mocks.switchChain.mockResolvedValue(undefined);
+    mocks.getPublicClient.mockReturnValue({
+      readContract: mocks.readContract,
+      getBalance: mocks.getBalance,
+    });
+    mocks.readContract.mockResolvedValue(10_000_000n);
+    mocks.getBalance.mockResolvedValue(2_000_000_000_000_000n);
     mocks.getGmxDepositPlan.mockResolvedValue(plan);
     mocks.executeDepositPlan.mockResolvedValue({
       kind: 'eip7702',
@@ -137,5 +150,37 @@ describe('useGmxDeposit', () => {
 
     expect(mocks.switchChain).toHaveBeenCalledWith(42161);
     expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails before execution when Arbitrum USDC balance is below the GMX deposit amount', async () => {
+    mocks.readContract.mockResolvedValue(999n);
+
+    const { result } = renderHook(() => useGmxDeposit());
+
+    await act(async () => {
+      await expect(
+        result.current.run({ marketKey: 'btc-usdc', amount: '1000' }),
+      ).rejects.toThrow('GMX Arbitrum USDC balance too low');
+    });
+
+    expect(mocks.getPublicClient).toHaveBeenCalledWith(42161);
+    expect(mocks.getGmxDepositPlan).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlan).not.toHaveBeenCalled();
+  });
+
+  it('fails before execution when Arbitrum ETH cannot cover the GMX execution fee', async () => {
+    mocks.getBalance.mockResolvedValue(999_999_999_999_999n);
+
+    const { result } = renderHook(() => useGmxDeposit());
+
+    await act(async () => {
+      await expect(
+        result.current.run({ marketKey: 'btc-usdc', amount: '1000' }),
+      ).rejects.toThrow('GMX execution fee requires 0.001 ETH on Arbitrum');
+    });
+
+    expect(mocks.getPublicClient).toHaveBeenCalledWith(42161);
+    expect(mocks.getGmxDepositPlan).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlan).not.toHaveBeenCalled();
   });
 });

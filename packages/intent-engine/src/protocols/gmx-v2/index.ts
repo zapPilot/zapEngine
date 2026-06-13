@@ -14,10 +14,14 @@ export {
   ZERO_ADDRESS,
   encodeGmxV2CreateDeposit,
   encodeGmxV2CreateDepositMulticall,
+  encodeGmxV2CreateWithdrawal,
+  encodeGmxV2CreateWithdrawalMulticall,
   encodeGmxV2SendTokens,
   encodeGmxV2SendWnt,
   type GmxV2CreateDepositMulticallParams,
   type GmxV2CreateDepositParams,
+  type GmxV2CreateWithdrawalMulticallParams,
+  type GmxV2CreateWithdrawalParams,
 } from './gmx-v2.encoder.js';
 
 import {

@@ -26,10 +26,16 @@ export {
   buildSupplyTx,
   buildBridgeTx,
   buildWithdrawTx,
+  buildWithdrawSwapTx,
+  type BuildWithdrawSwapTxInput,
+  type WithdrawSwapPlan,
   buildRotateTx,
   buildGmxV2SupplyTx,
   type BuildGmxV2SupplyTxInput,
   type GmxV2SupplyPlan,
+  buildGmxV2WithdrawTx,
+  type BuildGmxV2WithdrawTxInput,
+  type GmxV2WithdrawPlan,
 } from './builders/index.js';
 
 // Adapters
@@ -131,12 +137,22 @@ import {
 import { buildSwapTx } from './builders/swap.builder.js';
 import { buildSupplyTx } from './builders/supply.builder.js';
 import { buildWithdrawTx } from './builders/withdraw.builder.js';
+import {
+  buildWithdrawSwapTx,
+  type BuildWithdrawSwapTxInput,
+  type WithdrawSwapPlan,
+} from './builders/withdraw-swap.builder.js';
 import { buildRotateTx } from './builders/rotate.builder.js';
 import {
   buildGmxV2SupplyTx,
   type BuildGmxV2SupplyTxInput,
   type GmxV2SupplyPlan as BuiltGmxV2SupplyPlan,
 } from './builders/gmx-v2-supply.builder.js';
+import {
+  buildGmxV2WithdrawTx,
+  type BuildGmxV2WithdrawTxInput,
+  type GmxV2WithdrawPlan as BuiltGmxV2WithdrawPlan,
+} from './builders/gmx-v2-withdraw.builder.js';
 import {
   determineExecutionStrategy,
   type ExecutionStrategy,
@@ -187,6 +203,16 @@ export interface IntentEngine {
   /** Build a withdraw transaction */
   buildWithdraw(intent: WithdrawIntentInput): PreparedTransaction;
 
+  /**
+   * Build a Morpho withdraw-and-swap plan: redeem shares, then optionally swap
+   * the underlying into the requested token via LI.FI (requires a PublicClient
+   * to read vault.previewRedeem()/asset()).
+   */
+  buildWithdrawSwap(
+    intent: BuildWithdrawSwapTxInput,
+    publicClient: PublicClient,
+  ): Promise<WithdrawSwapPlan>;
+
   /** Build a rotate transaction plan (requires a PublicClient for on-chain previews) */
   buildRotate(
     intent: RotateIntentInput,
@@ -197,6 +223,11 @@ export interface IntentEngine {
   buildGmxV2Supply(
     intent: BuildGmxV2SupplyTxInput,
   ): Promise<BuiltGmxV2SupplyPlan>;
+
+  /** Build a GMX v2 GM market withdrawal plan for the dev-only Arbitrum path */
+  buildGmxV2Withdraw(
+    intent: BuildGmxV2WithdrawTxInput,
+  ): Promise<BuiltGmxV2WithdrawPlan>;
 
   /** Simulate a transaction before execution */
   simulateTx(tx: PreparedTransaction): Promise<SimulationResult>;
@@ -257,12 +288,23 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return buildWithdrawTx(intent);
     },
 
+    async buildWithdrawSwap(
+      intent: BuildWithdrawSwapTxInput,
+      publicClient: PublicClient,
+    ) {
+      return buildWithdrawSwapTx(intent, lifiAdapter, publicClient);
+    },
+
     async buildRotate(intent: RotateIntentInput, publicClient: PublicClient) {
       return buildRotateTx(intent, lifiAdapter, publicClient);
     },
 
     async buildGmxV2Supply(intent: BuildGmxV2SupplyTxInput) {
       return buildGmxV2SupplyTx(intent, lifiAdapter);
+    },
+
+    async buildGmxV2Withdraw(intent: BuildGmxV2WithdrawTxInput) {
+      return buildGmxV2WithdrawTx(intent);
     },
 
     async simulateTx(tx: PreparedTransaction) {

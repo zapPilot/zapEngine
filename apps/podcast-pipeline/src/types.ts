@@ -66,7 +66,7 @@ export interface EpisodeListRow extends EpisodeLocalizationProjection {
   localization_id: string;
   listened: boolean;
   like_count: number;
-  language_classrooms: unknown;
+  language_classrooms: LanguageClassroomLesson[];
 }
 
 export interface EpisodeAudioTrackResponse {

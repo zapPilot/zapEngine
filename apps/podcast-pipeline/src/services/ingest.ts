@@ -40,6 +40,8 @@ const MULTILINGUAL_INGEST_LANGUAGE_CODES: LanguageClassroomLanguageCode[] = [
   'ja',
   'en',
 ];
+const MAX_TRANSLATED_SCRIPT_CHARACTERS = 30_000;
+const MAX_TRANSLATED_TO_CANONICAL_RATIO = 4;
 
 export async function performMultilingualIngest(
   url: string,
@@ -159,7 +161,13 @@ async function performSecondaryIngest(
     localization,
   );
 
-  if (needsGeneratedScript(localization)) {
+  if (
+    needsGeneratedScript(localization) ||
+    hasCorruptedSecondaryScript(
+      localization.script ?? '',
+      canonicalLocalization.script ?? '',
+    )
+  ) {
     const translated = await step('translateCanonicalScript', () =>
       translateCanonicalScript({
         title: canonicalLocalization.title,
@@ -246,4 +254,52 @@ function isSecondaryLanguageCode(
   languageCode: LanguageClassroomLanguageCode,
 ): languageCode is SecondaryLanguageCode {
   return languageCode !== DEFAULT_LANGUAGE_CODE;
+}
+
+function hasCorruptedSecondaryScript(
+  script: string,
+  canonicalScript: string,
+): boolean {
+  if (!script.trim()) {
+    return true;
+  }
+
+  const scriptCharacters = [...script].length;
+  const canonicalCharacters = Math.max([...canonicalScript].length, 1);
+  if (
+    scriptCharacters > MAX_TRANSLATED_SCRIPT_CHARACTERS &&
+    scriptCharacters > canonicalCharacters * MAX_TRANSLATED_TO_CANONICAL_RATIO
+  ) {
+    return true;
+  }
+
+  return hasRunawayRepeatedPhrase(script);
+}
+
+function hasRunawayRepeatedPhrase(script: string): boolean {
+  const normalized = script.replace(/\s+/g, ' ');
+
+  for (let phraseLength = 4; phraseLength <= 24; phraseLength += 1) {
+    for (
+      let start = 0;
+      start + phraseLength * 20 <= normalized.length;
+      start += 1
+    ) {
+      const phrase = normalized.slice(start, start + phraseLength);
+      if (!phrase.trim()) continue;
+
+      let repetitions = 1;
+      let next = start + phraseLength;
+      while (normalized.startsWith(phrase, next)) {
+        repetitions += 1;
+        next += phraseLength;
+      }
+
+      if (repetitions >= 20) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

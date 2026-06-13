@@ -1,5 +1,6 @@
 import 'package:ai_podcast_mobile/main.dart';
 import 'package:ai_podcast_mobile/screens/auth_gate.dart';
+import 'package:ai_podcast_mobile/screens/home_shell.dart';
 import 'package:ai_podcast_mobile/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,5 +29,28 @@ void main() {
 
     expect(find.byType(AuthGate), findsOneWidget);
     expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+  });
+
+  testWidgets('blocks restored local users when Supabase is unconfigured', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'podcast_user_id': 'user-1',
+      'podcast_user_email': 'user@example.com',
+    });
+
+    await tester.pumpWidget(
+      AiPodcastApp(
+        supabaseConfigured: false,
+        audioHandler: FakePodcastAudioHandler(),
+      ),
+    );
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(AuthGate), findsOneWidget);
+    expect(find.byType(HomeShell), findsNothing);
+    expect(find.text('Missing Supabase build defines.'), findsOneWidget);
   });
 }

@@ -18,6 +18,7 @@ import { createJobsRoutes } from './routes/jobs';
 import { jsonResponse } from './routes/shared';
 import { createTelegramRoutes } from './routes/telegram';
 import { createUsersRoutes } from './routes/users';
+import { createWalletExecutionRoutes } from './routes/wallet-execution';
 
 const logger = new Logger('Bootstrap');
 
@@ -39,6 +40,10 @@ export function createApp(
   app.route('/jobs', createJobsRoutes(services));
   app.route('/etl', createEtlRoutes(services));
   app.route('/telegram', createTelegramRoutes(services));
+  app.route(
+    '/wallet-execution',
+    createWalletExecutionRoutes(services.privyWalletExecutionService),
+  );
 
   app.notFound((c) =>
     jsonResponse(

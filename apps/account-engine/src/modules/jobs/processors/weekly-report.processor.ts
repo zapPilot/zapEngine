@@ -184,7 +184,7 @@ export class WeeklyReportProcessor implements JobProcessor {
           wallets: userEntry.wallets,
           testMode: payload.testMode,
           testRecipient,
-        } as Record<string, unknown>;
+        };
       },
       (totalUsers) => {
         this.jobQueueService.logJobEvent(

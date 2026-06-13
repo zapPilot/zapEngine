@@ -33,8 +33,7 @@ export function notFoundHandler(req: Request, res: Response): void {
       message: `Route not found: ${req.method} ${req.path}`,
       source: 'system',
       context: {
-        requestId:
-          (req.headers['x-request-id'] as string | undefined) ?? 'unknown',
+        requestId: req.headers['x-request-id'] ?? 'unknown',
       },
     },
     timestamp: new Date().toISOString(),

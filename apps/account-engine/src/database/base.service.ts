@@ -5,10 +5,7 @@ import { HttpException, HttpStatus } from '../common/http';
 import { Logger } from '../common/logger';
 import { Database } from '../types/database.types';
 import { DatabaseService } from './database.service';
-import {
-  DatabaseOperationResult,
-  SupabaseErrorHandler,
-} from './supabase-error.handler';
+import { SupabaseErrorHandler } from './supabase-error.handler';
 
 type PrimitiveCondition = string | number | boolean | null;
 type ConditionValue =
@@ -89,7 +86,7 @@ export abstract class BaseService {
     const result = await query.single();
 
     return SupabaseErrorHandler.validateOperation<T>(
-      result as DatabaseOperationResult<T>,
+      result,
       `fetch ${entityName.toLowerCase()}`,
       entityName,
       { throwOnNotFound },
@@ -128,7 +125,7 @@ export abstract class BaseService {
     const result = await query;
 
     const data = SupabaseErrorHandler.validateOperation<T[]>(
-      result as DatabaseOperationResult<T[]>,
+      result,
       `fetch ${entityName.toLowerCase()}`,
       entityName,
       { throwOnNotFound: false },
@@ -156,7 +153,7 @@ export abstract class BaseService {
     const result = await query.single();
 
     return SupabaseErrorHandler.validateOperation<T>(
-      result as DatabaseOperationResult<T>,
+      result,
       `create ${entityName.toLowerCase()}`,
       entityName,
     ) as T;
@@ -194,7 +191,7 @@ export abstract class BaseService {
       : await finalQuery;
 
     return SupabaseErrorHandler.validateOperation<UpdateResult<T>>(
-      result as DatabaseOperationResult<UpdateResult<T>>,
+      result,
       `update ${entityName.toLowerCase()}`,
       entityName,
     );
@@ -228,7 +225,7 @@ export abstract class BaseService {
     const result = requireSingleResult ? await query.single() : await query;
 
     SupabaseErrorHandler.validateOperation<null>(
-      result as DatabaseOperationResult<null>,
+      result,
       `delete ${entityName.toLowerCase()}`,
       entityName,
     );

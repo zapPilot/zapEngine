@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
 import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
+import { CreateZapWalletButton } from '@/components/WalletManager/components/CreateZapWalletButton';
+import { isPrivyEnabled } from '@/lib/env/privy';
 
 interface GhostModeOverlayProps {
   /** Content to show with blur effect */
@@ -50,6 +52,7 @@ export function GhostModeOverlay({
 
             {/* Shared Connect Wallet Button - same logic as navbar */}
             <ConnectWalletButton />
+            {isPrivyEnabled() && <CreateZapWalletButton />}
           </div>
         </div>
       )}

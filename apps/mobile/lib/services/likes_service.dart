@@ -66,9 +66,9 @@ class SupabaseLikesStore implements LikesStore {
 
   @override
   Stream<List<Map<String, dynamic>>> streamLikeRows() {
-    return _supabaseService.client
-        .from('likes')
-        .stream(primaryKey: ['user_id', 'episode_id']);
+    final client = _supabaseService.client;
+    if (client == null) return const Stream.empty();
+    return client.from('likes').stream(primaryKey: ['user_id', 'episode_id']);
   }
 
   @override
@@ -76,7 +76,9 @@ class SupabaseLikesStore implements LikesStore {
     required String userId,
     required String episodeId,
   }) async {
-    await _supabaseService.client
+    final client = _supabaseService.client;
+    if (client == null) return;
+    await client
         .from('likes')
         .delete()
         .eq('user_id', userId)
@@ -88,7 +90,9 @@ class SupabaseLikesStore implements LikesStore {
     required String userId,
     required String episodeId,
   }) async {
-    await _supabaseService.client.from('likes').upsert({
+    final client = _supabaseService.client;
+    if (client == null) return;
+    await client.from('likes').upsert({
       'user_id': userId,
       'episode_id': episodeId,
     }, onConflict: 'user_id,episode_id');

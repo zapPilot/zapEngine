@@ -23,6 +23,11 @@ function approveData(spender: Address, amount: bigint) {
   });
 }
 
+const GM_TOKEN = '0x70d95587d40A2caf56bd97485aB3Eec10Bee6336' as Address;
+const VAULT = '0x4444444444444444444444444444444444444444' as Address;
+const TARGET_TOKEN = '0x5555555555555555555555555555555555555555' as Address;
+const LIFI_SPENDER = '0x6666666666666666666666666666666666666666' as Address;
+
 const gmxPlan = {
   approvals: [
     {
@@ -52,18 +57,56 @@ const gmxPlan = {
   },
 };
 
+const gmxWithdrawPlan = {
+  approvals: [
+    {
+      to: GM_TOKEN,
+      data: approveData(GMX_ROUTER, 5000n),
+      value: '0',
+      chainId: 42161,
+      gasLimit: '60000',
+      meta: { intentType: 'APPROVAL' },
+    },
+  ],
+  steps: [
+    {
+      to: EXCHANGE_ROUTER,
+      data: '0x5678',
+      value: '1000000000000000',
+      chainId: 42161,
+      gasLimit: '1200000',
+      meta: { intentType: 'WITHDRAW' },
+    },
+  ],
+  executionFeeWei: '1000000000000000',
+  market: {
+    key: 'eth-usdc',
+    name: 'ETH/USDC',
+    collateralToken: USDC,
+  },
+};
+
 function makeService(allowance: bigint) {
   const readContract = vi.fn().mockResolvedValue(allowance);
   const buildGmxV2Supply = vi.fn().mockResolvedValue(gmxPlan);
+  const buildGmxV2Withdraw = vi.fn().mockResolvedValue(gmxWithdrawPlan);
+  const buildWithdrawSwap = vi.fn();
   const service = createPlanOrchestrationService({
-    intentEngine: { buildGmxV2Supply },
+    intentEngine: { buildGmxV2Supply, buildGmxV2Withdraw, buildWithdrawSwap },
     adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
     publicClients: {
       42161: { readContract },
+      8453: { readContract },
     } as never,
   });
 
-  return { service, readContract, buildGmxV2Supply };
+  return {
+    service,
+    readContract,
+    buildGmxV2Supply,
+    buildGmxV2Withdraw,
+    buildWithdrawSwap,
+  };
 }
 
 describe('plan-orchestration service', () => {
@@ -99,7 +142,11 @@ describe('plan-orchestration service', () => {
       8453: { readContract: vi.fn() },
     } as never;
     const service = createPlanOrchestrationService({
-      intentEngine: { buildGmxV2Supply: vi.fn() },
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+      },
       adapter: adapter as never,
       publicClients,
       composeDeposit,
@@ -183,5 +230,153 @@ describe('plan-orchestration service', () => {
     expect(plan.approvals[0]!.to).toBe(USDC);
     expect(decoded.functionName).toBe('approve');
     expect(decoded.args).toEqual([GMX_ROUTER, 1000n]);
+  });
+
+  it('builds a GMX withdraw plan with a GM-token approval to the router', async () => {
+    const { service, buildGmxV2Withdraw } = makeService(0n);
+
+    const plan = await service.buildWithdraw({
+      kind: 'gmx-v2',
+      marketKey: 'eth-usdc',
+      gmAmount: '5000',
+      userAddress: USER,
+    });
+
+    expect(buildGmxV2Withdraw).toHaveBeenCalledWith({
+      marketKey: 'eth-usdc',
+      gmAmount: '5000',
+      userAddress: USER,
+    });
+    expect(plan.calls).toEqual(gmxWithdrawPlan.steps);
+    expect(plan.legs[0]).toMatchObject({
+      chainId: 42161,
+      kind: 'withdraw',
+      protocol: 'gmx-v2',
+      toToken: USDC,
+    });
+    expect(plan.approvals).toHaveLength(1);
+    const decoded = decodeFunctionData({
+      abi: erc20Abi,
+      data: plan.approvals[0]!.data as `0x${string}`,
+    });
+    expect(plan.approvals[0]!.to).toBe(GM_TOKEN);
+    expect(decoded.args).toEqual([GMX_ROUTER, 5000n]);
+  });
+
+  it('builds a Morpho withdraw+swap plan with redeem and swap legs', async () => {
+    const { service, buildWithdrawSwap } = makeService(0n);
+    buildWithdrawSwap.mockResolvedValue({
+      steps: [
+        {
+          to: VAULT,
+          data: '0xabcd',
+          value: '0',
+          chainId: 8453,
+          gasLimit: '200000',
+          meta: { intentType: 'WITHDRAW' },
+        },
+        {
+          to: '0x7777777777777777777777777777777777777777',
+          data: '0x1234',
+          value: '0',
+          chainId: 8453,
+          gasLimit: '300000',
+          meta: { intentType: 'SWAP' },
+        },
+      ],
+      estimates: {
+        totalGasUsd: '0.05',
+        totalDuration: 25,
+        expectedOutput: '12345',
+      },
+      approval: {
+        tokenAddress: BASE_USDC,
+        spenderAddress: LIFI_SPENDER,
+        amount: '990000',
+      },
+      assetToken: BASE_USDC,
+      redeemAmount: '990000',
+    });
+
+    const plan = await service.buildWithdraw({
+      kind: 'morpho',
+      userAddress: USER,
+      vaultAddress: VAULT,
+      shareAmount: '1000000000000000000',
+      chainId: 8453,
+      toToken: TARGET_TOKEN,
+    });
+
+    expect(buildWithdrawSwap).toHaveBeenCalledWith(
+      {
+        vaultAddress: VAULT,
+        shareAmount: '1000000000000000000',
+        toToken: TARGET_TOKEN,
+        fromAddress: USER,
+        chainId: 8453,
+      },
+      expect.anything(),
+    );
+    expect(plan.sourceChainId).toBe(8453);
+    expect(plan.calls).toHaveLength(2);
+    expect(plan.legs.map((leg) => leg.kind)).toEqual(['withdraw', 'swap']);
+    expect(plan.legs[1]).toMatchObject({ kind: 'swap', toToken: TARGET_TOKEN });
+
+    // Insufficient allowance (0) → the LiFi approval is materialised.
+    expect(plan.approvals).toHaveLength(1);
+    const decoded = decodeFunctionData({
+      abi: erc20Abi,
+      data: plan.approvals[0]!.data as `0x${string}`,
+    });
+    expect(plan.approvals[0]!.to).toBe(BASE_USDC);
+    expect(decoded.args).toEqual([LIFI_SPENDER, 990000n]);
+  });
+
+  it('builds a Morpho redeem-only plan (no swap) when toToken is omitted', async () => {
+    const { service, buildWithdrawSwap } = makeService(0n);
+    buildWithdrawSwap.mockResolvedValue({
+      steps: [
+        {
+          to: VAULT,
+          data: '0xabcd',
+          value: '0',
+          chainId: 8453,
+          gasLimit: '200000',
+          meta: { intentType: 'WITHDRAW' },
+        },
+      ],
+      estimates: {
+        totalGasUsd: '0',
+        totalDuration: 0,
+        expectedOutput: '990000',
+      },
+      assetToken: BASE_USDC,
+      redeemAmount: '990000',
+    });
+
+    const plan = await service.buildWithdraw({
+      kind: 'morpho',
+      userAddress: USER,
+      vaultAddress: VAULT,
+      shareAmount: '1000000000000000000',
+      chainId: 8453,
+    });
+
+    expect(buildWithdrawSwap).toHaveBeenCalledWith(
+      {
+        vaultAddress: VAULT,
+        shareAmount: '1000000000000000000',
+        fromAddress: USER,
+        chainId: 8453,
+      },
+      expect.anything(),
+    );
+    expect(plan.legs).toHaveLength(1);
+    expect(plan.legs[0]).toMatchObject({
+      kind: 'withdraw',
+      toToken: BASE_USDC,
+    });
+    expect(plan.approvals).toEqual([]);
+    expect(plan.calls).toHaveLength(1);
   });
 });

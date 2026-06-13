@@ -1,7 +1,9 @@
 import 'package:ai_podcast_mobile/models/episode.dart';
 import 'package:ai_podcast_mobile/models/episode_page.dart';
 import 'package:ai_podcast_mobile/services/episode_service.dart';
+import 'package:ai_podcast_mobile/services/supabase_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('EpisodeService - setListened', () {
@@ -149,6 +151,36 @@ void main() {
       expect(page.nextCursor, isNull);
     });
   });
+
+  group('EpisodeService - Uninitialized Supabase (Null Client)', () {
+    test('getEpisodeById returns null when client is null', () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final service = EpisodeService(supabaseService: fakeSupabase);
+
+      final episode = await service.getEpisodeById('episode-1');
+
+      expect(episode, isNull);
+    });
+
+    test('getListenedEpisodeIds returns empty set when client is null',
+        () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final service = EpisodeService(supabaseService: fakeSupabase);
+
+      final ids = await service.getListenedEpisodeIds('user-1');
+
+      expect(ids, isEmpty);
+    });
+
+    test('getUserState returns empty map when client is null', () async {
+      final fakeSupabase = _FakeSupabaseService(null);
+      final service = EpisodeService(supabaseService: fakeSupabase);
+
+      final states = await service.getUserState('user-1');
+
+      expect(states, isEmpty);
+    });
+  });
 }
 
 class _TestableEpisodeService {
@@ -201,4 +233,12 @@ class _FakeUserEpisodeStateWriter implements UserEpisodeStateWriter {
     this.values = values;
     this.onConflict = onConflict;
   }
+}
+
+class _FakeSupabaseService extends SupabaseService {
+  _FakeSupabaseService(this._client);
+  final SupabaseClient? _client;
+
+  @override
+  SupabaseClient? get client => _client;
 }

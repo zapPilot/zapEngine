@@ -54,7 +54,8 @@ function legProgress(
 }
 
 export function useInvestStrategy() {
-  const { account, chain, getWalletClient, switchChain } = useWalletProvider();
+  const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
+    useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
 
@@ -133,11 +134,14 @@ export function useInvestStrategy() {
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
 
-          const walletClient = await getWalletClient(base.id);
+          const walletClient = executeAtomicBatch
+            ? undefined
+            : await getWalletClient(base.id);
           const execution = await executeDepositPlan({
             plan,
-            walletClient,
             chainId: sourceChainId,
+            ...(walletClient ? { walletClient } : {}),
+            ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');
               actions.markBundleSubmitted(callsId);
@@ -174,6 +178,7 @@ export function useInvestStrategy() {
     [
       account?.address,
       chain?.id,
+      executeAtomicBatch,
       getWalletClient,
       switchChain,
       markAllCallsSubmitted,
