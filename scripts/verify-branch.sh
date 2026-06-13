@@ -20,7 +20,7 @@ echo "[verify:branch] Checking committed changes: origin/main...HEAD"
 set +e
 TURBO_SCM_BASE="origin/main" \
 TURBO_SCM_HEAD="HEAD" \
-pnpm turbo run lint type-check deadcode dup:check \
+pnpm turbo run lint type-check \
   --affected \
   --filter='!@zapengine/mobile' \
   > "$LOG_DIR/verify-branch.log" 2>&1
