@@ -58,7 +58,11 @@ export async function ensureLocalizationCompleted(
         languageCode,
       },
     );
-    const publicMainAudio = mainAudio;
+    const publicMainAudio = classroomAudio
+      ? await step('concatMainWithClassroomAudio', () =>
+          concatMp3Buffers([mainAudio, classroomAudio]),
+        )
+      : mainAudio;
     const uploadedMain = await packageMainHls(
       publicMainAudio,
       episode.id,

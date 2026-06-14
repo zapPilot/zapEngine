@@ -131,7 +131,7 @@ export class AnalyticsClientService {
       }
     }
 
-    /* istanbul ignore next -- all loop paths call handleAnalyticsError (which throws) before reaching here */
+    /* v8 ignore next -- all loop paths call handleAnalyticsError (which throws) before reaching here */
     this.handleAnalyticsError(lastError, userId, label);
   }
 
@@ -284,7 +284,7 @@ export class AnalyticsClientService {
       return String(value);
     }
 
-    /* istanbul ignore next -- no current public method passes non-primitive params */
+    /* v8 ignore next -- no current public method passes non-primitive params */
     return JSON.stringify(value);
   }
 }

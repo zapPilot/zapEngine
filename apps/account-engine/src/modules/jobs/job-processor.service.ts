@@ -77,7 +77,7 @@ export class JobProcessorService {
     this.processingInterval = setInterval(() => {
       try {
         this.processAvailableJobs();
-      } /* istanbul ignore next -- processAvailableJobs handles its own errors internally */ catch (error) {
+      } /* v8 ignore next -- processAvailableJobs handles its own errors internally */ catch (error) {
         this.logger.error('Error in job processing cycle', error);
       }
     }, this.processingIntervalMs);

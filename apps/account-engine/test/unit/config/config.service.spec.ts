@@ -60,4 +60,11 @@ describe('ConfigService.get', () => {
     const svc = new ConfigService(buildEnv({ ADMIN_API_KEY: 'secret' }));
     expect(svc.get('ADMIN_API_KEY')).toBe('secret');
   });
+
+  it('falls back to direct key lookup when dot-path does not resolve', () => {
+    const svc = new ConfigService(
+      buildEnv({ 'foo.bar': 'flat-value' } as Record<string, unknown>),
+    );
+    expect(svc.get('foo.bar')).toBe('flat-value');
+  });
 });

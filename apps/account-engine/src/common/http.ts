@@ -28,7 +28,7 @@ export class AppError extends Error {
     this.statusCode = statusCode;
     this.cause = cause;
 
-    /* istanbul ignore next -- only absent in non-V8 environments */
+    /* v8 ignore next -- only absent in non-V8 environments */
     if (typeof Error.captureStackTrace === 'function') {
       Error.captureStackTrace(this, AppError);
     }

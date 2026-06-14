@@ -127,6 +127,29 @@ describe('ChartService', () => {
     });
   });
 
+  describe('generateChart with address prefix', () => {
+    it('uses address prefix in filename and contentId when address is provided', async () => {
+      const mockBuffer = Buffer.from('PNG');
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
+      });
+
+      const result = await service.generateChart({
+        data: [
+          { date: '2025-01-01', usd_value: 1000 },
+          { date: '2025-01-02', usd_value: 1100 },
+        ],
+        title: 'Test Chart',
+        yField: 'usd_value',
+        address: '0x1234567890abcdef12345678',
+      });
+
+      expect(result.fileName).toContain('chart-0x123456');
+      expect(result.contentId).toBe('chart-0x123456');
+    });
+  });
+
   describe('generateChart column type', () => {
     it('uses bar chart type when chartType is column', async () => {
       const mockBuffer = Buffer.from('PNG');

@@ -43,8 +43,10 @@ function formatTokenAmount(rawAmount: string, decimals: number): string {
   const digits = negative ? rawAmount.slice(1) : rawAmount;
   const padded = digits.padStart(decimals + 1, '0');
   const integer = decimals === 0 ? padded : padded.slice(0, -decimals);
-  const fraction =
-    decimals === 0 ? '' : padded.slice(-decimals).replace(/0+$/, '');
+  const fractionRaw = decimals === 0 ? '' : padded.slice(-decimals);
+  let fractionEnd = fractionRaw.length;
+  while (fractionEnd > 0 && fractionRaw[fractionEnd - 1] === '0') fractionEnd--;
+  const fraction = fractionRaw.slice(0, fractionEnd);
   return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
 }
 
@@ -319,7 +321,17 @@ export function TenderlyPreviewModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} maxWidth="2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={
+        busy
+          ? () => {
+              /* noop: prevent close while transaction is pending */
+            }
+          : onClose
+      }
+      maxWidth="2xl"
+    >
       <ModalContent className="flex max-h-[92vh] flex-col overflow-hidden rounded-[28px] border border-slate-800 bg-[#090d16] p-0 shadow-2xl shadow-black/60">
         <header className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-900/70 px-5 py-4 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">

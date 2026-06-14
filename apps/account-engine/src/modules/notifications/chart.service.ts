@@ -59,9 +59,9 @@ export class ChartService {
         .split(',')
         .map(Number);
       date = new Date(
-        dateComponents[0] ?? 0,
-        dateComponents[1] ?? 0,
-        dateComponents[2] ?? 0,
+        dateComponents[0]!,
+        dateComponents[1]!,
+        dateComponents[2],
       );
     } else if (dateValue instanceof Date) {
       date = new Date(dateValue.getTime());

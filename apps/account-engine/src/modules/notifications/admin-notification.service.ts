@@ -72,7 +72,7 @@ export class AdminNotificationService {
           );
         }
       }
-    } /* istanbul ignore next -- defensive catch-all for unexpected errors outside inner loop */ catch (error) {
+    } /* v8 ignore next -- defensive catch-all for unexpected errors outside inner loop */ catch (error) {
       // Catch-all: never let notification errors escape
       this.logger.error(
         'Unexpected error in admin notification',
