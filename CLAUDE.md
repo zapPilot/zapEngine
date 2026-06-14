@@ -130,41 +130,27 @@ Do NOT run `verify:ci` during the fix loop — it is too slow.
 
 ### Agent fix loop (autonomous)
 
-For autonomous fail → fix → rerun cycles, use the agent loop wrapper. The loop is bash-controlled; the OpenCode agent only reads the supplied failure log and makes the smallest targeted edit. The outer loop owns validation, protected-path enforcement, no-progress detection, and timeouts.
-
-The working tree must be completely clean before startup. Every invocation requires an explicit OpenCode model ID; that model is fixed for the full run, while every repair attempt uses a fresh session.
-
-Daily workflow:
+One command auto-detects all core CI failures and fixes them:
 
 ```bash
-pnpm agent:loop:changed -- --model provider/model
-pnpm agent:loop:typecheck -- --model provider/model
+pnpm agent:fix -- --model provider/model
 ```
 
-When the failing package is known:
+The script runs all core CI jobs in parallel, identifies the failing job, sends a compact failure log to a fresh OpenCode session, reruns only that job, and re-scans until everything passes. The final step always runs canonical `pnpm verify:ci`.
 
-```bash
-pnpm agent:loop -- --model provider/model \
-  --command "pnpm turbo run test:ci --filter=@zapengine/account-engine"
-```
+Works in dirty working trees — staged, unstaged, and untracked files are preserved. Each repair uses a fresh agent session with no state leakage between attempts.
 
-Before push:
-
-```bash
-pnpm agent:loop:ci -- --model provider/model
-```
-
-Optional CLI controls:
+Optional controls:
 
 ```bash
 --max-iters 20  # default: 0 (unlimited)
---timeout 900   # default: 900 seconds; 0 disables the timeout
+--timeout 900   # per-job timeout in seconds; 0 disables
 --agent ci-fixer
 ```
 
-The default loop is unlimited. It stops only when validation passes, the optional iteration cap is reached, OpenCode fails three consecutive times without edits, the same failure receives no edits three times, or the agent touches a protected path. Protected edits are restored automatically and recorded in `.agent-loop/blocker-report.txt`.
+The loop stops when: all jobs pass, the iteration cap is reached, OpenCode fails three consecutive times without edits, the same failure receives no edits three times, or the agent touches a protected path. Protected edits are restored automatically and recorded in `.agent-loop/blocker-report.txt`.
 
-The `ci-fixer` agent (`.opencode/agents/ci-fixer.md`) has no Bash, web, subagent, or external-directory access. It must not modify snapshots, coverage settings, CI config, lockfiles, package manifests, repository instructions, or verification scripts.
+Core CI covers: format check, repository drift checks, contracts parity, turbo workspace checks (lint/type-check/deadcode/duplication/test), and analytics checks. It does NOT cover coverage, mobile, Docker, security audit, or deploy jobs — those are handled by GitHub Actions.
 
 ### CI stage scripts (for granular debugging)
 
