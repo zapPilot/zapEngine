@@ -12,7 +12,9 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 function getGoogleTranslateApiKey(): string {
   const key = process.env['GOOGLE_TRANSLATE_API_KEY'];
   if (!key) {
-    throw new Error('Missing required environment variable: GOOGLE_TRANSLATE_API_KEY');
+    throw new Error(
+      'Missing required environment variable: GOOGLE_TRANSLATE_API_KEY',
+    );
   }
   return key;
 }
@@ -59,9 +61,7 @@ export async function translateChineseText(
 
   return {
     text: result.text,
-    cost: [
-      buildGoogleTranslateCostLine(result.charCount, targetLanguageCode),
-    ],
+    cost: [buildGoogleTranslateCostLine(result.charCount, targetLanguageCode)],
   };
 }
 
@@ -102,7 +102,7 @@ async function translateText(
     if (response.ok) {
       const data = (await response.json()) as {
         data: {
-          translations: Array<{ translatedText: string }>;
+          translations: { translatedText: string }[];
         };
       };
 
@@ -113,7 +113,9 @@ async function translateText(
     }
 
     const errorBody = await response.text();
-    lastError = new Error(`Google Translate API error: ${response.status} - ${errorBody}`);
+    lastError = new Error(
+      `Google Translate API error: ${response.status} - ${errorBody}`,
+    );
 
     if (!RETRYABLE_STATUS.has(response.status)) {
       throw lastError;

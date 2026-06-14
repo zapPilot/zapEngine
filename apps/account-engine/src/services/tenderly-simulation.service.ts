@@ -662,7 +662,35 @@ export function createTenderlySimulationService(config: {
         );
       }
 
-      return normalizeReview(input, parsed.simulation_results, []);
+      const shareUrls = (
+        await Promise.all(
+          parsed.simulation_results.map(async (result) => {
+            const simulationId = result.simulation.id;
+            try {
+              const shareResponse = await fetchWithTimeout(
+                `${baseUrl}/simulations/${simulationId}/share`,
+                { method: 'POST', headers },
+              );
+              if (!shareResponse.ok) {
+                logger.warn('Tenderly simulation sharing failed', {
+                  simulationId,
+                  status: shareResponse.status,
+                });
+                return null;
+              }
+              return `https://www.tdly.co/shared/simulation/${simulationId}`;
+            } catch (error) {
+              logger.warn('Tenderly simulation sharing failed', {
+                simulationId,
+                error: getErrorMessage(error),
+              });
+              return null;
+            }
+          }),
+        )
+      ).filter((url): url is string => url !== null);
+
+      return normalizeReview(input, parsed.simulation_results, shareUrls);
     },
   };
 }

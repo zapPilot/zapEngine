@@ -134,7 +134,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
-    pool: "forks",
+    pool: "vmThreads",
     maxWorkers: 1,
     globals: true,
     environment: "jsdom",

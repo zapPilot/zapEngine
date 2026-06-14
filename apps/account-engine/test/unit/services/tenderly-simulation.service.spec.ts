@@ -150,7 +150,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -188,7 +188,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -201,15 +201,18 @@ describe('TenderlySimulationService', () => {
   });
 
   it('posts the full sequential bundle to the exact endpoint with decimal values', async () => {
-    const fetchFn = vi.fn().mockResolvedValueOnce(
-      response([
-        simulationResult({
-          id: 'sim-1',
-          to: TARGET,
-          contracts: [contract(TARGET)],
-        }),
-      ]),
-    );
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-1',
+            to: TARGET,
+            contracts: [contract(TARGET)],
+          }),
+        ]),
+      )
+      .mockResolvedValueOnce({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -245,7 +248,20 @@ describe('TenderlySimulationService', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-    expect(result.shareUrls).toEqual([]);
+    expect(fetchFn).toHaveBeenCalledWith(
+      'https://api.tenderly.co/api/v1/account/account-slug/project/project-slug/simulations/sim-1/share',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Access-Key': 'secret-token',
+        },
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(result.shareUrls).toEqual([
+      'https://www.tdly.co/shared/simulation/sim-1',
+    ]);
   });
 
   it('fails closed as unavailable when configuration is missing', async () => {
@@ -359,13 +375,14 @@ describe('TenderlySimulationService', () => {
     });
   });
 
-  it('keeps a successful simulation valid when sharing is not attempted', async () => {
+  it('keeps a successful simulation valid when public sharing fails', async () => {
     const warn = vi.fn();
     const fetchFn = vi
       .fn()
       .mockResolvedValueOnce(
         response([simulationResult({ id: 'sim-private' })]),
-      );
+      )
+      .mockResolvedValueOnce({ ok: false, status: 500 });
     const service = createTenderlySimulationService({
       accountSlug: 'account-slug',
       projectSlug: 'project-slug',
@@ -382,6 +399,10 @@ describe('TenderlySimulationService', () => {
 
     expect(result.status).toBe('passed');
     expect(result.shareUrls).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      'Tenderly simulation sharing failed',
+      expect.objectContaining({ simulationId: 'sim-private', status: 500 }),
+    );
   });
 
   it('normalizes wallet-relative assets, approvals, contracts, and every risk rule', async () => {
@@ -418,7 +439,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -467,6 +488,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
+      .mockResolvedValueOnce({ ok: true, status: 204 })
       .mockResolvedValueOnce(
         response([
           simulationResult({
@@ -475,7 +497,8 @@ describe('TenderlySimulationService', () => {
             blockNumber: 200,
           }),
         ]),
-      );
+      )
+      .mockResolvedValueOnce({ ok: true, status: 204 });
     const service = createService(fetchFn);
     const input = {
       chainId: 8453 as const,
@@ -491,8 +514,12 @@ describe('TenderlySimulationService', () => {
     expect(first.blockNumber).not.toBe(second.blockNumber);
     expect(first.callGas).not.toBe(second.callGas);
     expect(first.simulationIds).not.toEqual(second.simulationIds);
-    expect(first.shareUrls).toEqual([]);
-    expect(second.shareUrls).toEqual([]);
+    expect(first.shareUrls).toEqual([
+      'https://www.tdly.co/shared/simulation/sim-1',
+    ]);
+    expect(second.shareUrls).toEqual([
+      'https://www.tdly.co/shared/simulation/sim-2',
+    ]);
   });
 
   it('handles null asset_changes without crashing', async () => {
@@ -527,7 +554,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -552,7 +579,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -593,7 +620,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -642,7 +669,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -689,7 +716,7 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+      .mockResolvedValue({ ok: true, status: 204 });
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({

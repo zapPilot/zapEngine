@@ -1,21 +1,17 @@
 import type { PrivyPrepareSendCallsResponse } from '@zapengine/types/api';
 import {
-  AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
   Check,
-  CheckCircle,
   ChevronDown,
   CircleDashed,
+  ExternalLink,
   Loader,
   RefreshCw,
-  ShieldAlert,
   Wallet,
   X,
-  XCircle,
-  Zap,
 } from 'lucide-react';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type MouseEvent, type ReactElement, useEffect, useState } from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
 
@@ -25,6 +21,7 @@ interface TenderlyPreviewModalProps {
   previewData: PrivyPrepareSendCallsResponse | null;
   onConfirm: (acknowledgedRiskHash?: string) => Promise<void>;
   onRetry: () => Promise<void>;
+  onUpdateApproval: (callIndex: number, amount: string) => Promise<void>;
   isSigningAndSending: boolean;
   isRetryingSimulation: boolean;
   retryError?: string | null;
@@ -48,6 +45,31 @@ function formatTokenAmount(rawAmount: string, decimals: number): string {
   while (fractionEnd > 0 && fractionRaw[fractionEnd - 1] === '0') fractionEnd--;
   const fraction = fractionRaw.slice(0, fractionEnd);
   return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
+}
+
+function compactTokenAmount(rawAmount: string, decimals: number): string {
+  const exact = formatTokenAmount(rawAmount, decimals);
+  const negative = exact.startsWith('-');
+  const unsigned = negative ? exact.slice(1) : exact;
+  const [integer, fraction] = unsigned.split('.');
+  if (!fraction) return exact;
+
+  let firstSignificant = -1;
+  for (let index = 0; index < fraction.length; index++) {
+    if (fraction[index] !== '0') {
+      firstSignificant = index;
+      break;
+    }
+  }
+  const visibleFractionLength =
+    integer === '0' && firstSignificant >= 0 ? firstSignificant + 6 : 6;
+  const fractionSlice = fraction.slice(0, visibleFractionLength);
+  let fractionEnd = fractionSlice.length;
+  while (fractionEnd > 0 && fractionSlice[fractionEnd - 1] === '0') {
+    fractionEnd--;
+  }
+  const visibleFraction = fractionSlice.slice(0, fractionEnd);
+  return `${negative ? '-' : ''}${integer}${visibleFraction ? `.${visibleFraction}` : ''}`;
 }
 
 function networkName(chainId: number): string {
@@ -83,56 +105,18 @@ function callTarget(
   return contract?.name ?? formatAddress(call.to);
 }
 
-function statusContent(preview: PrivyPrepareSendCallsResponse): {
-  title: string;
-  detail: string;
-  tone: string;
-  icon: ReactElement;
-} {
-  if (preview.status === 'passed') {
-    return {
-      title: 'Simulation passed',
-      detail: 'All calls completed without material risk warnings.',
-      tone: 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300',
-      icon: <CheckCircle className="h-4 w-4 shrink-0" />,
-    };
-  }
-  if (preview.status === 'warning') {
-    return {
-      title: 'Review warnings',
-      detail: 'The bundle completed, but it needs your acknowledgement.',
-      tone: 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300',
-      icon: <AlertTriangle className="h-4 w-4 shrink-0" />,
-    };
-  }
-  if (preview.status === 'failed') {
-    return {
-      title: 'Simulation failed',
-      detail: preview.failureReason,
-      tone: 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300',
-      icon: <XCircle className="h-4 w-4 shrink-0" />,
-    };
-  }
-  return {
-    title: 'Simulation unavailable',
-    detail: preview.unavailableReason,
-    tone: 'border-slate-600 bg-slate-800/50 text-slate-300',
-    icon: <ShieldAlert className="h-4 w-4 shrink-0" />,
-  };
-}
-
 function TokenMark({ change }: { change: AssetChange }): ReactElement {
   if (change.token.logoUrl) {
     return (
       <img
         src={change.token.logoUrl}
         alt=""
-        className="h-9 w-9 rounded-full bg-slate-800 object-cover"
+        className="h-9 w-9 shrink-0 rounded-full bg-slate-800 object-cover"
       />
     );
   }
   return (
-    <div className="grid h-9 w-9 place-items-center rounded-full border border-slate-700 bg-slate-900 text-xs font-bold text-slate-200">
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-700 bg-slate-900 text-xs font-bold text-slate-200">
       {change.token.symbol.slice(0, 2)}
     </div>
   );
@@ -140,22 +124,30 @@ function TokenMark({ change }: { change: AssetChange }): ReactElement {
 
 function AssetRow({ change }: { change: AssetChange }): ReactElement {
   const outgoing = change.direction === 'out';
+  const sign = outgoing ? '-' : '+';
+  const exactAmount = formatTokenAmount(
+    change.rawAmount,
+    change.token.decimals,
+  );
   return (
     <div className="flex min-h-16 items-center justify-between gap-4 border-t border-slate-800/80 px-4 py-3 first:border-t-0">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <TokenMark change={change} />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-100">
             {change.token.symbol}
           </div>
-          <div className="text-xs text-slate-500">{change.token.name}</div>
+          <div className="truncate text-xs text-slate-500">
+            {change.token.name}
+          </div>
         </div>
       </div>
       <div
-        className={`whitespace-nowrap font-mono text-sm font-semibold ${outgoing ? 'text-rose-300' : 'text-emerald-300'}`}
+        title={`${sign}${exactAmount} ${change.token.symbol}`}
+        className={`max-w-[55%] min-w-0 shrink truncate text-right font-mono text-sm font-semibold ${outgoing ? 'text-rose-300' : 'text-emerald-300'}`}
       >
-        {outgoing ? '-' : '+'}
-        {formatTokenAmount(change.rawAmount, change.token.decimals)}{' '}
+        {sign}
+        {compactTokenAmount(change.rawAmount, change.token.decimals)}{' '}
         {change.token.symbol}
       </div>
     </div>
@@ -207,10 +199,29 @@ function StepIcon({ status }: { status: PreviewCall['status'] }): ReactElement {
 function ExecutionStep({
   preview,
   call,
+  onUpdateApproval,
+  isUpdating,
 }: {
   preview: PrivyPrepareSendCallsResponse;
   call: PreviewCall;
+  onUpdateApproval: (callIndex: number, amount: string) => Promise<void>;
+  isUpdating: boolean;
 }): ReactElement {
+  const approval = preview.approvals.find(
+    (candidate) => candidate.callIndex === call.index,
+  );
+  const [editingApproval, setEditingApproval] = useState(false);
+  const [approvalAmount, setApprovalAmount] = useState(approval?.amount ?? '');
+
+  const startEditing = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setApprovalAmount(approval?.amount ?? '');
+    setEditingApproval(true);
+    const details = event.currentTarget.closest('details');
+    if (details) details.open = true;
+  };
+
   return (
     <details className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 open:bg-slate-900">
       <summary className="flex min-h-16 cursor-pointer list-none items-center gap-4 px-4 py-3 marker:hidden sm:px-5">
@@ -230,9 +241,99 @@ function ExecutionStep({
             Step {call.index + 1} of {preview.calls.length}
           </div>
         </div>
+        {approval && (
+          <div className="flex max-w-[42%] min-w-0 shrink-0 flex-col items-end gap-1 sm:max-w-[48%] sm:flex-row sm:items-center sm:gap-2">
+            <span className="max-w-full truncate font-mono text-xs font-semibold text-amber-200 sm:text-sm">
+              {approval.unlimited
+                ? 'Unlimited'
+                : compactTokenAmount(
+                    approval.rawAmount,
+                    approval.token.decimals,
+                  )}{' '}
+              {approval.token.symbol}
+            </span>
+            <button
+              type="button"
+              onClick={startEditing}
+              className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-300 hover:bg-indigo-400/10"
+            >
+              Edit
+            </button>
+          </div>
+        )}
         <ChevronDown className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
       </summary>
       <div className="grid gap-3 border-t border-slate-800 px-5 py-4 text-xs sm:grid-cols-3">
+        {approval && (
+          <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3 sm:col-span-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold text-amber-200">
+                Approve{' '}
+                {approval.unlimited
+                  ? 'Unlimited'
+                  : compactTokenAmount(
+                      approval.rawAmount,
+                      approval.token.decimals,
+                    )}{' '}
+                {approval.token.symbol}
+              </div>
+              {!editingApproval && (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="rounded-lg px-2 py-1 font-semibold text-indigo-300 hover:bg-indigo-400/10 sm:hidden"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+            {editingApproval && (
+              <form
+                className="flex flex-col gap-2 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onUpdateApproval(call.index, approvalAmount)
+                    .then(() => setEditingApproval(false))
+                    .catch(() => {});
+                }}
+              >
+                <label className="sr-only" htmlFor={`approval-${call.index}`}>
+                  Approval amount
+                </label>
+                <input
+                  id={`approval-${call.index}`}
+                  value={approvalAmount}
+                  onChange={(event) => setApprovalAmount(event.target.value)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  className="min-h-10 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 font-mono text-sm text-slate-100 outline-none focus:border-indigo-400"
+                />
+                <button
+                  type="submit"
+                  disabled={isUpdating || approvalAmount.trim() === ''}
+                  className="min-h-10 rounded-lg bg-indigo-500 px-4 font-semibold text-white disabled:opacity-40"
+                >
+                  {isUpdating ? 'Simulating...' : 'Apply & simulate'}
+                </button>
+              </form>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Evidence
+                label="Spender"
+                value={formatAddress(approval.spender)}
+              />
+              <Evidence
+                label="Simulated spend"
+                value={`${formatTokenAmount(approval.simulatedSpendRaw, approval.token.decimals)} ${approval.token.symbol}`}
+              />
+            </div>
+            {approval.exceedsSimulatedSpend && (
+              <div className="text-amber-300/80">
+                Approval exceeds the amount spent in this simulation.
+              </div>
+            )}
+          </div>
+        )}
         <Evidence label="Target" value={formatAddress(call.to)} />
         <Evidence label="Status" value={titleCase(call.status)} />
         <Evidence
@@ -248,6 +349,28 @@ function ExecutionStep({
             {call.error}
           </div>
         )}
+        <div className="space-y-3 border-t border-slate-800 pt-4 sm:col-span-3">
+          <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Raw data
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Interacting with (to)
+            </div>
+            <div className="mt-1 break-all font-mono text-slate-300">
+              {call.to}
+            </div>
+          </div>
+          <Evidence label="Value to be sent" value={call.value} />
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Data
+            </div>
+            <div className="mt-1 break-all font-mono text-slate-400">
+              {call.data}
+            </div>
+          </div>
+        </div>
       </div>
     </details>
   );
@@ -278,15 +401,14 @@ export function TenderlyPreviewModal({
   previewData,
   onConfirm,
   onRetry,
+  onUpdateApproval,
   isSigningAndSending,
   isRetryingSimulation,
   retryError,
 }: TenderlyPreviewModalProps): ReactElement {
-  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
-    setRiskAcknowledged(false);
     setIsExpired(false);
   }, [previewData?.riskHash, previewData?.status]);
 
@@ -307,12 +429,7 @@ export function TenderlyPreviewModal({
     previewData.status === 'passed' || previewData.status === 'warning';
   const expired = signable && isExpired;
   const busy = isSigningAndSending || isRetryingSimulation;
-  const canSign =
-    signable &&
-    !expired &&
-    !busy &&
-    (previewData.status !== 'warning' || riskAcknowledged);
-  const status = statusContent(previewData);
+  const canSign = signable && !expired && !busy;
   const outgoing = previewData.assetChanges.filter(
     (change) => change.direction === 'out',
   );
@@ -369,24 +486,14 @@ export function TenderlyPreviewModal({
             </div>
           </div>
 
-          <div
-            className={`mb-5 flex items-start gap-3 rounded-2xl border px-4 py-3 ${status.tone}`}
-          >
-            {status.icon}
-            <div>
-              <div className="text-sm font-semibold">{status.title}</div>
-              <div className="mt-0.5 text-xs text-slate-400">
-                {status.detail}
-              </div>
-            </div>
-          </div>
-
           <section className="space-y-3">
             {previewData.calls.map((call) => (
               <ExecutionStep
                 key={call.index}
                 preview={previewData}
                 call={call}
+                onUpdateApproval={onUpdateApproval}
+                isUpdating={isRetryingSimulation}
               />
             ))}
           </section>
@@ -396,105 +503,56 @@ export function TenderlyPreviewModal({
             <AssetPanel title="Assets in" changes={incoming} direction="in" />
           </div>
 
-          {previewData.approvals.length > 0 && (
-            <section className="mt-5 overflow-hidden rounded-2xl border border-amber-400/20 bg-amber-400/[0.04]">
-              <div className="flex items-center gap-2 border-b border-amber-400/15 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-300">
-                <ShieldAlert className="h-4 w-4" />
-                Approval exposure
-              </div>
-              {previewData.approvals.map((approval) => (
-                <div
-                  key={`${approval.callIndex}-${approval.spender}`}
-                  className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-400/10 px-4 py-3 first:border-t-0"
-                >
-                  <div className="text-sm text-slate-300">
-                    {approval.token.symbol} to {formatAddress(approval.spender)}
-                  </div>
-                  <div className="font-mono text-sm font-semibold text-amber-200">
-                    {approval.unlimited
-                      ? 'Unlimited'
-                      : formatTokenAmount(
-                          approval.rawAmount,
-                          approval.token.decimals,
-                        )}{' '}
-                    {approval.token.symbol}
-                  </div>
-                  {approval.exceedsSimulatedSpend && (
-                    <div className="w-full text-xs text-amber-300/80">
-                      Approval exceeds the amount spent in this simulation.
-                    </div>
-                  )}
-                </div>
-              ))}
-            </section>
-          )}
-
-          {previewData.warnings.length > 0 && (
-            <section className="mt-5 space-y-2">
-              {previewData.warnings.map((warning, index) => (
-                <div
-                  key={`${warning.code}-${warning.callIndex ?? index}`}
-                  className="flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm text-amber-100"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-                  {warning.message}
-                </div>
-              ))}
-            </section>
-          )}
-
-          <section className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-            <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-              <Zap className="h-4 w-4 text-indigo-300" />
-              Simulation evidence
-            </div>
-            <div
-              className={`grid gap-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
-            >
-              <Evidence
-                label="Network"
-                value={networkName(previewData.chainId)}
-              />
-              <Evidence
-                label="Block"
-                value={
-                  previewData.blockNumber?.toLocaleString() ?? 'Unavailable'
-                }
-              />
-              <Evidence
-                label="Call gas"
-                value={Number(previewData.callGas).toLocaleString()}
-              />
-              {signable && (
-                <Evidence
-                  label="Expires"
-                  value={
-                    expired ? 'Expired' : formatExpiry(previewData.expiresAt)
-                  }
-                />
-              )}
-            </div>
-          </section>
-
-          <details className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/30">
+          <details className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/30">
             <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
               Advanced details
             </summary>
             <div className="space-y-4 border-t border-slate-800 px-4 py-4">
-              {previewData.calls.map((call) => (
-                <div
-                  key={`advanced-${call.index}`}
-                  className="text-xs text-slate-500"
-                >
-                  <div className="font-semibold text-slate-300">
-                    Call {call.index + 1}
-                  </div>
-                  <div className="mt-1 break-all font-mono">
-                    Data: {call.data}
-                  </div>
-                  <div className="font-mono">Value: {call.value}</div>
+              {previewData.shareUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+                  {previewData.shareUrls.map((url, index) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`View simulation ${index + 1} on Tenderly`}
+                      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-400/25 bg-indigo-400/[0.07] px-3 text-xs font-semibold text-indigo-200 transition-colors hover:border-indigo-300/50 hover:bg-indigo-400/15"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {previewData.shareUrls.length === 1
+                        ? 'View on Tenderly'
+                        : `Simulation ${index + 1}`}
+                    </a>
+                  ))}
                 </div>
-              ))}
+              )}
+              <div
+                className={`grid gap-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
+              >
+                <Evidence
+                  label="Network"
+                  value={networkName(previewData.chainId)}
+                />
+                <Evidence
+                  label="Block"
+                  value={
+                    previewData.blockNumber?.toLocaleString() ?? 'Unavailable'
+                  }
+                />
+                <Evidence
+                  label="Call gas"
+                  value={Number(previewData.callGas).toLocaleString()}
+                />
+                {signable && (
+                  <Evidence
+                    label="Expires"
+                    value={
+                      expired ? 'Expired' : formatExpiry(previewData.expiresAt)
+                    }
+                  />
+                )}
+              </div>
               <div className="border-t border-slate-800 pt-4">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Simulation fingerprint
@@ -505,20 +563,6 @@ export function TenderlyPreviewModal({
               </div>
             </div>
           </details>
-
-          {previewData.status === 'warning' && (
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4">
-              <input
-                type="checkbox"
-                checked={riskAcknowledged}
-                onChange={(event) => setRiskAcknowledged(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-amber-400"
-              />
-              <span className="text-sm text-amber-100">
-                I reviewed these warnings and accept the stated risks.
-              </span>
-            </label>
-          )}
 
           {expired && (
             <div className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-center text-xs text-rose-300">

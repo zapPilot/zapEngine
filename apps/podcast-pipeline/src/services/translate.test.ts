@@ -49,7 +49,7 @@ describe('translateChineseText', () => {
           label: 'Translation en',
           provider: 'google',
           model: 'translate-api',
-          costUsd: 0.00014,
+          costUsd: 0.00016,
         },
       ],
     });
@@ -76,7 +76,9 @@ describe('translateChineseText', () => {
   it('throws when GOOGLE_TRANSLATE_API_KEY is missing', async () => {
     vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', '');
 
-    await expect(translateChineseText('滑鼠和腳踏車市場', 'en')).rejects.toThrow(
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).rejects.toThrow(
       'Missing required environment variable: GOOGLE_TRANSLATE_API_KEY',
     );
   });
@@ -88,9 +90,9 @@ describe('translateChineseText', () => {
       text: async () => 'Invalid request',
     });
 
-    await expect(translateChineseText('滑鼠和腳踏車市場', 'en')).rejects.toThrow(
-      'Google Translate API error: 400 - Invalid request',
-    );
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).rejects.toThrow('Google Translate API error: 400 - Invalid request');
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -129,8 +131,13 @@ describe('translateChineseText', () => {
     });
 
     const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    // Prevent vitest unhandled-rejection detection from firing before
+    // the .rejects.toThrow() assertion below attaches its handler.
+    promise.catch(() => {});
     await vi.advanceTimersByTimeAsync(3000);
-    await expect(promise).rejects.toThrow('Google Translate API error: 500 - Internal error');
+    await expect(promise).rejects.toThrow(
+      'Google Translate API error: 500 - Internal error',
+    );
     expect(mockFetch).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
@@ -176,7 +183,7 @@ describe('translateCanonicalScript', () => {
           label: 'Translation ja',
           provider: 'google',
           model: 'translate-api',
-          costUsd: 0.00018,
+          costUsd: 0.00022,
         },
       ],
     });

@@ -13,8 +13,10 @@ import {
   createWalletClient,
   custom,
   decodeFunctionData,
+  encodeFunctionData,
   erc20Abi,
   type Hex,
+  parseUnits,
   toHex,
 } from 'viem';
 import { arbitrum, base, optimism } from 'wagmi/chains';
@@ -162,6 +164,7 @@ export interface PrivyWalletBackend {
   simulationPreview: PrivyPrepareSendCallsResponse | null;
   confirmBatchExecution: (acknowledgedRiskHash?: string) => Promise<void>;
   retryBatchSimulation: () => Promise<void>;
+  updateApprovalAmount: (callIndex: number, amount: string) => Promise<void>;
   cancelBatchExecution: () => void;
   isSigningAndSending: boolean;
   isRetryingSimulation: boolean;
@@ -434,6 +437,79 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     }
   }, [getAccessToken]);
 
+  const updateApprovalAmount = useCallback(
+    async (callIndex: number, amount: string): Promise<void> => {
+      const pending = pendingExecutionRef.current;
+      if (!pending) return;
+
+      const approval = pending.preview.approvals.find(
+        (candidate) => candidate.callIndex === callIndex,
+      );
+      const call = pending.batch.calls[callIndex];
+      if (!approval || !call) {
+        const error = new Error('Approval call is no longer available.');
+        setRetryError(error.message);
+        throw error;
+      }
+
+      let rawAmount: bigint;
+      try {
+        rawAmount = parseUnits(amount.trim(), approval.token.decimals);
+      } catch {
+        const error = new Error('Enter a valid approval amount.');
+        setRetryError(error.message);
+        throw error;
+      }
+      if (rawAmount < 0n) {
+        const error = new Error('Approval amount cannot be negative.');
+        setRetryError(error.message);
+        throw error;
+      }
+
+      const updatedBatch = {
+        ...pending.batch,
+        idempotencyKey: createIdempotencyKey(),
+        calls: pending.batch.calls.map((candidate, index) =>
+          index === callIndex
+            ? {
+                ...candidate,
+                data: encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: 'approve',
+                  args: [approval.spender as `0x${string}`, rawAmount],
+                }),
+              }
+            : candidate,
+        ),
+      };
+
+      setRetryError(null);
+      setIsRetryingSimulation(true);
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error(
+            'Privy user access token is invalid or expired. Please re-login.',
+          );
+        }
+        const preview = await preparePrivyAtomicBatch(
+          updatedBatch,
+          accessToken,
+        );
+        pending.batch = updatedBatch;
+        pending.preview = preview;
+        setSimulationPreview(preview);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : errorMessage(err);
+        setRetryError(message);
+        throw err;
+      } finally {
+        setIsRetryingSimulation(false);
+      }
+    },
+    [getAccessToken],
+  );
+
   const confirmBatchExecution = useCallback(
     async (acknowledgedRiskHash?: string): Promise<void> => {
       const pending = pendingExecutionRef.current;
@@ -595,6 +671,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     simulationPreview,
     confirmBatchExecution,
     retryBatchSimulation,
+    updateApprovalAmount,
     cancelBatchExecution,
     isSigningAndSending,
     isRetryingSimulation,

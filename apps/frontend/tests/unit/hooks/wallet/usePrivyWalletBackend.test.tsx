@@ -1,4 +1,5 @@
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { decodeFunctionData, erc20Abi } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePrivyWalletBackend } from '@/hooks/wallet/usePrivyWalletBackend';
@@ -293,6 +294,74 @@ describe('usePrivyWalletBackend', () => {
 
     act(() => result.current.cancelBatchExecution());
     await rejection;
+  });
+
+  it('updates an approval call and re-simulates with a new idempotency key', async () => {
+    const approval = {
+      callIndex: 0,
+      owner: PRIVY_ADDRESS,
+      spender: supplyTx.to,
+      token: {
+        address: approvalTx.to,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        decimals: 6,
+        logoUrl: null,
+      },
+      rawAmount: '10001',
+      amount: '0.010001',
+      unlimited: false,
+      simulatedSpendRaw: '10001',
+      exceedsSimulatedSpend: false,
+    };
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce(passedPreview({ approvals: [approval] }))
+      .mockResolvedValueOnce(
+        passedPreview({
+          previewId: 'edited-preview-id',
+          approvals: [{ ...approval, rawAmount: '750000', amount: '0.75' }],
+        }),
+      );
+    const { result } = renderHook(() => usePrivyWalletBackend());
+    let execution: Promise<unknown> | undefined;
+
+    act(() => {
+      execution = result.current.backend.executeAtomicBatch?.(
+        [approvalTx, supplyTx],
+        8453,
+      );
+      void execution?.catch(() => undefined);
+    });
+
+    await waitFor(() =>
+      expect(result.current.simulationPreview).toMatchObject({
+        previewId: 'mock-preview-id',
+      }),
+    );
+
+    await act(async () => {
+      await result.current.updateApprovalAmount(0, '0.75');
+    });
+
+    const firstRequest = mocks.accountApiPost.mock.calls[0]?.[1];
+    const secondRequest = mocks.accountApiPost.mock.calls[1]?.[1];
+    expect(secondRequest.idempotencyKey).not.toBe(firstRequest.idempotencyKey);
+    const decoded = decodeFunctionData({
+      abi: erc20Abi,
+      data: secondRequest.calls[0].data,
+    });
+    expect(decoded.functionName).toBe('approve');
+    expect(decoded.args[0].toLowerCase()).toBe(supplyTx.to.toLowerCase());
+    expect(decoded.args[1]).toBe(750000n);
+    expect(result.current.simulationPreview).toMatchObject({
+      previewId: 'edited-preview-id',
+    });
+
+    act(() => result.current.cancelBatchExecution());
+    await expect(execution).rejects.toThrow(
+      'Transaction rejected by the user.',
+    );
   });
 
   it('keeps the flow pending when confirm returns a replacement review', async () => {

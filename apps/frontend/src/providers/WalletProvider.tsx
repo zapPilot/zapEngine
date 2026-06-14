@@ -55,6 +55,7 @@ export function UnifiedWalletProvider({
     simulationPreview,
     confirmBatchExecution,
     retryBatchSimulation,
+    updateApprovalAmount,
     cancelBatchExecution,
     isSigningAndSending,
     isRetryingSimulation,
@@ -76,6 +77,7 @@ export function UnifiedWalletProvider({
           previewData={simulationPreview}
           onConfirm={confirmBatchExecution}
           onRetry={retryBatchSimulation}
+          onUpdateApproval={updateApprovalAmount}
           isSigningAndSending={isSigningAndSending}
           isRetryingSimulation={isRetryingSimulation}
           retryError={retryError}
