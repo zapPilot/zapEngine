@@ -3,11 +3,14 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  Check,
   CheckCircle,
-  ChevronRight,
+  ChevronDown,
+  CircleDashed,
   Loader,
   RefreshCw,
   ShieldAlert,
+  Wallet,
   X,
   XCircle,
   Zap,
@@ -27,23 +30,22 @@ interface TenderlyPreviewModalProps {
   retryError?: string | null;
 }
 
+type PreviewCall = PrivyPrepareSendCallsResponse['calls'][number];
+type AssetChange = PrivyPrepareSendCallsResponse['assetChanges'][number];
+
 function formatAddress(address: string | null): string {
   if (!address) return 'Unknown';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function formatTokenAmount(rawAmount: string, decimals: number): string {
-  try {
-    const negative = rawAmount.startsWith('-');
-    const digits = negative ? rawAmount.slice(1) : rawAmount;
-    const padded = digits.padStart(decimals + 1, '0');
-    const integer = decimals === 0 ? padded : padded.slice(0, -decimals);
-    const fraction =
-      decimals === 0 ? '' : padded.slice(-decimals).replace(/0+$/, '');
-    return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
-  } catch {
-    return rawAmount;
-  }
+  const negative = rawAmount.startsWith('-');
+  const digits = negative ? rawAmount.slice(1) : rawAmount;
+  const padded = digits.padStart(decimals + 1, '0');
+  const integer = decimals === 0 ? padded : padded.slice(0, -decimals);
+  const fraction =
+    decimals === 0 ? '' : padded.slice(-decimals).replace(/0+$/, '');
+  return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
 }
 
 function networkName(chainId: number): string {
@@ -61,37 +63,22 @@ function formatExpiry(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-interface AssetChange {
-  callIndex: number;
-  direction: 'in' | 'out';
-  token: { address: string | null; symbol: string; decimals: number };
-  rawAmount: string;
+function titleCase(value: string | null): string {
+  if (!value) return 'Contract call';
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, (character) => character.toUpperCase());
 }
 
-function AssetChangeRow({ change }: { change: AssetChange }): ReactElement {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-gray-800/70 py-3 last:border-0">
-      <div className="flex items-center gap-2">
-        {change.direction === 'out' ? (
-          <ArrowUpRight className="h-4 w-4 text-rose-400" />
-        ) : (
-          <ArrowDownLeft className="h-4 w-4 text-emerald-400" />
-        )}
-        <span className="text-sm font-semibold text-gray-200">
-          {change.token.symbol}
-        </span>
-      </div>
-      <div
-        className={`font-mono text-sm font-bold ${
-          change.direction === 'out' ? 'text-rose-400' : 'text-emerald-400'
-        }`}
-      >
-        {change.direction === 'out' ? '-' : '+'}
-        {formatTokenAmount(change.rawAmount, change.token.decimals)}{' '}
-        {change.token.symbol}
-      </div>
-    </div>
+function callTarget(
+  preview: PrivyPrepareSendCallsResponse,
+  call: PreviewCall,
+): string {
+  const contract = preview.contracts.find(
+    (candidate) => candidate.address.toLowerCase() === call.to.toLowerCase(),
   );
+  return contract?.name ?? formatAddress(call.to);
 }
 
 function statusContent(preview: PrivyPrepareSendCallsResponse): {
@@ -104,32 +91,183 @@ function statusContent(preview: PrivyPrepareSendCallsResponse): {
     return {
       title: 'Simulation passed',
       detail: 'All calls completed without material risk warnings.',
-      tone: 'border-emerald-500/25 bg-emerald-950/20 text-emerald-400',
-      icon: <CheckCircle className="h-5 w-5 shrink-0" />,
+      tone: 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300',
+      icon: <CheckCircle className="h-4 w-4 shrink-0" />,
     };
   }
   if (preview.status === 'warning') {
     return {
-      title: 'Review warnings before signing',
-      detail: 'The bundle simulated successfully but requires acknowledgement.',
-      tone: 'border-amber-500/25 bg-amber-950/20 text-amber-400',
-      icon: <AlertTriangle className="h-5 w-5 shrink-0" />,
+      title: 'Review warnings',
+      detail: 'The bundle completed, but it needs your acknowledgement.',
+      tone: 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300',
+      icon: <AlertTriangle className="h-4 w-4 shrink-0" />,
     };
   }
   if (preview.status === 'failed') {
     return {
       title: 'Simulation failed',
       detail: preview.failureReason,
-      tone: 'border-rose-500/25 bg-rose-950/20 text-rose-400',
-      icon: <XCircle className="h-5 w-5 shrink-0" />,
+      tone: 'border-rose-400/20 bg-rose-400/[0.06] text-rose-300',
+      icon: <XCircle className="h-4 w-4 shrink-0" />,
     };
   }
   return {
     title: 'Simulation unavailable',
     detail: preview.unavailableReason,
-    tone: 'border-gray-600 bg-gray-900/40 text-gray-300',
-    icon: <ShieldAlert className="h-5 w-5 shrink-0" />,
+    tone: 'border-slate-600 bg-slate-800/50 text-slate-300',
+    icon: <ShieldAlert className="h-4 w-4 shrink-0" />,
   };
+}
+
+function TokenMark({ change }: { change: AssetChange }): ReactElement {
+  if (change.token.logoUrl) {
+    return (
+      <img
+        src={change.token.logoUrl}
+        alt=""
+        className="h-9 w-9 rounded-full bg-slate-800 object-cover"
+      />
+    );
+  }
+  return (
+    <div className="grid h-9 w-9 place-items-center rounded-full border border-slate-700 bg-slate-900 text-xs font-bold text-slate-200">
+      {change.token.symbol.slice(0, 2)}
+    </div>
+  );
+}
+
+function AssetRow({ change }: { change: AssetChange }): ReactElement {
+  const outgoing = change.direction === 'out';
+  return (
+    <div className="flex min-h-16 items-center justify-between gap-4 border-t border-slate-800/80 px-4 py-3 first:border-t-0">
+      <div className="flex min-w-0 items-center gap-3">
+        <TokenMark change={change} />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-slate-100">
+            {change.token.symbol}
+          </div>
+          <div className="text-xs text-slate-500">{change.token.name}</div>
+        </div>
+      </div>
+      <div
+        className={`whitespace-nowrap font-mono text-sm font-semibold ${outgoing ? 'text-rose-300' : 'text-emerald-300'}`}
+      >
+        {outgoing ? '-' : '+'}
+        {formatTokenAmount(change.rawAmount, change.token.decimals)}{' '}
+        {change.token.symbol}
+      </div>
+    </div>
+  );
+}
+
+function AssetPanel({
+  title,
+  changes,
+  direction,
+}: {
+  title: string;
+  changes: AssetChange[];
+  direction: 'out' | 'in';
+}): ReactElement {
+  const Icon = direction === 'out' ? ArrowUpRight : ArrowDownLeft;
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
+      <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-800/40 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <Icon className="h-4 w-4" />
+        {title}
+      </div>
+      {changes.length > 0 ? (
+        changes.map((change, index) => (
+          <AssetRow
+            key={`${direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
+            change={change}
+          />
+        ))
+      ) : (
+        <div className="px-4 py-5 text-sm text-slate-500">
+          No assets detected
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StepIcon({ status }: { status: PreviewCall['status'] }): ReactElement {
+  if (status === 'succeeded') {
+    return <Check className="h-5 w-5 text-emerald-300" />;
+  }
+  if (status === 'failed') {
+    return <X className="h-5 w-5 text-rose-300" />;
+  }
+  return <CircleDashed className="h-5 w-5 text-slate-500" />;
+}
+
+function ExecutionStep({
+  preview,
+  call,
+}: {
+  preview: PrivyPrepareSendCallsResponse;
+  call: PreviewCall;
+}): ReactElement {
+  return (
+    <details className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 open:bg-slate-900">
+      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-4 px-4 py-3 marker:hidden sm:px-5">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-700 bg-slate-950">
+          <StepIcon status={call.status} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-semibold text-slate-100">
+              {titleCase(call.method)}
+            </span>
+            <span className="text-sm text-slate-400">
+              to {callTarget(preview, call)}
+            </span>
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            Step {call.index + 1} of {preview.calls.length}
+          </div>
+        </div>
+        <ChevronDown className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid gap-3 border-t border-slate-800 px-5 py-4 text-xs sm:grid-cols-3">
+        <Evidence label="Target" value={formatAddress(call.to)} />
+        <Evidence label="Status" value={titleCase(call.status)} />
+        <Evidence
+          label="Gas used"
+          value={
+            call.gasUsed
+              ? Number(call.gasUsed).toLocaleString()
+              : 'Not executed'
+          }
+        />
+        {call.error && (
+          <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-rose-200 sm:col-span-3">
+            {call.error}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function Evidence({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): ReactElement {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-1 truncate font-mono text-xs text-slate-300">
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export function TenderlyPreviewModal({
@@ -151,15 +289,11 @@ export function TenderlyPreviewModal({
   }, [previewData?.riskHash, previewData?.status]);
 
   useEffect(() => {
-    if (!previewData) return;
-    const signable =
-      previewData.status === 'passed' || previewData.status === 'warning';
-    if (!signable) return;
-
-    const checkExpiry = () => {
-      setIsExpired(Date.now() > previewData.expiresAt);
-    };
-
+    if (!previewData || !isOpen) return;
+    if (previewData.status !== 'passed' && previewData.status !== 'warning')
+      return;
+    const expiresAt = previewData.expiresAt;
+    const checkExpiry = () => setIsExpired(Date.now() > expiresAt);
     checkExpiry();
     const interval = setInterval(checkExpiry, 1000);
     return () => clearInterval(interval);
@@ -177,21 +311,28 @@ export function TenderlyPreviewModal({
     !busy &&
     (previewData.status !== 'warning' || riskAcknowledged);
   const status = statusContent(previewData);
+  const outgoing = previewData.assetChanges.filter(
+    (change) => change.direction === 'out',
+  );
+  const incoming = previewData.assetChanges.filter(
+    (change) => change.direction === 'in',
+  );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={busy ? () => {} : onClose}
-      maxWidth="lg"
-    >
-      <ModalContent className="overflow-hidden rounded-3xl border border-gray-800 bg-gray-950 p-0 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-800/80 bg-gray-900/30 p-6">
-          <div>
-            <div className="text-sm font-bold uppercase tracking-wider text-gray-200">
-              Transaction review
+    <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} maxWidth="2xl">
+      <ModalContent className="flex max-h-[92vh] flex-col overflow-hidden rounded-[28px] border border-slate-800 bg-[#090d16] p-0 shadow-2xl shadow-black/60">
+        <header className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-900/70 px-5 py-4 sm:px-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-indigo-500 text-white shadow-lg shadow-indigo-950/50">
+              <Wallet className="h-5 w-5" />
             </div>
-            <div className="mt-1 text-xs text-gray-500">
-              Tenderly EIP-7702 call simulation
+            <div className="min-w-0">
+              <div className="font-semibold text-slate-100">
+                Transaction review
+              </div>
+              <div className="truncate font-mono text-xs text-slate-400">
+                {formatAddress(previewData.walletAddress)}
+              </div>
             </div>
           </div>
           <button
@@ -199,174 +340,154 @@ export function TenderlyPreviewModal({
             aria-label="Close transaction review"
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-40"
           >
             <X className="h-5 w-5" />
           </button>
-        </div>
+        </header>
 
-        <div className="max-h-[75vh] space-y-6 overflow-y-auto p-6">
-          <div
-            className={`flex items-start gap-3 rounded-2xl border p-4 ${status.tone}`}
-          >
-            {status.icon}
-            <div>
-              <div className="text-sm font-bold">{status.title}</div>
-              <div className="mt-1 text-xs text-gray-400">{status.detail}</div>
+        <div className="overflow-y-auto px-5 py-6 sm:px-7">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight text-white">
+              Overview
+            </h2>
+            <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200">
+              <span>on {networkName(previewData.chainId)}</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/10" />
             </div>
           </div>
 
-          {previewData.assetChanges.filter((c) => c.direction === 'out').length > 0 && (
-            <Section title="You send">
-              {previewData.assetChanges
-                .filter((c) => c.direction === 'out')
-                .map((change, index) => (
-                  <AssetChangeRow key={`out-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`} change={change} />
-                ))}
-            </Section>
-          )}
+          <div
+            className={`mb-5 flex items-start gap-3 rounded-2xl border px-4 py-3 ${status.tone}`}
+          >
+            {status.icon}
+            <div>
+              <div className="text-sm font-semibold">{status.title}</div>
+              <div className="mt-0.5 text-xs text-slate-400">
+                {status.detail}
+              </div>
+            </div>
+          </div>
 
-          {previewData.assetChanges.filter((c) => c.direction === 'in').length > 0 && (
-            <Section title="You receive">
-              {previewData.assetChanges
-                .filter((c) => c.direction === 'in')
-                .map((change, index) => (
-                  <AssetChangeRow key={`in-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`} change={change} />
-                ))}
-            </Section>
-          )}
+          <section className="space-y-3">
+            {previewData.calls.map((call) => (
+              <ExecutionStep
+                key={call.index}
+                preview={previewData}
+                call={call}
+              />
+            ))}
+          </section>
 
-          {previewData.assetChanges.length === 0 && (
-            <Section title="Asset changes">
-              <EmptyState text="No wallet-relative asset changes detected." />
-            </Section>
-          )}
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <AssetPanel title="Assets out" changes={outgoing} direction="out" />
+            <AssetPanel title="Assets in" changes={incoming} direction="in" />
+          </div>
 
           {previewData.approvals.length > 0 && (
-            <Section title="Approval exposure">
+            <section className="mt-5 overflow-hidden rounded-2xl border border-amber-400/20 bg-amber-400/[0.04]">
+              <div className="flex items-center gap-2 border-b border-amber-400/15 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-amber-300">
+                <ShieldAlert className="h-4 w-4" />
+                Approval exposure
+              </div>
               {previewData.approvals.map((approval) => (
                 <div
                   key={`${approval.callIndex}-${approval.spender}`}
-                  className="border-b border-gray-800/70 py-3 last:border-0"
+                  className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-400/10 px-4 py-3 first:border-t-0"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-gray-300">
-                      {approval.token.symbol} to{' '}
-                      {formatAddress(approval.spender)}
-                    </span>
-                    <span className="font-mono text-sm font-bold text-amber-300">
-                      {approval.unlimited
-                        ? 'Unlimited'
-                        : formatTokenAmount(
-                            approval.rawAmount,
-                            approval.token.decimals,
-                          )}{' '}
-                      {approval.token.symbol}
-                    </span>
+                  <div className="text-sm text-slate-300">
+                    {approval.token.symbol} to {formatAddress(approval.spender)}
+                  </div>
+                  <div className="font-mono text-sm font-semibold text-amber-200">
+                    {approval.unlimited
+                      ? 'Unlimited'
+                      : formatTokenAmount(
+                          approval.rawAmount,
+                          approval.token.decimals,
+                        )}{' '}
+                    {approval.token.symbol}
                   </div>
                   {approval.exceedsSimulatedSpend && (
-                    <div className="mt-1 text-xs text-amber-400">
-                      Approval exceeds simulated spend.
+                    <div className="w-full text-xs text-amber-300/80">
+                      Approval exceeds the amount spent in this simulation.
                     </div>
                   )}
                 </div>
               ))}
-            </Section>
+            </section>
           )}
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Evidence
-              label="Network"
-              value={networkName(previewData.chainId)}
-            />
-            <Evidence
-              label="Block"
-              value={
-                previewData.blockNumber === null
-                  ? 'Unavailable'
-                  : previewData.blockNumber.toLocaleString()
-              }
-            />
-            <Evidence
-              label="Call gas"
-              value={`${Number(previewData.callGas).toLocaleString()}`}
-              icon={<Zap className="h-4 w-4 text-indigo-400" />}
-            />
-            <Evidence
-              label="Expires"
-              value={expired ? 'Expired' : formatExpiry((previewData as { expiresAt: number }).expiresAt)}
-              valueColor={expired ? 'text-rose-400' : 'text-gray-200'}
-            />
-          </div>
 
           {previewData.warnings.length > 0 && (
-            <Section title="Warnings">
-              <div className="space-y-2">
-                {previewData.warnings.map((warning, index) => (
-                  <div
-                    key={`${warning.code}-${warning.callIndex ?? index}`}
-                    className="flex gap-2 rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-200"
-                  >
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {warning.message}
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <Section title="Execution steps">
-            <div className="space-y-2">
-              {previewData.calls.map((call) => (
-                <details
-                  key={call.index}
-                  className="rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3"
+            <section className="mt-5 space-y-2">
+              {previewData.warnings.map((warning, index) => (
+                <div
+                  key={`${warning.code}-${warning.callIndex ?? index}`}
+                  className="flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm text-amber-100"
                 >
-                  <summary className="cursor-pointer text-sm font-semibold text-gray-200">
-                    <span className={call.status === 'failed' ? 'text-rose-400' : call.status === 'succeeded' ? 'text-emerald-400' : 'text-gray-400'}>
-                      {call.status === 'succeeded' ? '✓' : call.status === 'failed' ? '✗' : '○'}
-                    </span>{' '}
-                    {call.method ?? 'Unknown method'}
-                  </summary>
-                  <div className="mt-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Target</span>
-                      <span className="font-mono text-gray-300">{call.to}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Status</span>
-                      <span className={call.status === 'failed' ? 'text-rose-400' : 'text-emerald-400'}>{call.status}</span>
-                    </div>
-                    {call.gasUsed && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Gas used</span>
-                        <span className="font-mono text-gray-300">{Number(call.gasUsed).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {call.error && (
-                      <div className="text-rose-400">{call.error}</div>
-                    )}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </Section>
-
-          <details className="rounded-2xl border border-gray-800 bg-gray-900/20">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-gray-200">
-              Advanced details
-            </summary>
-            <div className="space-y-3 border-t border-gray-800 px-4 py-3">
-              {previewData.calls.map((call) => (
-                <div key={`adv-${call.index}`} className="font-mono text-xs text-gray-500">
-                  <div className="font-semibold text-gray-400">Call {call.index + 1}</div>
-                  <div className="mt-1 break-all">Data: {call.data}</div>
-                  <div>Value: {call.value}</div>
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  {warning.message}
                 </div>
               ))}
-              <div className="border-t border-gray-800 pt-3">
-                <div className="text-xs text-gray-500">Simulation fingerprint</div>
-                <div className="mt-1 break-all font-mono text-xs text-gray-400">
+            </section>
+          )}
+
+          <section className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+              <Zap className="h-4 w-4 text-indigo-300" />
+              Simulation evidence
+            </div>
+            <div
+              className={`grid gap-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
+            >
+              <Evidence
+                label="Network"
+                value={networkName(previewData.chainId)}
+              />
+              <Evidence
+                label="Block"
+                value={
+                  previewData.blockNumber?.toLocaleString() ?? 'Unavailable'
+                }
+              />
+              <Evidence
+                label="Call gas"
+                value={Number(previewData.callGas).toLocaleString()}
+              />
+              {signable && (
+                <Evidence
+                  label="Expires"
+                  value={
+                    expired ? 'Expired' : formatExpiry(previewData.expiresAt)
+                  }
+                />
+              )}
+            </div>
+          </section>
+
+          <details className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/30">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Advanced details
+            </summary>
+            <div className="space-y-4 border-t border-slate-800 px-4 py-4">
+              {previewData.calls.map((call) => (
+                <div
+                  key={`advanced-${call.index}`}
+                  className="text-xs text-slate-500"
+                >
+                  <div className="font-semibold text-slate-300">
+                    Call {call.index + 1}
+                  </div>
+                  <div className="mt-1 break-all font-mono">
+                    Data: {call.data}
+                  </div>
+                  <div className="font-mono">Value: {call.value}</div>
+                </div>
+              ))}
+              <div className="border-t border-slate-800 pt-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Simulation fingerprint
+                </div>
+                <div className="mt-1 break-all font-mono text-xs text-slate-400">
                   {previewData.simulationFingerprint}
                 </div>
               </div>
@@ -374,12 +495,12 @@ export function TenderlyPreviewModal({
           </details>
 
           {previewData.status === 'warning' && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-950/20 p-4">
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4">
               <input
                 type="checkbox"
                 checked={riskAcknowledged}
                 onChange={(event) => setRiskAcknowledged(event.target.checked)}
-                className="mt-0.5 h-4 w-4"
+                className="mt-0.5 h-4 w-4 accent-amber-400"
               />
               <span className="text-sm text-amber-100">
                 I reviewed these warnings and accept the stated risks.
@@ -388,127 +509,72 @@ export function TenderlyPreviewModal({
           )}
 
           {expired && (
-            <div className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-3 text-center text-xs text-rose-400">
+            <div className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-center text-xs text-rose-300">
               This preview has expired. Retry simulation before signing.
             </div>
           )}
 
           {retryError && (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-950/20 p-3 text-center text-xs text-amber-400">
+            <div
+              role="alert"
+              className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-3 text-center text-xs text-amber-300"
+            >
               <span className="font-semibold">Retry failed: </span>
               {retryError}
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3 border-t border-gray-800/80 bg-gray-900/20 p-6">
+        <footer className="grid grid-cols-2 items-center gap-3 border-t border-slate-800 bg-slate-900/80 px-5 py-4 backdrop-blur sm:flex sm:px-7">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-w-28 flex-1 rounded-xl border border-gray-800 py-3 text-gray-300 hover:bg-gray-800/40 disabled:opacity-50"
+            className="min-h-12 min-w-0 rounded-xl border border-rose-400/40 px-4 font-medium text-rose-300 transition-colors hover:bg-rose-400/10 disabled:opacity-40 sm:min-w-28 sm:px-5"
           >
             Cancel
           </button>
-          {!signable ? (
+          <div className="hidden flex-1 sm:block" />
+          <button
+            type="button"
+            onClick={() => void onRetry()}
+            disabled={busy}
+            className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-40 sm:min-w-32 sm:px-5"
+          >
+            {isRetryingSimulation ? (
+              <Loader className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {isRetryingSimulation
+              ? 'Retrying...'
+              : signable && !expired
+                ? 'Retry'
+                : 'Retry simulation'}
+          </button>
+          {signable && !expired && (
             <button
               type="button"
-              onClick={() => void onRetry()}
-              disabled={busy}
-              className="flex min-w-40 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() =>
+                void onConfirm(
+                  previewData.status === 'warning'
+                    ? previewData.riskHash
+                    : undefined,
+                )
+              }
+              disabled={!canSign}
+              className="col-span-2 flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-indigo-500 px-6 font-semibold text-white shadow-lg shadow-indigo-950/50 transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none sm:min-w-40"
             >
-              {isRetryingSimulation ? (
+              {isSigningAndSending ? (
                 <Loader className="h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <Check className="h-4 w-4" />
               )}
-              {isRetryingSimulation ? 'Retrying...' : 'Retry simulation'}
+              {isSigningAndSending ? 'Signing...' : 'Sign & Send'}
             </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => void onRetry()}
-                disabled={busy}
-                className="flex min-w-32 flex-1 items-center justify-center gap-2 rounded-xl border border-indigo-500/30 py-3 text-indigo-200 hover:bg-indigo-950/30 disabled:opacity-50 sm:min-w-40"
-              >
-                {isRetryingSimulation ? (
-                  <Loader className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {isRetryingSimulation ? 'Retrying...' : 'Retry'}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void onConfirm(
-                    previewData.status === 'warning'
-                      ? previewData.riskHash
-                      : undefined,
-                  )
-                }
-                disabled={!canSign}
-                className="flex min-w-40 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {isSigningAndSending ? (
-                  <Loader className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                {isSigningAndSending ? 'Sign & Send...' : 'Sign & Send'}
-              </button>
-            </>
           )}
-        </div>
+        </footer>
       </ModalContent>
     </Modal>
   );
-}
-
-function Evidence({
-  label,
-  value,
-  icon,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  icon?: ReactElement;
-  valueColor?: string;
-}): ReactElement {
-  return (
-    <div className="rounded-2xl border border-gray-800/70 bg-gray-900/30 p-4">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-        {icon}
-        {label}
-      </div>
-      <div className={`mt-2 text-sm font-bold ${valueColor ?? 'text-gray-200'}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactElement | ReactElement[];
-}): ReactElement {
-  return (
-    <section>
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
-        {title}
-      </h3>
-      <div className="rounded-2xl border border-gray-800/80 bg-gray-900/20 px-4">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function EmptyState({ text }: { text: string }): ReactElement {
-  return <div className="py-4 text-xs text-gray-500">{text}</div>;
 }

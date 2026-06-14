@@ -109,17 +109,15 @@ describe('TenderlySimulationService', () => {
   });
 
   it('posts the full sequential bundle to the exact endpoint with decimal values', async () => {
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response([
-          simulationResult({
-            id: 'sim-1',
-            to: TARGET,
-            contracts: [contract(TARGET)],
-          }),
-        ]),
-      );
+    const fetchFn = vi.fn().mockResolvedValueOnce(
+      response([
+        simulationResult({
+          id: 'sim-1',
+          to: TARGET,
+          contracts: [contract(TARGET)],
+        }),
+      ]),
+    );
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -219,7 +217,7 @@ describe('TenderlySimulationService', () => {
     });
   });
 
-  it('returns unavailable when simulation results count does not match calls count', async () => {
+  it('preserves a failed result and marks later unexecuted calls as skipped', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(
       response([
         simulationResult({ id: 'sim-1' }),
@@ -240,15 +238,42 @@ describe('TenderlySimulationService', () => {
       calls: [{ to: TARGET }, { to: TOKEN }, { to: SPENDER }],
     });
 
-    expect(result.status).toBe('unavailable');
-    expect((result as { unavailableReason: string }).unavailableReason).toContain('Tenderly returned');
+    expect(result).toMatchObject({
+      status: 'failed',
+      failureReason: 'execution reverted: allowance too low',
+      calls: [
+        expect.objectContaining({ index: 0, status: 'succeeded' }),
+        expect.objectContaining({ index: 1, status: 'failed' }),
+        expect.objectContaining({ index: 2, status: 'skipped' }),
+      ],
+    });
+  });
+
+  it('returns unavailable when Tenderly omits successful call results', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(response([simulationResult({ id: 'sim-1' })]));
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }, { to: TOKEN }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: expect.stringContaining('Tenderly returned'),
+    });
   });
 
   it('keeps a successful simulation valid when sharing is not attempted', async () => {
     const warn = vi.fn();
-    const fetchFn = vi.fn().mockResolvedValueOnce(
-      response([simulationResult({ id: 'sim-private' })]),
-    );
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([simulationResult({ id: 'sim-private' })]),
+      );
     const service = createTenderlySimulationService({
       accountSlug: 'account-slug',
       projectSlug: 'project-slug',
@@ -493,9 +518,7 @@ describe('TenderlySimulationService', () => {
         unlimited: false,
       }),
     ]);
-    expect(result.approvals[0]!.rawAmount).not.toBe(
-      maxUint256.toString(),
-    );
+    expect(result.approvals[0]!.rawAmount).not.toBe(maxUint256.toString());
   });
 
   it('prefers exposure_changes over calldata decode when both are present', async () => {

@@ -403,6 +403,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
           preview,
           batch,
         };
+        setRetryError(null);
         setSimulationPreview(preview);
       });
     },
@@ -496,6 +497,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
 
         if (result.status === 'review') {
           pending.preview = result.preview;
+          setRetryError(null);
           setSimulationPreview(result.preview);
           keepPending = true;
           return;
@@ -529,6 +531,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       pending.reject(new Error('Transaction rejected by the user.'));
     }
     setSimulationPreview(null);
+    setRetryError(null);
     pendingExecutionRef.current = null;
   }, []);
 

@@ -17,8 +17,6 @@ import {
 } from 'viem';
 import { z } from 'zod';
 
-import { writeFileSync } from 'node:fs';
-
 import { Logger } from '../common/logger';
 import { getErrorMessage } from '../common/utils';
 
@@ -31,6 +29,11 @@ const RawIntegerSchema = z.union([
   z.number().int().nonnegative(),
   z.string().regex(/^\d+$/),
   z.string().regex(/^0x[0-9a-fA-F]+$/),
+]);
+
+const RawAmountSchema = z.union([
+  z.string().min(1),
+  z.number().int().nonnegative(),
 ]);
 
 const RawTokenInfoSchema = z
@@ -49,7 +52,7 @@ const RawAssetChangeSchema = z
     type: z.string().min(1),
     from: z.string().regex(ADDRESS_REGEX).optional().nullable(),
     to: z.string().regex(ADDRESS_REGEX).optional().nullable(),
-    raw_amount: z.union([z.string().min(1), z.number().int().nonnegative()]),
+    raw_amount: RawAmountSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -60,7 +63,7 @@ const RawExposureChangeSchema = z
     type: z.string().min(1),
     owner: z.string().regex(ADDRESS_REGEX),
     spender: z.string().regex(ADDRESS_REGEX),
-    raw_amount: z.union([z.string().min(1), z.number().int().nonnegative()]),
+    raw_amount: RawAmountSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -87,10 +90,7 @@ const RawSimulationResultSchema = z
         error_message: z.string().optional().nullable(),
         transaction_info: z
           .object({
-            asset_changes: z
-              .array(RawAssetChangeSchema)
-              .nullable()
-              .default([]),
+            asset_changes: z.array(RawAssetChangeSchema).nullable().default([]),
             exposure_changes: z
               .array(RawExposureChangeSchema)
               .nullable()
@@ -291,6 +291,18 @@ function contractIsVerified(
   return Boolean(contract.verified_by?.trim());
 }
 
+function walletDirection(
+  from: string | null,
+  to: string | null,
+  walletAddress: string,
+): 'in' | 'out' | null {
+  if (from === walletAddress) return 'out';
+  if (to === walletAddress) return 'in';
+  return null;
+}
+
+// This pipeline derives calls, assets, approvals, and warnings from shared evidence.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function normalizeReview(
   input: Parameters<TenderlySimulationService['simulateBundle']>[0],
   results: RawSimulationResult[],
@@ -314,7 +326,8 @@ function normalizeReview(
         tokenByAddress.set(address, normalizeToken(rawContract.token_data));
       }
     }
-    for (const rawChange of result.transaction.transaction_info.asset_changes ?? []) {
+    for (const rawChange of result.transaction.transaction_info.asset_changes ??
+      []) {
       if (rawChange.token_info.contract_address) {
         tokenByAddress.set(
           normalizeAddress(rawChange.token_info.contract_address),
@@ -322,7 +335,8 @@ function normalizeReview(
         );
       }
     }
-    for (const exposure of result.transaction.transaction_info.exposure_changes ?? []) {
+    for (const exposure of result.transaction.transaction_info
+      .exposure_changes ?? []) {
       if (exposure.token_info.contract_address) {
         tokenByAddress.set(
           normalizeAddress(exposure.token_info.contract_address),
@@ -373,16 +387,12 @@ function normalizeReview(
 
   const assetChanges: PrivySimulationAssetChange[] = [];
   for (const [callIndex, result] of results.entries()) {
-    for (const rawChange of result.transaction.transaction_info.asset_changes ?? []) {
+    for (const rawChange of result.transaction.transaction_info.asset_changes ??
+      []) {
       const from = rawChange.from ? normalizeAddress(rawChange.from) : null;
       const to = rawChange.to ? normalizeAddress(rawChange.to) : null;
       if (from === walletAddress && to === walletAddress) continue;
-      const direction =
-        from === walletAddress
-          ? 'out'
-          : to === walletAddress
-            ? 'in'
-            : null;
+      const direction = walletDirection(from, to, walletAddress);
       if (!direction) continue;
       const rawAmount = parseRawAmount(rawChange.raw_amount);
       const token = normalizeToken(rawChange.token_info);
@@ -410,7 +420,8 @@ function normalizeReview(
 
   const approvals: PrivySimulationApproval[] = [];
   for (const [callIndex, result] of results.entries()) {
-    const exposureChanges = result.transaction.transaction_info.exposure_changes ?? [];
+    const exposureChanges =
+      result.transaction.transaction_info.exposure_changes ?? [];
     if (exposureChanges.length > 0) {
       for (const exposure of exposureChanges) {
         const tokenAddress = normalizeAddress(
@@ -626,41 +637,32 @@ export function createTenderlySimulationService(config: {
       }
 
       let parsed: z.infer<typeof RawBundleResponseSchema>;
-      let rawJson: unknown;
       try {
-        rawJson = await response.json();
-        parsed = RawBundleResponseSchema.parse(rawJson);
-        if (parsed.simulation_results.length !== input.calls.length) {
-        throw new Error(
-          `Tenderly returned ${parsed.simulation_results.length} results for ${input.calls.length} calls`,
-        );
-      }
+        parsed = RawBundleResponseSchema.parse(await response.json());
+        const results = parsed.simulation_results;
+        const lastResult = results.at(-1);
+        const stoppedAfterFailure =
+          results.length < input.calls.length &&
+          lastResult !== undefined &&
+          !(lastResult.transaction.status && lastResult.simulation.status);
+        if (
+          results.length > input.calls.length ||
+          (results.length < input.calls.length && !stoppedAfterFailure)
+        ) {
+          throw new Error(
+            `Tenderly returned ${results.length} results for ${input.calls.length} calls`,
+          );
+        }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         logger.warn('Tenderly parse error', { error: errorMsg });
-        try {
-          writeFileSync(
-            '/tmp/tenderly-response.json',
-            JSON.stringify(rawJson, null, 2),
-          );
-          // eslint-disable-next-line sonarjs/publicly-writable-directories
-          logger.warn('Raw Tenderly response saved to /tmp/tenderly-response.json', {});
-        } catch (writeErr) {
-          logger.warn('Failed to dump Tenderly response to file', {
-            error: getErrorMessage(writeErr),
-          });
-        }
         return unavailableReview(
           input,
           'Tenderly returned malformed simulation data',
         );
       }
 
-      return normalizeReview(
-        input,
-        parsed.simulation_results,
-        [],
-      );
+      return normalizeReview(input, parsed.simulation_results, []);
     },
   };
 }

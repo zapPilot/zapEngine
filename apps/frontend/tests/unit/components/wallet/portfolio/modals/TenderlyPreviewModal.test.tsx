@@ -68,7 +68,7 @@ function preview(
     blockNumber: 123456,
     callGas: '21000',
     simulationIds: ['sim-1'],
-    shareUrls: ['https://www.tdly.co/shared/simulation/sim-1'],
+    shareUrls: [],
     simulationFingerprint: `0x${'1'.repeat(64)}`,
     riskHash: RISK_HASH,
     previewId: 'preview-1',
@@ -96,13 +96,17 @@ describe('TenderlyPreviewModal', () => {
     vi.clearAllMocks();
   });
 
-  it('renders network, block, simulated call gas, and wallet-relative assets', () => {
+  it('renders the wallet, network, overview, evidence, and asset flow', () => {
     render(<TenderlyPreviewModal {...defaultProps} />);
 
     expect(screen.getByText('Simulation passed')).toBeInTheDocument();
-    expect(screen.getByText(/Base/)).toBeInTheDocument();
+    expect(screen.getByText('0x1111...1111')).toBeInTheDocument();
+    expect(screen.getByText('on Base')).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('Assets out')).toBeInTheDocument();
+    expect(screen.getByText('Assets in')).toBeInTheDocument();
     expect(screen.getByText(/123,456/)).toBeInTheDocument();
-    expect(screen.getByText('Simulated call gas')).toBeInTheDocument();
+    expect(screen.getByText('Call gas')).toBeInTheDocument();
     expect(screen.getByText(/-1.2345 TKN/)).toBeInTheDocument();
   });
 
@@ -154,7 +158,8 @@ describe('TenderlyPreviewModal', () => {
 
     expect(screen.getByText('Approval exposure')).toBeInTheDocument();
     expect(screen.getByText(/1 TKN/)).toBeInTheDocument();
-    expect(screen.getByText(/Call 1: deposit/)).toBeInTheDocument();
+    expect(screen.getByText('Deposit')).toBeInTheDocument();
+    expect(screen.getByText('to Vault')).toBeInTheDocument();
   });
 
   it('requires explicit warning acknowledgement and passes the risk hash', () => {
@@ -201,7 +206,9 @@ describe('TenderlyPreviewModal', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Sign & Send' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Sign & Send' }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry simulation' }));
     expect(onRetry).toHaveBeenCalled();
   });
@@ -215,19 +222,40 @@ describe('TenderlyPreviewModal', () => {
     );
 
     expect(screen.getByText(/preview has expired/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign & Send' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Sign & Send' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Retry simulation' }),
     ).toBeEnabled();
   });
 
-  it('renders public Tenderly links with safe external-link attributes and privacy notice', () => {
-    render(<TenderlyPreviewModal {...defaultProps} />);
+  it('does not show invalid expiry evidence for an unavailable preview', () => {
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        previewData={preview({
+          status: 'unavailable',
+          unavailableReason: 'Tenderly simulation timed out',
+        })}
+      />,
+    );
 
-    const link = screen.getByRole('link', { name: /Tenderly simulation 1/i });
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(screen.getByText(/anyone with the link/i)).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Expires')).not.toBeInTheDocument();
+  });
+
+  it('announces retry errors without replacing the current review', () => {
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        retryError="Tenderly simulation timed out"
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Retry failed: Tenderly simulation timed out',
+    );
   });
 
   it('renders nothing without preview data', () => {
