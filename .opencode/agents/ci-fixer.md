@@ -16,6 +16,7 @@ permission:
     '.github/workflows/*': deny
     'scripts/verify-*.sh': deny
     'scripts/agent-fix-loop.sh': deny
+    'scripts/core-ci-registry.sh': deny
     'scripts/lint/*': deny
     '.opencode/agents/*': deny
     '*snapshot*': deny
