@@ -79,3 +79,5 @@ apps/analytics-engine/*.md
 service-account.json
 apps/*/coverage/**
 packages/*/coverage/**
+
+plan.md

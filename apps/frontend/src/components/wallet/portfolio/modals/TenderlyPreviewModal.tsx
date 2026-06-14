@@ -1,76 +1,91 @@
+import type { PrivyPrepareSendCallsResponse } from '@zapengine/types/api';
 import {
   AlertTriangle,
   CheckCircle,
   ChevronRight,
+  ExternalLink,
   Loader,
+  RefreshCw,
+  ShieldAlert,
   X,
+  XCircle,
   Zap,
 } from 'lucide-react';
-import type { ReactElement } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
-
-interface DecodedCall {
-  type: 'approve' | 'supply' | 'unknown';
-  token: string;
-  spender?: string;
-  amount?: string;
-  receiver?: string;
-  to?: string;
-  value?: string;
-}
-
-interface AssetChange {
-  type: 'transfer' | 'mint';
-  token: string;
-  tokenAddress: string;
-  from: string;
-  to: string;
-  amount: string;
-}
 
 interface TenderlyPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  previewData: {
-    previewId: string;
-    batchHash: string;
-    decodedCalls: DecodedCall[];
-    assetChanges: AssetChange[];
-    gasEstimate: string;
-    expiresAt: number;
-  } | null;
-  onConfirm: () => Promise<void>;
+  previewData: PrivyPrepareSendCallsResponse | null;
+  onConfirm: (acknowledgedRiskHash?: string) => Promise<void>;
+  onRetry: () => Promise<void>;
   isSigningAndSending: boolean;
+  isRetryingSimulation: boolean;
 }
 
-function formatAddress(addr: string): string {
-  if (!addr) return '';
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+function formatAddress(address: string | null): string {
+  if (!address) return 'Unknown';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function formatAmount(amountStr: string, decimals = 6): string {
+function formatTokenAmount(rawAmount: string, decimals: number): string {
   try {
-    const val = BigInt(amountStr);
-    const divisor = BigInt(10 ** decimals);
-    const integerPart = val / divisor;
-    const fractionalPart = val % divisor;
-
-    let fractionStr = fractionalPart.toString().padStart(decimals, '0');
-    // trim trailing zeros without regex to avoid super-linear backtracking
-    while (
-      fractionStr.length > 0 &&
-      fractionStr[fractionStr.length - 1] === '0'
-    ) {
-      fractionStr = fractionStr.slice(0, -1);
-    }
-
-    return fractionStr.length > 0
-      ? `${integerPart.toString()}.${fractionStr}`
-      : integerPart.toString();
+    const negative = rawAmount.startsWith('-');
+    const digits = negative ? rawAmount.slice(1) : rawAmount;
+    const padded = digits.padStart(decimals + 1, '0');
+    const integer = decimals === 0 ? padded : padded.slice(0, -decimals);
+    const fraction =
+      decimals === 0 ? '' : padded.slice(-decimals).replace(/0+$/, '');
+    return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
   } catch {
-    return amountStr;
+    return rawAmount;
   }
+}
+
+function networkName(chainId: number): string {
+  if (chainId === 8453) return 'Base';
+  if (chainId === 42161) return 'Arbitrum';
+  return `Chain ${chainId}`;
+}
+
+function statusContent(preview: PrivyPrepareSendCallsResponse): {
+  title: string;
+  detail: string;
+  tone: string;
+  icon: ReactElement;
+} {
+  if (preview.status === 'passed') {
+    return {
+      title: 'Simulation passed',
+      detail: 'All calls completed without material risk warnings.',
+      tone: 'border-emerald-500/25 bg-emerald-950/20 text-emerald-400',
+      icon: <CheckCircle className="h-5 w-5 shrink-0" />,
+    };
+  }
+  if (preview.status === 'warning') {
+    return {
+      title: 'Review warnings before signing',
+      detail: 'The bundle simulated successfully but requires acknowledgement.',
+      tone: 'border-amber-500/25 bg-amber-950/20 text-amber-400',
+      icon: <AlertTriangle className="h-5 w-5 shrink-0" />,
+    };
+  }
+  if (preview.status === 'failed') {
+    return {
+      title: 'Simulation failed',
+      detail: preview.failureReason,
+      tone: 'border-rose-500/25 bg-rose-950/20 text-rose-400',
+      icon: <XCircle className="h-5 w-5 shrink-0" />,
+    };
+  }
+  return {
+    title: 'Simulation unavailable',
+    detail: preview.unavailableReason,
+    tone: 'border-gray-600 bg-gray-900/40 text-gray-300',
+    icon: <ShieldAlert className="h-5 w-5 shrink-0" />,
+  };
 }
 
 export function TenderlyPreviewModal({
@@ -78,207 +93,325 @@ export function TenderlyPreviewModal({
   onClose,
   previewData,
   onConfirm,
+  onRetry,
   isSigningAndSending,
+  isRetryingSimulation,
 }: TenderlyPreviewModalProps): ReactElement {
-  if (!previewData) {
-    return <></>;
-  }
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
 
-  const isExpired = Date.now() > previewData.expiresAt;
+  useEffect(() => {
+    setRiskAcknowledged(false);
+  }, [previewData?.riskHash, previewData?.status]);
+
+  if (!previewData) return <></>;
+
+  const signable =
+    previewData.status === 'passed' || previewData.status === 'warning';
+  const expired = signable && Date.now() > previewData.expiresAt;
+  const busy = isSigningAndSending || isRetryingSimulation;
+  const canSign =
+    signable &&
+    !expired &&
+    !busy &&
+    (previewData.status !== 'warning' || riskAcknowledged);
+  const status = statusContent(previewData);
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={
-        isSigningAndSending
-          ? () => {
-              /* noop while signing */
-            }
-          : onClose
-      }
-      maxWidth="md"
+      onClose={busy ? () => undefined : onClose}
+      maxWidth="lg"
     >
-      <ModalContent className="p-0 overflow-hidden bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl backdrop-blur-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-800/80 bg-gray-900/30">
-          <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)] animate-pulse" />
-            <span className="text-sm font-bold text-gray-200 uppercase tracking-wider">
-              Tenderly Simulation Preview
-            </span>
+      <ModalContent className="overflow-hidden rounded-3xl border border-gray-800 bg-gray-950 p-0 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-800/80 bg-gray-900/30 p-6">
+          <div>
+            <div className="text-sm font-bold uppercase tracking-wider text-gray-200">
+              Transaction review
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              Tenderly EIP-7702 call simulation
+            </div>
           </div>
-          {!isSigningAndSending && (
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 rounded-lg hover:bg-gray-800/60 hover:text-white transition-all duration-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label="Close transaction review"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
-          {/* Status Alert */}
-          <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl flex gap-3 items-start">
-            <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+        <div className="max-h-[75vh] space-y-6 overflow-y-auto p-6">
+          <div
+            className={`flex items-start gap-3 rounded-2xl border p-4 ${status.tone}`}
+          >
+            {status.icon}
             <div>
-              <div className="text-sm font-bold text-emerald-400">
-                Simulation Succeeded
-              </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                All batch calls successfully simulated on the Base fork without
-                reverts.
-              </div>
+              <div className="text-sm font-bold">{status.title}</div>
+              <div className="mt-1 text-xs text-gray-400">{status.detail}</div>
             </div>
           </div>
 
-          {/* Gas & Details Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-900/30 border border-gray-800/60 rounded-2xl p-4 flex items-center gap-3">
-              <Zap className="w-5 h-5 text-indigo-400" />
-              <div>
-                <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                  Gas Estimate
-                </div>
-                <div className="text-sm font-bold text-gray-200 font-mono">
-                  {Number(previewData.gasEstimate).toLocaleString()} units
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-900/30 border border-gray-800/60 rounded-2xl p-4 flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
-              <div>
-                <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                  Status
-                </div>
-                <div className="text-sm font-bold text-gray-200">
-                  Pre-flight OK
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Evidence
+              label="Network"
+              value={networkName(previewData.chainId)}
+            />
+            <Evidence
+              label="Block"
+              value={
+                previewData.blockNumber === null
+                  ? 'Unavailable'
+                  : previewData.blockNumber.toLocaleString()
+              }
+            />
+            <Evidence
+              label="Simulated call gas"
+              value={`${Number(previewData.callGas).toLocaleString()} units`}
+              icon={<Zap className="h-4 w-4 text-indigo-400" />}
+            />
           </div>
 
-          {/* Call Logs */}
-          <div className="space-y-3">
-            <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              Execution Sequence
-            </div>
-            <div className="space-y-3">
-              {previewData.decodedCalls.map((call, idx) => (
+          <Section title="Wallet asset changes">
+            {previewData.assetChanges.length === 0 ? (
+              <EmptyState text="No wallet-relative asset changes detected." />
+            ) : (
+              previewData.assetChanges.map((change, index) => (
                 <div
-                  key={idx}
-                  className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-4 flex justify-between items-center gap-3 hover:border-gray-800 transition-all duration-300"
+                  key={`${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
+                  className="flex items-center justify-between gap-3 border-b border-gray-800/70 py-3 last:border-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-xl bg-indigo-950/40 border border-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-400 font-mono">
-                      {idx + 1}
+                  <div>
+                    <div className="text-sm font-semibold text-gray-200">
+                      {change.token.symbol}
                     </div>
-                    <div>
-                      <div className="text-sm font-bold text-gray-200 capitalize">
-                        {call.type === 'approve'
-                          ? 'Approve Spender'
-                          : 'Supply Pool'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        Target: {formatAddress(call.token)}
-                      </div>
+                    <div className="text-xs text-gray-500">
+                      {change.type} to {formatAddress(change.to)}
                     </div>
                   </div>
-
-                  <div className="text-right">
-                    {call.amount && (
-                      <div className="text-sm font-black text-gray-200 font-mono">
-                        {formatAmount(call.amount)} USDC
-                      </div>
-                    )}
-                    {call.spender && (
-                      <div className="text-[10px] text-gray-500">
-                        Spender: {formatAddress(call.spender)}
-                      </div>
-                    )}
-                    {call.receiver && (
-                      <div className="text-[10px] text-gray-500">
-                        To: {formatAddress(call.receiver)}
-                      </div>
-                    )}
+                  <div
+                    className={`font-mono text-sm font-bold ${
+                      change.direction === 'out'
+                        ? 'text-rose-400'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {change.direction === 'out' ? '-' : '+'}
+                    {formatTokenAmount(
+                      change.rawAmount,
+                      change.token.decimals,
+                    )}{' '}
+                    {change.token.symbol}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              ))
+            )}
+          </Section>
 
-          {/* Expected Balance Changes */}
-          <div className="space-y-3">
-            <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              Expected Balance Changes
-            </div>
-            <div className="bg-gray-900/20 border border-gray-800/80 rounded-2xl p-4 space-y-3">
-              {previewData.assetChanges.map((change, idx) => {
-                const isDeduction = change.type === 'transfer';
-                return (
-                  <div
-                    key={idx}
-                    className="flex justify-between items-center text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${isDeduction ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                      />
-                      <span className="text-gray-400">
-                        {isDeduction ? 'Deduct' : 'Receive'} {change.token}
-                      </span>
-                    </div>
-                    <span
-                      className={`font-mono font-bold ${isDeduction ? 'text-rose-400' : 'text-emerald-400'}`}
-                    >
-                      {isDeduction ? '-' : '+'}
-                      {formatAmount(change.amount)} {change.token}
+          {previewData.approvals.length > 0 && (
+            <Section title="Approval exposure">
+              {previewData.approvals.map((approval) => (
+                <div
+                  key={`${approval.callIndex}-${approval.spender}`}
+                  className="border-b border-gray-800/70 py-3 last:border-0"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-300">
+                      {approval.token.symbol} to{' '}
+                      {formatAddress(approval.spender)}
+                    </span>
+                    <span className="font-mono text-sm font-bold text-amber-300">
+                      {approval.unlimited
+                        ? 'Unlimited'
+                        : formatTokenAmount(
+                            approval.rawAmount,
+                            approval.token.decimals,
+                          )}{' '}
+                      {approval.token.symbol}
                     </span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  {approval.exceedsSimulatedSpend && (
+                    <div className="mt-1 text-xs text-amber-400">
+                      Approval exceeds simulated spend.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </Section>
+          )}
 
-          {isExpired && (
-            <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-2xl text-xs text-rose-400 text-center">
-              This preview has expired. Please close and try again.
+          {previewData.warnings.length > 0 && (
+            <Section title="Warnings">
+              <div className="space-y-2">
+                {previewData.warnings.map((warning, index) => (
+                  <div
+                    key={`${warning.code}-${warning.callIndex ?? index}`}
+                    className="flex gap-2 rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-200"
+                  >
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {warning.message}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          <Section title="Execution steps">
+            <div className="space-y-2">
+              {previewData.calls.map((call) => (
+                <details
+                  key={call.index}
+                  className="rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3"
+                >
+                  <summary className="cursor-pointer text-sm font-semibold text-gray-200">
+                    Call {call.index + 1}: {call.method ?? 'Unknown method'}
+                  </summary>
+                  <div className="mt-3 space-y-1 break-all font-mono text-xs text-gray-500">
+                    <div>Target: {call.to}</div>
+                    <div>Status: {call.status}</div>
+                    <div>Value: {call.value}</div>
+                    <div>Data: {call.data}</div>
+                    {call.error && (
+                      <div className="text-rose-400">{call.error}</div>
+                    )}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </Section>
+
+          {previewData.shareUrls.length > 0 && (
+            <Section title="Public simulation details">
+              <div className="space-y-2">
+                {previewData.shareUrls.map((url, index) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-indigo-300 hover:text-indigo-200"
+                  >
+                    Tenderly simulation {index + 1}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ))}
+                <p className="text-xs text-gray-500">
+                  Public Tenderly details are accessible to anyone with the
+                  link.
+                </p>
+              </div>
+            </Section>
+          )}
+
+          {previewData.status === 'warning' && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-950/20 p-4">
+              <input
+                type="checkbox"
+                checked={riskAcknowledged}
+                onChange={(event) => setRiskAcknowledged(event.target.checked)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span className="text-sm text-amber-100">
+                I reviewed these warnings and accept the stated risks.
+              </span>
+            </label>
+          )}
+
+          {expired && (
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-3 text-center text-xs text-rose-400">
+              This preview has expired. Retry simulation before signing.
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 p-6 border-t border-gray-800/80 bg-gray-900/20">
+        <div className="flex flex-wrap gap-3 border-t border-gray-800/80 bg-gray-900/20 p-6">
           <button
             type="button"
             onClick={onClose}
-            disabled={isSigningAndSending}
-            className="flex-1 py-3.5 rounded-xl border border-gray-800 text-gray-300 font-medium hover:bg-gray-800/40 active:bg-gray-800/80 transition-all duration-200 disabled:opacity-50"
+            disabled={busy}
+            className="min-w-28 flex-1 rounded-xl border border-gray-800 py-3 text-gray-300 hover:bg-gray-800/40 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={isSigningAndSending || isExpired}
-            className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium hover:opacity-95 active:opacity-90 transition-all duration-200 shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => void onRetry()}
+            disabled={busy}
+            className="flex min-w-40 flex-1 items-center justify-center gap-2 rounded-xl border border-indigo-500/30 py-3 text-indigo-200 hover:bg-indigo-950/30 disabled:opacity-50"
+          >
+            {isRetryingSimulation ? (
+              <Loader className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {isRetryingSimulation ? 'Retrying...' : 'Retry simulation'}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void onConfirm(
+                previewData.status === 'warning'
+                  ? previewData.riskHash
+                  : undefined,
+              )
+            }
+            disabled={!canSign}
+            className="flex min-w-40 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSigningAndSending ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                <span>Sign & Send...</span>
-              </>
+              <Loader className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <span>Sign & Send</span>
-                <ChevronRight className="w-4 h-4" />
-              </>
+              <ChevronRight className="h-4 w-4" />
             )}
+            {isSigningAndSending ? 'Sign & Send...' : 'Sign & Send'}
           </button>
         </div>
       </ModalContent>
     </Modal>
   );
+}
+
+function Evidence({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon?: ReactElement;
+}): ReactElement {
+  return (
+    <div className="rounded-2xl border border-gray-800/70 bg-gray-900/30 p-4">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-bold text-gray-200">{value}</div>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactElement | ReactElement[];
+}): ReactElement {
+  return (
+    <section>
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
+        {title}
+      </h3>
+      <div className="rounded-2xl border border-gray-800/80 bg-gray-900/20 px-4">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }): ReactElement {
+  return <div className="py-4 text-xs text-gray-500">{text}</div>;
 }

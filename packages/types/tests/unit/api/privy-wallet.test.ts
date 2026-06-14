@@ -30,6 +30,41 @@ const validBatchCall = {
   value: '0x0',
 };
 
+const reviewEvidence = {
+  chainId: 8453,
+  walletAddress: USER,
+  calls: [
+    {
+      index: 0,
+      to: USER,
+      data: '0xdeadbeef',
+      value: '0',
+      method: 'deposit',
+      status: 'succeeded',
+      gasUsed: '21000',
+      error: null,
+      contractVerified: true,
+    },
+  ],
+  assetChanges: [],
+  approvals: [],
+  contracts: [
+    {
+      address: USER,
+      name: 'Example',
+      verified: true,
+      callIndexes: [0],
+    },
+  ],
+  warnings: [],
+  blockNumber: 123,
+  callGas: '21000',
+  simulationIds: ['sim_abc'],
+  shareUrls: ['https://www.tdly.co/shared/simulation/sim_abc'],
+  simulationFingerprint: `0x${'1'.repeat(64)}`,
+  riskHash: `0x${'2'.repeat(64)}`,
+};
+
 describe('PrivyAtomicBatchCallSchema', () => {
   it('accepts a call with data', () => {
     expect(PrivyAtomicBatchCallSchema.safeParse(validBatchCall).success).toBe(
@@ -233,49 +268,81 @@ describe('PrivyPrepareSendCallsRequestSchema', () => {
 });
 
 describe('PrivyPrepareSendCallsResponseSchema', () => {
-  const validPrepareResponse = {
+  const signingFields = {
     previewId: 'preview_abc',
-    batchHash: 'hash_abc',
-    decodedCalls: [],
-    tenderlyResult: {},
-    assetChanges: [],
-    gasEstimate: '0x0',
+    batchHash: `0x${'3'.repeat(64)}`,
     typedDataPayload: {},
     expiresAt: Math.floor(Date.now() / 1000) + 60,
     authorizationPayload: 'auth_payload',
     requestExpiry: Math.floor(Date.now() / 1000) + 120,
   };
 
-  it('accepts a valid prepare response', () => {
+  it.each(['passed', 'warning'] as const)(
+    'accepts a valid %s response with signing fields',
+    (status) => {
+      const warnings =
+        status === 'warning'
+          ? [
+              {
+                code: 'UNVERIFIED_CONTRACT',
+                message: 'Contract is not verified',
+                callIndex: 0,
+                address: USER,
+              },
+            ]
+          : [];
+
+      expect(
+        PrivyPrepareSendCallsResponseSchema.safeParse({
+          status,
+          ...reviewEvidence,
+          warnings,
+          ...signingFields,
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it.each([
+    { status: 'failed', failureReason: 'execution reverted' },
+    { status: 'unavailable', unavailableReason: 'Tenderly timed out' },
+  ])('accepts a non-signable $status response', (variant) => {
     expect(
-      PrivyPrepareSendCallsResponseSchema.safeParse(validPrepareResponse)
-        .success,
+      PrivyPrepareSendCallsResponseSchema.safeParse({
+        ...reviewEvidence,
+        ...variant,
+      }).success,
     ).toBe(true);
   });
 
-  it('rejects empty previewId', () => {
+  it('rejects signing fields on a failed response', () => {
     expect(
       PrivyPrepareSendCallsResponseSchema.safeParse({
-        ...validPrepareResponse,
-        previewId: '',
+        status: 'failed',
+        failureReason: 'execution reverted',
+        ...reviewEvidence,
+        ...signingFields,
       }).success,
     ).toBe(false);
   });
 
-  it('rejects negative expiresAt', () => {
+  it('rejects a warning response without warnings', () => {
     expect(
       PrivyPrepareSendCallsResponseSchema.safeParse({
-        ...validPrepareResponse,
-        expiresAt: -1,
+        status: 'warning',
+        ...reviewEvidence,
+        ...signingFields,
       }).success,
     ).toBe(false);
   });
 
-  it('rejects empty gasEstimate', () => {
+  it('rejects malformed normalized evidence', () => {
     expect(
       PrivyPrepareSendCallsResponseSchema.safeParse({
-        ...validPrepareResponse,
-        gasEstimate: '',
+        status: 'passed',
+        ...reviewEvidence,
+        calls: [{ ...reviewEvidence.calls[0], value: '0x1' }],
+        ...signingFields,
       }).success,
     ).toBe(false);
   });
@@ -288,6 +355,7 @@ describe('PrivyConfirmSendCallsRequestSchema', () => {
         previewId: 'preview_abc',
         userSignature: 'sig_abc',
         authorizationSignature: 'auth_sig',
+        acknowledgedRiskHash: `0x${'2'.repeat(64)}`,
       }).success,
     ).toBe(true);
   });
@@ -314,18 +382,33 @@ describe('PrivyConfirmSendCallsRequestSchema', () => {
 });
 
 describe('PrivyConfirmSendCallsResponseSchema', () => {
-  it('extends PrivyAtomicBatchResponseSchema', () => {
+  it('accepts a submitted response', () => {
     expect(
       PrivyConfirmSendCallsResponseSchema.safeParse({
+        status: 'submitted',
         transactionId: 'tx_abc123',
         caip2: 'eip155:42161',
       }).success,
     ).toBe(true);
   });
 
-  it('rejects invalid caip2 in extended schema', () => {
+  it('accepts a replacement review response', () => {
     expect(
       PrivyConfirmSendCallsResponseSchema.safeParse({
+        status: 'review',
+        preview: {
+          status: 'failed',
+          failureReason: 'state changed',
+          ...reviewEvidence,
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a submitted response with invalid caip2', () => {
+    expect(
+      PrivyConfirmSendCallsResponseSchema.safeParse({
+        status: 'submitted',
         transactionId: 'tx_abc123',
         caip2: 'invalid',
       }).success,

@@ -87,6 +87,63 @@ const supplyTx = {
   meta: { intentType: 'SUPPLY' },
 } as const;
 
+const RISK_HASH = `0x${'2'.repeat(64)}`;
+
+function passedPreview(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'passed',
+    chainId: 8453,
+    walletAddress: PRIVY_ADDRESS,
+    calls: [
+      {
+        index: 0,
+        to: approvalTx.to,
+        data: approvalTx.data,
+        value: '0',
+        method: 'approve',
+        status: 'succeeded',
+        gasUsed: '21000',
+        error: null,
+        contractVerified: true,
+      },
+    ],
+    assetChanges: [],
+    approvals: [],
+    contracts: [],
+    warnings: [],
+    blockNumber: 123,
+    callGas: '21000',
+    simulationIds: ['sim-1'],
+    shareUrls: [],
+    simulationFingerprint: `0x${'1'.repeat(64)}`,
+    riskHash: RISK_HASH,
+    previewId: 'mock-preview-id',
+    batchHash: `0x${'3'.repeat(64)}`,
+    typedDataPayload: { domain: {}, types: {}, message: { nonce: 0 } },
+    expiresAt: Date.now() + 300000,
+    authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
+    requestExpiry: 1_800_000_000_000,
+    ...overrides,
+  };
+}
+
+function unavailablePreview() {
+  const {
+    previewId: _previewId,
+    batchHash: _batchHash,
+    typedDataPayload: _typedDataPayload,
+    expiresAt: _expiresAt,
+    authorizationPayload: _authorizationPayload,
+    requestExpiry: _requestExpiry,
+    ...evidence
+  } = passedPreview();
+  return {
+    ...evidence,
+    status: 'unavailable',
+    unavailableReason: 'Tenderly simulation timed out',
+  };
+}
+
 describe('usePrivyWalletBackend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -123,19 +180,9 @@ describe('usePrivyWalletBackend', () => {
       walletClientType: 'privy',
     });
     mocks.accountApiPost
+      .mockResolvedValueOnce(passedPreview())
       .mockResolvedValueOnce({
-        previewId: 'mock-preview-id',
-        batchHash: 'mock-batch-hash',
-        decodedCalls: [],
-        tenderlyResult: {},
-        assetChanges: [],
-        gasEstimate: '350000',
-        typedDataPayload: { domain: {}, types: {}, message: { nonce: 0 } },
-        expiresAt: Date.now() + 300000,
-        authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
-        requestExpiry: 1_800_000_000_000,
-      })
-      .mockResolvedValueOnce({
+        status: 'submitted',
         transactionId: 'privy-transaction-id',
         caip2: 'eip155:8453',
       });
@@ -212,6 +259,120 @@ describe('usePrivyWalletBackend', () => {
         headers: { Authorization: 'Bearer privy-access-token' },
         retries: 0,
       },
+    );
+  });
+
+  it('retries simulation without ending the pending execution flow', async () => {
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce(unavailablePreview())
+      .mockResolvedValueOnce(
+        passedPreview({ previewId: 'retried-preview-id' }),
+      );
+    const { result } = renderHook(() => usePrivyWalletBackend());
+    let rejection: Promise<unknown> | undefined;
+
+    await act(async () => {
+      const promise = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+      rejection = expect(promise).rejects.toThrow(
+        'Transaction rejected by the user.',
+      );
+    });
+    expect(result.current.simulationPreview?.status).toBe('unavailable');
+
+    await act(async () => {
+      await result.current.retryBatchSimulation();
+    });
+    expect(result.current.simulationPreview).toMatchObject({
+      status: 'passed',
+      previewId: 'retried-preview-id',
+    });
+
+    act(() => result.current.cancelBatchExecution());
+    await rejection;
+  });
+
+  it('keeps the flow pending when confirm returns a replacement review', async () => {
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce(passedPreview())
+      .mockResolvedValueOnce({
+        status: 'review',
+        preview: passedPreview({
+          status: 'warning',
+          previewId: 'replacement-preview-id',
+          warnings: [
+            {
+              code: 'UNVERIFIED_CONTRACT',
+              message: 'Target is unverified',
+              callIndex: 0,
+              address: approvalTx.to,
+            },
+          ],
+        }),
+      });
+    const { result } = renderHook(() => usePrivyWalletBackend());
+    let rejection: Promise<unknown> | undefined;
+
+    await act(async () => {
+      const promise = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+      rejection = expect(promise).rejects.toThrow(
+        'Transaction rejected by the user.',
+      );
+    });
+    await act(async () => {
+      await result.current.confirmBatchExecution();
+    });
+
+    expect(result.current.simulationPreview).toMatchObject({
+      status: 'warning',
+      previewId: 'replacement-preview-id',
+    });
+    act(() => result.current.cancelBatchExecution());
+    await rejection;
+  });
+
+  it('sends the acknowledged warning risk hash on confirm', async () => {
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce(
+        passedPreview({
+          status: 'warning',
+          warnings: [
+            {
+              code: 'UNVERIFIED_CONTRACT',
+              message: 'Target is unverified',
+              callIndex: 0,
+              address: approvalTx.to,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce({
+        status: 'submitted',
+        transactionId: 'privy-transaction-id',
+        caip2: 'eip155:8453',
+      });
+    const { result } = renderHook(() => usePrivyWalletBackend());
+
+    await act(async () => {
+      void result.current.backend.executeAtomicBatch?.([approvalTx], 8453);
+    });
+    await act(async () => {
+      await result.current.confirmBatchExecution(RISK_HASH);
+    });
+
+    expect(mocks.accountApiPost).toHaveBeenNthCalledWith(
+      2,
+      '/wallet-execution/privy/confirm-send-calls',
+      expect.objectContaining({ acknowledgedRiskHash: RISK_HASH }),
+      expect.any(Object),
     );
   });
 

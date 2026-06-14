@@ -94,11 +94,32 @@ describe('loadEnv', () => {
       NODE_ENV: 'production',
       PRIVY_APP_ID: 'privy-app-id',
       PRIVY_APP_SECRET: 'privy-app-secret',
+      TENDERLY_ACCOUNT_SLUG: 'account-slug',
+      TENDERLY_PROJECT_SLUG: 'project-slug',
+      TENDERLY_ACCESS_TOKEN: 'access-token',
     });
     expect(result.ADMIN_API_KEY).toBe('admin-secret');
     expect(result.NODE_ENV).toBe('production');
     expect(result.PRIVY_APP_ID).toBe('privy-app-id');
     expect(result.PRIVY_APP_SECRET).toBe('privy-app-secret');
+    expect(result.TENDERLY_ACCOUNT_SLUG).toBe('account-slug');
+    expect(result.TENDERLY_PROJECT_SLUG).toBe('project-slug');
+    expect(result.TENDERLY_ACCESS_TOKEN).toBe('access-token');
+  });
+
+  it('does not expose legacy Tenderly environment names', () => {
+    const result = loadEnv({
+      ...validEnv,
+      TENDERLY_ACCOUNT: 'legacy-account',
+      TENDERLY_PROJECT: 'legacy-project',
+      TENDERLY_ACCESS_KEY: 'legacy-key',
+      TENDERLY_BASE_RPC_URL: 'https://legacy.example',
+    });
+
+    expect(result).not.toHaveProperty('TENDERLY_ACCOUNT');
+    expect(result).not.toHaveProperty('TENDERLY_PROJECT');
+    expect(result).not.toHaveProperty('TENDERLY_ACCESS_KEY');
+    expect(result).not.toHaveProperty('TENDERLY_BASE_RPC_URL');
   });
 
   it('spreads all raw env fields through to the returned object', () => {

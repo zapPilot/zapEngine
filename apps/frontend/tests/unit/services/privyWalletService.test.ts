@@ -45,12 +45,34 @@ const mockPrepareRequest = {
 };
 
 const mockPrepareResponse = {
-  previewId: 'mock-preview-id',
-  batchHash: 'mock-batch-hash',
-  decodedCalls: [],
-  tenderlyResult: {},
+  status: 'passed',
+  chainId: 8453,
+  walletAddress: mockPrepareRequest.walletAddress,
+  calls: [
+    {
+      index: 0,
+      to: mockPrepareRequest.calls[0]!.to,
+      data: mockPrepareRequest.calls[0]!.data,
+      value: '0',
+      method: 'approve',
+      status: 'succeeded',
+      gasUsed: '21000',
+      error: null,
+      contractVerified: true,
+    },
+  ],
   assetChanges: [],
-  gasEstimate: '350000',
+  approvals: [],
+  contracts: [],
+  warnings: [],
+  blockNumber: 123,
+  callGas: '21000',
+  simulationIds: ['sim-1'],
+  shareUrls: [],
+  simulationFingerprint: `0x${'1'.repeat(64)}`,
+  riskHash: `0x${'2'.repeat(64)}`,
+  previewId: 'mock-preview-id',
+  batchHash: `0x${'3'.repeat(64)}`,
   typedDataPayload: { domain: {}, types: {}, message: { nonce: 0 } },
   expiresAt: Date.now() + 300_000,
   authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
@@ -64,6 +86,7 @@ const mockConfirmRequest = {
 };
 
 const mockConfirmResponse = {
+  status: 'submitted',
   transactionId: 'privy-transaction-id',
   caip2: 'eip155:8453',
 };
@@ -99,7 +122,10 @@ describe('privyWalletService', () => {
       const result = await preparePrivyAtomicBatch(mockPrepareRequest, 'token');
 
       expect(result).toBeDefined();
-      expect(result.previewId).toBe('mock-preview-id');
+      expect(result).toMatchObject({
+        status: 'passed',
+        previewId: 'mock-preview-id',
+      });
     });
 
     it('propagates errors from the API', async () => {
@@ -137,7 +163,10 @@ describe('privyWalletService', () => {
       const result = await sendPrivyAtomicBatch(mockConfirmRequest, 'token');
 
       expect(result).toBeDefined();
-      expect(result.transactionId).toBe('privy-transaction-id');
+      expect(result).toMatchObject({
+        status: 'submitted',
+        transactionId: 'privy-transaction-id',
+      });
     });
 
     it('propagates errors from the API', async () => {
