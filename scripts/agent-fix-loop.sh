@@ -245,9 +245,9 @@ while true; do
   echo "=== validation iteration $iteration ==="
   set +e
   if [ "$ITER_TIMEOUT" -gt 0 ]; then
-    "$TIMEOUT_BIN" "$ITER_TIMEOUT" bash -lc "$COMMAND" > "$wrapper_log" 2>&1
+    "$TIMEOUT_BIN" "$ITER_TIMEOUT" bash -lc "$COMMAND" 2>&1 | tee "$wrapper_log"
   else
-    bash -lc "$COMMAND" > "$wrapper_log" 2>&1
+    bash -lc "$COMMAND" 2>&1 | tee "$wrapper_log"
   fi
   validation_status=$?
   set -e
