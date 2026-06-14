@@ -126,6 +126,10 @@ async function translateText(
     }
   }
 
+  if (!lastError) {
+    throw new Error('Google Translate API failed with no error recorded');
+  }
+
   throw lastError;
 }
 
