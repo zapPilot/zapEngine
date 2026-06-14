@@ -58,15 +58,7 @@ export async function ensureLocalizationCompleted(
         languageCode,
       },
     );
-    const publicMainAudio = await appendClassroomAudioToMainAudio(
-      mainAudio,
-      classroomAudio,
-      {
-        episodeId: episode.id,
-        localizationId: localization.id,
-        languageCode,
-      },
-    );
+    const publicMainAudio = mainAudio;
     const uploadedMain = await packageMainHls(
       publicMainAudio,
       episode.id,
@@ -229,30 +221,6 @@ async function combineClassroomAudio(
       ),
     null,
     '[/ingest] classroom audio concat failed:',
-    context,
-  );
-}
-
-async function appendClassroomAudioToMainAudio(
-  mainAudio: Buffer,
-  classroomAudio: Buffer | null,
-  context: {
-    episodeId: string;
-    localizationId: string;
-    languageCode: LanguageClassroomLanguageCode;
-  },
-): Promise<Buffer> {
-  if (!classroomAudio) {
-    return mainAudio;
-  }
-
-  return wrapWithErrorHandling(
-    () =>
-      step('concatMainWithClassroomAudio', () =>
-        concatMp3Buffers([mainAudio, classroomAudio]),
-      ),
-    mainAudio,
-    '[/ingest] main classroom append failed:',
     context,
   );
 }
