@@ -1,40 +1,20 @@
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
-import {
-  completionMetadata,
-  createOpenRouterChatCompletion,
-  getOpenRouterConfig,
-  type OpenRouterConfig,
-} from './llm.js';
 
 export type SecondaryLanguageCode = Exclude<
   LanguageClassroomLanguageCode,
   'zh-Hant'
 >;
 
-const TARGET_LANGUAGE_NAME: Record<SecondaryLanguageCode, string> = {
-  ja: 'Japanese',
-  en: 'English',
-};
+const MAX_RETRIES = 2;
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
-// Translation is a low-difficulty task and does not justify the (pricier) model
-// used for script generation. It gets its own cheap, dedicated model, falling
-// back to a budget Google flash-lite model when LLM_TRANSLATION_MODEL is unset.
-// This is independent of LLM_MODEL (script/classroom generation are unaffected).
-const TRANSLATION_DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
-
-function getTranslationConfig(): OpenRouterConfig {
-  return getOpenRouterConfig({
-    model: process.env['LLM_TRANSLATION_MODEL'] || TRANSLATION_DEFAULT_MODEL,
-    thinkingModel: null,
-  });
-}
-
-interface TranslationCompletion {
-  text: string;
-  provider: string;
-  model: string;
-  costUsd: number;
+function getGoogleTranslateApiKey(): string {
+  const key = process.env['GOOGLE_TRANSLATE_API_KEY'];
+  if (!key) {
+    throw new Error('Missing required environment variable: GOOGLE_TRANSLATE_API_KEY');
+  }
+  return key;
 }
 
 export interface TranslateCanonicalScriptOptions {
@@ -54,20 +34,18 @@ export async function translateCanonicalScript({
   script,
   targetLanguageCode,
 }: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  const config = getTranslationConfig();
   const [translatedTitle, translatedScript] = await Promise.all([
-    translateTextWithLLM(title, targetLanguageCode, config),
-    translateTextWithLLM(script, targetLanguageCode, config),
+    translateText(title, targetLanguageCode),
+    translateText(script, targetLanguageCode),
   ]);
 
   return {
     title: translatedTitle.text,
     script: translatedScript.text,
     cost: [
-      buildOpenRouterTranslateCostLine(
-        [translatedTitle, translatedScript],
+      buildGoogleTranslateCostLine(
+        translatedTitle.charCount + translatedScript.charCount,
         targetLanguageCode,
-        config.model,
       ),
     ],
   };
@@ -77,103 +55,87 @@ export async function translateChineseText(
   text: string,
   targetLanguageCode: SecondaryLanguageCode,
 ): Promise<{ text: string; cost: UsageCostLine[] }> {
-  const config = getTranslationConfig();
-  const translated = await translateTextWithLLM(
-    text,
-    targetLanguageCode,
-    config,
-  );
+  const result = await translateText(text, targetLanguageCode);
 
   return {
-    text: translated.text,
+    text: result.text,
     cost: [
-      buildOpenRouterTranslateCostLine(
-        [translated],
-        targetLanguageCode,
-        config.model,
-      ),
+      buildGoogleTranslateCostLine(result.charCount, targetLanguageCode),
     ],
   };
 }
 
-async function translateTextWithLLM(
+interface TranslateResult {
+  text: string;
+  charCount: number;
+}
+
+async function translateText(
   text: string,
   targetLanguageCode: SecondaryLanguageCode,
-  config: OpenRouterConfig,
-): Promise<TranslationCompletion> {
+): Promise<TranslateResult> {
   if (text.length === 0) {
-    return {
-      text: '',
-      provider: 'openrouter',
-      model: config.model,
-      costUsd: 0,
-    };
+    return { text: '', charCount: 0 };
   }
 
-  const completion = await createOpenRouterChatCompletion(
-    config.openai,
-    {
-      model: config.model,
-      messages: [
-        {
-          role: 'system',
-          content: translationSystemPrompt(targetLanguageCode),
+  const apiKey = getGoogleTranslateApiKey();
+
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(
+      `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        { role: 'user', content: text },
-      ],
-      temperature: 0.2,
-    },
-    config.thinkingModel,
-  );
+        body: JSON.stringify({
+          q: text,
+          source: 'zh-TW',
+          target: targetLanguageCode,
+          format: 'text',
+        }),
+      },
+    );
 
-  const metadata = completionMetadata(
-    completion,
-    config.model,
-    config.thinkingModel,
-  );
+    if (response.ok) {
+      const data = (await response.json()) as {
+        data: {
+          translations: Array<{ translatedText: string }>;
+        };
+      };
 
-  return {
-    text: completion.choices[0]?.message?.content ?? '',
-    provider:
-      metadata.provider === 'unknown' ? 'openrouter' : metadata.provider,
-    model: metadata.model,
-    costUsd: metadata.costUsd,
-  };
+      return {
+        text: data.data.translations[0]?.translatedText ?? '',
+        charCount: text.length,
+      };
+    }
+
+    const errorBody = await response.text();
+    lastError = new Error(`Google Translate API error: ${response.status} - ${errorBody}`);
+
+    if (!RETRYABLE_STATUS.has(response.status)) {
+      throw lastError;
+    }
+
+    if (attempt < MAX_RETRIES) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+
+  throw lastError;
 }
 
-function translationSystemPrompt(
+function buildGoogleTranslateCostLine(
+  charCount: number,
   targetLanguageCode: SecondaryLanguageCode,
-): string {
-  return [
-    `Translate Traditional Chinese (zh-TW) into ${TARGET_LANGUAGE_NAME[targetLanguageCode]}.`,
-    'Preserve line breaks and paragraph structure exactly where possible.',
-    'Translate faithfully without adding commentary, explanations, Markdown, or notes.',
-    'Output only the translated text.',
-  ].join(' ');
-}
-
-function buildOpenRouterTranslateCostLine(
-  completions: TranslationCompletion[],
-  targetLanguageCode: SecondaryLanguageCode,
-  fallbackModel: string,
 ): UsageCostLine {
-  // buildOpenRouterTranslateCostLine is only called with at least one completion.
-  /* v8 ignore start -- @preserve */
-  const model = completions.at(-1)?.model ?? fallbackModel;
-  // Translation completions always set provider after metadata normalization.
-  const provider =
-    completions.find((completion) => completion.provider)?.provider ??
-    'openrouter';
-  /* v8 ignore stop -- @preserve */
-
   return {
     category: 'translate',
     label: `Translation ${targetLanguageCode}`,
-    provider,
-    model,
-    costUsd: completions.reduce(
-      (sum, completion) => sum + completion.costUsd,
-      0,
-    ),
+    provider: 'google',
+    model: 'translate-api',
+    costUsd: charCount * 0.00002,
   };
 }

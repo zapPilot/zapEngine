@@ -1,194 +1,172 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCreate, mockOpenAiCtor } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockOpenAiCtor: vi.fn(),
-}));
+const mockFetch = vi.fn();
 
-vi.mock('openai', () => ({
-  default: mockOpenAiCtor.mockImplementation(function (options) {
-    return {
-      options,
-      chat: {
-        completions: {
-          create: mockCreate,
-        },
-      },
-    };
-  }),
-}));
+vi.stubGlobal('fetch', mockFetch);
 
 import { translateCanonicalScript, translateChineseText } from './translate.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  mockFetch.mockReset();
 });
 
 describe('translateChineseText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv('OPENROUTER_API_KEY', 'test-openrouter-key');
-    vi.stubEnv('OPENROUTER_BASE_URL', 'https://openrouter.test/api/v1');
-    // Translation must ignore LLM_MODEL / LLM_THINKING_MODEL and use its own model.
-    vi.stubEnv('LLM_MODEL', 'openrouter/should-not-be-used');
-    vi.stubEnv('LLM_TRANSLATION_MODEL', 'openrouter/test-model');
-    vi.stubEnv('LLM_THINKING_MODEL', 'openrouter/should-not-think');
-    mockCreate.mockResolvedValue({
-      model: 'openrouter/resolved-model',
-      provider: 'openrouter-test',
-      choices: [{ message: { content: 'Translated text' } }],
-      usage: { cost: 0.0004 },
+    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', 'test-google-translate-key');
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          translations: [{ translatedText: 'Translated text' }],
+        },
+      }),
     });
   });
 
-  it('translates Chinese text through OpenRouter and reports one cost line', async () => {
+  it('translates Chinese text through Google Translate API and reports one cost line', async () => {
     const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
 
-    expect(mockOpenAiCtor).toHaveBeenCalledWith({
-      apiKey: 'test-openrouter-key',
-      baseURL: 'https://openrouter.test/api/v1',
-    });
-    expect(mockCreate).toHaveBeenCalledWith(
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://translation.googleapis.com/language/translate/v2?key=test-google-translate-key',
       expect.objectContaining({
-        model: 'openrouter/test-model',
-        temperature: 0.2,
-        extra_body: { usage: { include: true } },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: '滑鼠和腳踏車市場',
+          source: 'zh-TW',
+          target: 'en',
+          format: 'text',
+        }),
       }),
     );
-    expect(mockCreate.mock.calls[0]?.[0].messages).toEqual([
-      {
-        role: 'system',
-        content: expect.stringContaining(
-          'Translate Traditional Chinese (zh-TW) into English',
-        ),
-      },
-      { role: 'user', content: '滑鼠和腳踏車市場' },
-    ]);
     expect(result).toEqual({
       text: 'Translated text',
       cost: [
         {
           category: 'translate',
           label: 'Translation en',
-          provider: 'openrouter-test',
-          model: 'openrouter/resolved-model',
-          costUsd: 0.0004,
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0.00014,
         },
       ],
     });
   });
 
-  it('defaults to google/gemini-2.5-flash-lite when LLM_TRANSLATION_MODEL is unset', async () => {
-    vi.stubEnv('LLM_TRANSLATION_MODEL', '');
-
-    await translateChineseText('滑鼠和腳踏車市場', 'en');
-
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'google/gemini-2.5-flash-lite',
-      }),
-    );
-  });
-
-  it('preserves empty text without calling the LLM', async () => {
+  it('preserves empty text without calling the API', async () => {
     const result = await translateChineseText('', 'ja');
 
-    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
     expect(result).toEqual({
       text: '',
       cost: [
         {
           category: 'translate',
           label: 'Translation ja',
-          provider: 'openrouter',
-          model: 'openrouter/test-model',
+          provider: 'google',
+          model: 'translate-api',
           costUsd: 0,
         },
       ],
     });
   });
 
-  it('falls back to empty text and openrouter provider when completion metadata is absent', async () => {
-    mockCreate.mockResolvedValueOnce({
-      model: 'openrouter/resolved-model',
-      choices: [],
-      usage: { cost: 0.0002 },
+  it('throws when GOOGLE_TRANSLATE_API_KEY is missing', async () => {
+    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', '');
+
+    await expect(translateChineseText('滑鼠和腳踏車市場', 'en')).rejects.toThrow(
+      'Missing required environment variable: GOOGLE_TRANSLATE_API_KEY',
+    );
+  });
+
+  it('throws immediately on non-retryable errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () => 'Invalid request',
     });
 
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
+    await expect(translateChineseText('滑鼠和腳踏車市場', 'en')).rejects.toThrow(
+      'Google Translate API error: 400 - Invalid request',
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 
-    expect(result).toEqual({
-      text: '',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation en',
-          provider: 'openrouter',
-          model: 'openrouter/resolved-model',
-          costUsd: 0.0002,
-        },
-      ],
+  it('retries on 429 then succeeds', async () => {
+    vi.useFakeTimers();
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => 'Rate limited',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            translations: [{ translatedText: 'Retried translation' }],
+          },
+        }),
+      });
+
+    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await promise;
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.text).toBe('Retried translation');
+    vi.useRealTimers();
+  });
+
+  it('retries up to MAX_RETRIES on 500 then throws', async () => {
+    vi.useFakeTimers();
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => 'Internal error',
     });
+
+    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(promise).rejects.toThrow('Google Translate API error: 500 - Internal error');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
   });
 });
 
 describe('translateCanonicalScript', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv('OPENROUTER_API_KEY', 'test-openrouter-key');
-    vi.stubEnv('OPENROUTER_BASE_URL', 'https://openrouter.test/api/v1');
-    // Translation must ignore LLM_MODEL / LLM_THINKING_MODEL and use its own model.
-    vi.stubEnv('LLM_MODEL', 'openrouter/should-not-be-used');
-    vi.stubEnv('LLM_TRANSLATION_MODEL', 'openrouter/test-model');
-    vi.stubEnv('LLM_THINKING_MODEL', 'openrouter/thinking-model');
-    mockCreate
+    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', 'test-google-translate-key');
+    mockFetch
       .mockResolvedValueOnce({
-        model: 'openrouter/title-model',
-        provider: 'openrouter-test',
-        choices: [{ message: { content: '翻訳タイトル' } }],
-        usage: { cost: 0.0001 },
+        ok: true,
+        json: async () => ({
+          data: {
+            translations: [{ translatedText: '翻訳タイトル' }],
+          },
+        }),
       })
       .mockResolvedValueOnce({
-        model: 'openrouter/script-model',
-        provider: 'openrouter-test',
-        choices: [{ message: { content: '翻訳本文\n二行目' } }],
-        usage: { cost: 0.0009 },
+        ok: true,
+        json: async () => ({
+          data: {
+            translations: [{ translatedText: '翻訳本文\n二行目' }],
+          },
+        }),
       });
   });
 
-  it('translates title and script with one OpenRouter client and one combined cost line', async () => {
+  it('translates title and script with combined cost line', async () => {
     const result = await translateCanonicalScript({
       title: '標題',
       script: '第一句。\n第二句。',
       targetLanguageCode: 'ja',
     });
 
-    expect(mockOpenAiCtor).toHaveBeenCalledTimes(1);
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(mockCreate.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        model: 'openrouter/test-model',
-        temperature: 0.2,
-        // Translation forces thinkingModel=null, so no thinking block is sent
-        // even when LLM_THINKING_MODEL is configured for script generation.
-        extra_body: {
-          usage: { include: true },
-        },
-      }),
-    );
-    expect(mockCreate.mock.calls[0]?.[0].messages).toEqual([
-      {
-        role: 'system',
-        content: expect.stringContaining(
-          'Translate Traditional Chinese (zh-TW) into Japanese',
-        ),
-      },
-      { role: 'user', content: '標題' },
-    ]);
-    expect(mockCreate.mock.calls[1]?.[0].messages[1]).toEqual({
-      role: 'user',
-      content: '第一句。\n第二句。',
-    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(result).toEqual({
       title: '翻訳タイトル',
       script: '翻訳本文\n二行目',
@@ -196,9 +174,9 @@ describe('translateCanonicalScript', () => {
         {
           category: 'translate',
           label: 'Translation ja',
-          provider: 'openrouter-test',
-          model: 'openrouter/script-model',
-          costUsd: 0.001,
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0.00018,
         },
       ],
     });
