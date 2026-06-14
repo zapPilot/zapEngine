@@ -165,6 +165,7 @@ export interface PrivyWalletBackend {
   cancelBatchExecution: () => void;
   isSigningAndSending: boolean;
   isRetryingSimulation: boolean;
+  retryError: string | null;
 }
 
 /**
@@ -192,6 +193,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     useState<PrivyPrepareSendCallsResponse | null>(null);
   const [isSigningAndSending, setIsSigningAndSending] = useState(false);
   const [isRetryingSimulation, setIsRetryingSimulation] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const pendingExecutionRef = useRef<{
     resolve: (result: WalletAtomicBatchResult) => void;
     reject: (err: Error) => void;
@@ -411,6 +413,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     const pending = pendingExecutionRef.current;
     if (!pending) return;
 
+    setRetryError(null);
     setIsRetryingSimulation(true);
     try {
       const accessToken = await getAccessToken();
@@ -422,6 +425,9 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       const preview = await preparePrivyAtomicBatch(pending.batch, accessToken);
       pending.preview = preview;
       setSimulationPreview(preview);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : errorMessage(err);
+      setRetryError(message);
     } finally {
       setIsRetryingSimulation(false);
     }
@@ -589,5 +595,6 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     cancelBatchExecution,
     isSigningAndSending,
     isRetryingSimulation,
+    retryError,
   };
 }

@@ -119,8 +119,7 @@ describe('TenderlySimulationService', () => {
             contracts: [contract(TARGET)],
           }),
         ]),
-      )
-      .mockResolvedValueOnce({ ok: true, status: 204 } as Response);
+      );
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -130,8 +129,7 @@ describe('TenderlySimulationService', () => {
     });
 
     expect(result.status).toBe('passed');
-    expect(fetchFn).toHaveBeenNthCalledWith(
-      1,
+    expect(fetchFn).toHaveBeenCalledWith(
       'https://api.tenderly.co/api/v1/account/account-slug/project/project-slug/simulate-bundle',
       expect.objectContaining({
         method: 'POST',
@@ -157,20 +155,7 @@ describe('TenderlySimulationService', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-    expect(fetchFn).toHaveBeenNthCalledWith(
-      2,
-      'https://api.tenderly.co/api/v1/account/account-slug/project/project-slug/simulations/sim-1/share',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Access-Key': 'secret-token',
-        },
-      }),
-    );
-    expect(result.shareUrls).toEqual([
-      'https://www.tdly.co/shared/simulation/sim-1',
-    ]);
+    expect(result.shareUrls).toEqual([]);
   });
 
   it('fails closed as unavailable when configuration is missing', async () => {
@@ -234,22 +219,19 @@ describe('TenderlySimulationService', () => {
     });
   });
 
-  it('marks later calls skipped and preserves the revert reason', async () => {
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response([
-          simulationResult({ id: 'sim-1' }),
-          simulationResult({
-            id: 'sim-2',
-            to: TOKEN,
-            status: false,
-            errorMessage: 'execution reverted: allowance too low',
-            contracts: [contract(TOKEN, { token: true })],
-          }),
-        ]),
-      )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+  it('returns unavailable when simulation results count does not match calls count', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce(
+      response([
+        simulationResult({ id: 'sim-1' }),
+        simulationResult({
+          id: 'sim-2',
+          to: TOKEN,
+          status: false,
+          errorMessage: 'execution reverted: allowance too low',
+          contracts: [contract(TOKEN, { token: true })],
+        }),
+      ]),
+    );
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({
@@ -258,25 +240,15 @@ describe('TenderlySimulationService', () => {
       calls: [{ to: TARGET }, { to: TOKEN }, { to: SPENDER }],
     });
 
-    expect(result).toMatchObject({
-      status: 'failed',
-      failureReason: 'execution reverted: allowance too low',
-      calls: [
-        { status: 'succeeded' },
-        { status: 'failed', error: 'execution reverted: allowance too low' },
-        { status: 'skipped', gasUsed: null },
-      ],
-    });
+    expect(result.status).toBe('unavailable');
+    expect((result as { unavailableReason: string }).unavailableReason).toContain('Tenderly returned');
   });
 
-  it('keeps a successful simulation valid when sharing fails', async () => {
+  it('keeps a successful simulation valid when sharing is not attempted', async () => {
     const warn = vi.fn();
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response([simulationResult({ id: 'sim-private' })]),
-      )
-      .mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    const fetchFn = vi.fn().mockResolvedValueOnce(
+      response([simulationResult({ id: 'sim-private' })]),
+    );
     const service = createTenderlySimulationService({
       accountSlug: 'account-slug',
       projectSlug: 'project-slug',
@@ -293,10 +265,6 @@ describe('TenderlySimulationService', () => {
 
     expect(result.status).toBe('passed');
     expect(result.shareUrls).toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      'Failed to share Tenderly simulation',
-      expect.objectContaining({ simulationId: 'sim-private' }),
-    );
   });
 
   it('normalizes wallet-relative assets, approvals, contracts, and every risk rule', async () => {
@@ -382,7 +350,6 @@ describe('TenderlySimulationService', () => {
           }),
         ]),
       )
-      .mockResolvedValueOnce({ ok: true, status: 204 } as Response)
       .mockResolvedValueOnce(
         response([
           simulationResult({
@@ -391,8 +358,7 @@ describe('TenderlySimulationService', () => {
             blockNumber: 200,
           }),
         ]),
-      )
-      .mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+      );
     const service = createService(fetchFn);
     const input = {
       chainId: 8453 as const,
@@ -408,21 +374,19 @@ describe('TenderlySimulationService', () => {
     expect(first.blockNumber).not.toBe(second.blockNumber);
     expect(first.callGas).not.toBe(second.callGas);
     expect(first.simulationIds).not.toEqual(second.simulationIds);
-    expect(first.shareUrls).not.toEqual(second.shareUrls);
+    expect(first.shareUrls).toEqual([]);
+    expect(second.shareUrls).toEqual([]);
   });
 
   it('handles null asset_changes without crashing', async () => {
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response([
-          simulationResult({
-            id: 'sim-null-assets',
-            assetChanges: null,
-          }),
-        ]),
-      )
-      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    const fetchFn = vi.fn().mockResolvedValueOnce(
+      response([
+        simulationResult({
+          id: 'sim-null-assets',
+          assetChanges: null,
+        }),
+      ]),
+    );
     const service = createService(fetchFn);
 
     const result = await service.simulateBundle({

@@ -58,6 +58,7 @@ export function UnifiedWalletProvider({
     cancelBatchExecution,
     isSigningAndSending,
     isRetryingSimulation,
+    retryError,
   } = usePrivyWalletBackend();
 
   const value = useMemo<WalletContextValue>(
@@ -77,6 +78,7 @@ export function UnifiedWalletProvider({
           onRetry={retryBatchSimulation}
           isSigningAndSending={isSigningAndSending}
           isRetryingSimulation={isRetryingSimulation}
+          retryError={retryError}
         />
       )}
     </WalletContext.Provider>

@@ -23,7 +23,6 @@ import { Logger } from '../common/logger';
 import { getErrorMessage } from '../common/utils';
 
 const TENDERLY_API_URL = 'https://api.tenderly.co/api/v1';
-const TENDERLY_SHARE_URL = 'https://www.tdly.co/shared/simulation';
 const TENDERLY_TIMEOUT_MS = 10_000;
 const TENDERLY_CALL_GAS_LIMIT = 8_000_000;
 const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
@@ -160,7 +159,14 @@ function normalizeAddress(address: string): string {
 }
 
 function integerString(value: number | string): string {
-  return typeof value === 'number' ? value.toString() : value;
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+  try {
+    return BigInt(value).toString();
+  } catch {
+    return value;
+  }
 }
 
 function parseRawAmount(value: number | string): bigint {
@@ -372,7 +378,11 @@ function normalizeReview(
       const to = rawChange.to ? normalizeAddress(rawChange.to) : null;
       if (from === walletAddress && to === walletAddress) continue;
       const direction =
-        from === walletAddress ? 'out' : to === walletAddress ? 'in' : null;
+        from === walletAddress
+          ? 'out'
+          : to === walletAddress
+            ? 'in'
+            : null;
       if (!direction) continue;
       const rawAmount = parseRawAmount(rawChange.raw_amount);
       const token = normalizeToken(rawChange.token_info);
@@ -461,6 +471,12 @@ function normalizeReview(
   });
 
   const warnings: PrivySimulationWarning[] = [];
+  const approvalsByCall = new Map<number, PrivySimulationApproval[]>();
+  for (const approval of approvals) {
+    const existing = approvalsByCall.get(approval.callIndex) ?? [];
+    existing.push(approval);
+    approvalsByCall.set(approval.callIndex, existing);
+  }
   for (const call of calls) {
     if (!call.contractVerified) {
       warnings.push({
@@ -470,24 +486,24 @@ function normalizeReview(
         address: call.to,
       });
     }
-    const approval = approvals.find(
-      (candidate) => candidate.callIndex === call.index,
-    );
-    if (approval?.unlimited) {
-      warnings.push({
-        code: 'UNLIMITED_APPROVAL',
-        message: `Call ${call.index + 1} grants an unlimited token approval`,
-        callIndex: call.index,
-        address: approval.spender,
-      });
-    }
-    if (approval?.exceedsSimulatedSpend) {
-      warnings.push({
-        code: 'APPROVAL_EXCEEDS_SIMULATED_SPEND',
-        message: `Call ${call.index + 1} approves more than the simulated spend`,
-        callIndex: call.index,
-        address: approval.spender,
-      });
+    const callApprovals = approvalsByCall.get(call.index) ?? [];
+    for (const approval of callApprovals) {
+      if (approval.unlimited) {
+        warnings.push({
+          code: 'UNLIMITED_APPROVAL',
+          message: `Call ${call.index + 1}: ${approval.token.symbol} grants unlimited approval to ${approval.spender}`,
+          callIndex: call.index,
+          address: approval.spender,
+        });
+      }
+      if (approval.exceedsSimulatedSpend) {
+        warnings.push({
+          code: 'APPROVAL_EXCEEDS_SIMULATED_SPEND',
+          message: `Call ${call.index + 1}: ${approval.token.symbol} approval exceeds simulated spend`,
+          callIndex: call.index,
+          address: approval.spender,
+        });
+      }
     }
     if (!call.method) {
       warnings.push({
@@ -614,9 +630,11 @@ export function createTenderlySimulationService(config: {
       try {
         rawJson = await response.json();
         parsed = RawBundleResponseSchema.parse(rawJson);
-        if (parsed.simulation_results.length > input.calls.length) {
-          throw new Error('Tenderly returned more results than calls');
-        }
+        if (parsed.simulation_results.length !== input.calls.length) {
+        throw new Error(
+          `Tenderly returned ${parsed.simulation_results.length} results for ${input.calls.length} calls`,
+        );
+      }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         logger.warn('Tenderly parse error', { error: errorMsg });
@@ -625,6 +643,7 @@ export function createTenderlySimulationService(config: {
             '/tmp/tenderly-response.json',
             JSON.stringify(rawJson, null, 2),
           );
+          // eslint-disable-next-line sonarjs/publicly-writable-directories
           logger.warn('Raw Tenderly response saved to /tmp/tenderly-response.json', {});
         } catch (writeErr) {
           logger.warn('Failed to dump Tenderly response to file', {
@@ -637,32 +656,10 @@ export function createTenderlySimulationService(config: {
         );
       }
 
-      const shareUrls: string[] = [];
-      await Promise.all(
-        parsed.simulation_results.map(async (result) => {
-          const simulationId = result.simulation.id;
-          try {
-            const shareResponse = await fetchWithTimeout(
-              `${baseUrl}/simulations/${simulationId}/share`,
-              { method: 'POST', headers },
-            );
-            if (!shareResponse.ok) {
-              throw new Error(`Tenderly returned HTTP ${shareResponse.status}`);
-            }
-            shareUrls.push(`${TENDERLY_SHARE_URL}/${simulationId}`);
-          } catch (error) {
-            logger.warn('Failed to share Tenderly simulation', {
-              simulationId,
-              error: getErrorMessage(error),
-            });
-          }
-        }),
-      );
-
       return normalizeReview(
         input,
         parsed.simulation_results,
-        shareUrls.sort(),
+        [],
       );
     },
   };
