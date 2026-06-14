@@ -111,8 +111,8 @@ describe('ChartService', () => {
         arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
       });
 
-      // Generate > MAX_DATA_POINTS entries (100 is the typical limit)
-      const data = Array.from({ length: 200 }, (_, i) => ({
+      // Generate > MAX_DATA_POINTS entries (250 is the configured limit)
+      const data = Array.from({ length: 300 }, (_, i) => ({
         date: new Date(Date.now() - i * 86400000).toISOString(),
         usd_value: 1000 + i,
       }));

@@ -108,6 +108,98 @@ describe('TenderlySimulationService', () => {
     vi.useRealTimers();
   });
 
+  it('returns unavailable when Tenderly returns a non-OK HTTP response', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: expect.stringContaining(
+        'Tenderly simulation returned HTTP 500',
+      ),
+    });
+  });
+
+  it('normalizes wallet-relative asset changes sent to the wallet as incoming', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-incoming',
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: SPENDER,
+                to: WALLET,
+                raw_amount: '100',
+                amount: '0.0000000000000001',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: '0x1234' }],
+    });
+
+    expect(result.assetChanges).toEqual([
+      expect.objectContaining({
+        direction: 'in',
+        rawAmount: '100',
+      }),
+    ]);
+  });
+
+  it('skips asset changes where neither from nor to matches the wallet', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-third-party',
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: SPENDER,
+                to: TARGET,
+                raw_amount: '50',
+                amount: '0.00000000000000005',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: '0x1234' }],
+    });
+
+    expect(result.assetChanges).toEqual([]);
+  });
+
   it('posts the full sequential bundle to the exact endpoint with decimal values', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(
       response([

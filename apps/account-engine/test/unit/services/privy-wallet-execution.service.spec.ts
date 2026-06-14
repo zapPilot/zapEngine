@@ -190,6 +190,58 @@ describe('PrivyWalletExecutionService', () => {
     ).rejects.toMatchObject({ statusCode: 503 });
   });
 
+  it('rejects a confirm request for a non-existent preview', async () => {
+    const service = createService();
+    await expect(
+      service.confirmSendCalls(confirmRequest('non-existent-id'), accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Simulation preview not found',
+    });
+  });
+
+  it('rejects a confirm request for an already consumed preview', async () => {
+    const service = createService();
+    const prepared = await service.prepareSendCalls(batch, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+
+    await service.confirmSendCalls(
+      confirmRequest(prepared.previewId),
+      accessToken,
+    );
+    await expect(
+      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Simulation preview has already been consumed',
+    });
+  });
+
+  it('rejects a confirm request for an expired preview', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = createService();
+      const prepared = await service.prepareSendCalls(batch, accessToken);
+      if (prepared.status !== 'passed')
+        throw new Error('Expected passed preview');
+
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Simulation preview has expired',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects a signature that does not recover the wallet address', async () => {
     const viem = await import('viem');
     vi.mocked(viem.verifyTypedData).mockResolvedValueOnce(false);

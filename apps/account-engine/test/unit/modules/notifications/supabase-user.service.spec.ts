@@ -47,6 +47,39 @@ describe('SupabaseUserService', () => {
       expect(result[0]?.wallets).toEqual(['0xabc']);
     });
 
+    it('merges wallets when user has multiple subscription rows', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.anon.queryBuilder.mockResolvedThen({
+        data: [
+          {
+            user_id: 'u-1',
+            ends_at: null,
+            users: {
+              id: 'u-1',
+              email: 'a@b.com',
+              user_crypto_wallets: [{ wallet: '0xaaa' }],
+            },
+          },
+          {
+            user_id: 'u-1',
+            ends_at: null,
+            users: {
+              id: 'u-1',
+              email: 'a@b.com',
+              user_crypto_wallets: [{ wallet: '0xbbb' }],
+            },
+          },
+        ],
+        error: null,
+      });
+
+      const result = await service.getUsersWithAllWallets();
+      expect(result).toHaveLength(1);
+      expect(result[0]?.wallets).toEqual(
+        expect.arrayContaining(['0xaaa', '0xbbb']),
+      );
+    });
+
     it('returns empty when no users match', async () => {
       const { service, dbMock } = createMocks();
       dbMock.anon.queryBuilder.mockResolvedThen({ data: [], error: null });
@@ -161,6 +194,23 @@ describe('SupabaseUserService', () => {
 
       const result = await service.getBalanceHistory('u-1');
       expect(result).toEqual([]);
+    });
+
+    it('filters out invalid entries within daily_values array', async () => {
+      const { service, analyticsClient } = createMocks();
+      analyticsClient.getPortfolioTrendData.mockResolvedValue({
+        daily_values: [
+          null,
+          { date: '2025-01-01', total_value_usd: 1000 },
+          'not-an-object',
+          { date: '', total_value_usd: 500 },
+          { total_value_usd: 500 },
+        ],
+      });
+
+      const result = await service.getBalanceHistory('u-1');
+      expect(result).toHaveLength(1);
+      expect(result[0]?.usd_value).toBe(1000);
     });
   });
 
