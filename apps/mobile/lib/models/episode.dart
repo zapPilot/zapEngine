@@ -127,11 +127,11 @@ class LanguageClassroomLesson {
 
   @override
   int get hashCode => Object.hash(
-        sourceLanguageCode,
-        targetLanguageCode,
-        oneLiner,
-        Object.hashAll(keywords),
-      );
+    sourceLanguageCode,
+    targetLanguageCode,
+    oneLiner,
+    Object.hashAll(keywords),
+  );
 }
 
 class Episode {

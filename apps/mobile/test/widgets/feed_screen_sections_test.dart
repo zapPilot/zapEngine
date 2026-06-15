@@ -7,20 +7,13 @@ void main() {
     'groups feed episodes with unread oldest first and completed newest first',
     () {
       final groups = groupFeedEpisodesByStatus([
-        _episode(
-          'unplayed-new',
-          createdAt: DateTime(2026, 5, 4),
-        ),
+        _episode('unplayed-new', createdAt: DateTime(2026, 5, 4)),
         _episode(
           'in-progress-b',
           createdAt: DateTime(2026, 5, 2),
           lastPositionSeconds: 30,
         ),
-        _episode(
-          'completed-old',
-          createdAt: DateTime(2026, 5),
-          listened: true,
-        ),
+        _episode('completed-old', createdAt: DateTime(2026, 5), listened: true),
         _episode(
           'completed-new-a',
           createdAt: DateTime(2026, 5, 5),
@@ -36,10 +29,7 @@ void main() {
           createdAt: DateTime(2026, 5, 5),
           listened: true,
         ),
-        _episode(
-          'unplayed-old',
-          createdAt: DateTime(2026, 5),
-        ),
+        _episode('unplayed-old', createdAt: DateTime(2026, 5)),
         _episode(
           'in-progress-a',
           createdAt: DateTime(2026, 5, 2),
@@ -76,26 +66,25 @@ void main() {
         createdAt: DateTime(2026, 5),
         lastPositionSeconds: 30,
       ),
-      _episode(
-        'unplayed-old',
-        createdAt: DateTime(2026, 4, 30),
-      ),
+      _episode('unplayed-old', createdAt: DateTime(2026, 4, 30)),
     ];
     final groups = groupFeedEpisodesByStatus(episodes);
 
     expect(heroEpisodeForFeed(episodes, groups)?.id, 'in-progress-old');
   });
 
-  test('hero selects the oldest unplayed episode when none are in progress',
-      () {
-    final episodes = [
-      _episode('unplayed-new', createdAt: DateTime(2026, 5, 4)),
-      _episode('unplayed-old', createdAt: DateTime(2026, 5)),
-    ];
-    final groups = groupFeedEpisodesByStatus(episodes);
+  test(
+    'hero selects the oldest unplayed episode when none are in progress',
+    () {
+      final episodes = [
+        _episode('unplayed-new', createdAt: DateTime(2026, 5, 4)),
+        _episode('unplayed-old', createdAt: DateTime(2026, 5)),
+      ];
+      final groups = groupFeedEpisodesByStatus(episodes);
 
-    expect(heroEpisodeForFeed(episodes, groups)?.id, 'unplayed-old');
-  });
+      expect(heroEpisodeForFeed(episodes, groups)?.id, 'unplayed-old');
+    },
+  );
 }
 
 Episode _episode(

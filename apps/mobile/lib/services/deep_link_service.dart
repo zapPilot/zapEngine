@@ -17,12 +17,13 @@ class DeepLinkService {
     EpisodeLoader? loadEpisode,
     EpisodeDetailBuilder? episodeDetailBuilder,
     AppLinks? appLinks,
-  })  : _navigatorKey = navigatorKey,
-        _loadEpisode =
-            loadEpisode ?? ((id) => EpisodeService().getEpisodeById(id)),
-        _episodeDetailBuilder = episodeDetailBuilder ??
-            ((episode) => EpisodeDetailScreen(episode: episode)),
-        _appLinks = appLinks;
+  }) : _navigatorKey = navigatorKey,
+       _loadEpisode =
+           loadEpisode ?? ((id) => EpisodeService().getEpisodeById(id)),
+       _episodeDetailBuilder =
+           episodeDetailBuilder ??
+           ((episode) => EpisodeDetailScreen(episode: episode)),
+       _appLinks = appLinks;
 
   final GlobalKey<NavigatorState> _navigatorKey;
   final EpisodeLoader _loadEpisode;

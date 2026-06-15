@@ -238,7 +238,7 @@ AuthProvider _defaultAuthProvider() {
 
 class _FakeAuthProvider extends AuthProvider {
   _FakeAuthProvider({PodcastUser? user})
-      : super(authService: _FakeAuthService(user: user));
+    : super(authService: _FakeAuthService(user: user));
 
   bool signOutCalled = false;
 

@@ -81,9 +81,7 @@ class MiniPlayer extends StatelessWidget {
                               children: [
                                 Text(
                                   'Now playing',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: AppColors.accent,
                                         fontWeight: FontWeight.w700,
@@ -94,9 +92,7 @@ class MiniPlayer extends StatelessWidget {
                                   episode.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontSize: 14),
                                 ),
                               ],

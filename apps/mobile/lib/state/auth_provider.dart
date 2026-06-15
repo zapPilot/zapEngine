@@ -6,7 +6,7 @@ import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({AuthService? authService})
-      : _authService = authService ?? AuthService() {
+    : _authService = authService ?? AuthService() {
     unawaited(restore());
   }
 

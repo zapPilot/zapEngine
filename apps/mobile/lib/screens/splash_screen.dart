@@ -30,13 +30,15 @@ class _SplashScreenState extends State<SplashScreen>
   );
   late final Animation<double> _markProgress = _intervalCurve(0, 0.7);
   late final Animation<double> _wordmarkOpacity = _intervalCurve(0.42, 0.82);
-  late final Animation<Offset> _wordmarkOffset =
-      Tween<Offset>(begin: const Offset(0, 0.16), end: Offset.zero)
-          .animate(_intervalCurve(0.42, 0.82));
+  late final Animation<Offset> _wordmarkOffset = Tween<Offset>(
+    begin: const Offset(0, 0.16),
+    end: Offset.zero,
+  ).animate(_intervalCurve(0.42, 0.82));
   late final Animation<double> _endorsementOpacity = _intervalCurve(0.62, 1);
-  late final Animation<Offset> _endorsementOffset =
-      Tween<Offset>(begin: const Offset(0, 0.22), end: Offset.zero)
-          .animate(_intervalCurve(0.62, 1));
+  late final Animation<Offset> _endorsementOffset = Tween<Offset>(
+    begin: const Offset(0, 0.22),
+    end: Offset.zero,
+  ).animate(_intervalCurve(0.62, 1));
 
   CurvedAnimation _intervalCurve(double begin, double end) {
     return CurvedAnimation(
@@ -55,7 +57,8 @@ class _SplashScreenState extends State<SplashScreen>
     _started = true;
 
     final mediaQuery = MediaQuery.maybeOf(context);
-    final reduceMotion = mediaQuery?.disableAnimations == true ||
+    final reduceMotion =
+        mediaQuery?.disableAnimations == true ||
         mediaQuery?.accessibleNavigation == true;
 
     if (reduceMotion) {

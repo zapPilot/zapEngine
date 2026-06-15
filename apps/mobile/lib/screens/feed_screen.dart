@@ -19,8 +19,8 @@ class FeedScreen extends StatefulWidget {
     super.key,
     EpisodeService? episodeService,
     FeedPaginationController? controller,
-  })  : _episodeService = episodeService,
-        _controller = controller;
+  }) : _episodeService = episodeService,
+       _controller = controller;
 
   final EpisodeService? _episodeService;
   final FeedPaginationController? _controller;
@@ -30,7 +30,8 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  late final FeedPaginationController _controller = widget._controller ??
+  late final FeedPaginationController _controller =
+      widget._controller ??
       FeedPaginationController(
         episodeService: widget._episodeService ?? EpisodeService(),
       );
@@ -78,7 +79,7 @@ class _FeedScreenState extends State<FeedScreen> {
   void _reloadIfNeeded(String? userId) {
     final languageCode =
         context.watch<ContentLanguageProvider?>()?.languageCode ??
-            AppConfig.contentLanguageCode;
+        AppConfig.contentLanguageCode;
 
     if (_controller.needsReload(languageCode: languageCode, userId: userId)) {
       unawaited(
@@ -121,9 +122,8 @@ class _FeedScreenState extends State<FeedScreen> {
       child: FeedScreenContent(
         scrollController: _scrollController,
         listenedExpanded: _listenedExpanded,
-        onToggleListenedExpanded: () => setState(
-          () => _listenedExpanded = !_listenedExpanded,
-        ),
+        onToggleListenedExpanded: () =>
+            setState(() => _listenedExpanded = !_listenedExpanded),
         onRefresh: _loadFirstPage,
         onLoadMore: () => unawaited(_controller.loadMore()),
         onSmartPlay: (episode) => unawaited(_handleSmartPlay(episode)),
@@ -133,7 +133,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _handleSmartPlay(Episode heroEpisode) async {
     final playback = context.read<PlaybackProvider>();
-    final shouldResume = playback.currentEpisode?.id == heroEpisode.id &&
+    final shouldResume =
+        playback.currentEpisode?.id == heroEpisode.id &&
         heroEpisode.status == EpisodeStatus.inProgress;
     if (shouldResume) {
       if (playback.isPlaying) {

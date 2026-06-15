@@ -162,14 +162,16 @@ void main() {
       expect(episode, isNull);
     });
 
-    test('getListenedEpisodeIds returns empty set when client is null',
-        () async {
-      final fakeSupabase = _FakeSupabaseService(null);
-      final service = EpisodeService(supabaseService: fakeSupabase);
+    test(
+      'getListenedEpisodeIds returns empty set when client is null',
+      () async {
+        final fakeSupabase = _FakeSupabaseService(null);
+        final service = EpisodeService(supabaseService: fakeSupabase);
 
-      final ids = await service.getListenedEpisodeIds('user-1');
-      expect(ids, isEmpty);
-    });
+        final ids = await service.getListenedEpisodeIds('user-1');
+        expect(ids, isEmpty);
+      },
+    );
 
     test('getUserState returns empty map when client is null', () async {
       final fakeSupabase = _FakeSupabaseService(null);
@@ -184,9 +186,9 @@ class _TestableEpisodeService {
   _TestableEpisodeService({
     UserEpisodeStateWriter? userEpisodeStateWriter,
     DateTime Function()? now,
-  })  : _userEpisodeStateWriter =
-            userEpisodeStateWriter ?? _FakeUserEpisodeStateWriter(),
-        _now = now ?? DateTime.now;
+  }) : _userEpisodeStateWriter =
+           userEpisodeStateWriter ?? _FakeUserEpisodeStateWriter(),
+       _now = now ?? DateTime.now;
 
   final UserEpisodeStateWriter _userEpisodeStateWriter;
   final DateTime Function() _now;

@@ -144,9 +144,9 @@ class _LanguageBadge extends StatelessWidget {
       child: Text(
         languageShortLabelFor(languageCode),
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.accent,
-              fontWeight: FontWeight.w800,
-            ),
+          color: AppColors.accent,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -177,18 +177,18 @@ class _KeywordChip extends StatelessWidget {
               keyword.term,
               softWrap: true,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 3),
             Text(
               supporting,
               softWrap: true,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.25,
-                  ),
+                color: AppColors.textSecondary,
+                height: 1.25,
+              ),
             ),
           ],
         ),

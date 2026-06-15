@@ -9,8 +9,8 @@ class LikeSnapshot {
 
 class LikesService {
   LikesService({SupabaseService? supabaseService, LikesStore? store})
-      : _store =
-            store ?? SupabaseLikesStore(supabaseService ?? SupabaseService());
+    : _store =
+          store ?? SupabaseLikesStore(supabaseService ?? SupabaseService());
 
   final LikesStore _store;
 

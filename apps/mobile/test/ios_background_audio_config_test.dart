@@ -30,7 +30,8 @@ void main() {
     expect(
       project,
       isNot(contains('DART_DEFINES = "";')),
-      reason: 'Empty app-target DART_DEFINES overrides Generated.xcconfig and '
+      reason:
+          'Empty app-target DART_DEFINES overrides Generated.xcconfig and '
           'strips SUPABASE_URL/SUPABASE_ANON_KEY from Xcode builds.',
     );
   });
@@ -51,71 +52,77 @@ void main() {
     );
   });
 
-  test('Xcode backend wrapper appends Supabase defines before Flutter build',
-      () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('zapengine_xcode_defines_test_');
-    addTearDown(() async {
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
+  test(
+    'Xcode backend wrapper appends Supabase defines before Flutter build',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'zapengine_xcode_defines_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
 
-    final fakeRepo = Directory('${tempDir.path}/repo')..createSync();
-    final fakeToolDir = Directory('${fakeRepo.path}/apps/mobile/tool')
-      ..createSync(recursive: true);
-    final fakeFlutterBackend = File(
-      '${tempDir.path}/flutter/packages/flutter_tools/bin/xcode_backend.sh',
-    )..createSync(recursive: true);
-    final capturedDefines = File('${tempDir.path}/captured_dart_defines.txt');
-    final capturedArgs = File('${tempDir.path}/captured_args.txt');
-    final wrapper = File('${fakeToolDir.path}/xcode_backend_with_env.sh')
-      ..writeAsStringSync(
-          File('tool/xcode_backend_with_env.sh').readAsStringSync());
+      final fakeRepo = Directory('${tempDir.path}/repo')..createSync();
+      final fakeToolDir = Directory('${fakeRepo.path}/apps/mobile/tool')
+        ..createSync(recursive: true);
+      final fakeFlutterBackend = File(
+        '${tempDir.path}/flutter/packages/flutter_tools/bin/xcode_backend.sh',
+      )..createSync(recursive: true);
+      final capturedDefines = File('${tempDir.path}/captured_dart_defines.txt');
+      final capturedArgs = File('${tempDir.path}/captured_args.txt');
+      final wrapper = File('${fakeToolDir.path}/xcode_backend_with_env.sh')
+        ..writeAsStringSync(
+          File('tool/xcode_backend_with_env.sh').readAsStringSync(),
+        );
 
-    File('${fakeRepo.path}/.env').writeAsStringSync('''
+      File('${fakeRepo.path}/.env').writeAsStringSync('''
 SUPABASE_URL="https://example.supabase.co"
 SUPABASE_ANON_KEY='anon-key'
 ''');
-    fakeFlutterBackend.writeAsStringSync(r'''
+      fakeFlutterBackend.writeAsStringSync(r'''
 #!/bin/sh
 printf '%s' "$DART_DEFINES" > "$CAPTURED_DART_DEFINES"
 printf '%s' "$*" > "$CAPTURED_ARGS"
 ''');
 
-    final existingDefine = base64.encode(
-      utf8.encode('FLUTTER_WEB_AUTO_DETECT=true'),
-    );
-    final result = await Process.run(
-      '/bin/bash',
-      [wrapper.path, 'build'],
-      environment: {
-        'CAPTURED_ARGS': capturedArgs.path,
-        'CAPTURED_DART_DEFINES': capturedDefines.path,
-        'DART_DEFINES': existingDefine,
-        'FLUTTER_ROOT': '${tempDir.path}/flutter',
-      },
-    );
+      final existingDefine = base64.encode(
+        utf8.encode('FLUTTER_WEB_AUTO_DETECT=true'),
+      );
+      final result = await Process.run(
+        '/bin/bash',
+        [wrapper.path, 'build'],
+        environment: {
+          'CAPTURED_ARGS': capturedArgs.path,
+          'CAPTURED_DART_DEFINES': capturedDefines.path,
+          'DART_DEFINES': existingDefine,
+          'FLUTTER_ROOT': '${tempDir.path}/flutter',
+        },
+      );
 
-    expect(
-      result.exitCode,
-      0,
-      reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
-    );
-    expect(capturedArgs.readAsStringSync(), 'build');
+      expect(
+        result.exitCode,
+        0,
+        reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+      );
+      expect(capturedArgs.readAsStringSync(), 'build');
 
-    final decodedDefines = capturedDefines
-        .readAsStringSync()
-        .split(',')
-        .map((define) => utf8.decode(base64.decode(define)))
-        .toList();
+      final decodedDefines = capturedDefines
+          .readAsStringSync()
+          .split(',')
+          .map((define) => utf8.decode(base64.decode(define)))
+          .toList();
 
-    expect(decodedDefines, contains('FLUTTER_WEB_AUTO_DETECT=true'));
-    expect(
-        decodedDefines, contains('SUPABASE_URL=https://example.supabase.co'));
-    expect(decodedDefines, contains('SUPABASE_ANON_KEY=anon-key'));
-    expect(decodedDefines, contains('SUPABASE_DB_SCHEMA=from_fed_to_chain'));
-  });
+      expect(decodedDefines, contains('FLUTTER_WEB_AUTO_DETECT=true'));
+      expect(
+        decodedDefines,
+        contains('SUPABASE_URL=https://example.supabase.co'),
+      );
+      expect(decodedDefines, contains('SUPABASE_ANON_KEY=anon-key'));
+      expect(decodedDefines, contains('SUPABASE_DB_SCHEMA=from_fed_to_chain'));
+    },
+  );
 
   test('all iOS app plists declare background audio capability', () {
     final plists = {...activePlists, 'Base': 'Info.plist'};

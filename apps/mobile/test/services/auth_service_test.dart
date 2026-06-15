@@ -227,20 +227,24 @@ void main() {
   });
 
   group('AuthService - Uninitialized Supabase (Null Client)', () {
-    test('signInWithEmail throws AuthServiceException when client is null',
-        () async {
-      final fakeSupabase = _FakeSupabaseService(null);
-      final service = AuthService(supabaseService: fakeSupabase);
+    test(
+      'signInWithEmail throws AuthServiceException when client is null',
+      () async {
+        final fakeSupabase = _FakeSupabaseService(null);
+        final service = AuthService(supabaseService: fakeSupabase);
 
-      expect(
-        () => service.signInWithEmail('test@example.com'),
-        throwsA(isA<AuthServiceException>().having(
-          (e) => e.toString(),
-          'message',
-          'Supabase not configured.',
-        )),
-      );
-    });
+        expect(
+          () => service.signInWithEmail('test@example.com'),
+          throwsA(
+            isA<AuthServiceException>().having(
+              (e) => e.toString(),
+              'message',
+              'Supabase not configured.',
+            ),
+          ),
+        );
+      },
+    );
   });
 }
 

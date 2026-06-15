@@ -25,12 +25,12 @@ class EpisodeService {
     UserEpisodeStateWriter? userEpisodeStateWriter,
     DateTime Function()? now,
     http.Client? httpClient,
-  })  : _supabaseService = supabaseService ?? SupabaseService(),
-        _userEpisodeStateWriter = userEpisodeStateWriter ??
-            SupabaseUserEpisodeStateWriter(
-                supabaseService ?? SupabaseService()),
-        _now = now ?? DateTime.now,
-        _httpClient = httpClient ?? http.Client();
+  }) : _supabaseService = supabaseService ?? SupabaseService(),
+       _userEpisodeStateWriter =
+           userEpisodeStateWriter ??
+           SupabaseUserEpisodeStateWriter(supabaseService ?? SupabaseService()),
+       _now = now ?? DateTime.now,
+       _httpClient = httpClient ?? http.Client();
 
   final SupabaseService _supabaseService;
   final UserEpisodeStateWriter _userEpisodeStateWriter;
@@ -54,8 +54,9 @@ class EpisodeService {
       queryParams['cursor'] = cursor;
     }
 
-    final uri = Uri.parse(AppConfig.podcastApiUrl)
-        .replace(path: '/episodes', queryParameters: queryParams);
+    final uri = Uri.parse(
+      AppConfig.podcastApiUrl,
+    ).replace(path: '/episodes', queryParameters: queryParams);
 
     try {
       final response = await _httpClient.get(uri);
@@ -147,14 +148,16 @@ class EpisodeService {
         episodeIds: episodes.map((episode) => episode.id),
       );
 
-      return episodes.map((episode) {
-        final state = states[episode.id];
-        if (state == null) return episode;
-        return episode.copyWith(
-          listened: episode.listened || state.listened,
-          lastPositionSeconds: state.lastPositionSeconds,
-        );
-      }).toList(growable: false);
+      return episodes
+          .map((episode) {
+            final state = states[episode.id];
+            if (state == null) return episode;
+            return episode.copyWith(
+              listened: episode.listened || state.listened,
+              lastPositionSeconds: state.lastPositionSeconds,
+            );
+          })
+          .toList(growable: false);
     } catch (error, stackTrace) {
       AppLogger.warn('User state hydration failed', error, stackTrace);
       return episodes;

@@ -134,11 +134,11 @@ Future<void> _pumpCard(WidgetTester tester, ContinueListeningCard card) async {
 }
 
 Episode _episode({String title = 'Test title'}) => Episode(
-      id: 'episode-1',
-      title: title,
-      hlsUrl: 'https://cdn.example.com/episode-1.m3u8',
-      createdAt: DateTime(2026, 5, 4),
-      listened: false,
-      likeCount: 12,
-      script: 'Body.',
-    );
+  id: 'episode-1',
+  title: title,
+  hlsUrl: 'https://cdn.example.com/episode-1.m3u8',
+  createdAt: DateTime(2026, 5, 4),
+  listened: false,
+  likeCount: 12,
+  script: 'Body.',
+);

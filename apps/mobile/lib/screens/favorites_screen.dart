@@ -19,7 +19,7 @@ import '../widgets/episode_sliver_list.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key, EpisodeService? episodeService})
-      : _episodeService = episodeService;
+    : _episodeService = episodeService;
 
   final EpisodeService? _episodeService;
 

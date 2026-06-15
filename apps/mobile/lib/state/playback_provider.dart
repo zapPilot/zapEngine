@@ -13,7 +13,7 @@ import '../utils/episode_sorting.dart';
 
 class PlaybackProvider extends ChangeNotifier {
   PlaybackProvider(this._handler, {EpisodeService? episodeService})
-      : _episodeService = episodeService ?? EpisodeService() {
+    : _episodeService = episodeService ?? EpisodeService() {
     _listen();
     unawaited(_loadSpeed());
   }
@@ -124,18 +124,21 @@ class PlaybackProvider extends ChangeNotifier {
   }
 
   Future<void> playSmart(List<Episode> feed) async {
-    final inProgressOldestFirst = feed
-        .where((episode) => episode.status == EpisodeStatus.inProgress)
-        .toList()
-      ..sort(compareEpisodesOldestFirst);
-    final unplayedOldestFirst = feed
-        .where((episode) => episode.status == EpisodeStatus.unplayed)
-        .toList()
-      ..sort(compareEpisodesOldestFirst);
-    final completedOldestFirst = feed
-        .where((episode) => episode.status == EpisodeStatus.completed)
-        .toList()
-      ..sort(compareEpisodesOldestFirst);
+    final inProgressOldestFirst =
+        feed
+            .where((episode) => episode.status == EpisodeStatus.inProgress)
+            .toList()
+          ..sort(compareEpisodesOldestFirst);
+    final unplayedOldestFirst =
+        feed
+            .where((episode) => episode.status == EpisodeStatus.unplayed)
+            .toList()
+          ..sort(compareEpisodesOldestFirst);
+    final completedOldestFirst =
+        feed
+            .where((episode) => episode.status == EpisodeStatus.completed)
+            .toList()
+          ..sort(compareEpisodesOldestFirst);
 
     Episode? start;
     if (inProgressOldestFirst.isNotEmpty) {
@@ -399,11 +402,7 @@ class PlaybackProvider extends ChangeNotifier {
         seconds: seconds,
       );
     } catch (error, stackTrace) {
-      AppLogger.warn(
-        'Playback position persistence failed',
-        error,
-        stackTrace,
-      );
+      AppLogger.warn('Playback position persistence failed', error, stackTrace);
     }
   }
 

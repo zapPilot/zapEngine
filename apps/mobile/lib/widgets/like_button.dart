@@ -29,9 +29,9 @@ class LikeButton extends EpisodeLikeToggleButton {
           label: Text(
             '${state.count}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: foregroundColor,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           onPressed: onPressed,
         );

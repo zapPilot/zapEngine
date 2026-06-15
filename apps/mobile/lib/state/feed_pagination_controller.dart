@@ -11,8 +11,8 @@ class FeedPaginationController extends ChangeNotifier {
   FeedPaginationController({
     EpisodeService? episodeService,
     EpisodesChanged? onEpisodesChanged,
-  })  : _episodeService = episodeService ?? EpisodeService(),
-        _onEpisodesChanged = onEpisodesChanged;
+  }) : _episodeService = episodeService ?? EpisodeService(),
+       _onEpisodesChanged = onEpisodesChanged;
 
   static const int pageSize = 20;
 
@@ -38,10 +38,7 @@ class FeedPaginationController extends ChangeNotifier {
   String? get error => _error;
   String? get loadMoreError => _loadMoreError;
 
-  bool needsReload({
-    required String languageCode,
-    required String? userId,
-  }) {
+  bool needsReload({required String languageCode, required String? userId}) {
     return !_didLoad || _languageCode != languageCode || _userId != userId;
   }
 

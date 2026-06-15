@@ -47,10 +47,7 @@ FeedEpisodeGroups groupFeedEpisodesByStatus(List<Episode> episodes) {
   );
 }
 
-Episode? heroEpisodeForFeed(
-  List<Episode> episodes,
-  FeedEpisodeGroups groups,
-) {
+Episode? heroEpisodeForFeed(List<Episode> episodes, FeedEpisodeGroups groups) {
   if (groups.inProgress.isNotEmpty) return groups.inProgress.first;
   if (groups.unplayed.isNotEmpty) return groups.unplayed.first;
   if (groups.completed.isNotEmpty) return groups.completed.last;

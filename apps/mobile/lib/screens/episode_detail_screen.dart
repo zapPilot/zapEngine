@@ -83,8 +83,8 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     }
 
     await context.read<ContentLanguageProvider?>()?.setLanguageCode(
-          languageCode,
-        );
+      languageCode,
+    );
     if (!mounted) return;
     setState(() => _episode = localizedEpisode);
   }

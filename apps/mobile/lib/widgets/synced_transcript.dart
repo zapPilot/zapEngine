@@ -32,8 +32,9 @@ class _SyncedTranscriptState extends State<SyncedTranscript> {
     final position = isCurrentEpisode ? playback.position : Duration.zero;
     final segments = _segmentsFor(duration);
     final canSync = isCurrentEpisode && duration > Duration.zero;
-    final currentIndex =
-        canSync ? _currentSegmentIndex(segments, position) : -1;
+    final currentIndex = canSync
+        ? _currentSegmentIndex(segments, position)
+        : -1;
 
     if (currentIndex >= 0 && currentIndex != _lastScrolledIndex) {
       _lastScrolledIndex = currentIndex;
@@ -152,10 +153,10 @@ class _PlainTranscript extends StatelessWidget {
       child: Text(
         hasBody ? body : 'No script available yet.',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.6,
-              letterSpacing: 0,
-            ),
+          color: AppColors.textSecondary,
+          height: 1.6,
+          letterSpacing: 0,
+        ),
       ),
     );
   }
@@ -179,8 +180,9 @@ class _TranscriptLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isCurrent = state == _TranscriptLineState.current;
-    final textColor =
-        isCurrent ? AppColors.textPrimary : AppColors.textSecondary;
+    final textColor = isCurrent
+        ? AppColors.textPrimary
+        : AppColors.textSecondary;
     final opacity = state == _TranscriptLineState.past ? 0.42 : 1.0;
 
     return Padding(

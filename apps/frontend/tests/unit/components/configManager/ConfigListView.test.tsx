@@ -5,6 +5,12 @@ import type { SavedStrategyConfig } from '@/types';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
+vi.mock('jayson', () => ({}));
+vi.mock('jayson/lib/client/browser', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  default: function JaysonBrowserClient() {},
+}));
+
 vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: () => null,
 }));
