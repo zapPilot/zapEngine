@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('jayson', () => ({}));
-vi.mock('uuid', () => ({}));
-
 import { ConfigListView } from '@/components/wallet/portfolio/views/invest/configManager/ConfigListView';
 import type { SavedStrategyConfig } from '@/types';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
+
+vi.mock('@/providers/WalletProvider', () => ({
+  useWalletProvider: () => null,
+}));
 
 // ---------------------------------------------------------------------------
 // Shared mutable state hoisted so mock factories can reference it
