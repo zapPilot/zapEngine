@@ -129,6 +129,13 @@ export default defineConfig(({ mode }) => ({
         find: "@metamask/connect-evm",
         replacement: path.resolve(__dirname, "./src/shims/emptyModule.ts"),
       },
+      {
+        find: "jayson/lib/client/browser",
+        replacement: path.resolve(
+          __dirname,
+          "./src/shims/jaysonBrowserClient.ts",
+        ),
+      },
     ],
     dedupe: ["jayson", "uuid"],
   },
