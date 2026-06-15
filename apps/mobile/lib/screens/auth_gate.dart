@@ -99,9 +99,9 @@ class _AuthGateState extends State<AuthGate> {
               Text(
                 'Markets, policy, and crypto in one focused listen.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.45,
-                ),
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                    ),
               ),
               const SizedBox(height: 36),
               if (!supabaseConfigured) ...[
@@ -143,8 +143,8 @@ class _AuthGateState extends State<AuthGate> {
                 Text(
                   auth.error!,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                 ),
               ],
             ],
@@ -217,9 +217,9 @@ class _ConfigWarning extends StatelessWidget {
         child: Text(
           'Missing Supabase build defines.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.accent,
-            fontWeight: FontWeight.w700,
-          ),
+                color: AppColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
         ),
       ),
     );

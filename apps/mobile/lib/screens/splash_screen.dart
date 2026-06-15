@@ -57,8 +57,7 @@ class _SplashScreenState extends State<SplashScreen>
     _started = true;
 
     final mediaQuery = MediaQuery.maybeOf(context);
-    final reduceMotion =
-        mediaQuery?.disableAnimations == true ||
+    final reduceMotion = mediaQuery?.disableAnimations == true ||
         mediaQuery?.accessibleNavigation == true;
 
     if (reduceMotion) {

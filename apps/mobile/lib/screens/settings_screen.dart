@@ -41,7 +41,7 @@ class _LanguageSection extends StatelessWidget {
     final theme = Theme.of(context);
     final languageCode =
         context.watch<ContentLanguageProvider?>()?.languageCode ??
-        AppConfig.defaultLanguageCode;
+            AppConfig.defaultLanguageCode;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,15 +91,15 @@ class _LanguageTile extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           radius: 18,
-          backgroundColor: selected
-              ? AppColors.accent
-              : AppColors.surfaceElevated,
+          backgroundColor:
+              selected ? AppColors.accent : AppColors.surfaceElevated,
           child: Text(
             option.shortLabel,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: selected ? AppColors.background : AppColors.textSecondary,
-              fontWeight: FontWeight.w800,
-            ),
+                  color:
+                      selected ? AppColors.background : AppColors.textSecondary,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
         ),
         title: Text(option.nativeName),
@@ -107,8 +107,9 @@ class _LanguageTile extends StatelessWidget {
         trailing: selected
             ? const Icon(Icons.check_circle_rounded, color: AppColors.accent)
             : enabled
-            ? null
-            : const Icon(Icons.lock_rounded, color: AppColors.textSecondary),
+                ? null
+                : const Icon(Icons.lock_rounded,
+                    color: AppColors.textSecondary),
         onTap: _buildTapHandler(context, enabled),
       ),
     );
@@ -170,7 +171,9 @@ class _AccountSection extends StatelessWidget {
                             accountDisplay.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 3),

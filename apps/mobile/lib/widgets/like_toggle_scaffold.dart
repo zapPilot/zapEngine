@@ -6,13 +6,12 @@ import '../state/auth_provider.dart';
 import '../state/likes_provider.dart';
 import '../theme/colors.dart';
 
-typedef LikeToggleBuilder =
-    Widget Function(
-      BuildContext context,
-      EpisodeLikeState state,
-      bool enabled,
-      VoidCallback? onPressed,
-    );
+typedef LikeToggleBuilder = Widget Function(
+  BuildContext context,
+  EpisodeLikeState state,
+  bool enabled,
+  VoidCallback? onPressed,
+);
 
 abstract class EpisodeLikeToggleButton extends StatelessWidget {
   const EpisodeLikeToggleButton({
@@ -46,15 +45,15 @@ class LikeToggleStateIcon extends StatelessWidget {
     super.key,
     required this.state,
     required this.compact,
-  }) : likedIcon = Icons.favorite_rounded,
-       unlikedIcon = Icons.favorite_border_rounded;
+  })  : likedIcon = Icons.favorite_rounded,
+        unlikedIcon = Icons.favorite_border_rounded;
 
   const LikeToggleStateIcon.bookmark({
     super.key,
     required this.state,
     required this.compact,
-  }) : likedIcon = Icons.bookmark_rounded,
-       unlikedIcon = Icons.bookmark_border_rounded;
+  })  : likedIcon = Icons.bookmark_rounded,
+        unlikedIcon = Icons.bookmark_border_rounded;
 
   final EpisodeLikeState state;
   final IconData likedIcon;

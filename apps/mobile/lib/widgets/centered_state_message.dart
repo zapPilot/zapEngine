@@ -32,10 +32,10 @@ class CenteredStateMessage extends StatelessWidget {
     this.message,
     this.icon,
     this.iconSize = 34,
-  }) : framedIcon = true,
-       iconSpacing = 18,
-       padding = EdgeInsets.zero,
-       titleStyle = null;
+  })  : framedIcon = true,
+        iconSpacing = 18,
+        padding = EdgeInsets.zero,
+        titleStyle = null;
 
   final String title;
   final String? message;
@@ -50,8 +50,7 @@ class CenteredStateMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconWidget = _buildIcon();
     final theme = Theme.of(context);
-    final effectiveTitleStyle =
-        titleStyle ??
+    final effectiveTitleStyle = titleStyle ??
         (framedIcon ? theme.textTheme.titleLarge : theme.textTheme.titleMedium);
 
     return Center(

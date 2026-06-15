@@ -16,19 +16,19 @@ class EpisodeStatusBadge extends StatelessWidget {
       child: Center(
         child: switch (status) {
           EpisodeStatus.completed => const Icon(
-            Icons.check_circle_rounded,
-            color: AppColors.success,
-            size: 16,
-          ),
+              Icons.check_circle_rounded,
+              color: AppColors.success,
+              size: 16,
+            ),
           EpisodeStatus.inProgress => _ProgressMark(progress: progress),
           EpisodeStatus.unplayed => Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
         },
       ),
     );

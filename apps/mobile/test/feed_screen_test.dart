@@ -234,9 +234,8 @@ class _FeedEpisodeService extends EpisodeService {
     List<Episode>? episodes,
     this.states = const {},
     this.stateError,
-  }) : episodes =
-           episodes ??
-           [_feedEpisode(id: 'episode-1', title: 'Treasury liquidity watch')];
+  }) : episodes = episodes ??
+            [_feedEpisode(id: 'episode-1', title: 'Treasury liquidity watch')];
 
   final List<Episode> episodes;
   final Map<String, UserEpisodeState> states;

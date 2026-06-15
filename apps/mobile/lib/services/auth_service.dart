@@ -34,8 +34,8 @@ class AuthService {
   AuthService({
     SupabaseService? supabaseService,
     LocalAuthentication? localAuth,
-  }) : _supabaseService = supabaseService ?? SupabaseService(),
-       _localAuth = localAuth ?? LocalAuthentication();
+  })  : _supabaseService = supabaseService ?? SupabaseService(),
+        _localAuth = localAuth ?? LocalAuthentication();
 
   static const _userIdKey = 'podcast_user_id';
   static const _userEmailKey = 'podcast_user_email';
@@ -119,12 +119,10 @@ class AuthService {
     if (client == null) {
       throw const AuthServiceException('Supabase not configured.');
     }
-    final row = await client
-        .rpc(
-          'sign_in_podcast_user',
-          params: {'p_email': email, 'p_device_id': deviceId},
-        )
-        .single();
+    final row = await client.rpc(
+      'sign_in_podcast_user',
+      params: {'p_email': email, 'p_device_id': deviceId},
+    ).single();
 
     return PodcastUser(
       id: readRequiredString(row, 'id', 'id'),

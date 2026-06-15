@@ -25,9 +25,8 @@ List<TranscriptSegment> estimateTranscriptTiming(
       .where((paragraph) => paragraph.isNotEmpty)
       .toList(growable: false);
 
-  final texts = rawParagraphs.length > 1
-      ? rawParagraphs
-      : _splitSentences(trimmedScript);
+  final texts =
+      rawParagraphs.length > 1 ? rawParagraphs : _splitSentences(trimmedScript);
   if (texts.isEmpty) return const [];
 
   if (audioDuration <= Duration.zero) {

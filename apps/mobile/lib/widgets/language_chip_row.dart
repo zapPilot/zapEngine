@@ -84,8 +84,7 @@ class _LanguageChipSegment extends StatelessWidget {
             child: Text(
               option.shortLabel,
               maxLines: 1,
-              style:
-                  textStyle?.copyWith(
+              style: textStyle?.copyWith(
                     color: selected
                         ? AppColors.background
                         : AppColors.textSecondary,

@@ -30,8 +30,7 @@ void main() {
     expect(
       project,
       isNot(contains('DART_DEFINES = "";')),
-      reason:
-          'Empty app-target DART_DEFINES overrides Generated.xcconfig and '
+      reason: 'Empty app-target DART_DEFINES overrides Generated.xcconfig and '
           'strips SUPABASE_URL/SUPABASE_ANON_KEY from Xcode builds.',
     );
   });

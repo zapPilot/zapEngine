@@ -14,7 +14,7 @@ import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, EpisodeService? episodeService})
-    : _episodeService = episodeService;
+      : _episodeService = episodeService;
 
   final EpisodeService? _episodeService;
 

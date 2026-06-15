@@ -96,8 +96,7 @@ class _AudioTrackSegment extends StatelessWidget {
               child: Text(
                 label,
                 maxLines: 1,
-                style:
-                    textStyle?.copyWith(
+                style: textStyle?.copyWith(
                       color: selected
                           ? AppColors.background
                           : AppColors.textSecondary,

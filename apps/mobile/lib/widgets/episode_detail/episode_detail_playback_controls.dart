@@ -44,8 +44,7 @@ class _EpisodeDetailPlaybackControlsState
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
     final currentEpisode = playback.currentEpisode;
-    final isCurrent =
-        currentEpisode != null &&
+    final isCurrent = currentEpisode != null &&
         currentEpisode.isSameLocalizationAs(widget.episode);
     final isPlaying = isCurrent && playback.isPlaying;
     final isLoading = playback.loadingEpisodeId == widget.episode.id;
@@ -63,8 +62,8 @@ class _EpisodeDetailPlaybackControlsState
     final selectedAudioTrack = isCurrent && playback.currentAudioTrack != null
         ? playback.currentAudioTrack
         : audioTracks.isNotEmpty
-        ? audioTracks.first
-        : null;
+            ? audioTracks.first
+            : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -122,8 +121,8 @@ class _EpisodeDetailPlaybackControlsState
                           ? (value) async {
                               setState(() => _scrubValue = null);
                               await context.read<PlaybackProvider>().seek(
-                                Duration(milliseconds: value.round()),
-                              );
+                                    Duration(milliseconds: value.round()),
+                                  );
                             }
                           : null,
                     ),

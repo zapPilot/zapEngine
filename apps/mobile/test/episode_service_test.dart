@@ -186,9 +186,9 @@ class _TestableEpisodeService {
   _TestableEpisodeService({
     UserEpisodeStateWriter? userEpisodeStateWriter,
     DateTime Function()? now,
-  }) : _userEpisodeStateWriter =
-           userEpisodeStateWriter ?? _FakeUserEpisodeStateWriter(),
-       _now = now ?? DateTime.now;
+  })  : _userEpisodeStateWriter =
+            userEpisodeStateWriter ?? _FakeUserEpisodeStateWriter(),
+        _now = now ?? DateTime.now;
 
   final UserEpisodeStateWriter _userEpisodeStateWriter;
   final DateTime Function() _now;

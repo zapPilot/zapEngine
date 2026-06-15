@@ -39,7 +39,7 @@ mixin EpisodeScreenState<T extends StatefulWidget> on State<T> {
 
     final selectedLanguageCode =
         Provider.of<ContentLanguageProvider?>(context)?.languageCode ??
-        AppConfig.contentLanguageCode;
+            AppConfig.contentLanguageCode;
     final shouldLoad =
         !_didLoadContentLanguage || selectedLanguageCode != contentLanguageCode;
     if (shouldLoad) {

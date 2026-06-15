@@ -16,16 +16,14 @@ void main() {
       final expectation = expectLater(
         snapshots,
         emits(
-          isA<LikeSnapshot>()
-              .having(
-                (snapshot) => snapshot.likedEpisodeIds,
-                'likedEpisodeIds',
-                {'episode-1'},
-              )
-              .having((snapshot) => snapshot.counts, 'counts', {
-                'episode-1': 2,
-                'episode-2': 1,
-              }),
+          isA<LikeSnapshot>().having(
+            (snapshot) => snapshot.likedEpisodeIds,
+            'likedEpisodeIds',
+            {'episode-1'},
+          ).having((snapshot) => snapshot.counts, 'counts', {
+            'episode-1': 2,
+            'episode-2': 1,
+          }),
         ),
       );
 

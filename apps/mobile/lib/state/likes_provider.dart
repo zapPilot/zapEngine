@@ -23,7 +23,7 @@ class EpisodeLikeState {
 
 class LikesProvider extends ChangeNotifier {
   LikesProvider({LikesService? likesService})
-    : _likesService = likesService ?? LikesService();
+      : _likesService = likesService ?? LikesService();
 
   final LikesService _likesService;
   final Map<String, EpisodeLikeState> _states = {};
@@ -62,31 +62,29 @@ class LikesProvider extends ChangeNotifier {
     _watchedUserId = userId;
     _subscription?.cancel();
     _streamError = null;
-    _subscription = _likesService
-        .streamLikeSnapshot(userId)
-        .listen(
-          (snapshot) {
-            final episodeIds = {
-              ..._states.keys,
-              ...snapshot.counts.keys,
-              ...snapshot.likedEpisodeIds,
-            };
+    _subscription = _likesService.streamLikeSnapshot(userId).listen(
+      (snapshot) {
+        final episodeIds = {
+          ..._states.keys,
+          ...snapshot.counts.keys,
+          ...snapshot.likedEpisodeIds,
+        };
 
-            for (final episodeId in episodeIds) {
-              _states[episodeId] = EpisodeLikeState(
-                liked: snapshot.likedEpisodeIds.contains(episodeId),
-                count: snapshot.counts[episodeId] ?? 0,
-              );
-            }
+        for (final episodeId in episodeIds) {
+          _states[episodeId] = EpisodeLikeState(
+            liked: snapshot.likedEpisodeIds.contains(episodeId),
+            count: snapshot.counts[episodeId] ?? 0,
+          );
+        }
 
-            _streamError = null;
-            notifyListeners();
-          },
-          onError: (Object error) {
-            _streamError = error;
-            notifyListeners();
-          },
-        );
+        _streamError = null;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _streamError = error;
+        notifyListeners();
+      },
+    );
   }
 
   Future<void> toggle(Episode episode, String userId) async {

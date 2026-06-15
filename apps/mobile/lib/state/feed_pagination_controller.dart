@@ -11,8 +11,8 @@ class FeedPaginationController extends ChangeNotifier {
   FeedPaginationController({
     EpisodeService? episodeService,
     EpisodesChanged? onEpisodesChanged,
-  }) : _episodeService = episodeService ?? EpisodeService(),
-       _onEpisodesChanged = onEpisodesChanged;
+  })  : _episodeService = episodeService ?? EpisodeService(),
+        _onEpisodesChanged = onEpisodesChanged;
 
   static const int pageSize = 20;
 

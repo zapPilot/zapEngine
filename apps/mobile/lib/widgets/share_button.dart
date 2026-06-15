@@ -9,8 +9,8 @@ import '../utils/snackbar.dart';
 
 class ShareButton extends StatelessWidget {
   const ShareButton({super.key, required Episode episode, bool compact = false})
-    : _episode = episode,
-      _compact = compact;
+      : _episode = episode,
+        _compact = compact;
 
   final Episode _episode;
   final bool _compact;
@@ -23,9 +23,8 @@ class ShareButton extends StatelessWidget {
       child: Builder(
         builder: (buttonContext) => IconButton(
           tooltip: 'Share',
-          visualDensity: _compact
-              ? VisualDensity.compact
-              : VisualDensity.standard,
+          visualDensity:
+              _compact ? VisualDensity.compact : VisualDensity.standard,
           icon: Icon(
             Icons.ios_share_rounded,
             size: _compact ? 18 : 20,
