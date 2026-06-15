@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# scripts/verify-full-parallel.sh
+# scripts/ci-autofix/detect.sh
 #
-# Runs every core CI job in parallel, collects results, prints a summary,
-# and writes a machine-readable .ai-verify/result.json for the agent fixer.
+# Runs every CI job (from registry.sh) in parallel, collects results, prints a
+# summary, and writes a machine-readable .ai-verify/result.json.
 #
 # Options:
 #   --timeout SECONDS   Per-job timeout (default: 0 = disabled)
@@ -15,11 +15,12 @@ if git rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# This script lives at <repo>/scripts/ci-autofix/; repo root is two levels up.
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG_DIR="$ROOT_DIR/.ai-verify/logs"
 RESULT_JSON="$ROOT_DIR/.ai-verify/result.json"
 
-source "$SCRIPT_DIR/core-ci-registry.sh"
+source "$SCRIPT_DIR/registry.sh"
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 ITER_TIMEOUT=0
@@ -54,8 +55,8 @@ if [ "$ITER_TIMEOUT" -gt 0 ]; then
   elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_PREFIX="gtimeout $ITER_TIMEOUT"
   else
-    echo "Error: --timeout requires timeout or gtimeout in PATH" >&2
-    exit 69
+    echo "Warning: no timeout/gtimeout in PATH; running without a per-job timeout." >&2
+    TIMEOUT_PREFIX=""
   fi
 fi
 

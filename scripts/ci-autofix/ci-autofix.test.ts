@@ -13,10 +13,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-const sourceDir = join(process.cwd(), 'scripts');
-const sourceScript = join(sourceDir, 'agent-fix-loop.sh');
-const sourceRegistry = join(sourceDir, 'core-ci-registry.sh');
-const sourceParallelVerifier = join(sourceDir, 'verify-full-parallel.sh');
+const sourceDir = join(process.cwd(), 'scripts', 'ci-autofix');
+const sourceScript = join(sourceDir, 'ci-autofix.sh');
+const sourceRegistry = join(sourceDir, 'registry.sh');
+const sourceParallelVerifier = join(sourceDir, 'detect.sh');
 
 interface RunOptions {
   args?: string[];
@@ -30,16 +30,16 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function createRepo(options: RunOptions = {}): string {
-  const root = mkdtempSync(join(tmpdir(), 'agent-fix-loop-'));
-  mkdirSync(join(root, 'scripts'), { recursive: true });
+  const root = mkdtempSync(join(tmpdir(), 'ci-autofix-'));
+  mkdirSync(join(root, 'scripts', 'ci-autofix'), { recursive: true });
   mkdirSync(join(root, 'bin'), { recursive: true });
   mkdirSync(join(root, '.ai-verify', 'logs'), { recursive: true });
   mkdirSync(join(root, '.agent-loop'), { recursive: true });
 
-  cpSync(sourceScript, join(root, 'scripts/agent-fix-loop.sh'));
-  cpSync(sourceRegistry, join(root, 'scripts/core-ci-registry.sh'));
-  chmodSync(join(root, 'scripts/agent-fix-loop.sh'), 0o755);
-  chmodSync(join(root, 'scripts/core-ci-registry.sh'), 0o755);
+  cpSync(sourceScript, join(root, 'scripts/ci-autofix/ci-autofix.sh'));
+  cpSync(sourceRegistry, join(root, 'scripts/ci-autofix/registry.sh'));
+  chmodSync(join(root, 'scripts/ci-autofix/ci-autofix.sh'), 0o755);
+  chmodSync(join(root, 'scripts/ci-autofix/registry.sh'), 0o755);
 
   writeFileSync(join(root, '.gitignore'), '.agent-loop/\n.ai-verify/\n');
   writeFileSync(join(root, 'source.txt'), 'broken\n');
@@ -52,13 +52,13 @@ function createRepo(options: RunOptions = {}): string {
     .join('\n');
   writeFileSync(join(root, '.test-scenario'), scenarioLines + '\n');
 
-  // ── Fake verify-full-parallel.sh ──────────────────────────────────────
+  // ── Fake detect.sh ─────────────────────────────────────────────────────
   // Reads .test-scenario to determine which jobs fail, writes result.json.
   writeFileSync(
-    join(root, 'scripts/verify-full-parallel.sh'),
+    join(root, 'scripts/ci-autofix/detect.sh'),
     `#!/usr/bin/env bash
 set -euo pipefail
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 STATE="$ROOT_DIR/.test-scenario"
 RESULT="$ROOT_DIR/.ai-verify/result.json"
 LOG_DIR="$ROOT_DIR/.ai-verify/logs"
@@ -74,88 +74,69 @@ if [ -f "$ROOT_DIR/source.txt" ] && grep -q "fixed" "$ROOT_DIR/source.txt" 2>/de
   detect="all-pass"
 fi
 
-status="passed"
-turbo_status="passed"
-turbo_ec=0
-turbo_log=""
-
+JOBS="format repo contracts type-check lint test deadcode dup analytics"
+fail_jobs=""
+timeout_jobs=""
+huge_job=""
 case "$detect" in
-  turbo-fail)
-    turbo_status="failed"
-    turbo_ec=1
-    status="failed"
-    turbo_log="REAL TURBO ERROR: expected useful failure detail"
-    ;;
-  multi-fail)
-    turbo_status="failed"
-    turbo_ec=1
-    status="failed"
-    turbo_log="REAL TURBO ERROR: expected useful failure detail"
-    ;;
-  contracts-fail)
-    status="failed"
-    turbo_log=""
-    contracts_status="failed"
-    contracts_ec=1
-    ;;
-  timed-out)
-    turbo_status="timed_out"
-    turbo_ec=124
-    status="failed"
-    turbo_log="TIMED OUT after 900s"
-    ;;
-  all-pass|*)
-    status="passed"
-    ;;
+  lint-fail)      fail_jobs="lint" ;;
+  lint-fail-huge) fail_jobs="lint"; huge_job="lint" ;;
+  contracts-fail) fail_jobs="contracts" ;;
+  multi-fail)     fail_jobs="contracts lint" ;;
+  timed-out)      timeout_jobs="lint" ;;
+  all-pass|*)     ;;
 esac
 
-# Write logs
-echo "format ok" > "$LOG_DIR/format.log"
-echo "repo ok" > "$LOG_DIR/repo.log"
+in_list() { case " $1 " in *" $2 "*) return 0 ;; *) return 1 ;; esac; }
 
-if [ "$detect" = "contracts-fail" ] || [ "$detect" = "multi-fail" ]; then
-  echo "CONTRACTS PARITY ERROR" > "$LOG_DIR/contracts.log"
-else
-  echo "contracts ok" > "$LOG_DIR/contracts.log"
-fi
+status="passed"
+entries="$RESULT.entries"
+: > "$entries"
+first=1
+for job in $JOBS; do
+  st="passed"; ec=0
+  if in_list "$timeout_jobs" "$job"; then
+    st="timed_out"; ec=124; status="failed"
+  elif in_list "$fail_jobs" "$job"; then
+    st="failed"; ec=1; status="failed"
+  fi
 
-if [ -n "$turbo_log" ]; then
-  echo "$turbo_log" > "$LOG_DIR/turbo.log"
-else
-  echo "turbo ok" > "$LOG_DIR/turbo.log"
-fi
+  if [ "$job" = "$huge_job" ]; then
+    # >48 KiB log whose only real error marker sits in the final lines, so the
+    # compact_log truncation must keep the tail to surface it.
+    for i in $(seq 1 6000); do
+      echo "filler line $i: lorem ipsum dolor sit amet consectetur adipiscing"
+    done > "$LOG_DIR/$job.log"
+    {
+      echo "Summary follows"
+      echo "UNIQUE_TAIL_ERROR_MARKER $job failed in packages/foo"
+      echo "  TS2304: Cannot find name x."
+    } >> "$LOG_DIR/$job.log"
+  elif [ "$st" = "timed_out" ]; then
+    echo "TIMED OUT after 900s" > "$LOG_DIR/$job.log"
+  elif [ "$st" = "failed" ] && [ "$job" = "contracts" ]; then
+    echo "CONTRACTS PARITY ERROR" > "$LOG_DIR/$job.log"
+  elif [ "$st" = "failed" ]; then
+    echo "REAL LINT ERROR: expected useful failure detail" > "$LOG_DIR/$job.log"
+  else
+    echo "$job ok" > "$LOG_DIR/$job.log"
+  fi
 
-echo "analytics ok" > "$LOG_DIR/analytics.log"
+  [ "$first" = "1" ] || echo "," >> "$entries"
+  first=0
+  printf '    { "id": "%s", "status": "%s", "exitCode": %s, "log": ".ai-verify/logs/%s.log" }' "$job" "$st" "$ec" "$job" >> "$entries"
+done
 
-# Determine per-job statuses
-format_st="passed"
-repo_st="passed"
-contracts_st="passed"
-analytics_st="passed"
-format_ec=0
-repo_ec=0
-contracts_ec=0
-analytics_ec=0
-
-if [ "$detect" = "contracts-fail" ] || [ "$detect" = "multi-fail" ]; then
-  contracts_st="failed"
-  contracts_ec=1
-fi
-
-# Write result.json atomically
 cat > "$RESULT.tmp" <<ENDJSON
 {
   "schemaVersion": 1,
   "status": "$status",
   "jobs": [
-    { "id": "format", "status": "$format_st", "exitCode": $format_ec, "log": ".ai-verify/logs/format.log" },
-    { "id": "repo", "status": "$repo_st", "exitCode": $repo_ec, "log": ".ai-verify/logs/repo.log" },
-    { "id": "contracts", "status": "$contracts_st", "exitCode": $contracts_ec, "log": ".ai-verify/logs/contracts.log" },
-    { "id": "turbo", "status": "$turbo_status", "exitCode": $turbo_ec, "log": ".ai-verify/logs/turbo.log" },
-    { "id": "analytics", "status": "$analytics_st", "exitCode": $analytics_ec, "log": ".ai-verify/logs/analytics.log" }
+$(cat "$entries")
   ]
 }
 ENDJSON
+rm -f "$entries"
 
 mv "$RESULT.tmp" "$RESULT"
 
@@ -166,7 +147,27 @@ else
 fi
 `,
   );
-  chmodSync(join(root, 'scripts/verify-full-parallel.sh'), 0o755);
+  chmodSync(join(root, 'scripts/ci-autofix/detect.sh'), 0o755);
+
+  // ── Fake gate.sh (final canonical gate) ─────────────────────────────────
+  // Reads .test-scenario FINAL_GATE to pass/fail the final gate.
+  writeFileSync(
+    join(root, 'scripts/ci-autofix/gate.sh'),
+    `#!/usr/bin/env bash
+set -euo pipefail
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+STATE="$ROOT_DIR/.test-scenario"
+fg="pass"
+[ -f "$STATE" ] && fg=$(grep '^FINAL_GATE=' "$STATE" | cut -d= -f2 || echo "pass")
+if [ "$fg" = "fail" ]; then
+  echo "VERIFY FAILED" >&2
+  exit 1
+fi
+echo "VERIFY PASSED"
+exit 0
+`,
+  );
+  chmodSync(join(root, 'scripts/ci-autofix/gate.sh'), 0o755);
 
   // ── Fake opencode binary ──────────────────────────────────────────────
   // Reads .test-scenario AGENT_ACTION to decide what to do.
@@ -203,21 +204,9 @@ esac
 set -u
 state_file="$PWD/.test-scenario"
 
-# Final gate
-if [ "$1" = "verify:ci" ]; then
-  fg="pass"
-  [ -f "$state_file" ] && fg=\$(grep '^FINAL_GATE=' "$state_file" | cut -d= -f2 || echo "pass")
-  if [ "$fg" = "fail" ]; then
-    echo "VERIFY FAILED" >&2
-    exit 1
-  fi
-  echo "VERIFY PASSED"
-  exit 0
-fi
-
 # Targeted rerun: turbo job
 cmd_str="\$*"
-if echo "\$cmd_str" | grep -q "turbo run.*lint.*type-check.*deadcode"; then
+if echo "\$cmd_str" | grep -q "turbo run "; then
   tr="pass"
   [ -f "$state_file" ] && tr=\$(grep '^TURBO_RERUN=' "$state_file" | cut -d= -f2 || echo "pass")
   if [ "\$tr" = "fail" ]; then
@@ -272,7 +261,7 @@ function runLoop(root: string, options: RunOptions = {}) {
   return spawnSync(
     'bash',
     [
-      'scripts/agent-fix-loop.sh',
+      'scripts/ci-autofix/ci-autofix.sh',
       ...(options.args ?? ['--model', 'provider/test-model']),
     ],
     {
@@ -365,7 +354,7 @@ test('runs from a linked Git worktree', () => {
 test('fixes a failure and reruns detection until it passes', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'fix',
       TURBO_RERUN: 'pass',
       FINAL_GATE: 'pass',
@@ -383,7 +372,7 @@ test('fixes a failure and reruns detection until it passes', () => {
 test('prompt contains the targeted job failure context', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'noop',
       TURBO_RERUN: 'fail',
     },
@@ -397,14 +386,14 @@ test('prompt contains the targeted job failure context', () => {
     join(root, '.ai-verify/opencode-prompt.log'),
     'utf8',
   );
-  assert.match(prompt, /REAL TURBO ERROR: expected useful failure detail/);
-  assert.match(prompt, /Job: turbo/);
+  assert.match(prompt, /REAL LINT ERROR: expected useful failure detail/);
+  assert.match(prompt, /Job: lint/);
 });
 
 test('prompt does not contain logs from passing jobs', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'noop',
       TURBO_RERUN: 'fail',
     },
@@ -428,7 +417,7 @@ test('prompt does not contain logs from passing jobs', () => {
 test('stops after three identical failures without changes', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'noop',
       TURBO_RERUN: 'fail',
     },
@@ -444,7 +433,7 @@ test('stops after three identical failures without changes', () => {
 test('stops after three OpenCode failures without changes', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'fail',
       TURBO_RERUN: 'fail',
     },
@@ -463,7 +452,7 @@ test('stops after three OpenCode failures without changes', () => {
 test('restores protected files modified by the agent', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'protected',
     },
   });
@@ -480,7 +469,7 @@ test('restores protected files modified by the agent', () => {
 test('rollback preserves staged changes and removes files created by the agent', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'protected-with-new',
     },
   });
@@ -502,7 +491,7 @@ test('rollback preserves staged changes and removes files created by the agent',
 test('does not treat a pre-existing untracked protected file as an agent edit', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'noop',
     },
   });
@@ -526,7 +515,7 @@ test('does not treat a pre-existing untracked protected file as an agent edit', 
 test('--max-iters stops an otherwise unlimited loop', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'fix',
       TURBO_RERUN: 'fail',
     },
@@ -544,7 +533,7 @@ test('--max-iters stops an otherwise unlimited loop', () => {
 test('a new invocation does not reuse a previous failure signature', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'noop',
       TURBO_RERUN: 'fail',
     },
@@ -563,7 +552,7 @@ test('a new invocation does not reuse a previous failure signature', () => {
 
 // ── result.json structure ───────────────────────────────────────────────────
 
-test('writes valid result.json with all five jobs', () => {
+test('writes valid result.json with all jobs', () => {
   const root = createRepo({
     scenario: { DETECTION: 'all-pass' },
   });
@@ -575,10 +564,20 @@ test('writes valid result.json with all five jobs', () => {
 
   assert.equal(resultJson.schemaVersion, 1);
   assert.equal(resultJson.status, 'passed');
-  assert.equal(resultJson.jobs.length, 5);
+  assert.equal(resultJson.jobs.length, 9);
 
   const ids = resultJson.jobs.map((j: { id: string }) => j.id);
-  assert.deepEqual(ids, ['format', 'repo', 'contracts', 'turbo', 'analytics']);
+  assert.deepEqual(ids, [
+    'format',
+    'repo',
+    'contracts',
+    'type-check',
+    'lint',
+    'test',
+    'deadcode',
+    'dup',
+    'analytics',
+  ]);
 
   for (const job of resultJson.jobs) {
     assert.match(job.status, /^(passed|failed|timed_out)$/);
@@ -592,7 +591,7 @@ test('writes valid result.json with all five jobs', () => {
 test('final gate failure triggers re-detection and re-repair', () => {
   const root = createRepo({
     scenario: {
-      DETECTION: 'turbo-fail',
+      DETECTION: 'lint-fail',
       AGENT_ACTION: 'fix',
       TURBO_RERUN: 'pass',
       FINAL_GATE: 'fail',
@@ -613,7 +612,7 @@ test('final gate failure triggers re-detection and re-repair', () => {
 
 // ── Priority order ──────────────────────────────────────────────────────────
 
-test('targets turbo job by priority when multiple jobs fail', () => {
+test('targets contracts job by priority when multiple jobs fail', () => {
   const root = createRepo({
     scenario: {
       DETECTION: 'multi-fail',
@@ -631,5 +630,32 @@ test('targets turbo job by priority when multiple jobs fail', () => {
     'utf8',
   );
   assert.match(prompt, /Job: contracts/);
-  assert.doesNotMatch(prompt, /REAL TURBO ERROR/);
+  assert.doesNotMatch(prompt, /REAL LINT ERROR/);
+});
+
+// ── compact_log truncation ──────────────────────────────────────────────────
+
+test('keeps tail errors from a huge log and emits no broken pipe', () => {
+  const root = createRepo({
+    scenario: {
+      DETECTION: 'lint-fail-huge',
+      AGENT_ACTION: 'noop',
+      TURBO_RERUN: 'fail',
+    },
+  });
+  const result = runLoop(root, {
+    args: ['--model', 'provider/test-model', '--max-iters', '1'],
+  });
+
+  // The truncation must not shell out through a pipe that triggers SIGPIPE.
+  assert.doesNotMatch(result.stderr + result.stdout, /broken pipe/i);
+
+  // The only real error marker lives at the very end of a >48 KiB log; the
+  // compact_log fix keeps the tail, so it must reach the agent prompt even
+  // after truncation.
+  const prompt = readFileSync(
+    join(root, '.ai-verify/opencode-prompt.log'),
+    'utf8',
+  );
+  assert.match(prompt, /UNIQUE_TAIL_ERROR_MARKER/);
 });

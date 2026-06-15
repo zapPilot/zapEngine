@@ -9,7 +9,7 @@ import {
   generateBundleUrl,
   getBundleUser,
   isOwnBundle as isBundleOwned,
-} from '@/services';
+} from '@/services/bundleService';
 
 import {
   buildBundlePageUrl,

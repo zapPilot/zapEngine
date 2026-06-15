@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/agent-fix-loop.sh
+# scripts/ci-autofix/ci-autofix.sh
 #
-# Core CI auto-fixer.  Single entry point for autonomous repair:
-#   pnpm agent:fix -- --model provider/model
+# Portable CI auto-fixer.  Single entry point for autonomous repair:
+#   pnpm ci-autofix -- --model provider/model
 #
-# 1. Runs all core CI jobs in parallel (via verify-full-parallel.sh).
+# 1. Runs all CI jobs in parallel (via detect.sh).
 # 2. Picks the highest-priority failure from result.json.
-# 3. Sends a compact failure log to a fresh opencode session.
+# 3. Hands a fresh opencode session the failure; the agent reruns it to self-verify.
 # 4. Reruns only that job until it passes.
 # 5. Re-detects all jobs; repeats for remaining failures.
-# 6. Finishes with canonical `pnpm verify:ci`.
+# 6. Finishes with the canonical gate (gate.sh).
+#
+# Repo-specific config lives in registry.sh -- the only file you customize per repo.
 
 # ── Usage ────────────────────────────────────────────────────────────────────
 
 usage() {
   cat <<'EOF'
 Usage:
-  pnpm agent:fix -- --model PROVIDER/MODEL [options]
+  pnpm ci-autofix -- --model PROVIDER/MODEL [options]
 
 Required:
   --model ID          OpenCode model ID used for every fresh agent session
@@ -78,10 +80,11 @@ done
 # ── Bootstrap ────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# This script lives at <repo>/scripts/ci-autofix/; repo root is two levels up.
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
-source "$SCRIPT_DIR/core-ci-registry.sh"
+source "$SCRIPT_DIR/registry.sh"
 
 if ! command -v opencode >/dev/null 2>&1; then
   echo "Error: opencode CLI not found in PATH" >&2
@@ -100,8 +103,9 @@ if [ "$ITER_TIMEOUT" -gt 0 ]; then
   elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_BIN="gtimeout"
   else
-    echo "Error: --timeout requires timeout or gtimeout in PATH" >&2
-    exit 69
+    echo "Warning: no timeout/gtimeout in PATH; running without a per-job timeout." >&2
+    echo "         (install coreutils for timeout support, or pass --timeout 0 to silence.)" >&2
+    ITER_TIMEOUT=0
   fi
 fi
 
@@ -199,18 +203,29 @@ restore_snapshot() {
 
 is_protected_path() {
   local path="$1"
+  # Generic base (portable across repos): the tool's own files, VCS/CI config,
+  # lockfiles, coverage, and agent policy docs. package.json and snapshots are
+  # intentionally editable -- the agent fixes deps via the package manager and
+  # may refresh genuinely-stale snapshots; faking green is blocked by prompt.
   case "$path" in
-    package.json|*/package.json|\
     pnpm-lock.yaml|package-lock.json|*/package-lock.json|yarn.lock|bun.lock|bun.lockb|\
     .github/workflows/*|\
-    scripts/verify-*.sh|scripts/agent-fix-loop.sh|scripts/core-ci-registry.sh|scripts/lint/*|\
+    scripts/ci-autofix/*|\
     .opencode/agents/*|\
-    *.snap|*snapshot*|*coverage*|\
+    *coverage*|\
     AGENTS.md|*/AGENTS.md|CLAUDE.md|*/CLAUDE.md|GEMINI.md|*/GEMINI.md)
       return 0 ;;
-    *)
-      return 1 ;;
   esac
+  # Repo-specific extras declared in registry.sh ($CI_PROTECTED_PATHS,
+  # whitespace-separated globs). Empty/unset in repos that need no extras.
+  local glob
+  for glob in ${CI_PROTECTED_PATHS:-}; do
+    # shellcheck disable=SC2254
+    case "$path" in
+      $glob) return 0 ;;
+    esac
+  done
+  return 1
 }
 
 # List paths whose contents differ from a snapshot.
@@ -249,8 +264,9 @@ normalize_failure() {
 }
 
 # Build a compact failure context from a log file.
-# Includes: first 20 lines, error/failure lines with context, last 40 lines.
-# Total capped at COMPACT_LOG_MAX bytes.
+# Order (most diagnostic first): last 120 lines, merged error context, first
+# 20 lines.  Capped at COMPACT_LOG_MAX bytes; when over budget it keeps the
+# FRONT, so the log tail (where CI tools usually print the failure) survives.
 compact_log() {
   local log_file="$1"
   local max_bytes="${2:-$COMPACT_LOG_MAX}"
@@ -263,26 +279,21 @@ compact_log() {
   local result
   result="$(
     {
+      echo "=== Log end (last 120 lines) ==="
+      tail -n 120 "$log_file" 2>/dev/null || true
+
+      echo ""
+      echo "=== Error context (merged, most recent matches) ==="
+      # grep -C merges overlapping context natively (-- separators); keep the
+      # most recent matches so a flood of early warnings cannot crowd out the
+      # real failure at the tail.
+      grep -n -i -C 3 -E \
+        'error[: ]|fail(ed|ure)|FAIL |✗|✘|ERR!|TS[0-9]{4}:|AssertionError|TypeError|SyntaxError|ModuleNotFoundError|ENOENT|stack trace|Traceback|pytest|FAILED' \
+        "$log_file" 2>/dev/null | tail -n 200 || true
+
+      echo ""
       echo "=== Log start (first 20 lines) ==="
       head -n 20 "$log_file" 2>/dev/null || true
-
-      echo ""
-      echo "=== Error context ==="
-      # Extract lines around errors/failures/diagnostics
-      grep -n -i -E \
-        'error[: ]|fail(ed|ure)|FAIL |✗|✘|ERR!|TS[0-9]{4}:|AssertionError|TypeError|SyntaxError|ModuleNotFoundError|ENOENT|stack trace|Traceback|pytest|FAILED' \
-        "$log_file" 2>/dev/null | while IFS=: read -r lineno rest; do
-        # Print 3 lines before and after each match
-        local start=$((lineno - 3))
-        [ "$start" -lt 1 ] && start=1
-        local end=$((lineno + 3))
-        sed -n "${start},${end}p" "$log_file" 2>/dev/null
-        echo "---"
-      done || true
-
-      echo ""
-      echo "=== Log end (last 40 lines) ==="
-      tail -n 40 "$log_file" 2>/dev/null || true
     }
   )"
 
@@ -290,9 +301,11 @@ compact_log() {
   byte_count="$(printf '%s' "$result" | wc -c | tr -d ' ')"
 
   if [ "$byte_count" -gt "$max_bytes" ]; then
-    printf '%s' "$result" | head -c "$max_bytes"
-    echo ""
-    echo "--- LOG TRUNCATED (exceeded ${max_bytes} bytes) ---"
+    # Keep the front (log tail + error context = most diagnostic). A here-string
+    # has no upstream producer process for head to SIGPIPE, so no "Broken pipe"
+    # noise under `set -o pipefail`.
+    head -c "$max_bytes" <<<"$result"
+    printf '\n--- LOG TRUNCATED (kept most-recent %s bytes of context) ---\n' "$max_bytes"
   else
     printf '%s\n' "$result"
   fi
@@ -345,7 +358,7 @@ run_detection() {
 
   set +e
   # shellcheck disable=SC2086
-  bash "$SCRIPT_DIR/verify-full-parallel.sh" $timeout_arg
+  bash "$SCRIPT_DIR/detect.sh" $timeout_arg
   DETECT_STATUS=$?
   set -e
 
@@ -403,7 +416,7 @@ run_targeted_job() {
 
 # ── Banner ───────────────────────────────────────────────────────────────────
 
-echo "agent:fix"
+echo "ci-autofix"
 echo "  model:      $MODEL"
 echo "  agent:      $AGENT"
 echo "  max iters:  $MAX_ITERS (0 = unlimited)"
@@ -434,7 +447,7 @@ while true; do
     echo "=== All detection jobs passed — running canonical verify:ci ==="
 
     set +e
-    pnpm verify:ci
+    bash "$SCRIPT_DIR/gate.sh"
     final_status=$?
     set -e
 
@@ -497,27 +510,24 @@ while true; do
 
     # Build prompt
     prompt="$(cat <<PROMPT
-Fix the CI failure in job "$failed_job" with the smallest targeted code change.
+Make CI job "$failed_job" pass. Fix the real root cause -- never fake a green.
 
-Job: $failed_job
-Validation command:
+This is the exact command the supervisor uses to validate your work:
 \`\`\`bash
 $job_cmd
 \`\`\`
 
-Failure output:
+Run it yourself to see the precise, current failure, then fix and re-run until it passes. If the output is noisy (many packages), narrow it to the single failing package or test. A captured excerpt to start from:
 \`\`\`
 $failure_context
 \`\`\`
 
 Rules:
-- Read the failure output carefully and fix one root cause.
-- Edit only files required for that root cause.
-- Do not modify protected repository policy, CI, lockfile, snapshot, coverage, or agent files.
-- Do not run commands. The outer supervisor performs validation.
-- Do not commit, push, stash, switch branches, or create worktrees.
-- If the failure is caused by a missing secret, toolchain, network, or external service, do NOT modify product code to mask the problem.
-- Stop after making the smallest useful edit.
+- Fix the real cause. Large changes are fine when the fix needs them (e.g. rewrite a test or fixture that drifted from the current types/schema).
+- Never fake a green: do not delete, skip, or weaken tests or assertions; do not lower coverage; do not edit CI, workflow, or verification config to bypass the check. A genuinely obsolete test may be removed only with a clearly stated reason.
+- Use the package manager for dependency problems (pnpm install / pnpm add); do not hand-edit lockfiles.
+- Do not commit, push, stash, switch branches, or create worktrees. Leave changes in the working tree.
+- If the failure is caused by a missing secret, toolchain, network, or external service, report it instead of masking it in product code.
 PROMPT
 )"
 

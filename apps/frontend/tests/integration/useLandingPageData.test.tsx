@@ -23,16 +23,25 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useLandingPageData } from '../../src/hooks/queries/analytics/usePortfolioQuery';
 import { queryKeys } from '../../src/lib/state/queryClient';
+import type { YieldReturnsSummaryResponse } from '../../src/schemas/api/analyticsSchemas';
 import type {
   LandingPageResponse,
   PoolDetail,
-  PortfolioAPRSummary,
-  YieldReturnsSummaryResponse,
 } from '../../src/services/analyticsService';
 import * as analyticsService from '../../src/services/analyticsService';
 import { createMockArray } from './helpers/mock-factories';
 import { TEST_TIMEOUT } from './helpers/test-constants';
 import { createQueryWrapper, setupMockCleanup } from './helpers/test-setup';
+
+/** @deprecated Use the schema-derived type directly. Defined locally until the test is updated to match the current API shape. */
+interface PortfolioAPRSummary {
+  total_asset_value_usd: number;
+  weighted_apr: number;
+  matched_pools: number;
+  total_pools: number;
+  matched_asset_value_usd: number;
+  coverage_percentage: number;
+}
 
 // Mock the analytics service
 vi.mock('../../src/services/analyticsService', async () => {

@@ -54,6 +54,12 @@ function getManualChunk(id: string): string | undefined {
 
 export default defineConfig(({ mode }) => ({
   envDir: REPO_ROOT,
+  optimizeDeps: {
+    include: ["jayson", "uuid"],
+  },
+  ssr: {
+    noExternal: [/jayson/, /uuid/],
+  },
   plugins: [
     react(),
     ...(mode === "analyze"
@@ -124,6 +130,7 @@ export default defineConfig(({ mode }) => ({
         replacement: path.resolve(__dirname, "./src/shims/emptyModule.ts"),
       },
     ],
+    dedupe: ["jayson", "uuid"],
   },
   build: {
     outDir: "dist",
@@ -149,6 +156,23 @@ export default defineConfig(({ mode }) => ({
     testTimeout: 30000,
     hookTimeout: 10000,
     teardownTimeout: 10000,
+    server: {
+      deps: {
+        // Packages that ship ESM inside a CJS wrapper (e.g. jayson via
+        // @solana/web3.js, uuid@14) must be inlined so Vite transforms them.
+        inline: [
+          /jayson/,
+          /jayson@/,
+          /uuid@14/,
+          /uuid/,
+          /bufferutil/,
+          /utf-8-validate/,
+        ],
+        optimizeDeps: {
+          include: ["jayson", "uuid"],
+        },
+      },
+    },
     env: {
       IS_REACT_ACT_ENVIRONMENT: "true",
       NODE_ENV: "test",
