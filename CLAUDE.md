@@ -13,16 +13,16 @@ If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any 
 
 ## Turbo task glossary
 
-| Task                     | Cache | dependsOn | Notes                                                                                                                    |
-| ------------------------ | :---: | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `build`                  |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`.                            |
-| `dev`                    |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                                                      |
-| `lint`                   |   ✓   | none      | Pure file scan; no build needed.                                                                                         |
-| `type-check`             |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.                                                 |
-| `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine. |
-| `test:ci`                |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                                                         |
-| `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                         |
-| `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                   |
+| Task                     | Cache | dependsOn | Notes                                                                                                                     |
+| ------------------------ | :---: | --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `build`                  |   ✓   | `^build`  | Internal deps build first. `inputs` excludes `**/*.md`. Env scope: `NEXT_PUBLIC_*`, `VITE_*`.                             |
+| `dev`                    |   ✗   | `^build`  | Persistent. Rebuilds packages once then runs your app's dev server.                                                       |
+| `lint`                   |   ✓   | `^build`  | Type-aware ESLint needs package dist (like `type-check`); standalone runs surface resolution errors if you skip `^build`. |
+| `type-check`             |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.                                                  |
+| `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine.  |
+| `test:ci`                |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                                                          |
+| `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                          |
+| `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                    |
 
 Cache miss heuristics: changing any `.env*` file invalidates `build`/`type-check`/`test*` caches because they're listed in `inputs`. If you only intend to flip a runtime value, prefer `process.env` overrides at run time rather than editing `.env`.
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Apply minimal schema required for integration tests.
 # Uses DATABASE_INTEGRATION_URL if set, otherwise defaults to the managed
-# pre-commit container URL (postgresql://test_user:testpass123@localhost:5433/test_db).
+# pre-commit container URL (postgresql://test_user:testpass123@localhost:5435/test_db).
 
 DB_URL=${DATABASE_INTEGRATION_URL:-"postgresql://test_user:testpass123@localhost:5435/test_db"}
 

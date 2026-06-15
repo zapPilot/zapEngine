@@ -41,9 +41,14 @@ function createRepo(options: RunOptions = {}): string {
   chmodSync(join(root, 'scripts/ci-autofix/ci-autofix.sh'), 0o755);
   chmodSync(join(root, 'scripts/ci-autofix/registry.sh'), 0o755);
 
-  writeFileSync(join(root, '.gitignore'), '.agent-loop/\n.ai-verify/\n');
+  writeFileSync(
+    join(root, '.gitignore'),
+    '.agent-loop/\n.ai-verify/\n.turbo/\n',
+  );
   writeFileSync(join(root, 'source.txt'), 'broken\n');
   writeFileSync(join(root, 'package.json'), '{"private":true}\n');
+  // A genuinely protected file (see is_protected_path) used to exercise rollback.
+  writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
 
   // Write scenario file for fakes to read
   const scenario = options.scenario ?? {};
@@ -65,6 +70,7 @@ LOG_DIR="$ROOT_DIR/.ai-verify/logs"
 
 mkdir -p "$LOG_DIR"
 rm -f "$RESULT" "$RESULT.tmp"
+rm -rf "$ROOT_DIR/.turbo/runs"
 
 detect="all-pass"
 [ -f "$STATE" ] && detect=\$(grep '^DETECTION=' "$STATE" | cut -d= -f2 || echo "all-pass")
@@ -84,6 +90,7 @@ case "$detect" in
   contracts-fail) fail_jobs="contracts" ;;
   multi-fail)     fail_jobs="contracts lint" ;;
   timed-out)      timeout_jobs="lint" ;;
+  localize)       fail_jobs="type-check" ;;
   all-pass|*)     ;;
 esac
 
@@ -140,6 +147,24 @@ rm -f "$entries"
 
 mv "$RESULT.tmp" "$RESULT"
 
+# Localization fixture: emit a turbo run summary + package-prefixed log so the
+# supervisor can pinpoint the failing package (frontend) and ignore the passing
+# one (account-engine). Mirrors detect.sh's real --summarize output.
+if [ "$detect" = "localize" ]; then
+  {
+    echo "@zapengine/account-engine:type-check: cache hit, replaying logs"
+    echo "@zapengine/frontend:type-check: error TS2304: Cannot find name 'x'."
+    echo "Failed:    @zapengine/frontend#type-check"
+  } > "$LOG_DIR/type-check.log"
+  mkdir -p "$ROOT_DIR/.turbo/runs"
+  cat > "$ROOT_DIR/.turbo/runs/localize.json" <<'TJSON'
+{ "tasks": [
+  { "taskId": "@zapengine/account-engine#type-check", "task": "type-check", "package": "@zapengine/account-engine", "execution": { "exitCode": 0 } },
+  { "taskId": "@zapengine/frontend#type-check", "task": "type-check", "package": "@zapengine/frontend", "execution": { "exitCode": 1 } }
+] }
+TJSON
+fi
+
 if [ "$status" = "passed" ]; then
   exit 0
 else
@@ -184,9 +209,9 @@ action="noop"
 
 case "$action" in
   fix) printf 'fixed\\n' > source.txt ;;
-  protected) printf '{"private":false}\\n' > package.json ;;
+  protected) printf 'corrupted\\n' > pnpm-lock.yaml ;;
   protected-with-new)
-    printf '{"private":false}\\n' > package.json
+    printf 'corrupted\\n' > pnpm-lock.yaml
     printf 'agent-created\\n' > agent-created.txt
     ;;
   fail) exit 7 ;;
@@ -387,7 +412,7 @@ test('prompt contains the targeted job failure context', () => {
     'utf8',
   );
   assert.match(prompt, /REAL LINT ERROR: expected useful failure detail/);
-  assert.match(prompt, /Job: lint/);
+  assert.match(prompt, /CI job "lint"/);
 });
 
 test('prompt does not contain logs from passing jobs', () => {
@@ -460,8 +485,8 @@ test('restores protected files modified by the agent', () => {
 
   assert.equal(result.status, 2, result.stderr + result.stdout);
   assert.equal(
-    readFileSync(join(root, 'package.json'), 'utf8'),
-    '{"private":true}\n',
+    readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'),
+    "lockfileVersion: '9.0'\n",
   );
   assert.match(result.stderr + result.stdout, /protected path/i);
 });
@@ -629,7 +654,7 @@ test('targets contracts job by priority when multiple jobs fail', () => {
     join(root, '.ai-verify/opencode-prompt.log'),
     'utf8',
   );
-  assert.match(prompt, /Job: contracts/);
+  assert.match(prompt, /CI job "contracts"/);
   assert.doesNotMatch(prompt, /REAL LINT ERROR/);
 });
 
@@ -658,4 +683,46 @@ test('keeps tail errors from a huge log and emits no broken pipe', () => {
     'utf8',
   );
   assert.match(prompt, /UNIQUE_TAIL_ERROR_MARKER/);
+});
+
+// ── Package-level localization ────────────────────────────────────────────────
+
+test('scopes the rerun and prompt to the failing package', () => {
+  const root = createRepo({
+    scenario: {
+      DETECTION: 'localize',
+      AGENT_ACTION: 'noop',
+      TURBO_RERUN: 'fail',
+    },
+  });
+  const result = runLoop(root, {
+    args: ['--model', 'provider/test-model', '--max-iters', '1'],
+  });
+
+  assert.equal(result.status, 1, result.stderr + result.stdout);
+  const prompt = readFileSync(
+    join(root, '.ai-verify/opencode-prompt.log'),
+    'utf8',
+  );
+  // The supervisor command is narrowed to the failing package only.
+  assert.match(prompt, /turbo run type-check --filter=@zapengine\/frontend/);
+  // The prompt names the isolated package.
+  assert.match(prompt, /isolated to these package\(s\): @zapengine\/frontend/);
+  // The passing package is neither targeted nor included in the excerpt.
+  assert.doesNotMatch(prompt, /--filter=@zapengine\/account-engine/);
+  assert.doesNotMatch(prompt, /account-engine:type-check: cache hit/);
+});
+
+test('localized fix reruns only the failing package and goes green', () => {
+  const root = createRepo({
+    scenario: {
+      DETECTION: 'localize',
+      AGENT_ACTION: 'fix',
+      TURBO_RERUN: 'pass',
+      FINAL_GATE: 'pass',
+    },
+  });
+  const result = runLoop(root);
+
+  assert.equal(result.status, 0, result.stderr + result.stdout);
 });

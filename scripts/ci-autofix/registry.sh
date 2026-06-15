@@ -22,6 +22,11 @@ CORE_CI_JOB_IDS="format repo contracts type-check lint test deadcode dup analyti
 # portable base in ci-autofix.sh.  These are zapEngine extras the base omits.
 CI_PROTECTED_PATHS="scripts/lint/* scripts/verify-*.sh"
 
+# Optional warmup run once by detect.sh before the parallel fan-out, so the
+# turbo jobs hit cache for their `^build` dependency instead of rebuilding
+# internal packages concurrently. Leave empty to skip.
+CI_WARMUP_COMMAND="pnpm turbo run build --filter=./packages/*"
+
 # Lookup functions ─────────────────────────────────────────────────────────────
 
 core_ci_job_name() {

@@ -374,16 +374,31 @@ first_failed_job() {
     return 1
   fi
 
+  local id status
+
+  # Prefer jq: exact id match, robust against future ids that share a prefix.
+  if command -v jq >/dev/null 2>&1; then
+    for id in $CORE_CI_JOB_IDS; do
+      status="$(jq -r --arg id "$id" \
+        '.jobs[]? | select(.id == $id) | .status' "$RESULT_JSON" 2>/dev/null \
+        | head -1)" || true
+      if [ "$status" = "failed" ] || [ "$status" = "timed_out" ]; then
+        echo "$id"
+        return 0
+      fi
+    done
+    return 1
+  fi
+
+  # Fallback without jq. result.json writes one job per line, so the id and its
+  # status live on the same line; the closing quote anchors the id match so a
+  # short id cannot match a longer one as a substring.
   for id in $CORE_CI_JOB_IDS; do
-    # Use lightweight grep/sed to extract status for this job
-    local status
     status="$(
-      grep -A3 "\"id\": \"$id\"" "$RESULT_JSON" 2>/dev/null \
-      | grep '"status"' \
+      grep -E "\"id\": \"${id}\"" "$RESULT_JSON" 2>/dev/null \
       | head -1 \
       | sed 's/.*"status": *"\([^"]*\)".*/\1/'
     )" || true
-
     if [ "$status" = "failed" ] || [ "$status" = "timed_out" ]; then
       echo "$id"
       return 0
@@ -393,16 +408,137 @@ first_failed_job() {
   return 1
 }
 
-# Run a single job's command, capturing output.
+# ── Package-level localization ─────────────────────────────────────────────────
+#
+# detect.sh runs turbo jobs with --summarize, so .turbo/runs/*.json records the
+# exit code of every (package, task). When a turbo job fails we read those
+# summaries to find exactly which package(s) failed, then narrow both the rerun
+# and the agent's excerpt to those packages. Non-turbo jobs (format/repo/
+# contracts) and missing summaries fall back to whole-job behavior, so this is
+# never worse than before. The final gate.sh always runs the full canonical
+# command, so narrowing the inner loop can never fake a green.
+
+TURBO_RUNS_DIR="$ROOT_DIR/.turbo/runs"
+
+# Echo the turbo task tokens in a job command (space-separated), or nothing when
+# it is not a `turbo run`. Tokens are everything between `turbo run` and the
+# first flag, so multi-task jobs (e.g. analytics) are covered too.
+turbo_tasks_from_cmd() {
+  local cmd="$1"
+  case "$cmd" in
+    *"turbo run "*) ;;
+    *) return 0 ;;
+  esac
+  local after="${cmd#*turbo run }"
+  local tok out=""
+  for tok in $after; do
+    case "$tok" in
+      --*) break ;;
+      *) out="$out $tok" ;;
+    esac
+  done
+  printf '%s\n' "${out# }"
+}
+
+# Echo the package names that failed for a turbo job (space-separated), or
+# nothing. Primary source: turbo run summaries. Fallback: the streamed log's
+# "<pkg>:<task>:" prefixes on error lines.
+failing_packages() {
+  local job_id="$1"
+  local cmd tasks
+  cmd="$(core_ci_job_command "$job_id")"
+  tasks="$(turbo_tasks_from_cmd "$cmd")"
+  [ -n "$tasks" ] || return 0   # not a turbo job -> no package localization
+
+  local pkgs="" t found
+
+  # Primary: machine-readable run summaries written by detect.sh's --summarize.
+  if [ -d "$TURBO_RUNS_DIR" ] && command -v jq >/dev/null 2>&1; then
+    for t in $tasks; do
+      found="$(
+        jq -r --arg t "$t" \
+          '.tasks[]? | select(.task == $t and ((.execution.exitCode // 0) != 0)) | .package' \
+          "$TURBO_RUNS_DIR"/*.json 2>/dev/null || true
+      )"
+      pkgs="$pkgs $found"
+    done
+  fi
+
+  # Fallback: parse the streamed log's "<pkg>:<task>:" prefixes on error lines.
+  if [ -z "${pkgs// /}" ]; then
+    local log_file="$AI_LOG_DIR/$(core_ci_job_log "$job_id")"
+    if [ -f "$log_file" ]; then
+      for t in $tasks; do
+        found="$(
+          grep -E "^[^[:space:]:]+:${t}: " "$log_file" 2>/dev/null \
+          | grep -i -E 'error|fail|✗|✘|TS[0-9]{4}' \
+          | sed -E "s/^([^[:space:]:]+):${t}:.*/\1/" \
+          | LC_ALL=C sort -u || true
+        )"
+        pkgs="$pkgs $found"
+      done
+    fi
+  fi
+
+  # `|| true`: grep -v exits 1 on all-empty input, which would abort under
+  # `set -o pipefail` when this runs in a command substitution.
+  printf '%s' "$pkgs" | tr ' ' '\n' | grep -v '^$' | LC_ALL=C sort -u \
+    | tr '\n' ' ' | sed 's/ *$//' || true
+}
+
+# Rebuild a turbo command scoped to the given package(s): drop existing
+# --filter=... args and add one --filter=<pkg> per failing package. No packages,
+# or a non-turbo command, returns the command unchanged. Portable: no repo
+# package names are hard-coded here.
+scope_command() {
+  local base_cmd="$1" pkgs="$2"
+  [ -n "${pkgs// /}" ] || { printf '%s\n' "$base_cmd"; return 0; }
+  case "$base_cmd" in
+    *"turbo run "*) ;;
+    *) printf '%s\n' "$base_cmd"; return 0 ;;
+  esac
+
+  local out="" tok
+  for tok in $base_cmd; do
+    case "$tok" in
+      --filter=*) ;;            # drop the broad filter(s)
+      *) out="$out $tok" ;;
+    esac
+  done
+  local pkg
+  for pkg in $pkgs; do
+    out="$out --filter=$pkg"
+  done
+  printf '%s\n' "${out# }"
+}
+
+# Emit a package-scoped view of a turbo log: only lines prefixed with one of the
+# given packages, plus turbo's overall footer. Whole file when no packages.
+scoped_log_view() {
+  local log_file="$1" pkgs="$2"
+  if [ ! -f "$log_file" ] || [ -z "${pkgs// /}" ]; then
+    cat "$log_file" 2>/dev/null || true
+    return
+  fi
+  local pat="" pkg esc
+  for pkg in $pkgs; do
+    esc="$(printf '%s' "$pkg" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g')"
+    pat="${pat:+$pat|}^${esc}:"
+  done
+  grep -E "$pat" "$log_file" 2>/dev/null || true
+  # Keep turbo's overall failure footer for context.
+  grep -E '^(  Tasks:|Failed:|  Time:|ERROR| ERROR )' "$log_file" 2>/dev/null || true
+}
+
+# Run a given command (already scoped to the failing package(s)), capturing
+# output to log_file.
 TARGETED_STATUS=0
 
 run_targeted_job() {
-  local job_id="$1"
+  local cmd="$1"
   local log_file="$2"
-  local cmd
-  cmd="$(core_ci_job_command "$job_id")"
 
-  echo "=== Targeted rerun: $job_id ==="
+  echo "=== Targeted rerun: $cmd ==="
 
   set +e
   if [ "$ITER_TIMEOUT" -gt 0 ]; then
@@ -482,8 +618,20 @@ while true; do
   job_log_name="$(core_ci_job_log "$failed_job")"
   job_log_file="$AI_LOG_DIR/$job_log_name"
 
+  # Localize to the failing package(s) once, from this detection round's turbo
+  # summaries. Empty for non-turbo jobs or when summaries are unavailable, in
+  # which case scoped_cmd == job_cmd (whole-job behavior). We do NOT re-read
+  # summaries inside the repair loop: the targeted rerun checks all pinned
+  # packages, and a full re-detect runs once this job goes green.
+  failing_pkgs="$(failing_packages "$failed_job")"
+  scoped_cmd="$(scope_command "$job_cmd" "$failing_pkgs")"
+
   echo ""
-  echo "=== Targeting job: $failed_job ==="
+  if [ -n "$failing_pkgs" ]; then
+    echo "=== Targeting job: $failed_job (packages: $failing_pkgs) ==="
+  else
+    echo "=== Targeting job: $failed_job ==="
+  fi
 
   # ── Step 3: Repair loop for this job ─────────────────────────────────────
   while true; do
@@ -497,8 +645,13 @@ while true; do
     echo ""
     echo "=== repair attempt $iteration (job: $failed_job) ==="
 
-    # Build compact failure context
-    failure_context="$(compact_log "$job_log_file")"
+    # Build compact failure context, scoped to the failing package(s) when known.
+    scoped_log="$job_log_file"
+    if [ -n "$failing_pkgs" ]; then
+      scoped_log="$STATE_DIR/scoped-${iteration}.log"
+      scoped_log_view "$job_log_file" "$failing_pkgs" > "$scoped_log"
+    fi
+    failure_context="$(compact_log "$scoped_log")"
     failure_signature="$(printf '%s\n%s' "$failed_job" "$failure_context" | normalize_failure | hash_stream)"
 
     # No-progress key = job ID + failure signature
@@ -509,15 +662,21 @@ while true; do
     before_sig="$(working_tree_signature)"
 
     # Build prompt
+    if [ -n "$failing_pkgs" ]; then
+      pkg_hint="The failure is isolated to these package(s): ${failing_pkgs}. The command below is already scoped to them -- keep your fix and verification within these package(s)."
+    else
+      pkg_hint="If the output is noisy (many packages), narrow it to the single failing package or test."
+    fi
+
     prompt="$(cat <<PROMPT
 Make CI job "$failed_job" pass. Fix the real root cause -- never fake a green.
 
 This is the exact command the supervisor uses to validate your work:
 \`\`\`bash
-$job_cmd
+$scoped_cmd
 \`\`\`
 
-Run it yourself to see the precise, current failure, then fix and re-run until it passes. If the output is noisy (many packages), narrow it to the single failing package or test. A captured excerpt to start from:
+Run it yourself to see the precise, current failure, then fix and re-run until it passes. ${pkg_hint} A captured excerpt to start from:
 \`\`\`
 $failure_context
 \`\`\`
@@ -551,7 +710,7 @@ PROMPT
       restore_snapshot "$attempt_snapshot"
       write_blocker_report \
         "agent modified a protected path; attempt rolled back" \
-        "$failed_job" "$job_cmd" "$iteration" "$job_log_file"
+        "$failed_job" "$scoped_cmd" "$iteration" "$job_log_file"
       exit 2
     fi
 
@@ -562,8 +721,8 @@ PROMPT
       last_no_progress_key=""
       echo "Agent changed the working tree; rerunning targeted validation"
 
-      # Rerun only this job
-      run_targeted_job "$failed_job" "$job_log_file"
+      # Rerun only the failing package(s) for this job
+      run_targeted_job "$scoped_cmd" "$job_log_file"
 
       if [ "$TARGETED_STATUS" -eq 0 ]; then
         echo "[$failed_job] passed -- re-detecting all jobs"
@@ -590,14 +749,14 @@ PROMPT
       if [ "$opencode_failure_count" -ge "$NO_PROGRESS_LIMIT" ]; then
         write_blocker_report \
           "OpenCode failed $NO_PROGRESS_LIMIT consecutive times without changes" \
-          "$failed_job" "$job_cmd" "$iteration" "$job_log_file"
+          "$failed_job" "$scoped_cmd" "$iteration" "$job_log_file"
         exit 2
       fi
 
       if [ "$no_progress_count" -ge "$NO_PROGRESS_LIMIT" ]; then
         write_blocker_report \
           "no progress after $NO_PROGRESS_LIMIT attempts for the same failure" \
-          "$failed_job" "$job_cmd" "$iteration" "$job_log_file"
+          "$failed_job" "$scoped_cmd" "$iteration" "$job_log_file"
         exit 2
       fi
 

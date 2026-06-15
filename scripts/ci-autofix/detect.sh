@@ -63,6 +63,19 @@ fi
 # ── Prepare ──────────────────────────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
 rm -f "$RESULT_JSON" "$RESULT_JSON.tmp"
+# Clear stale turbo run summaries so the autofix loop only reads this round's.
+rm -rf "$ROOT_DIR/.turbo/runs"
+
+# Optional warmup (CI_WARMUP_COMMAND in registry.sh): build internal packages
+# once so the parallel turbo jobs below hit cache for their `^build` dependency
+# instead of each rebuilding packages concurrently (redundant work + dist
+# contention on a cold cache). Best-effort: a genuine build break still surfaces
+# in type-check/lint. Unset in repos that need no warmup.
+if [ -n "${CI_WARMUP_COMMAND:-}" ]; then
+  echo "[verify:full:parallel] Warming builds: $CI_WARMUP_COMMAND"
+  eval "$CI_WARMUP_COMMAND" > "$LOG_DIR/warmup-build.log" 2>&1 \
+    || echo "[verify:full:parallel] warmup had issues (see warmup-build.log); continuing" >&2
+fi
 
 echo "[verify:full:parallel] Running full CI checks in parallel..."
 
@@ -72,6 +85,11 @@ declare -a job_pids=()
 
 for id in $CORE_CI_JOB_IDS; do
   cmd="$(core_ci_job_command "$id")"
+  # Turbo jobs: emit a run summary (.turbo/runs/*.json) so the autofix loop can
+  # localize the failing package from a machine-readable source.
+  case "$cmd" in
+    *"turbo run "*) cmd="$cmd --summarize" ;;
+  esac
   log_file="$LOG_DIR/$(core_ci_job_log "$id")"
 
   if [ -n "$TIMEOUT_PREFIX" ]; then
