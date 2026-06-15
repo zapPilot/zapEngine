@@ -148,7 +148,11 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
-    pool: "vmThreads",
+    // Must stay "forks": under Vitest 4 the vmThreads pool freezes jsdom's
+    // window.location into a non-configurable property, which breaks every
+    // test that stubs location (Object.defineProperty/vi.stubGlobal throw
+    // "Cannot redefine property: location"). forks keeps it configurable.
+    pool: "forks",
     maxWorkers: 1,
     globals: true,
     environment: "jsdom",
