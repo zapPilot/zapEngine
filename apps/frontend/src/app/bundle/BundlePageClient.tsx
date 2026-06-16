@@ -65,6 +65,7 @@ export function BundlePageClient({
 
   useEffect(() => {
     const sanitizeInlineScripts = () => {
+      if (!document?.body) return;
       const scripts = document.querySelectorAll('body script');
       for (const script of scripts) {
         if (!script.textContent) continue;

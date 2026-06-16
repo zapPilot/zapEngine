@@ -90,9 +90,9 @@ class _EpisodeDetailPlaybackControlsState
                 const SizedBox(width: 12),
                 Text(
                   formatDuration(displayedPosition),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
                 ),
                 const SizedBox(width: 8),
                 Expanded(

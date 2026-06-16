@@ -3,14 +3,14 @@ import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLandingPageData } from '@/hooks/queries/analytics/usePortfolioQuery';
-import { getLandingPagePortfolioData } from '@/services';
+import { getLandingPagePortfolioData } from '@/services/analyticsService';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
   return { ...actual, useQuery: vi.fn() };
 });
 
-vi.mock('@/services', () => ({
+vi.mock('@/services/analyticsService', () => ({
   getLandingPagePortfolioData: vi.fn(),
 }));
 

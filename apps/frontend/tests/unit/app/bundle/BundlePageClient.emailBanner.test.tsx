@@ -60,6 +60,12 @@ vi.mock('@/lib/routing', () => {
   };
 });
 
+// Mock WalletProvider to prevent the wagmi → walletconnect → appkit → jayson
+// import chain which crashes Vitest with CJS/ESM interop errors.
+vi.mock('@/providers/WalletProvider', () => ({
+  useWalletProvider: () => null,
+}));
+
 // User context mock (overridden per test)
 let mockIsConnected = false;
 let mockUserId: string | null = null;

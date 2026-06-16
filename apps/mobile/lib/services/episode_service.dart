@@ -54,8 +54,9 @@ class EpisodeService {
       queryParams['cursor'] = cursor;
     }
 
-    final uri = Uri.parse(AppConfig.podcastApiUrl)
-        .replace(path: '/episodes', queryParameters: queryParams);
+    final uri = Uri.parse(
+      AppConfig.podcastApiUrl,
+    ).replace(path: '/episodes', queryParameters: queryParams);
 
     try {
       final response = await _httpClient.get(uri);

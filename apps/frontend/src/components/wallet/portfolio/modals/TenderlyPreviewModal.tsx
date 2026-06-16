@@ -292,9 +292,14 @@ function ExecutionStep({
                 className="flex flex-col gap-2 sm:flex-row"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void onUpdateApproval(call.index, approvalAmount)
-                    .then(() => setEditingApproval(false))
-                    .catch(() => {});
+                  void (async () => {
+                    try {
+                      await onUpdateApproval(call.index, approvalAmount);
+                      setEditingApproval(false);
+                    } catch {
+                      // Approval update errors are surfaced via onUpdateApproval itself.
+                    }
+                  })();
                 }}
               >
                 <label className="sr-only" htmlFor={`approval-${call.index}`}>

@@ -19,7 +19,7 @@ from src.main import app
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://test_user:testpass123@localhost:5433/test_db",
+    "postgresql+psycopg://test_user:testpass123@localhost:5435/test_db",
 )
 TEST_DB_ADVISORY_LOCK_KEY = 132450091
 TEST_DB_LOCK_RETRY_ATTEMPTS = 5

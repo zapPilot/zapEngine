@@ -80,17 +80,12 @@ const baseConfig: SavedStrategyConfig = {
   },
 };
 
-vi.mock('@/services', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/services')>();
-
-  return {
-    ...actual,
-    createStrategyConfig: mockState.createConfig,
-    getStrategyAdminConfig: mockState.getStrategyAdminConfig,
-    getStrategyConfigs: mockState.getStrategyConfigs,
-    updateStrategyConfig: mockState.updateConfig,
-  };
-});
+vi.mock('@/services', () => ({
+  createStrategyConfig: mockState.createConfig,
+  getStrategyAdminConfig: mockState.getStrategyAdminConfig,
+  getStrategyConfigs: mockState.getStrategyConfigs,
+  updateStrategyConfig: mockState.updateConfig,
+}));
 
 vi.mock('@/providers/ToastContext', async (importOriginal) => {
   const actual =

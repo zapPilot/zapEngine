@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# scripts/verify-full-parallel.sh
+# scripts/verify-ci-parallel.sh
 #
-# Runs every core CI job in parallel, collects results, prints a summary,
-# and writes a machine-readable .ai-verify/result.json for the agent fixer.
+# Runs every core CI job (from ci-jobs.sh) in parallel, collects results, prints
+# a summary, and writes a machine-readable .ai-verify/result.json. Wired to
+# `pnpm verify:full:parallel` — use it to see ALL failures at once instead of the
+# stop-at-first-failure sequential gate (verify:ci).
 #
 # Options:
 #   --timeout SECONDS   Per-job timeout (default: 0 = disabled)
@@ -15,11 +17,12 @@ if git rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# This script lives at <repo>/scripts/; repo root is one level up.
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.ai-verify/logs"
 RESULT_JSON="$ROOT_DIR/.ai-verify/result.json"
 
-source "$SCRIPT_DIR/core-ci-registry.sh"
+source "$SCRIPT_DIR/ci-jobs.sh"
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 ITER_TIMEOUT=0
@@ -54,14 +57,27 @@ if [ "$ITER_TIMEOUT" -gt 0 ]; then
   elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_PREFIX="gtimeout $ITER_TIMEOUT"
   else
-    echo "Error: --timeout requires timeout or gtimeout in PATH" >&2
-    exit 69
+    echo "Warning: no timeout/gtimeout in PATH; running without a per-job timeout." >&2
+    TIMEOUT_PREFIX=""
   fi
 fi
 
 # ── Prepare ──────────────────────────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
 rm -f "$RESULT_JSON" "$RESULT_JSON.tmp"
+# Clear stale turbo run summaries so a reader only sees this round's.
+rm -rf "$ROOT_DIR/.turbo/runs"
+
+# Optional warmup (CI_WARMUP_COMMAND in ci-jobs.sh): build internal packages
+# once so the parallel turbo jobs below hit cache for their `^build` dependency
+# instead of each rebuilding packages concurrently (redundant work + dist
+# contention on a cold cache). Best-effort: a genuine build break still surfaces
+# in type-check/lint. Unset in repos that need no warmup.
+if [ -n "${CI_WARMUP_COMMAND:-}" ]; then
+  echo "[verify:full:parallel] Warming builds: $CI_WARMUP_COMMAND"
+  eval "$CI_WARMUP_COMMAND" > "$LOG_DIR/warmup-build.log" 2>&1 \
+    || echo "[verify:full:parallel] warmup had issues (see warmup-build.log); continuing" >&2
+fi
 
 echo "[verify:full:parallel] Running full CI checks in parallel..."
 
@@ -71,6 +87,11 @@ declare -a job_pids=()
 
 for id in $CORE_CI_JOB_IDS; do
   cmd="$(core_ci_job_command "$id")"
+  # Turbo jobs: emit a run summary (.turbo/runs/*.json) so a reader can localize
+  # the failing package from a machine-readable source.
+  case "$cmd" in
+    *"turbo run "*) cmd="$cmd --summarize" ;;
+  esac
   log_file="$LOG_DIR/$(core_ci_job_log "$id")"
 
   if [ -n "$TIMEOUT_PREFIX" ]; then

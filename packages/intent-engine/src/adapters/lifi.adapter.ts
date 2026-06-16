@@ -1,11 +1,4 @@
-import {
-  createConfig,
-  getQuote as getLiFiQuote,
-  getContractCallsQuote,
-  getToken as getLiFiToken,
-  type QuoteRequest,
-  type ContractCallsQuoteRequest,
-} from '@lifi/sdk';
+import type { QuoteRequest, ContractCallsQuoteRequest } from '@lifi/sdk';
 import type { Address } from 'viem';
 
 import { QuoteError } from '../errors/intent.errors.js';
@@ -90,18 +83,28 @@ function toBaseUnitString(input: string | undefined): string | undefined {
 }
 
 export class LiFiAdapter {
-  private initialized = false;
+  private sdkPromise?: Promise<typeof import('@lifi/sdk')>;
 
   constructor(private readonly config: LiFiAdapterConfig) {}
 
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      createConfig({
-        integrator: this.config.integrator,
-        apiKey: this.config.apiKey,
+  // Load @lifi/sdk lazily. A static top-level import eagerly pulls the SDK's
+  // Solana path (@solana/web3.js -> jayson/lib/client/browser -> the ESM-only
+  // uuid@14), which breaks the CommonJS-style module evaluation Vitest uses for
+  // any consumer that merely imports this package. Deferring the import to
+  // first use keeps `import '@zapengine/intent-engine'` free of the Solana
+  // chain (zapEngine is EVM-only and rarely exercises bridging) and bundlers
+  // still resolve it for production. The SDK is configured exactly once.
+  private loadSdk(): Promise<typeof import('@lifi/sdk')> {
+    if (!this.sdkPromise) {
+      this.sdkPromise = import('@lifi/sdk').then((sdk) => {
+        sdk.createConfig({
+          integrator: this.config.integrator,
+          apiKey: this.config.apiKey,
+        });
+        return sdk;
       });
-      this.initialized = true;
     }
+    return this.sdkPromise;
   }
 
   private buildQuoteRequest(_params: QuoteParams): QuoteRequest {
@@ -124,7 +127,7 @@ export class LiFiAdapter {
   async getQuote(
     params: QuoteParams & { intentType?: 'SWAP' | 'BRIDGE' | 'SUPPLY' },
   ): Promise<TransactionQuote> {
-    this.ensureInitialized();
+    const { getQuote: getLiFiQuote } = await this.loadSdk();
 
     try {
       const request: QuoteRequest = {
@@ -170,7 +173,7 @@ export class LiFiAdapter {
       }>;
     } & ({ fromAmount: string } | { toAmount: string }),
   ): Promise<TransactionQuote> {
-    this.ensureInitialized();
+    const { getContractCallsQuote } = await this.loadSdk();
 
     try {
       const baseRequest = {
@@ -210,7 +213,7 @@ export class LiFiAdapter {
     chainId: number,
     tokenAddress: string,
   ): Promise<LiFiTokenInfo> {
-    this.ensureInitialized();
+    const { getToken: getLiFiToken } = await this.loadSdk();
 
     try {
       const token = await getLiFiToken(

@@ -5,6 +5,12 @@ import type { SavedStrategyConfig } from '@/types';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
+vi.mock('@/services', () => ({}));
+
+vi.mock('@/providers/WalletProvider', () => ({
+  useWalletProvider: () => null,
+}));
+
 // ---------------------------------------------------------------------------
 // Shared mutable state hoisted so mock factories can reference it
 // ---------------------------------------------------------------------------

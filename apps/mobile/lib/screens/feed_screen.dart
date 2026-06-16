@@ -121,9 +121,8 @@ class _FeedScreenState extends State<FeedScreen> {
       child: FeedScreenContent(
         scrollController: _scrollController,
         listenedExpanded: _listenedExpanded,
-        onToggleListenedExpanded: () => setState(
-          () => _listenedExpanded = !_listenedExpanded,
-        ),
+        onToggleListenedExpanded: () =>
+            setState(() => _listenedExpanded = !_listenedExpanded),
         onRefresh: _loadFirstPage,
         onLoadMore: () => unawaited(_controller.loadMore()),
         onSmartPlay: (episode) => unawaited(_handleSmartPlay(episode)),

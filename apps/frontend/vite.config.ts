@@ -54,6 +54,12 @@ function getManualChunk(id: string): string | undefined {
 
 export default defineConfig(({ mode }) => ({
   envDir: REPO_ROOT,
+  optimizeDeps: {
+    include: ["jayson", "uuid"],
+  },
+  ssr: {
+    noExternal: [/jayson/, /uuid/],
+  },
   plugins: [
     react(),
     ...(mode === "analyze"
@@ -123,7 +129,15 @@ export default defineConfig(({ mode }) => ({
         find: "@metamask/connect-evm",
         replacement: path.resolve(__dirname, "./src/shims/emptyModule.ts"),
       },
+      {
+        find: "jayson/lib/client/browser",
+        replacement: path.resolve(
+          __dirname,
+          "./src/shims/jaysonBrowserClient.ts",
+        ),
+      },
     ],
+    dedupe: ["jayson", "uuid"],
   },
   build: {
     outDir: "dist",
@@ -134,7 +148,11 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
-    pool: "vmThreads",
+    // Must stay "forks": under Vitest 4 the vmThreads pool freezes jsdom's
+    // window.location into a non-configurable property, which breaks every
+    // test that stubs location (Object.defineProperty/vi.stubGlobal throw
+    // "Cannot redefine property: location"). forks keeps it configurable.
+    pool: "forks",
     maxWorkers: 1,
     globals: true,
     environment: "jsdom",
@@ -149,6 +167,23 @@ export default defineConfig(({ mode }) => ({
     testTimeout: 30000,
     hookTimeout: 10000,
     teardownTimeout: 10000,
+    server: {
+      deps: {
+        // Packages that ship ESM inside a CJS wrapper (e.g. jayson via
+        // @solana/web3.js, uuid@14) must be inlined so Vite transforms them.
+        inline: [
+          /jayson/,
+          /jayson@/,
+          /uuid@14/,
+          /uuid/,
+          /bufferutil/,
+          /utf-8-validate/,
+        ],
+        optimizeDeps: {
+          include: ["jayson", "uuid"],
+        },
+      },
+    },
     env: {
       IS_REACT_ACT_ENVIRONMENT: "true",
       NODE_ENV: "test",

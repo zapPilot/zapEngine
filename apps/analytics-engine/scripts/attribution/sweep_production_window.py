@@ -584,6 +584,20 @@ def main() -> None:
     if args.in_process:
         if args.update_snapshot:
             parser.error("--in-process cannot be combined with --update-snapshot")
+        # Skip gracefully when DATABASE_READ_ONLY_URL is not configured.
+        # The strategy snapshot requires production read-only data; without it
+        # the app cannot start because create_engine rejects the placeholder URL.
+        import os
+
+        db_url = os.environ.get("DATABASE_READ_ONLY_URL", "")
+        if not db_url or db_url == "placeholder_db_url":
+            print(
+                "SKIP: DATABASE_READ_ONLY_URL not configured; "
+                "strategy snapshot requires production read-only database.",
+                file=sys.stderr,
+            )
+            raise SystemExit(0)
+
         from fastapi.testclient import TestClient
 
         from src.main import app

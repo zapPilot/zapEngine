@@ -9,7 +9,7 @@ set -euo pipefail
 # deselected via -m "not skip").
 
 POSTGRES_CONTAINER="analytics-test-postgres"
-POSTGRES_PORT=5433
+POSTGRES_PORT=5435
 POSTGRES_USER="test_user"
 POSTGRES_DB="test_db"
 POSTGRES_PASSWORD="testpass123"
@@ -213,6 +213,28 @@ detect_database_environment() {
     fi
 }
 
+# Check if a PostgreSQL server is already accepting connections on the target port
+# (e.g. from another Docker container or a local postgres instance)
+port_occupied_by_postgres() {
+    # Prefer pg_isready if available, fall back to nc TCP probe
+    if command -v pg_isready &> /dev/null; then
+        pg_isready -h localhost -p "$POSTGRES_PORT" -q > /dev/null 2>&1
+    elif command -v nc &> /dev/null; then
+        nc -z localhost "$POSTGRES_PORT" > /dev/null 2>&1
+    elif command -v docker &> /dev/null; then
+        # Use Docker networking to probe the port from inside a throwaway container
+        docker run --rm --network host alpine/curl -sf --max-time 2 "localhost:${POSTGRES_PORT}" > /dev/null 2>&1
+    else
+        return 1
+    fi
+}
+
+# Find the Docker container that is listening on a given port
+find_container_on_port() {
+    local port="$1"
+    docker ps --filter "publish=${port}" --format '{{.Names}}' 2>/dev/null | head -1
+}
+
 # Function to start PostgreSQL container
 start_postgres() {
     if container_running; then
@@ -220,15 +242,29 @@ start_postgres() {
         return 0
     fi
 
+    # If our container exists but is stopped, try to start it
     if container_exists; then
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Starting stopped PostgreSQL container...${NC}"
-        docker start "$POSTGRES_CONTAINER" > /dev/null
-        wait_for_postgres
-        return $?
+        docker start "$POSTGRES_CONTAINER" > /dev/null 2>&1
+        if wait_for_postgres; then
+            return 0
+        fi
+        # Container start may have failed (e.g. port conflict); fall through
+        printf '%b\n' "${YELLOW}[Pre-commit Tests] Container start failed, checking for existing PostgreSQL on port ${POSTGRES_PORT}...${NC}"
+        local existing
+        existing=$(find_container_on_port "$POSTGRES_PORT")
+        if [[ -n "$existing" ]]; then
+            printf '%b\n' "${GREEN}[Pre-commit Tests] Found existing PostgreSQL container '${existing}' on port ${POSTGRES_PORT}${NC}"
+            POSTGRES_CONTAINER="$existing"
+            CREATED_NEW_CONTAINER=false
+            _ensure_test_user_and_db_docker
+            return 0
+        fi
+        return 1
     fi
 
     printf '%b\n' "${YELLOW}[Pre-commit Tests] Creating new PostgreSQL container...${NC}"
-    docker run -d \
+    if ! docker run -d \
         --name "$POSTGRES_CONTAINER" \
         -e POSTGRES_USER="$POSTGRES_USER" \
         -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
@@ -236,13 +272,45 @@ start_postgres() {
         -e POSTGRES_HOST_AUTH_METHOD=trust \
         -p "$POSTGRES_PORT":5432 \
         postgres:15-alpine \
-        > /dev/null
+        > /dev/null 2>&1; then
+        # Container creation failed — likely port conflict; check for existing postgres on this port
+        printf '%b\n' "${YELLOW}[Pre-commit Tests] Container creation failed (port ${POSTGRES_PORT} may be in use). Checking for existing PostgreSQL...${NC}"
+        docker rm -f "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+        CREATED_NEW_CONTAINER=false
+        local existing
+        existing=$(find_container_on_port "$POSTGRES_PORT")
+        if [[ -n "$existing" ]]; then
+            printf '%b\n' "${GREEN}[Pre-commit Tests] Found existing PostgreSQL container '${existing}' on port ${POSTGRES_PORT}${NC}"
+            POSTGRES_CONTAINER="$existing"
+            _ensure_test_user_and_db_docker
+            return 0
+        fi
+        return 1
+    fi
 
     # Allow time for Colima port forwarding to be established
     sleep 3
 
     wait_for_postgres
     return $?
+}
+
+# Ensure the test user and test database exist on a Docker-managed PostgreSQL
+# container (used when we piggyback on an existing container due to port conflict)
+_ensure_test_user_and_db_docker() {
+    printf '%b\n' "${YELLOW}[Pre-commit Tests] Ensuring test user and database exist on '${POSTGRES_CONTAINER}'...${NC}"
+    # Use postgres superuser to create the test role with SUPERUSER (matches the
+    # privilege level the script expects when it creates its own container via
+    # docker run POSTGRES_USER=test_user)
+    docker exec "$POSTGRES_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+        "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${POSTGRES_USER}') THEN CREATE ROLE ${POSTGRES_USER} SUPERUSER LOGIN PASSWORD '${POSTGRES_PASSWORD}'; END IF; END \$\$;" > /dev/null 2>&1
+    local db_exists
+    db_exists=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" 2>/dev/null)
+    if [[ "$db_exists" != "1" ]]; then
+        docker exec "$POSTGRES_CONTAINER" psql -U postgres -d postgres -c \
+            "CREATE DATABASE ${POSTGRES_DB} OWNER ${POSTGRES_USER};" > /dev/null 2>&1
+    fi
+    printf '%b\n' "${GREEN}[Pre-commit Tests] Test user and database ready${NC}"
 }
 
 # Function to execute SQL file against database
@@ -507,12 +575,25 @@ if [[ "$USER_PROVIDED_TEST_DB" == "false" && "$USER_PROVIDED_INTEGRATION_DB" == 
         if start_postgres; then
             export TEST_DATABASE_URL="$DEFAULT_TEST_DATABASE_URL"
             export DATABASE_INTEGRATION_URL="$DEFAULT_INTEGRATION_DATABASE_URL"
-            reset_managed_database
-            printf '%b\n' "${GREEN}[Pre-commit Tests] Running with managed PostgreSQL backend at ${TEST_DATABASE_URL}${NC}"
-            printf '%b\n' "${GREEN}[Pre-commit Tests] Integration tests will target ${DATABASE_INTEGRATION_URL}${NC}"
 
-            # Unified schema setup for managed Docker environment
-            setup_database_schema "managed_docker"
+            # If our managed container is running, use docker exec for schema setup.
+            # Otherwise an existing postgres is serving on the port (e.g. another
+            # container) and we must use the external / psql path.
+            if container_running; then
+                reset_managed_database
+                printf '%b\n' "${GREEN}[Pre-commit Tests] Running with PostgreSQL backend at ${TEST_DATABASE_URL}${NC}"
+                printf '%b\n' "${GREEN}[Pre-commit Tests] Integration tests will target ${DATABASE_INTEGRATION_URL}${NC}"
+
+                # Unified schema setup for managed Docker environment
+                setup_database_schema "managed_docker"
+            else
+                printf '%b\n' "${GREEN}[Pre-commit Tests] Detected existing PostgreSQL on port ${POSTGRES_PORT}; using external schema path${NC}"
+                printf '%b\n' "${GREEN}[Pre-commit Tests] Running with PostgreSQL backend at ${TEST_DATABASE_URL}${NC}"
+                printf '%b\n' "${GREEN}[Pre-commit Tests] Integration tests will target ${DATABASE_INTEGRATION_URL}${NC}"
+                reset_external_database
+                ensure_local_user_and_db
+                setup_database_schema "external"
+            fi
         else
             printf '%b\n' "${RED}[Pre-commit Tests] PostgreSQL failed to start; aborting tests${NC}"
             exit 1

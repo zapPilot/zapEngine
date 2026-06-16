@@ -6,61 +6,51 @@ import 'package:ai_podcast_mobile/state/feed_pagination_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('loadFirstPage hydrates user state and exposes the first page',
-      () async {
-    final service = _FeedEpisodeService(
-      pages: {
-        null: EpisodePage(
-          items: [_episode('episode-1')],
-          nextCursor: '20',
-        ),
-      },
-      states: const {
-        'episode-1': UserEpisodeState(
-          listened: false,
-          lastPositionSeconds: 90,
-        ),
-      },
-    );
-    final seededEpisodes = <List<Episode>>[];
-    final controller = FeedPaginationController(
-      episodeService: service,
-      onEpisodesChanged: seededEpisodes.add,
-    );
+  test(
+    'loadFirstPage hydrates user state and exposes the first page',
+    () async {
+      final service = _FeedEpisodeService(
+        pages: {
+          null: EpisodePage(items: [_episode('episode-1')], nextCursor: '20'),
+        },
+        states: const {
+          'episode-1': UserEpisodeState(
+            listened: false,
+            lastPositionSeconds: 90,
+          ),
+        },
+      );
+      final seededEpisodes = <List<Episode>>[];
+      final controller = FeedPaginationController(
+        episodeService: service,
+        onEpisodesChanged: seededEpisodes.add,
+      );
 
-    await controller.loadFirstPage(
-      userId: 'user-1',
-      languageCode: AppConfig.contentLanguageCode,
-    );
+      await controller.loadFirstPage(
+        userId: 'user-1',
+        languageCode: AppConfig.contentLanguageCode,
+      );
 
-    expect(controller.loading, isFalse);
-    expect(controller.error, isNull);
-    expect(controller.episodes, hasLength(1));
-    expect(controller.episodes.single.lastPositionSeconds, 90);
-    expect(controller.nextCursor, '20');
-    expect(service.userStateRequests, 1);
-    expect(seededEpisodes.single, controller.episodes);
-  });
+      expect(controller.loading, isFalse);
+      expect(controller.error, isNull);
+      expect(controller.episodes, hasLength(1));
+      expect(controller.episodes.single.lastPositionSeconds, 90);
+      expect(controller.nextCursor, '20');
+      expect(service.userStateRequests, 1);
+      expect(seededEpisodes.single, controller.episodes);
+    },
+  );
 
   test('loadMore appends the next page and preserves the cursor', () async {
     final service = _FeedEpisodeService(
       pages: {
-        null: EpisodePage(
-          items: [_episode('episode-1')],
-          nextCursor: '20',
-        ),
-        '20': EpisodePage(
-          items: [_episode('episode-2')],
-          nextCursor: null,
-        ),
+        null: EpisodePage(items: [_episode('episode-1')], nextCursor: '20'),
+        '20': EpisodePage(items: [_episode('episode-2')], nextCursor: null),
       },
     );
     final controller = FeedPaginationController(episodeService: service);
 
-    await controller.loadFirstPage(
-      userId: null,
-      languageCode: 'en',
-    );
+    await controller.loadFirstPage(userId: null, languageCode: 'en');
     await controller.loadMore();
 
     expect(service.requests, [
@@ -100,10 +90,7 @@ void main() {
 }
 
 class _FeedEpisodeService extends EpisodeService {
-  _FeedEpisodeService({
-    required this.pages,
-    this.states = const {},
-  });
+  _FeedEpisodeService({required this.pages, this.states = const {}});
 
   final Map<String?, EpisodePage> pages;
   final Map<String, UserEpisodeState> states;

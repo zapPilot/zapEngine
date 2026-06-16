@@ -31,27 +31,15 @@ class AppLogger {
 
   static void Function(LogRecord record)? sink;
 
-  static void info(
-    String message, [
-    Object? error,
-    StackTrace? stackTrace,
-  ]) {
+  static void info(String message, [Object? error, StackTrace? stackTrace]) {
     _log(LogLevel.info, message, error, stackTrace);
   }
 
-  static void warn(
-    String message, [
-    Object? error,
-    StackTrace? stackTrace,
-  ]) {
+  static void warn(String message, [Object? error, StackTrace? stackTrace]) {
     _log(LogLevel.warn, message, error, stackTrace);
   }
 
-  static void error(
-    String message, [
-    Object? error,
-    StackTrace? stackTrace,
-  ]) {
+  static void error(String message, [Object? error, StackTrace? stackTrace]) {
     _log(LogLevel.error, message, error, stackTrace);
   }
 

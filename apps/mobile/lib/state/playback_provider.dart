@@ -399,11 +399,7 @@ class PlaybackProvider extends ChangeNotifier {
         seconds: seconds,
       );
     } catch (error, stackTrace) {
-      AppLogger.warn(
-        'Playback position persistence failed',
-        error,
-        stackTrace,
-      );
+      AppLogger.warn('Playback position persistence failed', error, stackTrace);
     }
   }
 

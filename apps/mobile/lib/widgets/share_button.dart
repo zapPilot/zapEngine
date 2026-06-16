@@ -54,7 +54,10 @@ class ShareButton extends StatelessWidget {
       );
     } catch (error, stackTrace) {
       AppLogger.warn(
-          'Failed to share episode ${episode.id}', error, stackTrace);
+        'Failed to share episode ${episode.id}',
+        error,
+        stackTrace,
+      );
       if (!context.mounted) return;
 
       context.showMessage('分享失敗，請稍後再試');
