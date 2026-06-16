@@ -17,7 +17,7 @@ description: >-
 surfaces in one pass, fix them in a batch, push once.**
 
 The round-trip loop is not bad luck — it's structural. The CI "check" step is a
-**`set -e` sequential gate** ([scripts/ci-autofix/gate.sh](../../../scripts/ci-autofix/gate.sh),
+**`set -e` sequential gate** ([scripts/verify-ci.sh](../../../scripts/verify-ci.sh),
 wired to `pnpm verify:ci`) that runs the core jobs in order
 (`format repo contracts type-check lint test deadcode dup analytics`) and
 **stops at the first failure**. So each push only ever reveals the *next*
@@ -37,10 +37,9 @@ three steps:
 | Security audit (Node + Python) | `pnpm security:audit:core` |
 
 **The gap that bites you:** `security:audit:core` is **NOT** part of
-`verify:ci` and **NOT** fixed by `ci-autofix` (its fixes need `pnpm-lock.yaml`
-edits, a protected path). Coverage / mobile / Docker are also separate CI jobs,
-not in the local gate. So a green `verify:ci` does **not** mean the audit step
-will pass — run it yourself.
+`verify:ci`. Coverage / mobile / Docker are also separate CI jobs, not in the
+local gate. So a green `verify:ci` does **not** mean the audit step will pass —
+run it yourself.
 
 ## See every failure at once
 
@@ -59,9 +58,8 @@ pnpm verify:full:parallel      # writes .ai-verify/result.json + logs/<job>.log
 pnpm security:audit:core
 ```
 
-Or `pnpm ci-autofix -- --model <provider/model>` to autonomously loop-fix the
-core jobs (still NOT the audit). Read the failing job's log at
-`.ai-verify/logs/<job>.log`.
+Read the failing job's log at `.ai-verify/logs/<job>.log`, fix, re-run. Drive the
+fixes with whatever agent you use (e.g. OpenCode `/goal`).
 
 **Two footguns of the batch approach:**
 
@@ -69,9 +67,9 @@ core jobs (still NOT the audit). Read the failing job's log at
   previously-green job (removing a "dead" export breaks a type, a schema edit
   breaks a test). Run `pnpm verify:full:parallel` a *second* time after the
   batch — don't push on the first green-by-fixing pass.
-- If `detect.sh` prints "warmup had issues", multi-job `TS2307`/build crashes in
-  the parallel logs are suspect — re-run `pnpm build:core` and re-check before
-  chasing phantom type errors across several logs.
+- If `verify:full:parallel` prints "warmup had issues", multi-job `TS2307`/build
+  crashes in the parallel logs are suspect — re-run `pnpm build:core` and
+  re-check before chasing phantom type errors across several logs.
 
 ## verify command cheat-sheet (the only ones worth knowing)
 
@@ -98,7 +96,7 @@ and have been removed.
 | `lint` / `format` "would change" | format | easy | run `eslint --fix` / `prettier --write` — but if it "keeps reverting" → **monorepo-lint-format-loop** |
 | "Unexpected token 'export'" / build crash | build / import | **hard** | **monorepo-build-import-errors** (+ frontend-test-ci-debugging for Vitest) |
 | `contracts` parity (zod ↔ pydantic) | contracts | medium | re-run `pnpm contracts:check`, fix the schema |
-| security audit | vulnerable dep | medium | add a `pnpm.overrides` entry in **root package.json** then `pnpm install` (this regenerates the lockfile — don't hand-edit it, don't bump `--audit-level`). Python side: constrain in `pyproject` / `uv lock`. Not fixed by `ci-autofix`. |
+| security audit | vulnerable dep | medium | add a `pnpm.overrides` entry in **root package.json** then `pnpm install` (this regenerates the lockfile — don't hand-edit it, don't bump `--audit-level`). Python side: constrain in `pyproject` / `uv lock`. Run `pnpm security:audit:core` to confirm. |
 
 ## Rationalizations — STOP
 

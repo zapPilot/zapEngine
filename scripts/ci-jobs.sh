@@ -1,29 +1,17 @@
 #!/usr/bin/env bash
-# scripts/ci-autofix/registry.sh
+# scripts/ci-jobs.sh
 #
-# Per-repo ci-autofix config -- the ONLY file you customize when copying the
-# scripts/ci-autofix/ folder into another repo.  Sourced by ci-autofix.sh,
-# detect.sh, and gate.sh.
-#
-# Declare your CI jobs explicitly.  Each job has:
-#   - A stable ID (used as key everywhere)
-#   - A human-readable display name
-#   - The exact command to run
-#   - A log filename (placed under .ai-verify/logs/ by callers)
-#   - Deterministic priority via order in CORE_CI_JOB_IDS (first = fix first)
-#
-# CI_PROTECTED_PATHS lists repo-specific globs the fixer must never edit, on top
-# of the portable base baked into ci-autofix.sh's is_protected_path().
+# Canonical list of core CI jobs, sourced by scripts/verify-ci.sh (sequential
+# gate, = `pnpm verify:ci`) and scripts/verify-ci-parallel.sh (parallel runner,
+# = `pnpm verify:full:parallel`). Each job has a stable ID, a display name, the
+# exact command, and a log filename (placed under .ai-verify/logs/ by callers).
+# Priority is implicit: first in CORE_CI_JOB_IDS = run/fix first.
 
-# Ordered list of job IDs.  Priority is implicit: first = highest.
+# Ordered list of job IDs. Priority is implicit: first = highest.
 CORE_CI_JOB_IDS="format repo contracts type-check lint test deadcode dup analytics"
 
-# Repo-specific protected globs (whitespace-separated), enforced on top of the
-# portable base in ci-autofix.sh.  These are zapEngine extras the base omits.
-CI_PROTECTED_PATHS="scripts/lint/* scripts/verify-*.sh"
-
-# Optional warmup run once by detect.sh before the parallel fan-out, so the
-# turbo jobs hit cache for their `^build` dependency instead of rebuilding
+# Optional warmup run once by verify-ci-parallel.sh before the parallel fan-out,
+# so the turbo jobs hit cache for their `^build` dependency instead of rebuilding
 # internal packages concurrently. Leave empty to skip.
 CI_WARMUP_COMMAND="pnpm turbo run build --filter=./packages/*"
 

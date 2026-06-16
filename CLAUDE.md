@@ -128,29 +128,17 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 Do NOT run `verify:ci` during the fix loop — it is too slow.
 
-### CI autofix loop (autonomous)
+### What the local gate covers
 
-One command auto-detects all core CI failures and fixes them:
-
-```bash
-pnpm ci-autofix -- --model provider/model
-```
-
-The script runs all core CI jobs in parallel, identifies the failing job, sends a compact failure log to a fresh OpenCode session, reruns only that job, and re-scans until everything passes. The final step always runs canonical `pnpm verify:ci`.
-
-Works in dirty working trees — staged, unstaged, and untracked files are preserved. Each repair uses a fresh agent session with no state leakage between attempts.
-
-Optional controls:
-
-```bash
---max-iters 20  # default: 0 (unlimited)
---timeout 900   # per-job timeout in seconds; 0 disables
---agent ci-fixer
-```
-
-The loop stops when: all jobs pass, the iteration cap is reached, OpenCode fails three consecutive times without edits, the same failure receives no edits three times, or the agent touches a protected path. Protected edits are restored automatically and recorded in `.agent-loop/blocker-report.txt`.
-
-Core CI covers: format check, repository drift checks, contracts parity, per-task workspace checks (type-check, lint, test, deadcode, duplication — each its own job), and analytics checks. It does NOT cover coverage, mobile, Docker, security audit, or deploy jobs — those are handled by GitHub Actions.
+`pnpm verify:ci` (sequential gate, `scripts/verify-ci.sh`) and
+`pnpm verify:full:parallel` (parallel runner, `scripts/verify-ci-parallel.sh`,
+writes `.ai-verify/result.json` + `.ai-verify/logs/<job>.log`) cover the core
+jobs in `scripts/ci-jobs.sh`: format check, repository drift checks, contracts
+parity, per-task workspace checks (type-check, lint, test, deadcode,
+duplication), and analytics checks. They do NOT cover coverage, mobile, Docker,
+security audit (`pnpm security:audit:core`), or deploy — those are separate CI
+jobs / GitHub Actions. To fix failures, drive your agent (e.g. OpenCode `/goal`)
+— see the `monorepo-ci-debugging` skill.
 
 ### CI stage scripts (for granular debugging)
 

@@ -101,14 +101,6 @@ command) only *fail*; they will not auto-correct. **Don't loop expecting
 auto-fix — fix the structure manually.** (Exception: `snapshot-sync` *has*
 `--fix` and the pre-commit hook runs it for you.)
 
-## Protected paths get reverted by the autofix loop
-
-If you "fix CI" by editing one of these inside `pnpm ci-autofix`, the loop
-auto-restores it and your edit vanishes — same revert symptom, different cause:
-`pnpm-lock.yaml`, `.github/workflows/*`, `scripts/ci-autofix/*`,
-`scripts/lint/*`, `scripts/verify-*.sh`, `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`,
-`coverage/*`. Don't fix CI by editing these.
-
 ## Rationalizations — STOP
 
 | Excuse | Reality |

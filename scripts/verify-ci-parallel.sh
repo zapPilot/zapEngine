@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# scripts/ci-autofix/detect.sh
+# scripts/verify-ci-parallel.sh
 #
-# Runs every CI job (from registry.sh) in parallel, collects results, prints a
-# summary, and writes a machine-readable .ai-verify/result.json.
+# Runs every core CI job (from ci-jobs.sh) in parallel, collects results, prints
+# a summary, and writes a machine-readable .ai-verify/result.json. Wired to
+# `pnpm verify:full:parallel` — use it to see ALL failures at once instead of the
+# stop-at-first-failure sequential gate (verify:ci).
 #
 # Options:
 #   --timeout SECONDS   Per-job timeout (default: 0 = disabled)
@@ -15,12 +17,12 @@ if git rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# This script lives at <repo>/scripts/ci-autofix/; repo root is two levels up.
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# This script lives at <repo>/scripts/; repo root is one level up.
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.ai-verify/logs"
 RESULT_JSON="$ROOT_DIR/.ai-verify/result.json"
 
-source "$SCRIPT_DIR/registry.sh"
+source "$SCRIPT_DIR/ci-jobs.sh"
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 ITER_TIMEOUT=0
@@ -63,10 +65,10 @@ fi
 # ── Prepare ──────────────────────────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
 rm -f "$RESULT_JSON" "$RESULT_JSON.tmp"
-# Clear stale turbo run summaries so the autofix loop only reads this round's.
+# Clear stale turbo run summaries so a reader only sees this round's.
 rm -rf "$ROOT_DIR/.turbo/runs"
 
-# Optional warmup (CI_WARMUP_COMMAND in registry.sh): build internal packages
+# Optional warmup (CI_WARMUP_COMMAND in ci-jobs.sh): build internal packages
 # once so the parallel turbo jobs below hit cache for their `^build` dependency
 # instead of each rebuilding packages concurrently (redundant work + dist
 # contention on a cold cache). Best-effort: a genuine build break still surfaces
@@ -85,8 +87,8 @@ declare -a job_pids=()
 
 for id in $CORE_CI_JOB_IDS; do
   cmd="$(core_ci_job_command "$id")"
-  # Turbo jobs: emit a run summary (.turbo/runs/*.json) so the autofix loop can
-  # localize the failing package from a machine-readable source.
+  # Turbo jobs: emit a run summary (.turbo/runs/*.json) so a reader can localize
+  # the failing package from a machine-readable source.
   case "$cmd" in
     *"turbo run "*) cmd="$cmd --summarize" ;;
   esac
