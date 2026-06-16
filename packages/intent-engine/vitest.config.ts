@@ -6,7 +6,7 @@
 //
 // The package was previously running with no vitest.config.ts (default
 // discovery). Adding this file is intentional — it makes coverage explicit
-// and locks in the thresholds in CI via `pnpm test:coverage`.
+// and locks in the thresholds in CI via `pnpm test coverage`.
 
 import { defineConfig } from 'vitest/config';
 

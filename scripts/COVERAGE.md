@@ -7,11 +7,11 @@ new PRs cannot drop below by more than 0.3 percentage points.
 
 ## Scripts
 
-| Script                       | Purpose                                                                       |
-| ---------------------------- | ----------------------------------------------------------------------------- |
-| `pnpm coverage:summary`      | Run all coverage suites + aggregate into `coverage/summary.json`.             |
-| `pnpm coverage:check`        | Run all coverage suites + exit 1 if any workspace regressed vs baseline.json. |
-| `pnpm coverage:scripts:test` | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`.      |
+| Script                  | Purpose                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `pnpm coverage summary` | Run all coverage suites + aggregate into `coverage/summary.json`.             |
+| `pnpm coverage check`   | Run all coverage suites + exit 1 if any workspace regressed vs baseline.json. |
+| `pnpm coverage test`    | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`.      |
 
 The aggregator walks `apps/*/coverage/coverage-summary.json` (vitest v8) and
 `apps/analytics-engine/htmlcov/coverage.xml` (pytest-cov Cobertura). New
@@ -19,7 +19,7 @@ workspaces with a `coverage/coverage-summary.json` are discovered automatically.
 
 ## Regenerating the baseline (committed)
 
-`coverage/baseline.json` is the floor that `pnpm coverage:check` enforces. Only
+`coverage/baseline.json` is the floor that `pnpm coverage check` enforces. Only
 regenerate it when the team agrees to ratchet the floor up (e.g. after landing
 a coverage improvement on `main`).
 
@@ -35,7 +35,7 @@ export DATABASE_READ_ONLY_URL="postgresql://...read-only..."
 pnpm clean   # or: turbo run clean
 
 # 3. Run the full coverage sweep (~10–15 min cold, ~3 min warm).
-pnpm coverage:summary
+pnpm coverage summary
 
 # 4. Inspect coverage/summary.json — confirm every expected workspace is present.
 jq '.workspaces[] | { name, lines: .lines.pct }' coverage/summary.json
@@ -51,7 +51,7 @@ git commit -m "chore(coverage): ratchet baseline to <date>"
 
 ## Adding the gate to CI
 
-`pnpm coverage:check` is intentionally NOT part of `verify:ci` (frontend
+`pnpm coverage check` is intentionally NOT part of `verify ci` (frontend
 sharded coverage alone is ~6 min). Wire it as a parallel job in
 `.github/workflows/ci.yml`:
 
@@ -67,8 +67,8 @@ coverage:
     - uses: actions/setup-node@v4
       with: { node-version: '24', cache: 'pnpm' }
     - run: pnpm install --frozen-lockfile
-    - run: pnpm prebuild:packages
-    - run: pnpm coverage:check
+    - run: pnpm build packages
+    - run: pnpm coverage check
     - uses: actions/upload-artifact@v4
       if: always()
       with:
@@ -95,6 +95,6 @@ hard floor via vitest/pytest config:
 | `apps/landing-page`      | 70               | 65       | 70        | 70    |
 | `apps/analytics-engine`  | 95 line (pytest) |          |
 
-These are aspirational starting floors. When `pnpm coverage:check` shows a
+These are aspirational starting floors. When `pnpm coverage check` shows a
 workspace consistently above its floor, ratchet the config-level threshold
 up and update both this table and `coverage/baseline.json` in the same PR.

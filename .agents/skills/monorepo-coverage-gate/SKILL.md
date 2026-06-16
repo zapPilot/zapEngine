@@ -1,14 +1,14 @@
 ---
 name: monorepo-coverage-gate
 description: >-
-  Use when the coverage CI job fails or `pnpm coverage:check` exits non-zero —
+  Use when the coverage CI job fails or `pnpm coverage check` exits non-zero —
   "coverage for lines does not meet threshold", "workspace X regressed N pp vs
-  baseline", a red `coverage` job while `verify:ci` is green, or you're deciding
+  baseline", a red `coverage` job while `verify ci` is green, or you're deciding
   whether to add tests, ignore a branch, or move the baseline. Covers the
   monorepo no-regression gate (`coverage-regression.ts`, baseline.json) and the
   per-workspace absolute floors (vitest.config / pyproject / mobile 30 /
   analytics-engine 95). Symptoms: regenerating baseline.json to make it pass,
-  lowering a vitest/pyproject threshold, "verify:ci passed so coverage is fine",
+  lowering a vitest/pyproject threshold, "verify ci passed so coverage is fine",
   blanket `c8 ignore` to dodge a failure.
 ---
 
@@ -30,11 +30,11 @@ know which one fired, because the fix differs.
    a committed snapshot (`coverage/baseline.json`) that a PR may not drop below
    by more than **`REGRESSION_THRESHOLD_PP = 0.3`** percentage points, any
    workspace. The aggregator walks vitest `coverage/coverage-summary.json` +
-   analytics-engine `htmlcov/coverage.xml`. Run via `pnpm coverage:check`.
+   analytics-engine `htmlcov/coverage.xml`. Run via `pnpm coverage check`.
    - Message looks like: **"workspace W regressed … vs baseline"**
 
-**`pnpm coverage:check` is NOT part of `verify:ci`** (frontend sharded coverage
-alone is ~6 min) — it's a **separate CI job**. A green `verify:ci` tells you
+**`pnpm coverage check` is NOT part of `verify ci`** (frontend sharded coverage
+alone is ~6 min) — it's a **separate CI job**. A green `verify ci` tells you
 nothing about coverage; run the coverage job's command yourself.
 
 > The authoritative reference for the tooling, the aggregator sources, and the
@@ -82,7 +82,7 @@ every future PR, not just yours.
 ```bash
 # whole gate (analytics-engine needs the read-only replica; ~10–15 min cold)
 export DATABASE_READ_ONLY_URL="postgresql://…read-only…"
-pnpm coverage:check
+pnpm coverage check
 
 # one workspace, fast inner loop
 pnpm --filter @zapengine/<pkg> test:coverage   # then read coverage/coverage-summary.json
@@ -94,14 +94,14 @@ pnpm --filter @zapengine/<pkg> test:coverage   # then read coverage/coverage-sum
 | --- | --- |
 | "Just `cp coverage/summary.json coverage/baseline.json` and commit — gate passes." | Baseline only ratchets **up**, on main, by agreement. Absorbing your regression into it removes the floor. |
 | "Lower the vitest/pyproject threshold a couple points." | Weakens the absolute floor for everyone. Add tests instead. |
-| "`verify:ci` is green, so coverage is fine." | Coverage is a **separate** CI job, not in `verify:ci`. |
+| "`verify ci` is green, so coverage is fine." | Coverage is a **separate** CI job, not in `verify ci`. |
 | "Wrap it in `c8 ignore` / `# pragma: no cover` and move on." | Only legitimate if the code is truly unreachable, with a stated reason. Prefer deleting dead code or writing the test. |
 | "The whole monorepo coverage run is slow, I'll skip it." | Run the single failing workspace's `test:coverage` — fast, and it's the one that regressed. |
 
 ## Verification
 
 - Single workspace `test:coverage` shows your new lines covered.
-- `pnpm coverage:check` exits 0 (set `DATABASE_READ_ONLY_URL` for the
+- `pnpm coverage check` exits 0 (set `DATABASE_READ_ONLY_URL` for the
   analytics-engine suite).
 - Push and read the CI **coverage** job (it stops at the first failing
   workspace; fixing one may reveal the next).

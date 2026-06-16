@@ -83,16 +83,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build core packages
-        run: pnpm run build:core
+        run: pnpm run build core
 
       - name: Run check-variant tasks
-        run: pnpm run verify:ci
+        run: pnpm run verify ci
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Security audit (Node + Python)
-        run: pnpm run security:audit:core
+        run: pnpm run security audit core
 
   mobile-gates:
     runs-on: ubuntu-latest
@@ -314,7 +314,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Self-test the coverage scripts
-        run: pnpm run coverage:scripts:test
+        run: pnpm run coverage test
 
       - name: Detect baseline presence
         id: baseline
@@ -328,11 +328,11 @@ jobs:
 
       - name: Coverage check (strict, with no-regression gate)
         if: steps.baseline.outputs.exists == 'true'
-        run: pnpm coverage:check
+        run: pnpm coverage check
 
       - name: Coverage summary only (no baseline yet)
         if: steps.baseline.outputs.exists == 'false'
-        run: pnpm coverage:summary
+        run: pnpm coverage summary
 
       - name: Upload coverage summary artifact
         if: always()

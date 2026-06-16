@@ -3,7 +3,7 @@
     "app": "account-engine",
     "secret_name": "FLY_API_TOKEN_ACCOUNT",
     "fly_config": "apps/account-engine/fly.toml",
-    "verify_package_script": "verify:account-engine-package",
+    "verify_package_script": "verify deploy",
     "capture_release_metadata": true,
     "verify_docker": true
   },

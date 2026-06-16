@@ -2,7 +2,7 @@
 # scripts/verify-ci.sh
 #
 # Canonical sequential CI gate. Runs every job (from ci-jobs.sh) in priority
-# order; stops on the first failure (set -e). Wired to `pnpm verify:ci` and run
+# order; stops on the first failure (set -e). Wired to `pnpm verify ci` and run
 # by GitHub CI (.github/workflows/ci.yml).
 
 set -euo pipefail

@@ -4,7 +4,7 @@
 // workspace's lines coverage dropped by more than REGRESSION_THRESHOLD_PP.
 //
 // Companion to `scripts/coverage-summary.ts`; wired via the root
-// `pnpm coverage:check` script.
+// `pnpm coverage check` script.
 
 import { promises as fs } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 
   const current = await loadOrExit(
     currentPath,
-    `Missing ${currentPath}. Run \`pnpm coverage:summary\` first.`,
+    `Missing ${currentPath}. Run \`pnpm coverage summary\` first.`,
   );
   const baseline = await loadOrExit(
     baselinePath,

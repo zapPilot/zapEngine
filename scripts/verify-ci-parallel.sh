@@ -3,8 +3,8 @@
 #
 # Runs every core CI job (from ci-jobs.sh) in parallel, collects results, prints
 # a summary, and writes a machine-readable .ai-verify/result.json. Wired to
-# `pnpm verify:full:parallel` — use it to see ALL failures at once instead of the
-# stop-at-first-failure sequential gate (verify:ci).
+# `pnpm verify parallel` — use it to see ALL failures at once instead of the
+# stop-at-first-failure sequential gate (verify ci).
 #
 # Options:
 #   --timeout SECONDS   Per-job timeout (default: 0 = disabled)

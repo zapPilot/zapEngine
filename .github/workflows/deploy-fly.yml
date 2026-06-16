@@ -14,7 +14,7 @@ on:
       verify_package_script:
         type: string
         default: ""
-        description: Optional root pnpm script to run before deploy (e.g., verify:account-engine-package). Skipped when empty.
+        description: Optional root pnpm script (may include a subcommand, e.g. "verify deploy") to run before deploy. Skipped when empty.
       capture_release_metadata:
         type: boolean
         default: false
@@ -60,7 +60,9 @@ jobs:
         if: inputs.verify_package_script != ''
         env:
           VERIFY_SCRIPT: ${{ inputs.verify_package_script }}
-        run: pnpm "$VERIFY_SCRIPT"
+        # VERIFY_SCRIPT may contain a subcommand (e.g. "verify deploy"); its value is
+        # admin-controlled via .github/fly-apps.json, so intentional word-splitting is safe.
+        run: pnpm run $VERIFY_SCRIPT
 
       - name: Capture release metadata
         if: inputs.capture_release_metadata

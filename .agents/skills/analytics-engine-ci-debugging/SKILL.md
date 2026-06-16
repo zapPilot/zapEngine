@@ -5,7 +5,7 @@ description: >-
   fail — `format:check` failing on whitespace though `ruff check` / lint-staged
   was clean (ruff's linter and formatter are separate tools), a mypy strict
   missing-annotation error, a `dup:check` jscpd clone (incl. an expired
-  duplicate-quarantine), or `contracts:check` zod↔pydantic parity drift.
+  duplicate-quarantine), or `contracts check` zod↔pydantic parity drift.
   Symptoms: "ruff check passed so formatting is fine", "the pre-commit hook
   passed so format is fine", reaching for `# type: ignore` / `# noqa` to silence
   a gate, bumping the jscpd threshold. The TS lint-format-loop skill does NOT
@@ -56,8 +56,8 @@ Burned `651d7ec1` (and the cleanup `961f7186`).
 | --- | --- | --- |
 | `type-check` / `lint`'s mypy half | `mypy src` (strict) | Every function needs annotations. **Add the real types** — don't `# type: ignore` to silence it. |
 | `dup:check` | jscpd on `src` | Merge the clone, or `jscpd:ignore` an intentional one with a reason; a dated dup-quarantine that lapsed must be eliminated, not re-quarantined (`2decbc0e` → `58514fb9`). → **monorepo-dup-check** owns the jscpd mechanism repo-wide. |
-| `contracts:check` | `pnpm contracts:check` | zod↔pydantic parity. It runs `prebuild:packages` then exports the zod schemas via raw `tsx` (bypasses turbo, hence the explicit prebuild) and diffs against the pydantic models. Fix whichever side drifted — the zod schema in `@zapengine/types` or the pydantic model. |
-| `pnpm ci:analytics` | `sql:audit` + `service-reachability` + `pylint:duplicate-check` | analytics-specific gates; read the named failure. |
+| `contracts check` | `pnpm contracts check` | zod↔pydantic parity. It runs `build packages` then exports the zod schemas via raw `tsx` (bypasses turbo, hence the explicit prebuild) and diffs against the pydantic models. Fix whichever side drifted — the zod schema in `@zapengine/types` or the pydantic model. |
+| `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine` | `sql:audit` + `service-reachability` + `pylint:duplicate-check` | analytics-specific gates; read the named failure. |
 | `test:ci` | `… --cov-fail-under 95` + `test:strategy-snapshot:fast` | **95% coverage floor** (see [monorepo-coverage-gate](../monorepo-coverage-gate/SKILL.md)) and the strategy-snapshot gate. The snapshot/measurement gate needs `DATABASE_READ_ONLY_URL` (Supabase read-only replica) — it's **CI-validated only**; don't burn cycles reproducing it locally (see [apps/analytics-engine/CLAUDE.md](../../../apps/analytics-engine/CLAUDE.md)). |
 
 ## Reproduce locally
@@ -69,7 +69,7 @@ pnpm --filter @zapengine/analytics-engine run build
 # the fast, deterministic gates (no DB needed)
 pnpm --filter @zapengine/analytics-engine run format:check lint type-check
 pnpm --filter @zapengine/analytics-engine run dup:check
-pnpm contracts:check
+pnpm contracts check
 ```
 
 New dependency? `uv add <pkg>` — **never `pip install`** (it won't touch
@@ -90,8 +90,8 @@ New dependency? `uv add <pkg>` — **never `pip install`** (it won't touch
 ```bash
 pnpm --filter @zapengine/analytics-engine run format:check lint type-check
 pnpm --filter @zapengine/analytics-engine run dup:check
-pnpm contracts:check
-pnpm ci:analytics
+pnpm contracts check
+pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine
 ```
 
 All green, then push and read CI (Node 24 + the analytics snapshot gate, which
