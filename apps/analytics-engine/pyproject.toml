@@ -119,6 +119,7 @@ dev = [
     "vulture>=2.11",
     "matplotlib>=3.8.0",
     "pytest-watcher>=0.6.3",
+    "httpx2>=2.4.0",
 ]
 
 [tool.vulture]
