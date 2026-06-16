@@ -97,7 +97,7 @@ describe('TenderlyPreviewModal', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the wallet and asset flow with simulation evidence in advanced details', () => {
+  it('renders the wallet and always-visible Tenderly bundle evidence', () => {
     render(
       <TenderlyPreviewModal
         {...defaultProps}
@@ -116,17 +116,21 @@ describe('TenderlyPreviewModal', () => {
     expect(screen.getByText(/-1.2345 TKN/)).toBeInTheDocument();
     expect(screen.queryByText('Simulation evidence')).not.toBeInTheDocument();
 
-    const advancedDetails = screen
-      .getByText('Advanced details')
-      .closest('details');
-    expect(advancedDetails).toHaveTextContent('Network');
-    expect(advancedDetails).toHaveTextContent('123,456');
-    expect(advancedDetails).toHaveTextContent('Call gas');
-    expect(advancedDetails).toHaveTextContent('Expires');
+    const tenderlyEvidence = screen
+      .getByText('Simulated by Tenderly')
+      .closest('section');
+    expect(tenderlyEvidence).toHaveTextContent(
+      '1 call executed in order as one stateful bundle.',
+    );
+    expect(tenderlyEvidence).toHaveTextContent('Network');
+    expect(tenderlyEvidence).toHaveTextContent('123,456');
+    expect(tenderlyEvidence).toHaveTextContent('Call gas');
+    expect(tenderlyEvidence).toHaveTextContent('Expires');
     const tenderlyLink = screen.getByRole('link', {
       name: 'View simulation 1 on Tenderly',
     });
-    expect(advancedDetails).toContainElement(tenderlyLink);
+    expect(tenderlyEvidence).toContainElement(tenderlyLink);
+    expect(tenderlyLink).toHaveTextContent('Step 1 · Deposit');
     expect(tenderlyLink).toHaveAttribute('target', '_blank');
     expect(tenderlyLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
@@ -161,6 +165,36 @@ describe('TenderlyPreviewModal', () => {
     expect(
       screen.getByText('Spark USDC Vault With A Very Long Display Name'),
     ).toHaveClass('truncate');
+  });
+
+  it('labels public Tenderly results as steps in the same bundle', () => {
+    const firstCall = preview().calls[0]!;
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        previewData={preview({
+          calls: [
+            { ...firstCall, method: 'approve' },
+            { ...firstCall, index: 1, method: 'deposit' },
+          ],
+          shareUrls: [
+            'https://www.tdly.co/shared/simulation/sim-1',
+            'https://www.tdly.co/shared/simulation/sim-2',
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText('2 calls executed in order as one stateful bundle.'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'View simulation 1 on Tenderly' }),
+    ).toHaveTextContent('Step 1 · Approve');
+    expect(
+      screen.getByRole('link', { name: 'View simulation 2 on Tenderly' }),
+    ).toHaveTextContent('Step 2 · Deposit');
+    expect(screen.queryByText('Advanced details')).not.toBeInTheDocument();
   });
 
   it('merges approval exposure into the matching execution step', async () => {

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Loader,
   RefreshCw,
+  ShieldCheck,
   Wallet,
   X,
 } from 'lucide-react';
@@ -222,6 +223,15 @@ function ExecutionStep({
     if (details) details.open = true;
   };
 
+  const submitApproval = async () => {
+    try {
+      await onUpdateApproval(call.index, approvalAmount);
+      setEditingApproval(false);
+    } catch {
+      setEditingApproval(true);
+    }
+  };
+
   return (
     <details className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 open:bg-slate-900">
       <summary className="flex min-h-16 cursor-pointer list-none items-center gap-4 px-4 py-3 marker:hidden sm:px-5">
@@ -292,14 +302,7 @@ function ExecutionStep({
                 className="flex flex-col gap-2 sm:flex-row"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void (async () => {
-                    try {
-                      await onUpdateApproval(call.index, approvalAmount);
-                      setEditingApproval(false);
-                    } catch {
-                      // Approval update errors are surfaced via onUpdateApproval itself.
-                    }
-                  })();
+                  void submitApproval();
                 }}
               >
                 <label className="sr-only" htmlFor={`approval-${call.index}`}>
@@ -397,6 +400,82 @@ function Evidence({
         {value}
       </div>
     </div>
+  );
+}
+
+function TenderlyEvidence({
+  preview,
+  signable,
+  expired,
+}: {
+  preview: PrivyPrepareSendCallsResponse;
+  signable: boolean;
+  expired: boolean;
+}): ReactElement {
+  return (
+    <section className="mt-5 overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.035]">
+      <div className="flex items-start gap-3 border-b border-emerald-400/15 px-4 py-4">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-emerald-200">
+            Simulated by Tenderly
+          </div>
+          <div className="mt-0.5 text-xs leading-5 text-slate-400">
+            {preview.calls.length}{' '}
+            {preview.calls.length === 1 ? 'call' : 'calls'} executed in order as
+            one stateful bundle.
+          </div>
+        </div>
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        {preview.shareUrls.length > 0 && (
+          <div>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Public simulation results
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {preview.shareUrls.map((url, index) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`View simulation ${index + 1} on Tenderly`}
+                  className="inline-flex min-h-10 min-w-0 items-center gap-2 rounded-xl border border-emerald-400/25 bg-slate-950/50 px-3 text-xs font-semibold text-emerald-200 transition-colors hover:border-emerald-300/50 hover:bg-emerald-400/10"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="truncate">
+                    Step {index + 1} ·{' '}
+                    {titleCase(preview.calls[index]?.method ?? null)}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        <div
+          className={`grid gap-4 border-t border-slate-800/80 pt-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
+        >
+          <Evidence label="Network" value={networkName(preview.chainId)} />
+          <Evidence
+            label="Block"
+            value={preview.blockNumber?.toLocaleString() ?? 'Unavailable'}
+          />
+          <Evidence
+            label="Call gas"
+            value={Number(preview.callGas).toLocaleString()}
+          />
+          {(preview.status === 'passed' || preview.status === 'warning') && (
+            <Evidence
+              label="Expires"
+              value={expired ? 'Expired' : formatExpiry(preview.expiresAt)}
+            />
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -508,66 +587,11 @@ export function TenderlyPreviewModal({
             <AssetPanel title="Assets in" changes={incoming} direction="in" />
           </div>
 
-          <details className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/30">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-              Advanced details
-            </summary>
-            <div className="space-y-4 border-t border-slate-800 px-4 py-4">
-              {previewData.shareUrls.length > 0 && (
-                <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
-                  {previewData.shareUrls.map((url, index) => (
-                    <a
-                      key={url}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`View simulation ${index + 1} on Tenderly`}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-400/25 bg-indigo-400/[0.07] px-3 text-xs font-semibold text-indigo-200 transition-colors hover:border-indigo-300/50 hover:bg-indigo-400/15"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      {previewData.shareUrls.length === 1
-                        ? 'View on Tenderly'
-                        : `Simulation ${index + 1}`}
-                    </a>
-                  ))}
-                </div>
-              )}
-              <div
-                className={`grid gap-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
-              >
-                <Evidence
-                  label="Network"
-                  value={networkName(previewData.chainId)}
-                />
-                <Evidence
-                  label="Block"
-                  value={
-                    previewData.blockNumber?.toLocaleString() ?? 'Unavailable'
-                  }
-                />
-                <Evidence
-                  label="Call gas"
-                  value={Number(previewData.callGas).toLocaleString()}
-                />
-                {signable && (
-                  <Evidence
-                    label="Expires"
-                    value={
-                      expired ? 'Expired' : formatExpiry(previewData.expiresAt)
-                    }
-                  />
-                )}
-              </div>
-              <div className="border-t border-slate-800 pt-4">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Simulation fingerprint
-                </div>
-                <div className="mt-1 break-all font-mono text-xs text-slate-400">
-                  {previewData.simulationFingerprint}
-                </div>
-              </div>
-            </div>
-          </details>
+          <TenderlyEvidence
+            preview={previewData}
+            signable={signable}
+            expired={expired}
+          />
 
           {expired && (
             <div className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-center text-xs text-rose-300">
