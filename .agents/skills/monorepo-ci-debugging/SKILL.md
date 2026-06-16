@@ -92,11 +92,13 @@ and have been removed.
 | `type-check` TS error | type error | easy | fix the type inline |
 | TS2307 `cannot find module @scope/pkg` | stale dist / build order | medium | rebuild via turbo → **monorepo-build-import-errors** |
 | `deadcode` / knip "unused" | deadcode | easy | remove, or knip-ignore a build-only shim / barrel re-export |
-| `dup:check` / jscpd clone | duplication | easy | merge, or `jscpd:ignore` an intentional shared signature |
+| `dup:check` / jscpd clone | duplication | easy | merge the clone, or `jscpd:ignore` an intentional one → **monorepo-dup-check** (also when a dated dup quarantine expired) |
 | `lint` / `format` "would change" | format | easy | run `eslint --fix` / `prettier --write` — but if it "keeps reverting" → **monorepo-lint-format-loop** |
 | "Unexpected token 'export'" / build crash | build / import | **hard** | **monorepo-build-import-errors** (+ frontend-test-ci-debugging for Vitest) |
-| `contracts` parity (zod ↔ pydantic) | contracts | medium | re-run `pnpm contracts:check`, fix the schema |
-| security audit | vulnerable dep | medium | add a `pnpm.overrides` entry in **root package.json** then `pnpm install` (this regenerates the lockfile — don't hand-edit it, don't bump `--audit-level`). Python side: constrain in `pyproject` / `uv lock`. Run `pnpm security:audit:core` to confirm. |
+| `coverage` job / `pnpm coverage:check` regressed or below threshold | coverage | medium | **monorepo-coverage-gate** — a SEPARATE job, not in `verify:ci` |
+| analytics-engine `format:check` clean-lint-but-fails / mypy strict / Python `dup:check` | python | medium | **analytics-engine-ci-debugging** (ruff `check` ≠ `format`) |
+| `contracts` parity (zod ↔ pydantic) | contracts | medium | re-run `pnpm contracts:check`, fix the drifted side → **analytics-engine-ci-debugging** |
+| security audit | vulnerable dep | medium | **monorepo-security-audit** — `pnpm-workspace.yaml` `overrides:`/`catalog:` (npm) or a `pyproject` constraint (uv), then `pnpm install`/`uv lock` and re-run `pnpm security:audit:core`. Never bump `--audit-level`. |
 
 ## Rationalizations — STOP
 
