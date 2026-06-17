@@ -12,6 +12,19 @@ description: >-
 
 # Monorepo build & import errors (pnpm + turbo)
 
+## Where the error already is
+
+Don't re-discover the failure — it's already captured. A local `pnpm verify
+parallel` (or `verify changed`) writes `.ai-verify/result.json` (per-job status)
+plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
+failed job, then read its log:
+
+- a build/import break surfaces in **`type-check`**, **`lint`**, or **`test`** →
+  `.ai-verify/logs/{type-check,lint,test}.log`
+
+That log holds the full error. The mechanism-specific commands below are for
+isolating one package/file once you've located it — not the entry point.
+
 ## Core principle
 
 **Identify the mechanism before touching any config. Reproduce the single

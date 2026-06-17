@@ -11,6 +11,20 @@ description: >-
 
 # Breaking the lint / format / codegen revert loop
 
+## Where the error already is
+
+When this loop shows up as a CI failure, it's already captured: a local `pnpm
+verify parallel` (or `verify changed`) writes `.ai-verify/result.json` + one log
+per job under `.ai-verify/logs/`. Read `result.json`, find the failed job, then
+read its log:
+
+- a formatter / lint divergence surfaces in **`format`** or **`lint`** →
+  `.ai-verify/logs/{format,lint}.log`
+
+That log shows what CI's read-only check rejected. The git-diff diagnosis below
+is how you find *which deterministic local tool* rewrote the file — the other
+half of the loop.
+
 ## Core principle — reframe it
 
 **"My edit keeps getting reverted" is the wrong frame. The right frame is: a

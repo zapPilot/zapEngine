@@ -69,7 +69,8 @@
       "pnpm --filter @zapengine/eslint-config exec prettier --write"
     ],
     "apps/analytics-engine/**/*.py": [
-      "pnpm --filter @zapengine/analytics-engine exec uv run ruff check --fix"
+      "pnpm --filter @zapengine/analytics-engine exec uv run ruff check --fix",
+      "pnpm --filter @zapengine/analytics-engine exec uv run ruff format"
     ]
   }
 }

@@ -61,6 +61,12 @@ pnpm security audit core
 Read the failing job's log at `.ai-verify/logs/<job>.log`, fix, re-run. Drive the
 fixes with whatever agent you use (e.g. OpenCode `/goal`).
 
+**Every `verify` variant writes the same `.ai-verify/result.json` + per-job
+logs** — not just `parallel`. `verify ci` (sequential) records each job as it
+runs; `verify changed` / `staged` / `branch` record a single aggregate entry and
+add turbo `--summarize` (`.turbo/runs/*.json`) you can drill into. So the
+read-`result.json` → read-the-log loop is identical whichever one you ran.
+
 **Two footguns of the batch approach:**
 
 - **Re-run the full gate after fixing, before pushing.** A fix can break a

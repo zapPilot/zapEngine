@@ -120,11 +120,14 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 1. Make your changes
 2. Run `pnpm verify changed` — fast, affected packages only
-3. If it fails, read `.ai-verify/logs/<step>.log` for the failing step
+3. If it fails, read `.ai-verify/result.json` — it names the failing job and
+   points to its log; read that log. `verify changed` writes one aggregate entry
+   whose log is `.ai-verify/logs/verify-changed.log` (turbo `--summarize` drops
+   `.turbo/runs/*.json` to localize the failing package#task)
 4. Fix only errors related to the current change
 5. Re-run until it passes
 6. Before push, run `pnpm verify branch`
-7. Before PR merge, run `pnpm verify parallel` or `pnpm verify ci`
+7. Before PR merge, run `pnpm verify parallel` (per-job logs — all failures at once) or `pnpm verify ci`
 
 Do NOT run `verify ci` during the fix loop — it is too slow.
 

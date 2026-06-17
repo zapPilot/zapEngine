@@ -14,6 +14,13 @@ description: >-
 
 # Monorepo coverage-gate debugging
 
+## Where the error already is
+
+**Not in `.ai-verify`.** Unlike the core gates, coverage is a *separate* CI job,
+so it is **not** in `verify parallel`'s `result.json` / `logs/`. The entry point
+is `pnpm coverage check` and the per-workspace `coverage/coverage-summary.json`
+(or the HTML report) — see below.
+
 ## Core principle — two layers, don't conflate them
 
 Coverage is enforced at **two independent layers**. Read the failure message to

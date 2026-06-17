@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
+# scripts/verify-staged.sh
+#
+# Staged-files gate: lint/type-check/test on packages with staged changes.
+# Writes the shared .ai-verify/result.json + verify-staged.log (see
+# ci-run-lib.sh); turbo --summarize drops .turbo/runs/*.json so a reader can
+# localize the failing package#task. Wired to `pnpm verify staged`.
+
 set -euo pipefail
 
-if git rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
-  echo "❌ Shallow clone detected. Run: git fetch --unshallow origin"
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_DIR="$ROOT_DIR/.ai-verify/logs"
+source "$SCRIPT_DIR/ci-run-lib.sh"
 
-mkdir -p "$LOG_DIR"
+cirun_die_if_shallow
+cirun_init
 
 echo "[verify:staged] Checking staged files only"
 
 staged_files=$(git diff --cached --name-only)
 if [ -z "$staged_files" ]; then
   echo "[verify:staged] No staged files, nothing to check"
+  cirun_write_result
   exit 0
 fi
 
@@ -24,6 +27,7 @@ changed_packages=$(echo "$staged_files" | xargs -I{} dirname {} | sort -u | grep
 
 if [ -z "$changed_packages" ]; then
   echo "[verify:staged] No relevant package changes detected"
+  cirun_write_result
   exit 0
 fi
 
@@ -32,17 +36,28 @@ for pkg in $changed_packages; do
   filters="$filters --filter=$pkg"
 done
 
+log_file="$CIRUN_LOG_DIR/verify-staged.log"
+
+# Disable set -e around turbo so we capture its exit code and surface the log
+# pointer instead of exiting silently on failure.
+set +e
 pnpm turbo run lint type-check test:ci \
   $filters \
   --filter='!@zapengine/mobile' \
-  > "$LOG_DIR/verify-staged.log" 2>&1
+  --summarize \
+  > "$log_file" 2>&1
 status=$?
+set -e
 
-if [ $status -eq 0 ]; then
+cirun_record "staged" "$(cirun_status_from_exit "$status")" "$status" ".ai-verify/logs/verify-staged.log"
+cirun_write_result
+
+if [ "$status" -eq 0 ]; then
   echo "[verify:staged] ✅ PASSED"
-  exit 0
 else
   echo "[verify:staged] ❌ FAILED"
-  echo "See logs: $LOG_DIR/verify-staged.log"
-  exit 1
+  echo "See log:    $log_file"
+  echo "See result: $CIRUN_RESULT_JSON"
 fi
+
+exit "$status"

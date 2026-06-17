@@ -13,6 +13,19 @@ description: >-
 
 # Monorepo duplication gate (jscpd `dup:check`)
 
+## Where the error already is
+
+Don't re-discover the failure — it's already captured. A local `pnpm verify
+parallel` (or `verify changed`) writes `.ai-verify/result.json` (per-job status)
+plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
+failed job, then read its log:
+
+- a jscpd clone surfaces in the **`dup`** job → `.ai-verify/logs/dup.log` (it
+  names the two files + line ranges of each clone)
+
+That log holds the full error. The per-workspace `dup:check` command below is for
+re-running one workspace once you've located it — not the entry point.
+
 ## Core principle
 
 **A `dup:check` failure has exactly two legitimate resolutions: merge the real

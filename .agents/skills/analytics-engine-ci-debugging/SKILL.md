@@ -14,6 +14,21 @@ description: >-
 
 # analytics-engine CI debugging (Python / uv)
 
+## Where the error already is
+
+Don't re-discover the failure — it's already captured. A local `pnpm verify
+parallel` (or `verify changed`) writes `.ai-verify/result.json` (per-job status)
+plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
+failed job, then read its log. analytics-engine failures surface across several
+core jobs:
+
+- **`format`** (ruff format), **`lint`** (ruff check + mypy), **`contracts`**
+  (zod↔pydantic), **`dup`** (jscpd), and **`analytics`** (sql:audit /
+  service-reachability / pylint) → the matching `.ai-verify/logs/<job>.log`
+
+That log holds the full error. The per-gate commands below are for re-running a
+single gate once you've located it — not the entry point.
+
 ## Core principle
 
 analytics-engine is Python/uv but exposes the **same `pnpm <script>` surface** as
