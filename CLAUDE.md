@@ -110,7 +110,6 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 | ------------------------------------- | --------------------------------- | ---------------------------- |
 | `pnpm verify changed`                 | committed + staged + working tree | AI fix inner loop            |
 | `pnpm verify branch`                  | origin/main...HEAD                | Before push / PR             |
-| `pnpm verify package -- --filter=...` | single package                    | Package-specific check       |
 | `pnpm verify parallel`                | Full, parallel                    | Local fast gate before push  |
 | `pnpm verify ci`                      | CI canonical gate                 | CI / final gate before merge |
 

@@ -63,7 +63,7 @@ fixes with whatever agent you use (e.g. OpenCode `/goal`).
 
 **Every `verify` variant writes the same `.ai-verify/result.json` + per-job
 logs** — not just `parallel`. `verify ci` (sequential) records each job as it
-runs; `verify changed` / `staged` / `branch` record a single aggregate entry and
+runs; `verify changed` / `branch` record a single aggregate entry and
 add turbo `--summarize` (`.turbo/runs/*.json`) you can drill into. So the
 read-`result.json` → read-the-log loop is identical whichever one you ran.
 
@@ -83,7 +83,6 @@ read-`result.json` → read-the-log loop is identical whichever one you ran.
 | --- | --- | --- |
 | `pnpm verify changed` | affected packages | fast inner loop while iterating |
 | `pnpm verify branch` | `origin/main...HEAD` | before push |
-| `pnpm verify package -- --filter=@zapengine/X` | one workspace | package-specific check |
 | `pnpm verify parallel` | all core jobs, parallel | **see all failures at once** |
 | `pnpm verify ci` | canonical gate, sequential | final confirmation / CI parity |
 | `pnpm security audit core` | npm + python audit | the separate audit step |

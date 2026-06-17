@@ -11,7 +11,7 @@
 #   .ai-verify/logs/<id>.log    one combined-output log per recorded job
 #
 # Core gates (verify ci / parallel) record the 9 jobs from ci-jobs.sh, one log
-# each. Affected gates (verify changed / staged / branch) record a single
+# each. Affected gates (verify changed / branch) record a single
 # aggregate entry whose log holds the turbo run; turbo `--summarize` then lets a
 # reader localize the failing package#task from .turbo/runs/*.json.
 
@@ -94,7 +94,7 @@ cirun_run_core_job() {
 # captured to .ai-verify/logs/<log_basename> (set -e suspended so the caller can
 # surface the failure rather than exiting silently), record the result under
 # <id>, and return cmd's exit code. Used by the affected gates
-# (changed/staged/branch); the core gates use cirun_run_core_job, which also
+# (changed/branch); the core gates use cirun_run_core_job, which also
 # tees to the console. Pass env overrides via an `env VAR=... cmd` prefix.
 cirun_run_logged() {
   local id="$1" log_base="$2"
