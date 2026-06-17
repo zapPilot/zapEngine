@@ -38,18 +38,12 @@ done
 
 log_file="$CIRUN_LOG_DIR/verify-staged.log"
 
-# Disable set -e around turbo so we capture its exit code and surface the log
-# pointer instead of exiting silently on failure.
-set +e
-pnpm turbo run lint type-check test:ci \
-  $filters \
-  --filter='!@zapengine/mobile' \
-  --summarize \
-  > "$log_file" 2>&1
-status=$?
-set -e
-
-cirun_record "staged" "$(cirun_status_from_exit "$status")" "$status" ".ai-verify/logs/verify-staged.log"
+status=0
+cirun_run_logged "staged" "verify-staged.log" \
+  pnpm turbo run lint type-check test:ci \
+    $filters \
+    --filter='!@zapengine/mobile' \
+    --summarize || status=$?
 cirun_write_result
 
 if [ "$status" -eq 0 ]; then

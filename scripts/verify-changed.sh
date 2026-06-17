@@ -34,23 +34,16 @@ echo "[verify:changed] Synthetic WIP commit: $wip_commit"
 
 log_file="$CIRUN_LOG_DIR/verify-changed.log"
 
-# Disable set -e around turbo so we capture its exit code and surface the log
-# pointer instead of exiting silently on failure.
-set +e
-TURBO_SCM_BASE="$base_ref" \
-TURBO_SCM_HEAD="$wip_commit" \
-pnpm turbo run lint type-check test:ci deadcode dup:check \
-  --affected \
-  --filter='!@zapengine/mobile' \
-  --summarize \
-  > "$log_file" 2>&1
-turbo_status=$?
-set -e
-
-cirun_record "changed" "$(cirun_status_from_exit "$turbo_status")" "$turbo_status" ".ai-verify/logs/verify-changed.log"
+status=0
+cirun_run_logged "changed" "verify-changed.log" \
+  env TURBO_SCM_BASE="$base_ref" TURBO_SCM_HEAD="$wip_commit" \
+  pnpm turbo run lint type-check test:ci deadcode dup:check \
+    --affected \
+    --filter='!@zapengine/mobile' \
+    --summarize || status=$?
 cirun_write_result
 
-if [ "$turbo_status" -eq 0 ]; then
+if [ "$status" -eq 0 ]; then
   echo "[verify:changed] ✅ PASSED"
 else
   echo "[verify:changed] ❌ FAILED"
@@ -58,4 +51,4 @@ else
   echo "See result: $CIRUN_RESULT_JSON"
 fi
 
-exit "$turbo_status"
+exit "$status"

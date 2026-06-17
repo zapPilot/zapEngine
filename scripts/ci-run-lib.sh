@@ -90,6 +90,23 @@ cirun_run_core_job() {
   return "$ec"
 }
 
+# cirun_run_logged <id> <log_basename> <cmd...>: run cmd with combined output
+# captured to .ai-verify/logs/<log_basename> (set -e suspended so the caller can
+# surface the failure rather than exiting silently), record the result under
+# <id>, and return cmd's exit code. Used by the affected gates
+# (changed/staged/branch); the core gates use cirun_run_core_job, which also
+# tees to the console. Pass env overrides via an `env VAR=... cmd` prefix.
+cirun_run_logged() {
+  local id="$1" log_base="$2"
+  shift 2
+  set +e
+  "$@" > "$CIRUN_LOG_DIR/$log_base" 2>&1
+  local ec=$?
+  set -e
+  cirun_record "$id" "$(cirun_status_from_exit "$ec")" "$ec" ".ai-verify/logs/$log_base"
+  return "$ec"
+}
+
 # cirun_write_result: emit .ai-verify/result.json atomically from accumulators.
 # Overall status is failed if any recorded job had a non-zero exit.
 cirun_write_result() {
