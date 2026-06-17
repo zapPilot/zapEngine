@@ -8,7 +8,7 @@ See @../../CLAUDE.md for monorepo development guidelines, and the package [READM
 
 ## Wire-contract types live here
 
-Any type that travels over HTTP or appears in a stored payload should be defined here (not in app `src/types/`). This is what keeps the analytics-engine Python ↔ TypeScript contract verifiable via `pnpm contracts:check`.
+Any type that travels over HTTP or appears in a stored payload should be defined here (not in app `src/types/`). This is what keeps the analytics-engine Python ↔ TypeScript contract verifiable via `pnpm contracts check`.
 
 - **Strategy contracts** (`./strategy`) — backtesting / suggestion / allocation shapes shared with analytics-engine
 - **API contracts** (`./api`) — `POST /plan-orchestration/*`, market dashboard, deposit endpoint shapes
@@ -21,8 +21,8 @@ Any type that travels over HTTP or appears in a stored payload should be defined
 2. Add to the correct `src/<subpath>/`.
 3. Export from the subpath's `index.ts` and (for backward compat only) the root `index.ts` will pick it up automatically via `export *`.
 4. Update the matching Pydantic model in `apps/analytics-engine/src/models/` if the type crosses the analytics boundary.
-5. Run `pnpm contracts:check` — this is the gate that catches drift before it ships.
+5. Run `pnpm contracts check` — this is the gate that catches drift before it ships.
 
 ## Build order trap
 
-This package's TypeScript build (`tsc`) emits to `dist/`. Apps that consume `@zapengine/types` via Turbo automatically rebuild because of `dependsOn: ["^build"]`. But `pnpm --filter @zapengine/types type-check` on its own will fail if `dist/` is missing — use `pnpm turbo run type-check --filter=@zapengine/types` or `pnpm prebuild:packages` first.
+This package's TypeScript build (`tsc`) emits to `dist/`. Apps that consume `@zapengine/types` via Turbo automatically rebuild because of `dependsOn: ["^build"]`. But `pnpm --filter @zapengine/types type-check` on its own will fail if `dist/` is missing — use `pnpm turbo run type-check --filter=@zapengine/types` or `pnpm build packages` first.

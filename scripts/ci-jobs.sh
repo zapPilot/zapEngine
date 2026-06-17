@@ -2,8 +2,8 @@
 # scripts/ci-jobs.sh
 #
 # Canonical list of core CI jobs, sourced by scripts/verify-ci.sh (sequential
-# gate, = `pnpm verify:ci`) and scripts/verify-ci-parallel.sh (parallel runner,
-# = `pnpm verify:full:parallel`). Each job has a stable ID, a display name, the
+# gate, = `pnpm verify ci`) and scripts/verify-ci-parallel.sh (parallel runner,
+# = `pnpm verify parallel`). Each job has a stable ID, a display name, the
 # exact command, and a log filename (placed under .ai-verify/logs/ by callers).
 # Priority is implicit: first in CORE_CI_JOB_IDS = run/fix first.
 
@@ -34,9 +34,9 @@ core_ci_job_name() {
 
 core_ci_job_command() {
   case "$1" in
-    format)    echo "pnpm format:check:core" ;;
-    repo)      echo "pnpm lint:repo" ;;
-    contracts) echo "pnpm contracts:check" ;;
+    format)    echo "pnpm format check core" ;;
+    repo)      echo "pnpm lint repo" ;;
+    contracts) echo "pnpm contracts check" ;;
     type-check) echo "pnpm turbo run type-check --filter=!@zapengine/mobile" ;;
     lint)      echo "pnpm turbo run lint --filter=!@zapengine/mobile" ;;
     test)      echo "pnpm turbo run test:ci --filter=!@zapengine/mobile" ;;

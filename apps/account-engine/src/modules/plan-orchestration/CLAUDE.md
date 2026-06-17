@@ -30,6 +30,6 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 
 ## Gotchas
 
-- The `POST` request body shape lives in `@zapengine/types` (`PlanOrchestrationDepositRequest`, etc.). If you change the wire shape, run `pnpm contracts:check` so Pydantic side stays in sync.
+- The `POST` request body shape lives in `@zapengine/types` (`PlanOrchestrationDepositRequest`, etc.). If you change the wire shape, run `pnpm contracts check` so Pydantic side stays in sync.
 - Renaming this module to `intent-service` collides with `@zapengine/intent-engine` — don't.
 - Adding a new RPC: only update `publicClients.ts`; never instantiate a client in `service.ts` directly.

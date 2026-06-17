@@ -3,8 +3,8 @@
 # Heavy checks are handled by CI (verify-ci-core.sh).
 #
 # Use manually before opening PR if needed:
-#   pnpm verify:branch
-#   pnpm verify:full:parallel
+#   pnpm verify branch
+#   pnpm verify parallel
 #
 # Opt into local blocking pre-push:
 #   ZAP_PRE_PUSH_VERIFY=1 git push
@@ -12,7 +12,7 @@ set -eu
 
 if [ "${ZAP_PRE_PUSH_VERIFY:-0}" = "1" ]; then
   echo "Running opt-in pre-push verification..."
-  pnpm verify:branch
+  pnpm verify branch
   printf '\n✅ Pre-push passed\n'
 else
   echo "Skipping pre-push verification by default. CI will run required checks."

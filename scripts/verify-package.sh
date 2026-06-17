@@ -6,8 +6,8 @@ set -euo pipefail
 #
 # Both invocation forms work — pnpm forwards a literal `--` separator that we
 # tolerate, so the filter always reaches turbo (not the underlying tasks):
-#   pnpm verify:package -- --filter=@zapengine/frontend
-#   pnpm verify:package --filter=@zapengine/frontend
+#   pnpm verify package -- --filter=@zapengine/frontend
+#   pnpm verify package --filter=@zapengine/frontend
 
 # `pnpm <script> -- <args>` passes a literal `--` as the first arg; drop it so
 # the remaining flags land before turbo's task-arg boundary.
@@ -16,7 +16,7 @@ if [ "${1:-}" = "--" ]; then
 fi
 
 if [ "$#" -eq 0 ]; then
-  echo "usage: pnpm verify:package -- --filter=@zapengine/<workspace>" >&2
+  echo "usage: pnpm verify package -- --filter=@zapengine/<workspace>" >&2
   exit 2
 fi
 

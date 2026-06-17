@@ -1,10 +1,10 @@
 ---
 name: monorepo-security-audit
 description: >-
-  Use when the security-audit CI gate fails or `pnpm security:audit:core` /
+  Use when the security-audit CI gate fails or `pnpm security audit core` /
   `pnpm audit` reports advisories — a GHSA/CVE in an npm dependency (direct or
   transitive), a Python pip-audit finding in analytics-engine, or a red
-  security-audit job while `verify:ci` is green. This is the recurring
+  security-audit job while `verify ci` is green. This is the recurring
   "fixCI: audit" / "upgrade exploit library" / "clear pnpm audit" task. Symptoms:
   bumping `--audit-level` to hide it, hand-editing pnpm-lock.yaml / uv.lock,
   pinning a dep back to a vulnerable-but-working version, or not knowing whether
@@ -16,8 +16,8 @@ description: >-
 ## Core principle
 
 **The audit gate is SEPARATE and TWO-sided. Fix at the dependency-resolution
-layer — never weaken the check.** `pnpm security:audit:core` is **not** part of
-`verify:ci`, so a green `verify:ci` says nothing about it (the same gap
+layer — never weaken the check.** `pnpm security audit core` is **not** part of
+`verify ci`, so a green `verify ci` says nothing about it (the same gap
 [monorepo-ci-debugging](../monorepo-ci-debugging/SKILL.md) flags for the audit
 step). And "audit" means two independent ecosystems: **npm (pnpm)** and **Python
 (uv / pip-audit)**. The fix differs by which side flags, and the lever is always
@@ -26,7 +26,7 @@ threshold.
 
 ## What the gate actually runs
 
-`pnpm security:audit:core` =
+`pnpm security audit core` =
 `pnpm audit --audit-level=moderate` (root workspace tree) **+**
 `turbo run security:audit --filter=!@zapengine/mobile`, where each app's
 `security:audit` is:
@@ -80,7 +80,7 @@ Use `uv add`/`uv lock` — **never `pip install`** and never hand-edit `uv.lock`
 that regenerated lockfile, don't hand-edit it. Then confirm:
 
 ```bash
-pnpm security:audit:core
+pnpm security audit core
 ```
 
 ## Rationalizations — STOP
@@ -89,7 +89,7 @@ pnpm security:audit:core
 | --- | --- |
 | "Bump `--audit-level` to high so the moderate advisory stops failing." | That's hiding the vuln, not fixing it. `scripts/verify-*.sh` and the audit scripts are protected — edits get reverted. |
 | "Edit pnpm-lock.yaml / uv.lock directly to the patched version." | Lockfiles are generated. Add an override / catalog bump / pyproject constraint and let `pnpm install` / `uv lock` regenerate. |
-| "`verify:ci` passed, so the dependencies are fine." | `security:audit:core` is a separate gate, not in `verify:ci`. Run it. |
+| "`verify ci` passed, so the dependencies are fine." | `security audit core` is a separate gate, not in `verify ci`. Run it. |
 | "Pin the dep *back* to the old version that built fine." | The old version is the vulnerable one. Move the floor forward to the patched release. |
 | "It's only transitive, not something we import." | A moderate+ advisory still fails the gate. Override the transitive range to the patched floor. |
 | "Web3 app — a vuln in a wallet/SDK dep is someone else's problem." | This repo guards user funds; a transitive RCE/DoS is exactly what the gate exists to catch. Patch it. |
@@ -98,7 +98,7 @@ pnpm security:audit:core
 
 ```bash
 pnpm install              # or: uv lock  (regenerate the lockfile from your constraint)
-pnpm security:audit:core  # the separate gate — must exit 0
+pnpm security audit core  # the separate gate — must exit 0
 ```
 
 Then push and read the CI security-audit job. If it advances to a new advisory,

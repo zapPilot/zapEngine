@@ -33,7 +33,7 @@ import { StrategyPreset, DepositRequest } from '@zapengine/types';
 2. Add the type / Zod schema in `src/<subpath>/<file>.ts`.
 3. Re-export it from `src/<subpath>/index.ts`.
 4. Run `pnpm --filter @zapengine/types build` to refresh `dist/`.
-5. If the type is part of a wire contract with analytics-engine (Python), update the matching Pydantic model and run `pnpm contracts:check`.
+5. If the type is part of a wire contract with analytics-engine (Python), update the matching Pydantic model and run `pnpm contracts check`.
 
 ## Build
 
@@ -41,4 +41,4 @@ import { StrategyPreset, DepositRequest } from '@zapengine/types';
 pnpm build
 ```
 
-See [CLAUDE.md § Build order](../../CLAUDE.md#build-order) — direct `pnpm --filter @zapengine/types type-check` requires `pnpm prebuild:packages` first.
+See [CLAUDE.md § Build order](../../CLAUDE.md#build-order) — direct `pnpm --filter @zapengine/types type-check` requires `pnpm build packages` first.

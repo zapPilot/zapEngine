@@ -9,7 +9,7 @@ For single-workspace runs, **use Turbo, not pnpm filter**:
 - ✅ `pnpm turbo run type-check --filter=@zapengine/frontend` — respects `^build` deps
 - ❌ `pnpm --filter @zapengine/frontend type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
 
-If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any specific package) is the targeted fix; `pnpm prebuild:packages` rebuilds all packages but is rarely needed — the `contracts:check` pipeline calls it internally because `contracts:export` is raw `tsx` and bypasses Turbo.
+If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any specific package) is the targeted fix; `pnpm build packages` rebuilds all packages but is rarely needed — the `contracts check` pipeline calls it internally because `contracts export` is raw `tsx` and bypasses Turbo.
 
 ## Turbo task glossary
 
@@ -36,8 +36,8 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:
 
-- `pnpm verify:ci` — full CI gate excluding `@zapengine/mobile`
-- `pnpm build:core` / `format:check:core` / `security:audit:core` — same `--filter=!@zapengine/mobile`
+- `pnpm verify ci` — full CI gate excluding `@zapengine/mobile`
+- `pnpm build core` / `format check core` / `security audit core` — same `--filter=!@zapengine/mobile`
 
 If you install Flutter, just use the regular non-`:core` commands. CI runs the full matrix in parallel; mobile failures only block mobile deploys.
 
@@ -100,7 +100,7 @@ proxy, where the bounded module lives, and when to extract
 
 # Pre-commit & local verification
 
-Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-instant when unchanged), `lint:repo` drift checks, and `lint-staged` ESLint/Prettier on staged files.
+Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-instant when unchanged), `lint repo` drift checks, and `lint-staged` ESLint/Prettier on staged files.
 
 The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if you want pre-push assurance. CI itself is still authoritative.
 
@@ -108,41 +108,41 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 | Command                               | Scope                             | When to run                  |
 | ------------------------------------- | --------------------------------- | ---------------------------- |
-| `pnpm verify:changed`                 | committed + staged + working tree | AI fix inner loop            |
-| `pnpm verify:branch`                  | origin/main...HEAD                | Before push / PR             |
-| `pnpm verify:package -- --filter=...` | single package                    | Package-specific check       |
-| `pnpm verify:full:parallel`           | Full, parallel                    | Local fast gate before push  |
-| `pnpm verify:ci`                      | CI canonical gate                 | CI / final gate before merge |
+| `pnpm verify changed`                 | committed + staged + working tree | AI fix inner loop            |
+| `pnpm verify branch`                  | origin/main...HEAD                | Before push / PR             |
+| `pnpm verify package -- --filter=...` | single package                    | Package-specific check       |
+| `pnpm verify parallel`                | Full, parallel                    | Local fast gate before push  |
+| `pnpm verify ci`                      | CI canonical gate                 | CI / final gate before merge |
 
-**Shallow clone note:** All `verify:*` scripts fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
+**Shallow clone note:** All `pnpm verify` subcommands fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 
 ### AI fix loop
 
 1. Make your changes
-2. Run `pnpm verify:changed` — fast, affected packages only
+2. Run `pnpm verify changed` — fast, affected packages only
 3. If it fails, read `.ai-verify/logs/<step>.log` for the failing step
 4. Fix only errors related to the current change
 5. Re-run until it passes
-6. Before push, run `pnpm verify:branch`
-7. Before PR merge, run `pnpm verify:full:parallel` or `pnpm verify:ci`
+6. Before push, run `pnpm verify branch`
+7. Before PR merge, run `pnpm verify parallel` or `pnpm verify ci`
 
-Do NOT run `verify:ci` during the fix loop — it is too slow.
+Do NOT run `verify ci` during the fix loop — it is too slow.
 
 ### What the local gate covers
 
-`pnpm verify:ci` (sequential gate, `scripts/verify-ci.sh`) and
-`pnpm verify:full:parallel` (parallel runner, `scripts/verify-ci-parallel.sh`,
+`pnpm verify ci` (sequential gate, `scripts/verify-ci.sh`) and
+`pnpm verify parallel` (parallel runner, `scripts/verify-ci-parallel.sh`,
 writes `.ai-verify/result.json` + `.ai-verify/logs/<job>.log`) cover the core
 jobs in `scripts/ci-jobs.sh`: format check, repository drift checks, contracts
 parity, per-task workspace checks (type-check, lint, test, deadcode,
 duplication), and analytics checks. They do NOT cover coverage, mobile, Docker,
-security audit (`pnpm security:audit:core`), or deploy — those are separate CI
+security audit (`pnpm security audit core`), or deploy — those are separate CI
 jobs / GitHub Actions. To fix failures, drive your agent (e.g. OpenCode `/goal`)
 — see the `monorepo-ci-debugging` skill.
 
-### CI stage scripts (for granular debugging)
+### Running individual CI jobs
 
-Run individually: `pnpm ci:turbo`, `pnpm ci:contracts`, `pnpm ci:analytics`, etc.
+The canonical gate is `pnpm verify ci` (all core jobs, sequential) or `pnpm verify parallel` (same jobs in parallel — see all failures at once). To run one job, invoke its task directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check --filter=!@zapengine/mobile`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
 
 # Python environment (analytics-engine)
 

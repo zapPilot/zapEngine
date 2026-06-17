@@ -233,7 +233,7 @@ async function main(): Promise<void> {
 
   if (summary.workspaces.length === 0) {
     console.error(
-      'No coverage reports found. Run `pnpm test:coverage` first.',
+      'No coverage reports found. Run `pnpm test coverage` first.',
     );
     process.exitCode = 1;
   }

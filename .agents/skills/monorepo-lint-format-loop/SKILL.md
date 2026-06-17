@@ -39,7 +39,7 @@ This is the distinction that ends the confusion:
    from the canonical output, the commit silently captures the tool's version,
    and a check the autofixer doesn't satisfy keeps failing — looks like a revert.
 2. **Codegen / drift rewrite.** The hook also runs a generator+restage step
-   (here: `pnpm lint:snapshot-sync:fix` then
+   (here: `pnpm lint snapshot-sync --fix` then
    `git add apps/landing-page/src/data/strategy-snapshot.json`). If the file you
    edited is a **generated artifact**, your manual edit is *correctly*
    overwritten every commit. Editing the output is futile — edit the **source
@@ -60,13 +60,13 @@ Then identify the owner:
 - File is listed in a `*:fix` + `git add` step in `.husky/pre-commit`, or is
   clearly emitted output → **codegen / drift**.
 - **Committed file MATCHES what you wrote, yet the check still fails** → *no
-  rewrite happened*. The actor is a **read-only check** (`pnpm lint:repo` drift,
+  rewrite happened*. The actor is a **read-only check** (`pnpm lint repo` drift,
   or a **non-auto-fixable** lint rule — `no-explicit-any`, complexity, a custom
   rule). Stop hunting for a diff; the identical re-commit can never help — fix
   the structural / code violation manually.
 
 When unsure which actor, open `.husky/pre-commit` and read its steps top to
-bottom — the set of actors (install, snapshot codegen + restage, `lint:repo`
+bottom — the set of actors (install, snapshot codegen + restage, `lint repo`
 read-only, lint-staged mutate) is hook-specific.
 
 ## Fix — by owner
@@ -94,7 +94,7 @@ read-only, lint-staged mutate) is hook-specific.
 
 ## Read-only drift checks fail but never auto-fix
 
-The other half of the loop: `pnpm lint:repo` runs `config-drift.ts` and
+The other half of the loop: `pnpm lint repo` runs `config-drift.ts` and
 `scripts-drift.ts` — **no `--fix` mode**. Structural violations (tsconfig
 `rootDir`/`types`, a missing `build`/`type-check` script, a wrong `dup:check`
 command) only *fail*; they will not auto-correct. **Don't loop expecting

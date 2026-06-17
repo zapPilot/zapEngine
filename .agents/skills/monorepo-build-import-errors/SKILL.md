@@ -32,11 +32,11 @@ empty `dist`.
 ```bash
 pnpm turbo run type-check --filter=@zapengine/X   # respects ^build
 pnpm --filter @zapengine/types build               # targeted rebuild of one dep
-pnpm prebuild:packages                             # rebuild all packages (rarely needed)
+pnpm build packages                             # rebuild all packages (rarely needed)
 ```
 
 If CI is green but you see TS2307 locally, you almost certainly skipped
-`pnpm build:core` before running a turbo task.
+`pnpm build core` before running a turbo task.
 
 ## Mechanism B — ESM / CJS interop crash (the hard one)
 
