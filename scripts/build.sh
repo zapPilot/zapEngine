@@ -7,5 +7,6 @@ set -euo pipefail
 case "${1:-}" in
   core)     shift; exec turbo run build --filter='!@zapengine/mobile' "$@" ;;
   packages) shift; exec turbo run build --filter='./packages/*' "$@" ;;
+  -h|--help) echo "usage: pnpm build [core|packages]  (bare = all workspaces)"; exit 0 ;;
   *)        exec turbo run build "$@" ;;
 esac

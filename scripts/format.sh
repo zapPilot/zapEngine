@@ -3,6 +3,8 @@
 # Bare = `turbo run format` (writes); `check` = read-only; `check core` excludes mobile.
 set -euo pipefail
 
+case "${1:-}" in -h|--help) echo "usage: pnpm format [check [core]]  (bare = turbo run format, writes)"; exit 0 ;; esac
+
 if [ "${1:-}" = "check" ]; then
   shift
   if [ "${1:-}" = "core" ]; then
