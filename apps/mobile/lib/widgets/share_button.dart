@@ -41,7 +41,9 @@ class ShareButton extends StatelessWidget {
     Episode episode, {
     Rect? sharePositionOrigin,
   }) async {
-    final shareUrl = ShareConfig.episodeUri(episode.id).toString();
+    final shareUrl =
+        ShareConfig.episodeUri(episode.id, languageCode: episode.languageCode)
+            .toString();
 
     try {
       await SharePlus.instance.share(

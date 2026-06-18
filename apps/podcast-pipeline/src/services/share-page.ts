@@ -81,6 +81,8 @@ export async function buildEpisodeSharePageHtml(input: {
     return null;
   }
 
+  const langQuery = `?lang=${encodeURIComponent(input.languageCode)}`;
+
   return renderEpisodeSharePage({
     episode: {
       id: localization.episode_id,
@@ -92,8 +94,8 @@ export async function buildEpisodeSharePageHtml(input: {
     iosAppId: IOS_APP_ID,
     iosAppStoreUrl: IOS_APP_STORE_URL,
     androidAvailable: ANDROID_AVAILABLE,
-    canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}`,
-    appDeepLinkUrl: `${IOS_CUSTOM_SCHEME}://e/${encodeURIComponent(input.id)}`,
+    canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}${langQuery}`,
+    appDeepLinkUrl: `${IOS_CUSTOM_SCHEME}://e/${encodeURIComponent(input.id)}${langQuery}`,
   });
 }
 

@@ -228,7 +228,7 @@ describe('GET /e/:id share landing page', () => {
         'property="og:description" content="Episode summary for preview cards."',
       );
       expect(html).toContain(
-        `property="og:url" content="https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}"`,
+        `property="og:url" content="https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant"`,
       );
       expect(html).toContain(cta);
     },
