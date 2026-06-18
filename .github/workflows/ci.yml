@@ -24,6 +24,9 @@ permissions:
   contents: read
 
 jobs:
+  # Local equivalent: `pnpm verify ci` (or `pnpm verify parallel` to see all
+  # failures at once) + `pnpm run security audit core`. See CLAUDE.md →
+  # "What the local gate covers".
   lint-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -117,6 +120,7 @@ jobs:
               - '.nvmrc'
               - '.github/workflows/ci.yml'
 
+  # Local equivalent (needs Flutter): `pnpm turbo run format:check lint test:ci --filter=@zapengine/mobile`.
   mobile:
     needs: [mobile-gates]
     if: needs.mobile-gates.outputs.mobile_changed == 'true'
@@ -254,6 +258,7 @@ jobs:
     secrets:
       fly_token: ${{ secrets[matrix.secret_name] }}
 
+  # Local equivalent: `pnpm lint dead-env`.
   check-dead-env:
     runs-on: ubuntu-latest
     steps:
@@ -262,6 +267,7 @@ jobs:
       - name: Check for dead env vars
         run: bash scripts/check-dead-env.sh
 
+  # Local equivalent: `pnpm coverage check`.
   coverage:
     # Parallel to lint-test. Aggregates per-workspace coverage into a single
     # coverage/summary.json and (when coverage/baseline.json exists) gates on
