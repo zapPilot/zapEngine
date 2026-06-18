@@ -110,14 +110,14 @@ describe('TenderlyPreviewModal', () => {
     expect(screen.queryByText('Simulation passed')).not.toBeInTheDocument();
     expect(screen.getByText('0x1111...1111')).toBeInTheDocument();
     expect(screen.getByText('on Base')).toBeInTheDocument();
-    expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Assets out')).toBeInTheDocument();
-    expect(screen.getByText('Assets in')).toBeInTheDocument();
-    expect(screen.getByText(/-1.2345 TKN/)).toBeInTheDocument();
+    expect(screen.getByText('All checks passed')).toBeInTheDocument();
+    expect(screen.getByText('You send')).toBeInTheDocument();
+    expect(screen.getByText('You receive')).toBeInTheDocument();
+    expect(screen.getByTitle('-1.2345 TKN')).toBeInTheDocument();
     expect(screen.queryByText('Simulation evidence')).not.toBeInTheDocument();
 
     const tenderlyEvidence = screen
-      .getByText('Simulated by Tenderly')
+      .getByText('Independently simulated by Tenderly')
       .closest('section');
     expect(tenderlyEvidence).toHaveTextContent(
       '1 call executed in order as one stateful bundle.',
@@ -187,7 +187,7 @@ describe('TenderlyPreviewModal', () => {
 
     expect(
       screen.getByText('2 calls executed in order as one stateful bundle.'),
-    ).toBeVisible();
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'View simulation 1 on Tenderly' }),
     ).toHaveTextContent('Step 1 · Approve');
@@ -250,7 +250,7 @@ describe('TenderlyPreviewModal', () => {
     );
   });
 
-  it('allows warning previews to sign directly and passes the risk hash', () => {
+  it('surfaces warnings yet still signs in one click with the risk hash', () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     render(
       <TenderlyPreviewModal
@@ -273,9 +273,7 @@ describe('TenderlyPreviewModal', () => {
     const signButton = screen.getByRole('button', { name: 'Sign & Send' });
     expect(signButton).toBeEnabled();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('Target is not verified'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('Target is not verified')).toBeInTheDocument();
     fireEvent.click(signButton);
     expect(onConfirm).toHaveBeenCalledWith(RISK_HASH);
   });
@@ -301,6 +299,67 @@ describe('TenderlyPreviewModal', () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry simulation' }));
     expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('surfaces the failure reason for a reverted simulation', () => {
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        previewData={preview({
+          status: 'failed',
+          failureReason: 'execution reverted',
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Simulation failed')).toBeInTheDocument();
+    expect(screen.getByText('execution reverted')).toBeInTheDocument();
+  });
+
+  it('surfaces the reason an unavailable simulation could not run', () => {
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        previewData={preview({
+          status: 'unavailable',
+          unavailableReason: 'Tenderly simulation timed out',
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Simulation unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('Tenderly simulation timed out'),
+    ).toBeInTheDocument();
+  });
+
+  it('lists every warning on a warning preview', () => {
+    render(
+      <TenderlyPreviewModal
+        {...defaultProps}
+        previewData={preview({
+          status: 'warning',
+          warnings: [
+            {
+              code: 'UNVERIFIED_CONTRACT',
+              message: 'Target is not verified',
+              callIndex: 0,
+              address: TARGET,
+            },
+            {
+              code: 'UNLIMITED_APPROVAL',
+              message: 'Grants unlimited approval',
+              callIndex: 0,
+              address: TARGET,
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Review 2 warnings')).toBeInTheDocument();
+    expect(screen.getByText('Target is not verified')).toBeInTheDocument();
+    expect(screen.getByText('Grants unlimited approval')).toBeInTheDocument();
   });
 
   it('blocks expired previews and offers retry', () => {

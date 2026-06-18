@@ -5,6 +5,11 @@ export interface ModalProps {
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   closeOnBackdropClick?: boolean;
+  /**
+   * Drop the default gray surface frame (bg/border/rounded/padding) so the
+   * caller can supply its own container chrome. Width + positioning are kept.
+   */
+  unframed?: boolean;
 }
 
 export interface ModalHeaderProps {

@@ -19,6 +19,7 @@ export function Modal({
   maxWidth = 'md',
   closeOnBackdropClick = true,
   className = '',
+  unframed = false,
 }: ModalProps) {
   // ESC key handler
   useEffect(() => {
@@ -50,6 +51,10 @@ export function Modal({
 
   const maxWidthClass = MAX_WIDTH_CLASSES[maxWidth] ?? MAX_WIDTH_CLASSES.md;
 
+  const frameClass = unframed
+    ? ''
+    : 'bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl';
+
   const handleDismiss = closeOnBackdropClick
     ? onClose
     : () => {
@@ -60,7 +65,7 @@ export function Modal({
     <AnimatePresence>
       <ModalBackdrop
         onDismiss={handleDismiss}
-        innerClassName={`w-full ${maxWidthClass} bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl ${className}`}
+        innerClassName={`w-full ${maxWidthClass} ${frameClass} ${className}`}
       >
         {children}
       </ModalBackdrop>
