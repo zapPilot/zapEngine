@@ -5,8 +5,7 @@ export default defineKnipConfig({
   project: ['src/**/*.{ts,tsx}'],
   ignore: [
     '**/index.ts',
-    // Reached transitively through src/test-utils/index.ts (ignored barrel)
-    // and the source-manifest baseline test.
+    // Reached transitively through src/test-utils/index.ts (ignored barrel).
     'src/test-utils/**',
     // Auto-loaded by vitest's __mocks__ resolution adjacent to vi.mock()
     // calls (see Hero.test.tsx). Knip can't trace this convention.

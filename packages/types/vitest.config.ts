@@ -1,9 +1,7 @@
 // Vitest config for @zapengine/types.
 //
-// This package was previously running with no vitest.config.ts and only the
-// hygiene/source-manifest test. Real Zod schemas had no parse-level tests —
-// any silent contract drift would only surface in downstream consumers.
-//
+// These thresholds guard the Zod schemas with parse-level tests, so silent
+// contract drift fails here instead of surfacing later in downstream consumers.
 // Thresholds match the per-workspace targets documented in scripts/COVERAGE.md.
 
 import { defineConfig } from 'vitest/config';

@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
+# scripts/verify-changed.sh
+#
+# Fast inner-loop gate: lint/type-check/test/deadcode/dup on packages affected by
+# committed + staged + working-tree changes (a synthetic WIP commit feeds turbo
+# --affected). Writes the shared .ai-verify/result.json + verify-changed.log (see
+# ci-run-lib.sh); turbo --summarize drops .turbo/runs/*.json so a reader can
+# localize the failing package#task. Wired to `pnpm verify changed`.
+
 set -euo pipefail
 
-if git rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
-  echo "❌ Shallow clone detected. Run: git fetch --unshallow origin"
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_DIR="$ROOT_DIR/.ai-verify/logs"
+source "$SCRIPT_DIR/ci-run-lib.sh"
 
-mkdir -p "$LOG_DIR"
+cirun_die_if_shallow
+cirun_init
 
 echo "[verify:changed] Checking committed + staged + working tree changes"
 
@@ -29,19 +32,23 @@ rm -f "$tmp_index"
 
 echo "[verify:changed] Synthetic WIP commit: $wip_commit"
 
-TURBO_SCM_BASE="$base_ref" \
-TURBO_SCM_HEAD="$wip_commit" \
-pnpm turbo run lint type-check test:ci deadcode dup:check \
-  --affected \
-  --filter='!@zapengine/mobile' \
-  > "$LOG_DIR/verify-changed.log" 2>&1
-turbo_status=$?
+log_file="$CIRUN_LOG_DIR/verify-changed.log"
 
-if [ $turbo_status -eq 0 ]; then
+status=0
+cirun_run_logged "changed" "verify-changed.log" \
+  env TURBO_SCM_BASE="$base_ref" TURBO_SCM_HEAD="$wip_commit" \
+  pnpm turbo run lint type-check test:ci deadcode dup:check \
+    --affected \
+    --filter='!@zapengine/mobile' \
+    --summarize || status=$?
+cirun_write_result
+
+if [ "$status" -eq 0 ]; then
   echo "[verify:changed] ✅ PASSED"
-  exit 0
 else
   echo "[verify:changed] ❌ FAILED"
-  echo "See logs: $LOG_DIR/verify-changed.log"
-  exit 1
+  echo "See log:    $log_file"
+  echo "See result: $CIRUN_RESULT_JSON"
 fi
+
+exit "$status"

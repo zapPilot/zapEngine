@@ -13,6 +13,13 @@ description: >-
 
 # Monorepo security-audit gate (pnpm + uv)
 
+## Where the error already is
+
+**Not in `.ai-verify`.** The audit is a *separate* gate, **not** in `verify
+parallel`'s `result.json` / `logs/`. The entry point is the `pnpm security audit
+core` output itself — npm prints `GHSA-…` + "Patched in"; pip-audit prints the
+PyPI advisory + fixed version. See below.
+
 ## Core principle
 
 **The audit gate is SEPARATE and TWO-sided. Fix at the dependency-resolution

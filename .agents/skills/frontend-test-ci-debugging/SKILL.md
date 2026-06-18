@@ -12,6 +12,21 @@ description: >-
 
 # Frontend test:ci / coverage debugging
 
+## Where the error already is
+
+Don't re-discover the failure — it's already captured. A local `pnpm verify
+parallel` (or `verify changed`) writes `.ai-verify/result.json` (per-job status)
+plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
+failed job, then read its log:
+
+- a frontend Vitest crash surfaces in the **`test`** job →
+  `.ai-verify/logs/test.log` (the `[coverage] Batch N/… could not be split
+  further` line names the real file)
+
+That log holds the full error. The narrower `vitest run … <file>` command below
+is for isolating that one file — not the entry point. (The standalone `coverage`
+CI job is separate; see [monorepo-coverage-gate](../monorepo-coverage-gate/SKILL.md).)
+
 ## Core principle
 
 When a Vitest test crashes **at module load** because of a transitive
