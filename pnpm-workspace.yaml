@@ -18,7 +18,7 @@ catalog:
   eslint: ^9.18.0
   eslint-config-next: 15.3.4
   hono: ^4.12.21
-  jscpd: ^4.0.5
+  jscpd: ^4.2.5
   jsdom: ^25.0.1
   knip: ^5.68.0
   lucide-react: ^0.523.0
