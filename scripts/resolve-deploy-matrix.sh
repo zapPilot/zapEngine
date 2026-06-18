@@ -43,6 +43,14 @@ if [ "${EVENT_NAME:-}" = "workflow_dispatch" ]; then
       exit 1
       ;;
     *)
+      # Validate against the registry (+ the special 'frontend' Vercel no-op) so a
+      # typo'd dispatch fails loudly instead of silently producing an empty matrix.
+      if [ "$DEPLOY_TARGET" != "frontend" ] \
+        && ! jq -e --arg t "$DEPLOY_TARGET" 'any(.[]; .app == $t)' "$REGISTRY_FILE" >/dev/null; then
+        valid=$(jq -r '([.[].app] + ["all", "frontend"]) | unique | join(", ")' "$REGISTRY_FILE")
+        echo "error: DEPLOY_TARGET '$DEPLOY_TARGET' is not a known app. Valid: $valid" >&2
+        exit 1
+      fi
       changes=$(jq -cn --arg t "$DEPLOY_TARGET" '[$t]')
       ;;
   esac
@@ -58,6 +66,11 @@ fly_matrix=$(jq -c --argjson changes "$changes" \
 
 # Subset: only apps that want Docker verification.
 fly_verify_matrix=$(jq -c '[.[] | select(.verify_docker)]' <<<"$fly_matrix")
+
+# Surface a no-op clearly (answers "why did nothing deploy?") without implying an error.
+if [ "$fly_matrix" = "[]" ]; then
+  echo "note: no Fly apps matched (changes=$changes) — empty deploy/verify matrix." >&2
+fi
 
 # Emit to both stdout (for CI log + local debug) and $GITHUB_OUTPUT (for step outputs).
 {
