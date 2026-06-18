@@ -243,6 +243,25 @@ describe('buildEpisodeSharePageHtml', () => {
 
     expect(html).toBeNull();
   });
+
+  it('carries the language into the canonical and app deep links', async () => {
+    findLocalizationMock.mockResolvedValue(localizationRow());
+
+    const html = await buildEpisodeSharePageHtml({
+      id: 'episode-1',
+      languageCode: 'ja',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+
+    expect(html).not.toBeNull();
+    expect(html).toContain(
+      '<link rel="canonical" href="https://from-fed-to-chain-api.fly.dev/e/episode-1?lang=ja">',
+    );
+    expect(html).toContain('app-argument=fromfedtochain://e/episode-1?lang=ja');
+    expect(html).toContain(
+      '<a class="button" href="fromfedtochain://e/episode-1?lang=ja">Open in App</a>',
+    );
+  });
 });
 
 describe('extractIosAppId', () => {

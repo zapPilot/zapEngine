@@ -6,8 +6,13 @@ class ShareConfig {
     defaultValue: 'https://from-fed-to-chain-api.fly.dev',
   );
 
-  static Uri episodeUri(String episodeId) {
+  static Uri episodeUri(String episodeId, {String? languageCode}) {
     final baseUri = Uri.parse(baseUrl);
-    return baseUri.replace(pathSegments: ['e', episodeId]);
+    final language = languageCode?.trim();
+    final hasLanguage = language != null && language.isNotEmpty;
+    return baseUri.replace(
+      pathSegments: ['e', episodeId],
+      queryParameters: hasLanguage ? {'lang': language} : null,
+    );
   }
 }

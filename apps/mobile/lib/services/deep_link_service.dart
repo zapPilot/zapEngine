@@ -2,31 +2,50 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../config/language_codes.dart';
 import '../models/episode.dart';
 import '../screens/episode_detail_screen.dart';
+import '../state/content_language_provider.dart';
 import '../utils/app_logger.dart';
 import 'episode_service.dart';
 
-typedef EpisodeLoader = Future<Episode?> Function(String episodeId);
+typedef EpisodeLoader = Future<Episode?> Function(
+  String episodeId, {
+  String? languageCode,
+});
 typedef EpisodeDetailBuilder = Widget Function(Episode episode);
+typedef LanguageApplier = Future<void> Function(String languageCode);
 
 class DeepLinkService {
   DeepLinkService({
     required GlobalKey<NavigatorState> navigatorKey,
     EpisodeLoader? loadEpisode,
     EpisodeDetailBuilder? episodeDetailBuilder,
+    LanguageApplier? applyLanguage,
     AppLinks? appLinks,
   })  : _navigatorKey = navigatorKey,
-        _loadEpisode =
-            loadEpisode ?? ((id) => EpisodeService().getEpisodeById(id)),
+        _loadEpisode = loadEpisode ??
+            ((id, {languageCode}) => languageCode == null
+                ? EpisodeService().getEpisodeById(id)
+                : EpisodeService()
+                    .getEpisodeById(id, languageCode: languageCode)),
         _episodeDetailBuilder = episodeDetailBuilder ??
             ((episode) => EpisodeDetailScreen(episode: episode)),
+        _applyLanguage = applyLanguage ??
+            ((languageCode) async {
+              final context = navigatorKey.currentContext;
+              if (context == null) return;
+              final provider = context.read<ContentLanguageProvider?>();
+              await provider?.setLanguageCode(languageCode);
+            }),
         _appLinks = appLinks;
 
   final GlobalKey<NavigatorState> _navigatorKey;
   final EpisodeLoader _loadEpisode;
   final EpisodeDetailBuilder _episodeDetailBuilder;
+  final LanguageApplier _applyLanguage;
   AppLinks? _appLinks;
   StreamSubscription<Uri>? _subscription;
 
@@ -48,6 +67,17 @@ class DeepLinkService {
     }
 
     return null;
+  }
+
+  /// Reads a supported content language from a deep link's `lang` (or legacy
+  /// `language`) query parameter. Returns null when absent or unsupported so
+  /// callers fall back to the viewer's current language.
+  static String? languageCodeFromUri(Uri uri) {
+    final raw = (uri.queryParameters['lang'] ?? uri.queryParameters['language'])
+        ?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    final isSupported = kLanguageOptions.any((option) => option.code == raw);
+    return isSupported ? raw : null;
   }
 
   static String? _episodeIdFromEpisodePath(List<String> pathSegments) {
@@ -84,11 +114,15 @@ class DeepLinkService {
 
   Future<bool> openEpisodeUri(Uri uri) async {
     final episodeId = episodeIdFromUri(uri);
+    final languageCode = languageCodeFromUri(uri);
     Episode? episode;
     var navigated = false;
 
     if (episodeId != null) {
-      episode = await _loadEpisode(episodeId);
+      if (languageCode != null) {
+        await _applyLanguage(languageCode);
+      }
+      episode = await _loadEpisode(episodeId, languageCode: languageCode);
       final navigator = _navigatorKey.currentState;
       if (episode != null && navigator != null) {
         unawaited(
@@ -103,7 +137,7 @@ class DeepLinkService {
     }
 
     AppLogger.info(
-      '[DeepLink] openEpisodeUri uri=$uri parsedEpisodeId=${episodeId ?? 'null'} episodeFound=${episode != null} navigated=$navigated',
+      '[DeepLink] openEpisodeUri uri=$uri parsedEpisodeId=${episodeId ?? 'null'} language=${languageCode ?? 'null'} episodeFound=${episode != null} navigated=$navigated',
     );
     return navigated;
   }
