@@ -43,7 +43,7 @@ export type WithdrawResult =
 
 const withdrawLogger = logger.createContextLogger('Withdraw');
 
-function stepLabel(tx: PreparedTransaction): string {
+export function stepLabel(tx: PreparedTransaction): string {
   if (
     tx.meta.intentType === 'APPROVAL' ||
     tx.meta.intentType === 'ERC20_APPROVE'
@@ -56,7 +56,7 @@ function stepLabel(tx: PreparedTransaction): string {
   return 'Withdraw';
 }
 
-function initialSteps(plan: WithdrawPlan): WithdrawStepProgress[] {
+export function initialSteps(plan: WithdrawPlan): WithdrawStepProgress[] {
   return [...plan.approvals, ...plan.calls].map((tx, index) => ({
     index,
     label: stepLabel(tx),
@@ -64,11 +64,11 @@ function initialSteps(plan: WithdrawPlan): WithdrawStepProgress[] {
   }));
 }
 
-function targetChainId(input: RunWithdrawInput): number {
+export function targetChainId(input: RunWithdrawInput): number {
   return input.kind === 'gmx-v2' ? arbitrum.id : input.chainId;
 }
 
-function planRequest(
+export function planRequest(
   input: RunWithdrawInput,
   userAddress: Address,
 ): PlanOrchestrationWithdrawRequest {

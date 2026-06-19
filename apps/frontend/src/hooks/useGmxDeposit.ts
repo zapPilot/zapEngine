@@ -41,7 +41,7 @@ export type GmxDepositResult =
 const gmxDepositLogger = logger.createContextLogger('GmxDeposit');
 const GMX_EXECUTION_FEE = BigInt(GMX_V2_EXECUTION_FEE_WEI);
 
-function walletClientAddress(
+export function walletClientAddress(
   walletClient: ConnectedWalletClient,
   fallback: Address,
 ): Address {
@@ -53,11 +53,11 @@ function walletClientAddress(
   return typeof account === 'string' ? account : account.address;
 }
 
-function formatEth(value: bigint): string {
+export function formatEth(value: bigint): string {
   return formatUnits(value, 18);
 }
 
-function formatUsdc(value: bigint): string {
+export function formatUsdc(value: bigint): string {
   return formatUnits(value, GMX_V2_TOKENS.USDC.decimals);
 }
 
@@ -93,7 +93,7 @@ async function assertGmxDepositPreflight(params: {
   }
 }
 
-function stepLabel(tx: PreparedTransaction): string {
+export function stepLabel(tx: PreparedTransaction): string {
   if (
     tx.meta.intentType === 'APPROVAL' ||
     tx.meta.intentType === 'ERC20_APPROVE'
@@ -106,7 +106,7 @@ function stepLabel(tx: PreparedTransaction): string {
   return 'GMX deposit';
 }
 
-function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
+export function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
   return [...plan.approvals, ...plan.calls].map((tx, index) => ({
     index,
     label: stepLabel(tx),
