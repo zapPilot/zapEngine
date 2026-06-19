@@ -1,20 +1,38 @@
-import type { PrivyPrepareSendCallsResponse } from '@zapengine/types/api';
+import type {
+  PrivyPrepareSendCallsResponse,
+  PrivySimulationWarning,
+} from '@zapengine/types/api';
+import { motion, type Variants } from 'framer-motion';
 import {
+  AlertTriangle,
+  ArrowDown,
   ArrowDownLeft,
   ArrowUpRight,
   Check,
   ChevronDown,
   CircleDashed,
+  Clock,
+  CloudOff,
   ExternalLink,
   Loader,
   RefreshCw,
   ShieldCheck,
   Wallet,
   X,
+  XCircle,
 } from 'lucide-react';
-import { type MouseEvent, type ReactElement, useEffect, useState } from 'react';
+import {
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useState,
+} from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { getChainName } from '@/constants/chains';
+import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
+import { cn } from '@/lib/ui/classNames';
 
 interface TenderlyPreviewModalProps {
   isOpen: boolean;
@@ -30,6 +48,11 @@ interface TenderlyPreviewModalProps {
 
 type PreviewCall = PrivyPrepareSendCallsResponse['calls'][number];
 type AssetChange = PrivyPrepareSendCallsResponse['assetChanges'][number];
+
+// Brand staggered reveal — sections cascade in after the modal scales open.
+const sectionStagger: Variants = {
+  animate: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
+};
 
 function formatAddress(address: string | null): string {
   if (!address) return 'Unknown';
@@ -73,12 +96,6 @@ function compactTokenAmount(rawAmount: string, decimals: number): string {
   return `${negative ? '-' : ''}${integer}${visibleFraction ? `.${visibleFraction}` : ''}`;
 }
 
-function networkName(chainId: number): string {
-  if (chainId === 8453) return 'Base';
-  if (chainId === 42161) return 'Arbitrum';
-  return `Chain ${chainId}`;
-}
-
 function formatExpiry(timestamp: number): string {
   const seconds = Math.max(0, Math.floor((timestamp - Date.now()) / 1000));
   if (seconds === 0) return 'Expired';
@@ -106,18 +123,37 @@ function callTarget(
   return contract?.name ?? formatAddress(call.to);
 }
 
+function Eyebrow({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}): ReactElement {
+  return (
+    <span
+      className={cn(
+        'text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-faint',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 function TokenMark({ change }: { change: AssetChange }): ReactElement {
   if (change.token.logoUrl) {
     return (
       <img
         src={change.token.logoUrl}
         alt=""
-        className="h-9 w-9 shrink-0 rounded-full bg-slate-800 object-cover"
+        className="h-9 w-9 shrink-0 rounded-full bg-surface-elevated object-cover"
       />
     );
   }
   return (
-    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-700 bg-slate-900 text-xs font-bold text-slate-200">
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface-elevated text-xs font-semibold text-ink-dim">
       {change.token.symbol.slice(0, 2)}
     </div>
   );
@@ -131,45 +167,55 @@ function AssetRow({ change }: { change: AssetChange }): ReactElement {
     change.token.decimals,
   );
   return (
-    <div className="flex min-h-16 items-center justify-between gap-4 border-t border-slate-800/80 px-4 py-3 first:border-t-0">
+    <div className="flex min-h-14 items-center justify-between gap-4 border-t border-line px-4 py-3 first:border-t-0 sm:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <TokenMark change={change} />
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-slate-100">
+          <div className="truncate text-sm font-medium text-ink">
             {change.token.symbol}
           </div>
-          <div className="truncate text-xs text-slate-500">
+          <div className="truncate text-xs text-ink-faint">
             {change.token.name}
           </div>
         </div>
       </div>
       <div
         title={`${sign}${exactAmount} ${change.token.symbol}`}
-        className={`max-w-[55%] min-w-0 shrink truncate text-right font-mono text-sm font-semibold ${outgoing ? 'text-rose-300' : 'text-emerald-300'}`}
+        className={cn(
+          'max-w-[55%] min-w-0 shrink truncate text-right font-serif text-2xl leading-none',
+          outgoing ? 'text-ink' : 'text-success',
+        )}
       >
         {sign}
         {compactTokenAmount(change.rawAmount, change.token.decimals)}{' '}
-        {change.token.symbol}
+        <span className="font-sans text-sm text-ink-dim">
+          {change.token.symbol}
+        </span>
       </div>
     </div>
   );
 }
 
-function AssetPanel({
-  title,
-  changes,
+function FlowSide({
+  label,
   direction,
+  changes,
 }: {
-  title: string;
-  changes: AssetChange[];
+  label: string;
   direction: 'out' | 'in';
+  changes: AssetChange[];
 }): ReactElement {
   const Icon = direction === 'out' ? ArrowUpRight : ArrowDownLeft;
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
-      <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-800/40 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-        <Icon className="h-4 w-4" />
-        {title}
+    <div>
+      <div className="flex items-center gap-2 px-4 pt-4 pb-1 sm:px-5">
+        <Icon
+          className={cn(
+            'h-3.5 w-3.5',
+            direction === 'out' ? 'text-ink-faint' : 'text-success',
+          )}
+        />
+        <Eyebrow>{label}</Eyebrow>
       </div>
       {changes.length > 0 ? (
         changes.map((change, index) => (
@@ -179,32 +225,129 @@ function AssetPanel({
           />
         ))
       ) : (
-        <div className="px-4 py-5 text-sm text-slate-500">
+        <div className="px-4 py-3 text-sm text-ink-faint sm:px-5">
           No assets detected
         </div>
       )}
+    </div>
+  );
+}
+
+function NetFlow({
+  outgoing,
+  incoming,
+}: {
+  outgoing: AssetChange[];
+  incoming: AssetChange[];
+}): ReactElement {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <FlowSide label="You send" direction="out" changes={outgoing} />
+      <div className="relative mx-4 h-px bg-line sm:mx-5">
+        <div className="absolute top-1/2 left-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-line-hi bg-surface-elevated text-ink-dim">
+          <ArrowDown className="h-3.5 w-3.5" />
+        </div>
+      </div>
+      <FlowSide label="You receive" direction="in" changes={incoming} />
     </section>
   );
 }
 
-function StepIcon({ status }: { status: PreviewCall['status'] }): ReactElement {
+const WARNING_TITLES: Record<PrivySimulationWarning['code'], string> = {
+  UNVERIFIED_CONTRACT: 'Unverified contract',
+  UNDECODED_METHOD: 'Undecoded method',
+  UNLIMITED_APPROVAL: 'Unlimited approval',
+  APPROVAL_EXCEEDS_SIMULATED_SPEND: 'Approval exceeds spend',
+};
+
+function WarningsPanel({
+  warnings,
+}: {
+  warnings: PrivySimulationWarning[];
+}): ReactElement {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-accent/25 bg-accent-soft">
+      <div className="flex items-center gap-2 border-b border-accent/15 px-4 py-3 sm:px-5">
+        <AlertTriangle className="h-4 w-4 text-accent" />
+        <span className="text-sm font-semibold text-accent">
+          {warnings.length === 1
+            ? '1 thing to review before signing'
+            : `${warnings.length} things to review before signing`}
+        </span>
+      </div>
+      <ul className="divide-y divide-accent/10">
+        {warnings.map((warning, index) => (
+          <li
+            key={`${warning.code}-${warning.callIndex ?? 'na'}-${index}`}
+            className="flex gap-3 px-4 py-3 sm:px-5"
+          >
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-ink">
+                {WARNING_TITLES[warning.code]}
+              </div>
+              <div className="mt-0.5 text-xs leading-5 text-ink-dim">
+                {warning.message}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function StepNode({ status }: { status: PreviewCall['status'] }): ReactElement {
+  const base =
+    'relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border bg-bg';
   if (status === 'succeeded') {
-    return <Check className="h-5 w-5 text-emerald-300" />;
+    return (
+      <div className={cn(base, 'border-success/40 text-success')}>
+        <Check className="h-5 w-5" />
+      </div>
+    );
   }
   if (status === 'failed') {
-    return <X className="h-5 w-5 text-rose-300" />;
+    return (
+      <div className={cn(base, 'border-error/40 text-error')}>
+        <X className="h-5 w-5" />
+      </div>
+    );
   }
-  return <CircleDashed className="h-5 w-5 text-slate-500" />;
+  return (
+    <div className={cn(base, 'border-line text-ink-faint')}>
+      <CircleDashed className="h-5 w-5" />
+    </div>
+  );
+}
+
+function Evidence({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): ReactElement {
+  return (
+    <div>
+      <Eyebrow>{label}</Eyebrow>
+      <div className="mt-1 truncate font-mono text-xs text-ink-dim">
+        {value}
+      </div>
+    </div>
+  );
 }
 
 function ExecutionStep({
   preview,
   call,
+  isLast,
   onUpdateApproval,
   isUpdating,
 }: {
   preview: PrivyPrepareSendCallsResponse;
   call: PreviewCall;
+  isLast: boolean;
   onUpdateApproval: (callIndex: number, amount: string) => Promise<void>;
   isUpdating: boolean;
 }): ReactElement {
@@ -233,27 +376,31 @@ function ExecutionStep({
   };
 
   return (
-    <details className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 open:bg-slate-900">
-      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-4 px-4 py-3 marker:hidden sm:px-5">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-700 bg-slate-950">
-          <StepIcon status={call.status} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="font-semibold text-slate-100">
-              {titleCase(call.method)}
-            </span>
-            <span className="text-sm text-slate-400">
-              to {callTarget(preview, call)}
-            </span>
+    <div className="relative flex gap-3">
+      {!isLast && (
+        <span
+          aria-hidden
+          className="absolute top-9 left-[18px] -bottom-2 w-px bg-line"
+        />
+      )}
+      <StepNode status={call.status} />
+      <details className="group min-w-0 flex-1 overflow-hidden rounded-2xl border border-line bg-surface open:border-line-hi">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 marker:hidden">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-medium text-ink">
+                {titleCase(call.method)}
+              </span>
+              <span className="text-sm text-ink-dim">
+                to {callTarget(preview, call)}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-ink-faint">
+              Step {call.index + 1} of {preview.calls.length}
+            </div>
           </div>
-          <div className="mt-1 text-xs text-slate-500">
-            Step {call.index + 1} of {preview.calls.length}
-          </div>
-        </div>
-        {approval && (
-          <div className="flex max-w-[42%] min-w-0 shrink-0 flex-col items-end gap-1 sm:max-w-[48%] sm:flex-row sm:items-center sm:gap-2">
-            <span className="max-w-full truncate font-mono text-xs font-semibold text-amber-200 sm:text-sm">
+          {approval && (
+            <span className="max-w-[42%] shrink-0 truncate rounded-lg border border-accent/30 bg-accent-soft px-2.5 py-1 font-mono text-xs font-medium text-accent">
               {approval.unlimited
                 ? 'Unlimited'
                 : compactTokenAmount(
@@ -262,143 +409,111 @@ function ExecutionStep({
                   )}{' '}
               {approval.token.symbol}
             </span>
-            <button
-              type="button"
-              onClick={startEditing}
-              className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-300 hover:bg-indigo-400/10"
-            >
-              Edit
-            </button>
-          </div>
-        )}
-        <ChevronDown className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="grid gap-3 border-t border-slate-800 px-5 py-4 text-xs sm:grid-cols-3">
-        {approval && (
-          <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3 sm:col-span-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-semibold text-amber-200">
-                Approve{' '}
-                {approval.unlimited
-                  ? 'Unlimited'
-                  : compactTokenAmount(
-                      approval.rawAmount,
-                      approval.token.decimals,
-                    )}{' '}
-                {approval.token.symbol}
+          )}
+          <ChevronDown className="h-5 w-5 shrink-0 text-ink-faint transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="grid gap-3 border-t border-line px-4 py-4 text-xs sm:grid-cols-3 sm:px-5">
+          {approval && (
+            <div className="space-y-3 rounded-xl border border-accent/20 bg-accent-soft p-3 sm:col-span-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-accent">
+                  Approve{' '}
+                  {approval.unlimited
+                    ? 'Unlimited'
+                    : compactTokenAmount(
+                        approval.rawAmount,
+                        approval.token.decimals,
+                      )}{' '}
+                  {approval.token.symbol}
+                </div>
+                {!editingApproval && (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="rounded-lg px-2 py-1 font-semibold text-accent transition-colors hover:bg-accent/10"
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
-              {!editingApproval && (
-                <button
-                  type="button"
-                  onClick={startEditing}
-                  className="rounded-lg px-2 py-1 font-semibold text-indigo-300 hover:bg-indigo-400/10 sm:hidden"
+              {editingApproval && (
+                <form
+                  className="flex flex-col gap-2 sm:flex-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submitApproval();
+                  }}
                 >
-                  Edit
-                </button>
+                  <label className="sr-only" htmlFor={`approval-${call.index}`}>
+                    Approval amount
+                  </label>
+                  <input
+                    id={`approval-${call.index}`}
+                    value={approvalAmount}
+                    onChange={(event) => setApprovalAmount(event.target.value)}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    className="min-h-10 min-w-0 flex-1 rounded-lg border border-line-hi bg-bg px-3 font-mono text-sm text-ink outline-none focus:border-accent"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isUpdating || approvalAmount.trim() === ''}
+                    className="min-h-10 rounded-lg bg-accent px-4 font-semibold text-[#221c0f] transition-opacity hover:opacity-90 disabled:opacity-40"
+                  >
+                    {isUpdating ? 'Simulating...' : 'Apply & simulate'}
+                  </button>
+                </form>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Evidence
+                  label="Spender"
+                  value={formatAddress(approval.spender)}
+                />
+                <Evidence
+                  label="Simulated spend"
+                  value={`${formatTokenAmount(approval.simulatedSpendRaw, approval.token.decimals)} ${approval.token.symbol}`}
+                />
+              </div>
+              {approval.exceedsSimulatedSpend && (
+                <div className="text-accent">
+                  Approval exceeds the amount spent in this simulation.
+                </div>
               )}
             </div>
-            {editingApproval && (
-              <form
-                className="flex flex-col gap-2 sm:flex-row"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitApproval();
-                }}
-              >
-                <label className="sr-only" htmlFor={`approval-${call.index}`}>
-                  Approval amount
-                </label>
-                <input
-                  id={`approval-${call.index}`}
-                  value={approvalAmount}
-                  onChange={(event) => setApprovalAmount(event.target.value)}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  className="min-h-10 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 font-mono text-sm text-slate-100 outline-none focus:border-indigo-400"
-                />
-                <button
-                  type="submit"
-                  disabled={isUpdating || approvalAmount.trim() === ''}
-                  className="min-h-10 rounded-lg bg-indigo-500 px-4 font-semibold text-white disabled:opacity-40"
-                >
-                  {isUpdating ? 'Simulating...' : 'Apply & simulate'}
-                </button>
-              </form>
-            )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Evidence
-                label="Spender"
-                value={formatAddress(approval.spender)}
-              />
-              <Evidence
-                label="Simulated spend"
-                value={`${formatTokenAmount(approval.simulatedSpendRaw, approval.token.decimals)} ${approval.token.symbol}`}
-              />
+          )}
+          <Evidence label="Target" value={formatAddress(call.to)} />
+          <Evidence label="Status" value={titleCase(call.status)} />
+          <Evidence
+            label="Gas used"
+            value={
+              call.gasUsed
+                ? Number(call.gasUsed).toLocaleString()
+                : 'Not executed'
+            }
+          />
+          {call.error && (
+            <div className="rounded-xl border border-error/25 bg-error/[0.08] p-3 text-error sm:col-span-3">
+              {call.error}
             </div>
-            {approval.exceedsSimulatedSpend && (
-              <div className="text-amber-300/80">
-                Approval exceeds the amount spent in this simulation.
+          )}
+          <div className="space-y-3 border-t border-line pt-4 sm:col-span-3">
+            <Eyebrow>Raw data</Eyebrow>
+            <div>
+              <Eyebrow>Interacting with (to)</Eyebrow>
+              <div className="mt-1 break-all font-mono text-ink-dim">
+                {call.to}
               </div>
-            )}
-          </div>
-        )}
-        <Evidence label="Target" value={formatAddress(call.to)} />
-        <Evidence label="Status" value={titleCase(call.status)} />
-        <Evidence
-          label="Gas used"
-          value={
-            call.gasUsed
-              ? Number(call.gasUsed).toLocaleString()
-              : 'Not executed'
-          }
-        />
-        {call.error && (
-          <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-rose-200 sm:col-span-3">
-            {call.error}
-          </div>
-        )}
-        <div className="space-y-3 border-t border-slate-800 pt-4 sm:col-span-3">
-          <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">
-            Raw data
-          </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Interacting with (to)
             </div>
-            <div className="mt-1 break-all font-mono text-slate-300">
-              {call.to}
-            </div>
-          </div>
-          <Evidence label="Value to be sent" value={call.value} />
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Data
-            </div>
-            <div className="mt-1 break-all font-mono text-slate-400">
-              {call.data}
+            <Evidence label="Value to be sent" value={call.value} />
+            <div>
+              <Eyebrow>Data</Eyebrow>
+              <div className="mt-1 break-all font-mono text-ink-faint">
+                {call.data}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </details>
-  );
-}
-
-function Evidence({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): ReactElement {
-  return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-1 truncate font-mono text-xs text-slate-300">
-        {value}
-      </div>
+      </details>
     </div>
   );
 }
@@ -413,28 +528,26 @@ function TenderlyEvidence({
   expired: boolean;
 }): ReactElement {
   return (
-    <section className="mt-5 overflow-hidden rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.035]">
-      <div className="flex items-start gap-3 border-b border-emerald-400/15 px-4 py-4">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="flex items-start gap-3 border-b border-line px-4 py-4 sm:px-5">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-success/10 text-success">
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-emerald-200">
-            Simulated by Tenderly
+          <div className="text-sm font-semibold text-ink">
+            Independently simulated by Tenderly
           </div>
-          <div className="mt-0.5 text-xs leading-5 text-slate-400">
+          <div className="mt-0.5 text-xs leading-5 text-ink-dim">
             {preview.calls.length}{' '}
             {preview.calls.length === 1 ? 'call' : 'calls'} executed in order as
             one stateful bundle.
           </div>
         </div>
       </div>
-      <div className="space-y-4 px-4 py-4">
+      <div className="space-y-4 px-4 py-4 sm:px-5">
         {preview.shareUrls.length > 0 && (
           <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Public simulation results
-            </div>
+            <Eyebrow className="mb-2 block">Public simulation results</Eyebrow>
             <div className="flex flex-wrap gap-2">
               {preview.shareUrls.map((url, index) => (
                 <a
@@ -443,7 +556,7 @@ function TenderlyEvidence({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`View simulation ${index + 1} on Tenderly`}
-                  className="inline-flex min-h-10 min-w-0 items-center gap-2 rounded-xl border border-emerald-400/25 bg-slate-950/50 px-3 text-xs font-semibold text-emerald-200 transition-colors hover:border-emerald-300/50 hover:bg-emerald-400/10"
+                  className="inline-flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-line-hi bg-bg px-3 text-xs font-semibold text-accent transition-colors hover:border-accent/50 hover:bg-accent-soft"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   <span className="truncate">
@@ -456,9 +569,14 @@ function TenderlyEvidence({
           </div>
         )}
         <div
-          className={`grid gap-4 border-t border-slate-800/80 pt-4 ${signable ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}
+          className={cn(
+            'grid gap-4 border-t border-line pt-4',
+            signable
+              ? 'grid-cols-2 sm:grid-cols-4'
+              : 'grid-cols-2 sm:grid-cols-3',
+          )}
         >
-          <Evidence label="Network" value={networkName(preview.chainId)} />
+          <Evidence label="Network" value={getChainName(preview.chainId)} />
           <Evidence
             label="Block"
             value={preview.blockNumber?.toLocaleString() ?? 'Unavailable'}
@@ -479,17 +597,66 @@ function TenderlyEvidence({
   );
 }
 
-export function TenderlyPreviewModal({
-  isOpen,
-  onClose,
-  previewData,
-  onConfirm,
-  onRetry,
-  onUpdateApproval,
-  isSigningAndSending,
-  isRetryingSimulation,
-  retryError,
-}: TenderlyPreviewModalProps): ReactElement {
+interface VerdictMeta {
+  label: string;
+  Icon: typeof ShieldCheck;
+  pill: string;
+  iconClass: string;
+}
+
+function verdictMeta(preview: PrivyPrepareSendCallsResponse): VerdictMeta {
+  switch (preview.status) {
+    case 'passed':
+      return {
+        label: 'All checks passed',
+        Icon: ShieldCheck,
+        pill: 'border-success/30 bg-success/10 text-success',
+        iconClass: 'text-success',
+      };
+    case 'warning':
+      return {
+        label:
+          preview.warnings.length === 1
+            ? 'Review 1 warning'
+            : `Review ${preview.warnings.length} warnings`,
+        Icon: AlertTriangle,
+        pill: 'border-accent/30 bg-accent-soft text-accent',
+        iconClass: 'text-accent',
+      };
+    case 'failed':
+      return {
+        label: 'Simulation failed',
+        Icon: XCircle,
+        pill: 'border-error/30 bg-error/10 text-error',
+        iconClass: 'text-error',
+      };
+    default:
+      return {
+        label: 'Simulation unavailable',
+        Icon: CloudOff,
+        pill: 'border-line-hi bg-surface text-ink-dim',
+        iconClass: 'text-ink-dim',
+      };
+  }
+}
+
+const noop = (): void => {
+  /* prevent close while a transaction is pending */
+};
+
+function getBlockingReason(
+  preview: PrivyPrepareSendCallsResponse,
+): string | null {
+  if (preview.status === 'failed') return preview.failureReason;
+  if (preview.status === 'unavailable') return preview.unavailableReason;
+  return null;
+}
+
+// Owns the expiry countdown for signable previews so the modal body stays lean.
+function usePreviewExpiry(
+  previewData: PrivyPrepareSendCallsResponse | null,
+  isOpen: boolean,
+): boolean {
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
@@ -507,6 +674,167 @@ export function TenderlyPreviewModal({
     return () => clearInterval(interval);
   }, [previewData, isOpen]);
 
+  return isExpired;
+}
+
+function ReviewMetaRow({
+  preview,
+  expired,
+}: {
+  preview: PrivyPrepareSendCallsResponse;
+  expired: boolean;
+}): ReactElement {
+  const verdict = verdictMeta(preview);
+  const showExpiry =
+    preview.status === 'passed' || preview.status === 'warning';
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <span
+        className={cn(
+          'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold',
+          verdict.pill,
+        )}
+      >
+        <verdict.Icon className={cn('h-4 w-4', verdict.iconClass)} />
+        {verdict.label}
+      </span>
+      <div className="flex items-center gap-2">
+        {showExpiry && (
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-dim">
+            <Clock className="h-3.5 w-3.5" />
+            {expired ? 'Expired' : formatExpiry(preview.expiresAt)}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm font-medium text-ink">
+          on {getChainName(preview.chainId)}
+          <span className="h-2 w-2 rounded-full bg-usd ring-4 ring-usd/10" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BlockingBanner({
+  failed,
+  reason,
+}: {
+  failed: boolean;
+  reason: string;
+}): ReactElement {
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-3 rounded-2xl border p-4 text-sm',
+        failed
+          ? 'border-error/25 bg-error/[0.06] text-error'
+          : 'border-line-hi bg-surface text-ink-dim',
+      )}
+    >
+      {failed ? (
+        <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+      ) : (
+        <CloudOff className="mt-0.5 h-5 w-5 shrink-0" />
+      )}
+      <div className="min-w-0">
+        <div className="font-semibold">
+          {failed
+            ? 'This transaction would revert'
+            : 'We could not verify this transaction'}
+        </div>
+        <div className="mt-0.5 leading-5 break-words">{reason}</div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewActions({
+  preview,
+  signable,
+  expired,
+  busy,
+  canSign,
+  isSigningAndSending,
+  isRetryingSimulation,
+  onClose,
+  onRetry,
+  onConfirm,
+}: {
+  preview: PrivyPrepareSendCallsResponse;
+  signable: boolean;
+  expired: boolean;
+  busy: boolean;
+  canSign: boolean;
+  isSigningAndSending: boolean;
+  isRetryingSimulation: boolean;
+  onClose: () => void;
+  onRetry: () => Promise<void>;
+  onConfirm: (acknowledgedRiskHash?: string) => Promise<void>;
+}): ReactElement {
+  const retryLabel = isRetryingSimulation
+    ? 'Retrying...'
+    : signable && !expired
+      ? 'Retry'
+      : 'Retry simulation';
+  return (
+    <footer className="grid shrink-0 grid-cols-2 items-center gap-3 border-t border-line bg-bg-2 px-5 py-4 sm:flex sm:px-7">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={busy}
+        className="min-h-12 min-w-0 rounded-xl border border-transparent px-4 font-medium text-ink-dim transition-colors hover:bg-surface-elevated hover:text-ink disabled:opacity-40 sm:min-w-28 sm:px-5"
+      >
+        Cancel
+      </button>
+      <div className="hidden flex-1 sm:block" />
+      <button
+        type="button"
+        onClick={() => void onRetry()}
+        disabled={busy}
+        className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl border border-line-hi bg-surface px-4 font-medium text-ink transition-colors hover:bg-surface-elevated disabled:opacity-40 sm:min-w-32 sm:px-5"
+      >
+        {isRetryingSimulation ? (
+          <Loader className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+        {retryLabel}
+      </button>
+      {signable && !expired && (
+        <button
+          type="button"
+          onClick={() =>
+            void onConfirm(
+              preview.status === 'warning' ? preview.riskHash : undefined,
+            )
+          }
+          disabled={!canSign}
+          className="col-span-2 flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-accent px-6 font-semibold text-[#221c0f] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-surface disabled:text-ink-faint disabled:opacity-100 sm:min-w-40"
+        >
+          {isSigningAndSending ? (
+            <Loader className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
+          {isSigningAndSending ? 'Signing...' : 'Sign & Send'}
+        </button>
+      )}
+    </footer>
+  );
+}
+
+export function TenderlyPreviewModal({
+  isOpen,
+  onClose,
+  previewData,
+  onConfirm,
+  onRetry,
+  onUpdateApproval,
+  isSigningAndSending,
+  isRetryingSimulation,
+  retryError,
+}: TenderlyPreviewModalProps): ReactElement {
+  const isExpired = usePreviewExpiry(previewData, isOpen);
+
   if (!previewData) return <></>;
 
   const signable =
@@ -520,145 +848,143 @@ export function TenderlyPreviewModal({
   const incoming = previewData.assetChanges.filter(
     (change) => change.direction === 'in',
   );
+  const blockingReason = getBlockingReason(previewData);
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={
-        busy
-          ? () => {
-              /* noop: prevent close while transaction is pending */
-            }
-          : onClose
-      }
+      unframed
+      onClose={busy ? noop : onClose}
       maxWidth="2xl"
     >
-      <ModalContent className="flex max-h-[92vh] flex-col overflow-hidden rounded-[28px] border border-slate-800 bg-[#090d16] p-0 shadow-2xl shadow-black/60">
-        <header className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-900/70 px-5 py-4 sm:px-7">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-indigo-500 text-white shadow-lg shadow-indigo-950/50">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-slate-100">
-                Transaction review
+      <ModalContent className="">
+        <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-3xl border border-line bg-bg shadow-2xl shadow-black/60">
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-bg-2 px-5 py-4 sm:px-7">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent-soft text-accent">
+                <Wallet className="h-5 w-5" />
               </div>
-              <div className="truncate font-mono text-xs text-slate-400">
-                {formatAddress(previewData.walletAddress)}
+              <div className="min-w-0">
+                <div className="font-semibold text-ink">Transaction review</div>
+                <div className="truncate font-mono text-xs text-ink-dim">
+                  {formatAddress(previewData.walletAddress)}
+                </div>
               </div>
             </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close transaction review"
-            onClick={onClose}
-            disabled={busy}
-            className="grid h-10 w-10 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-40"
+            <button
+              type="button"
+              aria-label="Close transaction review"
+              onClick={onClose}
+              disabled={busy}
+              className="grid h-10 w-10 place-items-center rounded-full text-ink-dim transition-colors hover:bg-surface-elevated hover:text-ink disabled:opacity-40"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+
+          <motion.div
+            variants={sectionStagger}
+            initial="initial"
+            animate="animate"
+            className="overflow-y-auto px-5 py-6 sm:px-7"
           >
-            <X className="h-5 w-5" />
-          </button>
-        </header>
+            <motion.div variants={fadeInUp} transition={SMOOTH_TRANSITION}>
+              <ReviewMetaRow preview={previewData} expired={expired} />
+            </motion.div>
 
-        <div className="overflow-y-auto px-5 py-6 sm:px-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">
-              Overview
-            </h2>
-            <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200">
-              <span>on {networkName(previewData.chainId)}</span>
-              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/10" />
-            </div>
-          </div>
+            {blockingReason && (
+              <motion.div
+                variants={fadeInUp}
+                transition={SMOOTH_TRANSITION}
+                className="mt-5"
+              >
+                <BlockingBanner
+                  failed={previewData.status === 'failed'}
+                  reason={blockingReason}
+                />
+              </motion.div>
+            )}
 
-          <section className="space-y-3">
-            {previewData.calls.map((call) => (
-              <ExecutionStep
-                key={call.index}
+            {previewData.warnings.length > 0 && (
+              <motion.div
+                variants={fadeInUp}
+                transition={SMOOTH_TRANSITION}
+                className="mt-5"
+              >
+                <WarningsPanel warnings={previewData.warnings} />
+              </motion.div>
+            )}
+
+            <motion.div
+              variants={fadeInUp}
+              transition={SMOOTH_TRANSITION}
+              className="mt-5"
+            >
+              <NetFlow outgoing={outgoing} incoming={incoming} />
+            </motion.div>
+
+            <motion.div
+              variants={fadeInUp}
+              transition={SMOOTH_TRANSITION}
+              className="mt-6"
+            >
+              <Eyebrow className="mb-3 block">Execution timeline</Eyebrow>
+              <div className="space-y-2">
+                {previewData.calls.map((call, index) => (
+                  <ExecutionStep
+                    key={call.index}
+                    preview={previewData}
+                    call={call}
+                    isLast={index === previewData.calls.length - 1}
+                    onUpdateApproval={onUpdateApproval}
+                    isUpdating={isRetryingSimulation}
+                  />
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={fadeInUp}
+              transition={SMOOTH_TRANSITION}
+              className="mt-5"
+            >
+              <TenderlyEvidence
                 preview={previewData}
-                call={call}
-                onUpdateApproval={onUpdateApproval}
-                isUpdating={isRetryingSimulation}
+                signable={signable}
+                expired={expired}
               />
-            ))}
-          </section>
+            </motion.div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <AssetPanel title="Assets out" changes={outgoing} direction="out" />
-            <AssetPanel title="Assets in" changes={incoming} direction="in" />
-          </div>
+            {expired && (
+              <div className="mt-5 rounded-2xl border border-error/25 bg-error/[0.06] p-3 text-center text-xs text-error">
+                This preview has expired. Retry simulation before signing.
+              </div>
+            )}
 
-          <TenderlyEvidence
+            {retryError && (
+              <div
+                role="alert"
+                className="mt-5 rounded-2xl border border-accent/25 bg-accent-soft p-3 text-center text-xs text-accent"
+              >
+                <span className="font-semibold">Retry failed: </span>
+                {retryError}
+              </div>
+            )}
+          </motion.div>
+
+          <ReviewActions
             preview={previewData}
             signable={signable}
             expired={expired}
+            busy={busy}
+            canSign={canSign}
+            isSigningAndSending={isSigningAndSending}
+            isRetryingSimulation={isRetryingSimulation}
+            onClose={onClose}
+            onRetry={onRetry}
+            onConfirm={onConfirm}
           />
-
-          {expired && (
-            <div className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-center text-xs text-rose-300">
-              This preview has expired. Retry simulation before signing.
-            </div>
-          )}
-
-          {retryError && (
-            <div
-              role="alert"
-              className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-3 text-center text-xs text-amber-300"
-            >
-              <span className="font-semibold">Retry failed: </span>
-              {retryError}
-            </div>
-          )}
         </div>
-
-        <footer className="grid grid-cols-2 items-center gap-3 border-t border-slate-800 bg-slate-900/80 px-5 py-4 backdrop-blur sm:flex sm:px-7">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="min-h-12 min-w-0 rounded-xl border border-rose-400/40 px-4 font-medium text-rose-300 transition-colors hover:bg-rose-400/10 disabled:opacity-40 sm:min-w-28 sm:px-5"
-          >
-            Cancel
-          </button>
-          <div className="hidden flex-1 sm:block" />
-          <button
-            type="button"
-            onClick={() => void onRetry()}
-            disabled={busy}
-            className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-40 sm:min-w-32 sm:px-5"
-          >
-            {isRetryingSimulation ? (
-              <Loader className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            {isRetryingSimulation
-              ? 'Retrying...'
-              : signable && !expired
-                ? 'Retry'
-                : 'Retry simulation'}
-          </button>
-          {signable && !expired && (
-            <button
-              type="button"
-              onClick={() =>
-                void onConfirm(
-                  previewData.status === 'warning'
-                    ? previewData.riskHash
-                    : undefined,
-                )
-              }
-              disabled={!canSign}
-              className="col-span-2 flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-indigo-500 px-6 font-semibold text-white shadow-lg shadow-indigo-950/50 transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none sm:min-w-40"
-            >
-              {isSigningAndSending ? (
-                <Loader className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
-              {isSigningAndSending ? 'Signing...' : 'Sign & Send'}
-            </button>
-          )}
-        </footer>
       </ModalContent>
     </Modal>
   );
