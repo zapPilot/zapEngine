@@ -19,12 +19,12 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "husky": "^9.0.0",
+    "husky": "^9.1.7",
     "jscpd": "catalog:",
     "lint-staged": "^16.4.0",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "tsx": "catalog:",
-    "turbo": "^2.9.14"
+    "turbo": "^2.9.18"
   },
   "engines": {
     "node": "24.x",
