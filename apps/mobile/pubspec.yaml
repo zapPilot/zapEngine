@@ -2,7 +2,7 @@ name: ai_podcast_mobile
 description: Minimal Flutter app for the AI Podcast POC.
 publish_to: 'none'
 
-version: 2.0.2+14
+version: 2.0.3+14
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
