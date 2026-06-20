@@ -4,6 +4,7 @@ import { type Address } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assertGmxDepositPreflight,
   formatEth,
   formatUsdc,
   initialSteps,
@@ -289,6 +290,45 @@ describe('useGmxDeposit helper functions', () => {
       const plan = { approvals: [], calls: [] };
       const steps = initialSteps(plan as Parameters<typeof initialSteps>[0]);
       expect(steps).toEqual([]);
+    });
+  });
+
+  describe('assertGmxDepositPreflight', () => {
+    const ADDRESS = '0x1111111111111111111111111111111111111111' as Address;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mocks.getPublicClient.mockReturnValue({
+        readContract: mocks.readContract,
+        getBalance: mocks.getBalance,
+      });
+    });
+
+    it('resolves when USDC and ETH balances are sufficient', async () => {
+      mocks.readContract.mockResolvedValue(10_000_000_000n);
+      mocks.getBalance.mockResolvedValue(2_000_000_000_000_000n);
+
+      await expect(
+        assertGmxDepositPreflight({ address: ADDRESS, amount: 1_000_000n }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws when USDC balance is insufficient', async () => {
+      mocks.readContract.mockResolvedValue(999n);
+      mocks.getBalance.mockResolvedValue(2_000_000_000_000_000n);
+
+      await expect(
+        assertGmxDepositPreflight({ address: ADDRESS, amount: 1_000_000n }),
+      ).rejects.toThrow('GMX Arbitrum USDC balance too low');
+    });
+
+    it('throws when ETH balance is below execution fee', async () => {
+      mocks.readContract.mockResolvedValue(10_000_000_000n);
+      mocks.getBalance.mockResolvedValue(999_999_999_999_999n);
+
+      await expect(
+        assertGmxDepositPreflight({ address: ADDRESS, amount: 1_000_000n }),
+      ).rejects.toThrow('GMX execution fee requires 0.001 ETH on Arbitrum');
     });
   });
 });

@@ -61,7 +61,7 @@ export function formatUsdc(value: bigint): string {
   return formatUnits(value, GMX_V2_TOKENS.USDC.decimals);
 }
 
-async function assertGmxDepositPreflight(params: {
+export async function assertGmxDepositPreflight(params: {
   address: Address;
   amount: bigint;
 }): Promise<void> {
