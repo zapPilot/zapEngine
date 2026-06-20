@@ -250,7 +250,7 @@ describe('TenderlyPreviewModal', () => {
     );
   });
 
-  it('surfaces warnings yet still signs in one click with the risk hash', () => {
+  it('hides warning details yet still signs in one click with the risk hash', () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     render(
       <TenderlyPreviewModal
@@ -273,7 +273,9 @@ describe('TenderlyPreviewModal', () => {
     const signButton = screen.getByRole('button', { name: 'Sign & Send' });
     expect(signButton).toBeEnabled();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getByText('Target is not verified')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Target is not verified'),
+    ).not.toBeInTheDocument();
     fireEvent.click(signButton);
     expect(onConfirm).toHaveBeenCalledWith(RISK_HASH);
   });
@@ -333,7 +335,7 @@ describe('TenderlyPreviewModal', () => {
     ).toBeInTheDocument();
   });
 
-  it('lists every warning on a warning preview', () => {
+  it('does not render warning summaries or details', () => {
     render(
       <TenderlyPreviewModal
         {...defaultProps}
@@ -357,9 +359,13 @@ describe('TenderlyPreviewModal', () => {
       />,
     );
 
-    expect(screen.getByText('Review 2 warnings')).toBeInTheDocument();
-    expect(screen.getByText('Target is not verified')).toBeInTheDocument();
-    expect(screen.getByText('Grants unlimited approval')).toBeInTheDocument();
+    expect(screen.queryByText('Review 2 warnings')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Target is not verified'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Grants unlimited approval'),
+    ).not.toBeInTheDocument();
   });
 
   it('blocks expired previews and offers retry', () => {

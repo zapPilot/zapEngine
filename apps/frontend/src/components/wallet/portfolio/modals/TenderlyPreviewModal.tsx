@@ -1,7 +1,4 @@
-import type {
-  PrivyPrepareSendCallsResponse,
-  PrivySimulationWarning,
-} from '@zapengine/types/api';
+import type { PrivyPrepareSendCallsResponse } from '@zapengine/types/api';
 import { motion, type Variants } from 'framer-motion';
 import {
   AlertTriangle,
@@ -249,50 +246,6 @@ function NetFlow({
         </div>
       </div>
       <FlowSide label="You receive" direction="in" changes={incoming} />
-    </section>
-  );
-}
-
-const WARNING_TITLES: Record<PrivySimulationWarning['code'], string> = {
-  UNVERIFIED_CONTRACT: 'Unverified contract',
-  UNDECODED_METHOD: 'Undecoded method',
-  UNLIMITED_APPROVAL: 'Unlimited approval',
-  APPROVAL_EXCEEDS_SIMULATED_SPEND: 'Approval exceeds spend',
-};
-
-function WarningsPanel({
-  warnings,
-}: {
-  warnings: PrivySimulationWarning[];
-}): ReactElement {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-accent/25 bg-accent-soft">
-      <div className="flex items-center gap-2 border-b border-accent/15 px-4 py-3 sm:px-5">
-        <AlertTriangle className="h-4 w-4 text-accent" />
-        <span className="text-sm font-semibold text-accent">
-          {warnings.length === 1
-            ? '1 thing to review before signing'
-            : `${warnings.length} things to review before signing`}
-        </span>
-      </div>
-      <ul className="divide-y divide-accent/10">
-        {warnings.map((warning, index) => (
-          <li
-            key={`${warning.code}-${warning.callIndex ?? 'na'}-${index}`}
-            className="flex gap-3 px-4 py-3 sm:px-5"
-          >
-            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-ink">
-                {WARNING_TITLES[warning.code]}
-              </div>
-              <div className="mt-0.5 text-xs leading-5 text-ink-dim">
-                {warning.message}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -687,18 +640,21 @@ function ReviewMetaRow({
   const verdict = verdictMeta(preview);
   const showExpiry =
     preview.status === 'passed' || preview.status === 'warning';
+  const showVerdict = preview.status !== 'warning';
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <span
-        className={cn(
-          'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold',
-          verdict.pill,
-        )}
-      >
-        <verdict.Icon className={cn('h-4 w-4', verdict.iconClass)} />
-        {verdict.label}
-      </span>
-      <div className="flex items-center gap-2">
+      {showVerdict && (
+        <span
+          className={cn(
+            'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold',
+            verdict.pill,
+          )}
+        >
+          <verdict.Icon className={cn('h-4 w-4', verdict.iconClass)} />
+          {verdict.label}
+        </span>
+      )}
+      <div className={cn('flex items-center gap-2', !showVerdict && 'ml-auto')}>
         {showExpiry && (
           <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-dim">
             <Clock className="h-3.5 w-3.5" />
@@ -902,16 +858,6 @@ export function TenderlyPreviewModal({
                   failed={previewData.status === 'failed'}
                   reason={blockingReason}
                 />
-              </motion.div>
-            )}
-
-            {previewData.warnings.length > 0 && (
-              <motion.div
-                variants={fadeInUp}
-                transition={SMOOTH_TRANSITION}
-                className="mt-5"
-              >
-                <WarningsPanel warnings={previewData.warnings} />
               </motion.div>
             )}
 
