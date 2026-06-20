@@ -18,8 +18,23 @@ description: >-
 
 **Not in `.ai-verify`.** Unlike the core gates, coverage is a *separate* CI job,
 so it is **not** in `verify parallel`'s `result.json` / `logs/`. The entry point
-is `pnpm coverage check` and the per-workspace `coverage/coverage-summary.json`
-(or the HTML report) — see below.
+is the no-regression gate `pnpm exec tsx scripts/coverage-regression.ts` and the
+per-workspace `coverage/coverage-summary.json` (or the HTML report) — see below.
+
+**Two false greens that fool an autonomous agent into stopping early.** Neither
+validates the no-regression gate, yet both go green while CI stays red:
+
+- `pnpm verify parallel` / `verify ci` — coverage is not in them (above).
+- `pnpm --filter @zapengine/<pkg> test:coverage` **passing ≠ regression cleared.**
+  The per-workspace floor sits far *below* the regression bar (this failure: the
+  frontend run passes at 95.17% — the floor never fired — yet the regression bar
+  is 95.86 − 0.5 = **95.36%**, so the gate is still red). A green per-workspace
+  run says nothing here.
+
+For an autonomous loop (opencode `/goal`): the **only** valid completion evidence
+for a regression is `scripts/coverage-regression.ts` exiting 0. A green
+per-workspace run or a green `verify parallel` is **not** evidence — do not emit
+`[goal:complete]` on either.
 
 ## Core principle — two layers, don't conflate them
 
@@ -35,14 +50,18 @@ know which one fired, because the fix differs.
 
 2. **Monorepo no-regression gate** — [scripts/coverage-regression.ts](../../../scripts/coverage-regression.ts):
    a committed snapshot (`coverage/baseline.json`) that a PR may not drop below
-   by more than **`REGRESSION_THRESHOLD_PP = 0.3`** percentage points, any
-   workspace. The aggregator walks vitest `coverage/coverage-summary.json` +
-   analytics-engine `htmlcov/coverage.xml`. Run via `pnpm coverage check`.
+   by more than each metric's tolerance — **lines 0.3, functions 0.5,
+   branches 0.75** pp — in any workspace. The aggregator walks vitest
+   `coverage/coverage-summary.json` + analytics-engine `htmlcov/coverage.xml`.
    - Message looks like: **"workspace W regressed … vs baseline"**
+   - **The effective bar = `baseline pct − that metric's tolerance`, which is
+     *higher* than the per-workspace absolute floor.** That gap is exactly why a
+     passing per-workspace `test:coverage` does not clear this gate — never use
+     one layer to verify the other.
 
-**`pnpm coverage check` is NOT part of `verify ci`** (frontend sharded coverage
-alone is ~6 min) — it's a **separate CI job**. A green `verify ci` tells you
-nothing about coverage; run the coverage job's command yourself.
+**The coverage gate is NOT part of `verify ci`** (frontend sharded coverage alone
+is ~6 min) — it's a **separate CI job**. A green `verify ci` tells you nothing
+about coverage; reproduce the gate yourself (see *Reproduce locally* below).
 
 > The authoritative reference for the tooling, the aggregator sources, and the
 > baseline-regeneration procedure is
@@ -53,17 +72,29 @@ nothing about coverage; run the coverage job's command yourself.
 
 ### No-regression gate dropped
 
-You almost always **added code without tests**, so the workspace's percentage
-fell. The failure **names the workspace** — that's where to look.
+The failure **names the workspace and metric**. Your target is concrete: get that
+metric back to **`baseline pct − tolerance`** (read the baseline from
+`coverage/baseline.json`; tolerances above). This failure: frontend `functions`
+needs `≥ 95.86 − 0.5 = 95.36%` — aim for 95.86% to leave margin.
 
-1. Reproduce just that workspace: `pnpm --filter @zapengine/<pkg> test:coverage`,
-   then open `apps/<pkg>/coverage/coverage-summary.json` (or the HTML report) and
-   find the **new** lines/branches your change left uncovered.
-2. Add tests for that new code. Recurring real shapes:
+1. Regenerate + locate. Run the DB-free loop (see "Reproduce locally"), then list
+   the cheapest functions to cover from the per-file summary:
+   ```bash
+   jq -r 'to_entries[] | select(.key!="total") | select(.value.functions.pct<100)
+     | "\(.value.functions.total-.value.functions.covered)\t\(.key)"' \
+     apps/frontend/coverage/coverage-summary.json | sort -rn | head -30
+   ```
+   (Swap `functions` for `lines`/`branches` to match the regressed metric.)
+2. Add tests until the loop's `coverage-regression.ts` exits 0. Recurring real shapes:
    - a new provider/feature branch left untested (`e767e308`)
    - a test env var missing so a whole path under-covers — e.g. the WalletConnect
      project id the frontend Vitest/e2e env needs (`002a1457`, `d794c954`)
    - bulk backfill after a code-adding wave (`f5266ffa`)
+
+The baseline may be **stale** — it ratchets up only occasionally, so a regression
+is often accumulated drift, not your diff (this one: baseline 2026-05-23, +128
+functions since). Don't hunt only for "code my change left uncovered" — **any**
+covered function in the named workspace closes the gap. Pick the cheapest wins.
 
 **Do NOT regenerate `coverage/baseline.json` to make the gate pass.** The
 baseline is a floor that only **ratchets up**, on `main`, by team agreement,
@@ -86,14 +117,28 @@ every future PR, not just yours.
 
 ## Reproduce locally
 
-```bash
-# whole gate (analytics-engine needs the read-only replica; ~10–15 min cold)
-export DATABASE_READ_ONLY_URL="postgresql://…read-only…"
-pnpm coverage check
+The gate today tracks only the **TS/vitest** workspaces in `coverage/baseline.json`
+(frontend, intent-engine, types) — **no `DATABASE_READ_ONLY_URL` needed.** Run the
+three steps directly; each is fast and DB-free:
 
-# one workspace, fast inner loop
-pnpm --filter @zapengine/<pkg> test:coverage   # then read coverage/coverage-summary.json
+```bash
+# 1) Regenerate coverage for ALL baseline TS workspaces (turbo caches unchanged
+#    ones). Regenerate ALL of them: rebuild only one and the aggregator drops the
+#    rest, so step 3 reports them as "currentPct —" (a false regression).
+pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/analytics-engine'
+
+# 2) Re-aggregate → coverage/summary.json (pure file walk, no DB)
+pnpm exec tsx scripts/coverage-summary.ts
+
+# 3) The gate itself — pure compare of summary.json vs baseline.json (no DB, instant)
+pnpm exec tsx scripts/coverage-regression.ts   # exit 0 == regression cleared
 ```
+
+**Don't reach for `pnpm coverage check` on a TS-only regression.** Its `summary`
+step runs `turbo run test:coverage --filter='!@zapengine/mobile'`, which drags in
+analytics-engine; under `set -e` that can abort (it needs the DB) *before* the
+regression check ever runs. Only when a regressed row names **`apps/analytics-engine`**
+do you need `export DATABASE_READ_ONLY_URL=…` and the full `pnpm coverage check`.
 
 ## Rationalizations — STOP
 
@@ -103,12 +148,17 @@ pnpm --filter @zapengine/<pkg> test:coverage   # then read coverage/coverage-sum
 | "Lower the vitest/pyproject threshold a couple points." | Weakens the absolute floor for everyone. Add tests instead. |
 | "`verify ci` is green, so coverage is fine." | Coverage is a **separate** CI job, not in `verify ci`. |
 | "Wrap it in `c8 ignore` / `# pragma: no cover` and move on." | Only legitimate if the code is truly unreachable, with a stated reason. Prefer deleting dead code or writing the test. |
-| "The whole monorepo coverage run is slow, I'll skip it." | Run the single failing workspace's `test:coverage` — fast, and it's the one that regressed. |
+| "The whole monorepo coverage run is slow, I'll skip it." | You don't need it. Run the DB-free 3-step loop — one workspace's tests + two instant scripts. |
+| "`pnpm --filter frontend test:coverage` passed, so coverage is fixed." | The per-workspace floor is far below the regression bar; that green says nothing about the regression. `coverage-regression.ts` exit 0 is the only proof. |
+| "`pnpm coverage check` needs the DB and takes ~15 min, so I'll skip verifying." | A TS-workspace regression needs neither the DB nor the full sweep — run the 3-step loop. |
+| "Workspace tests passed, emit `[goal:complete]`." | A coverage regression is done only when `coverage-regression.ts` exits 0 — not a per-workspace pass, not a green `verify parallel`. |
 
 ## Verification
 
-- Single workspace `test:coverage` shows your new lines covered.
-- `pnpm coverage check` exits 0 (set `DATABASE_READ_ONLY_URL` for the
-  analytics-engine suite).
+- The authoritative local check is the DB-free 3-step loop ending in
+  **`pnpm exec tsx scripts/coverage-regression.ts` exiting 0**. A green
+  per-workspace `test:coverage` and a green `verify parallel` are **not** evidence.
+- Only when `apps/analytics-engine` is among the regressed rows: `pnpm coverage
+  check` exits 0 (with `DATABASE_READ_ONLY_URL` set).
 - Push and read the CI **coverage** job (it stops at the first failing
   workspace; fixing one may reveal the next).
