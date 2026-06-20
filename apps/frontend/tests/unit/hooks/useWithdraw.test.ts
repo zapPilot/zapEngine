@@ -1,7 +1,14 @@
 import { act } from '@testing-library/react';
+import type { PreparedTransaction } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useWithdraw } from '@/hooks/useWithdraw';
+import {
+  initialSteps,
+  planRequest,
+  stepLabel,
+  targetChainId,
+  useWithdraw,
+} from '@/hooks/useWithdraw';
 
 import { renderHook } from '../../test-utils';
 
@@ -186,5 +193,133 @@ describe('useWithdraw', () => {
       chainId: 8453,
     });
     expect(mocks.switchChain).not.toHaveBeenCalled();
+  });
+});
+
+describe('useWithdraw helper functions', () => {
+  const USER = '0x1111111111111111111111111111111111111111';
+
+  describe('stepLabel', () => {
+    it('returns "Approval" for APPROVAL intent', () => {
+      const tx = { meta: { intentType: 'APPROVAL' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Approval');
+    });
+
+    it('returns "Approval" for ERC20_APPROVE intent', () => {
+      const tx = {
+        meta: { intentType: 'ERC20_APPROVE' },
+      } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Approval');
+    });
+
+    it('returns "Swap" for SWAP intent', () => {
+      const tx = { meta: { intentType: 'SWAP' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Swap');
+    });
+
+    it('returns "Withdraw" for other intents', () => {
+      const tx = { meta: { intentType: 'WITHDRAW' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Withdraw');
+    });
+  });
+
+  describe('initialSteps', () => {
+    it('maps approvals then calls to steps with correct labels and pending status', () => {
+      const plan = {
+        approvals: [
+          { meta: { intentType: 'APPROVAL' } } as PreparedTransaction,
+        ],
+        calls: [
+          { meta: { intentType: 'WITHDRAW' } } as PreparedTransaction,
+          { meta: { intentType: 'SWAP' } } as PreparedTransaction,
+        ],
+      };
+      const steps = initialSteps(plan);
+      expect(steps).toEqual([
+        { index: 0, label: 'Approval', status: 'pending' },
+        { index: 1, label: 'Withdraw', status: 'pending' },
+        { index: 2, label: 'Swap', status: 'pending' },
+      ]);
+    });
+
+    it('handles empty plan', () => {
+      const plan = { approvals: [], calls: [] };
+      const steps = initialSteps(plan as Parameters<typeof initialSteps>[0]);
+      expect(steps).toEqual([]);
+    });
+  });
+
+  describe('targetChainId', () => {
+    it('returns arbitrum id for gmx-v2', () => {
+      const result = targetChainId({
+        kind: 'gmx-v2',
+        marketKey: 'eth-usdc',
+        gmAmount: '1000',
+      });
+      expect(result).toBe(42161);
+    });
+
+    it('returns input chainId for morpho', () => {
+      const result = targetChainId({
+        kind: 'morpho',
+        vaultAddress: '0x4444444444444444444444444444444444444444',
+        shareAmount: '1000',
+        chainId: 8453,
+      });
+      expect(result).toBe(8453);
+    });
+  });
+
+  describe('planRequest', () => {
+    it('builds gmx-v2 request', () => {
+      const input = {
+        kind: 'gmx-v2' as const,
+        marketKey: 'eth-usdc',
+        gmAmount: '5000',
+      };
+      const result = planRequest(input, USER);
+      expect(result).toEqual({
+        kind: 'gmx-v2',
+        marketKey: 'eth-usdc',
+        gmAmount: '5000',
+        userAddress: USER,
+      });
+    });
+
+    it('builds morpho request with toToken', () => {
+      const input = {
+        kind: 'morpho' as const,
+        vaultAddress: '0x4444444444444444444444444444444444444444',
+        shareAmount: '1000000',
+        chainId: 8453,
+        toToken: '0x5555555555555555555555555555555555555555',
+      };
+      const result = planRequest(input, USER);
+      expect(result).toEqual({
+        kind: 'morpho',
+        userAddress: USER,
+        vaultAddress: '0x4444444444444444444444444444444444444444',
+        shareAmount: '1000000',
+        chainId: 8453,
+        toToken: '0x5555555555555555555555555555555555555555',
+      });
+    });
+
+    it('builds morpho request without toToken', () => {
+      const input = {
+        kind: 'morpho' as const,
+        vaultAddress: '0x4444444444444444444444444444444444444444',
+        shareAmount: '1000000',
+        chainId: 8453,
+      };
+      const result = planRequest(input, USER);
+      expect(result).toEqual({
+        kind: 'morpho',
+        userAddress: USER,
+        vaultAddress: '0x4444444444444444444444444444444444444444',
+        shareAmount: '1000000',
+        chainId: 8453,
+      });
+    });
   });
 });

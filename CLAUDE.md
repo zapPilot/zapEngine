@@ -1,5 +1,10 @@
 See @README.md for project overview and @package.json for root scripts.
 
+> **Start here:** new to the repo or hunting for a doc? Use
+> [docs/onboarding.md](docs/onboarding.md) (per-role reading order) and
+> [docs/README.md](docs/README.md) (full doc map). Most-jumped-to sections below:
+> [Architecture planes](#architecture-planes) · [Verification hierarchy](#verification-hierarchy) · [Code style](#code-style) · [Per-app tooling](#per-app-tooling).
+
 # Build order
 
 Internal `packages/*` are built on demand — `turbo run` tasks declare `dependsOn: ["^build"]`, so `pnpm type-check`, `pnpm test`, `pnpm build` from the root always see fresh package output.
@@ -106,12 +111,12 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 
 ## Verification hierarchy
 
-| Command                               | Scope                             | When to run                  |
-| ------------------------------------- | --------------------------------- | ---------------------------- |
-| `pnpm verify changed`                 | committed + staged + working tree | AI fix inner loop            |
-| `pnpm verify branch`                  | origin/main...HEAD                | Before push / PR             |
-| `pnpm verify parallel`                | Full, parallel                    | Local fast gate before push  |
-| `pnpm verify ci`                      | CI canonical gate                 | CI / final gate before merge |
+| Command                | Scope                             | When to run                  |
+| ---------------------- | --------------------------------- | ---------------------------- |
+| `pnpm verify changed`  | committed + staged + working tree | AI fix inner loop            |
+| `pnpm verify branch`   | origin/main...HEAD                | Before push / PR             |
+| `pnpm verify parallel` | Full, parallel                    | Local fast gate before push  |
+| `pnpm verify ci`       | CI canonical gate                 | CI / final gate before merge |
 
 **Shallow clone note:** All `pnpm verify` subcommands fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
 

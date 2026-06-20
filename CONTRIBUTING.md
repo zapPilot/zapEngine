@@ -69,6 +69,7 @@ Use Zod v4 imports and APIs. Do not add Swagger/OpenAPI scaffolding unless the t
 2. Include the standard package scripts: `build`, `dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, and `security:audit` where applicable.
 3. Confirm Turbo tasks fit the existing pipeline in `turbo.json`.
 4. Internal packages under `packages/*` are built by `pnpm build packages`, which is already wired into `verify`, `verify ci`, and `contracts check`.
+5. Add a `README.md` (stack + setup) and a focused `CLAUDE.md`. Keep `CLAUDE.md` **high-signal**: a `See @README.md …` pointer plus only app-specific gotchas / architecture boundaries — cross-cutting conventions belong in root [CLAUDE.md](./CLAUDE.md) (see [Common Gotchas](#common-gotchas)), not duplicated per app. Length should match how many real gotchas exist; don't pad to a fixed size.
 
 ## Common Gotchas
 

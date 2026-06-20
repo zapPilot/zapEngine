@@ -6,6 +6,9 @@
 # = `pnpm verify parallel`). Each job has a stable ID, a display name, the
 # exact command, and a log filename (placed under .ai-verify/logs/ by callers).
 # Priority is implicit: first in CORE_CI_JOB_IDS = run/fix first.
+#
+# Safe to source standalone — sets strict mode defensively (callers already do).
+set -euo pipefail
 
 # Ordered list of job IDs. Priority is implicit: first = highest.
 CORE_CI_JOB_IDS="format repo contracts type-check lint test deadcode dup analytics"

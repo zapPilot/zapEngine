@@ -64,8 +64,8 @@ catalogs:
       specifier: ^0.523.0
       version: 0.523.0
     nodemailer:
-      specifier: ^8.0.5
-      version: 8.0.11
+      specifier: ^9.0.1
+      version: 9.0.1
     prettier:
       specifier: ^3.8.3
       version: 3.8.4
@@ -163,7 +163,7 @@ importers:
         version: 4.12.25
       nodemailer:
         specifier: 'catalog:'
-        version: 8.0.11
+        version: 9.0.1
       telegraf:
         specifier: 'catalog:'
         version: 4.16.3
@@ -3833,6 +3833,10 @@ packages:
   '@solana/wallet-standard-features@1.3.0':
     resolution: {integrity: sha512-ZhpZtD+4VArf6RPitsVExvgkF+nGghd1rzPjd97GmBximpnt1rsUxMOEyoIEuH3XBxPyNB6Us7ha7RHWQR+abg==}
     engines: {node: '>=16'}
+
+  '@solana/wallet-standard-features@1.4.0':
+    resolution: {integrity: sha512-f0tAdqwM2aL6CiFbIgt9h5zKFp+mgY/iNGwoxPMTj9VSTeQj7d1GGSmWhZw0XWoZ4N/1tnKTKmYFq+Dyq08jRw==}
+    engines: {node: '>=22'}
 
   '@solana/web3.js@1.98.4':
     resolution: {integrity: sha512-vv9lfnvjUsRiq//+j5pBdXig0IQdtzA0BRZ3bXEP4KaIyF1CcaydWqgyzQgfZMNIsWNWmG+AUHwPy4AHOD6gpw==}
@@ -7688,8 +7692,8 @@ packages:
     resolution: {integrity: sha512-IWqZF6u0EI/07HTBm+zZ+MgXgWl09dnSJRGaDCPBSlOqilDcx6pj3Mpb3HvPN8V2Gr+ISw7ZrMsL7STWs1F++w==}
     engines: {node: '>=20'}
 
-  nodemailer@8.0.11:
-    resolution: {integrity: sha512-nrO/pDAUKl+wXX+lx16tDLbnm0fW6sK/x8mgohaCpg+CdCEl482bD4tCuAZk2DyliruiNTIZxRCoWkDqJEnAiA==}
+  nodemailer@9.0.1:
+    resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
     engines: {node: '>=6.0.0'}
 
   normalize-path@3.0.0:
@@ -14168,13 +14172,18 @@ snapshots:
 
   '@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))':
     dependencies:
-      '@solana/wallet-standard-features': 1.3.0
+      '@solana/wallet-standard-features': 1.4.0
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@wallet-standard/base': 1.1.1
       '@wallet-standard/features': 1.1.1
       eventemitter3: 5.0.4
 
   '@solana/wallet-standard-features@1.3.0':
+    dependencies:
+      '@wallet-standard/base': 1.1.1
+      '@wallet-standard/features': 1.1.1
+
+  '@solana/wallet-standard-features@1.4.0':
     dependencies:
       '@wallet-standard/base': 1.1.1
       '@wallet-standard/features': 1.1.1
@@ -19663,7 +19672,7 @@ snapshots:
       '@types/sarif': 2.1.7
       fs-extra: 11.3.5
 
-  nodemailer@8.0.11: {}
+  nodemailer@9.0.1: {}
 
   normalize-path@3.0.0: {}
 

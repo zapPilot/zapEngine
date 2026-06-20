@@ -3,7 +3,9 @@
 Per-workspace test coverage is enforced by each workspace's own `vitest.config.ts`
 (TS) or `pyproject.toml` (Python). On top of that, the monorepo has a
 **no-regression gate**: a committed snapshot of "current best" coverage that
-new PRs cannot drop below by more than 0.3 percentage points.
+new PRs cannot drop below by more than each metric's threshold — `lines` 0.3 pp,
+`functions` 0.5 pp, `branches` 0.75 pp (branches/functions swing more, so they
+get more headroom).
 
 ## Scripts
 
@@ -76,8 +78,9 @@ coverage:
         path: coverage/summary.json
 ```
 
-A drop greater than 0.3 pp in any workspace's `lines` coverage fails the job
-with a markdown diff table in the run log.
+A drop past a metric's threshold (`lines` 0.3 pp, `functions` 0.5 pp, `branches`
+0.75 pp) in any workspace fails the job, with a markdown diff table — one row per
+regressed (workspace, metric) — in the run log.
 
 ## Per-workspace thresholds
 

@@ -245,16 +245,22 @@ scan_fly_toml_env_keys() {
   ' "$fly_file" | sort -u
 }
 
-# ── App registry ─────────────────────────────────────────────────────────────
-# Each entry: "app-name|src-subdir|ext1 ext2 ..."
-declare -a APP_REGISTRY=(
-  "account-engine|src|ts"
-  "alpha-etl|src|ts"
-  "podcast-pipeline|src|ts"
-  "frontend|src|ts tsx"
-  "landing-page|src|ts tsx"
-  "analytics-engine|src|py"
-)
+# ── App registry (auto-discovered) ───────────────────────────────────────────
+# Each entry: "app-name|src-subdir|ext1 ext2 ...". Discovered from apps/* so a
+# new app is scanned automatically — no hand-maintained list to forget. Any
+# apps/<app> with a src/ tree is included: Python (pyproject.toml) scanned as
+# .py, otherwise (package.json) as .ts/.tsx. Apps without src/ (e.g. mobile /
+# Flutter, which uses lib/) are skipped.
+declare -a APP_REGISTRY=()
+while IFS= read -r _app_dir; do
+  _app_name="$(basename "$_app_dir")"
+  [ -d "$_app_dir/src" ] || continue
+  if [ -f "$_app_dir/pyproject.toml" ]; then
+    APP_REGISTRY+=("$_app_name|src|py")
+  elif [ -f "$_app_dir/package.json" ]; then
+    APP_REGISTRY+=("$_app_name|src|ts tsx")
+  fi
+done < <(find "$APPS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 # ── Filter to requested app (if any) ─────────────────────────────────────────
 FILTER="${1:-}"

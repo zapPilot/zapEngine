@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 // Coverage no-regression gate. Reads `coverage/summary.json` (current run) vs
 // `coverage/baseline.json` (committed baseline) and exits non-zero if any
-// workspace's lines coverage dropped by more than REGRESSION_THRESHOLD_PP.
+// workspace regressed on lines, branches, or functions by more than that
+// metric's threshold (see METRIC_THRESHOLDS_PP).
 //
 // Companion to `scripts/coverage-summary.ts`; wired via the root
 // `pnpm coverage check` script.
@@ -9,7 +10,21 @@
 import { promises as fs } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
-export const REGRESSION_THRESHOLD_PP = 0.3;
+export const MONITORED_METRICS = ['lines', 'branches', 'functions'] as const;
+export type MonitoredMetric = (typeof MONITORED_METRICS)[number];
+
+// Per-metric regression thresholds (percentage points). Branches and functions
+// swing more than lines on small workspaces (one new untested branch can move
+// the % by several points), so they get more headroom to avoid false alarms.
+export const METRIC_THRESHOLDS_PP: Record<MonitoredMetric, number> = {
+  lines: 0.3,
+  branches: 0.75,
+  functions: 0.5,
+};
+
+// Historical headline threshold (= the lines threshold). Still referenced by
+// scripts/COVERAGE.md and the `pnpm coverage check` docs.
+export const REGRESSION_THRESHOLD_PP = METRIC_THRESHOLDS_PP.lines;
 
 export interface MetricTotals {
   total: number;
@@ -32,7 +47,7 @@ export interface MonorepoSummaryInput {
 
 export interface Regression {
   workspace: string;
-  metric: 'lines';
+  metric: MonitoredMetric;
   baselinePct: number;
   currentPct: number | null;
   deltaPp: number;
@@ -49,6 +64,7 @@ export function detectRegressions(
     const curWs = currentByName.get(baseWs.name);
     if (!curWs) {
       // Workspace disappeared from the current run while baseline had data.
+      // Emit one canonical (lines) regression rather than one per metric.
       regressions.push({
         workspace: baseWs.name,
         metric: 'lines',
@@ -58,15 +74,17 @@ export function detectRegressions(
       });
       continue;
     }
-    const delta = curWs.lines.pct - baseWs.lines.pct;
-    if (delta < -REGRESSION_THRESHOLD_PP) {
-      regressions.push({
-        workspace: baseWs.name,
-        metric: 'lines',
-        baselinePct: baseWs.lines.pct,
-        currentPct: curWs.lines.pct,
-        deltaPp: delta,
-      });
+    for (const metric of MONITORED_METRICS) {
+      const delta = curWs[metric].pct - baseWs[metric].pct;
+      if (delta < -METRIC_THRESHOLDS_PP[metric]) {
+        regressions.push({
+          workspace: baseWs.name,
+          metric,
+          baselinePct: baseWs[metric].pct,
+          currentPct: curWs[metric].pct,
+          deltaPp: delta,
+        });
+      }
     }
   }
   return regressions;
@@ -92,11 +110,11 @@ export function formatMarkdownReport(
   } else {
     lines.push('## ❌ Coverage regression detected');
     lines.push('');
-    lines.push('| Workspace | Baseline | Current | Δ (pp) |');
-    lines.push('| --- | --- | --- | --- |');
+    lines.push('| Workspace | Metric | Baseline | Current | Δ (pp) |');
+    lines.push('| --- | --- | --- | --- | --- |');
     for (const r of regressions) {
       lines.push(
-        `| \`${r.workspace}\` | ${formatPct(r.baselinePct)} | ${formatPct(r.currentPct)} | ${formatDelta(r.deltaPp)} |`,
+        `| \`${r.workspace}\` | ${r.metric} | ${formatPct(r.baselinePct)} | ${formatPct(r.currentPct)} | ${formatDelta(r.deltaPp)} |`,
       );
     }
     lines.push('');

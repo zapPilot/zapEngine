@@ -15,5 +15,6 @@ case "${1:-}" in
   scripts)       shift; exec tsx scripts/lint/scripts-drift.ts "$@" ;;
   snapshot-sync) shift; exec tsx scripts/lint/snapshot-sync.ts "$@" ;;
   dead-env)      shift; exec bash scripts/check-dead-env.sh "$@" ;;
+  -h|--help)     echo "usage: pnpm lint [repo|config|scripts|snapshot-sync|dead-env] [--fix]  (bare = turbo run lint)"; exit 0 ;;
   *)             exec turbo run lint "$@" ;;
 esac

@@ -22,7 +22,7 @@ catalog:
   jsdom: ^25.0.1
   knip: ^5.68.0
   lucide-react: ^0.523.0
-  nodemailer: ^8.0.5
+  nodemailer: ^9.0.1
   prettier: ^3.8.3
   react: ^19.0.0
   react-dom: ^19.0.0
@@ -62,7 +62,7 @@ overrides:
   next@>=15.2.0 <15.5.16: '>=15.5.16'
   next@>=15.2.0 <15.5.18: '>=15.5.18'
   next@>=15.4.0 <15.5.16: '>=15.5.16'
-  nodemailer@<=8.0.4: '>=8.0.5'
+  nodemailer@<9.0.1: '>=9.0.1'
   postcss@<8.5.10: '>=8.5.10'
   serialize-javascript@<7.0.5: '>=7.0.5'
   uuid@<14.0.0: '>=14.0.0'

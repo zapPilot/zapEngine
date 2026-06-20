@@ -1,7 +1,16 @@
 import { act } from '@testing-library/react';
+import type { PreparedTransaction } from '@zapengine/types/api';
+import { type Address } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGmxDeposit } from '@/hooks/useGmxDeposit';
+import {
+  formatEth,
+  formatUsdc,
+  initialSteps,
+  stepLabel,
+  useGmxDeposit,
+  walletClientAddress,
+} from '@/hooks/useGmxDeposit';
 
 import { renderHook } from '../../test-utils';
 
@@ -182,5 +191,104 @@ describe('useGmxDeposit', () => {
     expect(mocks.getPublicClient).toHaveBeenCalledWith(42161);
     expect(mocks.getGmxDepositPlan).not.toHaveBeenCalled();
     expect(mocks.executeDepositPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('useGmxDeposit helper functions', () => {
+  const FALLBACK = '0x9999999999999999999999999999999999999999' as Address;
+
+  describe('walletClientAddress', () => {
+    it('returns account address when account exists', () => {
+      const walletClient = {
+        account: { address: '0x1111111111111111111111111111111111111111' },
+      };
+      expect(
+        walletClientAddress(
+          walletClient as Parameters<typeof walletClientAddress>[0],
+          FALLBACK,
+        ),
+      ).toBe('0x1111111111111111111111111111111111111111');
+    });
+
+    it('returns fallback when account is null', () => {
+      const walletClient = { account: null };
+      expect(
+        walletClientAddress(
+          walletClient as Parameters<typeof walletClientAddress>[0],
+          FALLBACK,
+        ),
+      ).toBe(FALLBACK);
+    });
+
+    it('returns fallback when account is undefined', () => {
+      const walletClient = { account: undefined } as Parameters<
+        typeof walletClientAddress
+      >[0];
+      expect(walletClientAddress(walletClient, FALLBACK)).toBe(FALLBACK);
+    });
+  });
+
+  describe('formatEth', () => {
+    it('formats wei to ETH string', () => {
+      expect(formatEth(1_000_000_000_000_000n)).toBe('0.001');
+      expect(formatEth(1_000_000_000_000_000_000n)).toBe('1');
+    });
+  });
+
+  describe('formatUsdc', () => {
+    it('formats USDC with 6 decimals', () => {
+      expect(formatUsdc(1_000_000n)).toBe('1');
+      expect(formatUsdc(15_000_000n)).toBe('15');
+    });
+  });
+
+  describe('stepLabel', () => {
+    it('returns "Approval" for ERC20_APPROVE', () => {
+      const tx = {
+        meta: { intentType: 'ERC20_APPROVE' },
+      } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Approval');
+    });
+
+    it('returns "Approval" for APPROVAL', () => {
+      const tx = { meta: { intentType: 'APPROVAL' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Approval');
+    });
+
+    it('returns "Swap" for SWAP', () => {
+      const tx = { meta: { intentType: 'SWAP' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('Swap');
+    });
+
+    it('returns "GMX deposit" for other intents', () => {
+      const tx = { meta: { intentType: 'SUPPLY' } } as PreparedTransaction;
+      expect(stepLabel(tx)).toBe('GMX deposit');
+    });
+  });
+
+  describe('initialSteps', () => {
+    it('maps approvals then calls to steps with pending status', () => {
+      const plan = {
+        approvals: [
+          { meta: { intentType: 'ERC20_APPROVE' } } as PreparedTransaction,
+        ],
+        calls: [
+          { meta: { intentType: 'SUPPLY' } } as PreparedTransaction,
+          { meta: { intentType: 'SWAP' } } as PreparedTransaction,
+        ],
+      };
+      const steps = initialSteps(plan as Parameters<typeof initialSteps>[0]);
+      expect(steps).toEqual([
+        { index: 0, label: 'Approval', status: 'pending' },
+        { index: 1, label: 'GMX deposit', status: 'pending' },
+        { index: 2, label: 'Swap', status: 'pending' },
+      ]);
+    });
+
+    it('handles empty plan', () => {
+      const plan = { approvals: [], calls: [] };
+      const steps = initialSteps(plan as Parameters<typeof initialSteps>[0]);
+      expect(steps).toEqual([]);
+    });
   });
 });

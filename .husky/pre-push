@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Pre-push hook: does NOT block by default.
-# Heavy checks are handled by CI (verify-ci-core.sh).
+# Heavy checks are handled by CI and by the local gate (scripts/verify-ci.sh,
+# scripts/verify-ci-parallel.sh).
 #
 # Use manually before opening PR if needed:
 #   pnpm verify branch
