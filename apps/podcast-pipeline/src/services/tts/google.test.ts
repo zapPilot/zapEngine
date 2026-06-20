@@ -323,7 +323,9 @@ describe('textToSpeech', () => {
       }),
     );
 
-    await expect(textToSpeech('Test')).rejects.toMatchObject({
+    const result = textToSpeech('Test');
+
+    await expect(result).rejects.toMatchObject({
       message: expect.stringContaining(
         'Google TTS chunk 1/1 failed: 13 INTERNAL: Internal error encountered.',
       ),
@@ -332,9 +334,25 @@ describe('textToSpeech', () => {
         details: 'Internal error encountered.',
       }),
     });
-    await expect(textToSpeech('Test')).rejects.toThrow(
+    await expect(result).rejects.toThrow(
       'voice=cmn-TW-Wavenet-A language=cmn-TW bytes=4 chars=4',
     );
+    expect(mockSynthesize).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries a transient Google INTERNAL error', async () => {
+    mockSynthesize
+      .mockRejectedValueOnce(
+        Object.assign(new Error('13 INTERNAL: Internal error encountered.'), {
+          code: 13,
+        }),
+      )
+      .mockResolvedValueOnce([{ audioContent: new Uint8Array(512) }]);
+
+    const result = await textToSpeech('Test');
+
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalledTimes(2);
   });
 
   it('synthesizes multiple chunks via Promise.all and concatenates', async () => {

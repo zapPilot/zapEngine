@@ -17,6 +17,8 @@ function getClient(): TextToSpeechClient {
 }
 
 const MAX_BYTES = 4800;
+const MAX_INTERNAL_ATTEMPTS = 3;
+const INITIAL_INTERNAL_RETRY_DELAY_MS = 250;
 const GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER = 4 / 1_000_000;
 const DEFAULT_GOOGLE_VOICE = {
   languageCode: 'cmn-TW',
@@ -168,7 +170,7 @@ async function synthesizeChunkWithDiagnostics(
   voiceOptions: GoogleVoiceOptions,
 ): Promise<Buffer> {
   try {
-    return await synthesizeChunk(chunk, voiceOptions);
+    return await synthesizeChunkWithInternalRetry(chunk, voiceOptions);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     const wrapped = new Error(
@@ -185,6 +187,37 @@ async function synthesizeChunkWithDiagnostics(
     copyGoogleErrorMetadata(error, wrapped);
     throw wrapped;
   }
+}
+
+async function synthesizeChunkWithInternalRetry(
+  chunk: string,
+  voiceOptions: GoogleVoiceOptions,
+): Promise<Buffer> {
+  for (let attempt = 1; attempt <= MAX_INTERNAL_ATTEMPTS; attempt += 1) {
+    try {
+      return await synthesizeChunk(chunk, voiceOptions);
+    } catch (error) {
+      if (!isGoogleInternalError(error) || attempt === MAX_INTERNAL_ATTEMPTS) {
+        throw error;
+      }
+
+      await delay(INITIAL_INTERNAL_RETRY_DELAY_MS * 2 ** (attempt - 1));
+    }
+  }
+
+  throw new Error('Google TTS retry loop exited unexpectedly');
+}
+
+function isGoogleInternalError(error: unknown): boolean {
+  if (!isRecord(error)) {
+    return false;
+  }
+
+  return error['code'] === 13 || error['code'] === '13';
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function googleErrorDetails(error: unknown): string[] {

@@ -180,6 +180,9 @@ export async function generateScriptWithLLM(
   );
 
   const script = completion.choices[0]?.message?.content || '';
+  if (!script.trim()) {
+    throw new Error('LLM returned empty script content');
+  }
 
   return { script, ...completionMetadata(completion, model, thinkingModel) };
 }

@@ -207,14 +207,14 @@ describe('generateScriptWithLLM', () => {
     );
   });
 
-  it('uses default OpenRouter config and empty script fallbacks when optional fields are absent', async () => {
+  it('uses default OpenRouter config when optional fields are absent', async () => {
     vi.stubEnv('OPENROUTER_BASE_URL', '');
     vi.stubEnv('LLM_MODEL', '');
     vi.stubEnv('LLM_THINKING_MODEL', '');
     vi.mocked(OpenAI).mockClear();
 
     const mockCreate = vi.fn().mockResolvedValue({
-      choices: [],
+      choices: [{ message: { content: 'Script' } }],
       provider: null,
       model: null,
     });
@@ -233,7 +233,7 @@ describe('generateScriptWithLLM', () => {
       }),
     );
     expect(result).toEqual({
-      script: '',
+      script: 'Script',
       model: 'anthropic/claude-3-5-sonnet-20241022',
       thinkingModel: null,
       provider: 'unknown',
@@ -320,7 +320,7 @@ describe('generateScriptWithLLM', () => {
     expect(result.costUsd).toBe(0);
   });
 
-  it('returns empty script when API returns no content', async () => {
+  it('rejects when the API returns no script content', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: null } }],
       provider: 'Cloudflare',
@@ -329,9 +329,9 @@ describe('generateScriptWithLLM', () => {
 
     mockOpenAIClient(mockCreate);
 
-    const result = await generateScriptWithLLM('Title', 'Text');
-
-    expect(result.script).toBe('');
+    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
+      'LLM returned empty script content',
+    );
   });
 
   it('returns unknown provider when API returns null provider', async () => {
