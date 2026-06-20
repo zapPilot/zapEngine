@@ -1,9 +1,10 @@
-import type { DepositPlan } from '@zapengine/types/api';
+import type { DepositPlan, WithdrawPlan } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getDepositPlan,
   getGmxDepositPlan,
+  getWithdrawPlan,
 } from '@/services/planOrchestrationService';
 
 const { mockPost } = vi.hoisted(() => ({
@@ -77,5 +78,88 @@ describe('getDepositPlan', () => {
       sourceChainId: 8453,
     });
     expect(result).toEqual(plan);
+  });
+});
+
+describe('getWithdrawPlan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('posts a Morpho withdraw request and validates the WithdrawPlan response', async () => {
+    const withdrawPlan: WithdrawPlan = {
+      approvals: [],
+      calls: [],
+      totalGasUsd: '5.50',
+      sourceChainId: 1,
+      legs: [
+        {
+          chainId: 1,
+          kind: 'withdraw',
+          toToken: '0x1234567890123456789012345678901234567890',
+          fromAmount: '1000000',
+          toAmountMin: '990000',
+          gasUsd: '1.00',
+          durationSec: 120,
+        },
+      ],
+    };
+
+    mockPost.mockResolvedValueOnce(withdrawPlan);
+
+    const result = await getWithdrawPlan({
+      kind: 'morpho',
+      userAddress: USER,
+      vaultAddress: '0x1234567890123456789012345678901234567890',
+      shareAmount: '1000000',
+      chainId: 1,
+    });
+
+    expect(mockPost).toHaveBeenCalledWith('/plan-orchestration/withdraw', {
+      kind: 'morpho',
+      userAddress: USER,
+      vaultAddress: '0x1234567890123456789012345678901234567890',
+      shareAmount: '1000000',
+      chainId: 1,
+    });
+    expect(result).toEqual(withdrawPlan);
+  });
+
+  it('posts a GMX withdraw request and validates the WithdrawPlan response', async () => {
+    const withdrawPlan: WithdrawPlan = {
+      approvals: [],
+      calls: [],
+      totalGasUsd: '3.25',
+      sourceChainId: 42161,
+      legs: [
+        {
+          chainId: 42161,
+          kind: 'withdraw',
+          protocol: 'GMX',
+          toToken: '0x1234567890123456789012345678901234567890',
+          fromAmount: '500000',
+          toAmountMin: '490000',
+          gasUsd: '0.50',
+          durationSec: 60,
+        },
+      ],
+    };
+
+    mockPost.mockResolvedValueOnce(withdrawPlan);
+
+    const result = await getWithdrawPlan({
+      kind: 'gmx-v2',
+      userAddress: USER,
+      marketKey: 'eth-usdc',
+      gmAmount: '500000',
+    });
+
+    expect(mockPost).toHaveBeenCalledWith('/plan-orchestration/withdraw', {
+      kind: 'gmx-v2',
+      userAddress: USER,
+      marketKey: 'eth-usdc',
+      gmAmount: '500000',
+    });
+    expect(result).toEqual(withdrawPlan);
   });
 });
