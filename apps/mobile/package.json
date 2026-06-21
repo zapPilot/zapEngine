@@ -16,7 +16,7 @@
     "test:coverage": "flutter test --coverage && dart run tool/check_coverage.dart coverage/lcov.info 30",
     "test:unit": "flutter test",
     "test:watch": "echo '(@zapengine/mobile has no watch mode)'",
-    "lint": "dart analyze .",
+    "lint": "flutter pub get && dart analyze .",
     "lint:fix": "dart fix --apply",
     "type-check": "dart analyze .",
     "format": "dart format --language-version=3.0 .",
