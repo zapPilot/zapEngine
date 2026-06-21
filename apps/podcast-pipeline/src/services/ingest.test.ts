@@ -360,7 +360,7 @@ describe('performIngest failure paths', () => {
     ]);
   });
 
-  it('publishes main HLS with appended classroom audio and a separate classroom playlist', async () => {
+  it('uploads main and classroom audio separately without concatenating classroom into main', async () => {
     const lessons = [
       {
         sourceLanguageCode: 'zh-Hant',
@@ -419,9 +419,7 @@ describe('performIngest failure paths', () => {
           },
         ],
       });
-    mockConcatMp3Buffers
-      .mockResolvedValueOnce(Buffer.from('classroom-audio'))
-      .mockResolvedValueOnce(Buffer.from('main-with-classroom'));
+    mockConcatMp3Buffers.mockResolvedValueOnce(Buffer.from('classroom-audio'));
 
     const result = await performIngest(
       'https://example.com/article',
@@ -464,23 +462,19 @@ describe('performIngest failure paths', () => {
       expect.objectContaining({ targetLanguageCode: 'en' }),
       { episodeId: episodeRow().id },
     );
-    expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(2);
+    expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(1);
     expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(1, [
       Buffer.from('ja-classroom'),
       Buffer.from('en-classroom'),
     ]);
-    expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(2, [
-      Buffer.from('audio'),
-      Buffer.from('classroom-audio'),
-    ]);
     expect(mockGenerateHls).toHaveBeenCalledTimes(2);
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(
-      1,
-      Buffer.from('main-with-classroom'),
-    );
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
     expect(mockGenerateHls).toHaveBeenNthCalledWith(
       2,
       Buffer.from('classroom-audio'),
+    );
+    expect(mockGenerateHls).not.toHaveBeenCalledWith(
+      Buffer.from('audioclassroom-audio'),
     );
     expect(mockUploadHlsToR2).toHaveBeenCalledTimes(2);
     expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
@@ -597,19 +591,14 @@ describe('performIngest failure paths', () => {
         ],
       })
       .mockResolvedValueOnce({ audio: null, cost: [] });
-    mockConcatMp3Buffers
-      .mockResolvedValueOnce(Buffer.from('classroom-audio'))
-      .mockResolvedValueOnce(Buffer.from('main-with-classroom'));
+    mockConcatMp3Buffers.mockResolvedValueOnce(Buffer.from('classroom-audio'));
 
     await performIngest('https://example.com/article', 'zh-Hant');
 
     expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(1, [
       Buffer.from('ja-classroom'),
     ]);
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(
-      1,
-      Buffer.from('main-with-classroom'),
-    );
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
     expect(mockGenerateHls).toHaveBeenNthCalledWith(
       2,
       Buffer.from('classroom-audio'),

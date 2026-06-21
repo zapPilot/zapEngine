@@ -8,3 +8,16 @@ See @README.md for project overview.
 - **Supabase schema is `from_fed_to_chain`, not `public`.** New queries must respect `SUPABASE_DB_SCHEMA` — defaulting to `public` will hit the wrong tables.
 - **Tests target the Hono app directly via `app.request(...)`** (see `src/index.test.ts`). No HTTP server is started in test mode.
 - **TTS is provider-dispatched.** `src/services/tts.ts` only chooses the provider. Provider-specific behavior lives in `src/services/tts/<provider>.ts` and each provider must export both `synthesize` and `getMetadata`.
+
+## Audio section invariant
+
+Do not concatenate language classroom audio into the main episode audio.
+
+The canonical contract is:
+
+- `episode_localizations.hls_url` / `r2_prefix` stores main article narration only.
+- `episode_localizations.classroom_hls_url` / `classroom_r2_prefix` stores language classroom audio only.
+- The mobile app is responsible for playing these as sequential playback sections within the same logical episode.
+- Main and classroom playback speeds are intentionally independent. Classroom defaults to 1.0x.
+
+Never reintroduce `concatMainWithClassroomAudio` or equivalent logic that appends classroom audio into the main HLS.
