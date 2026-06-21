@@ -10,8 +10,8 @@ const PRIVY_ADDRESS = '0xf8a6b8ce3a6c8F4E5a73600a89aE9A645EAEf940';
 
 const mocks = vi.hoisted(() => {
   const getEthereumProvider = vi.fn();
+  const providerRequest = vi.fn();
   const switchChain = vi.fn();
-  const signTypedData = vi.fn().mockResolvedValue('mock-user-eip712-signature');
 
   return {
     login: vi.fn(),
@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => {
     accountApiPost: vi.fn(),
     walletInfo: vi.fn(),
     walletError: vi.fn(),
-    signTypedData,
+    providerRequest,
     privyLinkedAccounts: [] as Record<string, unknown>[],
     privyWallets: [] as Record<string, unknown>[],
     usePrivy: vi.fn(() => ({
@@ -120,12 +120,34 @@ function passedPreview(overrides: Record<string, unknown> = {}) {
     riskHash: RISK_HASH,
     previewId: 'mock-preview-id',
     batchHash: `0x${'3'.repeat(64)}`,
-    typedDataPayload: { domain: {}, types: {}, message: { nonce: 0 } },
+    typedDataPayload: {
+      domain: {
+        name: 'ZapPilot',
+        version: '1',
+        chainId: 8453,
+        verifyingContract: '0x0000000000000000000000000000000000000000',
+      },
+      types: {
+        ZapPilotIntent: [{ name: 'nonce', type: 'uint256' }],
+      },
+      primaryType: 'ZapPilotIntent',
+      message: { nonce: 0 },
+    },
     expiresAt: Date.now() + 300000,
     authorizationPayload: 'c2VydmVyLWZvcm1hdHRlZC1wYXlsb2Fk',
     requestExpiry: 1_800_000_000_000,
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolvePromise!: (value: T) => void;
+  let rejectPromise!: (error: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, resolve: resolvePromise, reject: rejectPromise };
 }
 
 function unavailablePreview() {
@@ -149,7 +171,11 @@ describe('usePrivyWalletBackend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.accountApiPost.mockReset();
-    mocks.getEthereumProvider.mockResolvedValue({ request: vi.fn() });
+    mocks.providerRequest.mockReset();
+    mocks.providerRequest.mockResolvedValue('mock-user-eip712-signature');
+    mocks.getEthereumProvider.mockResolvedValue({
+      request: mocks.providerRequest,
+    });
     mocks.switchChain.mockResolvedValue(undefined);
     mocks.getAccessToken.mockResolvedValue('privy-access-token');
     mocks.generateAuthorizationSignature.mockResolvedValue({
@@ -171,7 +197,6 @@ describe('usePrivyWalletBackend', () => {
       chainId: 'eip155:42161',
       getEthereumProvider: mocks.getEthereumProvider,
       switchChain: mocks.switchChain,
-      signTypedData: mocks.signTypedData,
     });
     mocks.privyLinkedAccounts.splice(0, mocks.privyLinkedAccounts.length, {
       type: 'wallet',
@@ -244,7 +269,10 @@ describe('usePrivyWalletBackend', () => {
     const execution = await promise;
     expect(execution?.callsId).toBe('privy-transaction-id');
 
-    expect(mocks.signTypedData).toHaveBeenCalled();
+    expect(mocks.providerRequest.mock.calls[0]?.[0]).toMatchObject({
+      method: 'eth_signTypedData_v4',
+      params: expect.arrayContaining([PRIVY_ADDRESS]),
+    });
     expect(
       Array.from(mocks.generateAuthorizationSignature.mock.calls[0][0]),
     ).toEqual(Array.from(new TextEncoder().encode('server-formatted-payload')));
@@ -571,8 +599,76 @@ describe('usePrivyWalletBackend', () => {
     });
 
     // Should not throw, should not call any APIs
-    expect(mocks.signTypedData).not.toHaveBeenCalled();
+    expect(mocks.providerRequest).not.toHaveBeenCalled();
     expect(mocks.accountApiPost).not.toHaveBeenCalled();
+  });
+
+  it('tracks signing, authorization, and send phases during batch confirmation', async () => {
+    const typedDataSignature = deferred<string>();
+    const authorizationSignature = deferred<{
+      signature: string;
+    }>();
+    const confirmResponse = deferred<{
+      status: 'submitted';
+      transactionId: string;
+      caip2: string;
+    }>();
+    mocks.providerRequest.mockReturnValueOnce(typedDataSignature.promise);
+    mocks.generateAuthorizationSignature.mockReturnValueOnce(
+      authorizationSignature.promise,
+    );
+    mocks.accountApiPost
+      .mockReset()
+      .mockResolvedValueOnce(passedPreview())
+      .mockReturnValueOnce(confirmResponse.promise);
+    const { result } = renderHook(() => usePrivyWalletBackend());
+    let execution: Promise<unknown> | undefined;
+
+    await act(async () => {
+      execution = result.current.backend.executeAtomicBatch?.(
+        [approvalTx],
+        8453,
+      );
+    });
+
+    let confirm: Promise<void> | undefined;
+    act(() => {
+      confirm = result.current.confirmBatchExecution();
+    });
+    await waitFor(() =>
+      expect(result.current.batchExecutionPhase).toBe('signingIntent'),
+    );
+
+    await act(async () => {
+      typedDataSignature.resolve('mock-user-eip712-signature');
+      await typedDataSignature.promise;
+    });
+    await waitFor(() =>
+      expect(result.current.batchExecutionPhase).toBe('authorizingBatch'),
+    );
+
+    await act(async () => {
+      authorizationSignature.resolve({
+        signature: 'base64-authorization-signature',
+      });
+      await authorizationSignature.promise;
+    });
+    await waitFor(() =>
+      expect(result.current.batchExecutionPhase).toBe('sendingBatch'),
+    );
+
+    await act(async () => {
+      confirmResponse.resolve({
+        status: 'submitted',
+        transactionId: 'privy-transaction-id',
+        caip2: 'eip155:8453',
+      });
+      await confirm;
+    });
+    await expect(execution).resolves.toEqual({
+      callsId: 'privy-transaction-id',
+    });
+    expect(result.current.batchExecutionPhase).toBe('idle');
   });
 
   it('cancelBatchExecution clears pending execution', async () => {

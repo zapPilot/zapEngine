@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TransactionPanel } from '@/components/wallet/portfolio/views/invest/trading/components/TransactionPanel';
@@ -11,83 +11,112 @@ const walletProviderMocks = vi.hoisted(() => ({
 }));
 const investStrategyMocks = vi.hoisted(() => {
   const run = vi.fn();
+  const createResult = (overrides: Record<string, unknown> = {}) => ({
+    run,
+    pending: false,
+    lastError: null,
+    tier: 'eip7702',
+    lastCallsId: '0xabcdef1234567890',
+    lastTxHash: null,
+    lastTxHashes: [],
+    lastPlan: {
+      legs: [
+        {
+          protocol: 'morpho',
+          chainId: 8453,
+          kind: 'supply',
+          toToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '60000000',
+          toAmountMin: '60000000',
+          gasUsd: '0.12',
+          durationSec: 12,
+        },
+        {
+          chainId: 1,
+          kind: 'bridge',
+          toToken: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          fromAmount: '20000000',
+          toAmountMin: '20000000',
+          bridge: 'across',
+          gasUsd: '0.20',
+          durationSec: 3,
+        },
+        {
+          chainId: 42161,
+          kind: 'bridge',
+          toToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+          fromAmount: '20000000',
+          toAmountMin: '20000000',
+          bridge: 'relaydepository',
+          gasUsd: '0.20',
+          durationSec: 1,
+        },
+      ],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0.52',
+      sourceChainId: 8453,
+    },
+    legs: [
+      { chainId: 8453, kind: 'supply', status: 'submitted' },
+      { chainId: 1, kind: 'bridge', status: 'bridgePending' },
+      { chainId: 42161, kind: 'bridge', status: 'destinationConfirmed' },
+    ],
+    getErrorMessage: (error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+    ...overrides,
+  });
 
   return {
     run,
-    useInvestStrategy: vi.fn(() => ({
-      run,
-      pending: false,
-      lastError: null,
-      tier: 'eip7702',
-      lastCallsId: '0xabcdef1234567890',
-      lastTxHash: null,
-      lastTxHashes: [],
-      lastPlan: {
-        legs: [
-          {
-            protocol: 'morpho',
-            chainId: 8453,
-            kind: 'supply',
-            toToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-            fromAmount: '60000000',
-            toAmountMin: '60000000',
-            gasUsd: '0.12',
-            durationSec: 12,
-          },
-          {
-            chainId: 1,
-            kind: 'bridge',
-            toToken: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-            fromAmount: '20000000',
-            toAmountMin: '20000000',
-            bridge: 'across',
-            gasUsd: '0.20',
-            durationSec: 3,
-          },
-          {
-            chainId: 42161,
-            kind: 'bridge',
-            toToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-            fromAmount: '20000000',
-            toAmountMin: '20000000',
-            bridge: 'relaydepository',
-            gasUsd: '0.20',
-            durationSec: 1,
-          },
-        ],
-        approvals: [],
-        calls: [],
-        totalGasUsd: '0.52',
-        sourceChainId: 8453,
-      },
-      legs: [
-        { chainId: 8453, kind: 'supply', status: 'submitted' },
-        { chainId: 1, kind: 'bridge', status: 'bridgePending' },
-        { chainId: 42161, kind: 'bridge', status: 'destinationConfirmed' },
-      ],
-      getErrorMessage: (error: unknown) =>
-        error instanceof Error ? error.message : String(error),
-    })),
+    createResult,
+    useInvestStrategy: vi.fn(() => createResult()),
+  };
+});
+const gmxDepositMocks = vi.hoisted(() => {
+  const run = vi.fn();
+  const createResult = (overrides: Record<string, unknown> = {}) => ({
+    run,
+    pending: false,
+    lastError: null,
+    tier: null,
+    lastCallsId: null,
+    lastTxHash: null,
+    lastTxHashes: [],
+    lastPlan: null,
+    steps: [],
+    getErrorMessage: (error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+    ...overrides,
+  });
+
+  return {
+    run,
+    createResult,
+    useGmxDeposit: vi.fn(() => createResult()),
   };
 });
 const withdrawMocks = vi.hoisted(() => {
   const run = vi.fn();
+  const createResult = (overrides: Record<string, unknown> = {}) => ({
+    run,
+    pending: false,
+    lastError: null,
+    tier: null,
+    lastCallsId: null,
+    lastTxHash: null,
+    lastTxHashes: [],
+    lastPlan: null,
+    steps: [],
+    getErrorMessage: (error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+    ...overrides,
+  });
 
   return {
     run,
-    useWithdraw: vi.fn(() => ({
-      run,
-      pending: false,
-      lastError: null,
-      tier: null,
-      lastCallsId: null,
-      lastTxHash: null,
-      lastTxHashes: [],
-      lastPlan: null,
-      steps: [],
-      getErrorMessage: (error: unknown) =>
-        error instanceof Error ? error.message : String(error),
-    })),
+    createResult,
+    useWithdraw: vi.fn(() => createResult()),
   };
 });
 
@@ -97,6 +126,10 @@ vi.mock('@/providers/WalletProvider', () => ({
 
 vi.mock('@/hooks/useInvestStrategy', () => ({
   useInvestStrategy: investStrategyMocks.useInvestStrategy,
+}));
+
+vi.mock('@/hooks/useGmxDeposit', () => ({
+  useGmxDeposit: gmxDepositMocks.useGmxDeposit,
 }));
 
 vi.mock('@/hooks/useWithdraw', () => ({
@@ -241,7 +274,15 @@ describe('TransactionPanel', () => {
     mockSetValue.mockClear();
     mockHandleSubmit.mockClear();
     investStrategyMocks.run.mockClear();
+    investStrategyMocks.useInvestStrategy.mockReturnValue(
+      investStrategyMocks.createResult(),
+    );
+    gmxDepositMocks.run.mockClear();
+    gmxDepositMocks.useGmxDeposit.mockReturnValue(
+      gmxDepositMocks.createResult(),
+    );
     withdrawMocks.run.mockClear();
+    withdrawMocks.useWithdraw.mockReturnValue(withdrawMocks.createResult());
     walletProviderMocks.useWalletProvider.mockReturnValue({
       isConnected: true,
       chain: { id: 8453 },
@@ -328,7 +369,7 @@ describe('TransactionPanel', () => {
     expect(screen.getByText('0xabcd...7890')).toBeDefined();
   });
 
-  it('lets the invest strategy button trigger Base switching when the wallet is not on Base', () => {
+  it('lets the invest strategy button trigger Base switching when the wallet is not on Base', async () => {
     walletProviderMocks.useWalletProvider.mockReturnValue({
       isConnected: true,
       chain: { id: 1 },
@@ -340,7 +381,9 @@ describe('TransactionPanel', () => {
       name: 'Switch to Base & Invest',
     });
     expect(button).not.toBeDisabled();
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     expect(investStrategyMocks.run).toHaveBeenCalled();
     expect(
@@ -350,10 +393,12 @@ describe('TransactionPanel', () => {
     ).toBeNull();
   });
 
-  it('passes the selected Base token and parsed amount to the invest strategy runner', () => {
+  it('passes the selected Base token and parsed amount to the invest strategy runner', async () => {
     render(<TransactionPanel mode="deposit" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Invest strategy' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Invest strategy' }));
+    });
 
     expect(investStrategyMocks.run).toHaveBeenCalledWith({
       fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
@@ -362,20 +407,94 @@ describe('TransactionPanel', () => {
     });
   });
 
-  it('submits a GMX v2 withdraw request on Arbitrum with 18-decimal GM token units', () => {
-    render(<TransactionPanel mode="withdraw" />);
+  it('shows button-local loading while the invest action waits for signing', () => {
+    investStrategyMocks.run.mockReturnValue(new Promise(() => undefined));
+
+    render(<TransactionPanel mode="deposit" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Invest strategy' }));
+
+    const busyButton = screen.getByRole('button', {
+      name: 'Preparing investment…',
+    });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Running...')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Preparing investment…',
+    );
+  });
+
+  it('shows loading only on the clicked GMX deposit market and disables sibling markets', () => {
+    walletProviderMocks.useWalletProvider.mockReturnValue({
+      isConnected: true,
+      chain: { id: 42161 },
+    });
+    gmxDepositMocks.run.mockReturnValue(new Promise(() => undefined));
+
+    render(<TransactionPanel mode="deposit" />);
 
     fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Switch to Arbitrum & Withdraw GM ETH/USDC',
-      }),
+      screen.getByRole('button', { name: 'Deposit GM BTC/USDC' }),
     );
+
+    const busyButton = screen.getByRole('button', {
+      name: 'Preparing GM BTC/USDC…',
+    });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Deposit GM ETH/USDC' }),
+    ).toBeDisabled();
+    expect(screen.queryByText('Running...')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Preparing GM BTC/USDC…',
+    );
+  });
+
+  it('submits a GMX v2 withdraw request on Arbitrum with 18-decimal GM token units', async () => {
+    render(<TransactionPanel mode="withdraw" />);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Switch to Arbitrum & Withdraw GM ETH/USDC',
+        }),
+      );
+    });
 
     expect(withdrawMocks.run).toHaveBeenCalledWith({
       kind: 'gmx-v2',
       marketKey: 'eth-usdc',
       gmAmount: '100000000000000000000',
     });
+  });
+
+  it('shows loading only on the clicked GMX withdrawal market and disables sibling markets', () => {
+    walletProviderMocks.useWalletProvider.mockReturnValue({
+      isConnected: true,
+      chain: { id: 42161 },
+    });
+    withdrawMocks.run.mockReturnValue(new Promise(() => undefined));
+
+    render(<TransactionPanel mode="withdraw" />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Withdraw GM ETH/USDC' }),
+    );
+
+    const busyButton = screen.getByRole('button', {
+      name: 'Preparing GM ETH/USDC…',
+    });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Withdraw GM BTC/USDC' }),
+    ).toBeDisabled();
+    expect(screen.queryByText('Running...')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Preparing GM ETH/USDC…',
+    );
   });
 
   it('opens review modal on button click', () => {

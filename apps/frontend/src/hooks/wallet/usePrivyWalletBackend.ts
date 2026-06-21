@@ -52,6 +52,12 @@ const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
 const DEFAULT_CHAIN = arbitrum;
 const WALLET_NOT_CONNECTED_ERROR = 'No Privy wallet connected';
 
+export type PrivyBatchExecutionPhase =
+  | 'idle'
+  | 'signingIntent'
+  | 'authorizingBatch'
+  | 'sendingBatch';
+
 /**
  * Parse a CAIP-2 chain id (e.g. `"eip155:42161"`) into its numeric chain id.
  */
@@ -124,6 +130,23 @@ function decodeBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toWalletTypedData(payload: Record<string, unknown>): WalletTypedData {
+  if (
+    !isRecord(payload['domain']) ||
+    !isRecord(payload['types']) ||
+    !isRecord(payload['message']) ||
+    typeof payload['primaryType'] !== 'string'
+  ) {
+    throw new Error('Privy preview typed data payload is malformed');
+  }
+
+  return payload as unknown as WalletTypedData;
+}
+
 function assertSameChainTransactions(
   transactions: PreparedTransaction[],
   chainId: number,
@@ -167,6 +190,7 @@ export interface PrivyWalletBackend {
   updateApprovalAmount: (callIndex: number, amount: string) => Promise<void>;
   cancelBatchExecution: () => void;
   isSigningAndSending: boolean;
+  batchExecutionPhase: PrivyBatchExecutionPhase;
   isRetryingSimulation: boolean;
   retryError: string | null;
 }
@@ -195,6 +219,8 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const [simulationPreview, setSimulationPreview] =
     useState<PrivyPrepareSendCallsResponse | null>(null);
   const [isSigningAndSending, setIsSigningAndSending] = useState(false);
+  const [batchExecutionPhase, setBatchExecutionPhase] =
+    useState<PrivyBatchExecutionPhase>('idle');
   const [isRetryingSimulation, setIsRetryingSimulation] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const pendingExecutionRef = useRef<{
@@ -284,6 +310,20 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const signTypedData = useCallback(
     async (typedData: WalletTypedData): Promise<`0x${string}`> => {
       const client = await buildClient();
+      return client.signTypedData(typedData as never);
+    },
+    [buildClient],
+  );
+
+  const signPreviewTypedData = useCallback(
+    async (
+      preview: Extract<
+        PrivyPrepareSendCallsResponse,
+        { status: 'passed' | 'warning' }
+      >,
+    ): Promise<`0x${string}`> => {
+      const typedData = toWalletTypedData(preview.typedDataPayload);
+      const client = await buildClient(preview.chainId);
       return client.signTypedData(typedData as never);
     },
     [buildClient],
@@ -532,21 +572,14 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         walletLogger.info(
           '[privy.confirmBatchExecution] signing EIP-712 intent',
         );
-        const userSignature = await (
-          embeddedWallet as unknown as {
-            signTypedData: (
-              data: unknown,
-              options: { showWalletUIs: boolean },
-            ) => Promise<string>;
-          }
-        ).signTypedData(pending.preview.typedDataPayload, {
-          showWalletUIs: true,
-        });
+        setBatchExecutionPhase('signingIntent');
+        const userSignature = await signPreviewTypedData(pending.preview);
 
         // 2. User signs Privy SendCalls authorization payload
         walletLogger.info(
           '[privy.confirmBatchExecution] signing EIP-7702 auth',
         );
+        setBatchExecutionPhase('authorizingBatch');
         const { signature: authorizationSignature } =
           await generateAuthorizationSignature(
             decodeBase64(pending.preview.authorizationPayload),
@@ -561,6 +594,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
 
         // 3. Post to confirm endpoint
         walletLogger.info('[privy.confirmBatchExecution] confirming preview');
+        setBatchExecutionPhase('sendingBatch');
         const result = await sendPrivyAtomicBatch(
           {
             previewId: pending.preview.previewId,
@@ -592,13 +626,19 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         );
       } finally {
         setIsSigningAndSending(false);
+        setBatchExecutionPhase('idle');
         if (!keepPending) {
           setSimulationPreview(null);
           pendingExecutionRef.current = null;
         }
       }
     },
-    [embeddedWallet, generateAuthorizationSignature, getAccessToken],
+    [
+      embeddedWallet,
+      generateAuthorizationSignature,
+      getAccessToken,
+      signPreviewTypedData,
+    ],
   );
 
   const cancelBatchExecution = useCallback((): void => {
@@ -674,6 +714,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     updateApprovalAmount,
     cancelBatchExecution,
     isSigningAndSending,
+    batchExecutionPhase,
     isRetryingSimulation,
     retryError,
   };

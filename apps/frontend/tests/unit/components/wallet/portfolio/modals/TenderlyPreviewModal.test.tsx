@@ -281,6 +281,29 @@ describe('TenderlyPreviewModal', () => {
   });
 
   it.each([
+    ['signingIntent', 'Signing intent…'],
+    ['authorizingBatch', 'Authorizing batch…'],
+    ['sendingBatch', 'Sending batch…'],
+  ] as const)(
+    'shows %s as a disabled signing action while the batch is busy',
+    (batchExecutionPhase, label) => {
+      render(
+        <TenderlyPreviewModal
+          {...defaultProps}
+          isSigningAndSending
+          batchExecutionPhase={batchExecutionPhase}
+        />,
+      );
+
+      const signButton = screen.getByRole('button', { name: label });
+      expect(signButton).toBeDisabled();
+      expect(signButton).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
+    },
+  );
+
+  it.each([
     preview({ status: 'failed', failureReason: 'execution reverted' }),
     preview({
       status: 'unavailable',

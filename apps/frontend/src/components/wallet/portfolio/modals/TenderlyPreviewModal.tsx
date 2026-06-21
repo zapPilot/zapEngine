@@ -28,6 +28,7 @@ import {
 
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { getChainName } from '@/constants/chains';
+import type { PrivyBatchExecutionPhase } from '@/hooks/wallet/usePrivyWalletBackend';
 import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
 import { cn } from '@/lib/ui/classNames';
 
@@ -39,6 +40,7 @@ interface TenderlyPreviewModalProps {
   onRetry: () => Promise<void>;
   onUpdateApproval: (callIndex: number, amount: string) => Promise<void>;
   isSigningAndSending: boolean;
+  batchExecutionPhase?: PrivyBatchExecutionPhase;
   isRetryingSimulation: boolean;
   retryError?: string | null;
 }
@@ -703,6 +705,24 @@ function BlockingBanner({
   );
 }
 
+function signingActionLabel(
+  isSigningAndSending: boolean,
+  phase: PrivyBatchExecutionPhase,
+): string {
+  if (!isSigningAndSending) return 'Sign & Send';
+
+  switch (phase) {
+    case 'signingIntent':
+      return 'Signing intent…';
+    case 'authorizingBatch':
+      return 'Authorizing batch…';
+    case 'sendingBatch':
+      return 'Sending batch…';
+    case 'idle':
+      return 'Signing…';
+  }
+}
+
 function ReviewActions({
   preview,
   signable,
@@ -710,6 +730,7 @@ function ReviewActions({
   busy,
   canSign,
   isSigningAndSending,
+  batchExecutionPhase,
   isRetryingSimulation,
   onClose,
   onRetry,
@@ -721,6 +742,7 @@ function ReviewActions({
   busy: boolean;
   canSign: boolean;
   isSigningAndSending: boolean;
+  batchExecutionPhase: PrivyBatchExecutionPhase;
   isRetryingSimulation: boolean;
   onClose: () => void;
   onRetry: () => Promise<void>;
@@ -746,6 +768,7 @@ function ReviewActions({
         type="button"
         onClick={() => void onRetry()}
         disabled={busy}
+        aria-busy={isRetryingSimulation}
         className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl border border-line-hi bg-surface px-4 font-medium text-ink transition-colors hover:bg-surface-elevated disabled:opacity-40 sm:min-w-32 sm:px-5"
       >
         {isRetryingSimulation ? (
@@ -764,6 +787,7 @@ function ReviewActions({
             )
           }
           disabled={!canSign}
+          aria-busy={isSigningAndSending}
           className="col-span-2 flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-accent px-6 font-semibold text-[#221c0f] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-surface disabled:text-ink-faint disabled:opacity-100 sm:min-w-40"
         >
           {isSigningAndSending ? (
@@ -771,7 +795,7 @@ function ReviewActions({
           ) : (
             <Check className="h-4 w-4" />
           )}
-          {isSigningAndSending ? 'Signing...' : 'Sign & Send'}
+          {signingActionLabel(isSigningAndSending, batchExecutionPhase)}
         </button>
       )}
     </footer>
@@ -786,6 +810,7 @@ export function TenderlyPreviewModal({
   onRetry,
   onUpdateApproval,
   isSigningAndSending,
+  batchExecutionPhase = 'idle',
   isRetryingSimulation,
   retryError,
 }: TenderlyPreviewModalProps): ReactElement {
@@ -925,6 +950,7 @@ export function TenderlyPreviewModal({
             busy={busy}
             canSign={canSign}
             isSigningAndSending={isSigningAndSending}
+            batchExecutionPhase={batchExecutionPhase}
             isRetryingSimulation={isRetryingSimulation}
             onClose={onClose}
             onRetry={onRetry}

@@ -1,4 +1,5 @@
 import { type GmxV2MarketKey, MORPHO_VAULTS } from '@zapengine/intent-engine';
+import { Loader2 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { type Address, type Hash, parseUnits } from 'viem';
 import { arbitrum, base } from 'viem/chains';
@@ -130,6 +131,53 @@ function ExecutionDebugPanel({
   );
 }
 
+function ExecutionActionButton({
+  label,
+  busyLabel,
+  busy,
+  disabled,
+  tone,
+  textLeft = false,
+  onClick,
+}: {
+  label: string;
+  busyLabel: string;
+  busy: boolean;
+  disabled: boolean;
+  tone: 'amber' | 'rose';
+  textLeft?: boolean;
+  onClick: () => void;
+}) {
+  const toneClassName = tone === 'amber' ? 'bg-amber-500' : 'bg-rose-500';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-busy={busy}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded ${toneClassName} text-white disabled:opacity-50 ${textLeft ? 'justify-start text-left' : 'justify-center'}`}
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      <span>{busy ? busyLabel : label}</span>
+    </button>
+  );
+}
+
+function ExecutionStatus({ label }: { label: string | null }) {
+  if (!label) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mt-2 text-xs text-gray-600 dark:text-gray-400"
+    >
+      {label}
+    </div>
+  );
+}
+
 export function TransactionPanel({ mode }: { mode: 'deposit' | 'withdraw' }) {
   const { isConnected } = useWalletProvider();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
@@ -243,9 +291,13 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
   const { chain } = useWalletProvider();
   const gmx = useGmxDeposit();
   const { run, pending, lastCallsId, lastTxHash, lastPlan, steps } = gmx;
+  const [activeMarketKey, setActiveMarketKey] = useState<GmxV2MarketKey | null>(
+    null,
+  );
   const isOnArbitrum = chain?.id === arbitrum.id;
 
   const handleRun = async (marketKey: GmxV2MarketKey) => {
+    setActiveMarketKey(marketKey);
     try {
       await run({
         marketKey,
@@ -253,11 +305,20 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
       });
     } catch {
       // The hook logs and stores the error for this debug panel.
+    } finally {
+      setActiveMarketKey(null);
     }
   };
 
-  const disabled = pending || !amount || parseFloat(amount) <= 0;
+  const actionBusy = Boolean(activeMarketKey);
+  const disabled = pending || actionBusy || !amount || parseFloat(amount) <= 0;
   const resultId = lastCallsId ?? lastTxHash;
+  const activeMarket = GMX_V2_DEV_MARKETS.find(
+    (market) => market.key === activeMarketKey,
+  );
+  const statusLabel = activeMarket
+    ? `Preparing GM ${activeMarket.label}…`
+    : null;
 
   return (
     <ExecutionDebugPanel
@@ -268,21 +329,23 @@ function GmxV2TestButtons({ amount }: { amount: string }) {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
             {GMX_V2_DEV_MARKETS.map((market) => (
-              <button
+              <ExecutionActionButton
                 key={market.key}
-                type="button"
+                tone="amber"
                 onClick={() => void handleRun(market.key)}
                 disabled={disabled}
-                className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50 text-left"
-              >
-                {pending
-                  ? 'Running...'
-                  : !isOnArbitrum
+                busy={activeMarketKey === market.key}
+                textLeft
+                label={
+                  !isOnArbitrum
                     ? `Switch to Arbitrum & Deposit GM ${market.label}`
-                    : `Deposit GM ${market.label}`}
-              </button>
+                    : `Deposit GM ${market.label}`
+                }
+                busyLabel={`Preparing GM ${market.label}…`}
+              />
             ))}
           </div>
+          <ExecutionStatus label={statusLabel} />
           {lastPlan ? (
             <div className="mt-2 text-amber-700 dark:text-amber-300">
               GMX plan · {formatBaseUnits(lastPlan.legs[0]?.fromAmount ?? '0')}{' '}
@@ -345,9 +408,11 @@ function InvestStrategyButton({
   const investStrategy = useInvestStrategy();
   const { run, pending, lastCallsId, lastTxHash, lastPlan, legs } =
     investStrategy;
+  const [actionBusy, setActionBusy] = useState(false);
   const isOnBase = chain?.id === base.id;
 
   const handleRun = async () => {
+    setActionBusy(true);
     try {
       if (!selectedToken) {
         throw new Error('Select a token first');
@@ -360,12 +425,18 @@ function InvestStrategyButton({
       });
     } catch {
       // The hook logs and stores the error for this debug panel.
+    } finally {
+      setActionBusy(false);
     }
   };
 
   const resultId = lastCallsId ?? lastTxHash;
   const disabled =
-    pending || !selectedToken || !amount || parseFloat(amount) <= 0;
+    pending ||
+    actionBusy ||
+    !selectedToken ||
+    !amount ||
+    parseFloat(amount) <= 0;
   const progressByLeg = new Map(
     legs.map((leg) => [`${leg.kind}-${leg.chainId}`, leg]),
   );
@@ -377,18 +448,17 @@ function InvestStrategyButton({
       explorerBaseUrl={(hash) => `https://basescan.io/tx/${hash}`}
       renderDetails={() => (
         <>
-          <button
-            type="button"
+          <ExecutionActionButton
+            tone="amber"
             onClick={() => void handleRun()}
             disabled={disabled}
-            className="px-3 py-1.5 rounded bg-amber-500 text-white disabled:opacity-50"
-          >
-            {pending
-              ? 'Running...'
-              : !isOnBase
-                ? 'Switch to Base & Invest'
-                : 'Invest strategy'}
-          </button>
+            busy={actionBusy || pending}
+            label={!isOnBase ? 'Switch to Base & Invest' : 'Invest strategy'}
+            busyLabel="Preparing investment…"
+          />
+          <ExecutionStatus
+            label={actionBusy || pending ? 'Preparing investment…' : null}
+          />
           {lastPlan?.legs.length ? (
             <div className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
               {lastPlan.legs.map((leg) => (
@@ -444,9 +514,13 @@ function GmxV2WithdrawButtons({ amount }: { amount: string }) {
   const { chain } = useWalletProvider();
   const withdraw = useWithdraw();
   const { run, pending, steps } = withdraw;
+  const [activeMarketKey, setActiveMarketKey] = useState<GmxV2MarketKey | null>(
+    null,
+  );
   const isOnArbitrum = chain?.id === arbitrum.id;
 
   const handleRun = async (marketKey: GmxV2MarketKey) => {
+    setActiveMarketKey(marketKey);
     try {
       // GM market tokens are 18-decimal ERC-20s.
       await run({
@@ -456,10 +530,19 @@ function GmxV2WithdrawButtons({ amount }: { amount: string }) {
       });
     } catch {
       // The hook logs and stores the error for this debug panel.
+    } finally {
+      setActiveMarketKey(null);
     }
   };
 
-  const disabled = pending || !amount || parseFloat(amount) <= 0;
+  const actionBusy = Boolean(activeMarketKey);
+  const disabled = pending || actionBusy || !amount || parseFloat(amount) <= 0;
+  const activeMarket = GMX_V2_DEV_MARKETS.find(
+    (market) => market.key === activeMarketKey,
+  );
+  const statusLabel = activeMarket
+    ? `Preparing GM ${activeMarket.label}…`
+    : null;
 
   return (
     <ExecutionDebugPanel
@@ -470,21 +553,23 @@ function GmxV2WithdrawButtons({ amount }: { amount: string }) {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
             {GMX_V2_DEV_MARKETS.map((market) => (
-              <button
+              <ExecutionActionButton
                 key={market.key}
-                type="button"
+                tone="rose"
                 onClick={() => void handleRun(market.key)}
                 disabled={disabled}
-                className="px-3 py-1.5 rounded bg-rose-500 text-white disabled:opacity-50 text-left"
-              >
-                {pending
-                  ? 'Running...'
-                  : !isOnArbitrum
+                busy={activeMarketKey === market.key}
+                textLeft
+                label={
+                  !isOnArbitrum
                     ? `Switch to Arbitrum & Withdraw GM ${market.label}`
-                    : `Withdraw GM ${market.label}`}
-              </button>
+                    : `Withdraw GM ${market.label}`
+                }
+                busyLabel={`Preparing GM ${market.label}…`}
+              />
             ))}
           </div>
+          <ExecutionStatus label={statusLabel} />
           <WithdrawStepList steps={steps} />
           <div className="mt-1 text-gray-600 dark:text-gray-400">
             GM burned; long/short tokens settled by keeper - verify in GMX UI
@@ -505,11 +590,13 @@ function MorphoWithdrawButton({
   const { chain } = useWalletProvider();
   const withdraw = useWithdraw();
   const { run, pending, steps } = withdraw;
+  const [actionBusy, setActionBusy] = useState(false);
   const isOnBase = chain?.id === base.id;
   // Dev-only Morpho vault on Base (Moonwell USDC, ERC-4626).
   const devVault = MORPHO_VAULTS[base.id].MOONWELL_USDC;
 
   const handleRun = async () => {
+    setActionBusy(true);
     try {
       // MetaMorpho vault shares are 18-decimal.
       await run({
@@ -521,10 +608,12 @@ function MorphoWithdrawButton({
       });
     } catch {
       // The hook logs and stores the error for this debug panel.
+    } finally {
+      setActionBusy(false);
     }
   };
 
-  const disabled = pending || !amount || parseFloat(amount) <= 0;
+  const disabled = pending || actionBusy || !amount || parseFloat(amount) <= 0;
 
   return (
     <ExecutionDebugPanel
@@ -533,20 +622,23 @@ function MorphoWithdrawButton({
       explorerBaseUrl={(hash) => `https://basescan.io/tx/${hash}`}
       renderDetails={() => (
         <>
-          <button
-            type="button"
+          <ExecutionActionButton
+            tone="rose"
             onClick={() => void handleRun()}
             disabled={disabled}
-            className="px-3 py-1.5 rounded bg-rose-500 text-white disabled:opacity-50"
-          >
-            {pending
-              ? 'Running...'
-              : !isOnBase
+            busy={actionBusy || pending}
+            label={
+              !isOnBase
                 ? 'Switch to Base & Withdraw'
                 : selectedToken
                   ? `Redeem Moonwell USDC → ${selectedToken.symbol}`
-                  : 'Redeem Moonwell USDC'}
-          </button>
+                  : 'Redeem Moonwell USDC'
+            }
+            busyLabel="Preparing withdrawal…"
+          />
+          <ExecutionStatus
+            label={actionBusy || pending ? 'Preparing withdrawal…' : null}
+          />
           <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
             {selectedToken
               ? `Output swapped to ${selectedToken.symbol} via LiFi.`

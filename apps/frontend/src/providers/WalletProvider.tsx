@@ -38,6 +38,7 @@ export function WalletProvider({
     updateApprovalAmount,
     cancelBatchExecution,
     isSigningAndSending,
+    batchExecutionPhase,
     isRetryingSimulation,
     retryError,
   } = usePrivyWalletBackend();
@@ -56,6 +57,7 @@ export function WalletProvider({
           onRetry={retryBatchSimulation}
           onUpdateApproval={updateApprovalAmount}
           isSigningAndSending={isSigningAndSending}
+          batchExecutionPhase={batchExecutionPhase}
           isRetryingSimulation={isRetryingSimulation}
           retryError={retryError}
         />
