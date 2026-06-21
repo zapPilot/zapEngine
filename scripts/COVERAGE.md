@@ -1,18 +1,16 @@
 # Coverage tooling
 
 Per-workspace test coverage is enforced by each workspace's own `vitest.config.ts`
-(TS) or `pyproject.toml` (Python). On top of that, the monorepo has a
-**no-regression gate**: a committed snapshot of "current best" coverage that
-new PRs cannot drop below by more than each metric's threshold — `lines` 0.3 pp,
-`functions` 0.5 pp, `branches` 0.75 pp (branches/functions swing more, so they
-get more headroom).
+(TS) or `pyproject.toml` (Python). CI enforces those absolute thresholds and
+publishes the aggregate summary. A separate baseline comparison remains
+available for manual regression review, but it does not block CI.
 
 ## Scripts
 
 | Script                  | Purpose                                                                       |
 | ----------------------- | ----------------------------------------------------------------------------- |
 | `pnpm coverage summary` | Run all coverage suites + aggregate into `coverage/summary.json`.             |
-| `pnpm coverage check`   | Run all coverage suites + exit 1 if any workspace regressed vs baseline.json. |
+| `pnpm coverage check`   | Optional manual check: run all suites and compare against baseline.json.      |
 | `pnpm coverage test`    | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`.      |
 
 The aggregator walks `apps/*/coverage/coverage-summary.json` (vitest v8) and
@@ -51,11 +49,11 @@ git add coverage/baseline.json
 git commit -m "chore(coverage): ratchet baseline to <date>"
 ```
 
-## Adding the gate to CI
+## CI behavior
 
-`pnpm coverage check` is intentionally NOT part of `verify ci` (frontend
-sharded coverage alone is ~6 min). Wire it as a parallel job in
-`.github/workflows/ci.yml`:
+Coverage is intentionally NOT part of `verify ci` (frontend sharded coverage
+alone is ~6 min). The parallel job in `.github/workflows/ci.yml` runs
+`pnpm coverage summary`:
 
 ```yaml
 coverage:
@@ -70,7 +68,7 @@ coverage:
       with: { node-version: '24', cache: 'pnpm' }
     - run: pnpm install --frozen-lockfile
     - run: pnpm build packages
-    - run: pnpm coverage check
+    - run: pnpm coverage summary
     - uses: actions/upload-artifact@v4
       if: always()
       with:
@@ -78,14 +76,13 @@ coverage:
         path: coverage/summary.json
 ```
 
-A drop past a metric's threshold (`lines` 0.3 pp, `functions` 0.5 pp, `branches`
-0.75 pp) in any workspace fails the job, with a markdown diff table — one row per
-regressed (workspace, metric) — in the run log.
+Each workspace's `test:coverage` command fails the job when its configured
+absolute threshold is not met. Baseline drift alone does not fail CI; run
+`pnpm coverage check` manually when a no-regression comparison is useful.
 
 ## Per-workspace thresholds
 
-In addition to the no-regression gate above, each workspace enforces its own
-hard floor via vitest/pytest config:
+Each workspace enforces its own hard floor via vitest/pytest config:
 
 | Workspace                | Statements       | Branches | Functions | Lines |
 | ------------------------ | ---------------- | -------- | --------- | ----- |
@@ -98,6 +95,6 @@ hard floor via vitest/pytest config:
 | `apps/landing-page`      | 70               | 65       | 70        | 70    |
 | `apps/analytics-engine`  | 95 line (pytest) |          |
 
-These are aspirational starting floors. When `pnpm coverage check` shows a
-workspace consistently above its floor, ratchet the config-level threshold
-up and update both this table and `coverage/baseline.json` in the same PR.
+These are aspirational starting floors. Raise a config-level threshold when the
+team wants to make sustained improvements mandatory, and update this table in
+the same PR.

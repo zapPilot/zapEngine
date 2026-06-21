@@ -267,17 +267,15 @@ jobs:
       - name: Check for dead env vars
         run: bash scripts/check-dead-env.sh
 
-  # Local equivalent: `pnpm coverage check`.
+  # Local equivalent: `pnpm coverage summary`.
   coverage:
     # Parallel to lint-test. Aggregates per-workspace coverage into a single
-    # coverage/summary.json and (when coverage/baseline.json exists) gates on
-    # no-regression vs. that committed baseline.
+    # coverage/summary.json. Each workspace's test:coverage command enforces
+    # its configured absolute thresholds.
     #
     # Intentionally NOT part of verify:ci — frontend sharded coverage is
     # ~6 min on its own; keeping this in its own job preserves fast feedback
     # on lint-test.
-    #
-    # See scripts/COVERAGE.md for baseline generation procedure.
     #
     # Security note: only admin-controlled secrets/vars are referenced via
     # ${{ }}. No github.event.* user input is used in run: steps.
@@ -322,22 +320,7 @@ jobs:
       - name: Self-test the coverage scripts
         run: pnpm run coverage test
 
-      - name: Detect baseline presence
-        id: baseline
-        run: |
-          if [ -f coverage/baseline.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::coverage/baseline.json not committed yet — running summary only. See scripts/COVERAGE.md to generate one."
-          fi
-
-      - name: Coverage check (strict, with no-regression gate)
-        if: steps.baseline.outputs.exists == 'true'
-        run: pnpm coverage check
-
-      - name: Coverage summary only (no baseline yet)
-        if: steps.baseline.outputs.exists == 'false'
+      - name: Coverage summary (workspace thresholds)
         run: pnpm coverage summary
 
       - name: Upload coverage summary artifact
