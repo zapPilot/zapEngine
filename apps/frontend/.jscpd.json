@@ -16,10 +16,8 @@
     "src/app/bundle/BundlePageClient.tsx",
     "src/components/wallet/portfolio/views/invest/trading/components/TransactionPanel.tsx",
     "src/hooks/wallet/usePrivyWalletBackend.ts",
-    "src/hooks/wallet/useWagmiWalletBackend.ts",
     "src/hooks/useGmxDeposit.ts",
     "src/hooks/useWithdraw.ts",
-    "src/components/WalletManager/components/ConnectWalletButton.tsx",
     "src/components/WalletManager/components/CreateZapWalletButton.tsx"
   ],
   "ignorePattern": [

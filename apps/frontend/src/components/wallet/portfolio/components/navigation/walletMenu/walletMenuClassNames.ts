@@ -17,21 +17,3 @@ export function getMenuButtonClassName(isConnecting: boolean): string {
 export function getChevronClassName(isMenuOpen: boolean): string {
   return `w-4 h-4 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`;
 }
-
-export function getWalletItemClassName(isActive: boolean | undefined): string {
-  if (isActive) {
-    return 'p-3 rounded-lg border transition-all bg-purple-500/10 border-purple-500/30';
-  }
-
-  return 'p-3 rounded-lg border transition-all bg-gray-800/30 border-gray-700/50 hover:border-gray-600';
-}
-
-export function getWalletStatusDotClassName(
-  isActive: boolean | undefined,
-): string {
-  if (isActive) {
-    return 'w-2 h-2 rounded-full bg-purple-400 animate-pulse';
-  }
-
-  return 'w-2 h-2 rounded-full bg-gray-600';
-}

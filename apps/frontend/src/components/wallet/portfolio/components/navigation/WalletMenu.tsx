@@ -1,9 +1,7 @@
-import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { AnimatePresence } from 'framer-motion';
 import { type ReactElement, useRef, useState } from 'react';
 
 import { useClickOutside } from '@/hooks/ui/useClickOutside';
-import { isPrivyEnabled } from '@/lib/env/privy';
 import { useWalletProvider } from '@/providers/WalletProvider';
 import { copyTextToClipboard } from '@/utils';
 
@@ -16,24 +14,21 @@ interface WalletMenuProps {
 
 /**
  * Unified wallet menu that adapts its content to the current wallet state.
+ *
+ * The disconnected state shows a "Create Zap Wallet" CTA wired to the Privy
+ * `connect()` action. There is no disconnected dropdown — clicking the button
+ * opens Privy login directly. The connected dropdown is the screenshot #2
+ * behavior: address, Copy, View Bundles, Settings, Disconnect.
  */
 export function WalletMenu({
   onOpenWalletManager,
   onOpenSettings,
 }: WalletMenuProps): ReactElement {
-  const {
-    connectedWallets,
-    hasMultipleWallets,
-    account,
-    isConnected,
-    isConnecting,
-    disconnect,
-  } = useWalletProvider();
+  const { account, isConnected, isConnecting, connect, disconnect } =
+    useWalletProvider();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { openConnectModal } = useConnectModal();
-  const showDisconnectedWalletOptions = isPrivyEnabled();
 
   const closeMenu = (): void => {
     setIsMenuOpen(false);
@@ -46,7 +41,7 @@ export function WalletMenu({
   useClickOutside(menuRef, closeMenu, isMenuOpen);
 
   const handleConnectClick = (): void => {
-    openConnectModal?.();
+    void connect();
   };
 
   const copyAddress = async (address: string): Promise<void> => {
@@ -71,9 +66,6 @@ export function WalletMenu({
         isConnecting={isConnecting}
         isMenuOpen={isMenuOpen}
         accountAddress={account?.address}
-        hasMultipleWallets={hasMultipleWallets}
-        connectedWalletCount={connectedWallets.length}
-        opensDisconnectedMenu={showDisconnectedWalletOptions}
         onConnectClick={handleConnectClick}
         onToggleMenu={toggleMenu}
       />
@@ -82,10 +74,7 @@ export function WalletMenu({
         <WalletMenuDropdown
           isConnected={isConnected}
           isMenuOpen={isMenuOpen}
-          showDisconnectedWalletOptions={showDisconnectedWalletOptions}
-          hasMultipleWallets={hasMultipleWallets}
           accountAddress={account?.address}
-          connectedWallets={connectedWallets}
           copiedAddress={copiedAddress}
           onCopyAddress={(address) => {
             void copyAddress(address);

@@ -13,21 +13,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { GhostModeOverlay } from '@/components/layout/overlays/GhostModeOverlay';
 
-// Mock wallet dependencies to avoid wagmi/privy imports in unit tests
-vi.mock('@/components/WalletManager/components/ConnectWalletButton', () => ({
-  ConnectWalletButton: () => (
-    <button data-testid="connect-wallet-button">Connect Wallet</button>
-  ),
-}));
-
+// Mock wallet dependencies to avoid Privy imports in unit tests
 vi.mock('@/components/WalletManager/components/CreateZapWalletButton', () => ({
   CreateZapWalletButton: () => (
     <button data-testid="create-zap-wallet-button">Create Zap Wallet</button>
   ),
-}));
-
-vi.mock('@/lib/env/privy', () => ({
-  isPrivyEnabled: () => false,
 }));
 
 describe('GhostModeOverlay', () => {
@@ -67,7 +57,7 @@ describe('GhostModeOverlay', () => {
       expect(screen.getByTestId('test-content')).toBeInTheDocument();
       expect(screen.queryByText('Preview')).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId('connect-wallet-button'),
+        screen.queryByTestId('create-zap-wallet-button'),
       ).not.toBeInTheDocument();
     });
 
@@ -98,10 +88,12 @@ describe('GhostModeOverlay', () => {
       expect(screen.getByText('Preview')).toBeInTheDocument();
     });
 
-    it('shows Connect Wallet button by default', () => {
+    it('shows Create Zap Wallet button by default', () => {
       render(<GhostModeOverlay enabled={true}>{testContent}</GhostModeOverlay>);
 
-      expect(screen.getByTestId('connect-wallet-button')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('create-zap-wallet-button'),
+      ).toBeInTheDocument();
     });
 
     it('applies pointer-events-none to blurred content', () => {
@@ -116,7 +108,7 @@ describe('GhostModeOverlay', () => {
   });
 
   describe('showCTA prop', () => {
-    it('hides Connect button when showCTA is false', () => {
+    it('hides Create Zap Wallet button when showCTA is false', () => {
       render(
         <GhostModeOverlay enabled={true} showCTA={false}>
           {testContent}
@@ -125,7 +117,7 @@ describe('GhostModeOverlay', () => {
 
       expect(screen.getByTestId('test-content')).toBeInTheDocument();
       expect(
-        screen.queryByTestId('connect-wallet-button'),
+        screen.queryByTestId('create-zap-wallet-button'),
       ).not.toBeInTheDocument();
       expect(screen.queryByText('Preview')).not.toBeInTheDocument();
     });
@@ -140,14 +132,16 @@ describe('GhostModeOverlay', () => {
       expect(container.querySelector('.blur-\\[2px\\]')).toBeInTheDocument();
     });
 
-    it('shows Connect button by default (showCTA=true)', () => {
+    it('shows Create Zap Wallet button by default (showCTA=true)', () => {
       render(
         <GhostModeOverlay enabled={true} showCTA={true}>
           {testContent}
         </GhostModeOverlay>,
       );
 
-      expect(screen.getByTestId('connect-wallet-button')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('create-zap-wallet-button'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -162,7 +156,7 @@ describe('GhostModeOverlay', () => {
    * This is controlled by DashboardShell's isEmptyState calculation.
    */
   describe('Wallet State Scenarios (behavior documentation)', () => {
-    it('scenario: disconnected wallet should show blur + Connect CTA', () => {
+    it('scenario: disconnected wallet should show blur + Create Zap Wallet CTA', () => {
       // When wallet is disconnected, isEmptyState=true in DashboardShell
       // So GhostModeOverlay receives enabled=true
       render(
@@ -172,7 +166,9 @@ describe('GhostModeOverlay', () => {
       );
 
       expect(screen.getByText('Preview')).toBeInTheDocument();
-      expect(screen.getByTestId('connect-wallet-button')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('create-zap-wallet-button'),
+      ).toBeInTheDocument();
       expect(screen.getByTestId('test-content')).toBeInTheDocument();
     });
 
@@ -187,7 +183,7 @@ describe('GhostModeOverlay', () => {
 
       expect(screen.queryByText('Preview')).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId('connect-wallet-button'),
+        screen.queryByTestId('create-zap-wallet-button'),
       ).not.toBeInTheDocument();
       expect(screen.getByTestId('test-content')).toBeInTheDocument();
     });
@@ -201,7 +197,6 @@ describe('GhostModeOverlay', () => {
       );
 
       expect(screen.getByText('Preview')).toBeInTheDocument();
-      expect(screen.getByTestId('connect-wallet-button')).toBeInTheDocument();
     });
 
     it('scenario: bundle URL viewing (visitor mode) should show blur without CTA', () => {
@@ -216,7 +211,7 @@ describe('GhostModeOverlay', () => {
       // Still blurred but no CTA
       expect(screen.queryByText('Preview')).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId('connect-wallet-button'),
+        screen.queryByTestId('create-zap-wallet-button'),
       ).not.toBeInTheDocument();
       expect(screen.getByTestId('test-content')).toBeInTheDocument();
     });

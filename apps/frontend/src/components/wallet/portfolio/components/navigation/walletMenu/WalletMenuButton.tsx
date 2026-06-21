@@ -12,12 +12,9 @@ import {
 
 export function WalletMenuButton({
   accountAddress,
-  connectedWalletCount,
-  hasMultipleWallets,
   isConnected,
   isConnecting,
   isMenuOpen,
-  opensDisconnectedMenu,
   onConnectClick,
   onToggleMenu,
 }: WalletMenuButtonProps): ReactElement {
@@ -25,10 +22,6 @@ export function WalletMenuButton({
 
   function handleButtonClick(): void {
     if (!isConnected) {
-      if (opensDisconnectedMenu) {
-        onToggleMenu();
-        return;
-      }
       onConnectClick();
       return;
     }
@@ -42,24 +35,19 @@ export function WalletMenuButton({
       onClick={handleButtonClick}
       disabled={isConnecting}
       className={getMenuButtonClassName(isConnecting)}
-      aria-expanded={isConnected || opensDisconnectedMenu ? isMenuOpen : false}
-      aria-haspopup={isConnected || opensDisconnectedMenu ? 'menu' : 'dialog'}
+      aria-expanded={isConnected ? isMenuOpen : false}
+      aria-haspopup={isConnected ? 'menu' : 'dialog'}
     >
       <Wallet className="w-4 h-4 text-purple-400" />
       {!isConnected && (
-        <span className="hidden sm:inline">{WALLET_LABELS.CONNECT}</span>
+        <span className="hidden sm:inline">
+          {WALLET_LABELS.CREATE_ZAP_WALLET}
+        </span>
       )}
       {showConnectedAddress && accountAddress && (
-        <>
-          <span className="font-mono hidden sm:inline">
-            {formatAddress(accountAddress)}
-          </span>
-          {hasMultipleWallets && (
-            <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs font-bold hidden sm:inline">
-              {connectedWalletCount}
-            </span>
-          )}
-        </>
+        <span className="font-mono hidden sm:inline">
+          {formatAddress(accountAddress)}
+        </span>
       )}
       <ChevronDown className={getChevronClassName(isConnected && isMenuOpen)} />
     </button>

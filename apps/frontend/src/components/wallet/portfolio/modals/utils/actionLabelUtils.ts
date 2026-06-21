@@ -18,7 +18,7 @@ export function resolveActionLabel({
   selectionLabel = notReadyLabel,
 }: ActionLabelConfig): string {
   if (!isConnected) {
-    return WALLET_LABELS.CONNECT;
+    return WALLET_LABELS.CREATE_ZAP_WALLET;
   }
 
   if (!hasSelection) {

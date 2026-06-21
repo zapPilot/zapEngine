@@ -26,12 +26,12 @@ function createActionLabelInput(
 }
 
 describe('resolveActionLabel', () => {
-  it("returns 'Connect Wallet' when not connected", () => {
+  it("returns 'Create Zap Wallet' when not connected", () => {
     const result = resolveActionLabel(
       createActionLabelInput({ isConnected: false }),
     );
 
-    expect(result).toBe(WALLET_LABELS.CONNECT);
+    expect(result).toBe(WALLET_LABELS.CREATE_ZAP_WALLET);
   });
 
   it('returns selectionLabel when connected but no selection (hasSelection=false)', () => {

@@ -8,7 +8,6 @@ import {
 
 import { TenderlyPreviewModal } from '@/components/wallet/portfolio/modals/TenderlyPreviewModal';
 import { usePrivyWalletBackend } from '@/hooks/wallet/usePrivyWalletBackend';
-import { useWagmiWalletBackend } from '@/hooks/wallet/useWagmiWalletBackend';
 import type { WalletProviderInterface } from '@/types';
 
 type WalletContextValue = WalletProviderInterface;
@@ -20,38 +19,19 @@ interface WalletProviderProps {
 }
 
 /**
- * RainbowKit/wagmi-only wallet provider.
+ * Privy-only wallet provider.
  *
- * Used when Privy is not configured (no `VITE_PRIVY_APP_ID`) and by any tree
- * that does not mount `PrivyProvider` — its behaviour is identical to the
- * original single-backend provider.
+ * Wraps the Privy embedded-wallet backend behind a single
+ * `useWalletProvider()` adapter so the rest of the app never imports Privy
+ * directly. The provider is mounted by `BundleProviders` after
+ * `PrivyAuthProvider` (which supplies the `PrivyProvider` and requires
+ * `VITE_PRIVY_APP_ID`).
  */
 export function WalletProvider({
   children,
 }: WalletProviderProps): ReactElement {
-  const value = useWagmiWalletBackend();
-  return (
-    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
-  );
-}
-
-/**
- * Unified wallet provider that merges the wagmi backend with the Privy
- * embedded-wallet backend behind a single `useWalletProvider()`.
- *
- * Both backends are always evaluated (their hooks run unconditionally, so both
- * `WagmiProvider` and `PrivyProvider` must be mounted above). The Privy backend
- * takes over once a user is authenticated and an embedded wallet exists;
- * otherwise the wagmi (RainbowKit) backend drives the interface. Downstream
- * consumers see no difference — they keep calling `useWalletProvider()`.
- */
-export function UnifiedWalletProvider({
-  children,
-}: WalletProviderProps): ReactElement {
-  const wagmiBackend = useWagmiWalletBackend();
   const {
-    backend: privyBackend,
-    isActive: isPrivyActive,
+    backend,
     simulationPreview,
     confirmBatchExecution,
     retryBatchSimulation,
@@ -62,10 +42,7 @@ export function UnifiedWalletProvider({
     retryError,
   } = usePrivyWalletBackend();
 
-  const value = useMemo<WalletContextValue>(
-    () => (isPrivyActive ? privyBackend : wagmiBackend),
-    [isPrivyActive, privyBackend, wagmiBackend],
-  );
+  const value = useMemo<WalletContextValue>(() => backend, [backend]);
 
   return (
     <WalletContext.Provider value={value}>

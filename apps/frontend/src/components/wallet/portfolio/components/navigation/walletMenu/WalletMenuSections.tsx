@@ -1,24 +1,16 @@
-import { Check, Copy, LogOut, Plus, Settings, Wallet } from 'lucide-react';
+import { Check, Copy, LogOut, Settings, Wallet } from 'lucide-react';
 import { type ReactElement } from 'react';
 
-import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
-import { CreateZapWalletButton } from '@/components/WalletManager/components/CreateZapWalletButton';
-import { isPrivyEnabled } from '@/lib/env/privy';
 import { formatAddress } from '@/utils/formatters';
 
 import type {
   CopyAddressButtonProps,
   DisconnectButtonProps,
   WalletMenuItemsProps,
-  WalletMultipleWalletSectionProps,
   WalletSectionFooterProps,
   WalletSingleWalletSectionProps,
 } from './types';
-import {
-  getCopyButtonClassName,
-  getWalletItemClassName,
-  getWalletStatusDotClassName,
-} from './walletMenuClassNames';
+import { getCopyButtonClassName } from './walletMenuClassNames';
 
 const MENU_ITEM_CLASS_NAME =
   'w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-purple-500/10 hover:text-white transition-colors flex items-center gap-3';
@@ -125,18 +117,6 @@ function WalletSectionFooter({
   );
 }
 
-export function WalletDisconnectedSection(): ReactElement {
-  return (
-    <div className="px-4 py-3 space-y-2">
-      <div className="flex items-center gap-2">
-        <Plus className="w-4 h-4" />
-        <ConnectWalletButton className="flex-1 text-sm" />
-      </div>
-      <CreateZapWalletButton className="text-sm" />
-    </div>
-  );
-}
-
 export function WalletSingleWalletSection({
   accountAddress,
   copiedAddress,
@@ -171,72 +151,6 @@ export function WalletSingleWalletSection({
         onCloseMenu={onCloseMenu}
         onDisconnect={onDisconnect}
         disconnectLabel="Disconnect"
-      />
-    </div>
-  );
-}
-
-export function WalletMultipleWalletSection({
-  connectedWallets,
-  copiedAddress,
-  onCopyAddress,
-  onOpenWalletManager,
-  onOpenSettings,
-  onCloseMenu,
-  onDisconnect,
-}: WalletMultipleWalletSectionProps): ReactElement {
-  return (
-    <div className="py-2">
-      <div className="px-4 py-2 border-b border-gray-800">
-        <div className="text-xs text-gray-400 uppercase tracking-wide mb-3">
-          Connected Wallets
-        </div>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {connectedWallets.map((walletItem) => (
-            <div
-              key={walletItem.address}
-              className={getWalletItemClassName(walletItem.isActive)}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={getWalletStatusDotClassName(walletItem.isActive)}
-                  />
-                  <span className="font-mono text-sm text-white">
-                    {formatAddress(walletItem.address)}
-                  </span>
-                </div>
-                <CopyAddressButton
-                  address={walletItem.address}
-                  copiedAddress={copiedAddress}
-                  onCopyAddress={onCopyAddress}
-                  variant="icon-only"
-                />
-              </div>
-              {walletItem.isActive && (
-                <div className="text-xs text-purple-400 font-bold flex items-center gap-1">
-                  Active Wallet
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-4 py-3 border-b border-gray-800 space-y-2">
-        <div className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          <ConnectWalletButton className="flex-1 text-sm" />
-        </div>
-        {isPrivyEnabled() && <CreateZapWalletButton className="text-sm" />}
-      </div>
-
-      <WalletSectionFooter
-        onOpenWalletManager={onOpenWalletManager}
-        onOpenSettings={onOpenSettings}
-        onCloseMenu={onCloseMenu}
-        onDisconnect={onDisconnect}
-        disconnectLabel="Disconnect All"
       />
     </div>
   );

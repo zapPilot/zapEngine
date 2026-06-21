@@ -12,20 +12,11 @@ vi.mock('@/utils/formatters', () => ({
     `${addr.substring(0, 6)}...${addr.slice(-4)}`,
 }));
 
-vi.mock('@/components/WalletManager/components/ConnectWalletButton', () => ({
-  ConnectWalletButton: ({ className }: { className?: string }) => (
-    <button className={className} data-testid="connect-wallet-btn">
-      Connect Wallet Button
-    </button>
-  ),
-}));
-
 vi.mock('@/lib/ui/animationVariants', () => ({
   dropdownMenu: {},
 }));
 
 const mockAddress = '0x1234567890abcdef1234567890abcdef12345678';
-const mockAddress2 = '0xabcdef1234567890abcdef1234567890abcdef12';
 
 describe('WalletMenuButton', () => {
   const defaultProps = {
@@ -33,8 +24,6 @@ describe('WalletMenuButton', () => {
     isConnecting: false,
     isMenuOpen: false,
     accountAddress: undefined as string | undefined,
-    hasMultipleWallets: false,
-    connectedWalletCount: 0,
     onConnectClick: vi.fn(),
     onToggleMenu: vi.fn(),
   };
@@ -52,10 +41,12 @@ describe('WalletMenuButton', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows connect label text when not connected', () => {
+    it('shows Create Zap Wallet label when not connected', () => {
       render(<WalletMenuButton {...defaultProps} />);
 
-      expect(screen.getByText(WALLET_LABELS.CONNECT)).toBeInTheDocument();
+      expect(
+        screen.getByText(WALLET_LABELS.CREATE_ZAP_WALLET),
+      ).toBeInTheDocument();
     });
 
     it('calls onConnectClick when button is clicked while disconnected', () => {
@@ -126,40 +117,12 @@ describe('WalletMenuButton', () => {
       );
     });
 
-    it('does not show connect label when connected', () => {
+    it('does not show Create Zap Wallet label when connected', () => {
       render(<WalletMenuButton {...connectedProps} />);
 
-      expect(screen.queryByText(WALLET_LABELS.CONNECT)).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Multiple wallets', () => {
-    it('shows wallet count badge when hasMultipleWallets is true', () => {
-      render(
-        <WalletMenuButton
-          {...defaultProps}
-          isConnected={true}
-          accountAddress={mockAddress}
-          hasMultipleWallets={true}
-          connectedWalletCount={2}
-        />,
-      );
-
-      expect(screen.getByText('2')).toBeInTheDocument();
-    });
-
-    it('does not show wallet count badge when hasMultipleWallets is false', () => {
-      render(
-        <WalletMenuButton
-          {...defaultProps}
-          isConnected={true}
-          accountAddress={mockAddress}
-          hasMultipleWallets={false}
-          connectedWalletCount={1}
-        />,
-      );
-
-      expect(screen.queryByText('1')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(WALLET_LABELS.CREATE_ZAP_WALLET),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -174,9 +137,7 @@ describe('WalletMenuDropdown', () => {
   const baseDropdownProps = {
     isConnected: true,
     isMenuOpen: true,
-    hasMultipleWallets: false,
     accountAddress: mockAddress,
-    connectedWallets: [{ address: mockAddress, isActive: true }],
     copiedAddress: null as string | null,
     onCopyAddress: mockOnCopyAddress,
     onOpenWalletManager: mockOnOpenWalletManager,
@@ -198,7 +159,7 @@ describe('WalletMenuDropdown', () => {
       ).toBeInTheDocument();
     });
 
-    it('returns null when disconnected because RainbowKit owns wallet selection', () => {
+    it('returns null when disconnected (Privy login owns the entry point)', () => {
       render(<WalletMenuDropdown {...baseDropdownProps} isConnected={false} />);
 
       expect(
@@ -311,81 +272,6 @@ describe('WalletMenuDropdown', () => {
       );
 
       expect(screen.queryByText('View Bundles')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Multiple wallets section', () => {
-    const multiWalletProps = {
-      ...baseDropdownProps,
-      hasMultipleWallets: true,
-      connectedWallets: [
-        { address: mockAddress, isActive: true },
-        { address: mockAddress2, isActive: false },
-      ],
-    };
-
-    it('shows Connected Wallets heading for multiple wallets', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.getByText('Connected Wallets')).toBeInTheDocument();
-    });
-
-    it('shows all connected wallet addresses', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.getByText('0x1234...5678')).toBeInTheDocument();
-      expect(screen.getByText('0xabcd...ef12')).toBeInTheDocument();
-    });
-
-    it('shows Active Wallet label for the active wallet', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.getByText('Active Wallet')).toBeInTheDocument();
-    });
-
-    it('shows Disconnect All button instead of Disconnect', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.getByText('Disconnect All')).toBeInTheDocument();
-      expect(screen.queryByText('Disconnect')).not.toBeInTheDocument();
-    });
-
-    it('renders ConnectWalletButton for adding a new wallet', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.getByTestId('connect-wallet-btn')).toBeInTheDocument();
-    });
-
-    it('shows icon-only copy buttons for each wallet (no Copy text)', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      // In icon-only mode the button renders no text label
-      expect(screen.queryByText('Copy')).not.toBeInTheDocument();
-    });
-
-    it('calls onCopyAddress with the correct address when copy icon is clicked', () => {
-      render(
-        <WalletMenuDropdown
-          {...multiWalletProps}
-          copiedAddress={mockAddress2}
-        />,
-      );
-
-      // copiedAddress matches mockAddress2 so its button shows Check icon; the other one fires the click
-      // Both buttons are present - find by role and click the first one
-      const copyButtons = screen
-        .getAllByRole('button')
-        .filter((btn) => !btn.textContent);
-
-      fireEvent.click(copyButtons[0]);
-
-      expect(mockOnCopyAddress).toHaveBeenCalledWith(mockAddress);
-    });
-
-    it('does not render single wallet section for multiple wallets', () => {
-      render(<WalletMenuDropdown {...multiWalletProps} />);
-
-      expect(screen.queryByText('Connected Wallet')).not.toBeInTheDocument();
     });
   });
 });

@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { ConnectWalletButton } from '@/components/WalletManager/components/ConnectWalletButton';
 import { CreateZapWalletButton } from '@/components/WalletManager/components/CreateZapWalletButton';
-import { isPrivyEnabled } from '@/lib/env/privy';
 
 interface GhostModeOverlayProps {
   /** Content to show with blur effect */
@@ -16,12 +14,9 @@ interface GhostModeOverlayProps {
 /**
  * Ghost Mode Overlay
  *
- * Wraps wallet-dependent content with a blur effect and optional Connect Wallet CTA
- * for unconnected users. Shows a preview of what the dashboard looks like
- * while encouraging wallet connection.
- *
- * Uses the shared ConnectWalletButton to ensure consistent wallet connection
- * behavior across the app.
+ * Wraps wallet-dependent content with a blur effect and optional "Create Zap
+ * Wallet" CTA for unconnected users. Shows a preview of what the dashboard
+ * looks like while encouraging wallet creation.
  *
  * Industry-standard pattern used by Uniswap, Aave, Zapper, etc.
  */
@@ -50,9 +45,8 @@ export function GhostModeOverlay({
               Preview
             </span>
 
-            {/* Shared Connect Wallet Button - same logic as navbar */}
-            <ConnectWalletButton />
-            {isPrivyEnabled() && <CreateZapWalletButton />}
+            {/* Create Zap Wallet CTA — opens Privy login */}
+            <CreateZapWalletButton />
           </div>
         </div>
       )}

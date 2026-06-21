@@ -18,15 +18,16 @@ export function getPrivyAppId(): string | undefined {
 /**
  * Whether the Privy embedded-wallet integration is configured.
  *
- * Gates both the Privy provider tree and the "Create Zap Wallet" button so the
- * app still boots on the RainbowKit-only flow when no Privy App ID is provided.
+ * Gates the route entry on `VITE_PRIVY_APP_ID` being present so the bundle
+ * app throws fast instead of rendering a degraded UI when the Privy App ID is
+ * missing.
  *
  * @returns `true` when a non-empty `VITE_PRIVY_APP_ID` is present.
  *
  * @example
  * ```ts
  * if (isPrivyEnabled()) {
- *   // render the Create Zap Wallet button
+ *   // boot the Privy tree
  * }
  * ```
  */

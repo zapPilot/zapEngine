@@ -7,8 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_LOG_VIEWER: string;
   readonly VITE_ENABLE_DEBUG_LOGGING: string;
   readonly VITE_ENABLE_DEV_LOGGING: string;
-  readonly VITE_WALLETCONNECT_PROJECT_ID: string;
-  readonly VITE_PRIVY_APP_ID?: string;
+  readonly VITE_PRIVY_APP_ID: string;
   readonly VITE_CACHE_MAX_AGE_SECONDS?: string;
   readonly VITE_CACHE_STALE_WHILE_REVALIDATE_SECONDS?: string;
 }

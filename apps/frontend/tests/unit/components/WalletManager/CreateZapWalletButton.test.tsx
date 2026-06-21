@@ -24,7 +24,6 @@ vi.mock('@privy-io/react-auth', () => ({
 vi.mock('@/constants/wallet', () => ({
   WALLET_LABELS: {
     CREATE_ZAP_WALLET: 'Create Zap Wallet',
-    CONNECT: 'Connect Wallet',
   },
 }));
 

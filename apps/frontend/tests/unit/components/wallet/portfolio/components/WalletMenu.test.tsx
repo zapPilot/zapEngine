@@ -4,24 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WalletMenu } from '@/components/wallet/portfolio/components/navigation/WalletMenu';
 import { WALLET_LABELS } from '@/constants/wallet';
 
-// Mock providers and hooks
-const mockConnectAsync = vi.fn();
+const mockConnect = vi.fn();
 const mockDisconnect = vi.fn();
-const mockOpenConnectModal = vi.fn();
-const mockUseConnectors = vi.fn();
-const privyEnvMocks = vi.hoisted(() => ({
-  isPrivyEnabled: vi.fn(() => false),
-}));
 
-// Create mutable mock state for different test scenarios
 function createMockWalletProvider(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    connectedWallets: [],
-    hasMultipleWallets: false,
     account: null,
     isConnected: false,
+    isConnecting: false,
+    connect: mockConnect,
     disconnect: mockDisconnect,
     ...overrides,
   };
@@ -36,20 +29,6 @@ async function flushMenuAction(action: () => void): Promise<void> {
   });
 }
 
-vi.mock('wagmi', () => ({
-  useConnect: () => ({
-    mutateAsync: mockConnectAsync,
-    isPending: false,
-  }),
-  useConnectors: () => mockUseConnectors(),
-}));
-
-vi.mock('@rainbow-me/rainbowkit', () => ({
-  useConnectModal: () => ({
-    openConnectModal: mockOpenConnectModal,
-  }),
-}));
-
 vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: () => mockWalletProviderState,
 }));
@@ -57,19 +36,6 @@ vi.mock('@/providers/WalletProvider', () => ({
 vi.mock('@/utils/formatters', () => ({
   formatAddress: (addr: string) =>
     `${addr.substring(0, 6)}...${addr.slice(-4)}`,
-}));
-
-vi.mock('@/lib/env/privy', () => ({
-  isPrivyEnabled: privyEnvMocks.isPrivyEnabled,
-}));
-
-// Mock child components
-vi.mock('@/components/WalletManager/components/ConnectWalletButton', () => ({
-  ConnectWalletButton: ({ className }: { className?: string }) => (
-    <button className={className} data-testid="connect-wallet-btn">
-      Connect Wallet Button
-    </button>
-  ),
 }));
 
 vi.mock('@/components/WalletManager/components/CreateZapWalletButton', () => ({
@@ -101,8 +67,6 @@ describe('WalletMenu Component', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mockWalletProviderState = createMockWalletProvider();
-    mockUseConnectors.mockReturnValue([{ id: 'injected', name: 'MetaMask' }]);
-    privyEnvMocks.isPrivyEnabled.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -110,11 +74,12 @@ describe('WalletMenu Component', () => {
   });
 
   describe('Disconnected State', () => {
-    it('renders connect button in compact mode on mobile (hidden text)', () => {
+    it('renders the Create Zap Wallet label when disconnected', () => {
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
 
-      const connectText = screen.getByText(WALLET_LABELS.CONNECT);
-      expect(connectText).toHaveClass('hidden', 'sm:inline');
+      const label = screen.getByText(WALLET_LABELS.CREATE_ZAP_WALLET);
+      expect(label).toBeInTheDocument();
+      expect(label).toHaveClass('hidden', 'sm:inline');
     });
 
     it('renders wallet icon always', () => {
@@ -123,32 +88,16 @@ describe('WalletMenu Component', () => {
       expect(button).toBeInTheDocument();
     });
 
-    it('opens the RainbowKit connect modal without connecting immediately when not connected', () => {
+    it('triggers Privy connect when the disconnected button is clicked', () => {
       render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
       const button = screen.getByTestId('unified-wallet-menu-button');
       fireEvent.click(button);
 
-      expect(mockOpenConnectModal).toHaveBeenCalledTimes(1);
-      expect(mockConnectAsync).not.toHaveBeenCalled();
+      expect(mockConnect).toHaveBeenCalledTimes(1);
       expect(
         screen.queryByTestId('unified-wallet-menu-dropdown'),
       ).not.toBeInTheDocument();
-      expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
       expect(button).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    it('opens a disconnected wallet chooser with RainbowKit and Zap Wallet when Privy is enabled', () => {
-      privyEnvMocks.isPrivyEnabled.mockReturnValue(true);
-
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      const button = screen.getByTestId('unified-wallet-menu-button');
-      fireEvent.click(button);
-
-      expect(mockOpenConnectModal).not.toHaveBeenCalled();
-      expect(screen.getByTestId('unified-wallet-menu-dropdown')).toBeDefined();
-      expect(screen.getByTestId('connect-wallet-btn')).toBeDefined();
-      expect(screen.getByTestId('create-zap-wallet-btn')).toBeDefined();
-      expect(button).toHaveAttribute('aria-expanded', 'true');
     });
 
     it('matches snapshot - disconnected state', () => {
@@ -164,8 +113,6 @@ describe('WalletMenu Component', () => {
       mockWalletProviderState = createMockWalletProvider({
         isConnected: true,
         account: { address: mockAddress },
-        connectedWallets: [{ address: mockAddress, isActive: true }],
-        hasMultipleWallets: false,
       });
     });
 
@@ -184,12 +131,6 @@ describe('WalletMenu Component', () => {
       expect(
         screen.getByTestId('unified-wallet-menu-dropdown'),
       ).toBeInTheDocument();
-    });
-
-    it('does not show wallet count badge with single wallet', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      // The badge should not be present
-      expect(screen.queryByText('1')).not.toBeInTheDocument();
     });
 
     it('shows View Bundles button when onOpenWalletManager is provided', () => {
@@ -291,74 +232,11 @@ describe('WalletMenu Component', () => {
     });
   });
 
-  describe('Connected State - Multiple Wallets', () => {
-    beforeEach(() => {
-      mockWalletProviderState = createMockWalletProvider({
-        isConnected: true,
-        account: { address: mockAddress },
-        connectedWallets: [
-          { address: mockAddress, isActive: true },
-          { address: mockAddress2, isActive: false },
-        ],
-        hasMultipleWallets: true,
-      });
-    });
-
-    it('shows wallet count badge when multiple wallets connected', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      expect(screen.getByText('2')).toBeInTheDocument();
-    });
-
-    it('displays all connected wallets in dropdown', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      // Both formatted addresses should be visible (button shows active wallet too, so use getAllByText)
-      const activeWalletAddresses = screen.getAllByText('0x1234...5678');
-      expect(activeWalletAddresses.length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('0xabcd...ef12')).toBeInTheDocument();
-    });
-
-    it('shows Active Wallet label for active wallet', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      expect(screen.getByText('Active Wallet')).toBeInTheDocument();
-    });
-
-    it('shows Disconnect All button for multiple wallets', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      expect(screen.getByText('Disconnect All')).toBeInTheDocument();
-    });
-
-    it('shows Connect Wallet Button in Add Wallet section', () => {
-      render(<WalletMenu onOpenSettings={mockOnOpenSettings} />);
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-
-      expect(screen.getByTestId('connect-wallet-btn')).toBeInTheDocument();
-    });
-
-    it('matches snapshot - multiple wallets connected', () => {
-      const { container } = render(
-        <WalletMenu
-          onOpenSettings={mockOnOpenSettings}
-          onOpenWalletManager={mockOnOpenWalletManager}
-        />,
-      );
-      fireEvent.click(screen.getByTestId('unified-wallet-menu-button'));
-      expect(container).toMatchSnapshot();
-    });
-  });
-
   describe('Menu Interactions', () => {
     beforeEach(() => {
       mockWalletProviderState = createMockWalletProvider({
         isConnected: true,
         account: { address: mockAddress },
-        connectedWallets: [{ address: mockAddress, isActive: true }],
-        hasMultipleWallets: false,
       });
     });
 

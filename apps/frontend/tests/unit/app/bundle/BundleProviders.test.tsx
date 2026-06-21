@@ -15,18 +15,9 @@ vi.mock('@/providers/QueryProvider', () => ({
   ),
 }));
 
-vi.mock('@/providers/SimpleWeb3Provider', () => ({
-  SimpleWeb3Provider: ({ children }: { children: ReactNode }) => (
-    <div data-testid="web3-provider">{children}</div>
-  ),
-}));
-
 vi.mock('@/providers/WalletProvider', () => ({
   WalletProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="wallet-provider">{children}</div>
-  ),
-  UnifiedWalletProvider: ({ children }: { children: ReactNode }) => (
-    <div data-testid="unified-wallet-provider">{children}</div>
   ),
 }));
 
@@ -79,7 +70,23 @@ describe('BundleProviders', () => {
     envMocks.getRuntimeEnv.mockReturnValue(undefined);
   });
 
-  it('renders children inside providers', () => {
+  it('throws when VITE_PRIVY_APP_ID is missing', () => {
+    expect(() =>
+      render(
+        <BundleProviders>
+          <div>Child</div>
+        </BundleProviders>,
+      ),
+    ).toThrow(
+      'Missing required VITE_PRIVY_APP_ID for Privy wallet configuration.',
+    );
+  });
+
+  it('renders children inside providers when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
     render(
       <BundleProviders>
         <div data-testid="child-content">Child</div>
@@ -90,7 +97,11 @@ describe('BundleProviders', () => {
     expect(screen.getByText('Child')).toBeInTheDocument();
   });
 
-  it('wraps content with QueryProvider', () => {
+  it('wraps content with QueryProvider when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
     render(
       <BundleProviders>
         <div>Child</div>
@@ -100,17 +111,7 @@ describe('BundleProviders', () => {
     expect(screen.getByTestId('query-provider')).toBeInTheDocument();
   });
 
-  it('wraps content with WalletProvider', () => {
-    render(
-      <BundleProviders>
-        <div>Child</div>
-      </BundleProviders>,
-    );
-
-    expect(screen.getByTestId('wallet-provider')).toBeInTheDocument();
-  });
-
-  it('uses PrivyAuthProvider and UnifiedWalletProvider when Privy is configured', () => {
+  it('uses PrivyAuthProvider and WalletProvider when Privy is configured', () => {
     envMocks.getRuntimeEnv.mockImplementation((key: string) =>
       key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
     );
@@ -122,11 +123,14 @@ describe('BundleProviders', () => {
     );
 
     expect(screen.getByTestId('privy-auth-provider')).toBeInTheDocument();
-    expect(screen.getByTestId('unified-wallet-provider')).toBeInTheDocument();
-    expect(screen.queryByTestId('wallet-provider')).not.toBeInTheDocument();
+    expect(screen.getByTestId('wallet-provider')).toBeInTheDocument();
   });
 
-  it('wraps content with ToastProvider', () => {
+  it('wraps content with ToastProvider when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
     render(
       <BundleProviders>
         <div>Child</div>
@@ -136,7 +140,11 @@ describe('BundleProviders', () => {
     expect(screen.getByTestId('toast-provider')).toBeInTheDocument();
   });
 
-  it('includes ErrorBoundary', () => {
+  it('includes ErrorBoundary when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
     render(
       <BundleProviders>
         <div>Child</div>
@@ -146,7 +154,11 @@ describe('BundleProviders', () => {
     expect(screen.getByTestId('error-boundary')).toBeInTheDocument();
   });
 
-  it('includes GlobalErrorHandler', () => {
+  it('includes GlobalErrorHandler when Privy is configured', () => {
+    envMocks.getRuntimeEnv.mockImplementation((key: string) =>
+      key === 'VITE_PRIVY_APP_ID' ? 'privy-app-id' : undefined,
+    );
+
     render(
       <BundleProviders>
         <div>Child</div>

@@ -33,9 +33,9 @@ exports[`GhostModeOverlay > Snapshot Tests - UI Design Freeze > should match sna
         Preview
       </span>
       <button
-        data-testid="connect-wallet-button"
+        data-testid="create-zap-wallet-button"
       >
-        Connect Wallet
+        Create Zap Wallet
       </button>
     </div>
   </div>

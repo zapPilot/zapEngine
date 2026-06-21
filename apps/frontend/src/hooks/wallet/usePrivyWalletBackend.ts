@@ -19,7 +19,7 @@ import {
   parseUnits,
   toHex,
 } from 'viem';
-import { arbitrum, base, optimism } from 'wagmi/chains';
+import { arbitrum, base, optimism } from 'viem/chains';
 
 import {
   buildWalletAccount,
@@ -39,8 +39,8 @@ import type {
 import { walletLogger } from '@/utils';
 
 /**
- * Chains the Privy embedded wallet may operate on. Kept aligned with the
- * RainbowKit/wagmi config in `@/config/wagmi`.
+ * Chains the Privy embedded wallet may operate on. Defined inline from
+ * `viem/chains` to keep the bundle free of `wagmi/chains` imports.
  */
 const PRIVY_CHAINS: readonly Chain[] = [arbitrum, base, optimism];
 const CHAIN_BY_ID = new Map<number, Chain>(

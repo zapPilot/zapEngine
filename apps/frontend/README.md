@@ -5,7 +5,7 @@ analytics.
 
 ## Stack
 
-Vite 7, React 19, TypeScript, Tailwind CSS v4, wagmi + viem, React Query, Framer Motion, Vitest,
+Vite 7, React 19, TypeScript, Tailwind CSS v4, viem, Privy (embedded wallet), React Query, Framer Motion, Vitest,
 Playwright.
 
 ## Setup
@@ -34,6 +34,7 @@ All client-exposed variables must be prefixed `VITE_`. Key ones:
 
 - `VITE_ACCOUNT_API_URL` — account-engine base URL
 - `VITE_ANALYTICS_ENGINE_URL` — analytics-engine base URL
+- `VITE_PRIVY_APP_ID` — required Privy app ID for the embedded-wallet flow
 - `VITE_ENABLE_RQ_DEVTOOLS` — set to `1` only when debugging React Query state
 - `VITE_ENABLE_LOG_VIEWER` — set to `1` only when debugging in-app logs
 

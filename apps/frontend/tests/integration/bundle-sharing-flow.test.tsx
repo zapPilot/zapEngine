@@ -206,7 +206,7 @@ vi.mock('@/components/WalletManager', () => ({
             mockConnectedWallet = '0xConnected...User';
           }}
         >
-          Connect Wallet
+          Create Zap Wallet
         </button>
         {onEmailSubscribed && (
           <button

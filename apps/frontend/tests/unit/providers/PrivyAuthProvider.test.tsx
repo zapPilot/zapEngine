@@ -30,17 +30,18 @@ describe('PrivyAuthProvider', () => {
     vi.clearAllMocks();
   });
 
-  it('renders children without PrivyProvider when no app ID', () => {
+  it('throws when no app ID is configured', () => {
     privyMocks.getPrivyAppId.mockReturnValue(undefined);
 
-    render(
-      <PrivyAuthProvider>
-        <div data-testid="child">Content</div>
-      </PrivyAuthProvider>,
+    expect(() =>
+      render(
+        <PrivyAuthProvider>
+          <div data-testid="child">Content</div>
+        </PrivyAuthProvider>,
+      ),
+    ).toThrow(
+      'Missing required VITE_PRIVY_APP_ID for Privy wallet configuration.',
     );
-
-    expect(screen.getByTestId('child')).toBeInTheDocument();
-    expect(screen.queryByTestId('privy-provider')).not.toBeInTheDocument();
   });
 
   it('renders children wrapped in PrivyProvider when app ID is set', () => {

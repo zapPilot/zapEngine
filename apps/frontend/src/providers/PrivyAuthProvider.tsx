@@ -1,6 +1,6 @@
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
 import { type ReactNode } from 'react';
-import { arbitrum, base, optimism } from 'wagmi/chains';
+import { arbitrum, base, optimism } from 'viem/chains';
 
 import { getPrivyAppId } from '@/lib/env/privy';
 
@@ -40,15 +40,17 @@ interface PrivyAuthProviderProps {
  * infrastructure — it sits behind the `useWalletProvider()` adapter, so the
  * rest of the app never imports Privy directly.
  *
- * Chains are kept aligned with the RainbowKit/wagmi config in `@/config/wagmi`.
- * When no App ID is configured this renders children unchanged so the app still
- * boots on the RainbowKit-only flow.
+ * `VITE_PRIVY_APP_ID` is required: when unset this provider throws so the
+ * bundle app fails fast instead of silently rendering without a wallet
+ * backend.
  */
 export function PrivyAuthProvider({ children }: PrivyAuthProviderProps) {
   const appId = getPrivyAppId();
 
   if (!appId) {
-    return <>{children}</>;
+    throw new Error(
+      'Missing required VITE_PRIVY_APP_ID for Privy wallet configuration.',
+    );
   }
 
   return (

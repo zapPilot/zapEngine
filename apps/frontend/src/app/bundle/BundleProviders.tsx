@@ -7,11 +7,7 @@ import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { lazyImport } from '@/lib/lazy/lazyImport';
 import { PrivyAuthProvider } from '@/providers/PrivyAuthProvider';
 import { QueryProvider } from '@/providers/QueryProvider';
-import { SimpleWeb3Provider } from '@/providers/SimpleWeb3Provider';
-import {
-  UnifiedWalletProvider,
-  WalletProvider,
-} from '@/providers/WalletProvider';
+import { WalletProvider } from '@/providers/WalletProvider';
 
 const DeferredToastProvider = lazyImport(
   async () => import('@/providers/ToastProvider'),
@@ -39,10 +35,9 @@ interface BundleProvidersProps {
  * Keeping wallet/query providers out of the root layout reduces the amount of
  * app state pulled into the initial SPA shell during development.
  *
- * When a Privy App ID is configured, the tree mounts `PrivyAuthProvider` and the
- * `UnifiedWalletProvider` (wagmi + Privy embedded wallet behind one
- * `useWalletProvider()`). Without it, the original RainbowKit-only
- * `WalletProvider` is used so the app still boots.
+ * Privy is the only wallet backend. `PrivyAuthProvider` throws when
+ * `VITE_PRIVY_APP_ID` is missing; we surface that requirement via
+ * `isPrivyEnabled()` at the route entry so unit tests can stub the chain.
  */
 export function BundleProviders({ children }: BundleProvidersProps) {
   const inner = (
@@ -53,19 +48,17 @@ export function BundleProviders({ children }: BundleProvidersProps) {
     </ErrorBoundary>
   );
 
+  if (!isPrivyEnabled()) {
+    throw new Error(
+      'Missing required VITE_PRIVY_APP_ID for Privy wallet configuration.',
+    );
+  }
+
   return (
     <QueryProvider>
-      {isPrivyEnabled() ? (
-        <PrivyAuthProvider>
-          <SimpleWeb3Provider>
-            <UnifiedWalletProvider>{inner}</UnifiedWalletProvider>
-          </SimpleWeb3Provider>
-        </PrivyAuthProvider>
-      ) : (
-        <SimpleWeb3Provider>
-          <WalletProvider>{inner}</WalletProvider>
-        </SimpleWeb3Provider>
-      )}
+      <PrivyAuthProvider>
+        <WalletProvider>{inner}</WalletProvider>
+      </PrivyAuthProvider>
     </QueryProvider>
   );
 }

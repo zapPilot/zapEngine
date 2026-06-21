@@ -14,9 +14,8 @@ function shortenAddress(address: string): string {
  * Native Privy "Create Zap Wallet" button.
  *
  * Opens the Privy login modal (email/Google/Apple) which auto-provisions an
- * embedded EOA — the "create your own wallet" entry point, distinct from the
- * RainbowKit "Connect Wallet" button for external wallets. Must be rendered
- * inside a `PrivyProvider` (gate on `isPrivyEnabled()` at the call site).
+ * embedded EOA — the "create your own wallet" entry point for the Privy
+ * embedded-wallet flow. Must be rendered inside a `PrivyProvider`.
  */
 export function CreateZapWalletButton({
   className = '',
