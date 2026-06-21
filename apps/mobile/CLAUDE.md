@@ -23,6 +23,24 @@ Regression guard: `flutter test test/ios_background_audio_config_test.dart`.
 The simulator is not a reliable test surface — verify on a real device before
 claiming a fix.
 
+## Episode playback sections
+
+A podcast episode may contain multiple playback sections. The current sections
+are:
+
+- `main`
+- `classroom`
+
+Do not model language classroom as a separate episode row in the feed. It
+belongs to the same logical episode and is played through the audio handler
+queue / concatenating source.
+
+Playback speed is section-specific:
+
+- main uses `playback_speed_main`
+- classroom uses `playback_speed_classroom`
+- classroom defaults to 1.0x
+
 ## Supabase Runtime Config
 
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` must be provided with Dart defines for
