@@ -19,7 +19,7 @@ export type MonitoredMetric = (typeof MONITORED_METRICS)[number];
 export const METRIC_THRESHOLDS_PP: Record<MonitoredMetric, number> = {
   lines: 0.3,
   branches: 0.75,
-  functions: 1.0,
+  functions: 0.5,
 };
 
 // Historical headline threshold (= the lines threshold). Still referenced by
