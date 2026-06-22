@@ -1,5 +1,4 @@
 export type {
-  ConnectedWalletItem,
   WalletMenuButtonProps,
   WalletMenuDropdownProps,
 } from './walletMenu/types';

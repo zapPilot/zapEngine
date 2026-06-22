@@ -7,11 +7,7 @@ export default defineKnipConfig({
     'scripts/**/*.{js,ts}',
   ],
   project: ['src/**/*.{ts,tsx}', 'scripts/**/*.{js,ts}'],
-  ignore: [
-    '**/index.ts',
-    'src/shims/emptyModule.ts',
-    'src/shims/jaysonBrowserClient.ts',
-  ],
+  ignore: ['**/index.ts', 'src/shims/emptyModule.ts'],
   // Pre-flight dependency for rebalance execution; wiring waits on viem client
   // exposure from wallet plumbing and supported-chain alignment.
   ignoreDependencies: [

@@ -1,8 +1,3 @@
-export interface ConnectedWalletItem {
-  address: string;
-  isActive?: boolean;
-}
-
 export type CopyButtonVariant = 'text' | 'icon-only';
 
 export interface CopyAddressButtonProps {
