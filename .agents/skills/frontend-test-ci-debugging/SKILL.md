@@ -14,14 +14,15 @@ description: >-
 
 ## Where the error already is
 
-Don't re-discover the failure — it's already captured. A local `pnpm verify
-parallel` (or `verify changed`) writes `.ai-verify/result.json` (per-job status)
-plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
-failed job, then read its log:
+Don't re-discover the failure — start from the GitHub job log or a completed
+local verify result. `verify changed` writes an aggregate entry to
+`.ai-verify/result.json` and `.ai-verify/logs/verify-changed.log`; full-gate
+variants write per-job logs under `.ai-verify/logs/`. Find the failed job, then
+read its log:
 
-- a frontend Vitest crash surfaces in the **`test`** job →
-  `.ai-verify/logs/test.log` (the `[coverage] Batch N/… could not be split
-  further` line names the real file)
+- a frontend Vitest crash surfaces in the **`test`** job at
+  `.ai-verify/logs/test.log`; the
+  `[coverage] Batch N/… could not be split further` line names the real file
 
 That log holds the full error. The narrower `vitest run … <file>` command below
 is for isolating that one file — not the entry point. (The standalone `coverage`
@@ -84,7 +85,7 @@ files**.
    "validated on Node 24"). A local pass doesn't guarantee CI, and a local-only
    failure may not reflect CI — push and read the CI log before declaring done.
 
-## ESM-only transitive dep crash — the trap and the fix
+## ESM-only transitive dep crash — frontend-specific routing
 
 **The trap** (this exact issue burned 5 `fixCI` commits + an autofix loop):
 adding the dep to `vite.config` `server.deps.inline` / `resolve.alias` /
@@ -98,58 +99,31 @@ externalized package, because:
 - Workspace packages resolve to their **real path** (`packages/X/dist/…`), so an
   inline regex keyed on `@scope/name` never matches.
 
-**The fix — decide:**
+Use
+[monorepo-build-import-errors](../monorepo-build-import-errors/SKILL.md)
+for the authoritative mechanism trace, root-fix versus boundary-mock decision,
+canonical lazy-import example, and cleanup of obsolete config workarounds.
 
-- **You can edit the package that pulls the chain** (e.g. `packages/intent-engine`)
-  → **root fix**: defer whatever evaluates the chain at module load. The eager
-  trigger is usually a top-level static `import { … } from '<heavy-sdk>'`, but
-  can also be a **module-level singleton** (`export const x = createThing(…)`)
-  that instantiates it. Convert the static import to a **dynamic `import()`
-  inside the (already-async) methods**, and/or make the singleton lazy (build it
-  on first access). Importing the package then no longer evaluates the chain;
-  bundlers still resolve it for production (it becomes a lazy chunk). **This is
-  the only fix that also satisfies tests which `importActual`/`importOriginal`
-  the real package** — a `vi.mock` cannot, because those force the real chain to
-  load. Trace from the crashing leaf upward to find the first eager evaluation.
-- **You cannot edit the package** → `vi.mock('<package>', factory)` in a setup
-  file. Works because the importer is src/inlined. Does **not** help tests that
-  `importActual` the real package.
-- **Never** try to make the whole real chain loadable. It's whack-a-mole — cut
-  one ESM-only dep (jayson) and the next surfaces (uuid, then more).
+Keep only these frontend-specific constraints in mind:
 
-### Before / after (the real fix that unblocked CI)
-
-`packages/intent-engine/src/adapters/lifi.adapter.ts` dragged
-`@lifi/sdk → @solana/web3.js → jayson/lib/client/browser → require('uuid')`
-(uuid@14 is ESM-only) into every test that imports the intent engine.
-
-```ts
-// ❌ before — top-level static import evaluates the whole Solana chain at load
-import { createConfig, getQuote, getToken } from '@lifi/sdk';
-
-// ✅ after — types stay (erased); values load lazily on first use
-import type { QuoteRequest } from '@lifi/sdk';
-
-private sdkPromise?: Promise<typeof import('@lifi/sdk')>;
-private loadSdk() {
-  this.sdkPromise ??= import('@lifi/sdk').then((sdk) => {
-    sdk.createConfig({ integrator: this.config.integrator });
-    return sdk;
-  });
-  return this.sdkPromise;
-}
-// in each async method: const { getQuote } = await this.loadSdk();
-```
+- A test that calls `importActual` / `importOriginal` forces the real package
+  chain to load, so a boundary `vi.mock` cannot solve it; use the source-level
+  root fix described in the build/import skill.
+- If the package is not editable and tests do not force the real module, mock
+  the first package boundary imported by frontend-controlled code.
+- After the source/mock fix, rerun the named file with coverage and build the
+  frontend production bundle. Test-runner success alone does not prove a lazy
+  import still bundles correctly.
 
 ## Common mistakes / red herrings
 
-| Belief | Reality |
-| --- | --- |
-| "CI's eslint/prettier rewrote my file, so it keeps failing" | CI runs `eslint .` / `prettier --check` — **read-only**. File mutation is not the cause. |
-| "Passes alone, fails in a batch → the runner is broken" | That's pollution; the sharded runner bisects it. Not a blocker. |
-| "Add the dep to `server.deps.inline` / alias / `ssr.noExternal`" | No effect on externalized transitive deps. Build-only knobs. |
-| "Flip `pool` / rewrite the barrel import to a deep path" | Config-level dodging; fragile, and the deep-path rewrite violates the barrel-import convention. Fix the source. |
-| "It fails on my Node, must be a local artifact" | Maybe — but verify on CI (Node 24). Some local failures are real on CI too. |
+| Belief                                                           | Reality                                                                                                         |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| "CI's eslint/prettier rewrote my file, so it keeps failing"      | CI runs `eslint .` / `prettier --check` — **read-only**. File mutation is not the cause.                        |
+| "Passes alone, fails in a batch → the runner is broken"          | That's pollution; the sharded runner bisects it. Not a blocker.                                                 |
+| "Add the dep to `server.deps.inline` / alias / `ssr.noExternal`" | No effect on externalized transitive deps. Build-only knobs.                                                    |
+| "Flip `pool` / rewrite the barrel import to a deep path"         | Config-level dodging; fragile, and the deep-path rewrite violates the barrel-import convention. Fix the source. |
+| "It fails on my Node, must be a local artifact"                  | Maybe — but verify on CI (Node 24). Some local failures are real on CI too.                                     |
 
 ## Verification
 
