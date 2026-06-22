@@ -46,6 +46,16 @@ heavy SDK at module top-level, or `vi.mock` it at the `src → package` boundary
 runs test files in **batches of 3** and **bisects a failing batch down to single
 files**.
 
+> **`test:ci` = `test:coverage` (~109 serial vitest+coverage batches, ~8–9 min) `&&`
+> `test:e2e` (Playwright real-browser suite, ~10 min).** It is `cache:false`, so it
+> re-runs in full every time. Under `pnpm verify parallel` all of that output goes to
+> `.ai-verify/logs/test.log` (silent console) — so a 20–30 min "hang after `[lint] passed`"
+> is almost always just this slow job, **not** a deadlock. **Requires Node 24**: on a newer
+> major, coverage-v8 throws intermittent `ENOENT`/`Unhandled Error` reading its temp files,
+> triggering batch-retry storms that make `test:coverage` appear to never finish. Confirm
+> `node -v` = 24 before debugging further. For the inner loop use `test:unit` (~3 min) or a
+> single `vitest run --coverage <file>`, not `test:ci`.
+
 - **Only a single-file hard-fail blocks CI** — the message
   `[coverage] Batch N/… could not be split further` names that file. That is the
   real failure.

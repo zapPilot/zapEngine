@@ -61,6 +61,35 @@ pnpm security audit core
 Read the failing job's log at `.ai-verify/logs/<job>.log`, fix, re-run. Drive the
 fixes with whatever agent you use (e.g. OpenCode `/goal`).
 
+> ⚠️ **`verify parallel` is a 20–30 min job with NO console output — silence is NOT a
+> hang.** Its `test` job runs `test:ci` for every non-mobile workspace; frontend's alone
+> is `test:coverage` (~109 serial vitest+coverage batches, ~8–9 min) **&&** `test:e2e`
+> (Playwright real-browser suite, ~10 min). All output is redirected to
+> `.ai-verify/logs/`, and the runner `wait`s on jobs in listed order, so after
+> `[lint] passed` the console sits quiet while the slow `test` job churns. That is
+> expected. Watch real progress with `tail -f .ai-verify/logs/test.log`. **Run it as the
+> final pre-push pass (ideally backgrounded) — never as the first move or inside the fix
+> loop.**
+>
+> - **Requires Node 24** (`.nvmrc` / root `engines`). On a newer major the frontend
+>   coverage runner (`scripts/run-sharded-coverage.js`, gated to Node 24) drives
+>   coverage-v8, which throws intermittent `ENOENT`/`Unhandled Error` reading its temp
+>   files → batch-retry storms that push `test:ci` from "slow" to "never finishes".
+>   **Check `node -v` = 24 BEFORE blaming the gate.**
+> - **macOS has no `timeout`/`gtimeout`** → `pnpm verify parallel --timeout N` is silently
+>   ignored (the script warns and runs with no timeout). Don't rely on it to bound a slow job.
+> - `verify parallel` deletes `.ai-verify/result.json` at start and rewrites it only at
+>   the end — interrupt it and result.json is gone; the per-job `.ai-verify/logs/<job>.log`
+>   files persist, so read those.
+
+**When CI already named ONE failing job, don't lead with the full gate** — reproduce that
+job's *fastest* variant in the inner loop, and save `verify parallel` for the final
+enumeration:
+
+- frontend unit only (no coverage, no e2e — ~3 min): `pnpm --filter @zapengine/frontend test:unit`
+- one e2e spec: `cd apps/frontend && PLAYWRIGHT_PORT=3099 pnpm exec playwright test <spec>`
+- one coverage file (matches the CI runner): `cd apps/frontend && pnpm exec vitest run --coverage <file>`
+
 **Every `verify` variant writes the same `.ai-verify/result.json` + per-job
 logs** — not just `parallel`. `verify ci` (sequential) records each job as it
 runs; `verify changed` / `branch` record a single aggregate entry and
