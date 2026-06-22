@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # Ordered list of job IDs. Priority is implicit: first = highest.
-CORE_CI_JOB_IDS="format repo contracts type-check lint test deadcode dup analytics"
+CORE_CI_JOB_IDS="format repo contracts type-check lint test e2e deadcode dup analytics"
 
 # Optional warmup run once by verify-ci-parallel.sh before the parallel fan-out,
 # so the turbo jobs hit cache for their `^build` dependency instead of rebuilding
@@ -28,6 +28,7 @@ core_ci_job_name() {
     type-check) echo "Type check" ;;
     lint)      echo "Lint" ;;
     test)      echo "Tests" ;;
+    e2e)       echo "Frontend E2E" ;;
     deadcode)  echo "Dead code" ;;
     dup)       echo "Duplication" ;;
     analytics) echo "Analytics checks" ;;
@@ -42,7 +43,8 @@ core_ci_job_command() {
     contracts) echo "pnpm contracts check" ;;
     type-check) echo "pnpm turbo run type-check --filter=!@zapengine/mobile" ;;
     lint)      echo "pnpm turbo run lint --filter=!@zapengine/mobile" ;;
-    test)      echo "pnpm turbo run test:ci --filter=!@zapengine/mobile" ;;
+    test)      echo "pnpm turbo run test --filter=!@zapengine/mobile --force" ;;
+    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/frontend" ;;
     deadcode)  echo "pnpm turbo run deadcode --filter=!@zapengine/mobile" ;;
     dup)       echo "pnpm turbo run dup:check --filter=!@zapengine/mobile" ;;
     analytics) echo "pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine" ;;
@@ -58,6 +60,7 @@ core_ci_job_log() {
     type-check) echo "type-check.log" ;;
     lint)      echo "lint.log" ;;
     test)      echo "test.log" ;;
+    e2e)       echo "e2e.log" ;;
     deadcode)  echo "deadcode.log" ;;
     dup)       echo "dup.log" ;;
     analytics) echo "analytics.log" ;;

@@ -93,7 +93,7 @@ jobs:
         timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
-      - name: Build core packages
+      - name: Build core workspaces
         run: pnpm run build core
 
       - name: Run check-variant tasks
