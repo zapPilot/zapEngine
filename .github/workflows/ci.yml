@@ -55,6 +55,8 @@ jobs:
       # Pytest fixtures use these local URLs; do not point at production.
       TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
       DATABASE_INTEGRATION_URL: postgresql+asyncpg://test_user:testpass123@localhost:5432/test_db
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:

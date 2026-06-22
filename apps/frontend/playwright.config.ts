@@ -160,13 +160,17 @@ export default defineConfig({
           command: `npm run dev -- --host 127.0.0.1 --port ${FALLBACK_PORT}`,
           url: PLAYWRIGHT_BASE_URL,
           reuseExistingServer: false,
-          // The Privy provider throws at import time without this. CI has no
-          // root .env, so provide a placeholder for the e2e dev server — Vite
-          // exposes process.env VITE_* on import.meta.env, so the app boots
-          // instead of white-screening.
+          // The Privy SDK validates appId at provider init — it must be a
+          // 25-char string or it throws "invalid Privy app ID", which the
+          // global ErrorBoundary catches and renders as a full-screen "Oops"
+          // (crashing the whole /bundle subtree in e2e). CI has no root .env,
+          // so provide a valid-LENGTH (25-char) dummy for the e2e dev server —
+          // Vite exposes process.env VITE_* on import.meta.env, so /bundle boots.
           env: {
             VITE_PRIVY_APP_ID:
-              process.env["VITE_PRIVY_APP_ID"] ?? "test-privy-app-id",
+              process.env["VITE_PRIVY_APP_ID"] ?? "e2eprivyappidplaceholder0",
+            VITE_SUPABASE_URL: process.env["SUPABASE_URL"] ?? "",
+            VITE_SUPABASE_ANON_KEY: process.env["SUPABASE_ANON_KEY"] ?? "",
           },
         },
       }),
