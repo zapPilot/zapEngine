@@ -18,7 +18,7 @@ then widen verification one level at a time.**
 The round-trip loop is not bad luck — it's structural. The CI "check" step is a
 **`set -e` sequential gate** ([scripts/verify-ci.sh](../../../scripts/verify-ci.sh),
 wired to `pnpm verify ci`) that runs the core jobs in order
-(`format repo contracts type-check lint test deadcode dup analytics`) and
+(`format repo contracts type-check lint test e2e deadcode dup analytics`) and
 **stops at the first failure**. So each push only ever reveals the _next_
 failure in line. Fixing one advances the gate to the next — expect a cascade.
 **CI (Node 24) is authoritative**, but the local fix loop should be fast enough
@@ -42,13 +42,13 @@ to finish and expose that cascade instead of disappearing into one silent run.
      `pnpm lint repo` or `pnpm contracts check`
 3. **Fix the root cause and rerun that same narrow command.** Do not widen while
    the original failure is still red.
-4. **Run `pnpm verify changed`.** It covers affected lint, type-check, test:ci,
-   deadcode, and duplication tasks. On failure, read
+4. **Run `pnpm verify changed`.** It covers affected lint, type-check, test,
+   test:e2e, deadcode, and duplication tasks. On failure, read
    `.ai-verify/logs/verify-changed.log` and the newest `.turbo/runs/*.json` to
    locate the failing package/task.
 5. **Follow the cascade instead of stopping.** The sequential order is
-   `... → test → deadcode → dup → analytics`. A fixed frontend `test` failure
-   can reveal `deadcode` next; that is a new exposed failure, not proof the first
+   `... → test → e2e → deadcode → dup → analytics`. A fixed frontend `test` failure
+   can reveal `e2e` or `deadcode` next; that is a new exposed failure, not proof the first
    fix was incomplete. Fix the newly named job and run `verify changed` again.
    **Continue until there is no new failing job.**
 6. **Widen before handoff.** Run `pnpm verify branch` before push. Before merge,
@@ -62,13 +62,16 @@ catches repository-wide fallout.
 ## Full gate — final enumeration, not the entry point
 
 `pnpm verify parallel` is useful when you genuinely need every core job at once,
-but it is a **20–30 minute, mostly silent final pass**. The `test` job includes
-frontend coverage (~109 serial Vitest batches) and Playwright E2E. Output is
-redirected to `.ai-verify/logs/`, and jobs are collected in list order, so the
-console can sit after `[lint] passed` while tests continue.
+but it is a **20–30 minute, mostly silent final pass**. The slow part is the
+`e2e` job (frontend Playwright suite) and the `test` job (unit tests across
+workspaces). Frontend coverage is NOT in this gate — it runs in the separate
+`coverage` CI job. Output is redirected to `.ai-verify/logs/`, and jobs are
+collected in list order, so the console can sit after an earlier `passed` line
+while E2E continues.
 
-- Watch progress with `tail -f .ai-verify/logs/test.log`.
-- Check `node -v` is Node 24 before diagnosing coverage-v8 `ENOENT` retry storms.
+- Watch progress with `tail -f .ai-verify/logs/e2e.log` (E2E is the long pole).
+- Check `node -v` is Node 24 before diagnosing coverage-v8 `ENOENT` retry storms
+  (in the separate `coverage` job, or when reproducing a coverage file directly).
 - On macOS, `--timeout` is ineffective unless `timeout` or `gtimeout` is installed.
 - The runner deletes `.ai-verify/result.json` at start and rewrites it only after
   all jobs are collected. Interrupting it leaves logs but no summary.

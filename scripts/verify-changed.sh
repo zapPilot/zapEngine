@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/verify-changed.sh
 #
-# Fast inner-loop gate: lint/type-check/test/deadcode/dup on packages affected by
+# Fast inner-loop gate: lint/type-check/test/e2e/deadcode/dup on packages affected by
 # committed + staged + working-tree changes (a synthetic WIP commit feeds turbo
 # --affected). Writes the shared .ai-verify/result.json + verify-changed.log (see
 # ci-run-lib.sh); turbo --summarize drops .turbo/runs/*.json so a reader can
@@ -37,7 +37,7 @@ log_file="$CIRUN_LOG_DIR/verify-changed.log"
 status=0
 cirun_run_logged "changed" "verify-changed.log" \
   env TURBO_SCM_BASE="$base_ref" TURBO_SCM_HEAD="$wip_commit" \
-  pnpm turbo run lint type-check test:ci deadcode dup:check \
+  pnpm turbo run lint type-check test test:e2e deadcode dup:check \
     --affected \
     --filter='!@zapengine/mobile' \
     --summarize || status=$?
