@@ -1,6 +1,8 @@
 import {
+  type SignTypedDataParams,
   useAuthorizationSignature,
   usePrivy,
+  useSignTypedData,
   useWallets,
 } from '@privy-io/react-auth';
 import type {
@@ -211,6 +213,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const { ready, authenticated, login, logout, getAccessToken, user } =
     usePrivy();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const { signTypedData: signPrivyTypedData } = useSignTypedData();
   const { wallets } = useWallets();
   const [error, setError] = useState<WalletError | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -322,11 +325,21 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         { status: 'passed' | 'warning' }
       >,
     ): Promise<`0x${string}`> => {
+      if (!embeddedWallet) {
+        throw new Error(WALLET_NOT_CONNECTED_ERROR);
+      }
+
       const typedData = toWalletTypedData(preview.typedDataPayload);
-      const client = await buildClient(preview.chainId);
-      return client.signTypedData(typedData as never);
+      const { signature } = await signPrivyTypedData(
+        typedData as SignTypedDataParams,
+        {
+          address: embeddedWallet.address,
+          uiOptions: { showWalletUIs: true },
+        },
+      );
+      return signature as `0x${string}`;
     },
-    [buildClient],
+    [embeddedWallet, signPrivyTypedData],
   );
 
   const sendTransaction = useCallback(

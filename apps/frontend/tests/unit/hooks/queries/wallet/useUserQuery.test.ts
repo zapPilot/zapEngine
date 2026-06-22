@@ -18,7 +18,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAccount } from 'wagmi';
 
 import {
   useCurrentUser,
@@ -36,10 +35,6 @@ vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
   return { ...actual, useQuery: vi.fn() };
 });
-
-vi.mock('wagmi', () => ({
-  useAccount: vi.fn(),
-}));
 
 vi.mock('@/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
@@ -134,9 +129,9 @@ describe('useUserQuery — uncovered branches', () => {
       status: 'pending',
     } as ReturnType<typeof useQuery>);
 
-    vi.mocked(useAccount).mockReturnValue({
-      address: undefined,
-    } as ReturnType<typeof useAccount>);
+    vi.mocked(useWalletProvider).mockReturnValue({
+      account: null,
+    } as ReturnType<typeof useWalletProvider>);
     vi.mocked(connectWallet).mockResolvedValue(
       baseConnectResponse as ReturnType<typeof connectWallet> extends Promise<
         infer T

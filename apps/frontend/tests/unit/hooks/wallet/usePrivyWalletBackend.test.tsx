@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     logout: vi.fn(),
     getAccessToken: vi.fn(),
     generateAuthorizationSignature: vi.fn(),
+    signPrivyTypedData: vi.fn(),
     getEthereumProvider,
     switchChain,
     sendCalls: vi.fn(),
@@ -49,6 +50,9 @@ vi.mock('@privy-io/react-auth', () => ({
   useWallets: mocks.useWallets,
   useAuthorizationSignature: () => ({
     generateAuthorizationSignature: mocks.generateAuthorizationSignature,
+  }),
+  useSignTypedData: () => ({
+    signTypedData: mocks.signPrivyTypedData,
   }),
 }));
 
@@ -172,7 +176,11 @@ describe('usePrivyWalletBackend', () => {
     vi.clearAllMocks();
     mocks.accountApiPost.mockReset();
     mocks.providerRequest.mockReset();
-    mocks.providerRequest.mockResolvedValue('mock-user-eip712-signature');
+    mocks.providerRequest.mockResolvedValue('mock-provider-signature');
+    mocks.signPrivyTypedData.mockReset();
+    mocks.signPrivyTypedData.mockResolvedValue({
+      signature: 'mock-user-eip712-signature',
+    });
     mocks.getEthereumProvider.mockResolvedValue({
       request: mocks.providerRequest,
     });
@@ -269,10 +277,16 @@ describe('usePrivyWalletBackend', () => {
     const execution = await promise;
     expect(execution?.callsId).toBe('privy-transaction-id');
 
-    expect(mocks.providerRequest.mock.calls[0]?.[0]).toMatchObject({
-      method: 'eth_signTypedData_v4',
-      params: expect.arrayContaining([PRIVY_ADDRESS]),
-    });
+    expect(mocks.signPrivyTypedData).toHaveBeenCalledWith(
+      passedPreview().typedDataPayload,
+      {
+        address: PRIVY_ADDRESS,
+        uiOptions: { showWalletUIs: true },
+      },
+    );
+    expect(mocks.providerRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'eth_signTypedData_v4' }),
+    );
     expect(
       Array.from(mocks.generateAuthorizationSignature.mock.calls[0][0]),
     ).toEqual(Array.from(new TextEncoder().encode('server-formatted-payload')));
