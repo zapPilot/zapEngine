@@ -20,12 +20,14 @@ class EpisodeCard extends StatelessWidget {
     required this.onPlay,
     this.onDelete,
     this.deleteLabel = 'Delete',
+    this.supportingContent,
   });
 
   final Episode episode;
   final VoidCallback onPlay;
   final VoidCallback? onDelete;
   final String? deleteLabel;
+  final Widget? supportingContent;
   final bool isPlaying;
   final bool isLoading;
 
@@ -69,6 +71,10 @@ class EpisodeCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium,
                       ),
+                      if (supportingContent != null) ...[
+                        const SizedBox(height: 8),
+                        supportingContent!,
+                      ],
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 10,

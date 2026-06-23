@@ -121,6 +121,14 @@ export interface EpisodeResponse {
   languageClassrooms: LanguageClassroomLesson[];
 }
 
+export type EpisodeSearchMatchSource = 'title' | 'script';
+
+export interface EpisodeSearchResult {
+  episode: EpisodeResponse;
+  matchSource: EpisodeSearchMatchSource;
+  snippet: string | null;
+}
+
 export interface NewEpisode {
   id: string;
   sourceUrl: string;

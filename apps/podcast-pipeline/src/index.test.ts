@@ -28,6 +28,7 @@ const {
   mockGenerateScriptWithLLM,
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
+  mockInvalidateEpisodeSearchCache,
   mockListEpisodesPaged,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
@@ -42,6 +43,7 @@ const {
   mockUpsertLanguageClassrooms,
   mockUploadHlsToR2,
   mockConvertArticleToZhTW,
+  mockSearchEpisodes,
   mockTelegramFetch,
 } = vi.hoisted(() => ({
   mockDecodeCursor: vi.fn(),
@@ -52,6 +54,7 @@ const {
   mockGenerateScriptWithLLM: vi.fn(),
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
+  mockInvalidateEpisodeSearchCache: vi.fn(),
   mockListEpisodesPaged: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
@@ -70,6 +73,7 @@ const {
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
   mockConvertArticleToZhTW: vi.fn(),
+  mockSearchEpisodes: vi.fn(),
   mockTelegramFetch: vi.fn(),
 }));
 
@@ -162,6 +166,11 @@ vi.mock('./services/tts.js', async (importOriginal) => ({
 
 vi.mock('./services/opencc.js', () => ({
   convertArticleToZhTW: mockConvertArticleToZhTW,
+}));
+
+vi.mock('./services/episode-search.js', () => ({
+  invalidateEpisodeSearchCache: mockInvalidateEpisodeSearchCache,
+  searchEpisodes: mockSearchEpisodes,
 }));
 
 vi.mock('./services/translate.js', () => ({
@@ -723,6 +732,7 @@ describe('POST /ingest pipeline', () => {
         (lesson) => lesson.targetLanguageCode,
       ),
     ).toEqual(['ja', 'en']);
+    expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
   });
 
   it('returns the cost envelope and a Telegram-equivalent summary string', async () => {
@@ -1030,6 +1040,7 @@ describe('POST /telegram/webhook', () => {
         '- 外語小教室: $0.00009',
       ].join('\n'),
     ]);
+    expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
   });
 
   it('logs Telegram send failures without failing the webhook', async () => {
@@ -1280,6 +1291,75 @@ describe('GET /episodes', () => {
 
     expect(response.status).toBe(400);
     expect(mockListEpisodesPaged).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /episodes/search', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchEpisodes.mockResolvedValue([]);
+  });
+
+  it('searches the requested language and returns result metadata', async () => {
+    const item = {
+      episode: episodeListResponse(
+        listRow({
+          title: 'The Fed balance sheet',
+          language_code: 'en',
+        }),
+      ),
+      matchSource: 'title',
+      snippet: 'Liquidity conditions changed.',
+    };
+    mockSearchEpisodes.mockResolvedValue([item]);
+
+    const response = await app.request(
+      '/episodes/search?q=%20Fed%20balance%20&language=en&limit=7',
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockSearchEpisodes).toHaveBeenCalledWith('Fed balance', 'en', 7);
+    expect(body).toEqual({ items: [item] });
+  });
+
+  it('uses the default language and result limit', async () => {
+    const response = await app.request('/episodes/search?q=流動性');
+
+    expect(response.status).toBe(200);
+    expect(mockSearchEpisodes).toHaveBeenCalledWith('流動性', 'zh-Hant', 20);
+  });
+
+  it.each([
+    ['missing', '/episodes/search'],
+    ['too short', '/episodes/search?q=a'],
+    ['too long', `/episodes/search?q=${'a'.repeat(121)}`],
+  ])('returns 400 for a %s query', async (_label, path) => {
+    const response = await app.request(path);
+
+    expect(response.status).toBe(400);
+    expect(mockSearchEpisodes).not.toHaveBeenCalled();
+  });
+
+  it.each(['abc', '0', '51', '1.5'])(
+    'returns 400 for invalid limit %s',
+    async (limit) => {
+      const response = await app.request(
+        `/episodes/search?q=liquidity&limit=${limit}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(mockSearchEpisodes).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns 400 for unsupported language codes', async () => {
+    const response = await app.request(
+      '/episodes/search?q=liquidity&language=fr',
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockSearchEpisodes).not.toHaveBeenCalled();
   });
 });
 

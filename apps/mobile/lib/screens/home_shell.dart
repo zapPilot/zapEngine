@@ -7,9 +7,9 @@ import '../services/episode_service.dart';
 import '../state/playback_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/mini_player.dart';
-import 'coming_soon_screen.dart';
 import 'favorites_screen.dart';
 import 'feed_screen.dart';
+import 'search_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -53,7 +53,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             index: _currentIndex,
             children: [
               FeedScreen(episodeService: widget._episodeService),
-              const ComingSoonScreen(title: '探索'),
+              SearchScreen(episodeService: widget._episodeService),
               FavoritesScreen(episodeService: widget._episodeService),
               const SettingsScreen(),
             ],
@@ -71,8 +71,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: '首頁'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.explore_rounded),
-            label: '探索',
+            icon: Icon(Icons.search_rounded),
+            label: '搜尋',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bookmark_rounded),

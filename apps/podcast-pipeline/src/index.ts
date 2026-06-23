@@ -31,10 +31,16 @@ import {
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
+import {
+  invalidateEpisodeSearchCache,
+  searchEpisodes,
+} from './services/episode-search.js';
 import { handleAppError } from './services/error-response.js';
 import { performMultilingualIngest } from './services/ingest.js';
 import {
   isEpisodeId,
+  parseEpisodeSearchLimit,
+  parseEpisodeSearchQuery,
   parseInputUrl,
   parsePrimaryLanguageCode,
   requireAdminAuthorization,
@@ -115,6 +121,7 @@ app.post('/ingest', async (c) => {
   console.log(`[/ingest] start url=${url} language=${languageCode}`);
 
   const result = await performMultilingualIngest(url, languageCode);
+  invalidateEpisodeSearchCache();
 
   console.log(
     `[/ingest] done episode=${result.episode.id} status=${result.statusCode}`,
@@ -210,6 +217,14 @@ app.get('/episodes', async (c) => {
   });
 });
 
+app.get('/episodes/search', async (c) => {
+  const query = parseEpisodeSearchQuery(c.req.query('q'));
+  const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
+  const limit = parseEpisodeSearchLimit(c.req.query('limit'));
+  const items = await searchEpisodes(query, languageCode, limit);
+  return c.json({ items });
+});
+
 app.post('/episodes/:id/listened', async (c) => {
   const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
   const episode = await markEpisodeListened(c.req.param('id'));
@@ -280,6 +295,7 @@ async function runTelegramIngest(
 
   try {
     const result = await performMultilingualIngest(url, languageCode);
+    invalidateEpisodeSearchCache();
     await sendTelegramNotification(
       chatId,
       buildIngestSummaryFromResult(result),

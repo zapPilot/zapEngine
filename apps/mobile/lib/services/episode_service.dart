@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/episode.dart';
 import '../models/episode_page.dart';
+import '../models/episode_search_result.dart';
 import '../utils/app_logger.dart';
 import '../utils/json_utils.dart';
 import 'supabase_service.dart';
@@ -70,6 +71,39 @@ class EpisodeService {
     } catch (e) {
       if (e is EpisodeServiceException) rethrow;
       AppLogger.warn('Failed to fetch episodes from API', e);
+      rethrow;
+    }
+  }
+
+  Future<List<EpisodeSearchResult>> searchEpisodes({
+    required String query,
+    required String languageCode,
+    int limit = 20,
+  }) async {
+    final uri = Uri.parse(AppConfig.podcastApiUrl).replace(
+      path: '/episodes/search',
+      queryParameters: {
+        'q': query.trim(),
+        'language': languageCode,
+        'limit': limit.toString(),
+      },
+    );
+
+    try {
+      final response = await _httpClient.get(uri);
+      if (response.statusCode != 200) {
+        throw EpisodeServiceException(
+          'API error: ${response.statusCode} ${response.reasonPhrase}',
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return (json['items'] as List)
+          .cast<Map<String, dynamic>>()
+          .map(EpisodeSearchResult.fromJson)
+          .toList(growable: false);
+    } catch (error) {
+      if (error is EpisodeServiceException) rethrow;
+      AppLogger.warn('Failed to search episodes', error);
       rethrow;
     }
   }

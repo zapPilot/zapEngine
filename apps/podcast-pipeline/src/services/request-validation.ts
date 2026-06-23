@@ -54,6 +54,28 @@ export function parsePrimaryLanguageCode(
   return languageCode;
 }
 
+export function parseEpisodeSearchQuery(value: unknown): string {
+  const query = typeof value === 'string' ? value.trim() : '';
+  const length = Array.from(query).length;
+  if (length < 2 || length > 120) {
+    throw new HTTPException(400, {
+      message: 'Search query must contain 2 to 120 characters',
+    });
+  }
+  return query;
+}
+
+export function parseEpisodeSearchLimit(value: unknown): number {
+  if (value === undefined) return 20;
+  const limit = typeof value === 'string' ? Number(value) : Number.NaN;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+    throw new HTTPException(400, {
+      message: 'Search limit must be an integer from 1 to 50',
+    });
+  }
+  return limit;
+}
+
 export function requireAdminAuthorization(
   authorization: string | undefined,
 ): void {

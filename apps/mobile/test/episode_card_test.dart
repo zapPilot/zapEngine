@@ -35,12 +35,32 @@ void main() {
 
     expect(playCount, 1);
   });
+
+  testWidgets('renders optional supporting content below the title', (
+    tester,
+  ) async {
+    await _pumpEpisodeCard(
+      tester,
+      Episode(
+        id: 'episode-search',
+        title: 'Search result',
+        hlsUrl: 'https://cdn.example.com/episode-search.m3u8',
+        createdAt: DateTime(2026, 5, 4),
+        listened: false,
+      ),
+      onPlay: () {},
+      supportingContent: const Text('Matched transcript snippet'),
+    );
+
+    expect(find.text('Matched transcript snippet'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpEpisodeCard(
   WidgetTester tester,
   Episode episode, {
   required VoidCallback onPlay,
+  Widget? supportingContent,
 }) async {
   final authProvider = AuthProvider(authService: _FakeAuthService());
   await authProvider.restore();
@@ -61,6 +81,7 @@ Future<void> _pumpEpisodeCard(
             isPlaying: false,
             isLoading: false,
             onPlay: onPlay,
+            supportingContent: supportingContent,
           ),
         ),
       ),
