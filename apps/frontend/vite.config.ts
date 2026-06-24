@@ -19,6 +19,8 @@ const coverageThresholds = {
 } as const;
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
+const PURE_ANNOTATION_WARNING =
+  "contains an annotation that Rollup cannot interpret";
 
 function getManualChunk(id: string): string | undefined {
   if (!id.includes("node_modules")) {
@@ -137,7 +139,17 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: "dist",
+    // Wallet apps inevitably ship large provider/crypto dependencies. Keep the
+    // warning useful by flagging chunks that exceed today's largest app chunk
+    // instead of expected wallet bundles that are already lazy-loaded/gzipped.
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.message.includes(PURE_ANNOTATION_WARNING)) {
+          return;
+        }
+        defaultHandler(warning);
+      },
       output: {
         manualChunks: getManualChunk,
       },
