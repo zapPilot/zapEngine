@@ -26,6 +26,7 @@ DEV_ALLOWED_ORIGINS = (
     "http://localhost:3001",
     "http://localhost:5173",
     "http://localhost:8000",
+    "tauri://localhost",
 )
 LOCAL_CORS_HOSTS = {"localhost", "0.0.0.0", "::1"}
 

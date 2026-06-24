@@ -50,6 +50,8 @@ function getManualChunk(id: string): string | undefined {
   return undefined;
 }
 
+const isDesktop = process.env["VITE_APP_RUNTIME"] === "desktop";
+
 export default defineConfig(({ mode }) => ({
   envDir: REPO_ROOT,
   optimizeDeps: {
@@ -71,7 +73,7 @@ export default defineConfig(({ mode }) => ({
         ]
       : []),
     VitePWA({
-      disable: mode === "analyze",
+      disable: mode === "analyze" || isDesktop,
       registerType: "autoUpdate",
       injectRegister: "auto",
       manifest: false,
