@@ -198,6 +198,48 @@ describe('usePortfolioDataProgressive', () => {
     expect(mockUseLandingPageData).toHaveBeenCalledWith('user1', false, false);
   });
 
+  it('disables landing data while desktop/root waits for a user id', () => {
+    renderHook(() => usePortfolioDataProgressive(''));
+    expect(mockUseLandingPageData).toHaveBeenCalledWith('', false, false);
+  });
+
+  it('does not surface stale empty-user landing errors as global errors', () => {
+    const emptyUserError = new Error('User ID is required');
+    mockUseLandingPageData.mockReturnValue({
+      ...defaultQueryResult,
+      error: emptyUserError,
+    });
+
+    const { result } = renderHook(() => usePortfolioDataProgressive(''));
+
+    expect(result.current.error).toBeNull();
+  });
+
+  it('does not manually refetch landing data without a user id', async () => {
+    const mockRefetchLanding = vi.fn().mockResolvedValue(undefined);
+    const mockRefetchSentiment = vi.fn().mockResolvedValue(undefined);
+    const mockRefetchRegime = vi.fn().mockResolvedValue(undefined);
+    mockUseLandingPageData.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchLanding,
+    });
+    mockUseSentimentData.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchSentiment,
+    });
+    mockUseRegimeHistory.mockReturnValue({
+      ...defaultQueryResult,
+      refetch: mockRefetchRegime,
+    });
+
+    const { result } = renderHook(() => usePortfolioDataProgressive(''));
+    await result.current.refetch();
+
+    expect(mockRefetchLanding).not.toHaveBeenCalled();
+    expect(mockRefetchSentiment).toHaveBeenCalled();
+    expect(mockRefetchRegime).toHaveBeenCalled();
+  });
+
   it('forwards isStrategyActive=false to market queries when strategy view is inactive', () => {
     renderHook(() => usePortfolioDataProgressive('user1', false, true, false));
 

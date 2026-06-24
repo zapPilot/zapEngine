@@ -86,12 +86,13 @@ function hasAnyLoadingState(
 }
 
 function getProgressiveError(
+  hasUserId: boolean,
   landingQuery: LandingQuery,
   sentimentQuery: SentimentQuery,
   regimeQuery: RegimeQuery,
 ): Error | null {
   return (
-    (landingQuery.error as Error) ||
+    (hasUserId ? (landingQuery.error as Error) : null) ||
     (sentimentQuery.error as Error) ||
     (regimeQuery.error as Error) ||
     null
@@ -114,16 +115,22 @@ function getProgressiveError(
  * @returns Section states with loading/error information
  */
 export function usePortfolioDataProgressive(
-  userId: string,
+  userId: string | null | undefined,
   isEtlInProgress = false,
   isLandingActive = true,
   isStrategyActive = true,
 ): DashboardProgressiveState {
-  // Fetch data from independent sources
+  const resolvedUserId = userId?.trim() ?? '';
+  const hasUserId = resolvedUserId.length > 0;
+
+  // Fetch data from independent sources. Keep landing disabled until a bundle
+  // owner is known; desktop/root boots can render before current-user redirect
+  // has resolved, and manual refetches for an empty user id surface as
+  // "User ID is required".
   const landingQuery = useLandingPageData(
-    userId,
+    resolvedUserId,
     isEtlInProgress,
-    isLandingActive,
+    hasUserId && isLandingActive,
   );
   const sentimentQuery = useSentimentData(isStrategyActive);
   const regimeQuery = useRegimeHistory(isStrategyActive);
@@ -153,7 +160,7 @@ export function usePortfolioDataProgressive(
   );
 
   logProgressiveQueryStates(
-    userId,
+    resolvedUserId,
     isEtlInProgress,
     landingQuery,
     sentimentQuery,
@@ -166,7 +173,10 @@ export function usePortfolioDataProgressive(
   );
 
   const refetchAll = async () => {
-    const refetches: Promise<unknown>[] = [landingQuery.refetch()];
+    const refetches: Promise<unknown>[] = [];
+    if (hasUserId) {
+      refetches.push(landingQuery.refetch());
+    }
     if (isStrategyActive) {
       refetches.push(sentimentQuery.refetch(), regimeQuery.refetch());
     }
@@ -184,7 +194,12 @@ export function usePortfolioDataProgressive(
     sentimentData: sentimentQuery.data,
     regimeHistoryData: regimeQuery.data,
     isLoading: hasAnyLoadingState(landingQuery, sentimentQuery, regimeQuery),
-    error: getProgressiveError(landingQuery, sentimentQuery, regimeQuery),
+    error: getProgressiveError(
+      hasUserId,
+      landingQuery,
+      sentimentQuery,
+      regimeQuery,
+    ),
     refetch: refetchAll,
   };
 }
