@@ -12,7 +12,7 @@ default-run = "zap-pilot-desktop"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 
 [lib]
 name = "zap_pilot_desktop_lib"
