@@ -37,6 +37,15 @@ All apps — including analytics-engine (Python/FastAPI) — expose the same `pn
 
 First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`). Frontend uses `pnpm test:unit` (not `pnpm test`) for unit tests.
 
+## Desktop (Tauri/macOS)
+
+The desktop app is a native Tauri wrapper around `@zapengine/frontend`. Keep desktop-specific setup in [apps/desktop/README.md](apps/desktop/README.md) and AI guardrails in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
+
+- Use the workspace `@tauri-apps/cli` binary; do not require a global `tauri` install.
+- Native package/build validation requires Rust/Cargo and Xcode Command Line Tools.
+- `pnpm --filter @zapengine/desktop package` builds the DMG and can be slow; run it only when validating the macOS artifact.
+- The core verification gates include desktop's TypeScript/config checks, but not a full DMG release/signing flow.
+
 ## Mobile (Flutter) exclusion
 
 The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:

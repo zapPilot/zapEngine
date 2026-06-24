@@ -2,7 +2,7 @@
 
 zapPilot is a **DeFi portfolio analytics and automation platform** that returns full control of investments to users. Users manage assets through their own EOA wallet — no need to trust third-party vault smart contracts. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
 
-This codebase powers the full stack: TypeScript/Python microservices, a React dashboard, a Next.js marketing site, and a Flutter podcast app.
+This codebase powers the full stack: TypeScript/Python microservices, a React dashboard, a Tauri macOS desktop shell, a Next.js marketing site, and a Flutter podcast app.
 
 **Security** — Web3 projects are frequent targets for exploits and hacking. Code review and robust security practices are essential to protecting users' assets.
 
@@ -24,6 +24,7 @@ zapEngine/
 │   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
+│   ├── desktop             # Tauri v2 — macOS shell around frontend
 │   ├── frontend            # React 19 + Vite — dashboard SPA
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── mobile              # Flutter — From Fed to Chain podcast app
@@ -42,6 +43,7 @@ zapEngine/
 | account-engine   | TypeScript   | Hono 4.12         | Fly.io                 |
 | alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
 | analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
+| desktop          | TypeScript   | Tauri v2          | macOS DMG              |
 | frontend         | TypeScript   | React 19 + Vite 7 | Vercel                 |
 | landing-page     | TypeScript   | Next.js 15        | Vercel                 |
 | mobile           | Dart         | Flutter           | App Store / Play Store |
@@ -52,6 +54,7 @@ zapEngine/
 - Node.js 24.x
 - pnpm >= 10 (`npm i -g pnpm`)
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/) (for analytics-engine only)
+- Rust / Cargo and Xcode Command Line Tools (for desktop native builds only)
 - Flutter 3.32+ (for mobile only)
 
 ## Setup
@@ -91,6 +94,12 @@ pnpm dev api
 # Start landing page only (includes /pitch/)
 pnpm dev landing
 
+# Run the desktop shell
+pnpm --filter @zapengine/desktop dev
+
+# Build the macOS DMG
+pnpm --filter @zapengine/desktop package
+
 # Run the mobile app
 pnpm --filter @zapengine/mobile dev
 
@@ -117,4 +126,5 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
 - **Frontend / Landing / Docs** → Vercel
+- **Desktop** → local/manual macOS DMG build from `apps/desktop`
 - CI triggers on push to `main` and PRs; deploys only on `main`

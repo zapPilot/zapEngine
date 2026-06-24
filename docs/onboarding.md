@@ -22,6 +22,13 @@ map is [docs/README.md](./README.md).
 4. Run `pnpm dev frontend`. Unit tests: `pnpm --filter @zapengine/frontend test:unit`
    (note `test:unit`, **not** `test`).
 
+## Desktop — `apps/desktop` (Tauri/macOS)
+
+1. [apps/desktop/README.md](../apps/desktop/README.md) — setup, dev, DMG packaging, and troubleshooting.
+2. [apps/desktop/CLAUDE.md](../apps/desktop/CLAUDE.md) — desktop/runtime guardrails.
+3. Make sure Rust/Cargo and Xcode Command Line Tools are installed before native packaging.
+4. Run `pnpm --filter @zapengine/desktop dev`. Package a DMG with `pnpm --filter @zapengine/desktop package`.
+
 ## TypeScript backend — `account-engine` / `alpha-etl` / `podcast-pipeline`
 
 1. The app's `CLAUDE.md` + `README.md`.
