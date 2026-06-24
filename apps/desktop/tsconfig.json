@@ -1,0 +1,14 @@
+{
+  "extends": "@zapengine/tsconfig/node.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true
+  },
+  "include": ["tests/**/*.ts", "knip.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "coverage", "src-tauri/target"]
+}

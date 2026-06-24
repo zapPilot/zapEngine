@@ -1,11 +1,39 @@
 /**
  * Unit tests for env utilities
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { toSeconds } from '@/lib/env/runtimeEnv';
+import {
+  getAppRuntime,
+  isDesktopRuntime,
+  toSeconds,
+} from '@/lib/env/runtimeEnv';
 
 describe('env', () => {
+  afterEach(() => {
+    delete process.env['VITE_APP_RUNTIME'];
+  });
+
+  describe('getAppRuntime', () => {
+    it('defaults to web when VITE_APP_RUNTIME is unset', () => {
+      expect(getAppRuntime()).toBe('web');
+    });
+
+    it('returns desktop when VITE_APP_RUNTIME is desktop', () => {
+      process.env['VITE_APP_RUNTIME'] = 'desktop';
+
+      expect(getAppRuntime()).toBe('desktop');
+      expect(isDesktopRuntime()).toBe(true);
+    });
+
+    it('falls back to web for unknown VITE_APP_RUNTIME values', () => {
+      process.env['VITE_APP_RUNTIME'] = 'native';
+
+      expect(getAppRuntime()).toBe('web');
+      expect(isDesktopRuntime()).toBe(false);
+    });
+  });
+
   describe('toSeconds', () => {
     it('should return fallback for undefined value', () => {
       expect(toSeconds(undefined, 3600)).toBe(3600);

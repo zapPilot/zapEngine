@@ -24,6 +24,7 @@ const EXPECTED_DUP_CHECK = 'node ../../scripts/lint/run-jscpd.mjs src';
 const ALLOWED_DUP_CHECKS = new Set([
   EXPECTED_DUP_CHECK,
   'node ../../scripts/lint/run-jscpd.mjs lib',
+  'node ../../scripts/lint/run-jscpd.mjs tests',
 ]);
 const ALLOWED_REAL_TEST_PACKAGES = new Set(['@zapengine/types']);
 

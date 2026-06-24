@@ -2,11 +2,17 @@ type EnvValue = string | boolean | undefined;
 
 type EnvRecord = Record<string, EnvValue>;
 
+export type AppRuntime = 'web' | 'desktop';
+
 const MODE_ALIASES = {
   development: 'development',
   production: 'production',
   test: 'test',
 } as const;
+
+const DEFAULT_APP_RUNTIME: AppRuntime = 'web';
+const APP_RUNTIME_ENV_KEY = 'VITE_APP_RUNTIME';
+const APP_RUNTIMES = new Set<AppRuntime>(['web', 'desktop']);
 
 function readImportMetaEnv(key: string): EnvValue {
   return (import.meta.env as EnvRecord | undefined)?.[key];
@@ -88,6 +94,24 @@ export function isRuntimeMode(
   mode: 'development' | 'production' | 'test',
 ): boolean {
   return getRuntimeMode() === MODE_ALIASES[mode];
+}
+
+function isAppRuntime(value: string): value is AppRuntime {
+  return APP_RUNTIMES.has(value as AppRuntime);
+}
+
+export function getAppRuntime(): AppRuntime {
+  const runtime = getRuntimeEnv(APP_RUNTIME_ENV_KEY);
+
+  if (runtime && isAppRuntime(runtime)) {
+    return runtime;
+  }
+
+  return DEFAULT_APP_RUNTIME;
+}
+
+export function isDesktopRuntime(): boolean {
+  return getAppRuntime() === 'desktop';
 }
 
 /**
