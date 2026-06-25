@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from '@/app/App';
+import { DesktopProviders } from '@/integration/DesktopProviders';
 
 const container = document.getElementById('root');
 
@@ -14,8 +15,10 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <DesktopProviders>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </DesktopProviders>
   </StrictMode>,
 );

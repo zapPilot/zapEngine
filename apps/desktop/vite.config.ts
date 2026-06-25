@@ -28,6 +28,18 @@ function getManualChunk(id: string): string | undefined {
     return 'vendor-motion';
   }
 
+  if (/[\\/]node_modules[\\/]viem[\\/]/.test(id)) {
+    return 'vendor-viem';
+  }
+
+  if (id.includes(`${path.sep}node_modules${path.sep}@tanstack${path.sep}`)) {
+    return 'vendor-tanstack';
+  }
+
+  if (id.includes(`${path.sep}node_modules${path.sep}@privy-io${path.sep}`)) {
+    return 'vendor-privy';
+  }
+
   return undefined;
 }
 
@@ -42,6 +54,17 @@ export default defineConfig({
         find: '@',
         replacement: path.resolve(__dirname, './src'),
       },
+    ],
+    // @zapengine/app-core declares these React-context-bearing libs as peer
+    // dependencies; dedupe pins a single instance so PrivyProvider /
+    // QueryClientProvider context reaches app-core's hooks (same rationale as
+    // apps/frontend/vite.config.ts).
+    dedupe: [
+      '@privy-io/react-auth',
+      '@tanstack/react-query',
+      '@tanstack/react-query-devtools',
+      'react',
+      'react-dom',
     ],
   },
   server: {
