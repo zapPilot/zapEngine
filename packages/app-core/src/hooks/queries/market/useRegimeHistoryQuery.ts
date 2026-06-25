@@ -4,14 +4,13 @@
  * Fetches market regime transition history with graceful error handling.
  * Extracted from regimeHistoryService.ts to maintain service layer purity.
  */
-import { useQuery } from '@tanstack/react-query';
-
 import {
   createLoggedQueryFn,
   createQueryConfig,
 } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { DEFAULT_REGIME_HISTORY, fetchRegimeHistory } from '@core/services';
+import { useQuery } from '@tanstack/react-query';
 
 const REGIME_HISTORY_CACHE_MS = 60 * 1000; // 60 seconds (regime transitions are infrequent)
 

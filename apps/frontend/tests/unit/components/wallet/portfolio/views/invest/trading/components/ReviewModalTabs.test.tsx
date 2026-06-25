@@ -20,6 +20,7 @@ vi.mock('lucide-react', () => {
     Globe: Icon,
     Layers: Icon,
     LineChart: Icon,
+    Pause: Icon,
     Quote: Icon,
     ShieldCheck: Icon,
     TrendingDown: Icon,

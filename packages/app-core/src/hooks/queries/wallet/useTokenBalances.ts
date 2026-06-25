@@ -1,8 +1,10 @@
-import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-
 import { useWalletProvider } from '@core/providers/WalletProvider';
-import { getOnChainTokenBalance, type OnChainTokenBalance } from '@core/services';
+import {
+  getOnChainTokenBalance,
+  type OnChainTokenBalance,
+} from '@core/services';
 import type { TransactionToken } from '@core/types/domain/transaction';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 
 export type TokenBalanceQuery = UseQueryResult<OnChainTokenBalance, Error>;
 

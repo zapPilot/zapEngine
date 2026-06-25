@@ -4,14 +4,13 @@
  * Fetches detailed borrowing position data with on-demand loading.
  * Only fetches when enabled (e.g., on tooltip expand).
  */
-import { useQuery } from '@tanstack/react-query';
-
 import {
   createLoggedQueryFn,
   createQueryConfig,
 } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { getBorrowingPositions } from '@core/services';
+import { useQuery } from '@tanstack/react-query';
 
 const BORROWING_POSITIONS_CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours (matches backend)
 

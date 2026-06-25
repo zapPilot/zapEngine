@@ -1,8 +1,3 @@
-import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
-import { useCallback, useState } from 'react';
-import type { Address, Hash } from 'viem';
-import { base } from 'viem/chains';
-
 import {
   ensureChain,
   requireUserAddress,
@@ -13,6 +8,10 @@ import { useWalletProvider } from '@core/providers/WalletProvider';
 import { getBridgeStatus } from '@core/services/intentClient';
 import { getDepositPlan } from '@core/services/planOrchestrationService';
 import { logger } from '@core/utils/logger';
+import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
+import { useCallback, useState } from 'react';
+import type { Address, Hash } from 'viem';
+import { base } from 'viem/chains';
 
 export type InvestLegStatus =
   | 'pending'

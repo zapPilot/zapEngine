@@ -10,15 +10,14 @@
  * - Provides loading states and error handling
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
-
 import {
   type EtlJobResponse,
   type EtlJobStatus,
   getEtlJobStatus,
   triggerWalletDataFetch,
 } from '@core/services';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * ETL job polling state

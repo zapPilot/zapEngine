@@ -12,23 +12,33 @@ import type { RegimeHistoryData } from '@zapengine/app-core/services/regimeHisto
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@zapengine/app-core/regime', () => ({
-  regimes: [
-    { id: 'quad1', name: 'Quad 1' },
-    { id: 'quad2', name: 'Quad 2' },
-    { id: 'quad3', name: 'Quad 3' },
-    { id: 'quad4', name: 'Quad 4' },
-  ],
-  getRegimeAllocation: vi.fn((regime: { id: string }) => {
-    const allocations: Record<string, { spot: number; stable: number }> = {
-      quad1: { spot: 70, stable: 30 },
-      quad2: { spot: 50, stable: 50 },
-      quad3: { spot: 30, stable: 70 },
-      quad4: { spot: 45, stable: 55 },
-    };
-    return allocations[regime.id] || { spot: 50, stable: 50 };
-  }),
-}));
+// The adapter imports `regimes` and `getRegimeAllocation` from the deep
+// `@zapengine/app-core/regime/regimeData` module (not the barrel), so the mock
+// must target that specifier. Use a partial mock to preserve the module's real
+// co-exports (types, helpers) while overriding only the two symbols under test.
+vi.mock('@zapengine/app-core/regime/regimeData', async () => {
+  const actual = await vi.importActual<
+    typeof import('@zapengine/app-core/regime/regimeData')
+  >('@zapengine/app-core/regime/regimeData');
+  return {
+    ...actual,
+    regimes: [
+      { id: 'quad1', name: 'Quad 1' },
+      { id: 'quad2', name: 'Quad 2' },
+      { id: 'quad3', name: 'Quad 3' },
+      { id: 'quad4', name: 'Quad 4' },
+    ],
+    getRegimeAllocation: vi.fn((regime: { id: string }) => {
+      const allocations: Record<string, { spot: number; stable: number }> = {
+        quad1: { spot: 70, stable: 30 },
+        quad2: { spot: 50, stable: 50 },
+        quad3: { spot: 30, stable: 70 },
+        quad4: { spot: 45, stable: 55 },
+      };
+      return allocations[regime.id] || { spot: 50, stable: 50 };
+    }),
+  };
+});
 
 vi.mock('@zapengine/app-core/lib/domain/strategySelector', () => ({
   getActiveStrategy: vi.fn(

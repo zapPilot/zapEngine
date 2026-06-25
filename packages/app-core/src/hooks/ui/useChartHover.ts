@@ -5,6 +5,10 @@
  * Generic hook for chart hover functionality with RAF optimization.
  */
 
+import { isRuntimeMode } from '@core/lib/env/runtimeEnv';
+import type { ChartHoverState } from '@core/types/ui/chartHover';
+import { logger } from '@core/utils';
+import { clamp } from '@core/utils/mathUtils';
 import {
   type MouseEvent,
   type PointerEvent,
@@ -14,11 +18,6 @@ import {
   useRef,
   useState,
 } from 'react';
-
-import { isRuntimeMode } from '@core/lib/env/runtimeEnv';
-import type { ChartHoverState } from '@core/types/ui/chartHover';
-import { logger } from '@core/utils';
-import { clamp } from '@core/utils/mathUtils';
 
 import {
   calculateYPosition,

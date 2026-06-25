@@ -1,13 +1,3 @@
-import type { GmxV2MarketKey } from '@zapengine/intent-engine';
-import type {
-  PlanOrchestrationWithdrawRequest,
-  PreparedTransaction,
-  WithdrawPlan,
-} from '@zapengine/types/api';
-import { useCallback, useState } from 'react';
-import type { Address, Hash } from 'viem';
-import { arbitrum } from 'viem/chains';
-
 import {
   ensureChain,
   requireUserAddress,
@@ -17,6 +7,15 @@ import { executeDepositPlan } from '@core/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@core/providers/WalletProvider';
 import { getWithdrawPlan } from '@core/services/planOrchestrationService';
 import { logger } from '@core/utils/logger';
+import type { GmxV2MarketKey } from '@zapengine/intent-engine';
+import type {
+  PlanOrchestrationWithdrawRequest,
+  PreparedTransaction,
+  WithdrawPlan,
+} from '@zapengine/types/api';
+import { useCallback, useState } from 'react';
+import type { Address, Hash } from 'viem';
+import { arbitrum } from 'viem/chains';
 
 export type WithdrawStepStatus = 'pending' | 'submitted' | 'confirmed';
 

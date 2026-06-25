@@ -5,11 +5,10 @@
  * Isolated from production useChartHover to reduce its cognitive footprint.
  */
 
-import { type MutableRefObject, useEffect, useRef } from 'react';
-
 import { isRuntimeMode } from '@core/lib/env/runtimeEnv';
 import type { ChartHoverState } from '@core/types/ui/chartHover';
 import { clampMin } from '@core/utils/mathUtils';
+import { type MutableRefObject, useEffect, useRef } from 'react';
 
 export function calculateYPosition(
   yValue: number,

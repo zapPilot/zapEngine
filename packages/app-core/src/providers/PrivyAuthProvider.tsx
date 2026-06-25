@@ -1,8 +1,7 @@
+import { getPrivyAppId } from '@core/lib/env/privy';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
 import { type ReactNode } from 'react';
 import { arbitrum, base, optimism } from 'viem/chains';
-
-import { getPrivyAppId } from '@core/lib/env/privy';
 
 /**
  * Privy bundles its own `Chain` type (from `@privy-io/js-sdk-core`, with

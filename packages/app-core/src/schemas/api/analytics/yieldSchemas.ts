@@ -1,6 +1,5 @@
-import { z } from 'zod';
-
 import { createValidator } from '@core/schemas/schemaUtils';
+import { z } from 'zod';
 
 export const protocolYieldWindowSchema = z.object({
   total_yield_usd: z.number(),

@@ -1,11 +1,10 @@
 /**
  * Query hook for listing all strategy admin configurations.
  */
-import { useQuery } from '@tanstack/react-query';
-
 import { createQueryConfig } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { getStrategyAdminConfigs } from '@core/services';
+import { useQuery } from '@tanstack/react-query';
 
 const ADMIN_STALE_TIME = 30 * 1000; // 30 seconds — admin data changes infrequently
 

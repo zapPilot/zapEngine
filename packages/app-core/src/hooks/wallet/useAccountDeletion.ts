@@ -1,6 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
-
 import { TIMINGS } from '@core/constants/timings';
 import { WALLET_MESSAGES } from '@core/constants/wallet';
 import { useUser } from '@core/hooks/queries/wallet/useUser';
@@ -10,6 +7,8 @@ import { handleWalletError } from '@core/lib/validation/walletUtils';
 import { useToast } from '@core/providers/ToastContext';
 import { useWalletProvider } from '@core/providers/WalletProvider';
 import { deleteUser as deleteUserAccount } from '@core/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 
 interface UseAccountDeletionParams {
   userId: string;

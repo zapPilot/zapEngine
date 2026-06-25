@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-
 import { chainServiceMock } from '@core/services';
 import type { ChainData } from '@core/types/domain/transaction';
+import { useQuery } from '@tanstack/react-query';
 
 export function useChainQuery(chainId?: number) {
   return useQuery<ChainData[] | ChainData | null>({

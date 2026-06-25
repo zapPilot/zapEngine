@@ -1,14 +1,4 @@
 import {
-  GMX_V2_EXECUTION_FEE_WEI,
-  GMX_V2_TOKENS,
-  type GmxV2MarketKey,
-} from '@zapengine/intent-engine';
-import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
-import { useCallback, useState } from 'react';
-import { type Address, erc20Abi, formatUnits, type Hash } from 'viem';
-import { arbitrum } from 'viem/chains';
-
-import {
   ensureChain,
   requireUserAddress,
   useDepositExecutionState,
@@ -19,6 +9,15 @@ import { getPublicClient } from '@core/services/intentClient';
 import { getGmxDepositPlan } from '@core/services/planOrchestrationService';
 import type { ConnectedWalletClient } from '@core/types';
 import { logger } from '@core/utils/logger';
+import {
+  GMX_V2_EXECUTION_FEE_WEI,
+  GMX_V2_TOKENS,
+  type GmxV2MarketKey,
+} from '@zapengine/intent-engine';
+import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
+import { useCallback, useState } from 'react';
+import { type Address, erc20Abi, formatUnits, type Hash } from 'viem';
+import { arbitrum } from 'viem/chains';
 
 export type GmxDepositStepStatus = 'pending' | 'submitted' | 'confirmed';
 

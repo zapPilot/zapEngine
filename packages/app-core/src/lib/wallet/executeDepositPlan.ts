@@ -1,9 +1,8 @@
+import { intentEngine } from '@core/services/intentClient';
+import type { WalletAtomicBatchExecutor } from '@core/types';
 import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import type { Address, Hash, WalletClient } from 'viem';
-
-import { intentEngine } from '@core/services/intentClient';
-import type { WalletAtomicBatchExecutor } from '@core/types';
 
 import {
   type EIP7702DelegationInspection,

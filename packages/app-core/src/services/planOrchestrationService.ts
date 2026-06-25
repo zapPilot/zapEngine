@@ -1,3 +1,4 @@
+import { httpUtils } from '@core/lib/http';
 import {
   type DepositPlan,
   DepositPlanSchema,
@@ -8,8 +9,6 @@ import {
   type WithdrawPlan,
   WithdrawPlanSchema,
 } from '@zapengine/types/api';
-
-import { httpUtils } from '@core/lib/http';
 
 async function postDepositPlan(
   request: PlanOrchestrationDepositRequest,

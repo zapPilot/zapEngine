@@ -1,3 +1,4 @@
+import { httpUtils } from '@core/lib/http';
 import {
   type PrivyConfirmSendCallsRequest,
   type PrivyConfirmSendCallsResponse,
@@ -6,8 +7,6 @@ import {
   type PrivyPrepareSendCallsResponse,
   PrivyPrepareSendCallsResponseSchema,
 } from '@zapengine/types/api';
-
-import { httpUtils } from '@core/lib/http';
 
 export async function preparePrivyAtomicBatch(
   request: PrivyPrepareSendCallsRequest,

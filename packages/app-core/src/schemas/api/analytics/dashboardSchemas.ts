@@ -1,10 +1,9 @@
+import { createValidator } from '@core/schemas/schemaUtils';
 import {
   MarketDashboardResponseSchema,
   MarketSnapshotSchema,
 } from '@zapengine/types';
 import { z } from 'zod';
-
-import { createValidator } from '@core/schemas/schemaUtils';
 
 export const unifiedDashboardResponseSchema = z.any();
 

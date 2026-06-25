@@ -16,13 +16,12 @@
  * - useAllocationTimeseries
  */
 
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-
 import {
   type DashboardWindowParams,
   getPortfolioDashboard,
   type UnifiedDashboardResponse,
 } from '@core/services';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 /**
  * Query options override for usePortfolioDashboard

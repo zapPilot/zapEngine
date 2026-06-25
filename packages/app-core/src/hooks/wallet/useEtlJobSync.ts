@@ -1,7 +1,6 @@
+import { queryKeys } from '@core/hooks/queries';
 import { type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-
-import { queryKeys } from '@core/hooks/queries';
 
 import type { EtlJobPollingState } from './useEtlJobPolling';
 

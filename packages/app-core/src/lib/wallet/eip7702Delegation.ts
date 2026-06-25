@@ -1,6 +1,5 @@
-import { type Address, getAddress, type Hex } from 'viem';
-
 import { getPublicClient } from '@core/services/intentClient';
+import { type Address, getAddress, type Hex } from 'viem';
 
 const EIP7702_DELEGATION_PREFIX = '0xef0100';
 const EIP7702_IMPLEMENTATION_HEX_LENGTH = 40;

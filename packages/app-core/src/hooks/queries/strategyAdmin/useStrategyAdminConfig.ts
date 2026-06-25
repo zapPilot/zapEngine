@@ -1,11 +1,10 @@
 /**
  * Query hook for fetching a single strategy admin configuration.
  */
-import { useQuery } from '@tanstack/react-query';
-
 import { createQueryConfig } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { getStrategyAdminConfig } from '@core/services';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Fetch a single saved strategy configuration by ID.

@@ -1,6 +1,5 @@
-import { QueryClient } from '@tanstack/react-query';
-
 import { CACHE_WINDOW } from '@core/config/cacheWindow';
+import { QueryClient } from '@tanstack/react-query';
 
 // Create a client instance with optimized configuration for DeFi app
 // ETL updates run once daily, but we bound freshness to the hourly HTTP cache

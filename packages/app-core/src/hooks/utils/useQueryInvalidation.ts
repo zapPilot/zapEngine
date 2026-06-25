@@ -1,6 +1,5 @@
-import { type QueryClient } from '@tanstack/react-query';
-
 import { walletLogger } from '@core/utils';
+import { type QueryClient } from '@tanstack/react-query';
 
 /**
  * Query Invalidation Utilities

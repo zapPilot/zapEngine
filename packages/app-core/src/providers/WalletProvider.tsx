@@ -1,3 +1,5 @@
+import { usePrivyWalletBackend } from '@core/hooks/wallet/usePrivyWalletBackend';
+import type { WalletProviderInterface } from '@core/types';
 import {
   createContext,
   type ReactElement,
@@ -5,9 +7,6 @@ import {
   useContext,
   useMemo,
 } from 'react';
-
-import { usePrivyWalletBackend } from '@core/hooks/wallet/usePrivyWalletBackend';
-import type { WalletProviderInterface } from '@core/types';
 
 type WalletBackend = ReturnType<typeof usePrivyWalletBackend>;
 

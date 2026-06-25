@@ -1,7 +1,6 @@
+import { createValidator } from '@core/schemas/schemaUtils';
 import { EtlErrorCodeEnum, type EtlJobStatus } from '@zapengine/types/etl';
 import { z } from 'zod';
-
-import { createValidator } from '@core/schemas/schemaUtils';
 
 /**
  * Zod schemas for account service API responses

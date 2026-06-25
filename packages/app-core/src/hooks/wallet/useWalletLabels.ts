@@ -1,11 +1,10 @@
-import { type Dispatch, type SetStateAction, useCallback } from 'react';
-
 import {
   handleWalletError,
   type WalletData,
 } from '@core/lib/validation/walletUtils';
 import { updateManagedWalletLabel as updateWalletLabelRequest } from '@core/services';
 import type { EditingWallet, WalletOperationStateSetter } from '@core/types';
+import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
 interface UseWalletLabelsParams {
   userId: string;

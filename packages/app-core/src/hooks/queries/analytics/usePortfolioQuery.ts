@@ -1,10 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-
 import { queryKeys } from '@core/lib/state/queryClient';
 import {
   getLandingPagePortfolioData,
   type LandingPageResponse,
 } from '@core/services/analyticsService';
+import { useQuery } from '@tanstack/react-query';
 
 import { createQueryConfig } from '../queryDefaults';
 

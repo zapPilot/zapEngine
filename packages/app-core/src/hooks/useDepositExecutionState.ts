@@ -1,12 +1,11 @@
-import type { DepositPlan } from '@zapengine/types/api';
-import { useCallback, useMemo, useState } from 'react';
-import type { Address, Hash } from 'viem';
-
 import { extractErrorMessage } from '@core/lib/errors';
 import type {
   DepositExecutionTier,
   DepositPlanExecutionResult,
 } from '@core/lib/wallet/executeDepositPlan';
+import type { DepositPlan } from '@zapengine/types/api';
+import { useCallback, useMemo, useState } from 'react';
+import type { Address, Hash } from 'viem';
 
 /**
  * Resolves the connected wallet address, throwing the canonical

@@ -5,9 +5,6 @@
  * Orchestrates multiple API calls and applies pure transformation functions.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
-
 import { getAnalyticsStaleTime } from '@core/lib/analytics/cacheConfig';
 import {
   aggregateMonthlyPnL,
@@ -21,6 +18,8 @@ import type {
   AnalyticsTimePeriod,
   WalletFilter,
 } from '@core/types/analytics';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { usePortfolioDashboard } from '../../analytics/usePortfolioDashboard';
 

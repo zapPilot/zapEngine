@@ -138,7 +138,20 @@ export default defineConfig(({ mode }) => ({
         ),
       },
     ],
-    dedupe: ["jayson", "uuid"],
+    // Force a single instance of React-context-bearing libs that
+    // @zapengine/app-core also imports. Under pnpm, app-core resolves its own
+    // (peer-closure-hashed) copy of @privy-io/react-auth; without dedupe the
+    // consumer and app-core hold separate instances, so PrivyProvider context
+    // (and vi.mock in tests) never reaches app-core's hooks.
+    dedupe: [
+      "jayson",
+      "uuid",
+      "@privy-io/react-auth",
+      "@tanstack/react-query",
+      "@tanstack/react-query-devtools",
+      "react",
+      "react-dom",
+    ],
   },
   build: {
     outDir: "dist",

@@ -1,12 +1,6 @@
 /**
  * Mutation hooks for strategy admin CRUD operations.
  */
-import {
-  type QueryClient,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query';
-
 import { queryKeys } from '@core/lib/state/queryClient';
 import {
   createStrategyConfig,
@@ -17,6 +11,11 @@ import type {
   CreateStrategyConfigRequest,
   UpdateStrategyConfigRequest,
 } from '@core/types';
+import {
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 function invalidateStrategyConfigs(queryClient: QueryClient) {
   void queryClient.invalidateQueries({

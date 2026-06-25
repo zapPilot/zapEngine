@@ -1,6 +1,6 @@
-import type {
+import {
   getStrategyTabLabel,
-  Regime,
+  type Regime,
   type StrategyDirection,
 } from '@zapengine/app-core/regime';
 

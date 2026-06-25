@@ -3,10 +3,9 @@
  * Validation, transformation, and error handling for wallet operations
  */
 
-import { isWalletAddress } from '@zapengine/types';
-
 import { APIError, handleHTTPError } from '@core/lib/http';
 import type { UserCryptoWallet } from '@core/schemas/api/accountSchemas';
+import { isWalletAddress } from '@zapengine/types';
 
 export interface WalletData {
   id: string;

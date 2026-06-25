@@ -1,3 +1,6 @@
+import { TIMINGS } from '@core/constants/timings';
+import type { WalletData } from '@core/lib/validation/walletUtils';
+import { loadWallets as fetchWallets } from '@core/services';
 import {
   type Dispatch,
   type SetStateAction,
@@ -5,10 +8,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-
-import { TIMINGS } from '@core/constants/timings';
-import type { WalletData } from '@core/lib/validation/walletUtils';
-import { loadWallets as fetchWallets } from '@core/services';
 
 interface ConnectedWallet {
   address: string;

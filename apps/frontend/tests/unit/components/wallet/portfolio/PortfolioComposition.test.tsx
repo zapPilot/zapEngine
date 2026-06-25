@@ -13,13 +13,22 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PortfolioComposition } from '@/components/wallet/portfolio/components/shared/PortfolioComposition';
 
-// Mock getRegimeAllocation to avoid deep dependency chain
-vi.mock('@zapengine/app-core/regime', () => ({
-  getRegimeAllocation: vi.fn().mockReturnValue({
-    spot: 40,
-    stable: 60,
-  }),
-}));
+// Override getRegimeAllocation to avoid the deep dependency chain, but keep the
+// real toInvestCompositionTarget the component also imports from this barrel.
+// Pull it from the investAllocation module directly so we don't evaluate
+// regimeData (which imports lucide icons mocked away below).
+vi.mock('@zapengine/app-core/regime', async () => {
+  const { toInvestCompositionTarget } = await vi.importActual<
+    typeof import('@zapengine/app-core/regime/investAllocation')
+  >('@zapengine/app-core/regime/investAllocation');
+  return {
+    getRegimeAllocation: vi.fn().mockReturnValue({
+      spot: 40,
+      stable: 60,
+    }),
+    toInvestCompositionTarget,
+  };
+});
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({

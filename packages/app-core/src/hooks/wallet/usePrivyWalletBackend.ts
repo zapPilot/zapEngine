@@ -1,4 +1,20 @@
 import {
+  buildWalletAccount,
+  buildWalletChain,
+  type WalletError,
+} from '@core/providers/walletProviderUtils';
+import {
+  preparePrivyAtomicBatch,
+  sendPrivyAtomicBatch,
+} from '@core/services/privyWalletService';
+import type {
+  ConnectedWalletClient,
+  WalletAtomicBatchResult,
+  WalletProviderInterface,
+  WalletTypedData,
+} from '@core/types';
+import { walletLogger } from '@core/utils';
+import {
   type SignTypedDataParams,
   useAuthorizationSignature,
   usePrivy,
@@ -22,23 +38,6 @@ import {
   toHex,
 } from 'viem';
 import { arbitrum, base, optimism } from 'viem/chains';
-
-import {
-  buildWalletAccount,
-  buildWalletChain,
-  type WalletError,
-} from '@core/providers/walletProviderUtils';
-import {
-  preparePrivyAtomicBatch,
-  sendPrivyAtomicBatch,
-} from '@core/services/privyWalletService';
-import type {
-  ConnectedWalletClient,
-  WalletAtomicBatchResult,
-  WalletProviderInterface,
-  WalletTypedData,
-} from '@core/types';
-import { walletLogger } from '@core/utils';
 
 /**
  * Chains the Privy embedded wallet may operate on. Defined inline from

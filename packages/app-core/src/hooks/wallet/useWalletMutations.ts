@@ -1,6 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { type Dispatch, type SetStateAction, useCallback } from 'react';
-
 import { useUser } from '@core/hooks/queries/wallet/useUser';
 import { invalidateAndRefetch } from '@core/hooks/utils/useQueryInvalidation';
 import { queryKeys } from '@core/lib/state/queryClient';
@@ -18,6 +15,8 @@ import type {
   WalletOperationStateSetter,
 } from '@core/types';
 import { validateNewWallet } from '@core/utils';
+import { useQueryClient } from '@tanstack/react-query';
+import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
 interface UseWalletMutationsParams {
   userId: string;

@@ -1,6 +1,5 @@
-import { z } from 'zod';
-
 import { createValidator } from '@core/schemas/schemaUtils';
+import { z } from 'zod';
 
 const roiWindowSchema = z.object({
   value: z.number(),

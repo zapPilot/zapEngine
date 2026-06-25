@@ -1,5 +1,3 @@
-import type { EtlJobStatus } from '@zapengine/types/etl';
-
 import { AccountServiceError } from '@core/lib/errors';
 import { httpUtils } from '@core/lib/http';
 import { createServiceCaller } from '@core/lib/http/createServiceCaller';
@@ -19,6 +17,7 @@ import {
   validateUserWallets,
 } from '@core/schemas/api/accountSchemas';
 import { logger } from '@core/utils/logger';
+import type { EtlJobStatus } from '@zapengine/types/etl';
 
 export { AccountServiceError };
 

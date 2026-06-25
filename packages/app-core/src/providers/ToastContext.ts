@@ -1,6 +1,5 @@
-import { createContext, useContext } from 'react';
-
 import type { Toast } from '@core/providers/toastTypes';
+import { createContext, useContext } from 'react';
 
 export interface ToastContextType {
   showToast: (toast: Omit<Toast, 'id'>) => void;

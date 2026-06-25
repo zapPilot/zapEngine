@@ -1,8 +1,8 @@
 import { ANIMATIONS } from '@zapengine/app-core/constants/designSystem';
-import type {
+import {
   type Regime,
   regimes,
-  StrategyDirection,
+  type StrategyDirection,
 } from '@zapengine/app-core/regime';
 import { motion } from 'framer-motion';
 import type { ReactElement } from 'react';

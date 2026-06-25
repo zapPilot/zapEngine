@@ -1,6 +1,5 @@
-import { type LucideIcon, Pause, TrendingDown, TrendingUp } from 'lucide-react';
-
 import type { RegimeAllocationBreakdown } from '@core/types/domain/allocation';
+import { type LucideIcon, Pause, TrendingDown, TrendingUp } from 'lucide-react';
 
 /**
  * Color Convention Note (2026-04-28):
