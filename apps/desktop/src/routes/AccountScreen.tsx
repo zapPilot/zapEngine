@@ -12,7 +12,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { MOCK } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
 import { truncateAddress } from '@/lib/format';
 
 interface SettingRow {
@@ -71,7 +71,16 @@ function SettingsRow({
 
 /** Account — wallet, non-custodial reassurance, settings, disconnect. */
 export function AccountScreen() {
-  const { account } = MOCK;
+  const { address, email, isConnected, disconnect } = useAccount();
+
+  const label = email ?? 'Main Wallet';
+  const avatarLetter = (email?.[0] ?? 'Z').toUpperCase();
+
+  const handleCopy = () => {
+    if (address) {
+      void navigator.clipboard?.writeText(address);
+    }
+  };
 
   return (
     <div data-screen="account">
@@ -94,28 +103,35 @@ export function AccountScreen() {
                 color: '#d4c5a3',
               }}
             >
-              A
+              {avatarLetter}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[16px] font-semibold text-ink">
-                {account.label}
-              </div>
+              <div className="text-[16px] font-semibold text-ink">{label}</div>
               <div className="mt-1 flex items-center gap-[7px]">
                 <span
                   className="font-mono text-[11.5px]"
                   style={{ color: '#a1a1aa' }}
                 >
-                  {truncateAddress(account.address)}
+                  {address ? truncateAddress(address) : 'Not connected'}
                 </span>
-                <Copy
-                  size={13}
-                  strokeWidth={1.9}
-                  style={{ color: '#6f6a5f' }}
-                  aria-hidden="true"
-                />
+                {address ? (
+                  <button
+                    type="button"
+                    aria-label="Copy address"
+                    className="zp-tap"
+                    onClick={handleCopy}
+                  >
+                    <Copy
+                      size={13}
+                      strokeWidth={1.9}
+                      style={{ color: '#6f6a5f' }}
+                      aria-hidden="true"
+                    />
+                  </button>
+                ) : null}
               </div>
             </div>
-            {account.connected ? (
+            {isConnected ? (
               <span
                 className="inline-flex items-center gap-[5px] font-mono text-[10px]"
                 style={{ color: '#7ad88f' }}
@@ -156,13 +172,13 @@ export function AccountScreen() {
         </Card>
       </div>
 
-      <div
-        className="zp-tap mt-[18px] px-5 text-center text-[13px] font-medium text-error"
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
+        className="zp-tap mt-[18px] w-full px-5 text-center text-[13px] font-medium text-error"
+        onClick={() => void disconnect()}
       >
         Disconnect wallet
-      </div>
+      </button>
       <div
         className="mt-[10px] text-center font-mono text-[9.5px]"
         style={{ color: '#3f3b34', letterSpacing: '.06em' }}
