@@ -17,11 +17,13 @@ import {
   ACTIVITY_FILTERS,
   type ActivityEvent,
   type ActivityFilter,
+  type ActivityGroup,
   type ActivityKind,
   type ActivityStatus,
   type MetricTone,
-  MOCK,
 } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
+import { useActivityData } from '@/integration/useActivityData';
 import { cn } from '@/lib/cn';
 
 /** Maps a filter selection to the activity kinds it admits ('All' → null). */
@@ -202,8 +204,12 @@ function EventRow({ event, first }: { event: ActivityEvent; first: boolean }) {
 
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
+  const { userId } = useAccount();
+  const { data, isLoading, isError } = useActivityData(userId);
 
-  const groups = MOCK.activity
+  const pending = userId === null || isLoading;
+  const source: ActivityGroup[] = data?.groups ?? [];
+  const groups = source
     .map((group) => ({
       ...group,
       events: group.events.filter((event) => matchesFilter(event, filter)),
@@ -258,6 +264,19 @@ export function ActivityScreen() {
           </div>
         </section>
       ))}
+
+      {groups.length === 0 ? (
+        <div
+          className="px-5 pt-[18px] text-[12px]"
+          style={{ color: '#6f6a5f' }}
+        >
+          {pending
+            ? '—'
+            : isError
+              ? 'Activity is unavailable right now.'
+              : 'No activity yet.'}
+        </div>
+      ) : null}
 
       <p
         className="px-5 pb-2 pt-[18px] font-mono text-[9px] tracking-[.06em]"

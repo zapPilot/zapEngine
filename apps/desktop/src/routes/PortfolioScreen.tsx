@@ -6,7 +6,8 @@ import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionLabel } from '@/components/ui/SectionLabel';
-import { MOCK } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
+import { usePortfolioData } from '@/integration/usePortfolioData';
 import { formatSignedPct, formatSignedUsd, splitUsd } from '@/lib/format';
 
 const RANGE_OPTIONS = ['1W', '1M', '3M', '1Y', 'ALL'] as const;
@@ -14,8 +15,14 @@ const RANGE_OPTIONS = ['1W', '1M', '3M', '1Y', 'ALL'] as const;
 /** My Portfolio — position value, returns chart, metrics, allocation. */
 export function PortfolioScreen() {
   const [range, setRange] = useState<string>('1Y');
-  const { portfolio } = MOCK;
-  const { whole, fraction } = splitUsd(portfolio.positionValue);
+  const { userId } = useAccount();
+  const { data: portfolio, isLoading } = usePortfolioData(userId);
+
+  // Calm loading state: render the layout with neutral placeholders while
+  // userId resolves or the dashboard query is in flight — never crash, never
+  // break the phone frame. isError degrades the same way (portfolio is null).
+  const loading = isLoading || portfolio === null;
+  const { whole, fraction } = splitUsd(portfolio?.positionValue ?? 0);
 
   return (
     <div data-screen="portfolio">
@@ -42,8 +49,14 @@ export function PortfolioScreen() {
           Strategy position value
         </SectionLabel>
         <div className="mt-[5px] font-serif text-[50px] leading-[1.02] text-ink">
-          {whole}
-          <span style={{ color: '#6f6a5f', fontSize: 32 }}>{fraction}</span>
+          {loading ? (
+            <span style={{ color: '#6f6a5f' }}>—</span>
+          ) : (
+            <>
+              {whole}
+              <span style={{ color: '#6f6a5f', fontSize: 32 }}>{fraction}</span>
+            </>
+          )}
         </div>
         <div className="mt-[9px] flex items-center gap-2">
           <span
@@ -51,11 +64,14 @@ export function PortfolioScreen() {
             style={{ background: 'rgba(122,216,143,.12)' }}
           >
             <span aria-hidden="true">▲</span>
-            {formatSignedPct(portfolio.changePct).replace('+', '')}
+            {loading
+              ? '—'
+              : formatSignedPct(portfolio?.changePct ?? 0).replace('+', '')}
           </span>
           <span className="text-[13px] text-ink-dim">
-            {formatSignedUsd(portfolio.changeUsdAllTime)} all time ·{' '}
-            {formatSignedPct(portfolio.changePctToday)} today
+            {loading
+              ? 'all time · today'
+              : `${formatSignedUsd(portfolio?.changeUsdAllTime ?? 0)} all time · ${formatSignedPct(portfolio?.changePctToday ?? 0)} today`}
           </span>
         </div>
       </div>
@@ -231,7 +247,7 @@ export function PortfolioScreen() {
         </div>
       </div>
 
-      <MetricsGrid className="mt-5 px-5" metrics={portfolio.metrics} />
+      <MetricsGrid className="mt-5 px-5" metrics={portfolio?.metrics ?? []} />
 
       <div className="mt-6 px-5">
         <div className="flex items-center justify-between">
@@ -245,13 +261,13 @@ export function PortfolioScreen() {
         <AllocationBar
           className="mt-[13px]"
           height={11}
-          segments={portfolio.allocation.map((a) => ({
+          segments={(portfolio?.allocation ?? []).map((a) => ({
             color: a.color,
             value: a.pct,
           }))}
         />
         <div className="mt-[13px] flex flex-col gap-[9px]">
-          {portfolio.allocation.map((item) => (
+          {(portfolio?.allocation ?? []).map((item) => (
             <div key={item.label} className="flex items-center justify-between">
               <span className="inline-flex items-center gap-2 text-[13px] text-ink-dim">
                 <span
@@ -283,7 +299,7 @@ export function PortfolioScreen() {
             aria-hidden="true"
           />
           <span className="text-[11.5px] text-ink-dim">
-            {portfolio.lastRebalancedLabel}
+            {portfolio?.lastRebalancedLabel ?? 'Auto-managed by Zap Strategy'}
           </span>
         </div>
       </div>

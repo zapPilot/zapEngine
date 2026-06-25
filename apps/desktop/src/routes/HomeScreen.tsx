@@ -15,6 +15,8 @@ import { RangeTabs } from '@/components/ui/RangeTabs';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { CHAINS, MOCK } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
+import { useHomeData } from '@/integration/useHomeData';
 import {
   formatSignedPct,
   formatSignedUsd,
@@ -47,8 +49,18 @@ export function HomeScreen() {
   const navigate = useNavigate();
   const [range, setRange] = useState<string>('1D');
 
-  const { home, strategy } = MOCK;
+  const { userId } = useAccount();
+  const { data, isLoading, isError } = useHomeData(userId);
+
+  // `data` carries MOCK fallbacks for every field, so the layout always renders
+  // with sane values; degrade to the MOCK slices only if the hook returns null.
+  const { home, strategy } = data ?? MOCK;
   const { whole, fraction } = splitUsd(home.totalBalance);
+
+  // Calm states: while identity/data is resolving (or on error) we keep the
+  // full layout but hold the volatile today-change line on a neutral dash so we
+  // never flash a stale number as if it were live.
+  const isPending = isLoading || isError;
 
   return (
     <div className="pb-6" data-screen="home">
@@ -91,10 +103,12 @@ export function HomeScreen() {
                 className="inline-flex items-center gap-1 rounded-full px-[9px] py-[3px] text-[12.5px] font-semibold text-success"
                 style={{ background: 'rgba(122,216,143,.12)' }}
               >
-                ▲ {formatSignedPct(home.changePct)}
+                ▲ {isPending ? '—' : formatSignedPct(home.changePct)}
               </span>
               <span className="text-[13px] text-ink-dim">
-                {formatSignedUsd(home.changeUsdToday)} today
+                {isPending
+                  ? '— today'
+                  : `${formatSignedUsd(home.changeUsdToday)} today`}
               </span>
             </div>
             <div className="mt-3">

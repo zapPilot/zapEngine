@@ -9,6 +9,8 @@ import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { MOCK } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
+import { useStrategyData } from '@/integration/useStrategyData';
 
 const RANGE_OPTIONS = ['3M', '6M', '1Y', 'ALL'] as const;
 
@@ -23,7 +25,16 @@ const CHART_LEGEND = [
 export function StrategyScreen() {
   const navigate = useNavigate();
   const [range, setRange] = useState('1Y');
-  const { backtest } = MOCK.strategy;
+  const { userId } = useAccount();
+  const { data, isLoading, isError } = useStrategyData(userId);
+
+  // The container hook always returns a fully-shaped strategy slice (real where
+  // available, mock elsewhere). While identity/data resolve we keep the exact
+  // layout and only soften the headline return into a calm dash.
+  const strategy = data ?? MOCK.strategy;
+  const { backtest } = strategy;
+  const pending = isLoading || isError || data === null;
+  const returnLabel = pending ? '—' : backtest.returnLabel;
 
   return (
     <div className="font-sans text-ink" data-screen="strategy">
@@ -59,7 +70,7 @@ export function StrategyScreen() {
               ZAP STRATEGY · 1Y RETURN
             </div>
             <div className="mt-0.5 font-serif text-[30px] leading-[1.05] text-success">
-              {backtest.returnLabel}
+              {returnLabel}
             </div>
           </div>
           <div className="text-right font-mono text-[9px] leading-[1.6] text-[#6f6a5f]">
