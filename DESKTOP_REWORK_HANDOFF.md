@@ -9,14 +9,37 @@ package. **Resume from here in a fresh session.**
 | Area | State |
 | --- | --- |
 | New desktop app + 8 screens (mock data) | ✅ done, verified (preview screenshots match design; type-check/lint/format/test green) |
-| `@zapengine/app-core` extraction (structure) | ✅ frontend + app-core **type-check, build, lint all green** |
-| frontend unit tests after extraction | ❌ **71 / 4154 fail** (14 files) — vitest mocks of app-core internals don't intercept across the built `dist` boundary |
-| Task 4 — wire desktop to real data | ⛔ not started |
-| Task 5 — end-to-end verification | ⛔ not started |
+| `@zapengine/app-core` extraction (structure) | ✅ frontend + app-core + desktop **type-check, build, lint all green** |
+| frontend unit tests after extraction | ✅ **fixed — full `test:unit` 4227 pass / 0 fail** (commit `f945f997`) |
+| deadcode / dup / coverage reconciliation | ✅ **green** for app-core/frontend/desktop; coverage no-regression clean (commit `47f4fa18`) |
+| Task 4 — wire desktop to real data | ⛔ not started — **needs a repo-root `.env`** (Privy/API keys; only `.env.example` exists) |
+| Task 5 — end-to-end verification | ⛔ not started — needs running stack + test wallet + `.env` |
 
 Everything is in an **isolated worktree** on a feature branch; the main checkout
 is untouched. The desktop skin does **not** depend on the extraction (it uses
 mock data), so the extraction can be finished or reverted independently.
+
+### What the original handoff got wrong (corrected here)
+
+The "71 failing tests" were **not** a vitest-mock-across-`dist`-boundary problem,
+and the claimed "type-check/lint all green" was **stale** — `tsc` actually failed.
+Two real root causes (both now fixed, see commit `f945f997`):
+
+1. **Two physical Privy instances.** app-core listed `@privy-io/react-auth` (and
+   `@tanstack/react-query[-devtools]`) under `dependencies`, so pnpm resolved a
+   second copy under a different peer-closure hash. PrivyProvider context never
+   reached app-core's hooks and `vi.mock` couldn't intercept. Fix: those three
+   libs are now `peerDependencies`, and frontend's `resolve.dedupe` pins a single
+   instance (test + build + runtime). _Note: this was also a latent **runtime**
+   bug for the real frontend/desktop, not just tests._
+2. **Runtime values stranded in `import type`.** The extraction's import rewrite
+   swept `regimes` / `getStrategyTabLabel` (and left nested `type` residue) into
+   `import type {}` blocks in `StrategyCardExpandedContent.tsx` /
+   `StrategyDirectionTabs.tsx` → `ReferenceError` at render (tsc TS1361/TS2206).
+   Fixed by restoring value imports.
+
+The rest were test-only mock-target fixes (partial barrel mocks that keep real
+co-exports; a missing lucide icon stub) — see commit `f945f997`.
 
 ## Decisions already made (do not relitigate)
 
@@ -41,9 +64,20 @@ mock data), so the extraction can be finished or reverted independently.
 - `package.json` exports: explicit barrels for dirs imported bare + a `./*` wildcard for deep files. Internal `@core/*` → `dist` relative via tsc-alias.
 - frontend: added `@zapengine/app-core` dep; `knip.ts` stale `ServiceError` ignore removed; ~396 src files + ~8 test files had imports rewritten (`@/<moved>` and `(../)+src/<moved>` → `@zapengine/app-core/<moved>`).
 
-## THE BLOCKER: 71 failing frontend unit tests
+## ✅ RESOLVED: the 71 failing frontend unit tests
 
-**Root cause.** The failing tests `vi.mock(...)` app-core-internal modules to control
+Fixed in commit `f945f997`. The actual root causes are summarised in
+"What the original handoff got wrong" above (two physical Privy instances +
+runtime values stranded in `import type`, plus a few test-only mock-target
+fixes). Full suite now **4227 pass / 0 fail**; app-core + frontend + desktop
+type-check/lint/build green; deadcode/dup/coverage reconciled (commit
+`47f4fa18`). The stale analysis below is kept only for historical context.
+
+<details>
+<summary>Original (incorrect) blocker analysis — historical</summary>
+
+**Root cause (as originally believed — superseded).** The failing tests
+`vi.mock(...)` app-core-internal modules to control
 behavior. After extraction, app-core ships as built `dist` with **relative** internal
 imports, and app-core has its **own copies** of `@privy-io/react-auth` / `viem` /
 `@tanstack/react-query`. So:
@@ -90,12 +124,42 @@ tests/unit/components/WalletManager.ownerView.test.tsx
 All share the mock-across-package-boundary cause above. The earlier relative-import
 (`(../)+src/<moved>`) and `ToastProvider` path issues are already fixed.
 
+</details>
+
 ## Remaining tasks
 
-1. **Fix the 71 frontend unit tests** (see above) → frontend test:unit green.
-2. **Task 4 — wire desktop to real data**: add a `src/integration/*` seam in desktop re-exporting from `@zapengine/app-core`; mount `QueryProvider→PrivyAuthProvider→WalletProvider` (+ `isPrivyEnabled` guard, no white-screen); replicate connect→resolve `userId`→fetch (see `apps/frontend/src/app/bundle/BundlePageEntry/Client`); bind each screen to its hook (Home `usePortfolioDataProgressive`; Invest `useInvestStrategy`/`getDepositPlan`/`useDepositExecutionState`, source defaults to **Base** per `useInvestStrategy` v1; Strategy `runBacktest`/sentiment/regime; Portfolio `usePortfolioDashboard`; Activity `getDailyYieldReturns`+`getBorrowingPositions`+mock; Account `useWalletProvider`/`useUser`). Re-add `recharts` to desktop for live charts. Desktop needs `@zapengine/app-core` as a dep + Privy/viem/etc.
-3. **Reconcile deadcode/dup/coverage**: run `knip` on app-core + frontend (frontend may now have unused deps, e.g. `dayjs`, `@zapengine/intent-engine`, `@zapengine/types` — remove if unused); jscpd may flag clones from co-located services (budget a dedup pass); regenerate coverage baseline.
-4. **Task 5 — end-to-end verify** (see commands below); confirm `pnpm --filter @zapengine/frontend dev` still serves; preview desktop screens; connect wallet → real Home; invest 3-step → sign (testnet/small).
+1. ✅ **Fix the frontend unit tests** — done (commit `f945f997`), full `test:unit`
+   4227 pass / 0 fail.
+2. ⛔ **Task 4 — wire desktop to real data** (NOT started; **needs a repo-root
+   `.env`** with Privy/API keys — only `.env.example` exists, so the providers
+   can't boot and runtime can't be verified): add a `src/integration/*` seam in
+   desktop re-exporting from `@zapengine/app-core`; mount
+   `QueryProvider→PrivyAuthProvider→WalletProvider` (+ `isPrivyEnabled` guard, no
+   white-screen — see `apps/frontend/src/app/bundle/BundleProviders.tsx`, which
+   injects `TenderlyPreviewModal` via the `renderSimulationPreview` render-prop);
+   replicate connect→resolve `userId`→fetch (see
+   `apps/frontend/src/app/bundle/BundlePageClient.tsx`); bind each screen to its
+   hook (Home `usePortfolioDataProgressive`; Invest
+   `useInvestStrategy`/`getDepositPlan`/`useDepositExecutionState`, source
+   defaults to **Base** per `useInvestStrategy` v1; Strategy
+   `runBacktest`/sentiment/regime; Portfolio `usePortfolioDashboard`; Activity
+   `getDailyYieldReturns`+`getBorrowingPositions`+mock; Account
+   `useWalletProvider`/`useUser`). Re-add `recharts` to desktop for live charts.
+   Desktop needs `@zapengine/app-core` as a dep + Privy/viem/react-query/etc.
+   (those three are app-core **peerDependencies** now, so desktop must provide
+   them and add the same `resolve.dedupe` entries frontend uses).
+3. ✅ **Reconcile deadcode/dup/coverage** — done (commit `47f4fa18`). knip:
+   app-core treats all src as entry (wholly public via `./*`), removed 4 phantom
+   barrel exports, frontend/desktop ignore lists updated. jscpd: app-core/desktop
+   `.jscpd.json` carry the import ignorePattern + the moved-file ignores; a shared
+   `ArrowGlyph` was extracted to clear the desktop clone. coverage no-regression
+   gate clean (frontend −0.04pp, within tolerance). _Note: `dayjs` is still used
+   in frontend (tests); `@zapengine/intent-engine`/`@zapengine/types` are still
+   used — the original handoff's removal hint was wrong._
+4. ⛔ **Task 5 — end-to-end verify** (NOT started; needs running stack + test
+   wallet + `.env`): confirm `pnpm --filter @zapengine/frontend dev` still serves;
+   preview desktop screens; connect wallet → real Home; invest 3-step → sign
+   (testnet/small).
 
 ## Verification commands (run directly — `pnpm verify *` breaks in worktrees)
 
@@ -103,10 +167,14 @@ All share the mock-across-package-boundary cause above. The earlier relative-imp
 # package + frontend gates (turbo builds deps first)
 pnpm turbo run type-check --filter=@zapengine/app-core --filter=@zapengine/frontend
 pnpm --filter @zapengine/app-core build      # tsc && tsc-alias → dist
-pnpm --filter @zapengine/frontend test:unit  # <-- currently 71 failing
+pnpm --filter @zapengine/frontend test:unit  # 4227 pass / 0 fail
 pnpm --filter @zapengine/frontend build
 pnpm --filter @zapengine/frontend lint        # green (1 pre-existing warning)
 pnpm --filter @zapengine/app-core lint        # green
+# deadcode + dup (all green) + coverage no-regression (DB-free 3-step):
+pnpm turbo run deadcode dup:check --filter=@zapengine/app-core --filter=@zapengine/frontend --filter=@zapengine/desktop
+pnpm turbo run test:coverage --filter=@zapengine/frontend --filter=@zapengine/intent-engine --filter=@zapengine/types \
+  && pnpm exec tsx scripts/coverage-summary.ts && pnpm exec tsx scripts/coverage-regression.ts
 # desktop
 pnpm --filter @zapengine/desktop type-check && pnpm --filter @zapengine/desktop lint && pnpm --filter @zapengine/desktop test
 pnpm --filter @zapengine/desktop dev:web      # preview on :3005
