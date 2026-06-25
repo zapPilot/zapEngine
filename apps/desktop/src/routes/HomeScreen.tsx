@@ -7,6 +7,7 @@ import { Sparkline } from '@/components/charts/Sparkline';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -319,20 +320,7 @@ export function HomeScreen() {
               onClick={() => navigate('/invest/amount')}
             >
               Start with Zap Strategy
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#0a0a0a"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M5 12h14" />
-                <path d="M13 6l6 6-6 6" />
-              </svg>
+              <ArrowGlyph />
             </PrimaryButton>
             <div
               className="mt-2.5 text-center font-mono text-[9.5px] tracking-[.04em]"

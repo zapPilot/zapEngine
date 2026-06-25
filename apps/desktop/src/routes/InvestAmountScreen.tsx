@@ -7,6 +7,7 @@ import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
+import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MOCK } from '@/data/mock';
@@ -155,20 +156,7 @@ export function InvestAmountScreen() {
       <div className="px-5 pt-1.5">
         <PrimaryButton onClick={() => navigate('/invest/route')}>
           Review route
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#0a0a0a"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M5 12h14" />
-            <path d="M13 6l6 6-6 6" />
-          </svg>
+          <ArrowGlyph />
         </PrimaryButton>
         <div className="mt-[9px] text-center text-[11px] text-ink-faint">
           No manual bridging or chain switching — Zap Pilot handles it.

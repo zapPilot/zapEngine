@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
+import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
@@ -252,20 +253,7 @@ export function InvestRouteScreen() {
       <div className="px-5 pt-4">
         <PrimaryButton onClick={() => navigate('/invest/confirm')}>
           Continue
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#0a0a0a"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M5 12h14" />
-            <path d="M13 6l6 6-6 6" />
-          </svg>
+          <ArrowGlyph />
         </PrimaryButton>
       </div>
 

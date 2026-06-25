@@ -1,5 +1,5 @@
 {
-  "format": ["typescript", "tsx"],
+  "format": ["typescript", "javascript", "tsx", "jsx"],
   "ignore": [
     "**/node_modules/**",
     "**/*.test.*",
@@ -8,10 +8,7 @@
     "**/*.d.ts",
     "**/dist/**",
     "**/coverage/**",
-    "src/config/chains/definitions.ts",
-    "src/hooks/wallet/usePrivyWalletBackend.ts",
-    "src/hooks/useGmxDeposit.ts",
-    "src/hooks/useWithdraw.ts"
+    "src-tauri/**"
   ],
   "ignorePattern": [
     "import\\s.*from\\s.*",

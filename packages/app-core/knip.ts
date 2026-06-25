@@ -1,25 +1,23 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
-  // Library package: its public surface is the barrel files referenced by the
-  // package `exports` map. Declare them as entries so knip does not report the
-  // re-exported symbols as unused (they are consumed by other workspaces).
-  entry: [
-    'src/index.ts',
-    'src/services/index.ts',
-    'src/adapters/index.ts',
-    'src/providers/index.ts',
-    'src/utils/index.ts',
-    'src/config/index.ts',
-    'src/constants/index.ts',
-    'src/schemas/index.ts',
-    'src/types/index.ts',
-    'src/regime/index.ts',
-    'src/hooks/index.ts',
-    'src/hooks/*/index.ts',
-    'src/lib/*/index.ts',
-  ],
+  // Library package consumed across the monorepo. Its public surface is the
+  // package `exports` map, which includes a `./*` wildcard — so any source file
+  // is importable by a sibling workspace. knip runs per-package (it cannot see
+  // those cross-workspace consumers), so every source file is treated as an
+  // entry to avoid false "unused file/export" reports for legitimate public
+  // API. The still-meaningful signal here is unused dependencies, computed from
+  // the imports across all of these files.
+  entry: ['src/**/*.{ts,tsx}'],
   project: ['src/**/*.{ts,tsx}'],
-  ignore: ['src/app-core-env.d.ts'],
-  ignoreDependencies: ['@zapengine/design-tokens'],
+  // Both are genuinely used but only via subpath/type-only imports
+  // (@zapengine/types/strategy|api, @zapengine/intent-engine's GmxV2MarketKey /
+  // waitForEIP7702Confirmation) that knip's workspace resolver does not track —
+  // mirroring intent-engine's own knip config. @zapengine/design-tokens is a
+  // Tailwind preset with no direct TS import.
+  ignoreDependencies: [
+    '@zapengine/design-tokens',
+    '@zapengine/intent-engine',
+    '@zapengine/types',
+  ],
 });

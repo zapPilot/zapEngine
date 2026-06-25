@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
+import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionLabel } from '@/components/ui/SectionLabel';
@@ -58,20 +59,7 @@ export function InvestConfirmScreen() {
             $1,000.00
           </div>
           <div className="mt-2.5 flex items-center gap-[9px]">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#6f6a5f"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
+            <ArrowGlyph />
             <span
               className="grid h-[26px] w-[26px] place-items-center rounded-lg"
               style={{
