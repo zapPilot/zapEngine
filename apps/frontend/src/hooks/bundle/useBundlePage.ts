@@ -1,15 +1,15 @@
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useAppRouter } from '@/lib/routing';
-import { useWalletProvider } from '@/providers/WalletProvider';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import {
   type BundleUser,
   generateBundleUrl,
   getBundleUser,
   isOwnBundle as isBundleOwned,
-} from '@/services/bundleService';
+} from '@zapengine/app-core/services/bundleService';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useAppRouter } from '@/lib/routing';
 
 import {
   buildBundlePageUrl,

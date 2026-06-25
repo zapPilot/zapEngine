@@ -1,4 +1,4 @@
-import type { BacktestStrategySummary } from '@/types/backtesting';
+import type { BacktestStrategySummary } from '@zapengine/app-core/types/backtesting';
 
 export interface HeroMetric {
   label: string;

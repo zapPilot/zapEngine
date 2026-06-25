@@ -5,12 +5,12 @@
  * Copy these patterns into your test files as needed.
  */
 
+import * as useStrategiesQuery from '@zapengine/app-core/hooks/queries/useStrategiesQuery';
+import * as UserContext from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import * as intentService from '@zapengine/app-core/services/intentService';
 import { vi } from 'vitest';
 
-import * as useStrategiesQuery from '@/hooks/queries/useStrategiesQuery';
-import * as UserContext from '@/hooks/queries/wallet/useUser';
 import * as useChainModule from '@/hooks/useChain';
-import * as intentService from '@/services/intentService';
 
 import {
   createMockAssetCategory,
@@ -22,10 +22,10 @@ import {
 
 // Example 1: Basic mock setup for SwapPage component tests
 // Mock all dependencies
-vi.mock('@/hooks/queries/wallet/useUser');
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser');
 vi.mock('@/hooks/useChain');
-vi.mock('@/hooks/queries/useStrategiesQuery');
-vi.mock('@/services/intentService');
+vi.mock('@zapengine/app-core/hooks/queries/useStrategiesQuery');
+vi.mock('@zapengine/app-core/services/intentService');
 
 // Example 1: Testing SwapPage with connected user and strategies
 export function exampleConnectedUserWithStrategies() {

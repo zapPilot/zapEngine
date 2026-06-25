@@ -1,7 +1,6 @@
+import { validateExportData } from '@zapengine/app-core/lib/analytics/analyticsValidation';
+import type { AnalyticsData } from '@zapengine/app-core/types/analytics';
 import { describe, expect, it } from 'vitest';
-
-import { validateExportData } from '@/lib/analytics/analyticsValidation';
-import type { AnalyticsData } from '@/types/analytics';
 
 function createValidAnalyticsData(): AnalyticsData {
   return {

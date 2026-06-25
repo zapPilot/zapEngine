@@ -1,10 +1,7 @@
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
-import {
-  getRegimeAllocation,
-  type Regime,
-} from '@/components/wallet/regime/regimeData';
-import { ASSET_COLORS } from '@/constants/assets';
-import type { AllocationConstituent } from '@/types/portfolio';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { ASSET_COLORS } from '@zapengine/app-core/constants/assets';
+import { getRegimeAllocation, type Regime } from '@zapengine/app-core/regime';
+import type { AllocationConstituent } from '@zapengine/app-core/types/portfolio';
 
 /**
  * Build target crypto assets from regime breakdown for empty state

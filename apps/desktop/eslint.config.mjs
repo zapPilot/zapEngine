@@ -1,11 +1,13 @@
 // @ts-check
-import { createNodeTsConfig } from '@zapengine/eslint-config/node-ts';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-export default createNodeTsConfig({
-  ignores: [
-    'coverage/**',
-    'node_modules/**',
-    'src-tauri/target/**',
-    'vitest.config.ts',
-  ],
+import { createReactViteConfig } from '@zapengine/eslint-config/react-vite';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export default createReactViteConfig({
+  tsconfigPath: join(__dirname, 'tsconfig.eslint.json'),
+  tsconfigRootDir: __dirname,
 });

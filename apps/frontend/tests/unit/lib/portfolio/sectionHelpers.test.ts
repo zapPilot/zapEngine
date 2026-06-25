@@ -1,6 +1,5 @@
+import { createSectionState } from '@zapengine/app-core/lib/portfolio/sectionHelpers';
 import { describe, expect, it } from 'vitest';
-
-import { createSectionState } from '@/lib/portfolio/sectionHelpers';
 
 describe('createSectionState', () => {
   it('returns loading true when any query is loading', () => {

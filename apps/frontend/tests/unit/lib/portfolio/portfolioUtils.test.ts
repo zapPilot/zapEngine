@@ -1,7 +1,6 @@
+import { extractROIChanges } from '@zapengine/app-core/lib/portfolio/portfolioUtils';
+import { LandingPageResponse } from '@zapengine/app-core/services/analyticsService';
 import { describe, expect, it } from 'vitest';
-
-import { extractROIChanges } from '@/lib/portfolio/portfolioUtils';
-import { LandingPageResponse } from '@/services/analyticsService';
 
 describe('portfolioUtils', () => {
   describe('extractROIChanges', () => {

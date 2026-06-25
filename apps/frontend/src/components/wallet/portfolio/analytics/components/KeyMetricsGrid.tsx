@@ -4,11 +4,14 @@
  * Displays the 4 primary analytics metrics
  */
 
+import type {
+  KeyMetrics,
+  MetricData,
+} from '@zapengine/app-core/types/analytics';
 import { Activity, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import type { KeyMetrics, MetricData } from '@/types/analytics';
 
 /** Trend icons mapped by trend direction for cleaner conditional rendering */
 const TREND_ICONS: Record<MetricData['trend'], ReactNode> = {

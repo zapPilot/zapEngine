@@ -1,10 +1,12 @@
-import type { ReactElement } from 'react';
-
 import {
   mapBorrowingStatusToRiskLevel,
   RISK_DISPLAY_CONFIG,
-} from '@/constants/riskThresholds';
-import type { BorrowingPosition, BorrowingSummary } from '@/services';
+} from '@zapengine/app-core/constants/riskThresholds';
+import type {
+  BorrowingPosition,
+  BorrowingSummary,
+} from '@zapengine/app-core/services';
+import type { ReactElement } from 'react';
 
 import { FinancialMetricRow } from './FinancialMetricRow';
 import { IconBadge } from './IconBadge';

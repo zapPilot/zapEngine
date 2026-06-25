@@ -1,4 +1,4 @@
-import { validateRegimeHistoryResponse } from '@/schemas/api/regimeHistorySchemas';
+import { validateRegimeHistoryResponse } from '@zapengine/app-core/schemas/api/regimeHistorySchemas';
 
 describe('Regime History Schema Validation', () => {
   // Valid V2 API Response Mock

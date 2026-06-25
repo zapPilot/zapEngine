@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { TelegramStatus } from '@zapengine/app-core/services';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useTelegramConnectionState } from '@/components/wallet/portfolio/modals/useTelegramConnectionState';
-import type { TelegramStatus } from '@/services';
 
 const {
   mockDisconnectTelegram,
@@ -14,7 +14,7 @@ const {
   mockRequestTelegramToken: vi.fn(),
 }));
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   disconnectTelegram: mockDisconnectTelegram,
   getTelegramStatus: mockGetTelegramStatus,
   requestTelegramToken: mockRequestTelegramToken,

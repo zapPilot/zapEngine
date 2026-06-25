@@ -9,19 +9,19 @@ const envMocks = vi.hoisted(() => ({
 }));
 
 // Mock all providers to keep tests focused on BundleProviders composition
-vi.mock('@/providers/QueryProvider', () => ({
+vi.mock('@zapengine/app-core/providers/QueryProvider', () => ({
   QueryProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="query-provider">{children}</div>
   ),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   WalletProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="wallet-provider">{children}</div>
   ),
 }));
 
-vi.mock('@/providers/PrivyAuthProvider', () => ({
+vi.mock('@zapengine/app-core/providers/PrivyAuthProvider', () => ({
   PrivyAuthProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="privy-auth-provider">{children}</div>
   ),
@@ -60,7 +60,7 @@ vi.mock('@/lib/lazy/lazyImport', () => ({
 }));
 
 // Mock env to control shouldLoadLogViewer
-vi.mock('@/lib/env/runtimeEnv', () => ({
+vi.mock('@zapengine/app-core/lib/env/runtimeEnv', () => ({
   isRuntimeMode: () => false,
   getRuntimeEnv: envMocks.getRuntimeEnv,
 }));

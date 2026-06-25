@@ -7,23 +7,22 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useRegimeHistory } from '@/hooks/queries/market/useRegimeHistoryQuery';
-import { httpUtils } from '@/lib/http';
-import type { RegimeHistoryResponse } from '@/schemas/api/regimeHistorySchemas';
+import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
+import { httpUtils } from '@zapengine/app-core/lib/http';
+import type { RegimeHistoryResponse } from '@zapengine/app-core/schemas/api/regimeHistorySchemas';
 import {
   DEFAULT_REGIME_HISTORY,
   fetchRegimeHistory,
-} from '@/services/regimeHistoryService';
-import { logger } from '@/utils/logger';
+} from '@zapengine/app-core/services/regimeHistoryService';
+import { logger } from '@zapengine/app-core/utils/logger';
+import type { ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Create spies
 const analyticsEngineGetSpy = vi.spyOn(httpUtils.analyticsEngine, 'get');
 
 // Mock logger
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),

@@ -2,7 +2,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ToastProvider, useToast } from '@/providers/ToastProvider';
+import {
+  ToastProvider,
+  useToast,
+} from '@/providers/ToastProvider';
 
 // Test component that uses the toast hook
 function TestComponent() {

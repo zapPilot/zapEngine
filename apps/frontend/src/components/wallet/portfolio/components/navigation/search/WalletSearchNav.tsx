@@ -1,3 +1,4 @@
+import { validateWalletAddress } from '@zapengine/app-core/lib/validation/walletUtils';
 import { Search, X } from 'lucide-react';
 import {
   type EventHandler,
@@ -8,8 +9,6 @@ import {
   useRef,
   useState,
 } from 'react';
-
-import { validateWalletAddress } from '@/lib/validation/walletUtils';
 
 interface WalletSearchNavProps {
   onSearch: (address: string) => void;

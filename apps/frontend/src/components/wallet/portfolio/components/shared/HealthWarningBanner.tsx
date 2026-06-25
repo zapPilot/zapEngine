@@ -1,7 +1,9 @@
+import {
+  getRiskLevel,
+  RiskLevel,
+} from '@zapengine/app-core/constants/riskThresholds';
+import type { RiskMetrics } from '@zapengine/app-core/services';
 import { AlertCircle } from 'lucide-react';
-
-import { getRiskLevel, RiskLevel } from '@/constants/riskThresholds';
-import type { RiskMetrics } from '@/services';
 
 interface HealthWarningBannerProps {
   /** Risk metrics from the analytics service */

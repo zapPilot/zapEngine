@@ -1,9 +1,9 @@
+import type { InvestSubTab } from '@zapengine/app-core/types';
 import { Loader2 } from 'lucide-react';
 import { type JSX } from 'react';
 
 import { INVEST_SUB_TABS } from '@/components/wallet/portfolio/components/navigation';
 import { lazyImport } from '@/lib/lazy/lazyImport';
-import type { InvestSubTab } from '@/types';
 
 interface InvestViewProps {
   userId: string | undefined;

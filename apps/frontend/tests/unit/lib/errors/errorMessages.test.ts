@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   getErrorMessage,
   getIntentErrorMessage,
-} from '@/lib/errors/errorMessages';
+} from '@zapengine/app-core/lib/errors/errorMessages';
+import { describe, expect, it } from 'vitest';
 
 describe('errorMessages', () => {
   describe('getIntentErrorMessage', () => {

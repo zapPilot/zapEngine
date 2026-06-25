@@ -1,9 +1,8 @@
+import { fadeInOut } from '@zapengine/app-core/lib/ui/animationVariants';
+import type { SectionState } from '@zapengine/app-core/types/portfolioProgressive';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
-
-import { fadeInOut } from '@/lib/ui/animationVariants';
-import type { SectionState } from '@/types/portfolioProgressive';
 
 interface SectionWrapperProps<T> {
   state: SectionState<T>;

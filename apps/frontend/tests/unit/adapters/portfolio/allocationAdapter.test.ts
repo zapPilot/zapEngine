@@ -5,13 +5,12 @@
  * absolute portfolio percentages from the API response.
  */
 
-import { describe, expect, it } from 'vitest';
-
 import {
   calculateAllocation,
   calculateDelta,
-} from '@/adapters/portfolio/allocationAdapter';
-import type { LandingPageResponse } from '@/services/analyticsService';
+} from '@zapengine/app-core/adapters/portfolio/allocationAdapter';
+import type { LandingPageResponse } from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it } from 'vitest';
 
 // Mock API response matching the actual API format
 const mockLandingData: LandingPageResponse = {

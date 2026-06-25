@@ -1,40 +1,45 @@
 import { renderHook } from '@testing-library/react';
+import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import * as Transformers from '@zapengine/app-core/lib/portfolio/portfolioTransformers';
+import { logger } from '@zapengine/app-core/utils/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { usePortfolioDataProgressive } from '@/hooks/queries/analytics/usePortfolioDataProgressive';
-import * as Transformers from '@/lib/portfolio/portfolioTransformers';
-import { logger } from '@/utils/logger';
 
 const mockUseLandingPageData = vi.fn();
 const mockUseSentimentData = vi.fn();
 const mockUseRegimeHistory = vi.fn();
 const mockTransformToWallet = vi.fn();
 
-vi.mock('@/hooks/queries/analytics/usePortfolioQuery', () => ({
-  useLandingPageData: (...args: unknown[]) => mockUseLandingPageData(...args),
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery',
+  () => ({
+    useLandingPageData: (...args: unknown[]) => mockUseLandingPageData(...args),
+  }),
+);
 
-vi.mock('@/hooks/queries/market/useSentimentQuery', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/market/useSentimentQuery', () => ({
   useSentimentData: (...args: unknown[]) => mockUseSentimentData(...args),
 }));
 
-vi.mock('@/hooks/queries/market/useRegimeHistoryQuery', () => ({
-  useRegimeHistory: (...args: unknown[]) => mockUseRegimeHistory(...args),
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery',
+  () => ({
+    useRegimeHistory: (...args: unknown[]) => mockUseRegimeHistory(...args),
+  }),
+);
 
-vi.mock('@/adapters/walletPortfolioDataAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/walletPortfolioDataAdapter', () => ({
   transformToWalletPortfolioDataWithDirection: (...args: unknown[]) =>
     mockTransformToWallet(...args),
 }));
 
-vi.mock('@/lib/portfolio/portfolioTransformers', () => ({
+vi.mock('@zapengine/app-core/lib/portfolio/portfolioTransformers', () => ({
   extractBalanceData: vi.fn(() => null),
   extractCompositionData: vi.fn(() => null),
   combineStrategyData: vi.fn(() => null),
   extractSentimentData: vi.fn(() => null),
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: { debug: vi.fn() },
 }));
 

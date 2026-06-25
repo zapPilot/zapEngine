@@ -42,7 +42,7 @@ const mockRouter = createMockRouter();
 const mockToast = createMockToast();
 
 const mockConnectWallet = vi.fn();
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   connectWallet: (...args: any[]) => mockConnectWallet(...args),
 }));
 
@@ -52,7 +52,7 @@ vi.mock('@/lib/routing', () => ({
   useAppPathname: () => '/bundle',
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => mockToast,
   ToastContext: {
     Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -113,7 +113,7 @@ vi.mock('@/components/wallet/InitialDataLoadingState', () => ({
   ),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     connectedWallets: [],
     activeWallet: null,

@@ -1,11 +1,11 @@
+import type { DrawdownHoverData } from '@zapengine/app-core/types/ui/chartHover';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DrawdownTooltip } from '@/components/charts/tooltipContent/DrawdownTooltip';
-import type { DrawdownHoverData } from '@/types/ui/chartHover';
 
 import { render, screen } from '../../../../test-utils';
 
-vi.mock('@/utils/chartHoverUtils', () => ({
+vi.mock('@zapengine/app-core/utils/chartHoverUtils', () => ({
   getDrawdownSeverity: vi.fn(() => 'Minor'),
   getDrawdownSeverityColor: vi.fn(() => ({
     bgColor: 'bg-yellow-100',
@@ -13,7 +13,7 @@ vi.mock('@/utils/chartHoverUtils', () => ({
   })),
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatters: {
     percent: vi.fn((val: number, _dec: number) => `${val.toFixed(2)}%`),
   },

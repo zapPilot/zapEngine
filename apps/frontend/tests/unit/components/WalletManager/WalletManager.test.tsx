@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useAsyncRetryButton } from '@zapengine/app-core/hooks/ui/useAsyncRetryButton';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletManager } from '@/components/WalletManager/WalletManager';
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 
 // Mock Child Components
 vi.mock('@/components/WalletManager/components/WalletList', () => ({
@@ -46,8 +46,8 @@ vi.mock('@/components/WalletManager/components/EditWalletModal', () => ({
 }));
 
 // Mock Hooks
-vi.mock('@/hooks/queries/wallet/useUser');
-vi.mock('@/hooks/ui/useAsyncRetryButton');
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser');
+vi.mock('@zapengine/app-core/hooks/ui/useAsyncRetryButton');
 
 const mockSetNewWallet = vi.fn();
 const mockSetEditingWallet = vi.fn();

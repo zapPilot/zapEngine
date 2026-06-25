@@ -1,3 +1,8 @@
+import type { BacktestTimelinePoint } from '@zapengine/app-core/types/backtesting';
+import {
+  formatChartAxisDate,
+  formatCurrencyAxis,
+} from '@zapengine/app-core/utils';
 import { memo, type ReactElement } from 'react';
 import {
   CartesianGrid,
@@ -9,8 +14,6 @@ import {
 } from 'recharts';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import type { BacktestTimelinePoint } from '@/types/backtesting';
-import { formatChartAxisDate, formatCurrencyAxis } from '@/utils';
 
 import {
   type BacktestChartPoint,

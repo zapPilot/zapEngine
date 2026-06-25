@@ -1,3 +1,13 @@
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useOperationStateHandlers } from '@zapengine/app-core/hooks/utils/useOperationState';
+import { handleWalletError } from '@zapengine/app-core/lib/validation/walletUtils';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import {
+  unsubscribeUserEmail,
+  updateUserEmailSubscription,
+} from '@zapengine/app-core/services';
+import type { OperationState } from '@zapengine/app-core/types';
+import { validateEmail } from '@zapengine/app-core/utils';
 import {
   type Dispatch,
   type SetStateAction,
@@ -5,14 +15,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useOperationStateHandlers } from '@/hooks/utils/useOperationState';
-import { handleWalletError } from '@/lib/validation/walletUtils';
-import { useToast } from '@/providers/ToastContext';
-import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
-import type { OperationState } from '@/types';
-import { validateEmail } from '@/utils';
 
 interface UseEmailSubscriptionParams {
   viewingUserId: string;

@@ -1,3 +1,10 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import type {
+  EditingWallet,
+  WalletOperations,
+} from '@zapengine/app-core/types';
+import { formatAddress } from '@zapengine/app-core/utils/formatters';
 import { X } from 'lucide-react';
 import {
   type KeyboardEvent,
@@ -8,10 +15,6 @@ import {
 
 import { BaseCard, GradientButton, LoadingSpinner } from '@/components/ui';
 import { ModalBackdrop } from '@/components/ui/modal';
-import { GRADIENTS } from '@/constants/designSystem';
-import type { WalletData } from '@/lib/validation/walletUtils';
-import type { EditingWallet, WalletOperations } from '@/types';
-import { formatAddress } from '@/utils/formatters';
 
 interface EditWalletModalProps {
   editingWallet: EditingWallet | null;

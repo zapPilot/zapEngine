@@ -1,8 +1,10 @@
+import type {
+  BorrowingSummary,
+  RiskMetrics,
+} from '@zapengine/app-core/services';
+import type { ModalType } from '@zapengine/app-core/types/portfolio';
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import type { ReactElement } from 'react';
-
-import type { BorrowingSummary, RiskMetrics } from '@/services';
-import type { ModalType } from '@/types/portfolio';
 
 import { BalanceCardSkeleton } from '../../views/DashboardSkeleton';
 import { BorrowingHealthPill } from './BorrowingHealthPill';

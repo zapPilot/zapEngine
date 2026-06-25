@@ -30,7 +30,7 @@ let capturedBuildHoverData: any;
 let capturedGetYValue: any;
 
 // Mock chart helpers
-vi.mock('@/hooks/ui/useChartHover', () => ({
+vi.mock('@zapengine/app-core/hooks/ui/useChartHover', () => ({
   useChartHover: vi.fn((_data: any, options: any) => {
     capturedBuildHoverData = options?.buildHoverData;
     capturedGetYValue = options?.getYValue;
@@ -42,12 +42,12 @@ vi.mock('@/hooks/ui/useChartHover', () => ({
   }),
 }));
 
-vi.mock('@/lib/ui/chartPrimitives', () => ({
+vi.mock('@zapengine/app-core/lib/ui/chartPrimitives', () => ({
   buildPath: () => 'M 0,0 L 100,100',
   CHART_GRID_POSITIONS: { FOUR_LINES: [] },
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatChartDate: (date: string) => date,
 }));
 

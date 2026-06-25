@@ -2,7 +2,7 @@
  * Market Dashboard Constants
  *
  * Note: Regime-related utilities (REGIME_COLORS, getRegimeColor, getRegimeLabel)
- * have been consolidated into '@/lib/domain/regime'.
+ * have been consolidated into '@zapengine/app-core/lib/domain/regime'.
  * This file now re-exports them for backward compatibility.
  */
 
@@ -10,7 +10,7 @@ import {
   getRegimeColor as _getRegimeColor,
   getRegimeLabel as _getRegimeLabel,
   REGIME_COLORS as _REGIME_COLORS,
-} from '@/lib/domain/regime';
+} from '@zapengine/app-core/lib/domain/regime';
 
 /** Regime hex colors keyed by short RegimeId (ef/f/n/g/eg) */
 export const REGIME_COLORS: Record<string, string> = _REGIME_COLORS;

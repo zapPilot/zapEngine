@@ -1,9 +1,8 @@
+import { useClickOutside } from '@zapengine/app-core/hooks/ui/useClickOutside';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import { copyTextToClipboard } from '@zapengine/app-core/utils';
 import { AnimatePresence } from 'framer-motion';
 import { type ReactElement, useRef, useState } from 'react';
-
-import { useClickOutside } from '@/hooks/ui/useClickOutside';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import { copyTextToClipboard } from '@/utils';
 
 import { WalletMenuButton, WalletMenuDropdown } from './WalletMenuContent';
 

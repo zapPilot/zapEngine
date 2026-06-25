@@ -1,8 +1,8 @@
+import { HEADER, Z_INDEX } from '@zapengine/app-core/constants/designSystem';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import type { PropsWithChildren } from 'react';
 
 import { BaseCard } from '@/components/ui';
-import { HEADER, Z_INDEX } from '@/constants/designSystem';
-import { cn } from '@/lib/ui/classNames';
 
 interface StickyBannerShellProps {
   cardClassName?: string;

@@ -1,11 +1,10 @@
 import { QueryClient } from '@tanstack/react-query';
+import { invalidateAndRefetch } from '@zapengine/app-core/hooks/utils/useQueryInvalidation';
+import { walletLogger } from '@zapengine/app-core/utils/logger';
 import { describe, expect, it, vi } from 'vitest';
 
-import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
-import { walletLogger } from '@/utils/logger';
-
 // Mock logger
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   walletLogger: {
     error: vi.fn(),
   },

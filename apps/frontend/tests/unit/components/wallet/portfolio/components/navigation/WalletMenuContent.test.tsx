@@ -1,18 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   WalletMenuButton,
   WalletMenuDropdown,
 } from '@/components/wallet/portfolio/components/navigation/WalletMenuContent';
-import { WALLET_LABELS } from '@/constants/wallet';
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: (addr: string) =>
     `${addr.substring(0, 6)}...${addr.slice(-4)}`,
 }));
 
-vi.mock('@/lib/ui/animationVariants', () => ({
+vi.mock('@zapengine/app-core/lib/ui/animationVariants', () => ({
   dropdownMenu: {},
 }));
 

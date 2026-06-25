@@ -2,9 +2,8 @@
  * TooltipRow - Reusable row component for tooltip content
  */
 
+import { formatters } from '@zapengine/app-core/utils/formatters';
 import type { ReactElement } from 'react';
-
-import { formatters } from '@/utils/formatters';
 
 interface TooltipRowProps {
   label: string;

@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   calculateDailyVolatility,
   getDrawdownSeverity,
@@ -8,7 +6,8 @@ import {
   getSharpeInterpretation,
   getVolatilityRiskColor,
   getVolatilityRiskLevel,
-} from '@/utils/chartHoverUtils';
+} from '@zapengine/app-core/utils/chartHoverUtils';
+import { describe, expect, it } from 'vitest';
 
 describe('chartHoverUtils', () => {
   describe('getDrawdownSeverity', () => {

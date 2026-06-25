@@ -1,10 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { useBacktestMutation } from '@zapengine/app-core/hooks/mutations/useBacktestMutation';
+import { runBacktest } from '@zapengine/app-core/services/backtestingService';
+import { BacktestRequest } from '@zapengine/app-core/types/backtesting';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
-import { runBacktest } from '@/services/backtestingService';
-import { BacktestRequest } from '@/types/backtesting';
 
 // Mock dependencies
 vi.mock('@tanstack/react-query', async () => {
@@ -15,7 +14,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-vi.mock('@/services/backtestingService', () => ({
+vi.mock('@zapengine/app-core/services/backtestingService', () => ({
   runBacktest: vi.fn(),
 }));
 

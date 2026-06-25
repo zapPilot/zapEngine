@@ -1,8 +1,8 @@
-import type { Regime } from '@/components/wallet/regime/regimeData';
-import {
+import type {
   getStrategyTabLabel,
+  Regime,
   type StrategyDirection,
-} from '@/components/wallet/regime/strategyLabels';
+} from '@zapengine/app-core/regime';
 
 interface StrategyDirectionTabsProps {
   regime: Regime;

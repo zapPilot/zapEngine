@@ -1,8 +1,8 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import type { OperationState } from '@zapengine/app-core/types';
 import type { ReactElement } from 'react';
 
 import { GradientButton, LoadingSpinner } from '@/components/ui';
-import { GRADIENTS } from '@/constants/designSystem';
-import type { OperationState } from '@/types';
 
 interface EmailSubscriptionProps {
   email: string;

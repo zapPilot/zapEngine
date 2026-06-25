@@ -1,13 +1,13 @@
+import type { SavedStrategyConfig } from '@zapengine/app-core/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigListView } from '@/components/wallet/portfolio/views/invest/configManager/ConfigListView';
-import type { SavedStrategyConfig } from '@/types';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
-vi.mock('@/services', () => ({}));
+vi.mock('@zapengine/app-core/services', () => ({}));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => null,
 }));
 
@@ -20,21 +20,29 @@ const mockState = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
-vi.mock('@/hooks/mutations/useStrategyAdminMutations', () => ({
-  useSetDefaultStrategyConfig: () => ({
-    mutateAsync: mockState.mutateAsync,
-    isPending: mockState.isPending,
+vi.mock(
+  '@zapengine/app-core/hooks/mutations/useStrategyAdminMutations',
+  () => ({
+    useSetDefaultStrategyConfig: () => ({
+      mutateAsync: mockState.mutateAsync,
+      isPending: mockState.isPending,
+    }),
   }),
-}));
+);
 
-vi.mock('@/providers/ToastContext', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/providers/ToastContext')>();
-  return {
-    ...actual,
-    useToast: () => ({ showToast: mockState.showToast }),
-  };
-});
+vi.mock(
+  '@zapengine/app-core/providers/ToastContext',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@zapengine/app-core/providers/ToastContext')
+      >();
+    return {
+      ...actual,
+      useToast: () => ({ showToast: mockState.showToast }),
+    };
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Fixtures

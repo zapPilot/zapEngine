@@ -1,7 +1,7 @@
 import type {
   BacktestBucket,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
 
 import { getBacktestTransferDirection } from '../backtestBuckets';
 import {

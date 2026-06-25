@@ -1,10 +1,9 @@
-import type { Address } from 'viem';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   ensureChain,
   requireUserAddress,
-} from '@/hooks/useDepositExecutionState';
+} from '@zapengine/app-core/hooks/useDepositExecutionState';
+import type { Address } from 'viem';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('requireUserAddress', () => {
   const ADDRESS = '0x1111111111111111111111111111111111111111' as Address;

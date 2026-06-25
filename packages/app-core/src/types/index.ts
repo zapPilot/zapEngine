@@ -1,0 +1,40 @@
+/**
+ * Types Public API
+ *
+ * Centralized barrel export for all application types.
+ * Import types from this file for cleaner imports:
+ *
+ * @example
+ * ```typescript
+ * import type { AnalyticsData, PortfolioAllocationData } from '@core/types';
+ * import type { UserProfile, WalletBundle } from '@core/types';
+ * ```
+ */
+
+// ============================================================================
+// ANALYTICS & PORTFOLIO
+// ============================================================================
+
+export * from './analytics';
+export * from './backtesting';
+export * from './export';
+export * from './portfolio';
+export * from './portfolioProgressive';
+export * from './strategy';
+export * from './strategyAdmin';
+export * from './wallet';
+
+// ============================================================================
+// DOMAIN TYPES
+// ============================================================================
+
+export * from './domain/allocation';
+export * from './domain/transaction';
+export * from './domain/wallet';
+
+// ============================================================================
+// UI TYPES
+// ============================================================================
+
+export * from './ui/chartHover';
+export * from './ui/ui.types';

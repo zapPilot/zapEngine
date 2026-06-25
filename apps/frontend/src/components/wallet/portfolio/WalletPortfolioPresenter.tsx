@@ -1,7 +1,20 @@
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import type { EtlJobPollingState } from '@zapengine/app-core/hooks/wallet';
+import {
+  buildPortfolioRouteSearchParams,
+  readPortfolioRouteState,
+} from '@zapengine/app-core/lib/portfolio/portfolioRouteState';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import { getRegimeById } from '@zapengine/app-core/regime';
+import { connectWallet } from '@zapengine/app-core/services';
+import type {
+  DashboardSections,
+  InvestSubTab,
+  TabType,
+} from '@zapengine/app-core/types';
 import { Loader2 } from 'lucide-react';
 import { type ReactElement, type ReactNode, useRef, useState } from 'react';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import { Footer } from '@/components/Footer/Footer';
 import { InitialDataLoadingState } from '@/components/wallet/InitialDataLoadingState';
 import { WalletNavigation } from '@/components/wallet/portfolio/components/navigation';
@@ -10,22 +23,13 @@ import { usePortfolioModalState } from '@/components/wallet/portfolio/hooks/useP
 import { DashboardView } from '@/components/wallet/portfolio/views/DashboardView';
 import { useDailySuggestion } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDailySuggestion';
 import { useDefaultPresetId } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDefaultPresetId';
-import { getRegimeById } from '@/components/wallet/regime/regimeData';
-import type { EtlJobPollingState } from '@/hooks/wallet';
 import { lazyImport } from '@/lib/lazy/lazyImport';
-import {
-  buildPortfolioRouteSearchParams,
-  readPortfolioRouteState,
-} from '@/lib/portfolio/portfolioRouteState';
 import {
   buildPathWithSearchParams,
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
 } from '@/lib/routing';
-import { useToast } from '@/providers/ToastContext';
-import { connectWallet } from '@/services';
-import type { DashboardSections, InvestSubTab, TabType } from '@/types';
 
 /** Layout class constants for consistent styling */
 const LAYOUT = {

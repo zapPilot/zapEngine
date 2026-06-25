@@ -1,8 +1,8 @@
+import { useStrategyAdminConfigs } from '@zapengine/app-core/hooks/queries/strategyAdmin';
+import type { SavedStrategyConfig } from '@zapengine/app-core/types';
 import { type ReactElement, useReducer } from 'react';
 
 import { Spinner } from '@/components/ui';
-import { useStrategyAdminConfigs } from '@/hooks/queries/strategyAdmin';
-import type { SavedStrategyConfig } from '@/types';
 
 import { ConfigEditorView } from './ConfigEditorView';
 import { ConfigListView } from './ConfigListView';

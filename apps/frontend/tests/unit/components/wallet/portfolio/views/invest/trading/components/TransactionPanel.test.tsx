@@ -120,23 +120,23 @@ const withdrawMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: walletProviderMocks.useWalletProvider,
 }));
 
-vi.mock('@/hooks/useInvestStrategy', () => ({
+vi.mock('@zapengine/app-core/hooks/useInvestStrategy', () => ({
   useInvestStrategy: investStrategyMocks.useInvestStrategy,
 }));
 
-vi.mock('@/hooks/useGmxDeposit', () => ({
+vi.mock('@zapengine/app-core/hooks/useGmxDeposit', () => ({
   useGmxDeposit: gmxDepositMocks.useGmxDeposit,
 }));
 
-vi.mock('@/hooks/useWithdraw', () => ({
+vi.mock('@zapengine/app-core/hooks/useWithdraw', () => ({
   useWithdraw: withdrawMocks.useWithdraw,
 }));
 
-vi.mock('@/hooks/queries/wallet/useTokenBalances', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useTokenBalances', () => ({
   useTokenBalances: vi.fn(() => ({
     byAddress: new Map(),
   })),
@@ -218,7 +218,7 @@ vi.mock(
   }),
 );
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     simulateDeposit: vi.fn(),
     simulateWithdraw: vi.fn(),

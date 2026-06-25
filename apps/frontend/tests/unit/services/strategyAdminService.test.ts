@@ -1,13 +1,11 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import {
   createStrategyConfig,
   getStrategyAdminConfig,
   getStrategyAdminConfigs,
   setDefaultStrategyConfig,
   updateStrategyConfig,
-} from '@/services/strategyAdminService';
+} from '@zapengine/app-core/services/strategyAdminService';
 import type {
   CreateStrategyConfigRequest,
   SavedStrategyConfig,
@@ -15,7 +13,8 @@ import type {
   StrategyAdminConfigsResponse,
   StrategyComposition,
   UpdateStrategyConfigRequest,
-} from '@/types/strategyAdmin';
+} from '@zapengine/app-core/types/strategyAdmin';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getSpy = vi.spyOn(httpUtils.analyticsEngine, 'get');
 const postSpy = vi.spyOn(httpUtils.analyticsEngine, 'post');

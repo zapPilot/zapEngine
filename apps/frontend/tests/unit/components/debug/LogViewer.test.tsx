@@ -7,14 +7,14 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import { logger, LogLevel } from '@zapengine/app-core/utils/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Import after mocking
 import { LogViewer } from '@/components/debug/LogViewer';
-import { logger, LogLevel } from '@/utils/logger';
 
 // Mock the logger module before importing the component
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   LogLevel: {
     DEBUG: 0,
     INFO: 1,

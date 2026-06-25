@@ -1,14 +1,17 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { createEmptyPortfolioState } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import {
+  useEtlJobPolling,
+  useEtlJobSync,
+} from '@zapengine/app-core/hooks/wallet';
+import { readPortfolioRouteState } from '@zapengine/app-core/lib/portfolio/portfolioRouteState';
+import { logger } from '@zapengine/app-core/utils';
 import { type ReactElement, type ReactNode } from 'react';
 
-import { createEmptyPortfolioState } from '@/adapters/walletPortfolioDataAdapter';
 import { WalletPortfolioErrorState } from '@/components/wallet/portfolio/views/LoadingStates';
 import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
-import { usePortfolioDataProgressive } from '@/hooks/queries/analytics/usePortfolioDataProgressive';
-import { useEtlJobPolling, useEtlJobSync } from '@/hooks/wallet';
-import { readPortfolioRouteState } from '@/lib/portfolio/portfolioRouteState';
 import { useAppRouter, useAppSearchParams } from '@/lib/routing';
-import { logger } from '@/utils';
 
 interface DashboardShellProps {
   urlUserId: string;

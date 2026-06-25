@@ -10,14 +10,13 @@
  * Simplified by internalizing status state (no separate useTransactionStatus hook).
  */
 
-import { useState } from 'react';
-import type { UseFormReturn } from 'react-hook-form';
-
 import type {
   TransactionFormData,
   TransactionResult,
   TransactionToken,
-} from '@/types/domain/transaction';
+} from '@zapengine/app-core/types/domain/transaction';
+import { useState } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 
 export function useTransactionSubmission(
   form: UseFormReturn<TransactionFormData>,

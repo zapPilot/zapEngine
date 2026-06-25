@@ -26,17 +26,23 @@ vi.mock('@/lib/routing', () => ({
   useAppPathname: () => '/bundle/user-123',
 }));
 
-vi.mock('@/hooks/queries/analytics/usePortfolioDataProgressive', () => ({
-  usePortfolioDataProgressive: () => mockUsePortfolioDataProgressive(),
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive',
+  () => ({
+    usePortfolioDataProgressive: () => mockUsePortfolioDataProgressive(),
+  }),
+);
 
-vi.mock('@/hooks/queries/market/useSentimentQuery', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/market/useSentimentQuery', () => ({
   useSentimentData: () => mockUseSentimentData(),
 }));
 
-vi.mock('@/hooks/queries/market/useRegimeHistoryQuery', () => ({
-  useRegimeHistory: () => mockUseRegimeHistory(),
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery',
+  () => ({
+    useRegimeHistory: () => mockUseRegimeHistory(),
+  }),
+);
 
 // Mock useEtlJobPolling for ETL race condition tests
 const mockEtlState = vi.fn();
@@ -45,7 +51,7 @@ const mockResetEtl = vi.fn();
 const mockCompleteTransition = vi.fn();
 const mockUseEtlJobSync = vi.fn();
 
-vi.mock('@/hooks/wallet', () => ({
+vi.mock('@zapengine/app-core/hooks/wallet', () => ({
   useEtlJobPolling: () => ({
     state: mockEtlState(),
     startPolling: mockStartPolling,
@@ -55,7 +61,7 @@ vi.mock('@/hooks/wallet', () => ({
   useEtlJobSync: (...args: unknown[]) => mockUseEtlJobSync(...args),
 }));
 
-vi.mock('@/adapters/walletPortfolioDataAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/walletPortfolioDataAdapter', () => ({
   createEmptyPortfolioState: vi.fn(() => ({
     netWorth: 0,
     holdings: [],

@@ -4,8 +4,6 @@
  * Tests for RFC 4180 compliant CSV generation
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   buildDrawdownSection,
   buildFooterSection,
@@ -18,9 +16,10 @@ import {
   formatCsvRow,
   generateAnalyticsCSV,
   generateExportFilename,
-} from '@/lib/csvGenerator';
-import type { AnalyticsData } from '@/types/analytics';
-import type { ExportMetadata } from '@/types/export';
+} from '@zapengine/app-core/lib/csvGenerator';
+import type { AnalyticsData } from '@zapengine/app-core/types/analytics';
+import type { ExportMetadata } from '@zapengine/app-core/types/export';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // =============================================================================
 // TEST DATA

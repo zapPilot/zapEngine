@@ -1,17 +1,16 @@
-import type { DepositPlan, WithdrawPlan } from '@zapengine/types/api';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   getDepositPlan,
   getGmxDepositPlan,
   getWithdrawPlan,
-} from '@/services/planOrchestrationService';
+} from '@zapengine/app-core/services/planOrchestrationService';
+import type { DepositPlan, WithdrawPlan } from '@zapengine/types/api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockPost } = vi.hoisted(() => ({
   mockPost: vi.fn(),
 }));
 
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     accountApi: {
       post: mockPost,

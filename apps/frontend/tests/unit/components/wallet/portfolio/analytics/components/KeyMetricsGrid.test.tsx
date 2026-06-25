@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import type { KeyMetrics } from '@zapengine/app-core/types/analytics';
 import { describe, expect, it, vi } from 'vitest';
 
 import { KeyMetricsGrid } from '@/components/wallet/portfolio/analytics/components/KeyMetricsGrid';
-import type { KeyMetrics } from '@/types/analytics';
 
 // Mock Lucide icons
 vi.mock('lucide-react', () => ({

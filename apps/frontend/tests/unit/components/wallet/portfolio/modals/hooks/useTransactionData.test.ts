@@ -7,16 +7,19 @@ import { useTransactionData } from '@/components/wallet/portfolio/modals/hooks/u
 const mockUseChainQuery = vi.fn();
 const mockUseTokenBalanceQuery = vi.fn();
 
-vi.mock('@/hooks/queries/wallet/useChainQuery', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useChainQuery', () => ({
   useChainQuery: (...args: unknown[]) => mockUseChainQuery(...args),
 }));
 
-vi.mock('@/hooks/queries/wallet/useTokenBalanceQuery', () => ({
-  useTokenBalanceQuery: (...args: unknown[]) =>
-    mockUseTokenBalanceQuery(...args),
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/wallet/useTokenBalanceQuery',
+  () => ({
+    useTokenBalanceQuery: (...args: unknown[]) =>
+      mockUseTokenBalanceQuery(...args),
+  }),
+);
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     getSupportedTokens: vi.fn().mockResolvedValue([]),
   },

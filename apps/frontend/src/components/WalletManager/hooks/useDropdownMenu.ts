@@ -1,6 +1,5 @@
+import type { MenuPosition } from '@zapengine/app-core/types';
 import { useCallback, useEffect, useState } from 'react';
-
-import type { MenuPosition } from '@/types';
 
 interface UseDropdownMenuResult {
   openDropdown: string | null;

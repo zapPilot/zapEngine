@@ -18,12 +18,12 @@ interface TauriConfig {
     frontendDist: string;
   };
   app: {
-    windows: Array<{
+    windows: {
       title: string;
       width: number;
       height: number;
       resizable: boolean;
-    }>;
+    }[];
   };
   bundle: {
     active: boolean;
@@ -41,29 +41,32 @@ async function readJson<T>(relativePath: string): Promise<T> {
 }
 
 describe('desktop Tauri shell configuration', () => {
-  it('exposes Tauri dev and packaging scripts', async () => {
+  it('exposes Tauri dev and packaging scripts plus the Vite app scripts', async () => {
     const packageJson = await readJson<PackageJson>('package.json');
 
     expect(packageJson.scripts['dev']).toBe('tauri dev');
     expect(packageJson.scripts['build']).toBe('tauri build');
     expect(packageJson.scripts['package']).toBe('tauri build --bundles dmg');
+    expect(packageJson.scripts['dev:web']).toBe('vite');
+    expect(packageJson.scripts['build:web']).toBe('vite build');
   });
 
-  it('points Tauri at the frontend dev server and production dist', async () => {
+  it('points Tauri at the desktop Vite app dev server and production dist', async () => {
     const config = await readJson<TauriConfig>('src-tauri/tauri.conf.json');
 
     expect(config.productName).toBe('Zap Pilot');
     expect(config.identifier).toBe('com.zapengine.zappilot');
-    expect(config.build.devUrl).toBe('http://localhost:3000');
-    expect(config.build.frontendDist).toBe('../../frontend/dist');
+    expect(config.build.devUrl).toBe('http://localhost:3005');
+    expect(config.build.frontendDist).toBe('../dist');
     expect(config.build.beforeDevCommand).toContain('VITE_APP_RUNTIME=desktop');
-    expect(config.build.beforeDevCommand).toContain('@zapengine/frontend');
-    expect(config.build.beforeDevCommand).toContain('--port 3000');
+    expect(config.build.beforeDevCommand).toContain('@zapengine/desktop');
+    expect(config.build.beforeDevCommand).toContain('dev:web');
+    expect(config.build.beforeDevCommand).toContain('--port 3005');
     expect(config.build.beforeBuildCommand).toContain(
       'VITE_APP_RUNTIME=desktop',
     );
     expect(config.build.beforeBuildCommand).toContain(
-      '--filter @zapengine/frontend build',
+      '--filter @zapengine/desktop build:web',
     );
   });
 

@@ -2,8 +2,8 @@
  * AllocationTooltip - Asset allocation breakdown
  */
 
-import { ASSET_CATEGORIES } from '@/constants/portfolio';
-import type { AllocationHoverData } from '@/types/ui/chartHover';
+import { ASSET_CATEGORIES } from '@zapengine/app-core/constants/portfolio';
+import type { AllocationHoverData } from '@zapengine/app-core/types/ui/chartHover';
 
 import { TooltipRow } from './TooltipRow';
 import { TooltipWrapper } from './TooltipWrapper';

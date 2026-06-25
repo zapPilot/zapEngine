@@ -1,9 +1,9 @@
-import { UNIFIED_COLORS } from '@/constants/assets';
-import { normalizeSpotAsset } from '@/lib/domain/spotAsset';
+import { UNIFIED_COLORS } from '@zapengine/app-core/constants/assets';
+import { normalizeSpotAsset } from '@zapengine/app-core/lib/domain/spotAsset';
 import type {
   BacktestSpotAssetSymbol,
   BacktestStrategyPoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
 
 const BACKTEST_SPOT_ASSET_COLORS: Record<BacktestSpotAssetSymbol, string> = {
   BTC: UNIFIED_COLORS.BTC,

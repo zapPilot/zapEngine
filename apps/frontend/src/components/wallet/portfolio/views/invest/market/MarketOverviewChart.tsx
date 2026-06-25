@@ -1,3 +1,5 @@
+import { getRegimeFromSentiment } from '@zapengine/app-core/lib/domain/regime';
+import type { MarketDashboardPoint } from '@zapengine/app-core/services';
 import { type JSX, useMemo } from 'react';
 import {
   CartesianGrid,
@@ -9,9 +11,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-
-import { getRegimeFromSentiment } from '@/lib/domain/regime';
-import type { MarketDashboardPoint } from '@/services';
 
 import {
   AXIS_COLOR,

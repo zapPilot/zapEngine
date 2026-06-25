@@ -1,12 +1,14 @@
+import {
+  getPrivyAppId,
+  isPrivyEnabled,
+} from '@zapengine/app-core/lib/env/privy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { getPrivyAppId, isPrivyEnabled } from '@/lib/env/privy';
 
 const runtimeEnvMocks = vi.hoisted(() => ({
   getRuntimeEnv: vi.fn(() => undefined as string | undefined),
 }));
 
-vi.mock('@/lib/env/runtimeEnv', () => ({
+vi.mock('@zapengine/app-core/lib/env/runtimeEnv', () => ({
   getRuntimeEnv: (key: string) => runtimeEnvMocks.getRuntimeEnv(key),
 }));
 

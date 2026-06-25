@@ -3,9 +3,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { getDailySuggestion } from '@zapengine/app-core/services';
 import type { DailySuggestionResponse } from '@zapengine/types/strategy';
-
-import { getDailySuggestion } from '@/services';
 
 /**
  * Query key factory for strategy suggestions

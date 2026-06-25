@@ -1,8 +1,8 @@
+import type { InvestSubTab } from '@zapengine/app-core/types';
 import { type ReactElement, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { InvestView } from '@/components/wallet/portfolio/views/invest/InvestView';
-import type { InvestSubTab } from '@/types';
 
 import { fireEvent, render, screen } from '../../../../../../test-utils';
 

@@ -4,9 +4,11 @@
  * Tests for severity-based color system and metric mappers.
  */
 
+import {
+  getColorForSeverity,
+  severityMappers,
+} from '@zapengine/app-core/lib/ui/severityColors';
 import { describe, expect, it } from 'vitest';
-
-import { getColorForSeverity, severityMappers } from '@/lib/ui/severityColors';
 
 describe('getColorForSeverity', () => {
   it('should return green colors for excellent', () => {

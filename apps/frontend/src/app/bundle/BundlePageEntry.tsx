@@ -1,8 +1,8 @@
+import { isRuntimeMode } from '@zapengine/app-core/lib/env/runtimeEnv';
+import { logger } from '@zapengine/app-core/utils';
 import type { ReactElement } from 'react';
 
-import { isRuntimeMode } from '@/lib/env/runtimeEnv';
 import { useAppSearchParams } from '@/lib/routing';
-import { logger } from '@/utils';
 
 import { BundlePageClient } from './BundlePageClient';
 import { BundleProviders } from './BundleProviders';

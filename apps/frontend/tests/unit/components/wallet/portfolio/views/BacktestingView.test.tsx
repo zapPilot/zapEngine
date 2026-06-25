@@ -1,23 +1,23 @@
 import { act, screen, waitFor } from '@testing-library/react';
+import { useBacktestMutation } from '@zapengine/app-core/hooks/mutations/useBacktestMutation';
+import * as backtestingService from '@zapengine/app-core/services/backtestingService';
+import * as strategyService from '@zapengine/app-core/services/strategyService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BacktestingView } from '@/components/wallet/portfolio/views/BacktestingView';
-import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
-import * as backtestingService from '@/services/backtestingService';
-import * as strategyService from '@/services/strategyService';
 
 import { render } from '../../../../../test-utils';
 
-vi.mock('@/hooks/mutations/useBacktestMutation', () => ({
+vi.mock('@zapengine/app-core/hooks/mutations/useBacktestMutation', () => ({
   useBacktestMutation: vi.fn(),
 }));
 
-vi.mock('@/services/backtestingService', () => ({
+vi.mock('@zapengine/app-core/services/backtestingService', () => ({
   getBacktestingStrategiesV3: vi.fn(),
   runBacktest: vi.fn(),
 }));
 
-vi.mock('@/services/strategyService', () => ({
+vi.mock('@zapengine/app-core/services/strategyService', () => ({
   getStrategyConfigs: vi.fn(),
 }));
 

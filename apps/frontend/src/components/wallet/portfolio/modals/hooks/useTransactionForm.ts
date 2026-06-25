@@ -1,8 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { TransactionFormData } from '@zapengine/app-core/types/domain/transaction';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-
-import type { TransactionFormData } from '@/types/domain/transaction';
 
 const transactionSchema = z.object({
   chainId: z.number().int().positive(),

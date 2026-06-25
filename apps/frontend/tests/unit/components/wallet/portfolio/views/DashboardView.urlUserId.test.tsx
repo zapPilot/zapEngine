@@ -3,10 +3,10 @@
  * (when URL contains a userId param — i.e., public bundle page view).
  */
 import { render, screen } from '@testing-library/react';
+import { GHOST_MODE_PREVIEW } from '@zapengine/app-core/constants/ghostModeData';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DashboardView } from '@/components/wallet/portfolio/views/DashboardView';
-import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
 
 // Mock routing adapter — return a URLSearchParams WITH a userId
 vi.mock('@/lib/routing', () => ({
@@ -68,19 +68,22 @@ vi.mock('@/components/wallet/portfolio/views/DashboardSkeleton', () => ({
   PortfolioCompositionSkeleton: () => <div>Composition Skeleton</div>,
 }));
 
-vi.mock('@/hooks/queries/analytics/useAllocationWeights', () => ({
-  useAllocationWeights: vi.fn().mockReturnValue({
-    data: {
-      btc_weight: 0.6,
-      eth_weight: 0.4,
-      btc_market_cap: 1800000000000,
-      eth_market_cap: 400000000000,
-      is_fallback: false,
-    },
-    isLoading: false,
-    error: null,
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useAllocationWeights',
+  () => ({
+    useAllocationWeights: vi.fn().mockReturnValue({
+      data: {
+        btc_weight: 0.6,
+        eth_weight: 0.4,
+        btc_market_cap: 1800000000000,
+        eth_market_cap: 400000000000,
+        is_fallback: false,
+      },
+      isLoading: false,
+      error: null,
+    }),
   }),
-}));
+);
 
 const mockData = {
   balance: GHOST_MODE_PREVIEW.balance,

@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { WalletOperations } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletActionMenu } from '@/components/WalletManager/components/WalletActionMenu';
-import type { WalletOperations } from '@/types';
 
 import {
   DEFAULT_WALLET_OPERATIONS,
@@ -27,7 +27,7 @@ vi.mock('@/components/ui/Portal', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/designSystem', () => ({
+vi.mock('@zapengine/app-core/constants/designSystem', () => ({
   Z_INDEX: {
     TOOLTIP: 'z-[9999]',
   },

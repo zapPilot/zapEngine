@@ -4,9 +4,8 @@
  * Tests for clipboard utility function
  */
 
+import { copyTextToClipboard } from '@zapengine/app-core/utils/clipboard';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { copyTextToClipboard } from '@/utils/clipboard';
 
 describe('copyTextToClipboard', () => {
   const originalNavigator = global.navigator;

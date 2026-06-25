@@ -51,7 +51,7 @@ function getMockTransactionData() {
 }
 
 // Mock WalletProvider
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     isConnected: mockIsConnected,
   }),

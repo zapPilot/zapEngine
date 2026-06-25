@@ -5,12 +5,14 @@
  * Shows "All Wallets" (bundle aggregation) or individual wallet options.
  */
 
+import { useClickOutside } from '@zapengine/app-core/hooks/ui/useClickOutside';
+import type {
+  WalletFilter,
+  WalletOption,
+} from '@zapengine/app-core/types/analytics';
+import { formatAddress } from '@zapengine/app-core/utils/formatters';
 import { Check, ChevronDown, Wallet } from 'lucide-react';
 import { type ReactElement, useRef, useState } from 'react';
-
-import { useClickOutside } from '@/hooks/ui/useClickOutside';
-import type { WalletFilter, WalletOption } from '@/types/analytics';
-import { formatAddress } from '@/utils/formatters';
 
 /**
  * Props for WalletFilterSelector component

@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import {
+  getBundleUser,
+  isOwnBundle,
+} from '@zapengine/app-core/services/bundleService';
+import { logger } from '@zapengine/app-core/utils/logger';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,11 +16,7 @@ import {
   computeShowQuickSwitch,
   useBundlePage,
 } from '@/hooks/bundle/useBundlePage';
-import { useUser } from '@/hooks/queries/wallet/useUser';
 import { useAppRouter } from '@/lib/routing';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import { getBundleUser, isOwnBundle } from '@/services/bundleService';
-import { logger } from '@/utils/logger';
 
 // Mock dependencies
 vi.mock('@/lib/routing', () => ({
@@ -22,22 +25,22 @@ vi.mock('@/lib/routing', () => ({
   useAppSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
-vi.mock('@/services/bundleService', () => ({
+vi.mock('@zapengine/app-core/services/bundleService', () => ({
   generateBundleUrl: (id: string) => `/bundle?userId=${id}`,
   getBundleUser: vi.fn(),
   isOwnBundle: vi.fn(),
   BundleUser: {},
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),

@@ -2,8 +2,8 @@
  * DailyYieldTooltip - Daily yield with protocol breakdown
  */
 
-import type { DailyYieldHoverData } from '@/types/ui/chartHover';
-import { formatters } from '@/utils/formatters';
+import type { DailyYieldHoverData } from '@zapengine/app-core/types/ui/chartHover';
+import { formatters } from '@zapengine/app-core/utils/formatters';
 
 import { TooltipRow } from './TooltipRow';
 import { TooltipWrapper } from './TooltipWrapper';

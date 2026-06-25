@@ -1,7 +1,6 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/ui/classNames';
 
 interface CompactSelectorButtonProps {
   icon: ReactNode;

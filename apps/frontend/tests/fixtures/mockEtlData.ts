@@ -10,7 +10,7 @@
  * @see src/hooks/wallet/useEtlJobPolling.ts - ETL polling state machine
  */
 
-import type { ConnectWalletResponse } from '@/schemas/api/accountSchemas';
+import type { ConnectWalletResponse } from '@zapengine/app-core/schemas/api/accountSchemas';
 
 /**
  * Mock response for a NEW user connecting their wallet for the first time.

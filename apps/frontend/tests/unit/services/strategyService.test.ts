@@ -1,12 +1,11 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import {
   getDailySuggestion,
   getStrategyConfigs,
   type StrategyConfigsResponse,
   type StrategyPreset,
-} from '@/services/strategyService';
+} from '@zapengine/app-core/services/strategyService';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const analyticsEngineGetSpy = vi.spyOn(httpUtils.analyticsEngine, 'get');
 

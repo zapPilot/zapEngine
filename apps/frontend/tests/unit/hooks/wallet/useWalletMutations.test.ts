@@ -1,40 +1,39 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { invalidateAndRefetch } from '@/hooks/utils/useQueryInvalidation';
-import { useWalletMutations } from '@/hooks/wallet/useWalletMutations';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { invalidateAndRefetch } from '@zapengine/app-core/hooks/utils/useQueryInvalidation';
+import { useWalletMutations } from '@zapengine/app-core/hooks/wallet/useWalletMutations';
 import {
   handleWalletError,
   type WalletData,
-} from '@/lib/validation/walletUtils';
-import { addWallet, removeWallet } from '@/services';
+} from '@zapengine/app-core/lib/validation/walletUtils';
+import { addWallet, removeWallet } from '@zapengine/app-core/services';
 import type {
   NewWallet,
   WalletOperations,
   WalletOperationStateSetter,
-} from '@/types';
-import { validateNewWallet } from '@/utils';
+} from '@zapengine/app-core/types';
+import { validateNewWallet } from '@zapengine/app-core/utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { act, renderHook, waitFor } from '../../../test-utils';
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
 }));
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   validateNewWallet: vi.fn(),
 }));
 
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(() => ({ refetch: vi.fn() })),
 }));
 
-vi.mock('@/hooks/utils/useQueryInvalidation', () => ({
+vi.mock('@zapengine/app-core/hooks/utils/useQueryInvalidation', () => ({
   invalidateAndRefetch: vi.fn(),
 }));
 
-vi.mock('@/lib/validation/walletUtils', () => ({
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', () => ({
   handleWalletError: vi.fn((error: unknown) =>
     error instanceof Error ? error.message : 'Unknown error',
   ),

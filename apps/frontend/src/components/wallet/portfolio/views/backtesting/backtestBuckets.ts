@@ -1,13 +1,14 @@
-import {
-  mapAssetAllocationToUnified,
-  type UnifiedSegment,
-} from '@/components/wallet/portfolio/components/allocation';
 import type {
   BacktestAssetAllocation,
   BacktestBucket,
   BacktestStrategyPoint,
   BacktestTransferMetadata,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
+
+import {
+  mapAssetAllocationToUnified,
+  type UnifiedSegment,
+} from '@/components/wallet/portfolio/components/allocation';
 
 type BacktestTransferDirection = 'stable_to_spot' | 'spot_to_stable';
 

@@ -1,12 +1,12 @@
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import type { ModalType } from '@zapengine/app-core/types';
 import type { ReactElement } from 'react';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import {
   DepositModal,
   RebalanceModal,
   WithdrawModal,
 } from '@/components/wallet/portfolio/modals';
-import type { ModalType } from '@/types';
 
 import { SettingsModal } from './SettingsModal';
 

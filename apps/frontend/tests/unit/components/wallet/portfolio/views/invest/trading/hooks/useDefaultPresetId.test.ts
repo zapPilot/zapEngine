@@ -1,9 +1,12 @@
 import { renderHook } from '@testing-library/react';
+import type {
+  StrategyConfigsResponse,
+  StrategyPreset,
+} from '@zapengine/app-core/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDefaultPresetId } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDefaultPresetId';
 import { useStrategyConfigs } from '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs';
-import type { StrategyConfigsResponse, StrategyPreset } from '@/types/strategy';
 
 vi.mock(
   '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs',

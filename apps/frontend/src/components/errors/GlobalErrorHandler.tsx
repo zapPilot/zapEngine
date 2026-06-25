@@ -1,6 +1,5 @@
+import { logger } from '@zapengine/app-core/utils';
 import { useEffect } from 'react';
-
-import { logger } from '@/utils';
 
 const globalErrorLogger = logger.createContextLogger('GlobalErrorHandler');
 

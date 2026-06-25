@@ -1,10 +1,9 @@
+import { httpUtils } from '@zapengine/app-core/lib/http';
+import { getBtcPriceHistory } from '@zapengine/app-core/services/btcPriceService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { httpUtils } from '@/lib/http';
-import { getBtcPriceHistory } from '@/services/btcPriceService';
-
 // Mock httpUtils
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     analyticsEngine: {
       get: vi.fn(),

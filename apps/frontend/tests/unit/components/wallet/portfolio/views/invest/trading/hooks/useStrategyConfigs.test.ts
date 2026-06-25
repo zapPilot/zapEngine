@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { getStrategyConfigs } from '@zapengine/app-core/services/strategyService';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 import {
   strategyConfigKeys,
   useStrategyConfigs,
 } from '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs';
-import { getStrategyConfigs } from '@/services/strategyService';
-import type { StrategyConfigsResponse } from '@/types/strategy';
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
@@ -17,7 +17,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-vi.mock('@/services/strategyService', () => ({
+vi.mock('@zapengine/app-core/services/strategyService', () => ({
   getStrategyConfigs: vi.fn(),
 }));
 

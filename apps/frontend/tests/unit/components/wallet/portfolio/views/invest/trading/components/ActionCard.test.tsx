@@ -5,7 +5,7 @@ import { ActionCard } from '@/components/wallet/portfolio/views/invest/trading/c
 import { render, screen } from '../../../../../../../../test-utils';
 
 // Mock classNames utility
-vi.mock('@/lib/ui/classNames', () => ({
+vi.mock('@zapengine/app-core/lib/ui/classNames', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 

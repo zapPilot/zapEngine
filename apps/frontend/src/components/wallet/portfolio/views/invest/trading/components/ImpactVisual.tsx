@@ -1,10 +1,10 @@
+import type { BacktestAssetAllocation } from '@zapengine/app-core/types/backtesting';
 import { ArrowRight } from 'lucide-react';
 
 import {
   mapAssetAllocationToUnified,
   UnifiedAllocationBar,
 } from '@/components/wallet/portfolio/components/allocation';
-import type { BacktestAssetAllocation } from '@/types/backtesting';
 
 const TARGET_CATEGORIES = ['btc', 'eth', 'stable'] as const;
 

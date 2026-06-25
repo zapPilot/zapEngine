@@ -1,3 +1,10 @@
+import { getChainName } from '@zapengine/app-core/constants/chains';
+import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/usePrivyWalletBackend';
+import {
+  fadeInUp,
+  SMOOTH_TRANSITION,
+} from '@zapengine/app-core/lib/ui/animationVariants';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import type { PrivyPrepareSendCallsResponse } from '@zapengine/types/api';
 import { motion, type Variants } from 'framer-motion';
 import {
@@ -27,10 +34,6 @@ import {
 } from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
-import { getChainName } from '@/constants/chains';
-import type { PrivyBatchExecutionPhase } from '@/hooks/wallet/usePrivyWalletBackend';
-import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
-import { cn } from '@/lib/ui/classNames';
 
 interface TenderlyPreviewModalProps {
   isOpen: boolean;

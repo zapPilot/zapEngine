@@ -1,24 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   useCreateStrategyConfig,
   useSetDefaultStrategyConfig,
   useUpdateStrategyConfig,
-} from '@/hooks/mutations/useStrategyAdminMutations';
+} from '@zapengine/app-core/hooks/mutations/useStrategyAdminMutations';
 import {
   createStrategyConfig,
   setDefaultStrategyConfig,
   updateStrategyConfig,
-} from '@/services';
+} from '@zapengine/app-core/services';
 import type {
   CreateStrategyConfigRequest,
   UpdateStrategyConfigRequest,
-} from '@/types';
+} from '@zapengine/app-core/types';
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   createStrategyConfig: vi.fn(),
   updateStrategyConfig: vi.fn(),
   setDefaultStrategyConfig: vi.fn(),

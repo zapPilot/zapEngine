@@ -1,18 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   httpDelete,
   httpGet,
   httpPatch,
   httpPost,
   httpPut,
-} from '@/lib/http/methods';
+} from '@zapengine/app-core/lib/http/methods';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockHttpRequest } = vi.hoisted(() => ({
   mockHttpRequest: vi.fn(),
 }));
 
-vi.mock('@/lib/http/request', () => ({
+vi.mock('@zapengine/app-core/lib/http/request', () => ({
   httpRequest: mockHttpRequest,
 }));
 

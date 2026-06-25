@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TooltipRow } from '@/components/charts/tooltipContent/TooltipRow';
 
 // Mock formatters to test delegation logic
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatters: {
     currency: (val: number) => `MOCK_CURRENCY_${val}`,
     percent: (val: number, prec: number) => `MOCK_PERCENT_${val}_${prec}`,

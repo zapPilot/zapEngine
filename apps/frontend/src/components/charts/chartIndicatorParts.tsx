@@ -3,12 +3,11 @@
  * Reusable indicator primitives for chart hover states.
  */
 
+import { CHART_COLORS } from '@zapengine/app-core/constants/portfolio';
+import type { ChartHoverState } from '@zapengine/app-core/types/ui/chartHover';
+import { getSharpeColor } from '@zapengine/app-core/utils/chartHoverUtils';
 import { motion } from 'framer-motion';
 import { memo, type ReactNode } from 'react';
-
-import { CHART_COLORS } from '@/constants/portfolio';
-import type { ChartHoverState } from '@/types/ui/chartHover';
-import { getSharpeColor } from '@/utils/chartHoverUtils';
 
 const STROKE_COLOR = '#ffffff';
 const HIGH_VOL_STROKE_COLOR = '#f59e0b';

@@ -1,14 +1,28 @@
 {
-  "extends": "@zapengine/tsconfig/node.json",
+  "extends": "@zapengine/tsconfig/react.json",
   "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
     "rootDir": ".",
     "noEmit": true,
     "types": ["node", "vitest/globals"],
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "exactOptionalPropertyTypes": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["tests/**/*.ts", "knip.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "coverage", "src-tauri/target"]
+  "include": [
+    "vite-env.d.ts",
+    "vite.config.ts",
+    "knip.ts",
+    "vitest.config.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["node_modules", "coverage", "dist", "src-tauri/target"]
 }

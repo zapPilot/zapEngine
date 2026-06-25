@@ -16,13 +16,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { RebalanceModal } from '@/components/wallet/portfolio/modals/RebalanceModal';
 
 // Mock dependencies
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     isConnected: true,
   }),
 }));
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     computeProjectedAllocation: vi.fn((intensity, current, target) => {
       // Simple linear interpolation for testing
@@ -208,7 +208,8 @@ describe('RebalanceModal', () => {
   });
 
   it('should call transaction service on submit', async () => {
-    const { transactionServiceMock } = await import('@/services');
+    const { transactionServiceMock } =
+      await import('@zapengine/app-core/services');
     const simulateRebalanceSpy = vi.spyOn(
       transactionServiceMock,
       'simulateRebalance',
@@ -268,7 +269,8 @@ describe('RebalanceModal', () => {
   });
 
   it('should compute projected allocation correctly', async () => {
-    const { transactionServiceMock } = await import('@/services');
+    const { transactionServiceMock } =
+      await import('@zapengine/app-core/services');
     const computeSpy = vi.spyOn(
       transactionServiceMock,
       'computeProjectedAllocation',
@@ -307,7 +309,8 @@ describe('RebalanceModal', () => {
   });
 
   it('should handle transaction error gracefully', async () => {
-    const { transactionServiceMock } = await import('@/services');
+    const { transactionServiceMock } =
+      await import('@zapengine/app-core/services');
     vi.spyOn(transactionServiceMock, 'simulateRebalance').mockRejectedValueOnce(
       new Error('Network error'),
     );
@@ -327,7 +330,8 @@ describe('RebalanceModal', () => {
   });
 
   it('should display success message after successful rebalance', async () => {
-    const { transactionServiceMock } = await import('@/services');
+    const { transactionServiceMock } =
+      await import('@zapengine/app-core/services');
     vi.spyOn(transactionServiceMock, 'simulateRebalance').mockResolvedValueOnce(
       {
         success: true,

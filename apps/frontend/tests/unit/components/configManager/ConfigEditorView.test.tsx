@@ -1,8 +1,8 @@
+import type { SavedStrategyConfig } from '@zapengine/app-core/types';
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigEditorView } from '@/components/wallet/portfolio/views/invest/configManager/ConfigEditorView';
-import type { SavedStrategyConfig } from '@/types';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
@@ -80,24 +80,29 @@ const baseConfig: SavedStrategyConfig = {
   },
 };
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   createStrategyConfig: mockState.createConfig,
   getStrategyAdminConfig: mockState.getStrategyAdminConfig,
   getStrategyConfigs: mockState.getStrategyConfigs,
   updateStrategyConfig: mockState.updateConfig,
 }));
 
-vi.mock('@/providers/ToastContext', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/providers/ToastContext')>();
+vi.mock(
+  '@zapengine/app-core/providers/ToastContext',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@zapengine/app-core/providers/ToastContext')
+      >();
 
-  return {
-    ...actual,
-    useToast: () => ({
-      showToast: mockState.showToast,
-    }),
-  };
-});
+    return {
+      ...actual,
+      useToast: () => ({
+        showToast: mockState.showToast,
+      }),
+    };
+  },
+);
 
 function renderConfigEditorView(
   overrides: Partial<ComponentProps<typeof ConfigEditorView>> = {},

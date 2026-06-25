@@ -1,3 +1,8 @@
+import type { BacktestStrategyCatalogEntryV3 } from '@zapengine/app-core/types/backtesting';
+import type {
+  BacktestDefaults,
+  StrategyPreset,
+} from '@zapengine/app-core/types/strategy';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,8 +19,6 @@ import {
   buildDefaultPayloadFromStrategies,
   FALLBACK_DEFAULTS,
 } from '@/components/wallet/portfolio/views/backtesting/hooks/backtestConfigurationBuilders';
-import type { BacktestStrategyCatalogEntryV3 } from '@/types/backtesting';
-import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
 
 const DCA_BASELINE_CONFIG = {
   config_id: DCA_CLASSIC_STRATEGY_ID,

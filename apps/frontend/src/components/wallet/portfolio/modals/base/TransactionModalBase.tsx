@@ -1,13 +1,13 @@
-import { type ReactNode, useEffect } from 'react';
-import type { UseFormReturn } from 'react-hook-form';
-
-import { Modal, ModalContent } from '@/components/ui/modal';
-import { useWalletProvider } from '@/providers/WalletProvider';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import type {
   ChainData,
   TransactionFormData,
   TransactionResult,
-} from '@/types/domain/transaction';
+} from '@zapengine/app-core/types/domain/transaction';
+import { type ReactNode, useEffect } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
+
+import { Modal, ModalContent } from '@/components/ui/modal';
 
 import {
   SubmittingState,

@@ -1,10 +1,10 @@
+import type { BacktestStrategySummary } from '@zapengine/app-core/types/backtesting';
 import { describe, expect, it } from 'vitest';
 
 import {
   createHeroMetrics,
   formatTradeFrequency,
 } from '@/components/wallet/portfolio/views/backtesting/components/backtestTerminalMetrics';
-import type { BacktestStrategySummary } from '@/types/backtesting';
 
 function createMockSummary(
   overrides: Partial<BacktestStrategySummary> = {},

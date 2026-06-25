@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
+import { regimes } from '@zapengine/app-core/regime';
 import { describe, expect, it, vi } from 'vitest';
 
 import { RegimeSelector } from '@/components/wallet/portfolio/components/strategy/RegimeSelector';
-import { regimes } from '@/components/wallet/regime/regimeData';
 
 describe('RegimeSelector', () => {
   const mockOnSelectRegime = vi.fn();

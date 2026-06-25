@@ -1,9 +1,11 @@
 /**
  * Unit tests for HTTP abort control utilities
  */
+import {
+  createTimeoutController,
+  isAbortError,
+} from '@zapengine/app-core/lib/http/abortControl';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { createTimeoutController, isAbortError } from '@/lib/http/abortControl';
 
 describe('abortControl', () => {
   beforeEach(() => {

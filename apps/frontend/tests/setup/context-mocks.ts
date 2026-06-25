@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-vi.mock('@/hooks/queries/wallet/useUser', () => {
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => {
   return {
     useUser: () => ({
       userInfo: null,

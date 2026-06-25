@@ -1,6 +1,3 @@
-import { describe, expect, it } from 'vitest';
-import { ZodError } from 'zod';
-
 import {
   accountTokenSchema,
   addWalletResponseSchema,
@@ -22,7 +19,9 @@ import {
   validateUpdateEmailResponse,
   validateUserProfileResponse,
   validateUserWallets,
-} from '@/schemas/api/accountSchemas';
+} from '@zapengine/app-core/schemas/api/accountSchemas';
+import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 describe('accountSchemas', () => {
   describe('userSchema', () => {

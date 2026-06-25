@@ -1,8 +1,8 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { EmptyStateCard } from '@/components/ui/EmptyStateCard';
-import { cn } from '@/lib/ui/classNames';
 
 import { RebalancePanel } from './components/RebalancePanel';
 import { TransactionPanel } from './components/TransactionPanel';

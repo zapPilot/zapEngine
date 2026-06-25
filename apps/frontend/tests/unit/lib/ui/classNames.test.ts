@@ -4,9 +4,8 @@
  * Tests for the cn utility function
  */
 
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { describe, expect, it } from 'vitest';
-
-import { cn } from '@/lib/ui/classNames';
 
 describe('cn', () => {
   it('joins multiple class names', () => {

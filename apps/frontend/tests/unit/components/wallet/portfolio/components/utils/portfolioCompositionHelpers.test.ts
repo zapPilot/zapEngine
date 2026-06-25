@@ -1,13 +1,13 @@
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { ASSET_COLORS } from '@zapengine/app-core/constants/assets';
+import { getAllocationCategoryForToken } from '@zapengine/app-core/lib/domain/allocationCategories';
+import { regimes } from '@zapengine/app-core/regime';
 import { describe, expect, it } from 'vitest';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import {
   buildRealCryptoAssets,
   buildTargetCryptoAssets,
 } from '@/components/wallet/portfolio/components/utils/portfolioCompositionHelpers';
-import { regimes } from '@/components/wallet/regime/regimeData';
-import { ASSET_COLORS } from '@/constants/assets';
-import { getAllocationCategoryForToken } from '@/lib/domain/allocationCategories';
 
 describe('buildTargetCryptoAssets', () => {
   it('returns a neutral Crypto entry for a regime with spot exposure > 0', () => {

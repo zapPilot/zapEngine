@@ -1,14 +1,17 @@
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
-import { EMPTY_INVEST_ALLOCATION } from '@/components/wallet/regime/investAllocation';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { getRegimeFromStatus } from '@zapengine/app-core/lib/domain/regimeMapper';
 import {
+  EMPTY_INVEST_ALLOCATION,
   getRegimeAllocation,
   type Regime,
   regimes,
-} from '@/components/wallet/regime/regimeData';
-import { type StrategyDirection } from '@/components/wallet/regime/strategyLabels';
-import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
-import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
-import type { SectionState, SentimentData } from '@/types/portfolioProgressive';
+  type StrategyDirection,
+} from '@zapengine/app-core/regime';
+import type { RegimeAllocationBreakdown } from '@zapengine/app-core/types/domain/allocation';
+import type {
+  SectionState,
+  SentimentData,
+} from '@zapengine/app-core/types/portfolioProgressive';
 
 export function findRegimeById(
   regimeId: string | null | undefined,

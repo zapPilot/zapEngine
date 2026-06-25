@@ -1,8 +1,10 @@
+import {
+  fadeInUp,
+  SMOOTH_TRANSITION,
+} from '@zapengine/app-core/lib/ui/animationVariants';
+import { BaseComponentProps } from '@zapengine/app-core/types/ui/ui.types';
 import { motion } from 'framer-motion';
 import { ReactNode } from 'react';
-
-import { fadeInUp, SMOOTH_TRANSITION } from '@/lib/ui/animationVariants';
-import { BaseComponentProps } from '@/types/ui/ui.types';
 
 type AriaLive = 'off' | 'polite' | 'assertive';
 

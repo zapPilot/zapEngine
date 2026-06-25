@@ -1,11 +1,11 @@
 import { renderHook } from '@testing-library/react';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useTransactionDropdownState } from '@/components/wallet/portfolio/modals/hooks/useTransactionDropdownState';
 import { useTransactionModalState } from '@/components/wallet/portfolio/modals/hooks/useTransactionModalState';
-import { useWalletProvider } from '@/providers/WalletProvider';
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 

@@ -1,9 +1,9 @@
 import userEvent from '@testing-library/user-event';
+import type { TokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
+import type { TransactionToken } from '@zapengine/app-core/types/domain/transaction';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TokenSelectorList } from '@/components/shared/token';
-import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
-import type { TransactionToken } from '@/types/domain/transaction';
 
 import { render, screen } from '../../../../test-utils';
 

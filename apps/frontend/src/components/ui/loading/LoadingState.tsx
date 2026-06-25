@@ -1,6 +1,8 @@
+import type {
+  ComponentSize,
+  LoadingVariant,
+} from '@zapengine/app-core/types/ui/ui.types';
 import type { ReactNode } from 'react';
-
-import type { ComponentSize, LoadingVariant } from '@/types/ui/ui.types';
 
 import { Skeleton } from './Skeleton';
 import { CardSkeleton, LoadingCard } from './skeletons/CardSkeleton';

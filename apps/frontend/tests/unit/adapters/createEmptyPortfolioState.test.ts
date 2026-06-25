@@ -5,13 +5,12 @@
  * instead of zeros for unconnected users.
  */
 
+import { createEmptyPortfolioState } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { GHOST_MODE_PREVIEW } from '@zapengine/app-core/constants/ghostModeData';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createEmptyPortfolioState } from '@/adapters/walletPortfolioDataAdapter';
-import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
-
 // Mock the dependencies
-vi.mock('@/adapters/portfolio/regimeAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/portfolio/regimeAdapter', () => ({
   getRegimeStrategyInfo: vi.fn().mockReturnValue({
     previousRegime: null,
     strategyDirection: 'default',
@@ -20,12 +19,12 @@ vi.mock('@/adapters/portfolio/regimeAdapter', () => ({
   getTargetAllocation: vi.fn().mockReturnValue({ crypto: 60, stable: 40 }),
 }));
 
-vi.mock('@/lib/domain/regimeMapper', () => ({
+vi.mock('@zapengine/app-core/lib/domain/regimeMapper', () => ({
   getRegimeFromSentiment: vi.fn().mockReturnValue('n'),
   getRegimeFromStatus: vi.fn().mockReturnValue('n'),
 }));
 
-vi.mock('@/constants/regimes', () => ({
+vi.mock('@zapengine/app-core/constants/regimes', () => ({
   getDefaultQuoteForRegime: vi.fn().mockReturnValue('Test quote'),
 }));
 

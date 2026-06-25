@@ -19,9 +19,6 @@ export default defineKnipConfig({
     // package imports as dependency usage.
     '@zapengine/design-tokens',
   ],
-  ignoreIssues: {
-    'src/lib/errors/ServiceError.ts': ['exports'],
-  },
   ignoreExportsUsedInFile: {
     interface: true,
     type: true,

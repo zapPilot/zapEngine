@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import type { WalletOperations } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletList } from '@/components/WalletManager/components/WalletList';
-import type { WalletData } from '@/lib/validation/walletUtils';
-import type { WalletOperations } from '@/types';
 
 import {
   DEFAULT_NEW_WALLET,
@@ -64,7 +64,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/designSystem', () => ({
+vi.mock('@zapengine/app-core/constants/designSystem', () => ({
   GRADIENTS: {
     PRIMARY: 'primary-gradient',
   },
@@ -106,13 +106,13 @@ vi.mock('@/components/ui/Portal', () => ({
 }));
 
 // Mock formatAddress
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: (address: string) =>
     `${address.slice(0, 6)}...${address.slice(-4)}`,
 }));
 
 // Mock animation variants
-vi.mock('@/lib/ui/animationVariants', () => ({
+vi.mock('@zapengine/app-core/lib/ui/animationVariants', () => ({
   fadeInUp: {},
   SMOOTH_TRANSITION: {},
 }));

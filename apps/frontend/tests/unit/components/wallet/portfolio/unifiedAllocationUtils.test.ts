@@ -1,3 +1,4 @@
+import { UNIFIED_COLORS } from '@zapengine/app-core/constants/assets';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -9,7 +10,6 @@ import {
   mapPortfolioToUnified,
   mapStrategyToUnified,
 } from '@/components/wallet/portfolio/components/allocation/unifiedAllocationUtils';
-import { UNIFIED_COLORS } from '@/constants/assets';
 
 describe('unifiedAllocationUtils', () => {
   // ─────────────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { regimes } from '@zapengine/app-core/regime';
 import { describe, expect, it, vi } from 'vitest';
 
 import { StrategyCard } from '@/components/wallet/portfolio/components/strategy/StrategyCard';
-import { regimes } from '@/components/wallet/regime/regimeData';
 
 // Mock dependencies
 vi.mock('framer-motion', () => ({

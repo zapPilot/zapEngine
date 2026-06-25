@@ -5,14 +5,13 @@
  * Receives all data and handlers via props
  */
 
-import type { ReactElement } from 'react';
-
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
   WalletOption,
-} from '@/types/analytics';
+} from '@zapengine/app-core/types/analytics';
+import type { ReactElement } from 'react';
 
 import { AdditionalMetricsGrid } from './components/AdditionalMetricsGrid';
 import { AnalyticsHeader } from './components/AnalyticsHeader';

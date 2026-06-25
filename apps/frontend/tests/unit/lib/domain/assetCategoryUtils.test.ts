@@ -4,9 +4,8 @@
  * Tests for token-to-category mapping utilities.
  */
 
+import { getCategoryForToken } from '@zapengine/app-core/lib/domain/assetCategoryUtils';
 import { describe, expect, it } from 'vitest';
-
-import { getCategoryForToken } from '@/lib/domain/assetCategoryUtils';
 
 describe('getCategoryForToken', () => {
   describe('BTC category', () => {

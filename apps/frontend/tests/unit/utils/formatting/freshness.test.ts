@@ -1,20 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   calculateDataFreshness,
   formatRelativeTime,
-} from '@/utils/formatting/freshness';
+} from '@zapengine/app-core/utils/formatting/freshness';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockError } = vi.hoisted(() => ({ mockError: vi.fn() }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: { error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('@/utils/formatting/shared', async () => {
+vi.mock('@zapengine/app-core/utils/formatting/shared', async () => {
   const actual = await vi.importActual<
-    typeof import('@/utils/formatting/shared')
-  >('@/utils/formatting/shared');
+    typeof import('@zapengine/app-core/utils/formatting/shared')
+  >('@zapengine/app-core/utils/formatting/shared');
   return {
     ...actual,
     parseUtcDate: vi.fn((value: string) => {

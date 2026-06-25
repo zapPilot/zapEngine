@@ -20,7 +20,7 @@ const { mockErrorLogger } = vi.hoisted(() => ({
   mockErrorLogger: vi.fn(),
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     createContextLogger: () => ({
       error: mockErrorLogger,

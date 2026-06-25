@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest';
-
-import { ServiceError } from '@/lib/errors/ServiceError';
+import { ServiceError } from '@zapengine/app-core/lib/errors/ServiceError';
 import {
   createServiceError,
   isApiErrorResponse,
-} from '@/lib/http/serviceErrorUtils';
+} from '@zapengine/app-core/lib/http/serviceErrorUtils';
+import { describe, expect, it } from 'vitest';
 
 const DEFAULT_MESSAGE = 'Default message';
 

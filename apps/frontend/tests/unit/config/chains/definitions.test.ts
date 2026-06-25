@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   getMainnetChains,
   SUPPORTED_CHAINS,
-} from '@/config/chains/definitions';
-import type { BaseChainConfig } from '@/config/chains/types';
+} from '@zapengine/app-core/config/chains/definitions';
+import type { BaseChainConfig } from '@zapengine/app-core/config/chains/types';
+import { describe, expect, it } from 'vitest';
 
 describe('SUPPORTED_CHAINS', () => {
   it('exports a non-empty array', () => {

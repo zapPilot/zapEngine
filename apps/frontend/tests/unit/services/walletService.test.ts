@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   addWallet,
   loadWallets,
@@ -7,9 +5,10 @@ import {
   unsubscribeUserEmail,
   updateManagedWalletLabel,
   updateUserEmailSubscription,
-} from '@/services/walletService';
+} from '@zapengine/app-core/services/walletService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/validation/walletUtils', () => ({
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', () => ({
   transformWalletData: vi.fn((wallets: unknown[]) =>
     wallets.map((wallet: any) => ({
       id: wallet.id,
@@ -22,7 +21,7 @@ vi.mock('@/lib/validation/walletUtils', () => ({
   ),
 }));
 
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   addWalletToBundle: vi.fn(),
   getUserWallets: vi.fn(),
   removeUserEmail: vi.fn(),
@@ -37,9 +36,10 @@ describe('walletService', () => {
   });
 
   it('loads and normalizes user wallets', async () => {
-    const { getUserWallets } = await import('@/services/accountService');
+    const { getUserWallets } =
+      await import('@zapengine/app-core/services/accountService');
     const { transformWalletData } =
-      await import('@/lib/validation/walletUtils');
+      await import('@zapengine/app-core/lib/validation/walletUtils');
     const wallets = [
       {
         id: 'wallet-1',
@@ -65,14 +65,16 @@ describe('walletService', () => {
   });
 
   it('returns an empty wallet list when loading fails', async () => {
-    const { getUserWallets } = await import('@/services/accountService');
+    const { getUserWallets } =
+      await import('@zapengine/app-core/services/accountService');
     vi.mocked(getUserWallets).mockRejectedValue(new Error('network down'));
 
     await expect(loadWallets('user-1')).resolves.toEqual([]);
   });
 
   it('wraps add wallet requests in a service result', async () => {
-    const { addWalletToBundle } = await import('@/services/accountService');
+    const { addWalletToBundle } =
+      await import('@zapengine/app-core/services/accountService');
     vi.mocked(addWalletToBundle).mockResolvedValue(undefined as never);
 
     await expect(addWallet('user-1', '0xabc', 'Savings')).resolves.toEqual({
@@ -88,7 +90,7 @@ describe('walletService', () => {
 
   it('returns service result errors from wallet mutations', async () => {
     const { removeWalletFromBundle } =
-      await import('@/services/accountService');
+      await import('@zapengine/app-core/services/accountService');
     vi.mocked(removeWalletFromBundle).mockRejectedValue(
       new Error('Wallet not found'),
     );
@@ -100,7 +102,8 @@ describe('walletService', () => {
   });
 
   it('forwards wallet label updates', async () => {
-    const { updateWalletLabel } = await import('@/services/accountService');
+    const { updateWalletLabel } =
+      await import('@zapengine/app-core/services/accountService');
     vi.mocked(updateWalletLabel).mockResolvedValue(undefined as never);
 
     await expect(
@@ -118,7 +121,7 @@ describe('walletService', () => {
 
   it('forwards email subscription updates', async () => {
     const { removeUserEmail, updateUserEmail } =
-      await import('@/services/accountService');
+      await import('@zapengine/app-core/services/accountService');
     vi.mocked(updateUserEmail).mockResolvedValue(undefined as never);
     vi.mocked(removeUserEmail).mockResolvedValue(undefined as never);
 

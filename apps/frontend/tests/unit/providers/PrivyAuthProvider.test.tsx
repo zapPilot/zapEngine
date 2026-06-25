@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
+import { PrivyAuthProvider } from '@zapengine/app-core/providers/PrivyAuthProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { PrivyAuthProvider } from '@/providers/PrivyAuthProvider';
 
 const privyMocks = vi.hoisted(() => ({
   getPrivyAppId: vi.fn(() => undefined as string | undefined),
@@ -21,7 +20,7 @@ vi.mock('@privy-io/react-auth', () => ({
   ),
 }));
 
-vi.mock('@/lib/env/privy', () => ({
+vi.mock('@zapengine/app-core/lib/env/privy', () => ({
   getPrivyAppId: () => privyMocks.getPrivyAppId(),
 }));
 

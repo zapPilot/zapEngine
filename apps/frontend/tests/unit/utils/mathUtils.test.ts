@@ -4,9 +4,8 @@
  * Tests for mathematical utility functions
  */
 
+import { clamp, clampMin } from '@zapengine/app-core/utils/mathUtils';
 import { describe, expect, it } from 'vitest';
-
-import { clamp, clampMin } from '@/utils/mathUtils';
 
 describe('clamp', () => {
   it('returns value when within bounds', () => {

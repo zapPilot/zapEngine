@@ -2,7 +2,7 @@ import type {
   BacktestAssetAllocation,
   BacktestStrategyPoint,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
 
 export interface TooltipItem {
   name: string;

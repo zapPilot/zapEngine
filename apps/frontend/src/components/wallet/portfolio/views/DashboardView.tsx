@@ -1,4 +1,8 @@
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import type { Regime } from '@zapengine/app-core/regime';
+import type { ModalType } from '@zapengine/app-core/types/portfolio';
+import type { DashboardSections } from '@zapengine/app-core/types/portfolioProgressive';
+
 import { GhostModeOverlay } from '@/components/layout/overlays/GhostModeOverlay';
 import { SectionWrapper } from '@/components/shared/SectionWrapper';
 import {
@@ -11,10 +15,7 @@ import {
   BalanceCardSkeleton,
   PortfolioCompositionSkeleton,
 } from '@/components/wallet/portfolio/views/DashboardSkeleton';
-import type { Regime } from '@/components/wallet/regime/regimeData';
 import { useAppSearchParams } from '@/lib/routing';
-import type { ModalType } from '@/types/portfolio';
-import type { DashboardSections } from '@/types/portfolioProgressive';
 
 /** Layout styling constants */
 const STYLES = {

@@ -1,4 +1,4 @@
-import { WALLET_LABELS } from '@/constants/wallet';
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
 
 interface ActionLabelConfig {
   isConnected: boolean;

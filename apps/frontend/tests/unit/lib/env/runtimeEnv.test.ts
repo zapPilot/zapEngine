@@ -1,6 +1,8 @@
+import {
+  getRuntimeEnv,
+  isRuntimeMode,
+} from '@zapengine/app-core/lib/env/runtimeEnv';
 import { afterEach, describe, expect, it } from 'vitest';
-
-import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
 
 describe('getRuntimeEnv', () => {
   it('returns the value from import.meta.env when present', () => {

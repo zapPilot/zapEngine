@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   computeStrategyDirection,
   getActiveStrategy,
   getRegimeName,
   getStrategyMeta,
   REGIME_ORDER,
-} from '@/lib/domain/strategySelector';
+} from '@zapengine/app-core/lib/domain/strategySelector';
+import { describe, expect, it } from 'vitest';
 
 describe('strategySelector', () => {
   describe('REGIME_ORDER', () => {

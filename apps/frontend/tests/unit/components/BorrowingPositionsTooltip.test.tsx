@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-
-import { BorrowingPositionsTooltip } from '@/components/wallet/portfolio/components/shared/BorrowingPositionsTooltip';
 import type {
   BorrowingPosition,
   BorrowingSummary,
-} from '@/services/analyticsService';
+} from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it, vi } from 'vitest';
+
+import { BorrowingPositionsTooltip } from '@/components/wallet/portfolio/components/shared/BorrowingPositionsTooltip';
 
 describe('BorrowingPositionsTooltip', () => {
   const mockSummary: BorrowingSummary = {

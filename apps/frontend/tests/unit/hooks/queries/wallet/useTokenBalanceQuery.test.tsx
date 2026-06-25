@@ -1,22 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { useTokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalanceQuery';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useTokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalanceQuery';
 
 const { mockGetTokenBalance } = vi.hoisted(() => ({
   mockGetTokenBalance: vi.fn(),
 }));
 let mockAccount: { address: string } | undefined;
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     account: mockAccount,
   }),
 }));
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     getTokenBalance: mockGetTokenBalance,
   },

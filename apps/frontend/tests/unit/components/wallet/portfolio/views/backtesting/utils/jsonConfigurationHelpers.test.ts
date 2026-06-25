@@ -1,3 +1,4 @@
+import type { StrategyPreset } from '@zapengine/app-core/types/strategy';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,7 +7,6 @@ import {
   updateConfigStrategy,
   updateJsonField,
 } from '@/components/wallet/portfolio/views/backtesting/utils/jsonConfigurationHelpers';
-import type { StrategyPreset } from '@/types/strategy';
 
 const PRESETS: StrategyPreset[] = [
   {

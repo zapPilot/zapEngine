@@ -1,11 +1,10 @@
+import type { UserCryptoWallet } from '@zapengine/app-core/schemas/api/accountSchemas';
+import * as accountService from '@zapengine/app-core/services/accountService';
+import * as walletService from '@zapengine/app-core/services/walletService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { UserCryptoWallet } from '@/schemas/api/accountSchemas';
-import * as accountService from '@/services/accountService';
-import * as walletService from '@/services/walletService';
-
 // Mock account service functions
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   getUserWallets: vi.fn(),
   addWalletToBundle: vi.fn(),
   removeWalletFromBundle: vi.fn(),
@@ -15,10 +14,10 @@ vi.mock('@/services/accountService', () => ({
 }));
 
 // Mock wallet utils transformation
-vi.mock('@/lib/validation/walletUtils', async () => {
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/validation/walletUtils')
-  >('@/lib/validation/walletUtils');
+    typeof import('@zapengine/app-core/lib/validation/walletUtils')
+  >('@zapengine/app-core/lib/validation/walletUtils');
   return {
     ...actual,
     transformWalletData: vi.fn((wallets: UserCryptoWallet[]) =>

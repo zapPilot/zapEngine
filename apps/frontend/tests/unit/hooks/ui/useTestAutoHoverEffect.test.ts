@@ -1,12 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   calculateYPosition,
   type ChartHoverConfig,
   useTestAutoHoverEffect,
-} from '@/hooks/ui/useTestAutoHoverEffect';
-import type { ChartHoverState } from '@/types/ui/chartHover';
+} from '@zapengine/app-core/hooks/ui/useTestAutoHoverEffect';
+import type { ChartHoverState } from '@zapengine/app-core/types/ui/chartHover';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('calculateYPosition', () => {
   it('should calculate y position for value in middle of range', () => {

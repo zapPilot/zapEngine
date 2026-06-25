@@ -1,9 +1,8 @@
 /**
  * Unit tests for errorHandling utilities
  */
+import { wrapServiceCall } from '@zapengine/app-core/lib/errors/errorHandling';
 import { describe, expect, it, vi } from 'vitest';
-
-import { wrapServiceCall } from '@/lib/errors/errorHandling';
 
 describe('errorHandling', () => {
   describe('wrapServiceCall', () => {

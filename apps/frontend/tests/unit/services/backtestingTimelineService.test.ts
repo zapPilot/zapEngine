@@ -1,13 +1,12 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   CHART_POINT_LIMIT,
   sampleTimelineData,
-} from '@/services/backtestingTimelineService';
+} from '@zapengine/app-core/services/backtestingTimelineService';
 import type {
   BacktestExecution,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
+import { describe, expect, it } from 'vitest';
 
 type DecisionAction =
   BacktestTimelinePoint['strategies'][string]['decision']['action'];

@@ -3,9 +3,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-
-import { getStrategyConfigs } from '@/services';
-import type { StrategyConfigsResponse } from '@/types/strategy';
+import { getStrategyConfigs } from '@zapengine/app-core/services';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
 
 export const strategyConfigKeys = {
   all: ['strategy-configs'] as const,

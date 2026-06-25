@@ -1,6 +1,5 @@
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { describe, expect, it } from 'vitest';
-
-import { extractErrorMessage } from '@/lib/errors';
 
 describe('extractErrorMessage', () => {
   it('returns message from Error instance', () => {

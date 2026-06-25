@@ -1,14 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   buildTradeActions,
   type DerivedTradeAction,
   formatRegimeLabel,
   getStatusPanelContent,
-} from '@/services/suggestion/suggestionTransformers';
-import type { DailySuggestionResponse } from '@/types/strategy';
+} from '@zapengine/app-core/services/suggestion/suggestionTransformers';
+import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
+import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/domain/spotAsset', () => ({
+vi.mock('@zapengine/app-core/lib/domain/spotAsset', () => ({
   normalizeSpotAsset: vi.fn((value: unknown) =>
     value === 'sol' ? 'SOL' : null,
   ),

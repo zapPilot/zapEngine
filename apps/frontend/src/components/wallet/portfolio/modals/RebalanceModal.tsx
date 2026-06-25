@@ -1,11 +1,11 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import { transactionServiceMock } from '@zapengine/app-core/services';
+import type { RebalanceModalProps } from '@zapengine/app-core/types/ui/ui.types';
 import { ArrowRight } from 'lucide-react';
 import { type ReactElement, useState } from 'react';
 
 import { Modal, ModalContent } from '@/components/ui/modal';
-import { GRADIENTS } from '@/constants/designSystem';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import { transactionServiceMock } from '@/services';
-import type { RebalanceModalProps } from '@/types/ui/ui.types';
 
 import {
   SubmittingState,

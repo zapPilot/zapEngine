@@ -39,6 +39,10 @@
       "pnpm --filter @zapengine/alpha-etl exec eslint --fix",
       "pnpm --filter @zapengine/alpha-etl exec prettier --write"
     ],
+    "apps/desktop/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/desktop exec eslint --fix",
+      "pnpm --filter @zapengine/desktop exec prettier --write"
+    ],
     "apps/frontend/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/frontend exec eslint --fix",
       "pnpm --filter @zapengine/frontend exec prettier --write"

@@ -1,7 +1,6 @@
+import { useClickOutside } from '@zapengine/app-core/hooks/ui/useClickOutside';
 import { ChevronDown } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
-
-import { useClickOutside } from '@/hooks/ui/useClickOutside';
 
 import { phosphorGlowStyle } from './terminalStyles';
 

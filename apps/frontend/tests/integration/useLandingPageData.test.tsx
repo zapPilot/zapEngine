@@ -19,16 +19,16 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-
-import { useLandingPageData } from '../../src/hooks/queries/analytics/usePortfolioQuery';
-import { queryKeys } from '../../src/lib/state/queryClient';
-import type { YieldReturnsSummaryResponse } from '../../src/schemas/api/analyticsSchemas';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery';
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
+import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/schemas/api/analyticsSchemas';
 import type {
   LandingPageResponse,
   PoolDetail,
-} from '../../src/services/analyticsService';
-import * as analyticsService from '../../src/services/analyticsService';
+} from '@zapengine/app-core/services/analyticsService';
+import * as analyticsService from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it, vi } from 'vitest';
+
 import { createMockArray } from './helpers/mock-factories';
 import { TEST_TIMEOUT } from './helpers/test-constants';
 import { createQueryWrapper, setupMockCleanup } from './helpers/test-setup';
@@ -44,10 +44,10 @@ interface PortfolioAPRSummary {
 }
 
 // Mock the analytics service
-vi.mock('../../src/services/analyticsService', async () => {
+vi.mock('@zapengine/app-core/services/analyticsService', async () => {
   const actual = await vi.importActual<
-    typeof import('../../src/services/analyticsService')
-  >('../../src/services/analyticsService');
+    typeof import('@zapengine/app-core/services/analyticsService')
+  >('@zapengine/app-core/services/analyticsService');
   return {
     ...actual,
     getLandingPagePortfolioData: vi.fn(),

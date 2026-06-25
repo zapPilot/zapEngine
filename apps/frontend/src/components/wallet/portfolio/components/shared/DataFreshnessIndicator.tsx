@@ -11,10 +11,9 @@
  * - Unknown: Gray with Info icon
  */
 
+import { calculateDataFreshness } from '@zapengine/app-core/utils/formatters';
 import { AlertCircle, AlertTriangle, Clock, Info } from 'lucide-react';
 import { memo, type ReactElement } from 'react';
-
-import { calculateDataFreshness } from '@/utils/formatters';
 
 interface DataFreshnessIndicatorProps {
   /** ISO date string from API (YYYY-MM-DD) */

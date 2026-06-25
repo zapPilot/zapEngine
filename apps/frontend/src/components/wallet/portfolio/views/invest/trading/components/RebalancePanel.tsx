@@ -1,14 +1,14 @@
-import { CircleDollarSign } from 'lucide-react';
-import { useState } from 'react';
-
-import { StaleDataBanner } from '@/components/shared/StaleDataBanner';
-import { cn } from '@/lib/ui/classNames';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import {
   buildTradeActions,
   formatRegimeLabel,
   getStatusPanelContent,
-} from '@/services/suggestion';
-import { formatCurrency } from '@/utils/formatters';
+} from '@zapengine/app-core/services/suggestion';
+import { formatCurrency } from '@zapengine/app-core/utils/formatters';
+import { CircleDollarSign } from 'lucide-react';
+import { useState } from 'react';
+
+import { StaleDataBanner } from '@/components/shared/StaleDataBanner';
 
 import { useDailySuggestion } from '../hooks/useDailySuggestion';
 import { useDefaultPresetId } from '../hooks/useDefaultPresetId';

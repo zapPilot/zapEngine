@@ -1,9 +1,8 @@
-import { useMemo } from 'react';
-
 import type {
   BacktestResponse,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
+import { useMemo } from 'react';
 
 import {
   type BacktestChartPoint,

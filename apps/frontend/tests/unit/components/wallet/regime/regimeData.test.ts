@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   getRegimeAllocation,
   getRegimeById,
   type Regime,
   regimes,
   type RegimeStrategy,
-} from '../../../../../src/components/wallet/regime/regimeData';
+} from '@zapengine/app-core/regime';
+import { describe, expect, it } from 'vitest';
 
 describe('regimeData Validation', () => {
   it('should have valid philosophy and author on all strategies', () => {

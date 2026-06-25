@@ -1,14 +1,13 @@
 import { act } from '@testing-library/react';
-import type { PreparedTransaction } from '@zapengine/types/api';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   initialSteps,
   planRequest,
   stepLabel,
   targetChainId,
   useWithdraw,
-} from '@/hooks/useWithdraw';
+} from '@zapengine/app-core/hooks/useWithdraw';
+import type { PreparedTransaction } from '@zapengine/types/api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderHook } from '../../test-utils';
 
@@ -29,19 +28,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
 
-vi.mock('@/services/planOrchestrationService', () => ({
+vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
   getWithdrawPlan: mocks.getWithdrawPlan,
 }));
 
-vi.mock('@/lib/wallet/executeDepositPlan', () => ({
+vi.mock('@zapengine/app-core/lib/wallet/executeDepositPlan', () => ({
   executeDepositPlan: mocks.executeDepositPlan,
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     createContextLogger: () => ({ info: vi.fn(), error: vi.fn() }),
   },

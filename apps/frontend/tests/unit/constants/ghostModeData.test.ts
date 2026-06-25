@@ -7,9 +7,8 @@
  * - Data structure matches expected format
  */
 
+import { GHOST_MODE_PREVIEW } from '@zapengine/app-core/constants/ghostModeData';
 import { describe, expect, it } from 'vitest';
-
-import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
 
 describe('GHOST_MODE_PREVIEW', () => {
   describe('portfolio metrics', () => {

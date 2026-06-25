@@ -1,9 +1,8 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import { type Regime } from '@zapengine/app-core/regime';
 import { motion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-
-import { type Regime } from '@/components/wallet/regime/regimeData';
-import { cn } from '@/lib/ui/classNames';
 
 import type { StrategyCardDisplayConfig } from './strategyCardViewModel';
 

@@ -1,7 +1,7 @@
+import { useStrategyAdminConfigs } from '@zapengine/app-core/hooks/queries/strategyAdmin';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigManagerView } from '@/components/wallet/portfolio/views/invest/configManager';
-import { useStrategyAdminConfigs } from '@/hooks/queries/strategyAdmin';
 
 import { fireEvent, render, screen, waitFor } from '../../../test-utils';
 
@@ -56,7 +56,7 @@ const { mockConfigs } = vi.hoisted(() => ({
   ],
 }));
 
-vi.mock('@/hooks/queries/strategyAdmin', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/strategyAdmin', () => ({
   useStrategyAdminConfigs: vi.fn(),
   useStrategyAdminConfig: vi.fn(() => ({
     data: null,
@@ -64,20 +64,23 @@ vi.mock('@/hooks/queries/strategyAdmin', () => ({
   })),
 }));
 
-vi.mock('@/hooks/mutations/useStrategyAdminMutations', () => ({
-  useCreateStrategyConfig: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
+vi.mock(
+  '@zapengine/app-core/hooks/mutations/useStrategyAdminMutations',
+  () => ({
+    useCreateStrategyConfig: () => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
+    useUpdateStrategyConfig: () => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
+    useSetDefaultStrategyConfig: () => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
   }),
-  useUpdateStrategyConfig: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  }),
-  useSetDefaultStrategyConfig: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  }),
-}));
+);
 
 describe('ConfigManagerView', () => {
   beforeEach(() => {

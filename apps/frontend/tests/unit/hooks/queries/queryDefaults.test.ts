@@ -1,17 +1,17 @@
 /**
  * Unit tests for queryDefaults - React Query configuration utilities
  */
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   createQueryConfig,
   logQueryError,
-} from '@/hooks/queries/queryDefaults';
-import { ServiceError } from '@/lib/errors';
-import { APIError } from '@/lib/http';
+} from '@zapengine/app-core/hooks/queries/queryDefaults';
+import { ServiceError } from '@zapengine/app-core/lib/errors';
+import { APIError } from '@zapengine/app-core/lib/http';
+import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/utils', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@/utils')>();
+vi.mock('@zapengine/app-core/utils', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@zapengine/app-core/utils')>();
   return {
     ...original,
     logger: {
@@ -27,7 +27,7 @@ vi.mock('@/utils', async (importOriginal) => {
 describe('queryDefaults', () => {
   describe('logQueryError', () => {
     it('logs a plain Error with its message and undefined status', async () => {
-      const { logger } = await import('@/utils');
+      const { logger } = await import('@zapengine/app-core/utils');
       vi.clearAllMocks();
 
       logQueryError('Failed to fetch', new Error('timeout'));
@@ -39,7 +39,7 @@ describe('queryDefaults', () => {
     });
 
     it('logs an APIError with its message and numeric status', async () => {
-      const { logger } = await import('@/utils');
+      const { logger } = await import('@zapengine/app-core/utils');
       vi.clearAllMocks();
 
       logQueryError('API fail', new APIError('bad request', 400, 'BAD_REQ'));
@@ -51,7 +51,7 @@ describe('queryDefaults', () => {
     });
 
     it('logs a raw string error with String() coercion and undefined status', async () => {
-      const { logger } = await import('@/utils');
+      const { logger } = await import('@zapengine/app-core/utils');
       vi.clearAllMocks();
 
       logQueryError('Unknown', 'raw string');

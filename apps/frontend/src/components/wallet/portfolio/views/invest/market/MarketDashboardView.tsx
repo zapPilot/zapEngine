@@ -1,20 +1,15 @@
+import { useMarketDashboardQuery } from '@zapengine/app-core/hooks/queries/market/useMarketDashboardQuery';
+import { REGIME_LABELS } from '@zapengine/app-core/lib/domain/regimeMapper';
+import type { MarketDashboardPoint } from '@zapengine/app-core/services';
 import { type JSX, useCallback, useMemo } from 'react';
 
 import { LoadingState } from '@/components/ui';
-import { useMarketDashboardQuery } from '@/hooks/queries/market/useMarketDashboardQuery';
-import { REGIME_LABELS } from '@/lib/domain/regimeMapper';
-import {
-  buildMarketDashboardSearchParams,
-  type MarketDashboardRouteStatePatch,
-  readMarketDashboardRouteState,
-} from '@/lib/portfolio/marketDashboardRouteState';
 import {
   buildPathWithSearchParams,
   useAppPathname,
   useAppRouter,
   useAppSearchParams,
 } from '@/lib/routing';
-import type { MarketDashboardPoint } from '@/services';
 
 import { MarketOverviewChart } from './MarketOverviewChart';
 import { ChartLegendToggle, TimeframePicker } from './sections';
@@ -28,6 +23,11 @@ import {
   REGIME_COLORS,
   type Timeframe,
 } from './sections/marketDashboardConstants';
+import {
+  buildMarketDashboardSearchParams,
+  type MarketDashboardRouteStatePatch,
+  readMarketDashboardRouteState,
+} from './sections/marketDashboardRouteState';
 import { SimpleStatCard } from './sections/SimpleStatCard';
 
 function getRelativeStrengthSignal(isAboveDma: boolean | null | undefined): {

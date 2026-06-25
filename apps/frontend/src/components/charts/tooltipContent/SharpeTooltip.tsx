@@ -2,11 +2,11 @@
  * SharpeTooltip - Sharpe ratio with color-coded rating
  */
 
-import type { SharpeHoverData } from '@/types/ui/chartHover';
+import type { SharpeHoverData } from '@zapengine/app-core/types/ui/chartHover';
 import {
   getSharpeColor,
   getSharpeInterpretation,
-} from '@/utils/chartHoverUtils';
+} from '@zapengine/app-core/utils/chartHoverUtils';
 
 import { TooltipRow } from './TooltipRow';
 import { TooltipWrapper } from './TooltipWrapper';

@@ -11,15 +11,14 @@
  */
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-
-import { useChainQuery } from '@/hooks/queries/wallet/useChainQuery';
-import { useTokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalanceQuery';
-import { transactionServiceMock } from '@/services';
+import { useChainQuery } from '@zapengine/app-core/hooks/queries/wallet/useChainQuery';
+import { useTokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalanceQuery';
+import { transactionServiceMock } from '@zapengine/app-core/services';
 import type {
   ChainData,
   TokenBalance,
   TransactionToken,
-} from '@/types/domain/transaction';
+} from '@zapengine/app-core/types/domain/transaction';
 
 interface UseTransactionDataParams {
   /**

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { WithdrawModal } from '@/components/wallet/portfolio/modals/WithdrawModal';
 
 // Mock getCategoryForToken
-vi.mock('@/lib/domain/assetCategoryUtils', () => ({
+vi.mock('@zapengine/app-core/lib/domain/assetCategoryUtils', () => ({
   getCategoryForToken: vi.fn((symbol: string) => {
     const normalized = symbol.toLowerCase();
     if (normalized.includes('btc') || normalized === 'wbtc') return 'btc';
@@ -20,7 +20,7 @@ vi.mock('@/lib/domain/assetCategoryUtils', () => ({
 }));
 
 // Mock dependencies
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     simulateWithdraw: vi.fn(),
   },

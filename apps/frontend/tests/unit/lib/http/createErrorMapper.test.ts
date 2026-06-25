@@ -1,6 +1,5 @@
+import { createErrorMapper } from '@zapengine/app-core/lib/http/serviceErrorFactory';
 import { describe, expect, it } from 'vitest';
-
-import { createErrorMapper } from '@/lib/http/serviceErrorFactory';
 
 describe('createErrorMapper', () => {
   const mapper = createErrorMapper(

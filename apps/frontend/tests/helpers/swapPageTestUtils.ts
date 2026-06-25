@@ -8,6 +8,10 @@
  */
 
 import { QueryClient } from '@tanstack/react-query';
+import type { UserInfo } from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
+import type { InvestmentOpportunity } from '@zapengine/app-core/types/investment';
+import type { RiskLevel } from '@zapengine/app-core/types/risk';
+import type { SwapToken } from '@zapengine/app-core/types/swap';
 import { vi } from 'vitest';
 
 import type {
@@ -15,10 +19,6 @@ import type {
   PortfolioSwapAction,
   Protocol,
 } from '@/components/PortfolioAllocation/types';
-import type { UserInfo } from '@/hooks/queries/wallet/useUserQuery';
-import type { InvestmentOpportunity } from '@/types/investment';
-import type { RiskLevel } from '@/types/risk';
-import type { SwapToken } from '@/types/swap';
 
 // =============================================================================
 // MOCK FACTORIES
@@ -247,13 +247,13 @@ export interface SwapPageMockConfig {
  * @example
  * ```typescript
  * import { setupSwapPageMocks } from 'tests/helpers/swapPageTestUtils';
- * import * as UserContext from '@/hooks/queries/wallet/useUser';
+ * import * as UserContext from '@zapengine/app-core/hooks/queries/wallet/useUser';
  * import * as useChainModule from '@/hooks/useChain';
  *
- * vi.mock('@/hooks/queries/wallet/useUser');
+ * vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser');
  * vi.mock('@/hooks/useChain');
- * vi.mock('@/hooks/queries/useStrategiesQuery');
- * vi.mock('@/services/intentService');
+ * vi.mock('@zapengine/app-core/hooks/queries/useStrategiesQuery');
+ * vi.mock('@zapengine/app-core/services/intentService');
  *
  * const mocks = setupSwapPageMocks({
  *   userInfo: { userId: 'user-123', walletAddress: '0xabc' },

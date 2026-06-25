@@ -5,18 +5,17 @@
  * Tests all 4 main exports plus edge cases and boundary conditions.
  */
 
-import { describe, expect, it } from 'vitest';
-
 import {
   aggregateMonthlyPnL,
   calculateKeyMetrics,
   transformToDrawdownChart,
   transformToPerformanceChart,
-} from '@/lib/analytics/transformers';
+} from '@zapengine/app-core/lib/analytics/transformers';
 import type {
   DailyYieldReturnsResponse,
   UnifiedDashboardResponse,
-} from '@/services/analyticsService';
+} from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it } from 'vitest';
 
 describe('Analytics Transformers', () => {
   describe('transformToPerformanceChart', () => {
@@ -966,7 +965,7 @@ describe('Analytics Transformers', () => {
             },
           },
         },
-      } as unknown as import('@/services/analyticsService').UnifiedDashboardResponse;
+      } as unknown as import('@zapengine/app-core/services/analyticsService').UnifiedDashboardResponse;
 
       const result = transformToDrawdownChart(dashboard);
       // First point falls back to a generated ISO date string

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '../../test-utils';
 
-vi.mock('@/lib/state/queryClient', () => {
+vi.mock('@zapengine/app-core/lib/state/queryClient', () => {
   const { QueryClient } = require('@tanstack/react-query');
   return { queryClient: new QueryClient() };
 });
@@ -28,7 +28,7 @@ const loadQueryProvider = async (
     process.env['VITE_ENABLE_RQ_DEVTOOLS'] = devtoolsFlag;
   }
 
-  return import('@/providers/QueryProvider');
+  return import('@zapengine/app-core/providers/QueryProvider');
 };
 
 describe('QueryProvider', () => {

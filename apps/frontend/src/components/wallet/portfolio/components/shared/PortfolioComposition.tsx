@@ -1,15 +1,15 @@
-import { Zap } from 'lucide-react';
-import type { ReactElement } from 'react';
-
-import { type WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
-import { GradientButton } from '@/components/ui';
-import { toInvestCompositionTarget } from '@/components/wallet/regime/investAllocation';
+import { type WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { UNIFIED_COLORS } from '@zapengine/app-core/constants/assets';
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
 import {
   getRegimeAllocation,
   type Regime,
-} from '@/components/wallet/regime/regimeData';
-import { UNIFIED_COLORS } from '@/constants/assets';
-import { GRADIENTS } from '@/constants/designSystem';
+  toInvestCompositionTarget,
+} from '@zapengine/app-core/regime';
+import { Zap } from 'lucide-react';
+import type { ReactElement } from 'react';
+
+import { GradientButton } from '@/components/ui';
 
 import { PortfolioCompositionSkeleton } from '../../views/DashboardSkeleton';
 import {

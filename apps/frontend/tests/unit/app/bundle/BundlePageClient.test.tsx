@@ -47,7 +47,7 @@ vi.mock('@/lib/routing', () => {
 let mockIsConnected = false;
 let mockUserId: string | null = null;
 let mockConnectedWallet: string | null = null;
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: () => ({
     userInfo: mockUserId ? { userId: mockUserId } : null,
     isConnected: mockIsConnected,

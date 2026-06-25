@@ -1,15 +1,15 @@
+import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
+import type { UnifiedDashboardResponse } from '@zapengine/app-core/services/analyticsService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { usePortfolioDashboard } from '@/hooks/analytics/usePortfolioDashboard';
-import type { UnifiedDashboardResponse } from '@/services/analyticsService';
 
 import { renderHook, waitFor } from '../../../test-utils';
 
-vi.mock('@/services/analyticsService', () => ({
+vi.mock('@zapengine/app-core/services/analyticsService', () => ({
   getPortfolioDashboard: vi.fn(),
 }));
 
-const { getPortfolioDashboard } = await import('@/services/analyticsService');
+const { getPortfolioDashboard } =
+  await import('@zapengine/app-core/services/analyticsService');
 
 const MOCK_DASHBOARD = {
   trends: { daily_values: [] },

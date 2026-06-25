@@ -1,13 +1,12 @@
 /**
  * Unit tests for env utilities
  */
-import { afterEach, describe, expect, it } from 'vitest';
-
 import {
   getAppRuntime,
   isDesktopRuntime,
   toSeconds,
-} from '@/lib/env/runtimeEnv';
+} from '@zapengine/app-core/lib/env/runtimeEnv';
+import { afterEach, describe, expect, it } from 'vitest';
 
 describe('env', () => {
   afterEach(() => {

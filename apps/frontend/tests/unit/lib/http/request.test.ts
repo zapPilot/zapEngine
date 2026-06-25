@@ -1,7 +1,6 @@
+import { APIError, NetworkError } from '@zapengine/app-core/lib/http/errors';
+import { httpRequest } from '@zapengine/app-core/lib/http/request';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { APIError, NetworkError } from '@/lib/http/errors';
-import { httpRequest } from '@/lib/http/request';
 
 const {
   mockCreateTimeoutController,
@@ -27,18 +26,18 @@ const {
 
 vi.stubGlobal('fetch', mockFetch);
 
-vi.mock('@/lib/http/abortControl', () => ({
+vi.mock('@zapengine/app-core/lib/http/abortControl', () => ({
   createTimeoutController: mockCreateTimeoutController,
   isAbortError: mockIsAbortError,
 }));
 
-vi.mock('@/lib/http/cacheControl', () => ({
+vi.mock('@zapengine/app-core/lib/http/cacheControl', () => ({
   hasHeaders: mockHasHeaders,
   parseCacheControlForHint: mockParseCacheControlForHint,
   syncQueryCacheDefaultsFromHint: mockSyncQueryCacheDefaultsFromHint,
 }));
 
-vi.mock('@/lib/http/retry', () => ({
+vi.mock('@zapengine/app-core/lib/http/retry', () => ({
   shouldAttemptRetry: mockShouldAttemptRetry,
   calculateBackoffDelay: mockCalculateBackoffDelay,
   delay: mockDelay,
@@ -233,7 +232,8 @@ describe('httpRequest', () => {
   });
 
   it('throws TimeoutError when isAbortError returns true', async () => {
-    const { TimeoutError } = await import('@/lib/http/errors');
+    const { TimeoutError } =
+      await import('@zapengine/app-core/lib/http/errors');
     const abortError = new DOMException('aborted', 'AbortError');
     mockFetch.mockRejectedValue(abortError);
     mockIsAbortError.mockReturnValue(true);

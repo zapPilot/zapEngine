@@ -44,7 +44,7 @@ vi.mock('@/lib/routing', () => ({
   useAppPathname: () => '/bundle',
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => ({ showToast: vi.fn() }),
   ToastContext: {
     Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -54,7 +54,7 @@ vi.mock('@/providers/ToastContext', () => ({
   ),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     connectedWallets: [],
     activeWallet: null,
@@ -76,13 +76,16 @@ vi.mock('@/components/Footer/Footer', () => ({
   Footer: () => <footer />,
 }));
 
-vi.mock('@/hooks/queries/analytics/useAllocationWeights', () => ({
-  useAllocationWeights: vi.fn().mockReturnValue({
-    data: null,
-    isLoading: false,
-    error: null,
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useAllocationWeights',
+  () => ({
+    useAllocationWeights: vi.fn().mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+    }),
   }),
-}));
+);
 
 vi.mock('framer-motion', async () => {
   const { setupFramerMotionMocks } =

@@ -1,6 +1,8 @@
+import {
+  getBridgeStatus,
+  getPublicClient,
+} from '@zapengine/app-core/services/intentClient';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { getBridgeStatus, getPublicClient } from '@/services/intentClient';
 
 const mocks = vi.hoisted(() => {
   const publicClientStub = { id: 'public-client-stub' };

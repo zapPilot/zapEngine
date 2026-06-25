@@ -1,9 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import type {
+  EditingWallet,
+  WalletOperations,
+} from '@zapengine/app-core/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EditWalletModal } from '@/components/WalletManager/components/EditWalletModal';
-import type { WalletData } from '@/lib/validation/walletUtils';
-import type { EditingWallet, WalletOperations } from '@/types';
 
 // Mock UI components
 vi.mock('@/components/ui', () => ({
@@ -51,7 +54,7 @@ vi.mock('@/components/ui/modal', () => ({
   ),
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: vi.fn((addr: string) => `${addr.slice(0, 6)}...`),
 }));
 

@@ -1,13 +1,17 @@
+import { isPrivyEnabled } from '@zapengine/app-core/lib/env/privy';
+import {
+  getRuntimeEnv,
+  isRuntimeMode,
+} from '@zapengine/app-core/lib/env/runtimeEnv';
+import { PrivyAuthProvider } from '@zapengine/app-core/providers/PrivyAuthProvider';
+import { QueryProvider } from '@zapengine/app-core/providers/QueryProvider';
+import { WalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import type { ReactNode } from 'react';
 
 import { ErrorBoundary } from '@/components/errors/ErrorBoundary';
 import { GlobalErrorHandler } from '@/components/errors/GlobalErrorHandler';
-import { isPrivyEnabled } from '@/lib/env/privy';
-import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
+import { TenderlyPreviewModal } from '@/components/wallet/portfolio/modals/TenderlyPreviewModal';
 import { lazyImport } from '@/lib/lazy/lazyImport';
-import { PrivyAuthProvider } from '@/providers/PrivyAuthProvider';
-import { QueryProvider } from '@/providers/QueryProvider';
-import { WalletProvider } from '@/providers/WalletProvider';
 
 const DeferredToastProvider = lazyImport(
   async () => import('@/providers/ToastProvider'),
@@ -57,7 +61,13 @@ export function BundleProviders({ children }: BundleProvidersProps) {
   return (
     <QueryProvider>
       <PrivyAuthProvider>
-        <WalletProvider>{inner}</WalletProvider>
+        <WalletProvider
+          renderSimulationPreview={(previewProps) => (
+            <TenderlyPreviewModal {...previewProps} />
+          )}
+        >
+          {inner}
+        </WalletProvider>
       </PrivyAuthProvider>
     </QueryProvider>
   );

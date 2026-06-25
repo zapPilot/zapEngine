@@ -1,11 +1,11 @@
-import type { Dispatch, SetStateAction } from 'react';
-
-import { DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID } from '@/components/wallet/portfolio/views/backtesting/constants';
 import type {
   BacktestCompareParamsV3,
   SavedStrategyConfig,
   StrategyComposition,
-} from '@/types';
+} from '@zapengine/app-core/types';
+import type { Dispatch, SetStateAction } from 'react';
+
+import { DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID } from '@/components/wallet/portfolio/views/backtesting/constants';
 
 export interface ConfigEditorViewProps {
   configId: string | null;

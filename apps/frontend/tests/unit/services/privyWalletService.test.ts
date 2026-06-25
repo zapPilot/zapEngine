@@ -1,15 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   preparePrivyAtomicBatch,
   sendPrivyAtomicBatch,
-} from '@/services/privyWalletService';
+} from '@zapengine/app-core/services/privyWalletService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const httpMocks = vi.hoisted(() => ({
   post: vi.fn(),
 }));
 
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     accountApi: {
       post: httpMocks.post,

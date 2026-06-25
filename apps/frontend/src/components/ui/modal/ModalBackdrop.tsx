@@ -1,8 +1,7 @@
+import { Z_INDEX } from '@zapengine/app-core/constants/designSystem';
+import { fadeInOut } from '@zapengine/app-core/lib/ui/animationVariants';
 import { motion } from 'framer-motion';
 import type { PropsWithChildren } from 'react';
-
-import { Z_INDEX } from '@/constants/designSystem';
-import { fadeInOut } from '@/lib/ui/animationVariants';
 
 interface ModalBackdropProps {
   onDismiss: () => void;

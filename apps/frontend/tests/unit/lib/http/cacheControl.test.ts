@@ -4,24 +4,23 @@
  * Tests for Cache-Control header parsing and query cache syncing.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   hasHeaders,
   parseCacheControlForHint,
   syncQueryCacheDefaultsFromHint,
-} from '@/lib/http/cacheControl';
-import { queryClient } from '@/lib/state/queryClient';
+} from '@zapengine/app-core/lib/http/cacheControl';
+import { queryClient } from '@zapengine/app-core/lib/state/queryClient';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock queryClient before importing the module
-vi.mock('@/lib/state/queryClient', () => ({
+vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
   queryClient: {
     getDefaultOptions: vi.fn(() => ({ queries: {} })),
     setDefaultOptions: vi.fn(),
   },
 }));
 
-vi.mock('@/config/cacheWindow', () => ({
+vi.mock('@zapengine/app-core/config/cacheWindow', () => ({
   CACHE_WINDOW: {
     staleTimeMs: 60000,
     gcTimeMs: 300000,

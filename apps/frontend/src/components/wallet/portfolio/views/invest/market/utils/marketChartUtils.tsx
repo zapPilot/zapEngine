@@ -1,8 +1,10 @@
+import {
+  getRegimeColor,
+  getRegimeLabel,
+} from '@zapengine/app-core/lib/domain/regime';
+import type { MarketDashboardPoint } from '@zapengine/app-core/services';
 import type { JSX, ReactNode } from 'react';
 import type { TooltipPayloadEntry, TooltipValueType } from 'recharts';
-
-import { getRegimeColor, getRegimeLabel } from '@/lib/domain/regime';
-import type { MarketDashboardPoint } from '@/services';
 
 import { MARKET_LINES } from '../sections/marketDashboardConstants';
 

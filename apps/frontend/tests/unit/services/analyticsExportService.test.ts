@@ -2,12 +2,11 @@
  * Analytics Export Service Tests
  */
 
+import { validateExportData } from '@zapengine/app-core/lib/analytics/analyticsValidation';
+import * as csvGenerator from '@zapengine/app-core/lib/csvGenerator';
+import { exportAnalyticsToCSV } from '@zapengine/app-core/services/analyticsExportService';
+import type { AnalyticsData } from '@zapengine/app-core/types/analytics';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { validateExportData } from '@/lib/analytics/analyticsValidation';
-import * as csvGenerator from '@/lib/csvGenerator';
-import { exportAnalyticsToCSV } from '@/services/analyticsExportService';
-import type { AnalyticsData } from '@/types/analytics';
 
 // =============================================================================
 // TEST DATA
@@ -375,7 +374,7 @@ describe('exportAnalyticsToCSV', () => {
 
   it('should log errors using logger', async () => {
     // Import logger
-    const { logger } = await import('@/utils/logger');
+    const { logger } = await import('@zapengine/app-core/utils/logger');
     const loggerErrorSpy = vi
       .spyOn(logger, 'error')
       // eslint-disable-next-line @typescript-eslint/no-empty-function

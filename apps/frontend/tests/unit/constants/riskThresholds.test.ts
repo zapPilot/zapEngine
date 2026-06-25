@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   getRiskConfig,
   getRiskLevel,
   mapBorrowingStatusToRiskLevel,
   RISK_DISPLAY_CONFIG,
   RiskLevel,
-} from '@/constants/riskThresholds';
+} from '@zapengine/app-core/constants/riskThresholds';
+import { describe, expect, it } from 'vitest';
 
 describe('riskThresholds', () => {
   describe('RiskLevel', () => {

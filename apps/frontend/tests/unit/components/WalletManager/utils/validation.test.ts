@@ -1,10 +1,9 @@
+import type { NewWallet } from '@zapengine/app-core/types';
+import { validateEmail, validateNewWallet } from '@zapengine/app-core/utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { NewWallet } from '@/types';
-import { validateEmail, validateNewWallet } from '@/utils';
-
 // Mock the wallet address validation utility
-vi.mock('@/lib/validation/walletUtils', () => ({
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', () => ({
   validateWalletAddress: (address: string) => {
     // Simple validation: must be 42 chars starting with 0x
     return (

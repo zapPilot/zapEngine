@@ -1,17 +1,17 @@
 import { renderHook, waitFor } from '@testing-library/react';
+import { getDailySuggestion } from '@zapengine/app-core/services/strategyService';
+import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   suggestionKeys,
   useDailySuggestion,
 } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDailySuggestion';
-import { getDailySuggestion } from '@/services/strategyService';
-import type { DailySuggestionResponse } from '@/types/strategy';
 
 import { QueryClientWrapper } from '../../../../../../../../test-utils';
 
 // Mock the service
-vi.mock('@/services/strategyService', () => ({
+vi.mock('@zapengine/app-core/services/strategyService', () => ({
   getDailySuggestion: vi.fn(),
 }));
 

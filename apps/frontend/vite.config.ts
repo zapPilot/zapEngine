@@ -19,6 +19,7 @@ const coverageThresholds = {
 } as const;
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
+const APP_CORE_SRC = path.resolve(__dirname, "../../packages/app-core/src");
 const PURE_ANNOTATION_WARNING =
   "contains an annotation that Rollup cannot interpret";
 
@@ -158,6 +159,21 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
+    // Resolve @zapengine/app-core (and its internal @core/* alias) to SOURCE in
+    // tests. This keeps a single instance of shared deps (privy/viem) and makes
+    // vi.mock('@zapengine/app-core/...') resolve to the same source file the
+    // package imports internally, so intra-package mocks intercept correctly.
+    alias: [
+      {
+        find: /^@zapengine\/app-core$/,
+        replacement: `${APP_CORE_SRC}/index.ts`,
+      },
+      {
+        find: /^@zapengine\/app-core\/(.*)$/,
+        replacement: `${APP_CORE_SRC}/$1`,
+      },
+      { find: /^@core\/(.*)$/, replacement: `${APP_CORE_SRC}/$1` },
+    ],
     // Must stay "forks": under Vitest 4 the vmThreads pool freezes jsdom's
     // window.location into a non-configurable property, which breaks every
     // test that stubs location (Object.defineProperty/vi.stubGlobal throw

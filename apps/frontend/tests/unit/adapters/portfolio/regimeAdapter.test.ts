@@ -4,16 +4,15 @@
  * Tests for regime allocation and strategy info derivation
  */
 
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   getRegimeStrategyInfo,
   getTargetAllocation,
-} from '@/adapters/portfolio/regimeAdapter';
-import type { RegimeHistoryData } from '@/services/regimeHistoryService';
+} from '@zapengine/app-core/adapters/portfolio/regimeAdapter';
+import type { RegimeHistoryData } from '@zapengine/app-core/services/regimeHistoryService';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/components/wallet/regime/regimeData', () => ({
+vi.mock('@zapengine/app-core/regime', () => ({
   regimes: [
     { id: 'quad1', name: 'Quad 1' },
     { id: 'quad2', name: 'Quad 2' },
@@ -31,7 +30,7 @@ vi.mock('@/components/wallet/regime/regimeData', () => ({
   }),
 }));
 
-vi.mock('@/lib/domain/strategySelector', () => ({
+vi.mock('@zapengine/app-core/lib/domain/strategySelector', () => ({
   getActiveStrategy: vi.fn(
     (direction: string, _current: string, _previous: string | null) => {
       if (direction === 'improving') {

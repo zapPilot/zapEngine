@@ -10,9 +10,9 @@ import {
   isPerformanceHover,
   isSharpeHover,
   isVolatilityHover,
-} from '@/types/ui/chartHover';
-import { getDrawdownSeverity } from '@/utils/chartHoverUtils';
-import { formatters } from '@/utils/formatters';
+} from '@zapengine/app-core/types/ui/chartHover';
+import { getDrawdownSeverity } from '@zapengine/app-core/utils/chartHoverUtils';
+import { formatters } from '@zapengine/app-core/utils/formatters';
 
 import {
   FlaggedCircle,

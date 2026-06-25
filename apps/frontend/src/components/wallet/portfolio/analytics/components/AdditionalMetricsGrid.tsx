@@ -4,10 +4,12 @@
  * Displays secondary analytics metrics (Sortino, Beta, Volatility, Alpha)
  */
 
+import type {
+  KeyMetrics,
+  MetricData,
+} from '@zapengine/app-core/types/analytics';
 import { Activity } from 'lucide-react';
 import type { ReactElement } from 'react';
-
-import type { KeyMetrics, MetricData } from '@/types/analytics';
 
 import { AnalyticsMetricCard } from './AnalyticsMetricCard';
 
