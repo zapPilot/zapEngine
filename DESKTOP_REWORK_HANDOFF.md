@@ -12,8 +12,8 @@ package. **Resume from here in a fresh session.**
 | `@zapengine/app-core` extraction (structure) | ✅ frontend + app-core + desktop **type-check, build, lint all green** |
 | frontend unit tests after extraction | ✅ **fixed — full `test:unit` 4227 pass / 0 fail** (commit `f945f997`) |
 | deadcode / dup / coverage reconciliation | ✅ **green** for app-core/frontend/desktop; coverage no-regression clean (commit `47f4fa18`) |
-| Task 4 — wire desktop to real data | ⛔ not started — **needs a repo-root `.env`** (Privy/API keys; only `.env.example` exists) |
-| Task 5 — end-to-end verification | ⛔ not started — needs running stack + test wallet + `.env` |
+| Task 4 — wire desktop to real data | ✅ **code-complete** — all 8 screens wired to `@zapengine/app-core` (connect gate + Home/Portfolio/Strategy/Activity/Account + Invest 3-step→sign); desktop type-check/lint/deadcode/dup/test + `build:web` all green; dev server boots and screens render with graceful degradation |
+| Task 5 — end-to-end verification | 🟡 **non-interactive parts done** (boot/render/build/gates verified; data hooks hit the live backends) — **remaining is user-driven**: restart analytics-engine for CORS, Privy login, testnet sign |
 
 Everything is in an **isolated worktree** on a feature branch; the main checkout
 is untouched. The desktop skin does **not** depend on the extraction (it uses
@@ -130,24 +130,26 @@ All share the mock-across-package-boundary cause above. The earlier relative-imp
 
 1. ✅ **Fix the frontend unit tests** — done (commit `f945f997`), full `test:unit`
    4227 pass / 0 fail.
-2. ⛔ **Task 4 — wire desktop to real data** (NOT started; **needs a repo-root
-   `.env`** with Privy/API keys — only `.env.example` exists, so the providers
-   can't boot and runtime can't be verified): add a `src/integration/*` seam in
-   desktop re-exporting from `@zapengine/app-core`; mount
-   `QueryProvider→PrivyAuthProvider→WalletProvider` (+ `isPrivyEnabled` guard, no
-   white-screen — see `apps/frontend/src/app/bundle/BundleProviders.tsx`, which
-   injects `TenderlyPreviewModal` via the `renderSimulationPreview` render-prop);
-   replicate connect→resolve `userId`→fetch (see
-   `apps/frontend/src/app/bundle/BundlePageClient.tsx`); bind each screen to its
-   hook (Home `usePortfolioDataProgressive`; Invest
-   `useInvestStrategy`/`getDepositPlan`/`useDepositExecutionState`, source
-   defaults to **Base** per `useInvestStrategy` v1; Strategy
-   `runBacktest`/sentiment/regime; Portfolio `usePortfolioDashboard`; Activity
-   `getDailyYieldReturns`+`getBorrowingPositions`+mock; Account
-   `useWalletProvider`/`useUser`). Re-add `recharts` to desktop for live charts.
-   Desktop needs `@zapengine/app-core` as a dep + Privy/viem/react-query/etc.
-   (those three are app-core **peerDependencies** now, so desktop must provide
-   them and add the same `resolve.dedupe` entries frontend uses).
+2. ✅ **Task 4 — wire desktop to real data** — done (commits `3128f9be`,
+   `0c489186`, `58b2ec22`, `ffa0e588`). `src/integration/` holds the seam:
+   `DesktopProviders` (QueryProvider→PrivyAuthProvider→WalletProvider +
+   `isPrivyEnabled` guard, mounted in `main.tsx`); desktop `vite.config` adds the
+   same `resolve.dedupe` as frontend (single Privy/Query instance). `useAccount`
+   (useWalletProvider+useUser) drives a `ConnectGate` (Privy login) that AppShell
+   shows until connected. Per-screen container hooks map live data into each
+   screen's shape with defensive states + MOCK fallback (commented
+   `NOTE(real-data)`, never `TODO`) for fields with no clean source:
+   Home=`usePortfolioDataProgressive`+`usePortfolioDashboard`;
+   Portfolio=`usePortfolioDashboard`; Strategy=`useSentimentData`+`useRegimeHistory`
+   (backtest stays mock); Activity=`getDailyYieldReturns`+`useBorrowingPositions`
+   merged with mock tx rows; Account=`useWalletProvider`/`useUser`. Invest:
+   `InvestProvider` carries the amount; step2 previews `getDepositPlan`, step3
+   runs `useInvestStrategy().run()` with a minimal `SimulationPreviewModal` wired
+   into WalletProvider's `renderSimulationPreview`. (recharts NOT re-added — the
+   hand-rolled SVG charts render real data fine; defer recharts as polish.)
+   Added `.env` `CORS_ALLOWED_ORIGINS += http://127.0.0.1:3005,http://localhost:3005`
+   (analytics-engine needs a restart to apply; account-engine uses `cors()` =
+   allow-all, unaffected).
 3. ✅ **Reconcile deadcode/dup/coverage** — done (commit `47f4fa18`). knip:
    app-core treats all src as entry (wholly public via `./*`), removed 4 phantom
    barrel exports, frontend/desktop ignore lists updated. jscpd: app-core/desktop
@@ -156,10 +158,18 @@ All share the mock-across-package-boundary cause above. The earlier relative-imp
    gate clean (frontend −0.04pp, within tolerance). _Note: `dayjs` is still used
    in frontend (tests); `@zapengine/intent-engine`/`@zapengine/types` are still
    used — the original handoff's removal hint was wrong._
-4. ⛔ **Task 5 — end-to-end verify** (NOT started; needs running stack + test
-   wallet + `.env`): confirm `pnpm --filter @zapengine/frontend dev` still serves;
-   preview desktop screens; connect wallet → real Home; invest 3-step → sign
-   (testnet/small).
+4. 🟡 **Task 5 — end-to-end verify** — non-interactive parts done (desktop boots
+   on :3005, all screens render, gates + `build:web` green, data hooks confirmed
+   hitting the live backends). Remaining is **user-driven** (interactive Privy
+   login + a funded wallet can't be automated):
+   1. `pnpm --filter @zapengine/analytics-engine dev` **restart** so it picks up
+      the new desktop CORS origins (else its calls 500/CORS-fail and screens fall
+      back to placeholders — by design, no crash).
+   2. `pnpm --filter @zapengine/desktop dev:web` (browser :3005) or `… dev`
+      (native window) → click **Connect wallet** → Privy login → your `userId`
+      resolves via account-engine → Home/Portfolio/Activity show your real data.
+   3. Invest 3-step → **Confirm & Start** → sign in the `SimulationPreviewModal`
+      (testnet / small amount).
 
 ## Verification commands (run directly — `pnpm verify *` breaks in worktrees)
 
