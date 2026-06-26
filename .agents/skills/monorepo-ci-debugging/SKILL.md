@@ -5,7 +5,9 @@ description: >-
   appear one after another, a long local gate is silent, result.json is missing,
   or it is unclear which local command reproduces the named job. Symptoms:
   repeated GitHub round-trips, test:ci appearing hung, or a later deadcode,
-  duplication, analytics, or security job surfacing after an earlier fix.
+  duplication, analytics, or security job surfacing after an earlier fix. Also
+  when you must read the failing jobs straight from GitHub with gh instead of a
+  local gate.
 ---
 
 # Monorepo CI debugging (pnpm + turbo)
@@ -59,6 +61,39 @@ This loop is intentionally iterative: narrow reproduction gives fast feedback;
 `verify changed` catches affected neighboring gates; branch/full verification
 catches repository-wide fallout.
 
+## Pull the failures yourself with `gh` (when no one handed you a log)
+
+Use this when **(a)** you cannot reproduce locally — shallow clone you cannot
+`git fetch --unshallow`, missing `DATABASE_READ_ONLY_URL`, or not Node 24 — or
+**(b)** you want the authoritative aggregated remote state across every job.
+
+```bash
+# Every job's status at once (lint-test / coverage / check-dead-env / mobile / docker)
+gh pr checks
+# Find the latest run for this branch
+gh run list --branch "$(git branch --show-current)" --limit 5
+# Read only the failed steps' logs, across all jobs
+gh run view <run-id> --log-failed
+# …or just list the failed job names
+gh run view <run-id> --json jobs --jq '.jobs[] | select(.conclusion=="failure") | .name'
+```
+
+**Fix-until-green loop:**
+
+1. `gh pr checks` — read **all** red jobs.
+2. Map each red job → its local command (the _GitHub jobs → local commands_
+   table) and **fix the whole batch in one pass**. Do not fix one and push — that
+   per-failure push is exactly the round-trip cascade.
+3. Push **once**.
+4. `gh pr checks --watch` until it settles.
+5. Still red? Back to 1. Repeat until every check is green.
+
+**Caveat — `gh` does not replace local enumeration.** The `lint-test` job is the
+`set -e` sequential gate, so `gh` shows only its **first** core failure too. To
+see _all_ core failures at once you still need local `pnpm verify parallel`. What
+`gh` uniquely gives you is the **cross-job view** — `coverage`, `check-dead-env`,
+`mobile`, Docker — that no local core gate contains.
+
 ## Full gate — final enumeration, not the entry point
 
 `pnpm verify parallel` is useful when you genuinely need every core job at once,
@@ -87,19 +122,27 @@ pnpm verify parallel
 pnpm security audit core
 ```
 
-## One-time orientation: GitHub `lint-test` job → local commands
+## GitHub jobs → local commands (orient once)
 
-The job ([.github/workflows/ci.yml](../../../.github/workflows/ci.yml)) has three
-steps:
+CI runs **several parallel jobs** ([.github/workflows/ci.yml](../../../.github/workflows/ci.yml)).
+`pnpm verify ci`/`parallel` reproduces **only the `lint-test` job** — `coverage`,
+`check-dead-env`, `mobile`, and Docker run as **separate jobs a green core gate
+never sees**. Most repeated round-trips come from pushing with a green core gate
+and letting CI surface `coverage`/`check-dead-env` one at a time. Map every job
+to its local command and run the ones your change touches **before** pushing:
 
-| GitHub step                    | Local command                                                           |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| Build core packages            | `pnpm build core`                                                       |
-| Run check-variant tasks        | `pnpm verify ci` (sequential) or `pnpm verify parallel` (all core jobs) |
-| Security audit (Node + Python) | `pnpm security audit core`                                              |
+| GitHub job                | Local equivalent                                                                | In `verify ci`/`parallel`? |
+| ------------------------- | ------------------------------------------------------------------------------- | -------------------------- |
+| `lint-test`               | `pnpm build core` → `pnpm verify ci` → `pnpm security audit core` (its 3 steps) | core part yes; audit no    |
+| `coverage`                | `pnpm coverage summary` (aggregate) / `pnpm coverage check` (regression gate)   | ❌ separate job             |
+| `check-dead-env`          | `pnpm lint dead-env`                                                             | ❌ separate job             |
+| `mobile` / `mobile-gates` | mobile-specific gates (only when `apps/mobile` changed)                          | ❌ separate job             |
+| `verify-fly-docker`       | Docker verify (only when Dockerfiles / deploy changed)                          | ❌ separate job             |
+| `deploy-*`                | `main`-only deploy; does not run on PRs                                          | ❌                          |
 
-Coverage, mobile, Docker, deploy, and security audit are separate jobs/steps.
-A green core gate is not evidence that those passed.
+`coverage` and `check-dead-env` bite most: invisible to `verify ci`/`parallel`,
+so a change touching tests/coverage or env references must run
+`pnpm coverage check` / `pnpm lint dead-env` locally before push.
 
 ## Verify command cheat-sheet
 
@@ -141,14 +184,22 @@ jobs until the first failure and `parallel` writes its summary only at the end.
 | "I can't reproduce CI locally without the secrets / exact runner."                          | Almost everything runs locally. Only the analytics snapshot gate needs `DATABASE_READ_ONLY_URL` — that one gate is the single thing legitimately validated only in CI, so don't burn cycles repro-ing it; let it validate on push. |
 | "I'll just bump `--audit-level` / add a knip-ignore / `@ts-expect-error` to make it green." | That's weakening the check, not fixing it. `scripts/lint/*` and `scripts/verify-*.sh` are protected — edits get reverted.                                                                                                          |
 | "`verify ci` passed, so I'm done."                                                          | `verify ci` does **not** include `security audit core`. Run it.                                                                                                                                                                    |
+| "I'll push and let CI tell me the next failure."                                            | That's the round-trip cascade. Before pushing, enumerate core failures with `pnpm verify parallel` **and** run the separate jobs you touched (`pnpm coverage check`, `pnpm lint dead-env`); or read every failing job at once with `gh run view <run-id> --log-failed`, fix the batch, push once.                  |
 
 ## Verification
 
-After a clean local pass, the literal CI sequence is the final confirmation:
+After a clean inner loop, run the full local sweep — **not just the core gate**.
+`verify ci` is only the `lint-test` job; add the separate jobs your change
+touched so CI does not surface them one push at a time:
 
 ```bash
+# Core (lint-test job)
 pnpm build core && pnpm verify ci && pnpm security audit core
+# Separate jobs (NOT in verify ci) — run the ones your change touched:
+pnpm coverage check     # coverage job        (tests / coverage touched)
+pnpm lint dead-env      # check-dead-env job  (env references touched)
 ```
 
-Then push **once** and read the GitHub CI log (Node 24 is authoritative). If a
-hard-fail remains, the gate advances to the next — fix iteratively.
+Fix everything red here **before** pushing, then push **once** — don't push and
+let CI hand you the next failure. Node 24 on CI is authoritative; if a hard-fail
+still remains, the gate advances to the next — fix iteratively.
