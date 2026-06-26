@@ -327,6 +327,9 @@ importers:
       '@zapengine/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@zapengine/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       lucide-react:
         specifier: 'catalog:'
         version: 0.523.0(react@19.2.7)

@@ -1,6 +1,7 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 
 import { AppShell } from '@/app/AppShell';
+import { InvestProvider } from '@/integration/useInvest';
 import { AccountScreen } from '@/routes/AccountScreen';
 import { ActivityScreen } from '@/routes/ActivityScreen';
 import { HomeScreen } from '@/routes/HomeScreen';
@@ -23,9 +24,17 @@ export function App() {
         <Route path="/strategy" element={<StrategyScreen />} />
         <Route path="/activity" element={<ActivityScreen />} />
         <Route path="/account" element={<AccountScreen />} />
-        <Route path="/invest/amount" element={<InvestAmountScreen />} />
-        <Route path="/invest/route" element={<InvestRouteScreen />} />
-        <Route path="/invest/confirm" element={<InvestConfirmScreen />} />
+        <Route
+          element={
+            <InvestProvider>
+              <Outlet />
+            </InvestProvider>
+          }
+        >
+          <Route path="/invest/amount" element={<InvestAmountScreen />} />
+          <Route path="/invest/route" element={<InvestRouteScreen />} />
+          <Route path="/invest/confirm" element={<InvestConfirmScreen />} />
+        </Route>
         <Route
           path="/invest"
           element={<Navigate to="/invest/amount" replace={true} />}

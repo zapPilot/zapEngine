@@ -1,3 +1,4 @@
+import type { DepositLeg } from '@zapengine/types/api';
 import { CheckCircle2, ChevronDown, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +9,32 @@ import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { CHAINS } from '@/data/mock';
+import { useAccount } from '@/integration/useAccount';
+import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
+import { useInvest } from '@/integration/useInvest';
+import { formatUsd } from '@/lib/format';
+
+/** Default connector label used until a plan resolves (matches the design). */
+const DEFAULT_ROUTE_STEPS = 'BRIDGE · SWAP · DEPOSIT';
+
+/**
+ * Derive the connector label from the plan's leg kinds. A bridge leg implies a
+ * cross-chain swap; a supply leg is the strategy deposit. Falls back to the
+ * design's label when the plan is unavailable or carries no legs.
+ */
+function routeStepsLabel(legs: DepositLeg[] | undefined): string {
+  if (!legs || legs.length === 0) {
+    return DEFAULT_ROUTE_STEPS;
+  }
+  const parts: string[] = [];
+  if (legs.some((leg) => leg.kind === 'bridge')) {
+    parts.push('BRIDGE', 'SWAP');
+  }
+  if (legs.some((leg) => leg.kind === 'supply')) {
+    parts.push('DEPOSIT');
+  }
+  return parts.length > 0 ? parts.join(' · ') : DEFAULT_ROUTE_STEPS;
+}
 
 const plainCardStyle = {
   background: 'rgba(255,255,255,.025)',
@@ -54,6 +81,20 @@ function SourceChip({ dotColor, label }: SourceChipProps) {
 /** Invest step 2/3 — route flow diagram, fees/time, simulation, steps. */
 export function InvestRouteScreen() {
   const navigate = useNavigate();
+  const { amountUsd, fromToken, fromAmount, sourceChainId } = useInvest();
+  const { address } = useAccount();
+  const { plan, isLoading } = useDepositPlanPreview({
+    address,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+    amountUsd,
+  });
+
+  // Drive what the plan can supply; keep calm placeholders while it loads and
+  // never crash on an error (the design's static copy stays).
+  const fromAmountLabel = isLoading ? '—' : formatUsd(amountUsd);
+  const stepsLabel = routeStepsLabel(plan?.legs);
 
   return (
     <div className="font-sans text-ink">
@@ -88,7 +129,7 @@ export function InvestRouteScreen() {
               className="text-[14px] font-semibold"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              $1,000.00
+              {fromAmountLabel}
             </span>
           </div>
           <div className="mt-[11px] flex gap-1.5">
@@ -111,7 +152,7 @@ export function InvestRouteScreen() {
               border: '1px solid rgba(212,197,163,.22)',
             }}
           >
-            BRIDGE · SWAP · DEPOSIT
+            {stepsLabel}
           </span>
           <div style={{ ...dashedConnectorStyle, height: 13 }} />
         </div>
@@ -195,6 +236,8 @@ export function InvestRouteScreen() {
               </div>
             </div>
           </div>
+          {/* NOTE(real-data): DepositPlan carries no net-receive figure
+              (only per-leg gas + min-out); keep the design's estimate. */}
           <div className="text-right">
             <div
               className="text-[15px] font-semibold text-accent"
@@ -210,6 +253,8 @@ export function InvestRouteScreen() {
       </div>
 
       {/* summary rows */}
+      {/* NOTE(real-data): fee/time/received use the design's estimates; the
+          plan's per-leg gasUsd/durationSec are not yet summed into the UI. */}
       <div className="mx-[22px] mt-[18px]">
         <InfoRow divider={true} label="Estimated network fee" value="≈ $2.40" />
         <InfoRow divider={true} label="Estimated time" value="~90 seconds" />

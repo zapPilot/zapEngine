@@ -11,7 +11,14 @@ import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MOCK } from '@/data/mock';
+import { useInvest } from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
+
+/** Parse the grouped display amount (e.g. "1,000.50") to a number. */
+function parseAmount(grouped: string): number {
+  const parsed = Number(grouped.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 const cardStyle = {
   background: 'rgba(255,255,255,.025)',
@@ -34,8 +41,14 @@ function groupAmount(raw: string): string {
 /** Invest step 1/3 — amount input, USD/Token toggle, source tokens, keypad. */
 export function InvestAmountScreen() {
   const navigate = useNavigate();
+  const { setAmountUsd } = useInvest();
   const [amount, setAmount] = useState('1,000');
   const [unit, setUnit] = useState<'USD' | 'Token'>('USD');
+
+  const handleReview = () => {
+    setAmountUsd(parseAmount(amount));
+    void navigate('/invest/route');
+  };
 
   const handleKey = (key: string) => {
     setAmount((current) => {
@@ -118,6 +131,8 @@ export function InvestAmountScreen() {
               className="text-[13.5px] font-semibold"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
+              {/* NOTE(real-data): useAccount exposes no balance source yet;
+                  show the design's portfolio total until a balances hook lands. */}
               {formatUsd(MOCK.home.totalBalance)}
             </span>
           </div>
@@ -154,7 +169,7 @@ export function InvestAmountScreen() {
       <NumericKeypad onKey={handleKey} />
 
       <div className="px-5 pt-1.5">
-        <PrimaryButton onClick={() => navigate('/invest/route')}>
+        <PrimaryButton onClick={handleReview}>
           Review route
           <ArrowGlyph />
         </PrimaryButton>

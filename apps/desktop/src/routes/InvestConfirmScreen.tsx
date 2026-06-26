@@ -1,3 +1,4 @@
+import { useInvestStrategy } from '@zapengine/app-core/hooks/useInvestStrategy';
 import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +9,8 @@ import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { ZapLogo } from '@/components/ui/ZapLogo';
+import { useInvest } from '@/integration/useInvest';
+import { formatUsd } from '@/lib/format';
 
 const STEPS = [
   'You sign once in your wallet',
@@ -18,6 +21,20 @@ const STEPS = [
 /** Invest step 3/3 — summary, what-happens-next, non-custodial, confirm. */
 export function InvestConfirmScreen() {
   const navigate = useNavigate();
+  const { amountUsd, fromToken, fromAmount, sourceChainId } = useInvest();
+  const { run, pending, lastError, getErrorMessage } = useInvestStrategy();
+
+  const handleConfirm = async () => {
+    try {
+      await run({ fromToken, fromAmount, sourceChainId });
+      void navigate('/activity');
+    } catch {
+      // The hook records the failure in `lastError`; surfaced below the CTA.
+      // The wallet sign step never moves funds without user approval.
+    }
+  };
+
+  const errorMessage = lastError ? getErrorMessage(lastError) : null;
 
   return (
     <div className="font-sans text-ink">
@@ -56,7 +73,7 @@ export function InvestConfirmScreen() {
             className="mt-1 font-serif"
             style={{ fontSize: 46, lineHeight: 1.05 }}
           >
-            $1,000.00
+            {formatUsd(amountUsd)}
           </div>
           <div className="mt-2.5 flex items-center gap-[9px]">
             <ArrowGlyph />
@@ -71,6 +88,8 @@ export function InvestConfirmScreen() {
             </span>
             <span className="text-[14px] font-semibold">Zap Strategy</span>
           </div>
+          {/* NOTE(real-data): expected-position + APY stay on the design's
+              estimates; the deposit plan exposes no projected yield. */}
           <div
             className="mt-4 flex pt-[14px]"
             style={{ borderTop: '1px solid rgba(255,255,255,.07)' }}
@@ -125,15 +144,26 @@ export function InvestConfirmScreen() {
       <div className="px-5 pt-[18px]">
         <PrimaryButton
           className="py-4 text-[16px] font-bold"
-          onClick={() => navigate('/home')}
+          disabled={pending}
+          onClick={() => void handleConfirm()}
+          style={pending ? { opacity: 0.7 } : undefined}
         >
           <Lock size={16} strokeWidth={2.2} />
-          Confirm &amp; Start
+          {pending ? 'Confirming…' : 'Confirm & Start'}
         </PrimaryButton>
-        <div className="mt-[11px] text-center text-[11.5px] text-ink-faint">
-          You&apos;ll approve this in your wallet · nothing is sent before you
-          sign
-        </div>
+        {errorMessage ? (
+          <div
+            className="mt-[11px] text-center text-[11.5px] text-error"
+            role="alert"
+          >
+            {errorMessage}
+          </div>
+        ) : (
+          <div className="mt-[11px] text-center text-[11.5px] text-ink-faint">
+            You&apos;ll approve this in your wallet · nothing is sent before you
+            sign
+          </div>
+        )}
         <button
           type="button"
           onClick={() => navigate('/home')}

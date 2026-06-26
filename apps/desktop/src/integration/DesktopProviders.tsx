@@ -4,13 +4,15 @@ import { QueryProvider } from '@zapengine/app-core/providers/QueryProvider';
 import { WalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import type { ReactNode } from 'react';
 
+import { SimulationPreviewModal } from '@/components/SimulationPreviewModal';
+
 /**
  * App-wide data providers for the desktop shell, sharing @zapengine/app-core's
  * React Query client + Privy wallet backend with the web frontend.
  *
  * Order mirrors the frontend's BundleProviders: QueryProvider → PrivyAuthProvider
- * → WalletProvider. The Tenderly simulation-preview render-prop is intentionally
- * omitted here and wired into the invest flow separately.
+ * → WalletProvider. WalletProvider's `renderSimulationPreview` render-prop is
+ * wired to the desktop's own on-brand `SimulationPreviewModal`.
  *
  * When `VITE_PRIVY_APP_ID` is missing, PrivyAuthProvider throws at import time;
  * we guard with `isPrivyEnabled()` and render a configuration notice instead of a
@@ -24,7 +26,13 @@ export function DesktopProviders({ children }: { children: ReactNode }) {
   return (
     <QueryProvider>
       <PrivyAuthProvider>
-        <WalletProvider>{children}</WalletProvider>
+        <WalletProvider
+          renderSimulationPreview={(props) => (
+            <SimulationPreviewModal {...props} />
+          )}
+        >
+          {children}
+        </WalletProvider>
       </PrivyAuthProvider>
     </QueryProvider>
   );
