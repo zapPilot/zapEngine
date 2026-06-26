@@ -26,7 +26,6 @@ DEV_ALLOWED_ORIGINS = (
     "http://localhost:3001",
     "http://localhost:5173",
     "http://localhost:8000",
-    "tauri://localhost",
 )
 LOCAL_CORS_HOSTS = {"localhost", "0.0.0.0", "::1"}
 
@@ -376,8 +375,9 @@ class Settings(BaseSettings):
         """Validate that origins are properly formatted URLs or localhost."""
         valid_origins = []
         for origin in v:
-            # Allow localhost and IP addresses for development
-            if origin.startswith(
+            # Allow localhost and IP addresses for development, plus the Tauri
+            # desktop webview origin (custom scheme, no port) used by apps/desktop.
+            if origin == "tauri://localhost" or origin.startswith(
                 (
                     "http://localhost:",
                     "https://localhost:",
