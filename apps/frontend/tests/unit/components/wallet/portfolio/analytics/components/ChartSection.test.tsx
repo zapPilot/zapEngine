@@ -2,10 +2,13 @@
  * Unit tests for ChartSection component
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import type {
+  AnalyticsData,
+  AnalyticsTimePeriod,
+} from '@zapengine/app-core/types/analytics';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChartSection } from '@/components/wallet/portfolio/analytics/components/ChartSection';
-import type { AnalyticsData, AnalyticsTimePeriod } from '@/types/analytics';
 
 // Mock the chart components
 vi.mock(

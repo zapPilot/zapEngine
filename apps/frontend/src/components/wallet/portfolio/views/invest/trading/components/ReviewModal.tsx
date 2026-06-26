@@ -1,3 +1,4 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { ArrowRight, Layers, LineChart, Zap } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
@@ -6,7 +7,6 @@ import {
   SubmittingState,
   TransactionModalHeader,
 } from '@/components/wallet/portfolio/modals/components/TransactionModalParts';
-import { cn } from '@/lib/ui/classNames';
 
 import {
   VariationImpact,

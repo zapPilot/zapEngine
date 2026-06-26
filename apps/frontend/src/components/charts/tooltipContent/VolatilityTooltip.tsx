@@ -2,12 +2,12 @@
  * VolatilityTooltip - Volatility with risk assessment
  */
 
-import type { VolatilityHoverData } from '@/types/ui/chartHover';
+import type { VolatilityHoverData } from '@zapengine/app-core/types/ui/chartHover';
 import {
   calculateDailyVolatility,
   getVolatilityRiskColor,
   getVolatilityRiskLevel,
-} from '@/utils/chartHoverUtils';
+} from '@zapengine/app-core/utils/chartHoverUtils';
 
 import { TooltipRow } from './TooltipRow';
 import { TooltipWrapper } from './TooltipWrapper';

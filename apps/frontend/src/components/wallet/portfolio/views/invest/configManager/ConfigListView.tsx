@@ -1,9 +1,8 @@
+import { useSetDefaultStrategyConfig } from '@zapengine/app-core/hooks/mutations';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import type { SavedStrategyConfig } from '@zapengine/app-core/types';
 import { Copy, Edit2, Lock, Plus, Star } from 'lucide-react';
 import { type ReactElement, useCallback, useMemo, useState } from 'react';
-
-import { useSetDefaultStrategyConfig } from '@/hooks/mutations';
-import { useToast } from '@/providers/ToastContext';
-import type { SavedStrategyConfig } from '@/types';
 
 import { SetDefaultConfirmModal } from './SetDefaultConfirmModal';
 

@@ -1,12 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   getRegimeFromSentiment,
   getRegimeFromStatus,
   REGIME_LABELS,
-} from '@/lib/domain/regimeMapper';
+} from '@zapengine/app-core/lib/domain/regimeMapper';
+import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 

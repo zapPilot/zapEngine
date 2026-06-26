@@ -1,4 +1,4 @@
-import { cn } from '@/lib/ui/classNames';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 
 import { MOCK_ROUTE } from './reviewModalPreviewData';
 

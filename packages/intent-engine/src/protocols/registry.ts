@@ -43,14 +43,6 @@ export interface VaultCatalogSource {
 
 export type VaultRegistry = readonly VaultCatalogSource[];
 
-export interface AprSource {
-  getApr(opts: VaultMeta): Promise<number | null>;
-}
-
-export interface TvlSource {
-  getTvlUsd(opts: VaultMeta): Promise<number | null>;
-}
-
 const MORPHO_CAPABILITIES = [
   'supply',
   'withdraw',

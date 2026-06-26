@@ -1,7 +1,6 @@
+import type { SavedStrategyConfig } from '@zapengine/app-core/types';
 import { AlertTriangle, ArrowLeft, Copy } from 'lucide-react';
 import type { ReactElement } from 'react';
-
-import type { SavedStrategyConfig } from '@/types';
 
 import { type ConfigEditorMode, getEditorTitle } from './configEditorShared';
 

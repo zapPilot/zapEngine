@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { useStrategyAdminConfig } from '@zapengine/app-core/hooks/queries/strategyAdmin/useStrategyAdminConfig';
+import { useStrategyAdminConfigs } from '@zapengine/app-core/hooks/queries/strategyAdmin/useStrategyAdminConfigs';
+import {
+  getStrategyAdminConfig,
+  getStrategyAdminConfigs,
+} from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useStrategyAdminConfig } from '@/hooks/queries/strategyAdmin/useStrategyAdminConfig';
-import { useStrategyAdminConfigs } from '@/hooks/queries/strategyAdmin/useStrategyAdminConfigs';
-import { getStrategyAdminConfig, getStrategyAdminConfigs } from '@/services';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
   return { ...actual, useQuery: vi.fn() };
 });
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   getStrategyAdminConfig: vi.fn(),
   getStrategyAdminConfigs: vi.fn(),
 }));

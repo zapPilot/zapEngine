@@ -1,17 +1,16 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import {
   _sampleTimelineData as sampleTimelineData,
   CHART_POINT_LIMIT,
   getBacktestingStrategiesV3,
   runBacktest,
-} from '@/services/backtestingService';
+} from '@zapengine/app-core/services/backtestingService';
 import type {
   BacktestExecution,
   BacktestRequest,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
+} from '@zapengine/app-core/types/backtesting';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type DecisionAction =
   BacktestTimelinePoint['strategies'][string]['decision']['action'];

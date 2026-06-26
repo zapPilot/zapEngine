@@ -1,6 +1,5 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/ui/classNames';
 
 interface ActionCardProps {
   title?: ReactNode;

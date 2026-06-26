@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   marketDashboardResponseSchema,
   validateMarketDashboardResponse,
-} from '@/schemas/api/analytics/dashboardSchemas';
+} from '@zapengine/app-core/schemas/api/analytics/dashboardSchemas';
+import { describe, expect, it } from 'vitest';
 
 describe('marketDashboardResponseSchema', () => {
   it('accepts a snapshot with btc / eth / eth_btc / fgi series', () => {

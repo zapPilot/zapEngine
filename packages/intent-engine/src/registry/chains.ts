@@ -17,6 +17,3 @@ export const NATIVE_TOKEN: Record<number, Address> = {
   [SUPPORTED_CHAINS.BASE]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
   [SUPPORTED_CHAINS.ARBITRUM]: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
 };
-
-export const LIFI_DIAMOND_ADDRESS =
-  '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' as Address;

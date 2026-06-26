@@ -1,12 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   buildInvestAllocationComparison,
   buildInvestAllocationEntries,
   EMPTY_INVEST_ALLOCATION,
   INVEST_ALLOCATION_BUCKETS,
   toInvestCompositionTarget,
-} from '@/components/wallet/regime/investAllocation';
+} from '@zapengine/app-core/regime';
+import { describe, expect, it } from 'vitest';
 
 describe('investAllocation', () => {
   it('defines a canonical two-bucket invest allocation', () => {

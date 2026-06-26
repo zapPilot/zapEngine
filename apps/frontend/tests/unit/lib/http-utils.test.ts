@@ -4,16 +4,6 @@
  */
 
 import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
-
-import {
   API_ENDPOINTS,
   APIError,
   handleHTTPError,
@@ -22,7 +12,16 @@ import {
   httpUtils,
   NetworkError,
   TimeoutError,
-} from '@/lib/http';
+} from '@zapengine/app-core/lib/http';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 // Preserve original fetch so we can restore after the suite runs
 const originalFetch = global.fetch;

@@ -1,5 +1,5 @@
-import { transactionServiceMock as depositTransactionService } from '@/services';
-import type { DepositModalProps } from '@/types/ui/ui.types';
+import { transactionServiceMock as depositTransactionService } from '@zapengine/app-core/services';
+import type { DepositModalProps } from '@zapengine/app-core/types/ui/ui.types';
 
 import { TransactionModalBase } from './base/TransactionModalBase';
 import * as modalDeps from './transactionModalDependencies';

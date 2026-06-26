@@ -1,18 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useBacktestConfiguration } from '@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration';
-import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
+import { useBacktestMutation } from '@zapengine/app-core/hooks/mutations/useBacktestMutation';
 import {
   getStrategyConfigs,
   type StrategyConfigsResponse,
-} from '@/services/strategyService';
+} from '@zapengine/app-core/services/strategyService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/strategyService', () => ({
+import { useBacktestConfiguration } from '@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration';
+
+vi.mock('@zapengine/app-core/services/strategyService', () => ({
   getStrategyConfigs: vi.fn(),
 }));
 
-vi.mock('@/hooks/mutations/useBacktestMutation', () => ({
+vi.mock('@zapengine/app-core/hooks/mutations/useBacktestMutation', () => ({
   useBacktestMutation: vi.fn(),
 }));
 

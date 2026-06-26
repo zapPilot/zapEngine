@@ -1,7 +1,7 @@
+import type { BacktestAssetAllocation } from '@zapengine/app-core/types/backtesting';
 import type { ReactElement } from 'react';
 
 import { UnifiedAllocationBar } from '@/components/wallet/portfolio/components/allocation';
-import type { BacktestAssetAllocation } from '@/types/backtesting';
 
 import { buildBacktestAllocationSegments } from '../backtestBuckets';
 import { getStrategyColor } from '../utils/strategyDisplay';

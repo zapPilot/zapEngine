@@ -1,6 +1,8 @@
+import {
+  getChainById,
+  getSupportedChains,
+} from '@zapengine/app-core/services/chainService.mock';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { getChainById, getSupportedChains } from '@/services/chainService.mock';
 
 describe('chainService', () => {
   beforeEach(() => {

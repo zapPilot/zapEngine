@@ -4,9 +4,8 @@
  * Tests for error message normalization and resolution utilities
  */
 
+import { resolveErrorMessage } from '@zapengine/app-core/lib/errors/errorFactory';
 import { describe, expect, it } from 'vitest';
-
-import { resolveErrorMessage } from '@/lib/errors/errorFactory';
 
 describe('resolveErrorMessage', () => {
   describe('with string sources', () => {

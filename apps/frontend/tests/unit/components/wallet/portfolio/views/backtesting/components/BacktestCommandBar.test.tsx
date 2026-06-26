@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BacktestCommandBar } from '@/components/wallet/portfolio/views/backtesting/components/BacktestCommandBar';
 
-vi.mock('@/hooks/ui/useClickOutside', () => ({
+vi.mock('@zapengine/app-core/hooks/ui/useClickOutside', () => ({
   useClickOutside: vi.fn(),
 }));
 

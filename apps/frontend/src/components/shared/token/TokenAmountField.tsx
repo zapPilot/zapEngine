@@ -1,8 +1,8 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import { formatCurrency, formatNumber } from '@zapengine/app-core/utils';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { NumericInput } from '@/components/ui/NumericInput';
-import { cn } from '@/lib/ui/classNames';
-import { formatCurrency, formatNumber } from '@/utils';
 
 type Denomination = 'usd' | 'token';
 

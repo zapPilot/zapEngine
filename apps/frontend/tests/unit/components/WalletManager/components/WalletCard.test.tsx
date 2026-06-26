@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import type { WalletOperations } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletCard } from '@/components/WalletManager/components/WalletCard';
-import type { WalletData } from '@/lib/validation/walletUtils';
-import type { WalletOperations } from '@/types';
 
 vi.mock('framer-motion', async () => {
   const { setupFramerMotionMocks } =
@@ -29,7 +29,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 // Mock animation variants
-vi.mock('@/lib/ui/animationVariants', () => ({
+vi.mock('@zapengine/app-core/lib/ui/animationVariants', () => ({
   fadeInUp: {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
@@ -38,7 +38,7 @@ vi.mock('@/lib/ui/animationVariants', () => ({
 }));
 
 // Mock formatAddress
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: (address: string) =>
     `${address.slice(0, 6)}...${address.slice(-4)}`,
 }));

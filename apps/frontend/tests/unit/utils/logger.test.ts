@@ -4,14 +4,13 @@
  * Tests for the centralized logging utility
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   Logger as LoggerClass,
   logger,
   LogLevel,
   walletLogger,
-} from '@/utils/logger';
+} from '@zapengine/app-core/utils/logger';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Logger', () => {
   let consoleDebugSpy: ReturnType<typeof vi.spyOn>;

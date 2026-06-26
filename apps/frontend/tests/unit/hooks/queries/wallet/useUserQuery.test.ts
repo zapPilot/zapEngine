@@ -17,15 +17,17 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   useCurrentUser,
   useUserById,
   useUserByWallet,
-} from '@/hooks/queries/wallet/useUserQuery';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import { connectWallet, getUserProfile } from '@/services/accountService';
+} from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import {
+  connectWallet,
+  getUserProfile,
+} from '@zapengine/app-core/services/accountService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -36,11 +38,11 @@ vi.mock('@tanstack/react-query', async () => {
   return { ...actual, useQuery: vi.fn() };
 });
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   connectWallet: vi.fn(),
   getUserProfile: vi.fn(),
 }));

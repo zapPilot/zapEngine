@@ -4,9 +4,6 @@
  * Tests for formatting utilities (currency, numbers, addresses, dates).
  */
 
-import dayjs from 'dayjs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   calculateDataFreshness,
   formatAddress,
@@ -15,8 +12,10 @@ import {
   formatNumber,
   formatRelativeTime,
   formatters,
-} from '@/utils/formatters';
-import { logger } from '@/utils/logger';
+} from '@zapengine/app-core/utils/formatters';
+import { logger } from '@zapengine/app-core/utils/logger';
+import dayjs from 'dayjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('formatCurrency', () => {
   describe('Basic formatting', () => {

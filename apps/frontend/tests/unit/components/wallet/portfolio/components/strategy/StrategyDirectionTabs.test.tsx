@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
+import { regimes } from '@zapengine/app-core/regime';
 import { describe, expect, it, vi } from 'vitest';
 
 import { StrategyDirectionTabs } from '@/components/wallet/portfolio/components/strategy/StrategyDirectionTabs';
-import { regimes } from '@/components/wallet/regime/regimeData';
 
 describe('StrategyDirectionTabs', () => {
   const mockOnSelectDirection = vi.fn();

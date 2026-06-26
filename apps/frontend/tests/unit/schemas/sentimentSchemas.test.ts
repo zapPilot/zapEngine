@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { ZodError } from 'zod';
-
 import {
   sentimentApiResponseSchema,
   validateSentimentApiResponse,
-} from '@/schemas/api/sentimentSchemas';
+} from '@zapengine/app-core/schemas/api/sentimentSchemas';
+import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 const BASE_SENTIMENT = {
   timestamp: '2025-12-04T00:00:00Z',

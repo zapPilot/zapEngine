@@ -1,16 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import type {
   AddWalletResponse,
   ConnectWalletResponse,
   UpdateEmailResponse,
   UserCryptoWallet,
   UserProfileResponse,
-} from '@/schemas/api/accountSchemas';
-import * as accountService from '@/services/accountService';
+} from '@zapengine/app-core/schemas/api/accountSchemas';
+import * as accountService from '@zapengine/app-core/services/accountService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     accountApi: {
       get: vi.fn(),

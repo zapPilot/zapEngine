@@ -1,4 +1,4 @@
-import type { TabType } from '@/types/portfolio';
+import type { TabType } from '@zapengine/app-core/types/portfolio';
 
 import { PORTFOLIO_TABS } from './portfolioNavigationConfig';
 import { WalletSearchNav } from './search/WalletSearchNav';

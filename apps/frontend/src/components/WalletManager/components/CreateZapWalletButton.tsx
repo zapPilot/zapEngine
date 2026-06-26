@@ -1,6 +1,5 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-
-import { WALLET_LABELS } from '@/constants/wallet';
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
 
 interface CreateZapWalletButtonProps {
   className?: string;

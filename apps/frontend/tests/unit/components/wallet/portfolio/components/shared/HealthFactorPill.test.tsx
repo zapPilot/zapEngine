@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { RiskMetrics } from '@zapengine/app-core/services/analyticsService';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HealthFactorPill } from '@/components/wallet/portfolio/components/shared/HealthFactorPill';
-import type { RiskMetrics } from '@/services/analyticsService';
 
 // Mock the hook
 vi.mock(

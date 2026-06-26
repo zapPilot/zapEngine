@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WalletMenu } from '@/components/wallet/portfolio/components/navigation/WalletMenu';
-import { WALLET_LABELS } from '@/constants/wallet';
 
 const mockConnect = vi.fn();
 const mockDisconnect = vi.fn();
@@ -29,11 +29,11 @@ async function flushMenuAction(action: () => void): Promise<void> {
   });
 }
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => mockWalletProviderState,
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: (addr: string) =>
     `${addr.substring(0, 6)}...${addr.slice(-4)}`,
 }));

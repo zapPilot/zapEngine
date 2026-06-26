@@ -5,8 +5,8 @@
  * enabling consistent visualization across Dashboard, Strategy, and Backtesting views.
  */
 
-import { UNIFIED_COLORS } from '@/constants/assets';
-import { getAllocationCategoryForToken } from '@/lib/domain/allocationCategories';
+import { UNIFIED_COLORS } from '@zapengine/app-core/constants/assets';
+import { getAllocationCategoryForToken } from '@zapengine/app-core/lib/domain/allocationCategories';
 
 import type {
   AssetAllocationSource,

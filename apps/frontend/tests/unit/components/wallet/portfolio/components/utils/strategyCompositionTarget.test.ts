@@ -1,7 +1,7 @@
+import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 import { describe, expect, it } from 'vitest';
 
 import { toCompositionTargetFromSuggestion } from '@/components/wallet/portfolio/components/utils/strategyCompositionTarget';
-import type { DailySuggestionResponse } from '@/types/strategy';
 
 function makeSuggestion(overrides?: {
   current?: DailySuggestionResponse['context']['portfolio']['asset_allocation'];

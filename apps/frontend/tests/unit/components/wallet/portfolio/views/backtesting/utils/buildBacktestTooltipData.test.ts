@@ -1,3 +1,9 @@
+import type {
+  BacktestBucket,
+  BacktestExecution,
+  BacktestTimelinePoint,
+  BacktestTransferMetadata,
+} from '@zapengine/app-core/types/backtesting';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -5,14 +11,8 @@ import type {
   BacktestTooltipProps,
 } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataTypes';
 import { buildBacktestTooltipData as buildBacktestTooltipDataRaw } from '@/components/wallet/portfolio/views/backtesting/utils/backtestTooltipDataUtils';
-import type {
-  BacktestBucket,
-  BacktestExecution,
-  BacktestTimelinePoint,
-  BacktestTransferMetadata,
-} from '@/types/backtesting';
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   formatCurrency: (value: number) => `$${Math.round(value).toLocaleString()}`,
 }));
 

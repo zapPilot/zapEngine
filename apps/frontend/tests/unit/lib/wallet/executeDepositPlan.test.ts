@@ -1,7 +1,6 @@
+import { executeDepositPlan } from '@zapengine/app-core/lib/wallet/executeDepositPlan';
 import type { DepositPlan } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { executeDepositPlan } from '@/lib/wallet/executeDepositPlan';
 
 const mocks = vi.hoisted(() => ({
   executeWithEIP7702: vi.fn(),
@@ -19,7 +18,7 @@ vi.mock('@zapengine/intent-engine', async (importOriginal) => {
   };
 });
 
-vi.mock('@/services/intentClient', () => ({
+vi.mock('@zapengine/app-core/services/intentClient', () => ({
   intentEngine: {
     executeWithEIP7702: mocks.executeWithEIP7702,
   },

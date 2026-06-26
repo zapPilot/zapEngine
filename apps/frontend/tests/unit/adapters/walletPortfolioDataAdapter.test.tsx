@@ -1,19 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   createEmptyPortfolioState,
   transformToWalletPortfolioData,
   transformToWalletPortfolioDataWithDirection,
-} from '@/adapters/walletPortfolioDataAdapter';
-import { GHOST_MODE_PREVIEW } from '@/constants/ghostModeData';
+} from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { GHOST_MODE_PREVIEW } from '@zapengine/app-core/constants/ghostModeData';
 import {
   LandingPageResponse,
   MarketSentimentData,
-} from '@/services/analyticsService';
-import { RegimeHistoryData } from '@/services/regimeHistoryService';
+} from '@zapengine/app-core/services/analyticsService';
+import { RegimeHistoryData } from '@zapengine/app-core/services/regimeHistoryService';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/adapters/portfolio/allocationAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/portfolio/allocationAdapter', () => ({
   calculateAllocation: vi.fn().mockReturnValue({
     crypto: 50,
     stable: 50,
@@ -23,7 +22,7 @@ vi.mock('@/adapters/portfolio/allocationAdapter', () => ({
   calculateDelta: vi.fn().mockReturnValue(0),
 }));
 
-vi.mock('@/adapters/portfolio/regimeAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/portfolio/regimeAdapter', () => ({
   getRegimeStrategyInfo: vi.fn().mockReturnValue({
     previousRegime: null,
     strategyDirection: 'default',
@@ -35,7 +34,7 @@ vi.mock('@/adapters/portfolio/regimeAdapter', () => ({
   }),
 }));
 
-vi.mock('@/adapters/portfolio/sentimentAdapter', () => ({
+vi.mock('@zapengine/app-core/adapters/portfolio/sentimentAdapter', () => ({
   processSentimentData: vi.fn().mockReturnValue({
     value: 50,
     status: 'Neutral',
@@ -44,15 +43,15 @@ vi.mock('@/adapters/portfolio/sentimentAdapter', () => ({
   }),
 }));
 
-vi.mock('@/constants/regimes', () => ({
+vi.mock('@zapengine/app-core/constants/regimes', () => ({
   getDefaultQuoteForRegime: vi.fn().mockReturnValue('Default Quote'),
 }));
 
-vi.mock('@/lib/domain/regimeMapper', () => ({
+vi.mock('@zapengine/app-core/lib/domain/regimeMapper', () => ({
   getRegimeFromStatus: vi.fn().mockReturnValue('neutral'),
 }));
 
-vi.mock('@/lib/portfolio/portfolioUtils', () => ({
+vi.mock('@zapengine/app-core/lib/portfolio/portfolioUtils', () => ({
   extractROIChanges: vi.fn().mockReturnValue({
     change7d: 0,
     change30d: 0,

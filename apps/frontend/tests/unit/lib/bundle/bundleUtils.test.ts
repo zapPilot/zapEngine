@@ -1,6 +1,8 @@
+import {
+  generateBundleUrl,
+  isOwnBundle,
+} from '@zapengine/app-core/lib/bundle/bundleUtils';
 import { describe, expect, it } from 'vitest';
-
-import { generateBundleUrl, isOwnBundle } from '@/lib/bundle/bundleUtils';
 
 describe('bundleUtils', () => {
   describe('generateBundleUrl', () => {

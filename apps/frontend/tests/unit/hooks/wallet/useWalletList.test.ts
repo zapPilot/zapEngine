@@ -1,16 +1,16 @@
+import { TIMINGS } from '@zapengine/app-core/constants/timings';
+import { useWalletList } from '@zapengine/app-core/hooks/wallet/useWalletList';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { TIMINGS } from '@/constants/timings';
-import { useWalletList } from '@/hooks/wallet/useWalletList';
-import type { WalletData } from '@/lib/validation/walletUtils';
 
 import { act, renderHook, waitFor } from '../../../test-utils';
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   loadWallets: vi.fn(),
 }));
 
-const { loadWallets: mockLoadWallets } = await import('@/services');
+const { loadWallets: mockLoadWallets } =
+  await import('@zapengine/app-core/services');
 
 const MOCK_WALLETS = [
   { address: '0xABC123', label: 'Main', isActive: false },

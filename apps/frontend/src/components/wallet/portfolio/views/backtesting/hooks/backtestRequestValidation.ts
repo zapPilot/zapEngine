@@ -1,7 +1,6 @@
+import type { BacktestRequest } from '@zapengine/app-core/types/backtesting';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
 import { z } from 'zod';
-
-import type { BacktestRequest } from '@/types/backtesting';
-import type { StrategyConfigsResponse } from '@/types/strategy';
 
 import { DCA_CLASSIC_STRATEGY_ID } from '../constants';
 

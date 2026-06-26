@@ -1,6 +1,3 @@
-import { describe, expect, it } from 'vitest';
-import { ZodError } from 'zod';
-
 import {
   dailyYieldReturnsResponseSchema,
   landingPageResponseSchema,
@@ -19,7 +16,9 @@ import {
   type YieldReturnsSummaryResponse,
   yieldReturnsSummaryResponseSchema,
   yieldWindowSummarySchema,
-} from '@/schemas/api/analyticsSchemas';
+} from '@zapengine/app-core/schemas/api/analyticsSchemas';
+import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 const assertAnalyticsSchemaExportTypes = <
   _TProtocolYieldToday extends ProtocolYieldToday,

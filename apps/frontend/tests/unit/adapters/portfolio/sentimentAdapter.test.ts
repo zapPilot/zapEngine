@@ -6,13 +6,12 @@
  * decoupling it from the raw sentiment 'value'.
  */
 
+import { processSentimentData } from '@zapengine/app-core/adapters/portfolio/sentimentAdapter';
+import type { MarketSentimentData } from '@zapengine/app-core/services/sentimentService';
 import { describe, expect, it, vi } from 'vitest';
 
-import { processSentimentData } from '@/adapters/portfolio/sentimentAdapter';
-import type { MarketSentimentData } from '@/services/sentimentService';
-
 // Mock dependencies
-vi.mock('@/constants/regimes', () => ({
+vi.mock('@zapengine/app-core/constants/regimes', () => ({
   getDefaultQuoteForRegime: vi.fn((regime) => `Default quote for ${regime}`),
 }));
 

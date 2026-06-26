@@ -7,10 +7,9 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
 import type { FC, PropsWithChildren } from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useSentimentData } from '@/hooks/queries/market/useSentimentQuery';
 
 // Mock HTTP utilities
 const httpUtilsMock = vi.hoisted(() => ({
@@ -32,7 +31,7 @@ const httpUtilsMock = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/http', () => httpUtilsMock);
+vi.mock('@zapengine/app-core/lib/http', () => httpUtilsMock);
 
 function resolveMockSentiment(value: number): string {
   if (value > 75) {
@@ -47,7 +46,7 @@ function resolveMockSentiment(value: number): string {
 }
 
 // Mock sentiment quotes
-vi.mock('@/config/sentimentQuotes', () => ({
+vi.mock('@zapengine/app-core/config/sentimentQuotes', () => ({
   getQuoteForSentiment: vi.fn((value: number) => ({
     quote: `Mock quote for ${value}`,
     author: 'Mock Author',
@@ -56,7 +55,7 @@ vi.mock('@/config/sentimentQuotes', () => ({
 }));
 
 // Mock logger
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     error: vi.fn(),
   },
@@ -86,10 +85,13 @@ const queryDefaultsMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/hooks/queries/queryDefaults', () => queryDefaultsMock);
+vi.mock(
+  '@zapengine/app-core/hooks/queries/queryDefaults',
+  () => queryDefaultsMock,
+);
 
 // Mock query keys
-vi.mock('@/lib/state/queryClient', () => ({
+vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
   queryKeys: {
     sentiment: {
       market: () => ['sentiment', 'market'],
@@ -98,23 +100,25 @@ vi.mock('@/lib/state/queryClient', () => ({
 }));
 
 // Mock schema validation - returns input by default
-vi.mock('@/schemas/api/sentimentSchemas', () => ({
+vi.mock('@zapengine/app-core/schemas/api/sentimentSchemas', () => ({
   validateSentimentApiResponse: vi.fn((data) => data),
 }));
 
 // Ensure we test the real service implementation
-vi.unmock('@/services/sentimentService');
+vi.unmock('@zapengine/app-core/services/sentimentService');
 
-type SentimentServiceModule = typeof import('@/services/sentimentService');
-type HttpUtilsModule = typeof import('@/lib/http');
+type SentimentServiceModule =
+  typeof import('@zapengine/app-core/services/sentimentService');
+type HttpUtilsModule = typeof import('@zapengine/app-core/lib/http');
 
 let _sentimentService: SentimentServiceModule;
 let httpUtils: HttpUtilsModule['httpUtils'];
 
 async function loadModules(): Promise<void> {
   vi.resetModules();
-  ({ httpUtils } = await import('@/lib/http'));
-  _sentimentService = await import('@/services/sentimentService');
+  ({ httpUtils } = await import('@zapengine/app-core/lib/http'));
+  _sentimentService =
+    await import('@zapengine/app-core/services/sentimentService');
 }
 
 function createWrapper(): FC<PropsWithChildren> {
@@ -218,7 +222,7 @@ describe('sentimentService', () => {
       };
 
       const { validateSentimentApiResponse } =
-        await import('@/schemas/api/sentimentSchemas');
+        await import('@zapengine/app-core/schemas/api/sentimentSchemas');
 
       vi.mocked(httpUtils.analyticsEngine.get).mockResolvedValue(
         mockApiResponse,
@@ -241,7 +245,8 @@ describe('sentimentService', () => {
   // indirectly through the 13 passing integration tests.
   describe('Error handling with createSentimentServiceError', () => {
     it('should handle 503 Service Unavailable errors with enhanced message', async () => {
-      const { logQueryError } = await import('@/hooks/queries/queryDefaults');
+      const { logQueryError } =
+        await import('@zapengine/app-core/hooks/queries/queryDefaults');
       const error503 = {
         status: 503,
         message: 'Service temporarily unavailable',
@@ -335,7 +340,8 @@ describe('sentimentService', () => {
     });
 
     it('should log errors with structured format', async () => {
-      const { logQueryError } = await import('@/hooks/queries/queryDefaults');
+      const { logQueryError } =
+        await import('@zapengine/app-core/hooks/queries/queryDefaults');
       const error = new Error('API failure');
 
       vi.mocked(httpUtils.analyticsEngine.get).mockRejectedValue(error);
@@ -543,7 +549,8 @@ describe('sentimentService', () => {
 
   describe('useSentimentData hook configuration', () => {
     it('should configure React Query with correct query key', async () => {
-      const { queryKeys } = await import('@/lib/state/queryClient');
+      const { queryKeys } =
+        await import('@zapengine/app-core/lib/state/queryClient');
       const expectedKey = queryKeys.sentiment.market();
 
       expect(expectedKey).toEqual(['sentiment', 'market']);
@@ -551,7 +558,7 @@ describe('sentimentService', () => {
 
     it('should use createQueryConfig for base configuration', async () => {
       const { createQueryConfig } =
-        await import('@/hooks/queries/queryDefaults');
+        await import('@zapengine/app-core/hooks/queries/queryDefaults');
 
       const mockApiResponse = {
         value: 50,

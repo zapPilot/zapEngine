@@ -19,6 +19,7 @@ const coverageThresholds = {
 } as const;
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
+const APP_CORE_SRC = path.resolve(__dirname, "../../packages/app-core/src");
 const PURE_ANNOTATION_WARNING =
   "contains an annotation that Rollup cannot interpret";
 
@@ -137,7 +138,20 @@ export default defineConfig(({ mode }) => ({
         ),
       },
     ],
-    dedupe: ["jayson", "uuid"],
+    // Force a single instance of React-context-bearing libs that
+    // @zapengine/app-core also imports. Under pnpm, app-core resolves its own
+    // (peer-closure-hashed) copy of @privy-io/react-auth; without dedupe the
+    // consumer and app-core hold separate instances, so PrivyProvider context
+    // (and vi.mock in tests) never reaches app-core's hooks.
+    dedupe: [
+      "jayson",
+      "uuid",
+      "@privy-io/react-auth",
+      "@tanstack/react-query",
+      "@tanstack/react-query-devtools",
+      "react",
+      "react-dom",
+    ],
   },
   build: {
     outDir: "dist",
@@ -158,6 +172,21 @@ export default defineConfig(({ mode }) => ({
     },
   },
   test: {
+    // Resolve @zapengine/app-core (and its internal @core/* alias) to SOURCE in
+    // tests. This keeps a single instance of shared deps (privy/viem) and makes
+    // vi.mock('@zapengine/app-core/...') resolve to the same source file the
+    // package imports internally, so intra-package mocks intercept correctly.
+    alias: [
+      {
+        find: /^@zapengine\/app-core$/,
+        replacement: `${APP_CORE_SRC}/index.ts`,
+      },
+      {
+        find: /^@zapengine\/app-core\/(.*)$/,
+        replacement: `${APP_CORE_SRC}/$1`,
+      },
+      { find: /^@core\/(.*)$/, replacement: `${APP_CORE_SRC}/$1` },
+    ],
     // Must stay "forks": under Vitest 4 the vmThreads pool freezes jsdom's
     // window.location into a non-configurable property, which breaks every
     // test that stubs location (Object.defineProperty/vi.stubGlobal throw

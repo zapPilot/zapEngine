@@ -35,7 +35,7 @@ vi.mock('@/components/charts/tooltipContent/TooltipRow', () => ({
   ),
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatters: { currency: (v: number) => `$${v.toFixed(2)}` },
 }));
 

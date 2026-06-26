@@ -39,11 +39,11 @@ vi.mock('@/components/ui', async () => {
   };
 });
 
-vi.mock('@/lib/ui/classNames', () => ({
+vi.mock('@zapengine/app-core/lib/ui/classNames', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/lib/ui/animationVariants', () => ({
+vi.mock('@zapengine/app-core/lib/ui/animationVariants', () => ({
   dropdownMenu: {},
 }));
 

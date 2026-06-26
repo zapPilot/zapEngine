@@ -1,6 +1,5 @@
+import { getAnalyticsStaleTime } from '@zapengine/app-core/lib/analytics/cacheConfig';
 import { describe, expect, it } from 'vitest';
-
-import { getAnalyticsStaleTime } from '@/lib/analytics/cacheConfig';
 
 describe('getAnalyticsStaleTime', () => {
   it('returns 0 when period changed', () => {

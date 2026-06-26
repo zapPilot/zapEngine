@@ -1,7 +1,6 @@
+import { Z_INDEX } from '@zapengine/app-core/constants/designSystem';
+import { ToastContext } from '@zapengine/app-core/providers/ToastContext';
 import { type ReactNode, useCallback, useState } from 'react';
-
-import { Z_INDEX } from '@/constants/designSystem';
-import { ToastContext } from '@/providers/ToastContext';
 
 import { Toast, ToastNotification } from '../components/ui/ToastNotification';
 
@@ -48,4 +47,4 @@ export function ToastProvider({ children }: ToastProviderProps) {
   );
 }
 
-export { useToast } from '@/providers/ToastContext';
+export { useToast } from '@zapengine/app-core/providers/ToastContext';

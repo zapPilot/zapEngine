@@ -62,7 +62,7 @@ vi.mock('@/lib/routing', () => {
 
 // Mock WalletProvider to prevent the wagmi → walletconnect → appkit → jayson
 // import chain which crashes Vitest with CJS/ESM interop errors.
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => null,
 }));
 
@@ -71,7 +71,7 @@ let mockIsConnected = false;
 let mockUserId: string | null = null;
 let mockEmail: string | undefined;
 let mockConnectedWallet: string | null = null;
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: () => ({
     userInfo: mockUserId ? { userId: mockUserId, email: mockEmail } : null,
     isConnected: mockIsConnected,

@@ -1,3 +1,13 @@
+import { getChainName } from '@zapengine/app-core/constants/chains';
+import { useTokenBalances } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
+import { useGmxDeposit } from '@zapengine/app-core/hooks/useGmxDeposit';
+import { useInvestStrategy } from '@zapengine/app-core/hooks/useInvestStrategy';
+import { useWithdraw } from '@zapengine/app-core/hooks/useWithdraw';
+import { isRuntimeMode } from '@zapengine/app-core/lib/env/runtimeEnv';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import { transactionServiceMock } from '@zapengine/app-core/services';
+import type { TransactionToken } from '@zapengine/app-core/types/domain/transaction';
+import { formatAddress } from '@zapengine/app-core/utils/formatting/address';
 import { type GmxV2MarketKey, MORPHO_VAULTS } from '@zapengine/intent-engine';
 import { Loader2 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
@@ -8,16 +18,6 @@ import { TokenAmountField, TokenSelectorList } from '@/components/shared/token';
 import { useTransactionForm } from '@/components/wallet/portfolio/modals/hooks/useTransactionForm';
 import { useTransactionSubmission } from '@/components/wallet/portfolio/modals/hooks/useTransactionSubmission';
 import { useWatchedTransactionData } from '@/components/wallet/portfolio/modals/hooks/useWatchedTransactionData';
-import { getChainName } from '@/constants/chains';
-import { useTokenBalances } from '@/hooks/queries/wallet/useTokenBalances';
-import { useGmxDeposit } from '@/hooks/useGmxDeposit';
-import { useInvestStrategy } from '@/hooks/useInvestStrategy';
-import { useWithdraw } from '@/hooks/useWithdraw';
-import { isRuntimeMode } from '@/lib/env/runtimeEnv';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import { transactionServiceMock } from '@/services';
-import type { TransactionToken } from '@/types/domain/transaction';
-import { formatAddress } from '@/utils/formatting/address';
 
 import { BaseTradingPanel } from './BaseTradingPanel';
 

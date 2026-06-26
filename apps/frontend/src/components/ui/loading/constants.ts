@@ -1,6 +1,5 @@
+import type { ComponentSize } from '@zapengine/app-core/types/ui/ui.types';
 import { type Transition } from 'framer-motion';
-
-import type { ComponentSize } from '@/types/ui/ui.types';
 
 export type LoadingColor =
   | 'primary'

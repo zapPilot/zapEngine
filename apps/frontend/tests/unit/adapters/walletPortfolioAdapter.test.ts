@@ -8,11 +8,10 @@
  * - Regime allocation edge cases
  */
 
+import { transformToWalletPortfolioData } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import type { LandingPageResponse } from '@zapengine/app-core/schemas/api/analyticsSchemas';
+import type { MarketSentimentData } from '@zapengine/app-core/services/sentimentService';
 import { describe, expect, it } from 'vitest';
-
-import { transformToWalletPortfolioData } from '@/adapters/walletPortfolioDataAdapter';
-import type { LandingPageResponse } from '@/schemas/api/analyticsSchemas';
-import type { MarketSentimentData } from '@/services/sentimentService';
 
 describe('walletPortfolioAdapter', () => {
   describe('transformToWalletPortfolioData', () => {

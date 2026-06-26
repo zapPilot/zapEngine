@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   buildDateRange,
   normalizeToScale,
   toDateKey,
-} from '@/lib/analytics/utils/dateUtils';
+} from '@zapengine/app-core/lib/analytics/utils/dateUtils';
+import { describe, expect, it } from 'vitest';
 
 describe('dateUtils', () => {
   describe('toDateKey', () => {

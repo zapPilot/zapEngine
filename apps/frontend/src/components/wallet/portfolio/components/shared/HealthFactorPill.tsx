@@ -1,8 +1,10 @@
+import {
+  getRiskConfig,
+  RiskLevel,
+} from '@zapengine/app-core/constants/riskThresholds';
+import type { RiskMetrics } from '@zapengine/app-core/services';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
-
-import { getRiskConfig, RiskLevel } from '@/constants/riskThresholds';
-import type { RiskMetrics } from '@/services';
 
 import { HealthRiskTooltip } from './HealthRiskTooltip';
 import { useTooltipPosition } from './useTooltipPosition';

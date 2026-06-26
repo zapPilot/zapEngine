@@ -1,6 +1,5 @@
+import type { ModalType } from '@zapengine/app-core/types/portfolio';
 import { useState } from 'react';
-
-import type { ModalType } from '@/types/portfolio';
 
 /**
  * Custom hook for managing portfolio modal state.

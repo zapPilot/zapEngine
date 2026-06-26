@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import { ASSET_CATEGORIES } from '@zapengine/app-core/constants/portfolio';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AllocationTooltip } from '@/components/charts/tooltipContent/AllocationTooltip';
-import { ASSET_CATEGORIES } from '@/constants/portfolio';
 
 // Mock child components
 vi.mock('@/components/charts/tooltipContent/TooltipWrapper', () => ({

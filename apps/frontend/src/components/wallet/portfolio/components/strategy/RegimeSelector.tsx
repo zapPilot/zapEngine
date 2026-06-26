@@ -1,4 +1,4 @@
-import type { Regime } from '@/components/wallet/regime/regimeData';
+import type { Regime } from '@zapengine/app-core/regime';
 
 interface RegimeSelectorProps {
   currentRegime: Regime | undefined;

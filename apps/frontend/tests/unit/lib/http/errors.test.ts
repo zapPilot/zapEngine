@@ -1,15 +1,14 @@
 /**
  * Unit tests for HTTP error classes and utilities
  */
-import { describe, expect, it } from 'vitest';
-
 import {
   APIError,
   NetworkError,
   parseErrorResponse,
   TimeoutError,
   toError,
-} from '@/lib/http/errors';
+} from '@zapengine/app-core/lib/http/errors';
+import { describe, expect, it } from 'vitest';
 
 describe('HTTP errors', () => {
   describe('APIError', () => {

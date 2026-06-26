@@ -8,7 +8,7 @@ import {
 import { ReactElement, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { ToastProvider } from '../src/providers/ToastProvider';
+import { ToastProvider } from '@/providers/ToastProvider';
 
 /**
  * Create a new QueryClient for each test to ensure test isolation
@@ -125,7 +125,7 @@ export { customRender as render, customRenderHook as renderHook };
  * ```typescript
  * import { mockFormatters } from 'tests/test-utils';
  *
- * vi.mock('@/utils/formatters', () => mockFormatters);
+ * vi.mock('@zapengine/app-core/utils/formatters', () => mockFormatters);
  * ```
  */
 export { mockFormatters, resetFormatterMocks } from './mocks/formatters';

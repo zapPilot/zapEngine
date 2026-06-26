@@ -1,6 +1,17 @@
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { getRegimeFromStatus } from '@zapengine/app-core/lib/domain/regimeMapper';
+import {
+  getRegimeAllocation,
+  type Regime,
+  regimes,
+  type RegimeStrategy,
+} from '@zapengine/app-core/regime';
+import type {
+  SectionState,
+  SentimentData,
+} from '@zapengine/app-core/types/portfolioProgressive';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import {
   determineActiveDirection,
   findRegimeById,
@@ -8,26 +19,18 @@ import {
   resolveEffectiveRegime,
   resolveTargetAllocation,
 } from '@/components/wallet/portfolio/components/strategy/strategyCardResolvers';
-import {
-  getRegimeAllocation,
-  type Regime,
-  regimes,
-  type RegimeStrategy,
-} from '@/components/wallet/regime/regimeData';
-import { getRegimeFromStatus } from '@/lib/domain/regimeMapper';
-import type { SectionState, SentimentData } from '@/types/portfolioProgressive';
 
-vi.mock('@/components/wallet/regime/regimeData', async () => {
+vi.mock('@zapengine/app-core/regime', async () => {
   const actual = await vi.importActual<
-    typeof import('@/components/wallet/regime/regimeData')
-  >('@/components/wallet/regime/regimeData');
+    typeof import('@zapengine/app-core/regime')
+  >('@zapengine/app-core/regime');
   return {
     ...actual,
     getRegimeAllocation: vi.fn(),
   };
 });
 
-vi.mock('@/lib/domain/regimeMapper', () => ({
+vi.mock('@zapengine/app-core/lib/domain/regimeMapper', () => ({
   getRegimeFromStatus: vi.fn(),
 }));
 

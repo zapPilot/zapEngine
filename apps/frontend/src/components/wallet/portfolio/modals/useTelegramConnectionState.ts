@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { extractErrorMessage } from '@/lib/errors';
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import {
   disconnectTelegram,
   getTelegramStatus,
   requestTelegramToken,
   type TelegramStatus,
-} from '@/services';
+} from '@zapengine/app-core/services';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_DURATION_MS = 120_000;

@@ -5,11 +5,9 @@
  * for URL query string construction.
  */
 
+import { buildAnalyticsQueryString } from '@zapengine/app-core/lib/analytics/queryStringUtils';
+import type { DashboardWindowParams } from '@zapengine/app-core/services/analyticsService';
 import { describe, expect, it } from 'vitest';
-
-import { buildAnalyticsQueryString } from '@/lib/analytics/queryStringUtils';
-
-import type { DashboardWindowParams } from '../../../src/services/analyticsService';
 
 describe('queryStringUtils', () => {
   describe('buildAnalyticsQueryString', () => {

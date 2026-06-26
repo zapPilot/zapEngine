@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { getMarketDashboardData } from '@zapengine/app-core/services/analyticsService';
 import { type ReactNode } from 'react';
 import { type Location, MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDashboardView } from '@/components/wallet/portfolio/views/invest/market/MarketDashboardView';
-import { getMarketDashboardData } from '@/services/analyticsService';
 
 // Captured callback handles populated by the mocked recharts components below.
 // Tests can invoke these directly to exercise formatter/activeDot logic that
@@ -161,7 +161,7 @@ vi.mock('recharts', async () => {
   };
 });
 
-vi.mock('@/services/analyticsService', () => ({
+vi.mock('@zapengine/app-core/services/analyticsService', () => ({
   getMarketDashboardData: vi.fn(),
 }));
 

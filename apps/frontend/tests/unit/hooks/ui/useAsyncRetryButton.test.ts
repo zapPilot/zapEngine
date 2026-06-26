@@ -1,7 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useAsyncRetryButton } from '@zapengine/app-core/hooks/ui/useAsyncRetryButton';
 import { describe, expect, it, vi } from 'vitest';
-
-import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
 
 describe('useAsyncRetryButton', () => {
   it('sets retrying while the retry promise is pending', async () => {

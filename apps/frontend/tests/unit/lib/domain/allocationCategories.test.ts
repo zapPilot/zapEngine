@@ -1,6 +1,5 @@
+import { getAllocationCategoryForToken } from '@zapengine/app-core/lib/domain/allocationCategories';
 import { describe, expect, it } from 'vitest';
-
-import { getAllocationCategoryForToken } from '@/lib/domain/allocationCategories';
 
 describe('getAllocationCategoryForToken', () => {
   it('routes SPY symbols to the SPY allocation category', () => {

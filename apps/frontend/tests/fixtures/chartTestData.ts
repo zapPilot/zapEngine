@@ -6,7 +6,7 @@
 import type {
   AssetAllocationPoint,
   PortfolioDataPoint,
-} from '@/types/portfolio';
+} from '@zapengine/app-core/types/portfolio';
 
 import {
   DrawdownDataPoint,

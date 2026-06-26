@@ -3,15 +3,15 @@
  */
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { AnalyticsViewContainer } from '@/components/wallet/portfolio/analytics/AnalyticsViewContainer';
-import { useAnalyticsData } from '@/hooks/queries/analytics/useAnalyticsData';
+import { useAnalyticsData } from '@zapengine/app-core/hooks/queries/analytics/useAnalyticsData';
 import {
   useCurrentUser,
   useUserById,
-} from '@/hooks/queries/wallet/useUserQuery';
-import { exportAnalyticsToCSV } from '@/services/analyticsExportService';
+} from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
+import { exportAnalyticsToCSV } from '@zapengine/app-core/services/analyticsExportService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AnalyticsViewContainer } from '@/components/wallet/portfolio/analytics/AnalyticsViewContainer';
 
 // Mock child components
 vi.mock('@/components/wallet/portfolio/analytics/AnalyticsView', () => ({
@@ -73,9 +73,9 @@ vi.mock(
 );
 
 // Mock hooks and services
-vi.mock('@/hooks/queries/analytics/useAnalyticsData');
-vi.mock('@/hooks/queries/wallet/useUserQuery');
-vi.mock('@/services/analyticsExportService');
+vi.mock('@zapengine/app-core/hooks/queries/analytics/useAnalyticsData');
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUserQuery');
+vi.mock('@zapengine/app-core/services/analyticsExportService');
 
 describe('AnalyticsViewContainer', () => {
   const mockRefetch = vi.fn();

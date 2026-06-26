@@ -1,7 +1,7 @@
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
 import { describe, expect, it } from 'vitest';
 
 import { resolveActionLabel } from '@/components/wallet/portfolio/modals/utils/actionLabelUtils';
-import { WALLET_LABELS } from '@/constants/wallet';
 
 interface ActionLabelInput {
   isConnected: boolean;

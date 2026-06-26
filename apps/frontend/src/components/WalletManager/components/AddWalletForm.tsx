@@ -1,10 +1,13 @@
+import {
+  ANIMATIONS,
+  GRADIENTS,
+} from '@zapengine/app-core/constants/designSystem';
+import type { NewWallet, WalletOperations } from '@zapengine/app-core/types';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { type ChangeEvent, type ReactElement } from 'react';
 
 import { GradientButton, LoadingSpinner } from '@/components/ui';
-import { ANIMATIONS, GRADIENTS } from '@/constants/designSystem';
-import type { NewWallet, WalletOperations } from '@/types';
 
 interface AddWalletFormProps {
   isAdding: boolean;

@@ -1,6 +1,5 @@
+import { isMember } from '@zapengine/app-core/lib/portfolio/routeStateShared';
 import { describe, expect, it } from 'vitest';
-
-import { isMember } from '@/lib/portfolio/routeStateShared';
 
 describe('isMember', () => {
   const values = ['dashboard', 'invest'] as const;

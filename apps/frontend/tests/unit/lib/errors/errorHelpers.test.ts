@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   createIntentServiceError,
   extractErrorCode,
@@ -8,11 +6,12 @@ import {
   isClientError,
   isRetryableError,
   isServerError,
-} from '@/lib/errors/errorHelpers';
+} from '@zapengine/app-core/lib/errors/errorHelpers';
 import {
   AccountServiceError,
   IntentServiceError,
-} from '@/lib/errors/ServiceError';
+} from '@zapengine/app-core/lib/errors/ServiceError';
+import { describe, expect, it } from 'vitest';
 
 describe('errorHelpers', () => {
   it('classifies client, server, and retryable errors from status', () => {

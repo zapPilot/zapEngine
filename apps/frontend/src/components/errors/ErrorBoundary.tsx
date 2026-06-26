@@ -1,8 +1,7 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import { isRuntimeMode } from '@zapengine/app-core/lib/env/runtimeEnv';
+import { logger } from '@zapengine/app-core/utils';
 import { Component, ErrorInfo, ReactNode } from 'react';
-
-import { GRADIENTS } from '@/constants/designSystem';
-import { isRuntimeMode } from '@/lib/env/runtimeEnv';
-import { logger } from '@/utils';
 
 import { BaseCard } from '../ui/BaseCard';
 import { GradientButton } from '../ui/GradientButton';

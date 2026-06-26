@@ -1,9 +1,16 @@
+import { Z_INDEX } from '@zapengine/app-core/constants/designSystem';
+import {
+  getRuntimeEnv,
+  isRuntimeMode,
+} from '@zapengine/app-core/lib/env/runtimeEnv';
+import {
+  type LogEntry,
+  logger,
+  LogLevel,
+} from '@zapengine/app-core/utils/logger';
 import { type ReactElement, useEffect, useState } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import { Z_INDEX } from '@/constants/designSystem';
-import { getRuntimeEnv, isRuntimeMode } from '@/lib/env/runtimeEnv';
-import { type LogEntry, logger, LogLevel } from '@/utils/logger';
 
 function LogData({ data }: { data: LogEntry['data'] }): ReactElement | null {
   if (!data) return null;

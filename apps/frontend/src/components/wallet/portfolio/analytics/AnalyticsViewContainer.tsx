@@ -5,18 +5,17 @@
  * Follows Container/Presentational pattern
  */
 
-import { type ReactElement, useEffect, useMemo, useState } from 'react';
-
-import { useAnalyticsData } from '@/hooks/queries/analytics/useAnalyticsData';
-import { useUserById } from '@/hooks/queries/wallet/useUserQuery';
-import { exportAnalyticsToCSV } from '@/services';
+import { useAnalyticsData } from '@zapengine/app-core/hooks/queries/analytics/useAnalyticsData';
+import { useUserById } from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
+import { exportAnalyticsToCSV } from '@zapengine/app-core/services';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   MetricData,
   WalletFilter,
   WalletOption,
-} from '@/types/analytics';
+} from '@zapengine/app-core/types/analytics';
+import { type ReactElement, useEffect, useMemo, useState } from 'react';
 
 import { AnalyticsView } from './AnalyticsView';
 import { AnalyticsErrorState } from './components/AnalyticsErrorState';

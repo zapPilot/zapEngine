@@ -1,6 +1,5 @@
+import { getStrategyTabLabel } from '@zapengine/app-core/regime';
 import { describe, expect, it } from 'vitest';
-
-import { getStrategyTabLabel } from '@/components/wallet/regime/strategyLabels';
 
 describe('getStrategyTabLabel', () => {
   it('returns directional labels for transitional regimes', () => {

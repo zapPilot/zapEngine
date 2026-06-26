@@ -1,0 +1,21 @@
+{
+  "format": ["typescript", "tsx"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/tests/**",
+    "**/*.d.ts",
+    "**/dist/**",
+    "**/coverage/**",
+    "src/config/chains/definitions.ts",
+    "src/hooks/wallet/usePrivyWalletBackend.ts",
+    "src/hooks/useGmxDeposit.ts",
+    "src/hooks/useWithdraw.ts"
+  ],
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s+type\\s*\\{[\\s\\S]*?\\}\\s*from\\s*['\"][^'\"]+['\"];?",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*['\"][^'\"]+['\"];?"
+  ]
+}

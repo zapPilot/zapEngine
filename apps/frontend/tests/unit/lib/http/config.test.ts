@@ -1,6 +1,8 @@
+import {
+  API_ENDPOINTS,
+  HTTP_CONFIG,
+} from '@zapengine/app-core/lib/http/config';
 import { describe, expect, it } from 'vitest';
-
-import { API_ENDPOINTS, HTTP_CONFIG } from '@/lib/http/config';
 
 describe('API_ENDPOINTS', () => {
   it('has an analyticsEngine field (string)', () => {

@@ -1,8 +1,7 @@
 import { act, waitFor } from '@testing-library/react';
+import { usePrivyWalletBackend } from '@zapengine/app-core/hooks/wallet/usePrivyWalletBackend';
 import { decodeFunctionData, erc20Abi } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { usePrivyWalletBackend } from '@/hooks/wallet/usePrivyWalletBackend';
 
 import { renderHook } from '../../../test-utils';
 
@@ -61,7 +60,7 @@ vi.mock('viem/actions', () => ({
   waitForCallsStatus: mocks.waitForCallsStatus,
 }));
 
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     accountApi: {
       post: mocks.accountApiPost,
@@ -69,7 +68,7 @@ vi.mock('@/lib/http', () => ({
   },
 }));
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   walletLogger: {
     info: mocks.walletInfo,
     error: mocks.walletError,

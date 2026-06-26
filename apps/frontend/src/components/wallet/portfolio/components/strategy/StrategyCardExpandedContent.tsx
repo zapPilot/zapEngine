@@ -1,9 +1,11 @@
+import { ANIMATIONS } from '@zapengine/app-core/constants/designSystem';
+import {
+  type Regime,
+  regimes,
+  type StrategyDirection,
+} from '@zapengine/app-core/regime';
 import { motion } from 'framer-motion';
 import type { ReactElement } from 'react';
-
-import { type Regime, regimes } from '@/components/wallet/regime/regimeData';
-import type { StrategyDirection } from '@/components/wallet/regime/strategyLabels';
-import { ANIMATIONS } from '@/constants/designSystem';
 
 import { RegimeSelector } from './RegimeSelector';
 import { StrategyAllocationDisplay } from './StrategyAllocationDisplay';

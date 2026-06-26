@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { WalletOption } from '@zapengine/app-core/types/analytics';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WalletFilterSelector } from '@/components/wallet/portfolio/analytics/components/WalletFilterSelector';
-import type { WalletOption } from '@/types/analytics';
 
 // Mock Lucide icons
 vi.mock('lucide-react', () => ({
@@ -14,7 +14,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Mock formatAddress utility
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: (address: string) => {
     // Simple mock: show first 6 and last 4 characters
     return `${address.slice(0, 6)}...${address.slice(-4)}`;

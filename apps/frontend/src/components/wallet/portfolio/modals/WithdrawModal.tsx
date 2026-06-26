@@ -1,12 +1,11 @@
-import { Coins, Layers } from 'lucide-react';
-import type { ReactNode } from 'react';
-
 import {
   type AssetCategoryKey,
   getCategoryForToken,
-} from '@/lib/domain/assetCategoryUtils';
-import { transactionServiceMock } from '@/services';
-import type { WithdrawModalProps } from '@/types/ui/ui.types';
+} from '@zapengine/app-core/lib/domain/assetCategoryUtils';
+import { transactionServiceMock } from '@zapengine/app-core/services';
+import type { WithdrawModalProps } from '@zapengine/app-core/types/ui/ui.types';
+import { Coins, Layers } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { TransactionModalBase } from './base/TransactionModalBase';
 import * as modalDeps from './transactionModalDependencies';

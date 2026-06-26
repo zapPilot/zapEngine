@@ -4,11 +4,10 @@
  * Shows portfolio performance over time
  */
 
-import { memo, useMemo } from 'react';
-
 // Shared chart imports are now loaded from ChartUI to prevent duplication
-import type { PerformanceHoverData } from '@/types/ui/chartHover';
-import { formatChartDate } from '@/utils/formatters';
+import type { PerformanceHoverData } from '@zapengine/app-core/types/ui/chartHover';
+import { formatChartDate } from '@zapengine/app-core/utils/formatters';
+import { memo, useMemo } from 'react';
 
 import {
   buildPath,

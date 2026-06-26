@@ -1,23 +1,26 @@
+import { useAccountDeletion } from '@zapengine/app-core/hooks/wallet/useAccountDeletion';
+import { useWalletLabels } from '@zapengine/app-core/hooks/wallet/useWalletLabels';
+import { useWalletList } from '@zapengine/app-core/hooks/wallet/useWalletList';
+import { useWalletMutations } from '@zapengine/app-core/hooks/wallet/useWalletMutations';
+import {
+  handleWalletError,
+  type WalletData,
+} from '@zapengine/app-core/lib/validation/walletUtils';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
+import type {
+  EditingWallet,
+  NewWallet,
+  WalletOperations,
+} from '@zapengine/app-core/types';
+import { copyTextToClipboard } from '@zapengine/app-core/utils/clipboard';
+import { formatAddress } from '@zapengine/app-core/utils/formatters';
 import {
   type Dispatch,
   type SetStateAction,
   useCallback,
   useState,
 } from 'react';
-
-import { useAccountDeletion } from '@/hooks/wallet/useAccountDeletion';
-import { useWalletLabels } from '@/hooks/wallet/useWalletLabels';
-import { useWalletList } from '@/hooks/wallet/useWalletList';
-import { useWalletMutations } from '@/hooks/wallet/useWalletMutations';
-import {
-  handleWalletError,
-  type WalletData,
-} from '@/lib/validation/walletUtils';
-import { useToast } from '@/providers/ToastContext';
-import { useWalletProvider } from '@/providers/WalletProvider';
-import type { EditingWallet, NewWallet, WalletOperations } from '@/types';
-import { copyTextToClipboard } from '@/utils/clipboard';
-import { formatAddress } from '@/utils/formatters';
 
 const EMPTY_CONNECTED_WALLETS: WalletData[] = [];
 

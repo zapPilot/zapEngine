@@ -2,8 +2,11 @@ import type {
   BacktestCompareConfigV3,
   BacktestRequest,
   BacktestStrategyCatalogEntryV3,
-} from '@/types/backtesting';
-import type { BacktestDefaults, StrategyPreset } from '@/types/strategy';
+} from '@zapengine/app-core/types/backtesting';
+import type {
+  BacktestDefaults,
+  StrategyPreset,
+} from '@zapengine/app-core/types/strategy';
 
 import {
   DCA_CLASSIC_STRATEGY_ID,

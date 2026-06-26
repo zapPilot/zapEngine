@@ -1,7 +1,6 @@
+import { txRequest } from '@zapengine/app-core/lib/wallet/txRequest';
 import type { Account } from 'viem';
 import { describe, expect, it } from 'vitest';
-
-import { txRequest } from '@/lib/wallet/txRequest';
 
 const account = {
   address: '0x1111111111111111111111111111111111111111',

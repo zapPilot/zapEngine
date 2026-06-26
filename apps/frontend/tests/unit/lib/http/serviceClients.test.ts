@@ -4,14 +4,13 @@
  * Tests for the pre-configured HTTP clients
  */
 
+// Import after mocking
+import * as methods from '@zapengine/app-core/lib/http/methods';
+import { httpUtils } from '@zapengine/app-core/lib/http/serviceClients';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Import after mocking
-import * as methods from '@/lib/http/methods';
-import { httpUtils } from '@/lib/http/serviceClients';
-
 // Mock the methods module
-vi.mock('@/lib/http/methods', () => ({
+vi.mock('@zapengine/app-core/lib/http/methods', () => ({
   httpGet: vi.fn(),
   httpPost: vi.fn(),
   httpPut: vi.fn(),

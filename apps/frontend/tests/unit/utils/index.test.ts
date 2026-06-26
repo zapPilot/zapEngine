@@ -1,11 +1,10 @@
+import * as utils from '@zapengine/app-core/utils';
+import * as chartHoverUtils from '@zapengine/app-core/utils/chartHoverUtils';
+import { copyTextToClipboard } from '@zapengine/app-core/utils/clipboard';
+import * as formatters from '@zapengine/app-core/utils/formatters';
+import { logger } from '@zapengine/app-core/utils/logger';
+import * as mathUtils from '@zapengine/app-core/utils/mathUtils';
 import { describe, expect, it } from 'vitest';
-
-import * as utils from '@/utils';
-import * as chartHoverUtils from '@/utils/chartHoverUtils';
-import { copyTextToClipboard } from '@/utils/clipboard';
-import * as formatters from '@/utils/formatters';
-import { logger } from '@/utils/logger';
-import * as mathUtils from '@/utils/mathUtils';
 
 describe('utils/index barrel export', () => {
   it('should export everything from formatters', () => {

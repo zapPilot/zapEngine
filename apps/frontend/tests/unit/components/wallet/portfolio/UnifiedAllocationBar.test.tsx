@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react';
+import { UNIFIED_COLORS } from '@zapengine/app-core/constants/assets';
 import { describe, expect, it } from 'vitest';
 
 import {
   UnifiedAllocationBar,
   type UnifiedSegment,
 } from '@/components/wallet/portfolio/components/allocation';
-import { UNIFIED_COLORS } from '@/constants/assets';
 
 const mockSegments: UnifiedSegment[] = [
   { category: 'btc', label: 'BTC', percentage: 40, color: UNIFIED_COLORS.BTC },

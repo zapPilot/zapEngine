@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   getDefaultQuoteForRegime,
   getRegimeColor,
@@ -10,11 +8,12 @@ import {
   REGIME_COLORS,
   REGIME_DISPLAY_CONFIG,
   REGIME_LABELS,
-} from '@/lib/domain/regime';
+} from '@zapengine/app-core/lib/domain/regime';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }));
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   logger: { warn: mockWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 

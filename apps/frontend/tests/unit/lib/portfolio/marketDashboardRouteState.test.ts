@@ -7,7 +7,7 @@ import {
 import {
   buildMarketDashboardSearchParams,
   readMarketDashboardRouteState,
-} from '@/lib/portfolio/marketDashboardRouteState';
+} from '@/components/wallet/portfolio/views/invest/market/sections/marketDashboardRouteState';
 
 function toSortedArray(values: ReadonlySet<MarketLineKey>): MarketLineKey[] {
   return [...values].sort();

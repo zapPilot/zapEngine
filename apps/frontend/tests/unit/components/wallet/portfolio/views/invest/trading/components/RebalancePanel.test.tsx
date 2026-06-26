@@ -58,7 +58,7 @@ vi.mock(
   }),
 );
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatCurrency: vi.fn((v: number) => `$${v.toFixed(2)}`),
 }));
 

@@ -1,6 +1,8 @@
+import {
+  buildPath,
+  CHART_GRID_POSITIONS,
+} from '@zapengine/app-core/lib/ui/chartPrimitives';
 import { describe, expect, it } from 'vitest';
-
-import { buildPath, CHART_GRID_POSITIONS } from '@/lib/ui/chartPrimitives';
 
 describe('buildPath', () => {
   it('returns a single coordinate for one point', () => {

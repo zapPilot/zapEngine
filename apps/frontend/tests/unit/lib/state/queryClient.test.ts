@@ -1,9 +1,11 @@
 /**
  * Unit tests for queryClient and queryKeys factory
  */
+import {
+  queryClient,
+  queryKeys,
+} from '@zapengine/app-core/lib/state/queryClient';
 import { describe, expect, it } from 'vitest';
-
-import { queryClient, queryKeys } from '@/lib/state/queryClient';
 
 describe('queryClient', () => {
   it('should be a QueryClient instance', () => {

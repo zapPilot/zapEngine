@@ -1,6 +1,5 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
 import { describe, expect, it } from 'vitest';
-
-import { GRADIENTS } from '@/constants/designSystem';
 
 describe('design system gradients', () => {
   it('maps primary surfaces to V2 token background utilities', () => {

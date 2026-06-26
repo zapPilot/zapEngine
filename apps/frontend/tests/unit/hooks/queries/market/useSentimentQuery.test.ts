@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
+import { fetchMarketSentiment } from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useSentimentData } from '@/hooks/queries/market/useSentimentQuery';
-import { fetchMarketSentiment } from '@/services';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
@@ -13,7 +12,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   fetchMarketSentiment: vi.fn(),
 }));
 

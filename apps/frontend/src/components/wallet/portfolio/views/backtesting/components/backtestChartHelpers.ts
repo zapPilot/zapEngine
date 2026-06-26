@@ -1,4 +1,4 @@
-import type { BacktestTimelinePoint } from '@/types/backtesting';
+import type { BacktestTimelinePoint } from '@zapengine/app-core/types/backtesting';
 
 import type {
   BacktestTooltipPayloadEntry,

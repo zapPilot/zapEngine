@@ -6,16 +6,15 @@
 // monthlyPnLQuery uses raw useQuery.
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
+import { useAnalyticsData } from '@zapengine/app-core/hooks/queries/analytics/useAnalyticsData';
+import * as AnalyticsTransformers from '@zapengine/app-core/lib/analytics/transformers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { usePortfolioDashboard } from '@/hooks/analytics/usePortfolioDashboard';
-import { useAnalyticsData } from '@/hooks/queries/analytics/useAnalyticsData';
-import * as AnalyticsTransformers from '@/lib/analytics/transformers';
-
 // Mock dependencies
-vi.mock('@/hooks/analytics/usePortfolioDashboard');
-vi.mock('@/services/analyticsService');
-vi.mock('@/lib/analytics/transformers', async () => {
+vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard');
+vi.mock('@zapengine/app-core/services/analyticsService');
+vi.mock('@zapengine/app-core/lib/analytics/transformers', async () => {
   return {
     aggregateMonthlyPnL: vi.fn(),
     calculateKeyMetrics: vi.fn(),
@@ -551,7 +550,7 @@ describe('useAnalyticsData', () => {
 
   it('queryFn calls getDailyYieldReturns with correct parameters when userId is defined', async () => {
     const { getDailyYieldReturns } =
-      await import('@/services/analyticsService');
+      await import('@zapengine/app-core/services/analyticsService');
     vi.mocked(getDailyYieldReturns as any).mockResolvedValue([]);
 
     vi.mocked(usePortfolioDashboard).mockReturnValue({
@@ -583,7 +582,7 @@ describe('useAnalyticsData', () => {
 
   it('queryFn passes wallet filter to getDailyYieldReturns', async () => {
     const { getDailyYieldReturns } =
-      await import('@/services/analyticsService');
+      await import('@zapengine/app-core/services/analyticsService');
     vi.mocked(getDailyYieldReturns as any).mockResolvedValue([]);
 
     vi.mocked(usePortfolioDashboard).mockReturnValue({
@@ -615,7 +614,7 @@ describe('useAnalyticsData', () => {
 
   it('queryFn converts null walletFilter to undefined for getDailyYieldReturns', async () => {
     const { getDailyYieldReturns } =
-      await import('@/services/analyticsService');
+      await import('@zapengine/app-core/services/analyticsService');
     vi.mocked(getDailyYieldReturns as any).mockResolvedValue([]);
 
     vi.mocked(usePortfolioDashboard).mockReturnValue({

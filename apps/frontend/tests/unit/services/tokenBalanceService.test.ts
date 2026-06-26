@@ -1,10 +1,9 @@
-import { erc20Abi } from 'viem';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   getOnChainTokenBalance,
   NATIVE_TOKEN_ADDRESS,
-} from '@/services/tokenBalanceService';
+} from '@zapengine/app-core/services/tokenBalanceService';
+import { erc20Abi } from 'viem';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockGetBalance,
@@ -18,7 +17,7 @@ const {
   mockReadContract: vi.fn(),
 }));
 
-vi.mock('@/services/intentClient', () => ({
+vi.mock('@zapengine/app-core/services/intentClient', () => ({
   getPublicClient: mockGetPublicClient,
   intentEngine: {
     getTokenPrice: mockGetTokenPrice,

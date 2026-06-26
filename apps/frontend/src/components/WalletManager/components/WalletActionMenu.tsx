@@ -1,14 +1,14 @@
-import { Copy, Edit3, ExternalLink, MoreVertical, Trash2 } from 'lucide-react';
-import { memo, type ReactElement } from 'react';
-
-import { Portal } from '@/components/ui/Portal';
-import { Z_INDEX } from '@/constants/designSystem';
-import type { WalletData } from '@/lib/validation/walletUtils';
+import { Z_INDEX } from '@zapengine/app-core/constants/designSystem';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
 import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from '@/types';
+} from '@zapengine/app-core/types';
+import { Copy, Edit3, ExternalLink, MoreVertical, Trash2 } from 'lucide-react';
+import { memo, type ReactElement } from 'react';
+
+import { Portal } from '@/components/ui/Portal';
 
 interface WalletActionMenuProps extends WalletMenuHandlers {
   wallet: WalletData;

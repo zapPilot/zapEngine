@@ -8,18 +8,27 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import { PortfolioComposition } from '@/components/wallet/portfolio/components/shared/PortfolioComposition';
 
-// Mock getRegimeAllocation to avoid deep dependency chain
-vi.mock('@/components/wallet/regime/regimeData', () => ({
-  getRegimeAllocation: vi.fn().mockReturnValue({
-    spot: 40,
-    stable: 60,
-  }),
-}));
+// Override getRegimeAllocation to avoid the deep dependency chain, but keep the
+// real toInvestCompositionTarget the component also imports from this barrel.
+// Pull it from the investAllocation module directly so we don't evaluate
+// regimeData (which imports lucide icons mocked away below).
+vi.mock('@zapengine/app-core/regime', async () => {
+  const { toInvestCompositionTarget } = await vi.importActual<
+    typeof import('@zapengine/app-core/regime/investAllocation')
+  >('@zapengine/app-core/regime/investAllocation');
+  return {
+    getRegimeAllocation: vi.fn().mockReturnValue({
+      spot: 40,
+      stable: 60,
+    }),
+    toInvestCompositionTarget,
+  };
+});
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -62,21 +71,24 @@ vi.mock('@/components/wallet/portfolio/views/DashboardSkeleton', () => ({
 }));
 
 // Mock useAllocationWeights to avoid QueryClient dependency
-vi.mock('@/hooks/queries/analytics/useAllocationWeights', () => ({
-  useAllocationWeights: vi.fn().mockReturnValue({
-    data: {
-      btc_weight: 0.6,
-      eth_weight: 0.4,
-      btc_market_cap: 1800000000000,
-      eth_market_cap: 400000000000,
-      timestamp: '2024-01-15T12:00:00Z',
-      is_fallback: false,
-      cached: false,
-    },
-    isLoading: false,
-    error: null,
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useAllocationWeights',
+  () => ({
+    useAllocationWeights: vi.fn().mockReturnValue({
+      data: {
+        btc_weight: 0.6,
+        eth_weight: 0.4,
+        btc_market_cap: 1800000000000,
+        eth_market_cap: 400000000000,
+        timestamp: '2024-01-15T12:00:00Z',
+        is_fallback: false,
+        cached: false,
+      },
+      isLoading: false,
+      error: null,
+    }),
   }),
-}));
+);
 
 const mockData: WalletPortfolioDataWithDirection = {
   totalBalance: 10000,

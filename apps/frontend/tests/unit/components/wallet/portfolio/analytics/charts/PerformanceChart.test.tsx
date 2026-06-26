@@ -1,8 +1,8 @@
 import { render } from '@testing-library/react';
+import type { ChartHoverState } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PerformanceChart } from '@/components/wallet/portfolio/analytics/charts/PerformanceChart';
-import type { ChartHoverState } from '@/types';
 
 // Capture callbacks from useChartHover options
 type BuildHoverDataFn = (
@@ -23,7 +23,7 @@ vi.mock('@/components/charts', () => ({
   ChartTooltip: () => <div data-testid="chart-tooltip" />,
 }));
 
-vi.mock('@/hooks/ui/useChartHover', () => ({
+vi.mock('@zapengine/app-core/hooks/ui/useChartHover', () => ({
   useChartHover: vi.fn(
     (
       _data: unknown,
@@ -40,11 +40,11 @@ vi.mock('@/hooks/ui/useChartHover', () => ({
   ),
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatChartDate: (date: string) => date,
 }));
 
-vi.mock('@/lib/ui/chartPrimitives', () => ({
+vi.mock('@zapengine/app-core/lib/ui/chartPrimitives', () => ({
   buildPath: (
     points: { x: number }[],
     width: number,

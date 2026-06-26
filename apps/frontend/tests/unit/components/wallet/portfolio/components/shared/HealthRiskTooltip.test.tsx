@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { RiskLevel } from '@zapengine/app-core/constants/riskThresholds';
+import type { RiskMetrics } from '@zapengine/app-core/services/analyticsService';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HealthRiskTooltip } from '@/components/wallet/portfolio/components/shared/HealthRiskTooltip';
-import { RiskLevel } from '@/constants/riskThresholds';
-import type { RiskMetrics } from '@/services/analyticsService';
 
 describe('HealthRiskTooltip', () => {
   const mockRiskMetrics: RiskMetrics = {

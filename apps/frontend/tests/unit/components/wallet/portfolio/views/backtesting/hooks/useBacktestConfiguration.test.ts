@@ -1,4 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useBacktestMutation } from '@zapengine/app-core/hooks/mutations/useBacktestMutation';
+import { getBacktestingStrategiesV3 } from '@zapengine/app-core/services/backtestingService';
+import { getStrategyConfigs } from '@zapengine/app-core/services/strategyService';
+import type { BacktestStrategyCatalogResponseV3 } from '@zapengine/app-core/types/backtesting';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,16 +11,12 @@ import {
   validateConfigsStrategyIdsAgainstCatalog,
 } from '@/components/wallet/portfolio/views/backtesting/hooks/backtestRequestValidation';
 import { useBacktestConfiguration } from '@/components/wallet/portfolio/views/backtesting/hooks/useBacktestConfiguration';
-import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
-import { getBacktestingStrategiesV3 } from '@/services/backtestingService';
-import { getStrategyConfigs } from '@/services/strategyService';
-import type { BacktestStrategyCatalogResponseV3 } from '@/types/backtesting';
 
 import { QueryClientWrapper } from '../../../../../../../test-utils';
 
-vi.mock('@/hooks/mutations/useBacktestMutation');
-vi.mock('@/services/backtestingService');
-vi.mock('@/services/strategyService');
+vi.mock('@zapengine/app-core/hooks/mutations/useBacktestMutation');
+vi.mock('@zapengine/app-core/services/backtestingService');
+vi.mock('@zapengine/app-core/services/strategyService');
 
 const mockRotationPresetParams = {
   signal: {

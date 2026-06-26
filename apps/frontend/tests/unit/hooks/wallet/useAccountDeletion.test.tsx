@@ -3,10 +3,9 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
+import { useAccountDeletion } from '@zapengine/app-core/hooks/wallet/useAccountDeletion';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useAccountDeletion } from '@/hooks/wallet/useAccountDeletion';
 
 // Use vi.hoisted for mocks
 const hoisted = vi.hoisted(() => ({
@@ -19,32 +18,32 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 // Mock dependencies
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   deleteUser: hoisted.mockDeleteUser,
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => ({ showToast: hoisted.mockShowToast }),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     disconnect: hoisted.mockDisconnect,
     isConnected: hoisted.mockIsConnected,
   }),
 }));
 
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: () => ({ refetch: hoisted.mockRefetch }),
 }));
 
-vi.mock('@/lib/validation/walletUtils', () => ({
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', () => ({
   handleWalletError: vi.fn((error: unknown) =>
     error instanceof Error ? error.message : 'Unknown error',
   ),
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   walletLogger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -52,11 +51,11 @@ vi.mock('@/utils/logger', () => ({
   },
 }));
 
-vi.mock('@/constants/timings', () => ({
+vi.mock('@zapengine/app-core/constants/timings', () => ({
   TIMINGS: { MODAL_CLOSE_DELAY: 100 },
 }));
 
-vi.mock('@/constants/wallet', () => ({
+vi.mock('@zapengine/app-core/constants/wallet', () => ({
   WALLET_MESSAGES: {
     DISCONNECT_WALLET: 'Disconnect Wallet',
     DELETION_FAILED: 'Deletion Failed',

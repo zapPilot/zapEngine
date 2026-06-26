@@ -1,14 +1,16 @@
-import { motion } from 'framer-motion';
-import { type ReactNode, type RefObject, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-
 import {
   mapBorrowingStatusToRiskLevel,
   RISK_DISPLAY_CONFIG,
   RiskLevel,
-} from '@/constants/riskThresholds';
-import { useBorrowingPositions } from '@/hooks/queries/analytics/useBorrowingPositions';
-import type { BorrowingPositionsResponse, BorrowingSummary } from '@/services';
+} from '@zapengine/app-core/constants/riskThresholds';
+import { useBorrowingPositions } from '@zapengine/app-core/hooks/queries/analytics/useBorrowingPositions';
+import type {
+  BorrowingPositionsResponse,
+  BorrowingSummary,
+} from '@zapengine/app-core/services';
+import { motion } from 'framer-motion';
+import { type ReactNode, type RefObject, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 import { BorrowingPositionsTooltip } from './BorrowingPositionsTooltip';
 import { useTooltipPosition } from './useTooltipPosition';

@@ -3,9 +3,8 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { useChainQuery } from '@zapengine/app-core/hooks/queries/wallet/useChainQuery';
 import { describe, expect, it, vi } from 'vitest';
-
-import { useChainQuery } from '@/hooks/queries/wallet/useChainQuery';
 
 // Create test query wrapper
 function createTestQueryWrapper() {
@@ -22,7 +21,7 @@ function createTestQueryWrapper() {
 }
 
 // Mock chainServiceMock
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   chainServiceMock: {
     getSupportedChains: vi.fn().mockResolvedValue([
       { chainId: 1, name: 'Ethereum', symbol: 'ETH' },

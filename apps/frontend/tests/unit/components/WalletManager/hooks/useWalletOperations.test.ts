@@ -1,27 +1,27 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useWalletOperations } from '@/components/WalletManager/hooks/useWalletOperations';
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useToast } from '@/providers/ToastContext';
-import { useWalletProvider } from '@/providers/WalletProvider';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import {
   addWallet as addWalletToBundle,
   loadWallets as fetchWallets,
   removeWallet as removeWalletFromBundle,
   updateManagedWalletLabel,
-} from '@/services';
+} from '@zapengine/app-core/services';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useWalletOperations } from '@/components/WalletManager/hooks/useWalletOperations';
 
 // Mock dependencies
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: vi.fn(),
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: vi.fn(),
 }));
 
@@ -35,7 +35,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   loadWallets: vi.fn(),
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
@@ -43,15 +43,15 @@ vi.mock('@/services', () => ({
   deleteUser: vi.fn(),
 }));
 
-vi.mock('@/hooks/utils/useQueryInvalidation', () => ({
+vi.mock('@zapengine/app-core/hooks/utils/useQueryInvalidation', () => ({
   invalidateAndRefetch: vi.fn(),
 }));
 
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   deleteUser: vi.fn(),
 }));
 
-vi.mock('@/utils/clipboard', () => ({
+vi.mock('@zapengine/app-core/utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(true),
 }));
 
@@ -326,7 +326,8 @@ describe('useWalletOperations', () => {
   });
 
   it('handleCopyAddress handles clipboard failure gracefully', async () => {
-    const { copyTextToClipboard } = await import('@/utils/clipboard');
+    const { copyTextToClipboard } =
+      await import('@zapengine/app-core/utils/clipboard');
     vi.mocked(copyTextToClipboard).mockResolvedValue(false);
 
     const { result } = renderHook(() => useWalletOperations(defaultParams));

@@ -1,9 +1,8 @@
+import { useBacktestMutation } from '@zapengine/app-core/hooks/mutations/useBacktestMutation';
+import { getStrategyConfigs } from '@zapengine/app-core/services';
+import type { BacktestRequest } from '@zapengine/app-core/types/backtesting';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-import { useBacktestMutation } from '@/hooks/mutations/useBacktestMutation';
-import { getStrategyConfigs } from '@/services';
-import type { BacktestRequest } from '@/types/backtesting';
-import type { StrategyConfigsResponse } from '@/types/strategy';
 
 import {
   DCA_CLASSIC_STRATEGY_ID,

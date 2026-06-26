@@ -1,6 +1,5 @@
+import { useClickOutside } from '@zapengine/app-core/hooks/ui/useClickOutside';
 import { type RefObject, useCallback, useRef, useState } from 'react';
-
-import { useClickOutside } from '@/hooks/ui/useClickOutside';
 
 export interface TransactionDropdownState {
   dropdownRef: RefObject<HTMLDivElement | null>;

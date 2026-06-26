@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { WalletOperations } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AddWalletForm } from '@/components/WalletManager/components/AddWalletForm';
-import type { WalletOperations } from '@/types';
 
 import {
   DEFAULT_NEW_WALLET,

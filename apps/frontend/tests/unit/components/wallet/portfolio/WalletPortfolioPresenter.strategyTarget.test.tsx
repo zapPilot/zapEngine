@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
+import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useDailySuggestion } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDailySuggestion';
 import { useDefaultPresetId } from '@/components/wallet/portfolio/views/invest/trading/hooks/useDefaultPresetId';
 import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
-import type { DailySuggestionResponse } from '@/types/strategy';
 
 import { MOCK_DATA } from '../../../../fixtures/mockPortfolioData';
 
@@ -25,7 +25,7 @@ vi.mock('@/lib/routing', () => ({
       : pathname,
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => ({ showToast: vi.fn() }),
   ToastContext: {
     Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

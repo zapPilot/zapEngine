@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { OperationState } from '@zapengine/app-core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EmailSubscription } from '@/components/WalletManager/components/EmailSubscription';
-import type { OperationState } from '@/types';
 
 describe('EmailSubscription', () => {
   const defaultSubscriptionOperation: OperationState = {

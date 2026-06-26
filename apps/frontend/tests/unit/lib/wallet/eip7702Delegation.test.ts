@@ -1,16 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   EIP7702_DELEGATES,
   inspectDelegation,
-} from '@/lib/wallet/eip7702Delegation';
+} from '@zapengine/app-core/lib/wallet/eip7702Delegation';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getPublicClient: vi.fn(),
   getCode: vi.fn(),
 }));
 
-vi.mock('@/services/intentClient', () => ({
+vi.mock('@zapengine/app-core/services/intentClient', () => ({
   getPublicClient: mocks.getPublicClient,
 }));
 

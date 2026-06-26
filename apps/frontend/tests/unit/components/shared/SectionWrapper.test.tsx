@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
+import type { SectionState } from '@zapengine/app-core/types/portfolioProgressive';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SectionWrapper } from '@/components/shared/SectionWrapper';
-import type { SectionState } from '@/types/portfolioProgressive';
 
 vi.mock('framer-motion', async () => {
   const { setupFramerMotionMocks } =

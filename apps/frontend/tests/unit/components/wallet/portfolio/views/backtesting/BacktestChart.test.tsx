@@ -106,8 +106,8 @@ vi.mock(
   }),
 );
 
-vi.mock('@/utils', async () => {
-  const actual = await vi.importActual('@/utils');
+vi.mock('@zapengine/app-core/utils', async () => {
+  const actual = await vi.importActual('@zapengine/app-core/utils');
   return {
     ...actual,
     formatChartAxisDate: (v: string) => v,

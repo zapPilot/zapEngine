@@ -14,22 +14,21 @@
  * 10. useUser returns string error from inner query
  */
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useUser } from '@/hooks/queries/wallet/useUser';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import {
   useCurrentUser,
   type UserInfo,
   userQueryKeys,
-} from '@/hooks/queries/wallet/useUserQuery';
+} from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Disable the global useUser mock from tests/setup/context-mocks.ts —
 // we want to exercise the real `useUser` implementation here.
 // (vi.unmock is hoisted by vitest, so position relative to imports is purely
 // a lint concern.)
-vi.unmock('@/hooks/queries/wallet/useUser');
+vi.unmock('@zapengine/app-core/hooks/queries/wallet/useUser');
 
-vi.mock('@/hooks/queries/wallet/useUserQuery', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUserQuery', () => ({
   useCurrentUser: vi.fn(),
   userQueryKeys: {
     all: ['user'] as const,

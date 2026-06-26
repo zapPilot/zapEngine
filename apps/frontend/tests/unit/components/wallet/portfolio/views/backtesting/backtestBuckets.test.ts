@@ -1,3 +1,4 @@
+import type { BacktestStrategyPoint } from '@zapengine/app-core/types/backtesting';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,7 +9,6 @@ import {
   isBacktestTransfer,
   resolveBacktestDisplayAllocation,
 } from '@/components/wallet/portfolio/views/backtesting/backtestBuckets';
-import type { BacktestStrategyPoint } from '@/types/backtesting';
 
 describe('backtestBuckets', () => {
   it('recognizes valid buckets only', () => {

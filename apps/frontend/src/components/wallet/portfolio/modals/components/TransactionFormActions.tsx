@@ -1,6 +1,5 @@
+import type { TransactionFormData } from '@zapengine/app-core/types/domain/transaction';
 import type { UseFormReturn } from 'react-hook-form';
-
-import type { TransactionFormData } from '@/types/domain/transaction';
 
 import { TransactionActionButton } from './TransactionActionButton';
 

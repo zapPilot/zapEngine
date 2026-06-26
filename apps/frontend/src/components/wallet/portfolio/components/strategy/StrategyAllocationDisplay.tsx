@@ -1,6 +1,7 @@
+import { buildInvestAllocationEntries } from '@zapengine/app-core/regime';
+import type { RegimeAllocationBreakdown } from '@zapengine/app-core/types/domain/allocation';
+
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { buildInvestAllocationEntries } from '@/components/wallet/regime/investAllocation';
-import type { RegimeAllocationBreakdown } from '@/types/domain/allocation';
 
 interface StrategyAllocationDisplayProps {
   targetAllocation: RegimeAllocationBreakdown;

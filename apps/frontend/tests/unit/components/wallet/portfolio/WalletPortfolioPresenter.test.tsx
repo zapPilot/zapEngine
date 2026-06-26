@@ -1,11 +1,11 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import { type RegimeId, regimes } from '@zapengine/app-core/regime';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
 import { WalletPortfolioPresenter } from '@/components/wallet/portfolio/WalletPortfolioPresenter';
-import { type RegimeId, regimes } from '@/components/wallet/regime/regimeData';
 
 import {
   MOCK_DATA,
@@ -113,7 +113,7 @@ vi.mock('@/lib/routing', () => ({
 }));
 
 // Mock useToast hook
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => ({
     showToast: vi.fn(),
     hideToast: vi.fn(),
@@ -213,7 +213,7 @@ vi.mock('@/components/wallet/portfolio/components/navigation', () => ({
 }));
 
 // Mock WalletProvider to prevent useWalletProvider error
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     connectedWallets: [],
     activeWallet: null,
@@ -226,21 +226,24 @@ vi.mock('@/providers/WalletProvider', () => ({
 }));
 
 // Mock useAllocationWeights to avoid QueryClient dependency
-vi.mock('@/hooks/queries/analytics/useAllocationWeights', () => ({
-  useAllocationWeights: vi.fn().mockReturnValue({
-    data: {
-      btc_weight: 0.6,
-      eth_weight: 0.4,
-      btc_market_cap: 1800000000000,
-      eth_market_cap: 400000000000,
-      timestamp: '2024-01-15T12:00:00Z',
-      is_fallback: false,
-      cached: false,
-    },
-    isLoading: false,
-    error: null,
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useAllocationWeights',
+  () => ({
+    useAllocationWeights: vi.fn().mockReturnValue({
+      data: {
+        btc_weight: 0.6,
+        eth_weight: 0.4,
+        btc_market_cap: 1800000000000,
+        eth_market_cap: 400000000000,
+        timestamp: '2024-01-15T12:00:00Z',
+        is_fallback: false,
+        cached: false,
+      },
+      isLoading: false,
+      error: null,
+    }),
   }),
-}));
+);
 
 beforeEach(() => {
   pushMock.mockReset();

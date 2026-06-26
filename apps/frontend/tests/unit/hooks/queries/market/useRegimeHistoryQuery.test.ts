@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
+import {
+  DEFAULT_REGIME_HISTORY,
+  fetchRegimeHistory,
+} from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useRegimeHistory } from '@/hooks/queries/market/useRegimeHistoryQuery';
-import { DEFAULT_REGIME_HISTORY, fetchRegimeHistory } from '@/services';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
@@ -13,7 +15,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   DEFAULT_REGIME_HISTORY: {
     currentRegime: 'n',
     previousRegime: null,

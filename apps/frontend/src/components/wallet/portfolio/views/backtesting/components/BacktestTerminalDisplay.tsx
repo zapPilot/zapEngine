@@ -1,10 +1,9 @@
-import { useCallback, useMemo } from 'react';
-
 import type {
   BacktestResponse,
   BacktestTimelinePoint,
-} from '@/types/backtesting';
-import type { StrategyConfigsResponse } from '@/types/strategy';
+} from '@zapengine/app-core/types/backtesting';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
+import { useCallback, useMemo } from 'react';
 
 import { FIXED_PACING_ENGINE_ID } from '../constants';
 import { buildCompareConfigForConfigId } from '../hooks/backtestConfigurationBuilders';

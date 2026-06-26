@@ -1,7 +1,6 @@
+import { getBarStyle } from '@zapengine/app-core/constants/assets';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { motion } from 'framer-motion';
-
-import { getBarStyle } from '@/constants/assets';
-import { cn } from '@/lib/ui/classNames';
 
 import { AllocationLegend } from './AllocationLegend';
 import type {

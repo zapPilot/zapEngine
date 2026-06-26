@@ -3,16 +3,15 @@
  *
  * Tests pure transformation functions for converting API responses into dashboard section data.
  */
-import { describe, expect, it } from 'vitest';
-
 import {
   combineStrategyData,
   extractBalanceData,
   extractCompositionData,
   extractSentimentData,
   isValidLandingData,
-} from '@/lib/portfolio/portfolioTransformers';
-import type { LandingPageResponse } from '@/services/analyticsService';
+} from '@zapengine/app-core/lib/portfolio/portfolioTransformers';
+import type { LandingPageResponse } from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it } from 'vitest';
 
 describe('portfolioTransformers', () => {
   // Sample landing page response for testing - matches actual schema

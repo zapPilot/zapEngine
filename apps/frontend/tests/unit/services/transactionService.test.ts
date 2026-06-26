@@ -1,5 +1,3 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   computeProjectedAllocation,
   getSupportedTokens,
@@ -7,7 +5,8 @@ import {
   simulateDeposit,
   simulateRebalance,
   simulateWithdraw,
-} from '@/services/transactionService.mock';
+} from '@zapengine/app-core/services/transactionService.mock';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('transactionService', () => {
   beforeEach(() => {

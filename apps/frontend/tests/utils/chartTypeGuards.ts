@@ -3,9 +3,8 @@
  * Provides type-safe assertions and domain-specific matchers
  */
 
+import type { ChartHoverState } from '@zapengine/app-core/types/chartHover';
 import { expect } from 'vitest';
-
-import type { ChartHoverState } from '@/types/chartHover';
 
 /**
  * Type guard to check if value is ChartHoverState

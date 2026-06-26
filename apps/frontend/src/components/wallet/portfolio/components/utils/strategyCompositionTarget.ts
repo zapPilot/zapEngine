@@ -1,5 +1,5 @@
-import { calculateDelta } from '@/adapters/portfolio/allocationAdapter';
-import type { DailySuggestionResponse } from '@/types/strategy';
+import { calculateDelta } from '@zapengine/app-core/adapters/portfolio/allocationAdapter';
+import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 
 export interface CompositionTarget {
   crypto: number;

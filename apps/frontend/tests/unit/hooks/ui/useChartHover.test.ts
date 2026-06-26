@@ -1,11 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
+import { useChartHover } from '@zapengine/app-core/hooks/ui/useChartHover';
+import type { ChartHoverState } from '@zapengine/app-core/types/ui/chartHover';
 import type { MouseEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useChartHover } from '@/hooks/ui/useChartHover';
-import type { ChartHoverState } from '@/types/ui/chartHover';
-
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
   },

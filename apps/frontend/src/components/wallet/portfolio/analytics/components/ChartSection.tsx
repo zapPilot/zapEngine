@@ -4,11 +4,14 @@
  * Main chart display with tabs and time period selector
  */
 
+import type {
+  AnalyticsData,
+  AnalyticsTimePeriod,
+} from '@zapengine/app-core/types/analytics';
 import { ArrowDownRight, TrendingUp } from 'lucide-react';
 import type { ElementType, ReactElement } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import type { AnalyticsData, AnalyticsTimePeriod } from '@/types/analytics';
 
 import { DrawdownChart } from '../charts/DrawdownChart';
 import { PerformanceChart } from '../charts/PerformanceChart';

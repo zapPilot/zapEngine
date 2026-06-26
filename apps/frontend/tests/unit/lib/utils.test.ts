@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   calculateDataFreshness,
   formatCurrency,
   formatNumber,
   formatRelativeTime,
-} from '../../../src/utils/formatters';
+} from '@zapengine/app-core/utils/formatters';
+import { describe, expect, it } from 'vitest';
 
 describe('formatters', () => {
   describe('formatCurrency', () => {

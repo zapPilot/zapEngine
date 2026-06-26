@@ -42,14 +42,14 @@ const mockGetTelegramStatus = vi.fn();
 const mockRequestTelegramToken = vi.fn();
 const mockDisconnectTelegram = vi.fn();
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   getTelegramStatus: (...args: unknown[]) => mockGetTelegramStatus(...args),
   requestTelegramToken: (...args: unknown[]) =>
     mockRequestTelegramToken(...args),
   disconnectTelegram: (...args: unknown[]) => mockDisconnectTelegram(...args),
 }));
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   extractErrorMessage: (err: unknown, fallback: string) => {
     if (err instanceof Error) return err.message;
     return fallback;

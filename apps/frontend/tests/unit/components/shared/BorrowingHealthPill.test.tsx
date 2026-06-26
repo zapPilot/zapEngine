@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { BorrowingSummary } from '@zapengine/app-core/services/analyticsService';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BorrowingHealthPill } from '@/components/wallet/portfolio/components/shared/BorrowingHealthPill';
-import type { BorrowingSummary } from '@/services/analyticsService';
 
 // Mock the BorrowingPositionsTooltip component since we're not testing its internals here
 vi.mock(
@@ -15,14 +15,17 @@ vi.mock(
 );
 
 // Mock useBorrowingPositions hook
-vi.mock('@/hooks/queries/analytics/useBorrowingPositions', () => ({
-  useBorrowingPositions: () => ({
-    data: { positions: [], total_collateral_usd: 0, total_debt_usd: 0 },
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useBorrowingPositions',
+  () => ({
+    useBorrowingPositions: () => ({
+      data: { positions: [], total_collateral_usd: 0, total_debt_usd: 0 },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    }),
   }),
-}));
+);
 
 describe('BorrowingHealthPill', () => {
   const mockSummary: BorrowingSummary = {

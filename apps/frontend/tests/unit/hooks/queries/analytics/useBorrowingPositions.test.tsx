@@ -1,14 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { useBorrowingPositions } from '@zapengine/app-core/hooks/queries/analytics/useBorrowingPositions';
+import { getBorrowingPositions } from '@zapengine/app-core/services/analyticsService';
+import { logger } from '@zapengine/app-core/utils/logger';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useBorrowingPositions } from '@/hooks/queries/analytics/useBorrowingPositions';
-import { getBorrowingPositions } from '@/services/analyticsService';
-import { logger } from '@/utils/logger';
-
-vi.mock('@/services/analyticsService');
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/services/analyticsService');
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 

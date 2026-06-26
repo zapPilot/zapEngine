@@ -1,9 +1,8 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import { InteractiveComponentProps } from '@zapengine/app-core/types/ui/ui.types';
 import { motion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 import { memo, type ReactElement, type ReactNode } from 'react';
-
-import { cn } from '@/lib/ui/classNames';
-import { InteractiveComponentProps } from '@/types/ui/ui.types';
 
 interface GradientButtonProps extends InteractiveComponentProps {
   children: ReactNode;

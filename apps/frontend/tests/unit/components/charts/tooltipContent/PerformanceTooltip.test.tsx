@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
+import type { PerformanceHoverData } from '@zapengine/app-core/types/ui/chartHover';
 import { describe, expect, it } from 'vitest';
 
 import { PerformanceTooltip } from '@/components/charts/tooltipContent/PerformanceTooltip';
 import { TooltipWrapper } from '@/components/charts/tooltipContent/TooltipWrapper';
-import type { PerformanceHoverData } from '@/types/ui/chartHover';
 
 describe('TooltipWrapper', () => {
   it('renders date and children', () => {

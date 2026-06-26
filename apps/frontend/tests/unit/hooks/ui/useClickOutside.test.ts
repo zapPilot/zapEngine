@@ -1,8 +1,7 @@
 import { renderHook } from '@testing-library/react';
+import { useClickOutside } from '@zapengine/app-core/hooks/ui/useClickOutside';
 import type { RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import { useClickOutside } from '@/hooks/ui/useClickOutside';
 
 function createElementRef(): RefObject<HTMLDivElement | null> {
   const element = document.createElement('div');

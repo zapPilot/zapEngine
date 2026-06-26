@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { ZodError } from 'zod';
-
 import {
   tokenBalanceRawSchema,
   validateWalletResponseData,
   walletResponseDataSchema,
-} from '@/schemas/api/balanceSchemas';
+} from '@zapengine/app-core/schemas/api/balanceSchemas';
+import { describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 describe('balanceSchemas', () => {
   describe('tokenBalanceRawSchema', () => {

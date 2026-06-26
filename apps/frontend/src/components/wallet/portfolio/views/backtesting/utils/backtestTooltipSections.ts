@@ -1,5 +1,5 @@
-import type { BacktestBucket } from '@/types/backtesting';
-import { formatCurrency } from '@/utils';
+import type { BacktestBucket } from '@zapengine/app-core/types/backtesting';
+import { formatCurrency } from '@zapengine/app-core/utils';
 
 import {
   getBacktestTransferDirection,

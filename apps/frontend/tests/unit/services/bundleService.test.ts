@@ -1,13 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   generateBundleUrl,
   getBundleUser,
   isOwnBundle,
-} from '@/services/bundleService';
+} from '@zapengine/app-core/services/bundleService';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatAddress: vi.fn((address: string) => `${address.slice(0, 6)}...`),
 }));
 

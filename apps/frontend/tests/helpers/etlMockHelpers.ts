@@ -19,9 +19,8 @@
  * ```
  */
 
+import type { ConnectWalletResponse } from '@zapengine/app-core/schemas/api/accountSchemas';
 import { vi } from 'vitest';
-
-import type { ConnectWalletResponse } from '@/schemas/api/accountSchemas';
 
 import {
   ETL_STATUS_COMPLETED,

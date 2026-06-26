@@ -4,16 +4,15 @@
  * Tests for wallet validation and transformation utilities
  */
 
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   handleWalletError,
   transformWalletData,
   validateWalletAddress,
-} from '@/lib/validation/walletUtils';
+} from '@zapengine/app-core/lib/validation/walletUtils';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   APIError: class APIError extends Error {
     name = 'APIError';
   },

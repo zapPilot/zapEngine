@@ -1,6 +1,5 @@
+import { getQuoteForSentiment } from '@zapengine/app-core/config/sentimentQuotes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { getQuoteForSentiment } from '@/config/sentimentQuotes';
 
 const randomMethod = 'random' as const;
 

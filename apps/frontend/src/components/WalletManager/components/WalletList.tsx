@@ -1,9 +1,9 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import type { NewWallet } from '@zapengine/app-core/types';
 import { Plus, Wallet } from 'lucide-react';
 
 import { GradientButton } from '@/components/ui';
-import { GRADIENTS } from '@/constants/designSystem';
-import type { WalletData } from '@/lib/validation/walletUtils';
-import type { NewWallet } from '@/types';
 
 import { useWalletList } from '../contexts/WalletListContext';
 import { AddWalletForm } from './AddWalletForm';

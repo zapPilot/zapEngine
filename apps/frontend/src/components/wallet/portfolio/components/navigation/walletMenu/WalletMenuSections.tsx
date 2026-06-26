@@ -1,7 +1,6 @@
+import { formatAddress } from '@zapengine/app-core/utils/formatters';
 import { Check, Copy, LogOut, Settings, Wallet } from 'lucide-react';
 import { type ReactElement } from 'react';
-
-import { formatAddress } from '@/utils/formatters';
 
 import type {
   CopyAddressButtonProps,

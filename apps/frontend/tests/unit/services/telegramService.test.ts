@@ -1,15 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import type {
   TelegramDisconnectResponse,
   TelegramStatus,
   TelegramTokenResponse,
-} from '@/services/telegramService';
-import * as telegramService from '@/services/telegramService';
+} from '@zapengine/app-core/services/telegramService';
+import * as telegramService from '@zapengine/app-core/services/telegramService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock HTTP utilities
-vi.mock('@/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', () => ({
   httpUtils: {
     accountApi: {
       get: vi.fn(),

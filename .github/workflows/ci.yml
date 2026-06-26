@@ -94,7 +94,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build core workspaces
-        run: pnpm run build core
+        run: pnpm turbo run build --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
 
       - name: Run check-variant tasks
         run: pnpm run verify ci
@@ -331,7 +331,7 @@ jobs:
         run: pnpm run coverage test
 
       - name: Coverage summary (workspace thresholds)
-        run: pnpm coverage summary
+        run: pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop' && pnpm exec tsx scripts/coverage-summary.ts
 
       - name: Upload coverage summary artifact
         if: always()

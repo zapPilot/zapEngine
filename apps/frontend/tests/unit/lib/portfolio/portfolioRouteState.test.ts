@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   buildPortfolioRouteSearchParams,
   readPortfolioRouteState,
-} from '@/lib/portfolio/portfolioRouteState';
+} from '@zapengine/app-core/lib/portfolio/portfolioRouteState';
+import { describe, expect, it } from 'vitest';
 
 describe('portfolioRouteState', () => {
   describe('readPortfolioRouteState', () => {

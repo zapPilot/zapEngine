@@ -1,4 +1,4 @@
-import { useWalletProvider } from '@/providers/WalletProvider';
+import { useWalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 
 import {
   type TransactionDropdownState,

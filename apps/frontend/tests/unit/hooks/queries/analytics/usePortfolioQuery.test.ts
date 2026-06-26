@@ -1,16 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery';
+import { getLandingPagePortfolioData } from '@zapengine/app-core/services/analyticsService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useLandingPageData } from '@/hooks/queries/analytics/usePortfolioQuery';
-import { getLandingPagePortfolioData } from '@/services/analyticsService';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
   return { ...actual, useQuery: vi.fn() };
 });
 
-vi.mock('@/services/analyticsService', () => ({
+vi.mock('@zapengine/app-core/services/analyticsService', () => ({
   getLandingPagePortfolioData: vi.fn(),
 }));
 

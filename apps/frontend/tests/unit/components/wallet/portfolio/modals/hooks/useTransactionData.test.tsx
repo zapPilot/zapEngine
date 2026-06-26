@@ -1,16 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { useChainQuery } from '@zapengine/app-core/hooks/queries/wallet/useChainQuery';
+import { useTokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalanceQuery';
+import { transactionServiceMock } from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useTransactionData } from '@/components/wallet/portfolio/modals/hooks/useTransactionData';
-import { useChainQuery } from '@/hooks/queries/wallet/useChainQuery';
-import { useTokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalanceQuery';
-import { transactionServiceMock } from '@/services';
 
 // Mock dependencies
-vi.mock('@/hooks/queries/wallet/useChainQuery');
-vi.mock('@/hooks/queries/wallet/useTokenBalanceQuery');
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useChainQuery');
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useTokenBalanceQuery');
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     getSupportedTokens: vi.fn(),
   },

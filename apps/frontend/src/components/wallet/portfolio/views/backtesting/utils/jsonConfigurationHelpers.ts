@@ -1,5 +1,5 @@
-import type { BacktestRequest } from '@/types/backtesting';
-import type { StrategyPreset } from '@/types/strategy';
+import type { BacktestRequest } from '@zapengine/app-core/types/backtesting';
+import type { StrategyPreset } from '@zapengine/app-core/types/strategy';
 
 import {
   DCA_CLASSIC_STRATEGY_ID,

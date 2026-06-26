@@ -1,7 +1,7 @@
+import type { TokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
 import { describe, expect, it } from 'vitest';
 
 import { TokenBalanceReadout } from '@/components/shared/token';
-import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
 
 import { render, screen } from '../../../../test-utils';
 

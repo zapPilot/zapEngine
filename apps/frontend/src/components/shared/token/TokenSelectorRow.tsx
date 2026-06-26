@@ -1,8 +1,7 @@
+import type { TokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import type { TransactionToken } from '@zapengine/app-core/types/domain/transaction';
 import { memo, type ReactElement, useCallback } from 'react';
-
-import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
-import { cn } from '@/lib/ui/classNames';
-import type { TransactionToken } from '@/types/domain/transaction';
 
 import { TokenBalanceReadout } from './TokenBalanceReadout';
 

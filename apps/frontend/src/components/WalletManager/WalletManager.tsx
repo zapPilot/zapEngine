@@ -1,3 +1,8 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useAsyncRetryButton } from '@zapengine/app-core/hooks/ui/useAsyncRetryButton';
+import type { WalletManagerProps } from '@zapengine/app-core/types';
+import { logger } from '@zapengine/app-core/utils';
 import { AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Wallet, X } from 'lucide-react';
 import { memo, type ReactElement, useCallback } from 'react';
@@ -5,11 +10,6 @@ import { memo, type ReactElement, useCallback } from 'react';
 import { BaseCard } from '@/components/ui';
 import { Skeleton } from '@/components/ui/LoadingSystem';
 import { ModalBackdrop } from '@/components/ui/modal';
-import { GRADIENTS } from '@/constants/designSystem';
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useAsyncRetryButton } from '@/hooks/ui/useAsyncRetryButton';
-import type { WalletManagerProps } from '@/types';
-import { logger } from '@/utils';
 
 import { DeleteAccountButton } from './components/DeleteAccountButton';
 import { EditWalletModal } from './components/EditWalletModal';

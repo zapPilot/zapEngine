@@ -1,6 +1,6 @@
-import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
-import { cn } from '@/lib/ui/classNames';
-import { formatCurrency, formatNumber } from '@/utils';
+import type { TokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import { formatCurrency, formatNumber } from '@zapengine/app-core/utils';
 
 export interface TokenBalanceReadoutProps {
   query: TokenBalanceQuery | undefined;

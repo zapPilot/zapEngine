@@ -1,11 +1,10 @@
+import type { InvestSubTab, TabType } from '@zapengine/app-core/types';
 import {
   BarChart3,
   FlaskConical,
   LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
-
-import type { InvestSubTab, TabType } from '@/types';
 
 interface PortfolioTabConfig {
   id: TabType;

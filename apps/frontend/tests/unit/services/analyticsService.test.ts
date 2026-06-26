@@ -10,9 +10,7 @@
  * - getMarketDashboardData (HTTP)
  */
 
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { httpUtils } from '@/lib/http';
+import { httpUtils } from '@zapengine/app-core/lib/http';
 import {
   getBorrowingPositions,
   getLandingPagePortfolioData,
@@ -20,7 +18,8 @@ import {
   getPortfolioDashboard,
   type LandingPageResponse,
   type UnifiedDashboardResponse,
-} from '@/services/analyticsService';
+} from '@zapengine/app-core/services/analyticsService';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const analyticsEngineGetSpy = vi.spyOn(httpUtils.analyticsEngine, 'get');
 
@@ -602,7 +601,7 @@ describe('analyticsService', () => {
 
       // Import dynamically to test
       const { getDailyYieldReturns } =
-        await import('../../../src/services/analyticsService');
+        await import('@zapengine/app-core/services/analyticsService');
       const result = await getDailyYieldReturns(testUserId);
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
@@ -620,7 +619,7 @@ describe('analyticsService', () => {
       analyticsEngineGetSpy.mockResolvedValue(mockResponse);
 
       const { getDailyYieldReturns } =
-        await import('../../../src/services/analyticsService');
+        await import('@zapengine/app-core/services/analyticsService');
       const result = await getDailyYieldReturns(testUserId, 7);
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
@@ -654,7 +653,7 @@ describe('analyticsService', () => {
       analyticsEngineGetSpy.mockResolvedValue(mockResponse);
 
       const { getDailyYieldReturns } =
-        await import('../../../src/services/analyticsService');
+        await import('@zapengine/app-core/services/analyticsService');
       const result = await getDailyYieldReturns(testUserId, 30, walletAddress);
 
       expect(analyticsEngineGetSpy).toHaveBeenCalledWith(
@@ -668,7 +667,7 @@ describe('analyticsService', () => {
       analyticsEngineGetSpy.mockRejectedValue(error);
 
       const { getDailyYieldReturns } =
-        await import('../../../src/services/analyticsService');
+        await import('@zapengine/app-core/services/analyticsService');
 
       await expect(getDailyYieldReturns(testUserId)).rejects.toThrow(
         'Failed to fetch yield data',

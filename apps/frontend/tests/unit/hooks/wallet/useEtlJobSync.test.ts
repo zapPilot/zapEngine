@@ -1,9 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { act } from '@testing-library/react';
+import type { EtlJobPollingState } from '@zapengine/app-core/hooks/wallet/useEtlJobPolling';
+import { useEtlJobSync } from '@zapengine/app-core/hooks/wallet/useEtlJobSync';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { EtlJobPollingState } from '@/hooks/wallet/useEtlJobPolling';
-import { useEtlJobSync } from '@/hooks/wallet/useEtlJobSync';
 import type { AppRouterLike } from '@/lib/routing';
 
 import { renderHook } from '../../../test-utils';

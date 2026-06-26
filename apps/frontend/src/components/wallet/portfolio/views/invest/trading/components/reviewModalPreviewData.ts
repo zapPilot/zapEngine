@@ -1,6 +1,5 @@
+import { buildInvestAllocationComparison } from '@zapengine/app-core/regime';
 import { Cpu, Globe, ShieldCheck, Zap } from 'lucide-react';
-
-import { buildInvestAllocationComparison } from '@/components/wallet/regime/investAllocation';
 
 export const MOCK_STRATEGY = {
   regime: {

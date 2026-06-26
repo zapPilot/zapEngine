@@ -1,5 +1,5 @@
-import type { WalletPortfolioDataWithDirection } from '@/adapters/walletPortfolioDataAdapter';
-import type { RegimeId } from '@/components/wallet/regime/regimeData';
+import type { WalletPortfolioDataWithDirection } from '@zapengine/app-core/adapters/walletPortfolioDataAdapter';
+import type { RegimeId } from '@zapengine/app-core/regime';
 
 const BASE_ALLOCATION = {
   crypto: 65,

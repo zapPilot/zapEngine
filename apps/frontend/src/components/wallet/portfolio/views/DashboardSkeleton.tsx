@@ -5,6 +5,8 @@
  * while only using pulsing placeholders for dynamic data (numbers, charts)
  */
 
+import { ASSET_COLORS } from '@zapengine/app-core/constants/assets';
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -14,8 +16,6 @@ import {
 } from 'lucide-react';
 
 import { GradientButton } from '@/components/ui';
-import { ASSET_COLORS } from '@/constants/assets';
-import { GRADIENTS } from '@/constants/designSystem';
 
 import { AllocationLegend } from '../components/allocation/AllocationLegend';
 

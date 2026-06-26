@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   getRegimeConfig,
   REGIME_DISPLAY_CONFIG,
-} from '@/constants/regimeDisplay';
+} from '@zapengine/app-core/constants/regimeDisplay';
+import { describe, expect, it } from 'vitest';
 
 describe('regimeDisplay', () => {
   describe('REGIME_DISPLAY_CONFIG', () => {

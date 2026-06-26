@@ -1,0 +1,62 @@
+/**
+ * Wallet Utility Functions
+ * Validation, transformation, and error handling for wallet operations
+ */
+
+import { APIError, handleHTTPError } from '@core/lib/http';
+import type { UserCryptoWallet } from '@core/schemas/api/accountSchemas';
+import { isWalletAddress } from '@zapengine/types';
+
+export interface WalletData {
+  id: string;
+  address: string;
+  label: string;
+  isMain: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/**
+ * Validate wallet address format
+ */
+export function validateWalletAddress(address: string): boolean {
+  return isWalletAddress(address);
+}
+
+function toWalletData(wallet: UserCryptoWallet): WalletData {
+  return {
+    id: wallet.id,
+    address: wallet.wallet,
+    label: wallet.label || 'Wallet',
+    isMain: false,
+    isActive: false,
+    createdAt: wallet.created_at,
+  };
+}
+
+/**
+ * Transform UserCryptoWallet to component-friendly format
+ * Maintains compatibility with existing WalletManager component structure
+ */
+export function transformWalletData(wallets: UserCryptoWallet[]): WalletData[] {
+  return wallets.map((wallet) => toWalletData(wallet));
+}
+
+function isWalletApiError(error: unknown): boolean {
+  return (
+    error instanceof APIError ||
+    (error instanceof Error &&
+      (error.name === 'APIError' || error.name === 'AccountServiceError'))
+  );
+}
+
+/**
+ * Error handling specific to wallet operations
+ */
+export function handleWalletError(error: unknown): string {
+  if (isWalletApiError(error)) {
+    return (error as Error).message;
+  }
+
+  return handleHTTPError(error);
+}

@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   dropdownMenu,
   fadeInOut,
   fadeInUp,
   SMOOTH_TRANSITION,
-} from '@/lib/ui/animationVariants';
+} from '@zapengine/app-core/lib/ui/animationVariants';
+import { describe, expect, it } from 'vitest';
 
 describe('animationVariants', () => {
   describe('SMOOTH_TRANSITION', () => {

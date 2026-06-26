@@ -1,13 +1,12 @@
 import { renderHook } from '@testing-library/react';
+import { useWalletLabels } from '@zapengine/app-core/hooks/wallet/useWalletLabels';
+import * as validation from '@zapengine/app-core/lib/validation/walletUtils';
+import * as WalletService from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useWalletLabels } from '@/hooks/wallet/useWalletLabels';
-import * as validation from '@/lib/validation/walletUtils';
-import * as WalletService from '@/services';
-
 // Mock dependencies
-vi.mock('@/services');
-vi.mock('@/lib/validation/walletUtils');
+vi.mock('@zapengine/app-core/services');
+vi.mock('@zapengine/app-core/lib/validation/walletUtils');
 
 describe('useWalletLabels', () => {
   const mockSetWallets = vi.fn();

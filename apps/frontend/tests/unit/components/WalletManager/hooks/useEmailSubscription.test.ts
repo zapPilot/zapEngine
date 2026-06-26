@@ -1,33 +1,36 @@
 import { act, renderHook } from '@testing-library/react';
+import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
+import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import {
+  unsubscribeUserEmail,
+  updateUserEmailSubscription,
+} from '@zapengine/app-core/services';
+import { validateEmail } from '@zapengine/app-core/utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useEmailSubscription } from '@/components/WalletManager/hooks/useEmailSubscription';
-import { useUser } from '@/hooks/queries/wallet/useUser';
-import { useToast } from '@/providers/ToastContext';
-import { unsubscribeUserEmail, updateUserEmailSubscription } from '@/services';
-import { validateEmail } from '@/utils';
 
 // Mock dependencies
-vi.mock('@/hooks/queries/wallet/useUser', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/wallet/useUser', () => ({
   useUser: vi.fn(),
 }));
 
-vi.mock('@/providers/ToastContext', () => ({
+vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: vi.fn(),
 }));
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   updateUserEmailSubscription: vi.fn(),
   unsubscribeUserEmail: vi.fn(),
 }));
 
 // Mock validation
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   validateEmail: vi.fn(),
 }));
 
 // Mock wallet error handler
-vi.mock('@/lib/validation/walletUtils', () => ({
+vi.mock('@zapengine/app-core/lib/validation/walletUtils', () => ({
   handleWalletError: vi.fn((error: unknown) => {
     if (error instanceof Error) {
       return error.message;
@@ -42,7 +45,7 @@ let mockSetSuccess: ReturnType<typeof vi.fn>;
 let mockSetError: ReturnType<typeof vi.fn>;
 
 // Mock useOperationStateHandlers
-vi.mock('@/hooks/utils/useOperationState', () => ({
+vi.mock('@zapengine/app-core/hooks/utils/useOperationState', () => ({
   useOperationStateHandlers: () => ({
     setLoading: mockSetLoading,
     setSuccess: mockSetSuccess,

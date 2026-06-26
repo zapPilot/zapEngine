@@ -1,3 +1,8 @@
+import type {
+  BacktestAssetAllocation,
+  BacktestStrategyPoint,
+  BacktestTimelinePoint,
+} from '@zapengine/app-core/types/backtesting';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,11 +19,6 @@ import {
   sortStrategyIds,
 } from '@/components/wallet/portfolio/views/backtesting/utils/chartHelpers';
 import { getBacktestSpotAssetColor } from '@/components/wallet/portfolio/views/backtesting/utils/spotAssetDisplay';
-import type {
-  BacktestAssetAllocation,
-  BacktestStrategyPoint,
-  BacktestTimelinePoint,
-} from '@/types/backtesting';
 
 function allocation(
   btc: number,

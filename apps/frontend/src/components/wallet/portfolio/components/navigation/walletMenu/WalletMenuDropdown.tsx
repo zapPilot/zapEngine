@@ -1,7 +1,6 @@
+import { dropdownMenu } from '@zapengine/app-core/lib/ui/animationVariants';
 import { motion } from 'framer-motion';
 import { type ReactElement } from 'react';
-
-import { dropdownMenu } from '@/lib/ui/animationVariants';
 
 import type { WalletMenuDropdownProps, WalletSectionCopyProps } from './types';
 import { WalletSingleWalletSection } from './WalletMenuSections';

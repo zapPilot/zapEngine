@@ -1,6 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-
-import { logger } from '@/utils';
+import { logger } from '@zapengine/app-core/utils';
 
 export interface ConnectedWalletItem {
   address: string;

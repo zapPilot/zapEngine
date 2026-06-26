@@ -2,7 +2,7 @@ import {
   formatChartAxisDate,
   formatCurrencyAxis,
   formatSentiment,
-} from '@/utils';
+} from '@zapengine/app-core/utils';
 
 describe('chart axis formatters', () => {
   describe('formatChartAxisDate', () => {

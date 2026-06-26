@@ -1,7 +1,9 @@
+import type {
+  ComponentSize,
+  SpinnerVariant,
+} from '@zapengine/app-core/types/ui/ui.types';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
-
-import type { ComponentSize, SpinnerVariant } from '@/types/ui/ui.types';
 
 import {
   ARIA_HIDDEN_PROP,

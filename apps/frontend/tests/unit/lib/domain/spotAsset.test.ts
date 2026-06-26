@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   normalizeSpotAsset,
   type SpotAssetSymbol,
-} from '@/lib/domain/spotAsset';
+} from '@zapengine/app-core/lib/domain/spotAsset';
+import { describe, expect, it } from 'vitest';
 
 describe('spotAsset', () => {
   describe('normalizeSpotAsset', () => {

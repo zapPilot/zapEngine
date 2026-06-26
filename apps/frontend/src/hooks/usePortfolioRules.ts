@@ -1,7 +1,7 @@
+import type { PortfolioRuleMetadata as ApiPortfolioRuleMetadata } from '@zapengine/app-core/types/strategy';
 import { useMemo } from 'react';
 
 import { useStrategyConfigs } from '@/components/wallet/portfolio/views/invest/trading/hooks/useStrategyConfigs';
-import type { PortfolioRuleMetadata as ApiPortfolioRuleMetadata } from '@/types/strategy';
 
 export interface PortfolioRuleMetadata {
   defaultEnabled: boolean;

@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   createPlaceholderMetric,
   extractDrawdownSummary,
   getSharpePercentile,
-} from '@/lib/analytics/utils/metricUtils';
-import type { UnifiedDashboardResponse } from '@/services/analyticsService';
+} from '@zapengine/app-core/lib/analytics/utils/metricUtils';
+import type { UnifiedDashboardResponse } from '@zapengine/app-core/services/analyticsService';
+import { describe, expect, it } from 'vitest';
 
 describe('metricUtils', () => {
   describe('createPlaceholderMetric', () => {

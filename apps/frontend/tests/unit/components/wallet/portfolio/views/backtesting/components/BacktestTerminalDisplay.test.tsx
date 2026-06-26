@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { BacktestResponse } from '@zapengine/app-core/types/backtesting';
+import type { StrategyConfigsResponse } from '@zapengine/app-core/types/strategy';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BacktestTerminalDisplay } from '@/components/wallet/portfolio/views/backtesting/components/BacktestTerminalDisplay';
-import type { BacktestResponse } from '@/types/backtesting';
-import type { StrategyConfigsResponse } from '@/types/strategy';
 
 vi.mock('@/components/wallet/portfolio/views/backtesting/constants', () => ({
   DEFAULT_DAYS: 500,
@@ -80,7 +80,7 @@ vi.mock(
   }),
 );
 
-vi.mock('@/hooks/ui/useClickOutside', () => ({
+vi.mock('@zapengine/app-core/hooks/ui/useClickOutside', () => ({
   useClickOutside: vi.fn(),
 }));
 

@@ -1,6 +1,5 @@
+import { GRADIENTS, Z_INDEX } from '@zapengine/app-core/constants/designSystem';
 import { Home } from 'lucide-react';
-
-import { GRADIENTS, Z_INDEX } from '@/constants/designSystem';
 
 interface QuickSwitchFABProps {
   onSwitchToMyBundle: () => void;

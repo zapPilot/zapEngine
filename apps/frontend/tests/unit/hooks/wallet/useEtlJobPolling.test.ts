@@ -1,17 +1,19 @@
+import { useEtlJobPolling } from '@zapengine/app-core/hooks/wallet/useEtlJobPolling';
+import type {
+  EtlJobResponse,
+  EtlJobStatus,
+} from '@zapengine/app-core/services/accountService';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useEtlJobPolling } from '@/hooks/wallet/useEtlJobPolling';
-import type { EtlJobResponse, EtlJobStatus } from '@/services/accountService';
 
 import { act, renderHook, waitFor } from '../../../test-utils';
 
-vi.mock('@/services/accountService', () => ({
+vi.mock('@zapengine/app-core/services/accountService', () => ({
   getEtlJobStatus: vi.fn(),
   triggerWalletDataFetch: vi.fn(),
 }));
 
 const { getEtlJobStatus, triggerWalletDataFetch } =
-  await import('@/services/accountService');
+  await import('@zapengine/app-core/services/accountService');
 const USER_ID = 'user-123';
 const WALLET_ADDRESS = '0x123abc';
 const DEFAULT_JOB_ID = 'job-123';

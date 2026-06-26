@@ -35,7 +35,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 // Mock design system constants
-vi.mock('@/constants/designSystem', () => ({
+vi.mock('@zapengine/app-core/constants/designSystem', () => ({
   GRADIENTS: {
     DANGER: 'danger-gradient',
   },

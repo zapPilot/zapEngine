@@ -19,6 +19,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APPS_DIR="$REPO_ROOT/apps"
+PACKAGES_DIR="$REPO_ROOT/packages"
 ENV_FILE="$REPO_ROOT/.env.example"
 
 # ── ANSI colours ────────────────────────────────────────────────────────────
@@ -75,8 +76,8 @@ check_var_in_apps() {
 
   # Check each app's source
   for entry in "${APP_REGISTRY[@]}"; do
-    IFS='|' read -r app_name src_subdir exts <<< "$entry"
-    local src_dir="$APPS_DIR/$app_name/$src_subdir"
+    IFS='|' read -r base_dir app_name src_subdir exts <<< "$entry"
+    local src_dir="$base_dir/$app_name/$src_subdir"
 
     # Skip if src dir doesn't exist
     [ -d "$src_dir" ] || continue
@@ -101,11 +102,12 @@ check_var_in_apps() {
 }
 
 check_var_in_app_source() {
-  local app_name="$1"
-  local src_subdir="$2"
-  local exts="$3"
-  local var="$4"
-  local src_dir="$APPS_DIR/$app_name/$src_subdir"
+  local base_dir="$1"
+  local app_name="$2"
+  local src_subdir="$3"
+  local exts="$4"
+  local var="$5"
+  local src_dir="$base_dir/$app_name/$src_subdir"
 
   [ -d "$src_dir" ] || return 1
 
@@ -163,10 +165,11 @@ scan_python_env_refs() {
 }
 
 scan_env_refs_for_app() {
-  local app_name="$1"
-  local src_subdir="$2"
-  local exts="$3"
-  local src_dir="$APPS_DIR/$app_name/$src_subdir"
+  local base_dir="$1"
+  local app_name="$2"
+  local src_subdir="$3"
+  local exts="$4"
+  local src_dir="$base_dir/$app_name/$src_subdir"
 
   [ -d "$src_dir" ] || return 0
 
@@ -191,7 +194,7 @@ scan_env_refs_for_app() {
 
 scan_env_refs_in_code() {
   for entry in "${APP_REGISTRY[@]}"; do
-    IFS='|' read -r app_name src_subdir exts <<< "$entry"
+    IFS='|' read -r base_dir app_name src_subdir exts <<< "$entry"
 
     if [ -n "$FILTER" ] && [ "$FILTER" != "$app_name" ]; then
       continue
@@ -200,7 +203,7 @@ scan_env_refs_in_code() {
     while IFS= read -r var; do
       [ -n "$var" ] || continue
       printf "%s|%s\n" "$var" "$app_name"
-    done < <(scan_env_refs_for_app "$app_name" "$src_subdir" "$exts" | sort -u)
+    done < <(scan_env_refs_for_app "$base_dir" "$app_name" "$src_subdir" "$exts" | sort -u)
   done
 }
 
@@ -256,11 +259,21 @@ while IFS= read -r _app_dir; do
   _app_name="$(basename "$_app_dir")"
   [ -d "$_app_dir/src" ] || continue
   if [ -f "$_app_dir/pyproject.toml" ]; then
-    APP_REGISTRY+=("$_app_name|src|py")
+    APP_REGISTRY+=("$APPS_DIR|$_app_name|src|py")
   elif [ -f "$_app_dir/package.json" ]; then
-    APP_REGISTRY+=("$_app_name|src|ts tsx")
+    APP_REGISTRY+=("$APPS_DIR|$_app_name|src|ts tsx")
   fi
 done < <(find "$APPS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+while IFS= read -r _pkg_dir; do
+  _pkg_name="$(basename "$_pkg_dir")"
+  [ -d "$_pkg_dir/src" ] || continue
+  if [ -f "$_pkg_dir/package.json" ]; then
+    APP_REGISTRY+=("$PACKAGES_DIR|$_pkg_name|src|ts tsx")
+  elif [ -f "$_pkg_dir/pyproject.toml" ]; then
+    APP_REGISTRY+=("$PACKAGES_DIR|$_pkg_name|src|py")
+  fi
+done < <(find "$PACKAGES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 # ── Filter to requested app (if any) ─────────────────────────────────────────
 FILTER="${1:-}"
@@ -382,20 +395,20 @@ fi
 fly_warnings=()
 
 for entry in "${APP_REGISTRY[@]}"; do
-  IFS='|' read -r app_name src_subdir exts <<< "$entry"
+  IFS='|' read -r base_dir app_name src_subdir exts <<< "$entry"
 
   if [ -n "$FILTER" ] && [ "$FILTER" != "$app_name" ]; then
     continue
   fi
 
-  fly_file="$APPS_DIR/$app_name/fly.toml"
+  fly_file="$base_dir/$app_name/fly.toml"
   [ -f "$fly_file" ] || continue
 
   while IFS= read -r var; do
     [ -n "$var" ] || continue
     is_excluded_builtin "$var" && continue
 
-    if ! check_var_in_app_source "$app_name" "$src_subdir" "$exts" "$var"; then
+    if ! check_var_in_app_source "$base_dir" "$app_name" "$src_subdir" "$exts" "$var"; then
       fly_warnings+=("$var|$app_name")
     fi
   done < <(scan_fly_toml_env_keys "$fly_file")

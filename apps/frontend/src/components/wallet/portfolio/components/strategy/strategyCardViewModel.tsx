@@ -1,6 +1,5 @@
+import { getRegimeConfig } from '@zapengine/app-core/constants/regimeDisplay';
 import { type MouseEvent, type ReactElement } from 'react';
-
-import { getRegimeConfig } from '@/constants/regimeDisplay';
 
 import {
   determineActiveDirection,

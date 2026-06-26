@@ -1,7 +1,6 @@
+import type { SkeletonVariant } from '@zapengine/app-core/types/ui/ui.types';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
-
-import type { SkeletonVariant } from '@/types/ui/ui.types';
 
 import {
   ARIA_LABEL_PROP,

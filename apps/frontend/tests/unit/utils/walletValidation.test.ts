@@ -1,6 +1,8 @@
+import {
+  validateEmail,
+  validateNewWallet,
+} from '@zapengine/app-core/utils/walletValidation';
 import { describe, expect, it } from 'vitest';
-
-import { validateEmail, validateNewWallet } from '@/utils/walletValidation';
 
 const VALID_WALLET = '0x742d35cc6634c0532925a3b844bc9e7595f8d1e9';
 

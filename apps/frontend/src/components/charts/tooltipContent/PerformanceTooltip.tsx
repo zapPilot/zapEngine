@@ -2,7 +2,7 @@
  * PerformanceTooltip - Portfolio
  */
 
-import type { PerformanceHoverData } from '@/types/ui/chartHover';
+import type { PerformanceHoverData } from '@zapengine/app-core/types/ui/chartHover';
 
 import { TooltipRow } from './TooltipRow';
 import { TooltipWrapper } from './TooltipWrapper';

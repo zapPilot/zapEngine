@@ -1,8 +1,7 @@
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Gauge } from 'lucide-react';
 import { type MouseEvent, type ReactElement, useState } from 'react';
-
-import { cn } from '@/lib/ui/classNames';
 
 import { StrategyCardSkeleton } from '../../views/DashboardSkeleton';
 import { StrategyCardExpandedContent } from './StrategyCardExpandedContent';

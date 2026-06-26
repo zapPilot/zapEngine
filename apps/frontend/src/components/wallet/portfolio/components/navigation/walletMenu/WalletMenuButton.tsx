@@ -1,8 +1,7 @@
+import { WALLET_LABELS } from '@zapengine/app-core/constants/wallet';
+import { formatAddress } from '@zapengine/app-core/utils/formatters';
 import { ChevronDown, Wallet } from 'lucide-react';
 import { type ReactElement } from 'react';
-
-import { WALLET_LABELS } from '@/constants/wallet';
-import { formatAddress } from '@/utils/formatters';
 
 import type { WalletMenuButtonProps } from './types';
 import {

@@ -4,10 +4,12 @@
  * Header section for analytics view with wallet filter selector
  */
 
+import type {
+  WalletFilter,
+  WalletOption,
+} from '@zapengine/app-core/types/analytics';
 import { AlertCircle, Download, Loader2, TrendingUp } from 'lucide-react';
 import type { ReactElement } from 'react';
-
-import type { WalletFilter, WalletOption } from '@/types/analytics';
 
 import { WalletFilterSelector } from './WalletFilterSelector';
 

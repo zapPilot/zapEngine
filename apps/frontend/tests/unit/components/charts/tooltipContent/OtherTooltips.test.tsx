@@ -29,7 +29,7 @@ vi.mock('@/components/charts/tooltipContent/TooltipRow', () => ({
 }));
 
 // Mock Utils
-vi.mock('@/utils/chartHoverUtils', () => ({
+vi.mock('@zapengine/app-core/utils/chartHoverUtils', () => ({
   getDrawdownSeverity: (_val: number) => 'Moderate',
   getDrawdownSeverityColor: (_sev: string) => ({
     bgColor: 'bg-test',
@@ -45,7 +45,7 @@ vi.mock('@/utils/chartHoverUtils', () => ({
   calculateDailyVolatility: (val: number) => val / 19.1,
 }));
 
-vi.mock('@/utils/formatters', () => ({
+vi.mock('@zapengine/app-core/utils/formatters', () => ({
   formatters: {
     currency: (val: number) => `FMT_CURR_${val}`,
     percent: (val: number) => `FMT_PERC_${val}`,

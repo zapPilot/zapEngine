@@ -1,7 +1,6 @@
+import type { TokenBalanceQuery } from '@zapengine/app-core/hooks/queries/wallet/useTokenBalances';
+import type { TransactionToken } from '@zapengine/app-core/types/domain/transaction';
 import { type ReactElement, useCallback } from 'react';
-
-import type { TokenBalanceQuery } from '@/hooks/queries/wallet/useTokenBalances';
-import type { TransactionToken } from '@/types/domain/transaction';
 
 import { TokenSelectorRow } from './TokenSelectorRow';
 

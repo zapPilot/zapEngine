@@ -1,8 +1,7 @@
 import { act } from '@testing-library/react';
+import { useInvestStrategy } from '@zapengine/app-core/hooks/useInvestStrategy';
 import type { DepositPlan } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useInvestStrategy } from '@/hooks/useInvestStrategy';
 
 import { renderHook } from '../../test-utils';
 
@@ -27,23 +26,23 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
 
-vi.mock('@/services/planOrchestrationService', () => ({
+vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
   getDepositPlan: mocks.getDepositPlan,
 }));
 
-vi.mock('@/lib/wallet/executeDepositPlan', () => ({
+vi.mock('@zapengine/app-core/lib/wallet/executeDepositPlan', () => ({
   executeDepositPlan: mocks.executeDepositPlan,
 }));
 
-vi.mock('@/services/intentClient', () => ({
+vi.mock('@zapengine/app-core/services/intentClient', () => ({
   getBridgeStatus: mocks.getBridgeStatus,
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     createContextLogger: () => ({
       info: vi.fn(),

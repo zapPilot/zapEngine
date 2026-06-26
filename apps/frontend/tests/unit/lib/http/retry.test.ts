@@ -1,11 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
-import { APIError } from '@/lib/http/errors';
+import { APIError } from '@zapengine/app-core/lib/http/errors';
 import {
   calculateBackoffDelay,
   delay,
   shouldAttemptRetry,
-} from '@/lib/http/retry';
+} from '@zapengine/app-core/lib/http/retry';
+import { describe, expect, it } from 'vitest';
 
 describe('retry utils', () => {
   describe('shouldAttemptRetry', () => {

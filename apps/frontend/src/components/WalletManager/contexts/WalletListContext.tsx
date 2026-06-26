@@ -1,10 +1,9 @@
-import { createContext, type PropsWithChildren, useContext } from 'react';
-
 import type {
   MenuPosition,
   WalletMenuHandlers,
   WalletOperations,
-} from '@/types';
+} from '@zapengine/app-core/types';
+import { createContext, type PropsWithChildren, useContext } from 'react';
 
 /**
  * Context for WalletList component to reduce prop drilling

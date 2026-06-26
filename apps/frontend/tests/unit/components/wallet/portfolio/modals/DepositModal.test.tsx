@@ -10,7 +10,7 @@ const mockUseWalletProvider = vi.fn(() => ({
   isConnected: true,
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => mockUseWalletProvider(),
 }));
 
@@ -63,7 +63,7 @@ vi.mock(
   }),
 );
 
-vi.mock('@/services', () => ({
+vi.mock('@zapengine/app-core/services', () => ({
   transactionServiceMock: {
     simulateDeposit: vi.fn(),
   },

@@ -5,9 +5,6 @@
  * and chart-specific content rendering.
  */
 
-import { motion } from 'framer-motion';
-import { type ReactElement, useRef } from 'react';
-
 import type {
   AllocationHoverData,
   ChartHoverState,
@@ -16,7 +13,9 @@ import type {
   PerformanceHoverData,
   SharpeHoverData,
   VolatilityHoverData,
-} from '@/types';
+} from '@zapengine/app-core/types';
+import { motion } from 'framer-motion';
+import { type ReactElement, useRef } from 'react';
 
 import {
   AllocationTooltip,

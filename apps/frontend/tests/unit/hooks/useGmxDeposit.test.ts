@@ -1,8 +1,4 @@
 import { act } from '@testing-library/react';
-import type { PreparedTransaction } from '@zapengine/types/api';
-import { type Address } from 'viem';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   assertGmxDepositPreflight,
   formatEth,
@@ -11,7 +7,10 @@ import {
   stepLabel,
   useGmxDeposit,
   walletClientAddress,
-} from '@/hooks/useGmxDeposit';
+} from '@zapengine/app-core/hooks/useGmxDeposit';
+import type { PreparedTransaction } from '@zapengine/types/api';
+import { type Address } from 'viem';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderHook } from '../../test-utils';
 
@@ -31,23 +30,23 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/providers/WalletProvider', () => ({
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
 
-vi.mock('@/services/planOrchestrationService', () => ({
+vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
   getGmxDepositPlan: mocks.getGmxDepositPlan,
 }));
 
-vi.mock('@/services/intentClient', () => ({
+vi.mock('@zapengine/app-core/services/intentClient', () => ({
   getPublicClient: mocks.getPublicClient,
 }));
 
-vi.mock('@/lib/wallet/executeDepositPlan', () => ({
+vi.mock('@zapengine/app-core/lib/wallet/executeDepositPlan', () => ({
   executeDepositPlan: mocks.executeDepositPlan,
 }));
 
-vi.mock('@/utils/logger', () => ({
+vi.mock('@zapengine/app-core/utils/logger', () => ({
   logger: {
     createContextLogger: () => ({
       info: vi.fn(),

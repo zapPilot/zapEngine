@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { logger } from '@zapengine/app-core/utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,9 +16,8 @@ import {
   shouldAttemptAutoSwitch,
   shouldRedirectDisconnectedOwner,
 } from '@/hooks/bundle/useBundlePageUtils';
-import { logger } from '@/utils';
 
-vi.mock('@/utils', () => ({
+vi.mock('@zapengine/app-core/utils', () => ({
   logger: {
     error: vi.fn(),
     info: vi.fn(),

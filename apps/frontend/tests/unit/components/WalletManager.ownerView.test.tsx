@@ -1,12 +1,12 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import * as walletService from '@zapengine/app-core/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WalletManager } from '../../../src/components/WalletManager';
-import * as walletService from '../../../src/services';
 import { render } from '../../test-utils';
 
-vi.mock('../../../src/providers/WalletProvider', () => {
+vi.mock('@zapengine/app-core/providers/WalletProvider', () => {
   const React = require('react');
   const { createContext, useContext } = React;
 
@@ -130,7 +130,7 @@ vi.mock('../../../src/components/ui/LoadingSpinner', () => ({
 }));
 
 // Mock service layer
-vi.mock('../../../src/services', () => {
+vi.mock('@zapengine/app-core/services', () => {
   const loadWallets = vi.fn();
   const addWallet = vi.fn();
   const removeWallet = vi.fn();

@@ -20,6 +20,7 @@ vi.mock('lucide-react', () => {
     Globe: Icon,
     Layers: Icon,
     LineChart: Icon,
+    Pause: Icon,
     Quote: Icon,
     ShieldCheck: Icon,
     TrendingDown: Icon,
@@ -29,7 +30,7 @@ vi.mock('lucide-react', () => {
   };
 });
 
-vi.mock('@/lib/ui/classNames', () => ({
+vi.mock('@zapengine/app-core/lib/ui/classNames', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 

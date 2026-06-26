@@ -1,12 +1,15 @@
+import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import { dropdownMenu } from '@zapengine/app-core/lib/ui/animationVariants';
+import { cn } from '@zapengine/app-core/lib/ui/classNames';
+import type {
+  ChainData,
+  TransactionToken,
+} from '@zapengine/app-core/types/domain/transaction';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 
 import { AppImage } from '@/components/ui';
-import { GRADIENTS } from '@/constants/designSystem';
-import { dropdownMenu } from '@/lib/ui/animationVariants';
-import { cn } from '@/lib/ui/classNames';
-import type { ChainData, TransactionToken } from '@/types/domain/transaction';
 
 import type { TransactionModalState } from '../base/TransactionModalBase';
 import type { TransactionDropdownState } from '../hooks/useTransactionDropdownState';

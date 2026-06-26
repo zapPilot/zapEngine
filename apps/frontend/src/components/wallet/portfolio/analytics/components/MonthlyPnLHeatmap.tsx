@@ -4,11 +4,11 @@
  * Displays monthly profit/loss as a color-coded heatmap
  */
 
+import { MONTH_ABBREVIATIONS as MONTH_LABELS } from '@zapengine/app-core/constants/dates';
 import { Calendar } from 'lucide-react';
 import type { ReactElement } from 'react';
 
 import { BaseCard } from '@/components/ui/BaseCard';
-import { MONTH_ABBREVIATIONS as MONTH_LABELS } from '@/constants/dates';
 
 function getMonthlyPnLCellClassName(value: number): string {
   if (value > 0) {

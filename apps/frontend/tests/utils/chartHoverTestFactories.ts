@@ -3,7 +3,7 @@
  * Provides builders for all chart types with proper TypeScript inference
  */
 
-import type { UseChartHoverOptions } from '@/hooks/ui/useChartHover';
+import type { UseChartHoverOptions } from '@zapengine/app-core/hooks/ui/useChartHover';
 import type {
   AllocationHoverData,
   ChartHoverState,
@@ -11,11 +11,11 @@ import type {
   PerformanceHoverData,
   SharpeHoverData,
   VolatilityHoverData,
-} from '@/types';
+} from '@zapengine/app-core/types';
 import type {
   AssetAllocationPoint,
   PortfolioDataPoint,
-} from '@/types/portfolio';
+} from '@zapengine/app-core/types/portfolio';
 
 /**
  * Base factory interface for creating typed test data

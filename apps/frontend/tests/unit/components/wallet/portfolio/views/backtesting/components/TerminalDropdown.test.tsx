@@ -5,7 +5,7 @@ import { TerminalDropdown } from '@/components/wallet/portfolio/views/backtestin
 
 let clickOutsideCallback: (() => void) | null = null;
 
-vi.mock('@/hooks/ui/useClickOutside', () => ({
+vi.mock('@zapengine/app-core/hooks/ui/useClickOutside', () => ({
   useClickOutside: vi.fn((_ref: unknown, cb: () => void) => {
     clickOutsideCallback = cb;
   }),
