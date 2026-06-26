@@ -61,7 +61,6 @@ export {
   SUPPORTED_CHAINS,
   USDC_ADDRESS,
   NATIVE_TOKEN as DEPOSIT_NATIVE_TOKEN,
-  LIFI_DIAMOND_ADDRESS,
 } from './registry/chains.js';
 export {
   VAULT_REGISTRY,
@@ -107,13 +106,11 @@ export {
   gmxV2VaultCatalogSource,
   lookupVault,
   morphoVaultCatalogSource,
-  type AprSource,
   type GmxV2FundedSide,
   type GmxV2Market,
   type GmxV2MarketKey,
   type ProtocolCapability,
   type ProtocolId,
-  type TvlSource,
   type VaultCatalogSource,
   type VaultMeta,
   type VaultRegistry,

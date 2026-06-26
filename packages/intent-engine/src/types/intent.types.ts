@@ -6,14 +6,6 @@ import { ProtocolIdSchema } from '../protocols/registry.js';
 export const SUPPORTED_CHAIN_IDS = [1, 8453] as const;
 export type SupportedChainId = (typeof SUPPORTED_CHAIN_IDS)[number];
 
-// Intent type enum
-export const IntentTypeSchema = z.enum([
-  'SWAP',
-  'SUPPLY',
-  'WITHDRAW',
-  'ROTATE',
-  'REBALANCE',
-]);
 // Base intent schema (common fields)
 const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 const weiStringRegex = /^\d+$/;
