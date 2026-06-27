@@ -12,8 +12,36 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
-fun signingValue(name: String): String? =
-    (keystoreProperties[name] as String?) ?: System.getenv(name)
+fun signingProperty(propertyName: String, envName: String): String? =
+    keystoreProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(envName)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingProperty("storeFile", "ANDROID_KEYSTORE_FILE")
+val releaseStorePassword = signingProperty("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingProperty("keyAlias", "ANDROID_KEY_ALIAS")
+val releaseKeyPassword = signingProperty("keyPassword", "ANDROID_KEY_PASSWORD")
+val releaseSigningValues = mapOf(
+    "storeFile / ANDROID_KEYSTORE_FILE" to releaseStoreFile,
+    "storePassword / ANDROID_KEYSTORE_PASSWORD" to releaseStorePassword,
+    "keyAlias / ANDROID_KEY_ALIAS" to releaseKeyAlias,
+    "keyPassword / ANDROID_KEY_PASSWORD" to releaseKeyPassword,
+)
+val isReleaseBuild = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
+}
+
+if (isReleaseBuild) {
+    val missingReleaseSigningValues = releaseSigningValues
+        .filterValues { it.isNullOrBlank() }
+        .keys
+
+    if (missingReleaseSigningValues.isNotEmpty()) {
+        throw GradleException(
+            "Release signing config is missing: ${missingReleaseSigningValues.joinToString()}. " +
+                "Set apps/mobile/android/key.properties or the ANDROID_* environment variables.",
+        )
+    }
+}
 
 android {
     namespace = "com.fromfedtochain.app"
@@ -26,7 +54,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.fromfedtochain.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -38,12 +65,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = signingValue("keyAlias") ?: signingValue("ANDROID_KEY_ALIAS")
-            storePassword = signingValue("storePassword") ?: signingValue("ANDROID_KEYSTORE_PASSWORD")
-            keyPassword = storePassword
-            storeFile = signingValue("storeFile")
-                ?.let { file(it) }
-                ?: signingValue("ANDROID_KEYSTORE_FILE")?.let { file(it) }
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            storeFile = releaseStoreFile?.let { rootProject.file(it) }
+            storePassword = releaseStorePassword
         }
     }
 

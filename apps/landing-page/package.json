@@ -35,7 +35,8 @@
     "next": "^15.5.7",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "three": "^0.160.0"
+    "three": "^0.160.0",
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",
@@ -46,8 +47,8 @@
     "@types/react-dom": "catalog:",
     "@types/three": "^0.160.0",
     "@vitejs/plugin-react": "catalog:",
-    "@zapengine/design-tokens": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
+    "@zapengine/design-tokens": "workspace:*",
     "@zapengine/eslint-config": "workspace:*",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",

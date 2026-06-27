@@ -8,6 +8,13 @@ import {
   RebalanceLogSchema,
   TrackRecordMetaSchema,
 } from '@zapengine/types/strategy';
+import {
+  getAddress,
+  isAddress,
+  keccak256,
+  recoverMessageAddress,
+  toBytes,
+} from 'viem';
 
 const DEFAULT_GATEWAYS = [
   process.env['NEXT_PUBLIC_IPFS_GATEWAY'] ?? 'https://ipfs.io/ipfs',
@@ -287,33 +294,384 @@ export interface ChainVerification {
   valid: boolean;
   brokenAt?: number;
   totalSnapshots: number;
+  reason?: string;
 }
 
-function verifyCidChain(snapshots: DailySnapshot[]): ChainVerification {
-  for (let i = 1; i < snapshots.length; i++) {
-    if (snapshots[i]!.previousCid !== snapshots[i - 1]!.previousCid) {
-      return { valid: false, brokenAt: i, totalSnapshots: snapshots.length };
+export interface PerformanceVerification {
+  valid: boolean;
+  checkedSnapshots: number;
+  errors: string[];
+}
+
+const PERFORMANCE_PERCENT_TOLERANCE = 0.02;
+const PERFORMANCE_RATIO_TOLERANCE = 0.02;
+
+function parsePercentValue(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value.replace('%', ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseRatioValue(value: string | undefined): number | null {
+  if (!value || value === '—') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mean(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function annualizedVolatility(returns: number[]): number {
+  if (returns.length === 0) return 0;
+  const avg = mean(returns);
+  const variance =
+    returns.reduce((sum, value) => sum + (value - avg) ** 2, 0) /
+    returns.length;
+  return Math.sqrt(variance * 252);
+}
+
+function annualizedDownsideDeviation(returns: number[]): number {
+  const negativeReturns = returns.filter((value) => value < 0);
+  if (negativeReturns.length === 0) return 0;
+  return Math.sqrt(
+    (negativeReturns.reduce((sum, value) => sum + value ** 2, 0) /
+      negativeReturns.length) *
+      252,
+  );
+}
+
+function verifyPerformanceMetrics(
+  snapshots: DailySnapshot[],
+): PerformanceVerification {
+  const errors: string[] = [];
+  if (snapshots.length === 0) {
+    return { valid: true, checkedSnapshots: 0, errors };
+  }
+
+  const firstNav = Number(snapshots[0]!.nav.usd);
+  if (!Number.isFinite(firstNav) || firstNav <= 0) {
+    return {
+      valid: false,
+      checkedSnapshots: snapshots.length,
+      errors: ['first snapshot NAV is not a positive number'],
+    };
+  }
+
+  const dailyReturns: number[] = [];
+  let peakNav = firstNav;
+
+  for (let i = 0; i < snapshots.length; i++) {
+    const snapshot = snapshots[i]!;
+    const nav = Number(snapshot.nav.usd);
+    if (!Number.isFinite(nav) || nav <= 0) {
+      errors.push(`[${i}] ${snapshot.date}: NAV is not a positive number`);
+      continue;
+    }
+
+    const storedCumulative = parsePercentValue(
+      snapshot.performance.cumulativeReturn,
+    );
+    const recomputedCumulative = (nav / firstNav - 1) * 100;
+    if (
+      storedCumulative !== null &&
+      Math.abs(storedCumulative - recomputedCumulative) >
+        PERFORMANCE_PERCENT_TOLERANCE
+    ) {
+      errors.push(`[${i}] ${snapshot.date}: cumulativeReturn mismatch`);
+    }
+
+    if (nav > peakNav) peakNav = nav;
+    const storedDrawdown = parsePercentValue(snapshot.performance.maxDrawdown);
+    const recomputedDrawdown = (nav / peakNav - 1) * 100;
+    if (
+      storedDrawdown !== null &&
+      Math.abs(storedDrawdown - recomputedDrawdown) >
+        PERFORMANCE_PERCENT_TOLERANCE
+    ) {
+      errors.push(`[${i}] ${snapshot.date}: maxDrawdown mismatch`);
+    }
+
+    if (i === 0) {
+      dailyReturns.push(0);
+      continue;
+    }
+
+    const previousNav = Number(snapshots[i - 1]!.nav.usd);
+    const dailyReturn = previousNav > 0 ? nav / previousNav - 1 : 0;
+    dailyReturns.push(dailyReturn);
+
+    const storedDaily = parsePercentValue(snapshot.performance.dailyReturn);
+    if (
+      storedDaily !== null &&
+      Math.abs(storedDaily - dailyReturn * 100) > PERFORMANCE_PERCENT_TOLERANCE
+    ) {
+      errors.push(`[${i}] ${snapshot.date}: dailyReturn mismatch`);
+    }
+
+    const rollingReturns = dailyReturns.slice(Math.max(1, i - 29), i + 1);
+    if (rollingReturns.length >= 30) {
+      const vol30d = annualizedVolatility(rollingReturns);
+      const storedVol = parsePercentValue(snapshot.performance.volatility30d);
+      if (
+        storedVol !== null &&
+        Math.abs(storedVol - vol30d * 100) > PERFORMANCE_PERCENT_TOLERANCE
+      ) {
+        errors.push(`[${i}] ${snapshot.date}: volatility30d mismatch`);
+      }
+
+      const annualMean = mean(rollingReturns) * 252;
+      const storedSharpe = parseRatioValue(snapshot.performance.sharpe);
+      if (storedSharpe !== null && vol30d > 0) {
+        const recomputedSharpe = annualMean / vol30d;
+        if (
+          Math.abs(storedSharpe - recomputedSharpe) >
+          PERFORMANCE_RATIO_TOLERANCE
+        ) {
+          errors.push(`[${i}] ${snapshot.date}: sharpe mismatch`);
+        }
+      }
+
+      const downsideDeviation = annualizedDownsideDeviation(rollingReturns);
+      const storedSortino = parseRatioValue(snapshot.performance.sortino);
+      if (storedSortino !== null && downsideDeviation > 0) {
+        const recomputedSortino = annualMean / downsideDeviation;
+        if (
+          Math.abs(storedSortino - recomputedSortino) >
+          PERFORMANCE_RATIO_TOLERANCE
+        ) {
+          errors.push(`[${i}] ${snapshot.date}: sortino mismatch`);
+        }
+      }
     }
   }
-  return { valid: true, brokenAt: undefined, totalSnapshots: snapshots.length };
+
+  return {
+    valid: errors.length === 0,
+    checkedSnapshots: snapshots.length,
+    errors,
+  };
 }
 
-function verifySignature(
+export interface SnapshotHistoryEntry {
+  cid: string;
+  snapshot: DailySnapshot;
+}
+
+async function fetchSnapshotHistoryEntries(
+  entryCid: string,
+  limit = 90,
+): Promise<SnapshotHistoryEntry[]> {
+  const entries: SnapshotHistoryEntry[] = [];
+  let currentCid: string | null = entryCid;
+  const visited = new Set<string>();
+
+  while (currentCid && entries.length < limit) {
+    if (visited.has(currentCid)) break;
+    visited.add(currentCid);
+
+    const raw = await fetchFromIpfs(currentCid);
+    const snapshot = DailySnapshotSchema.parse(raw);
+    entries.unshift({ cid: currentCid, snapshot });
+    currentCid = snapshot.previousCid ?? null;
+  }
+
+  return entries;
+}
+
+function verifyCidChain(entries: SnapshotHistoryEntry[]): ChainVerification {
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    if (!entry.cid) {
+      return {
+        valid: false,
+        brokenAt: i,
+        totalSnapshots: entries.length,
+        reason: 'missing_cid',
+      };
+    }
+
+    if (i === 0) {
+      if (entry.snapshot.previousCid !== null) {
+        return {
+          valid: false,
+          brokenAt: 0,
+          totalSnapshots: entries.length,
+          reason: 'genesis_previous_cid_not_null',
+        };
+      }
+      continue;
+    }
+
+    const expectedPreviousCid = entries[i - 1]!.cid;
+    if (entry.snapshot.previousCid !== expectedPreviousCid) {
+      return {
+        valid: false,
+        brokenAt: i,
+        totalSnapshots: entries.length,
+        reason: 'previous_cid_mismatch',
+      };
+    }
+  }
+  return { valid: true, brokenAt: undefined, totalSnapshots: entries.length };
+}
+
+export interface SignatureVerification {
+  valid: boolean;
+  signaturePresent: boolean;
+  reason?: string;
+  expectedSigner?: string;
+  claimedSigner?: string;
+  recoveredSigner?: string;
+  messageHash?: string;
+  computedMessageHash?: string;
+  messageHashValid?: boolean;
+}
+
+function stableStringify(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item) ?? 'null').join(',')}]`;
+  }
+
+  const record = value as Record<string, unknown>;
+  const pairs = Object.keys(record)
+    .sort()
+    .flatMap((key) => {
+      const serialized = stableStringify(record[key]);
+      return serialized === undefined
+        ? []
+        : [`${JSON.stringify(key)}:${serialized}`];
+    });
+
+  return `{${pairs.join(',')}}`;
+}
+
+function canonicalizeSnapshotForSigning(snapshot: DailySnapshot): string {
+  const unsignedSnapshot: Record<string, unknown> = { ...snapshot };
+  delete unsignedSnapshot['signature'];
+  return stableStringify(unsignedSnapshot) ?? '{}';
+}
+
+function createSnapshotMessageHash(snapshot: DailySnapshot): `0x${string}` {
+  return keccak256(toBytes(canonicalizeSnapshotForSigning(snapshot)));
+}
+
+async function verifySignature(
   snapshot: DailySnapshot,
-  _expectedSigner: string,
-): boolean {
-  if (!snapshot.signature) return true;
+  expectedSigner: string,
+): Promise<SignatureVerification> {
+  if (!snapshot.signature) {
+    return {
+      valid: !expectedSigner,
+      signaturePresent: false,
+      reason: expectedSigner ? 'missing_signature' : 'unsigned_optional',
+    };
+  }
 
   try {
-    const msgHash = snapshot.signature.messageHash;
-    const sig = snapshot.signature.signature;
-    const signer = snapshot.signature.signer;
+    const claimedSigner = snapshot.signature.signer;
+    const messageHash = snapshot.signature.messageHash;
+    const signature = snapshot.signature.signature;
+    const computedMessageHash = createSnapshotMessageHash(snapshot);
 
-    if (!msgHash || !sig || !signer) return false;
+    if (!messageHash || !signature || !claimedSigner) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        reason: 'missing_signature_field',
+      };
+    }
 
-    return true;
+    if (!isAddress(claimedSigner)) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        claimedSigner,
+        reason: 'invalid_claimed_signer',
+      };
+    }
+
+    if (expectedSigner && !isAddress(expectedSigner)) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        claimedSigner: getAddress(claimedSigner),
+        expectedSigner,
+        reason: 'invalid_expected_signer',
+      };
+    }
+
+    const messageHashValid =
+      messageHash.toLowerCase() === computedMessageHash.toLowerCase();
+
+    if (!messageHashValid) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        claimedSigner: getAddress(claimedSigner),
+        expectedSigner: expectedSigner ? getAddress(expectedSigner) : undefined,
+        messageHash,
+        computedMessageHash,
+        messageHashValid: false,
+        reason: 'message_hash_mismatch',
+      };
+    }
+
+    const recoveredSigner = await recoverMessageAddress({
+      message: { raw: computedMessageHash },
+      signature: signature as `0x${string}`,
+    });
+    const normalizedClaimedSigner = getAddress(claimedSigner);
+    const normalizedExpectedSigner = expectedSigner
+      ? getAddress(expectedSigner)
+      : normalizedClaimedSigner;
+
+    if (getAddress(recoveredSigner) !== normalizedExpectedSigner) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        claimedSigner: normalizedClaimedSigner,
+        expectedSigner: normalizedExpectedSigner,
+        recoveredSigner: getAddress(recoveredSigner),
+        messageHash,
+        computedMessageHash,
+        messageHashValid: true,
+        reason: 'signer_mismatch',
+      };
+    }
+
+    if (normalizedClaimedSigner !== getAddress(recoveredSigner)) {
+      return {
+        valid: false,
+        signaturePresent: true,
+        claimedSigner: normalizedClaimedSigner,
+        expectedSigner: normalizedExpectedSigner,
+        recoveredSigner: getAddress(recoveredSigner),
+        messageHash,
+        computedMessageHash,
+        messageHashValid: true,
+        reason: 'claimed_signer_mismatch',
+      };
+    }
+
+    return {
+      valid: true,
+      signaturePresent: true,
+      claimedSigner: normalizedClaimedSigner,
+      expectedSigner: normalizedExpectedSigner,
+      recoveredSigner: getAddress(recoveredSigner),
+      messageHash,
+      computedMessageHash,
+      messageHashValid: true,
+    };
   } catch {
-    return false;
+    return {
+      valid: false,
+      signaturePresent: true,
+      reason: 'recover_failed',
+    };
   }
 }
 
@@ -321,8 +679,12 @@ export {
   fetchMeta,
   fetchLatestSnapshot,
   fetchSnapshotHistory,
+  fetchSnapshotHistoryEntries,
   fetchRebalanceLog,
   computePerformanceSummary,
   verifyCidChain,
+  verifyPerformanceMetrics,
   verifySignature,
+  createSnapshotMessageHash,
+  canonicalizeSnapshotForSigning,
 };

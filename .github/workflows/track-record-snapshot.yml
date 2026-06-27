@@ -1,0 +1,70 @@
+name: Track Record Snapshot
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: track-record-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRACK_RECORD_CHAIN_IDS: ${{ vars.TRACK_RECORD_CHAIN_IDS }}
+      TRACK_RECORD_RPC_URLS: ${{ secrets.TRACK_RECORD_RPC_URLS }}
+      TRACK_RECORD_WALLET_ADDRESSES: ${{ vars.TRACK_RECORD_WALLET_ADDRESSES }}
+      TRACK_RECORD_TOKENS_JSON: ${{ vars.TRACK_RECORD_TOKENS_JSON }}
+      TRACK_RECORD_PRICE_ORACLE_URL: ${{ secrets.TRACK_RECORD_PRICE_ORACLE_URL }}
+      TRACK_RECORD_PRICE_ORACLE_JSON: ${{ secrets.TRACK_RECORD_PRICE_ORACLE_JSON }}
+      TRACK_RECORD_SIGNER_PRIVATE_KEY: ${{ secrets.TRACK_RECORD_SIGNER_PRIVATE_KEY }}
+      TRACK_RECORD_IPFS_PINATA_TOKEN: ${{ secrets.TRACK_RECORD_IPFS_PINATA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable corepack
+        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read previous CID
+        run: |
+          previous_cid="$(node -e "const meta=require('./apps/landing-page/public/track-record-meta.json'); process.stdout.write(meta.latestSnapshotCid || '')")"
+          echo "TRACK_RECORD_PREVIOUS_CID=$previous_cid" >> "$GITHUB_ENV"
+
+      - name: Generate signed snapshot
+        run: pnpm track-record:generate -- --out .track-record/daily-snapshot.json
+
+      - name: Publish snapshot and update meta
+        run: pnpm track-record:publish -- --snapshot .track-record/daily-snapshot.json
+
+      - name: Verify published chain
+        run: pnpm track-record:verify
+        env:
+          TRACK_RECORD_META_URL: file://${{ github.workspace }}/apps/landing-page/public/track-record-meta.json
+
+      - name: Commit updated track record meta
+        run: |
+          if git diff --quiet -- apps/landing-page/public/track-record-meta.json; then
+            echo "No track record meta changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/landing-page/public/track-record-meta.json
+          git commit -m "Update daily track record snapshot"
+          git push

@@ -11,7 +11,7 @@ export function VerificationPanel({
   state,
   className,
 }: VerificationPanelProps) {
-  const { meta, snapshots, verification, latestSnapshot } = state;
+  const { meta, snapshotEntries, verification, latestSnapshot } = state;
 
   if (state.isLoading) {
     return (
@@ -58,10 +58,32 @@ export function VerificationPanel({
             )}
             <span>
               {latestSnapshot?.signature
-                ? `Valid — signer: ${latestSnapshot.signature.signer}`
+                ? verification.signatureValid
+                  ? `Valid — recovered signer: ${verification.signature?.recoveredSigner ?? latestSnapshot.signature.signer}`
+                  : `Invalid — ${verification.signature?.reason ?? 'signature check failed'}`
                 : 'No signature (v0 — optional)'}
             </span>
           </div>
+          {latestSnapshot?.signature && (
+            <>
+              <div className="verification-item">
+                <span>
+                  Message hash:{' '}
+                  {verification.signature?.messageHashValid === false
+                    ? 'mismatch'
+                    : 'verified'}
+                </span>
+              </div>
+              {verification.signature?.computedMessageHash && (
+                <div className="verification-item">
+                  <span>
+                    Computed hash:{' '}
+                    {verification.signature.computedMessageHash.slice(0, 18)}…
+                  </span>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 
@@ -71,6 +93,24 @@ export function VerificationPanel({
           <div className="verification-item">
             <CheckCircle aria-hidden />
             <span>DailySnapshotSchema v{meta?.schemaVersion ?? 'unknown'}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="verification-section">
+        <h3>Performance recomputation</h3>
+        <div className="verification-items">
+          <div className="verification-item">
+            {verification.performanceValid ? (
+              <CheckCircle aria-hidden />
+            ) : (
+              <XCircle aria-hidden />
+            )}
+            <span>
+              {verification.performanceValid
+                ? 'PASS — returns, drawdown, volatility and ratios match snapshot data'
+                : `FAIL — ${verification.performanceErrors[0] ?? 'performance mismatch'}`}
+            </span>
           </div>
         </div>
       </section>
@@ -109,14 +149,10 @@ export function VerificationPanel({
         <section className="verification-section">
           <h3>Full Chain Snapshots</h3>
           <ul className="snapshot-cid-list">
-            {snapshots.slice(-10).map((snap) => (
-              <li key={snap.previousCid ?? 'genesis'}>
-                <span className="cid-date">{snap.date}</span>
-                <span className="cid-value">
-                  {snap.previousCid
-                    ? `${snap.previousCid.slice(0, 16)}…`
-                    : '(genesis)'}
-                </span>
+            {snapshotEntries.slice(-10).map((entry) => (
+              <li key={entry.cid}>
+                <span className="cid-date">{entry.snapshot.date}</span>
+                <span className="cid-value">{entry.cid.slice(0, 16)}…</span>
               </li>
             ))}
           </ul>

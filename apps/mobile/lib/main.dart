@@ -45,7 +45,7 @@ Future<void> main() async {
     builder: () => PodcastAudioHandler(),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.fromfedtochain.app.audio',
-      androidNotificationChannelName: 'AI Podcast',
+      androidNotificationChannelName: 'From Fed to Chain',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
       fastForwardInterval: Duration(seconds: 30),

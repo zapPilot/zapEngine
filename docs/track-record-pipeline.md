@@ -2,36 +2,56 @@
 
 Daily snapshot pipeline that generates, signs, pins, and publishes the Zap Pilot public track record.
 
+## Implemented entrypoints
+
+Local / CI entrypoints:
+
+```bash
+pnpm track-record:generate -- --out .track-record/daily-snapshot.json
+pnpm track-record:publish -- --snapshot .track-record/daily-snapshot.json
+TRACK_RECORD_META_URL=file://$PWD/apps/landing-page/public/track-record-meta.json pnpm track-record:verify
+```
+
+GitHub Actions workflow:
+
+- `.github/workflows/track-record-snapshot.yml`
+- Schedule: `00:00 UTC` daily
+- Sequence: generate snapshot → sign → pin to IPFS → update `track-record-meta.json` → verify → commit meta
+
 ## Architecture
 
 ```
-Pipedream cron (daily)
-  └─> Read latestSnapshotCid from Pipedream KV store
+GitHub Actions cron (daily; Pipedream/Cloud Run/Fly.io compatible later)
+  └─> Read latestSnapshotCid from apps/landing-page/public/track-record-meta.json
   └─> Fetch on-chain balances + prices (RPC)
   └─> Generate DailySnapshot payload with previousCid = latestSnapshotCid
   └─> (Optionally) Sign payload with Zap Pilot official EOA
   └─> Pin signed snapshot JSON to IPFS  --> get new CID
-  └─> Update Pipedream KV store: latestSnapshotCid = new CID
-  └─> Update apps/landing-page/public/track-record-meta.json (via GitHub API commit)
+  └─> Update apps/landing-page/public/track-record-meta.json
+  └─> Commit the updated meta file
 ```
 
 ## Input / Configuration
 
-| Var | Description |
-|-----|-------------|
-| `KV_STORE:latestSnapshotCid` | Last committed snapshot CID (or empty on first run) |
-| `MODEL_WALLET_ADDRESSES` | Comma-separated wallet addresses to track |
-| `CHAIN_IDS` | Comma-separated chain IDs (e.g. `1,Arbitrum`) |
-| `RPC_URLS` | Comma-separated RPC endpoints (index-aligned with CHAIN_IDS) |
-| `PRICE_ORACLE_URL` | Price feed endpoint |
-| `IPFS_PINATA_TOKEN` | Pinata API token for IPFS pinning |
-| `ZAP_PILOT_SIGNER_KEY` | Private key for EOA signing (optional in v0) |
+| Var                               | Description                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `TRACK_RECORD_PREVIOUS_CID`       | Previous snapshot CID. GitHub Actions reads this from `track-record-meta.json`.                             |
+| `TRACK_RECORD_WALLET_ADDRESSES`   | Comma-separated wallet addresses to track.                                                                  |
+| `TRACK_RECORD_CHAIN_IDS`          | Comma-separated numeric chain IDs, e.g. `1,42161`.                                                          |
+| `TRACK_RECORD_RPC_URLS`           | JSON map keyed by chain ID, or comma-separated RPC endpoints index-aligned with `TRACK_RECORD_CHAIN_IDS`.   |
+| `TRACK_RECORD_TOKENS_JSON`        | Optional tracked ERC-20/native token config. If absent, generator tracks native token per configured chain. |
+| `TRACK_RECORD_PRICE_ORACLE_URL`   | Price feed endpoint.                                                                                        |
+| `TRACK_RECORD_PRICE_ORACLE_JSON`  | Optional inline oracle payload for tests/manual runs.                                                       |
+| `TRACK_RECORD_HISTORY_JSON`       | Optional inline NAV history. If absent, generator walks `TRACK_RECORD_PREVIOUS_CID` through IPFS.           |
+| `TRACK_RECORD_IPFS_PINATA_TOKEN`  | Pinata JWT/API token for IPFS pinning.                                                                      |
+| `TRACK_RECORD_SIGNER_PRIVATE_KEY` | Private key for EOA signing.                                                                                |
 
 ## Processing Steps
 
 ### 1. Fetch on-chain balances
 
 For each `(chainId, walletAddress, rpcUrl)` triple:
+
 - Call `eth_getBalance` for ETH holdings
 - Call `eth_call` with ERC-20 `balanceOf` selectors for tracked tokens
 - Aggregate into a position list
@@ -39,6 +59,7 @@ For each `(chainId, walletAddress, rpcUrl)` triple:
 ### 2. Fetch prices
 
 Call the price oracle endpoint. Expected response shape:
+
 ```json
 { "prices": { "<token_address>": { "usd": "123.45" } } }
 ```
@@ -62,6 +83,7 @@ dailyReturn = (nav.usd - previousNavUsd) / previousNavUsd
 ```
 
 Running cumulative return (from strategy start):
+
 ```
 cumulativeReturn = (nav.usd / initialNavUsd) - 1
 ```
@@ -72,7 +94,7 @@ Max drawdown and volatility are recomputed from the last 30 days of NAV values (
 
 `previousCid = KV_STORE:latestSnapshotCid`
 
-### 6. Sign payload (optional, v0)
+### 6. Sign payload
 
 Canonicalize the snapshot JSON (remove `signature` key, strip whitespace).
 
@@ -81,6 +103,7 @@ Hash with `keccak256`.
 Sign with EIP-191: `personal_sign(hash, signerAddress)`.
 
 Attach:
+
 ```json
 {
   "signer": "0x...",
@@ -90,23 +113,23 @@ Attach:
 }
 ```
 
+Verification recovers the signer with EIP-191 semantics and compares it with
+`track-record-meta.json.officialSigner`. Presence of signature fields alone is
+not treated as valid.
+
 ### 7. Pin to IPFS
 
 POST to Pinata `/pinning/pinJSONToAPI` with the snapshot payload.
 
 Record returned `IpfsHash` as `newCid`.
 
-### 8. Update KV store
+### 8. Update public meta
 
-```
-KV_STORE:latestSnapshotCid = newCid
-```
+`pnpm track-record:publish` writes `apps/landing-page/public/track-record-meta.json`
+with the newly pinned CID.
 
 ### 9. Commit meta file to GitHub
 
-PATCH to `https://api.github.com/repos/{owner}/{repo}/contents/apps/landing-page/public/track-record-meta.json`
-
-Get current file SHA, then commit with new content:
 ```json
 {
   "schemaVersion": "1",
@@ -131,6 +154,16 @@ If the day's RPC calls surface any `Transfer` events matching known rebalance ad
 All payloads must pass runtime validation against `DailySnapshotSchema` (from `@zapengine/types/strategy`).
 
 Schema version field enables forward compatibility: Pipedream compares its compiled schema version before publishing.
+
+## Verification
+
+The browser and CLI verifier now check:
+
+- `DailySnapshotSchema`
+- `snapshot[i].previousCid === cid(snapshot[i - 1])`
+- canonical snapshot message hash
+- EIP-191 signature recovery against the official signer
+- daily return, cumulative return, max drawdown, and optional volatility/sharpe/sortino recomputation
 
 ## Error Handling
 

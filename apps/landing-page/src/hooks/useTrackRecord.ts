@@ -10,14 +10,20 @@ import type { PerformanceSummary } from '@/data/track-record-accessor';
 import {
   fetchMeta,
   fetchLatestSnapshot,
-  fetchSnapshotHistory,
+  fetchSnapshotHistoryEntries,
   computePerformanceSummary,
   verifyCidChain,
+  verifyPerformanceMetrics,
   verifySignature,
+} from '@/data/track-record-accessor';
+import type {
+  SignatureVerification,
+  SnapshotHistoryEntry,
 } from '@/data/track-record-accessor';
 
 export interface TrackRecordState {
   meta: TrackRecordMeta | null;
+  snapshotEntries: SnapshotHistoryEntry[];
   snapshots: DailySnapshot[];
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
@@ -28,6 +34,9 @@ export interface TrackRecordState {
     chainBrokenAt: number | undefined;
     totalSnapshots: number;
     signatureValid: boolean;
+    signature: SignatureVerification | null;
+    performanceValid: boolean;
+    performanceErrors: string[];
   };
   isLoading: boolean;
   error: string | null;
@@ -38,12 +47,14 @@ const MAX_SNAPSHOTS = 90;
 const moduleCache: {
   meta: TrackRecordMeta | null;
   snapshots: DailySnapshot[] | null;
+  snapshotEntries: SnapshotHistoryEntry[] | null;
   summary: PerformanceSummary | null;
   latestSnapshot: DailySnapshot | null;
   rebalanceLogs: Map<string, RebalanceLog>;
 } = {
   meta: null,
   snapshots: null,
+  snapshotEntries: null,
   summary: null,
   latestSnapshot: null,
   rebalanceLogs: new Map(),
@@ -56,6 +67,7 @@ function loadCache() {
 export function useTrackRecord() {
   const [state, setState] = useState<TrackRecordState>({
     meta: null,
+    snapshotEntries: [],
     snapshots: [],
     latestSnapshot: null,
     summary: computePerformanceSummary([]),
@@ -66,6 +78,9 @@ export function useTrackRecord() {
       chainBrokenAt: undefined,
       totalSnapshots: 0,
       signatureValid: true,
+      signature: null,
+      performanceValid: true,
+      performanceErrors: [],
     },
     isLoading: true,
     error: null,
@@ -79,18 +94,25 @@ export function useTrackRecord() {
     async function load() {
       const cache = loadCache();
 
-      if (cache.meta && cache.snapshots && cache.summary) {
-        const chainResult = verifyCidChain(cache.snapshots);
+      if (
+        cache.meta &&
+        cache.snapshotEntries &&
+        cache.snapshots &&
+        cache.summary
+      ) {
+        const chainResult = verifyCidChain(cache.snapshotEntries);
+        const performanceResult = verifyPerformanceMetrics(cache.snapshots);
         const sigValid = cache.latestSnapshot
-          ? verifySignature(
+          ? await verifySignature(
               cache.latestSnapshot,
               cache.meta.officialSigner ?? '',
             )
-          : true;
+          : null;
 
         if (mountedRef.current) {
           setState({
             meta: cache.meta,
+            snapshotEntries: cache.snapshotEntries,
             snapshots: cache.snapshots,
             latestSnapshot: cache.latestSnapshot,
             summary: cache.summary,
@@ -100,7 +122,10 @@ export function useTrackRecord() {
               chainValid: chainResult.valid,
               chainBrokenAt: chainResult.brokenAt,
               totalSnapshots: chainResult.totalSnapshots,
-              signatureValid: sigValid,
+              signatureValid: sigValid?.valid ?? true,
+              signature: sigValid,
+              performanceValid: performanceResult.valid,
+              performanceErrors: performanceResult.errors,
             },
             isLoading: false,
             error: null,
@@ -126,19 +151,22 @@ export function useTrackRecord() {
         }
 
         const latestSnapshot = await fetchLatestSnapshot(meta);
-        const snapshots = await fetchSnapshotHistory(
+        const snapshotEntries = await fetchSnapshotHistoryEntries(
           meta.latestSnapshotCid,
           MAX_SNAPSHOTS,
         );
+        const snapshots = snapshotEntries.map((entry) => entry.snapshot);
         const summary = computePerformanceSummary(snapshots);
 
-        const chainResult = verifyCidChain(snapshots);
-        const sigValid = verifySignature(
+        const chainResult = verifyCidChain(snapshotEntries);
+        const performanceResult = verifyPerformanceMetrics(snapshots);
+        const sigValid = await verifySignature(
           latestSnapshot,
           meta.officialSigner ?? '',
         );
 
         cache.meta = meta;
+        cache.snapshotEntries = snapshotEntries;
         cache.snapshots = snapshots;
         cache.summary = summary;
         cache.latestSnapshot = latestSnapshot;
@@ -146,6 +174,7 @@ export function useTrackRecord() {
         if (mountedRef.current) {
           setState({
             meta,
+            snapshotEntries,
             snapshots,
             latestSnapshot,
             summary,
@@ -155,7 +184,10 @@ export function useTrackRecord() {
               chainValid: chainResult.valid,
               chainBrokenAt: chainResult.brokenAt,
               totalSnapshots: chainResult.totalSnapshots,
-              signatureValid: sigValid,
+              signatureValid: sigValid.valid,
+              signature: sigValid,
+              performanceValid: performanceResult.valid,
+              performanceErrors: performanceResult.errors,
             },
             isLoading: false,
             error: null,
