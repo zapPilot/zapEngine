@@ -15,6 +15,7 @@
     "contracts": "bash scripts/contracts.sh",
     "security": "bash scripts/security.sh",
     "coverage": "bash scripts/coverage.sh",
+    "track-record:verify": "tsx scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },

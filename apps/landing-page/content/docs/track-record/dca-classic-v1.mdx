@@ -1,0 +1,38 @@
+---
+title: DCA Classic v1
+description: Dollar-cost averaging baseline benchmark
+---
+
+## Overview
+
+**Strategy ID:** `dca_classic`
+**Version:** v1
+**Start Date:** 2024-12-02
+**Status:** Backtest only
+
+DCA Classic is a pure mechanical baseline that invests a fixed dollar amount every week into a 60/40 BTC/ETH portfolio, with no regime awareness, no rebalancing, and no discretion.
+
+## Rationale
+
+DCA Classic exists as a fair comparison baseline. It captures the beta return of consistent crypto exposure without any active management decisions. If Zap Pilot cannot outperform DCA Classic on a risk-adjusted basis after costs, the strategy has failed its core thesis.
+
+## Parameters
+
+- **Weekly investment:** $100 (fixed)
+- **Allocation:** 60% BTC, 40% ETH (static, never rebalanced)
+- **Execution:** Market order, Monday 00:00 UTC
+- **No stop-loss, no take-profit, no fee optimization**
+
+## Performance Attribution
+
+Zap Pilot's live performance is measured against DCA Classic across three dimensions:
+
+1. **Total return** — cumulative growth of $1 invested at start
+2. **Risk-adjusted return** — Sharpe / Sortino ratio comparison
+3. **Drawdown protection** — max drawdown and time spent underwater
+
+## Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| v1 | 2024-12-02 | Baseline established |
