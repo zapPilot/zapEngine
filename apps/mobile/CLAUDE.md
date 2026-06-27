@@ -3,6 +3,10 @@
 iOS release runbook (plist configs, repro commands, App Store version prep):
 see [docs/ios-release.md](./docs/ios-release.md).
 
+Android release runbook: see the `Android Play Store Release` section in
+[README.md](./README.md). Prefer CLI AAB builds; Android Studio is optional and
+mainly useful for SDK management or native Gradle/signing debugging.
+
 ## iOS Background Audio (invariants)
 
 Lock-screen audio depends on both Dart startup order and the native plist that

@@ -78,6 +78,10 @@ apps/analytics-engine/*.md
 
 # podcast-pipeline
 service-account.json
+apps/mobile/key.properties
+apps/mobile/android/key.properties
+*.jks
+*.keystore
 apps/*/coverage/**
 packages/*/coverage/**
 

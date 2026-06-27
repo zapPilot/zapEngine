@@ -10,14 +10,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  app_links: ^6.3.0
+  app_links: ^7.2.0
   http: ^1.2.2
-  just_audio: ^0.9.40
+  just_audio: ^0.10.5
   audio_service: ^0.18.15
-  audio_session: ^0.1.21
-  local_auth: ^2.2.0
+  audio_session: ^0.2.3
+  local_auth: ^3.0.1
   provider: ^6.1.2
-  share_plus: ^11.0.0
+  share_plus: ^13.2.0
   shared_preferences: ^2.2.0
   supabase_flutter: ^2.5.0
   zapengine_tokens:

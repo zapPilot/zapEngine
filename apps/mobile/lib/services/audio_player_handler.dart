@@ -282,11 +282,7 @@ class PodcastAudioHandler extends BaseAudioHandler with SeekHandler {
       sources.add(AudioSource.uri(Uri.parse(classroomUrl)));
     }
 
-    if (sources.length == 1) {
-      return _player.setAudioSource(sources.single);
-    }
-
-    return _player.setAudioSource(ConcatenatingAudioSource(children: sources));
+    return _player.setAudioSources(sources);
   }
 
   void _publishQueue(Episode episode, {AudioTrack? audioTrack}) {

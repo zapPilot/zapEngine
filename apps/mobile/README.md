@@ -82,6 +82,63 @@ Do not rely on `Runner` scheme > `Run` > `Arguments` > `Environment Variables`
 for these values. The app reads them with Dart `String.fromEnvironment`, so
 they must be compile-time `--dart-define` values.
 
+## Android Play Store Release
+
+The fastest release path is the Flutter CLI. Android Studio is useful for SDK
+management and Gradle/signing debugging, but it is not required to create the
+AAB. Keep using CLI builds unless you need to inspect native Android settings.
+
+Before uploading a new Google Play build, bump the Flutter version with both the
+marketing version and Android `versionCode`:
+
+```yaml
+version: 2.0.4+15
+```
+
+The repo-root `.env` must contain the production runtime config:
+
+```bash
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<anon-or-publishable-key>
+SUPABASE_DB_SCHEMA=from_fed_to_chain # optional; this is the default
+```
+
+Android release signing is read from `android/key.properties`, which must stay
+local and must not be committed:
+
+```properties
+storeFile=/Users/chouyasushi/.android/zap-pilot-upload-20260627.jks
+storePassword=<keystore-password>
+keyAlias=upload
+keyPassword=<key-password>
+```
+
+Build the signed release AAB from the mobile app directory:
+
+```bash
+cd /Users/chouyasushi/htdocs/zapEngine/apps/mobile
+
+set -a
+. ../../.env
+set +a
+
+flutter build appbundle --release \
+  --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+  --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+  --dart-define=SUPABASE_DB_SCHEMA="${SUPABASE_DB_SCHEMA:-from_fed_to_chain}"
+```
+
+The upload artifact is:
+
+```bash
+build/app/outputs/bundle/release/app-release.aab
+```
+
+Upload that `.aab` in Play Console to the target testing or production track.
+If Play Console reports that the upload certificate does not match, do not
+create a new app or change `applicationId`; request an upload-key reset for the
+same Play Console app instead.
+
 ## iOS App Store Release
 
 Before uploading a new App Store Connect build, bump the Flutter version with

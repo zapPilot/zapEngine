@@ -77,10 +77,8 @@ class AuthService {
   Future<PodcastUser> signInWithFaceId() async {
     final authenticated = await _localAuth.authenticate(
       localizedReason: 'Sign in to From Fed to Chain',
-      options: const AuthenticationOptions(
-        biometricOnly: true,
-        stickyAuth: true,
-      ),
+      biometricOnly: true,
+      persistAcrossBackgrounding: true,
     );
 
     if (!authenticated) {
