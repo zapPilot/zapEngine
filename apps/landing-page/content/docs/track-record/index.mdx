@@ -1,0 +1,39 @@
+---
+title: Track Record
+description: Live on-chain track record for the Zap Pilot strategy
+---
+
+## Live Track Record
+
+The Zap Pilot track record is generated daily by an automated pipeline that:
+
+1. Fetches on-chain wallet positions via RPC
+2. Values assets using Chainlink price feeds
+3. Computes NAV and performance metrics
+4. Pins a signed JSON snapshot to IPFS
+5. Commits the new CID to this repository
+
+Each snapshot is cryptographically linked to the previous one via `previousCid`, forming a tamper-evident chain. The full history is publicly verifiable.
+
+## Pages
+
+- **Overview** (`/track-record`) — Current status, NAV, key metrics
+- **Performance** (`/track-record/performance`) — NAV curve, drawdown, benchmark comparison
+- **Positions** (`/track-record/positions`) — Current tokenized holdings by chain
+- **Rebalances** (`/track-record/rebalances`) — Rebalance history with on-chain tx links
+- **Verification** (`/track-record/verification`) — CID chain validity, signature checks, methodology
+
+## Strategy Specs
+
+- [DMA/FGI Portfolio Rules v1](/docs/track-record/dma-fgi-portfolio-rules-v1) — The live strategy
+- [DCA Classic v1](/docs/track-record/dca-classic-v1) — The baseline benchmark
+
+## Verify
+
+Run the full verification CLI:
+
+```bash
+pnpm track-record:verify
+```
+
+This walks the entire CID chain, validates schema, verifies EIP-191 signatures, recomputes performance metrics from raw positions + prices, and checks CID content hashes.

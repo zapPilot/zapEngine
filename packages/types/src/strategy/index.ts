@@ -4,3 +4,4 @@ export * from './allocation.js';
 export * from './backtesting.js';
 export * from './suggestion.js';
 export * from './preset.js';
+export * from './track-record.js';

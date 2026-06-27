@@ -1811,3 +1811,1122 @@
     background-position: 0 0;
   }
 }
+
+/* ============================================
+   Track Record Pages
+   ============================================ */
+
+.shell-root .track-record-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.shell-root .track-record-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.shell-root .track-record-header .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.shell-root .track-record-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root .track-record-breadcrumb a {
+  color: var(--ink-dim);
+  transition: color 0.2s;
+}
+
+.shell-root .track-record-breadcrumb a:hover {
+  color: var(--ink);
+}
+
+.shell-root .live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-left: auto;
+}
+
+.shell-root .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 var(--accent);
+  animation: shell-pulse-ring 2s ease-out infinite;
+}
+
+.shell-root .pending-badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-left: auto;
+}
+
+.shell-root .track-record-nav {
+  display: flex;
+  gap: 32px;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.shell-root .track-record-nav a {
+  padding: 16px 0;
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  margin-bottom: -1px;
+}
+
+.shell-root .track-record-nav a:hover {
+  color: var(--ink);
+}
+
+.shell-root .track-record-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 40px;
+}
+
+/* Track Record Overview Page */
+
+.shell-root .track-record-page {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.shell-root .track-record-error {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: rgba(255, 50, 50, 0.05);
+  color: #ff6b6b;
+  font-size: 14px;
+}
+
+.shell-root .pending-banner {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+  background: rgba(212, 197, 163, 0.06);
+  color: var(--ink-dim);
+  font-size: 15px;
+}
+
+.shell-root .pending-banner strong {
+  color: var(--ink);
+}
+
+.shell-root .track-record-status {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.shell-root .status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 20px;
+}
+
+.shell-root .status-kicker {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root .status-block strong {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.shell-root .status-block span {
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.shell-root .no-live-notice {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+
+.shell-root .model-wallets,
+.shell-root .backtest-vs-live {
+  border-top: 1px solid var(--line);
+  padding-top: 32px;
+}
+
+.shell-root .model-wallets h3,
+.shell-root .backtest-vs-live h3 {
+  margin: 0 0 18px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.shell-root .wallet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell-root .wallet-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.shell-root .wallet-list a {
+  color: var(--accent);
+}
+
+.shell-root .chain-badge {
+  color: var(--ink-dim);
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.shell-root .no-data-note {
+  color: var(--ink-faint);
+  font-size: 13px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.shell-root .backtest-vs-live p {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.75;
+  margin: 0 0 12px;
+}
+
+.shell-root .backtest-vs-live a {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+/* NAV Curve Chart */
+
+.shell-root .nav-curve-chart,
+.shell-root .drawdown-chart,
+.shell-root .benchmark-chart {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px 22px 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent),
+    rgba(10, 10, 10, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.shell-root .nav-curve-chart-empty,
+.shell-root .drawdown-chart-empty,
+.shell-root .benchmark-chart-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 40px 22px;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 14px;
+  margin: 0 0 18px;
+}
+
+.shell-root .nav-curve-header,
+.shell-root .drawdown-chart-header,
+.shell-root .benchmark-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.shell-root .nav-curve-kicker,
+.shell-root .drawdown-kicker,
+.shell-root .benchmark-kicker {
+  margin: 0 0 8px;
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.shell-root .nav-curve-header h3,
+.shell-root .drawdown-chart-header h3,
+.shell-root .benchmark-chart-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.shell-root .nav-curve-legend,
+.shell-root .benchmark-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.shell-root .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.shell-root .legend-item span {
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ink-faint);
+}
+
+.shell-root .legend-item.strategy span {
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(212, 197, 163, 0.24);
+}
+
+.shell-root .legend-item.dca span {
+  background: #2775ca;
+}
+
+.shell-root .nav-curve-svg,
+.shell-root .drawdown-svg,
+.shell-root .benchmark-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.shell-root .drawdown-area {
+  fill: rgba(212, 197, 163, 0.1);
+  stroke: rgba(212, 197, 163, 0.3);
+  stroke-width: 1;
+}
+
+.shell-root .chart-series.strategy path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.shell-root .chart-series.dca path {
+  fill: none;
+  stroke: #2775ca;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  stroke-dasharray: 7 7;
+  vector-effect: non-scaling-stroke;
+}
+
+.shell-root .chart-grid-line line {
+  stroke: rgba(255, 255, 255, 0.065);
+  stroke-width: 1;
+}
+
+.shell-root .chart-grid-line text,
+.shell-root .chart-x-labels text,
+.shell-root .chart-end-label {
+  fill: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.shell-root .chart-axis {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+}
+
+.shell-root .chart-endpoint {
+  fill: var(--bg);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.shell-root .chart-x-labels text:last-child {
+  text-anchor: end;
+}
+
+.shell-root .nav-curve-chart figcaption,
+.shell-root .drawdown-chart figcaption,
+.shell-root .benchmark-chart figcaption {
+  margin: 10px 0 0;
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Metrics Row */
+
+.shell-root .metrics-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin: 0 0 40px;
+}
+
+.shell-root .metric-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 160px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .metric-label {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root .metric-value {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+/* Performance Page */
+
+.shell-root .track-record-performance {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.shell-root .track-record-performance h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.shell-root .perf-charts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.shell-root .perf-stats {
+  margin-top: 8px;
+}
+
+.shell-root .perf-stats h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.shell-root .perf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.shell-root .stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .stat-label {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root .stat-card strong {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.shell-root .stat-card span {
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* Positions Page */
+
+.shell-root .track-record-positions {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.shell-root .track-record-positions h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.shell-root .positions-meta {
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.shell-root .positions-table-wrap,
+.shell-root .rebalance-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .positions-table-empty,
+.shell-root .rebalance-table-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 14px;
+}
+
+.shell-root .positions-table,
+.shell-root .rebalance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shell-root .positions-table th,
+.shell-root .rebalance-table th {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root .positions-table td,
+.shell-root .rebalance-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.shell-root .positions-table tr:last-child td,
+.shell-root .rebalance-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.shell-root .td-asset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-root .asset-name {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.shell-root .asset-token {
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.shell-root .td-chain,
+.shell-root .td-pct,
+.shell-root .td-usd,
+.shell-root .td-amount,
+.shell-root .td-date,
+.shell-root .td-type,
+.shell-root .td-return,
+.shell-root .td-cost {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.shell-root .td-hash a {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.shell-root .positions-legend {
+  margin-top: 8px;
+}
+
+.shell-root .positions-legend h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.shell-root .position-detail {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .pos-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.shell-root .pos-detail-header strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.shell-root .pos-detail-header span {
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.shell-root .pos-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin: 0;
+}
+
+.shell-root .pos-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shell-root .pos-detail-grid dt {
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root .pos-detail-grid dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  word-break: break-all;
+}
+
+/* Rebalances Page */
+
+.shell-root .track-record-rebalances {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.shell-root .track-record-rebalances h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.shell-root .rebalances-meta {
+  color: var(--ink-dim);
+  font-size: 14px;
+  margin: 0;
+}
+
+.shell-root .rebalance-log-links {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .rebalance-log-links h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.shell-root .rebalance-log-links ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shell-root .rebalance-log-links a {
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.shell-root .rebalance-methodology {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.shell-root .rebalance-methodology h3,
+.shell-root .verification-methodology h3,
+.shell-root .verification-cli h3 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.shell-root .rebalance-methodology dl,
+.shell-root .verification-methodology dl {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 8px 24px;
+  margin: 0;
+}
+
+.shell-root .rebalance-methodology dt,
+.shell-root .verification-methodology dt {
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+
+.shell-root .rebalance-methodology dd,
+.shell-root .verification-methodology dd {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Verification Page */
+
+.shell-root .track-record-verification {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.shell-root .track-record-verification h2 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+}
+
+.shell-root .verification-intro {
+  max-width: 700px;
+  color: var(--ink-dim);
+  font-size: 16px;
+  line-height: 1.75;
+  margin: 0 0 8px;
+}
+
+.shell-root .verification-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 32px;
+}
+
+.shell-root .verification-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.shell-root .verification-section h3 {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.shell-root .verification-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell-root .verification-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.shell-root .verification-item svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.shell-root .verification-item a {
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.shell-root .snapshot-cid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.shell-root .snapshot-cid-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.shell-root .cid-date {
+  color: var(--ink-dim);
+}
+
+.shell-root .cid-value {
+  color: var(--ink-faint);
+  font-size: 9px;
+}
+
+.shell-root .verification-panel-loading {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 14px;
+  grid-column: span 2;
+}
+
+.shell-root .verification-methodology,
+.shell-root .verification-cli {
+  border-top: 1px solid var(--line);
+  padding-top: 32px;
+}
+
+.shell-root .verification-cli p {
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.shell-root .verification-cli pre {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.04);
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.shell-root .verification-cli code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+/* Loading state */
+
+.shell-root .track-record-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: var(--ink-dim);
+  font-size: 14px;
+}
+
+/* Live Track CTA on Home Page */
+
+.shell-root .live-track-cta {
+  padding: 92px 40px;
+  text-align: center;
+}
+
+.shell-root .live-track-cta-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.shell-root .live-track-kicker {
+  margin: 0 0 16px;
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root .live-track-title {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.shell-root .live-track-sub {
+  max-width: 540px;
+  color: var(--ink-dim);
+  font-size: 17px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.shell-root .live-track-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 14px 28px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.shell-root .live-track-btn:hover {
+  background: var(--ink);
+  transform: translateY(-1px);
+}
+
+.shell-root .live-track-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 1100px) {
+  .shell-root .perf-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shell-root .pos-detail-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .shell-root .track-record-header {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+  }
+
+  .shell-root .track-record-nav {
+    padding: 0 20px;
+    gap: 20px;
+    overflow-x: auto;
+  }
+
+  .shell-root .track-record-main {
+    padding: 32px 20px;
+  }
+
+  .shell-root .track-record-status {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shell-root .metrics-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shell-root .perf-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-root .perf-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shell-root .pos-detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shell-root .verification-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-root .live-track-cta {
+    padding: 56px 20px;
+  }
+
+  .shell-root .live-track-title {
+    font-size: 34px;
+  }
+
+  .shell-root .track-record-performance h2,
+  .shell-root .track-record-positions h2,
+  .shell-root .track-record-rebalances h2,
+  .shell-root .track-record-verification h2 {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell-root .track-record-nav {
+    gap: 16px;
+  }
+
+  .shell-root .metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-root .perf-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
