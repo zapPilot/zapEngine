@@ -109,6 +109,14 @@ describe('Supabase user_episode_state grants', () => {
     );
   });
 
+  it('keeps mobile sign-in behind the public security-definer RPC', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const migrations = readSortedMigrations().join('\n');
+
+    expectMobileSignInRpcPrivileges(schema, 'schema.sql');
+    expectMobileSignInRpcPrivileges(migrations, 'migrations');
+  });
+
   it('grants mobile classroom HLS source columns to Data API roles', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
     const migrations = readSortedMigrations().join('\n');
@@ -270,6 +278,47 @@ function effectiveDataApiTableGrants(
   };
 }
 
+function expectMobileSignInRpcPrivileges(
+  sql: string,
+  sourceName: string,
+): void {
+  const publicSignInDefinition = latestFunctionDefinition(
+    sql,
+    'from_fed_to_chain',
+    'sign_in_podcast_user',
+  );
+  const publicSignInExecuteGrantees = effectiveFunctionExecuteGrantees(
+    sql,
+    'from_fed_to_chain',
+    'sign_in_podcast_user',
+  );
+  const privateSchemaUsageGrantees = effectiveSchemaUsageGrantees(
+    sql,
+    'from_fed_to_chain_private',
+  );
+  const privateUpsertExecuteGrantees = effectiveFunctionExecuteGrantees(
+    sql,
+    'from_fed_to_chain_private',
+    'upsert_podcast_user',
+  );
+
+  expect(
+    publicSignInDefinition,
+    `${sourceName} sign_in_podcast_user must be defined`,
+  ).not.toBeNull();
+  expect(
+    publicSignInDefinition,
+    `${sourceName} sign_in_podcast_user must be SECURITY DEFINER so callers do not need private schema usage`,
+  ).toMatch(/\bsecurity\s+definer\b/i);
+  expect(
+    publicSignInDefinition,
+    `${sourceName} sign_in_podcast_user must keep an empty search_path`,
+  ).toMatch(/\bset\s+search_path\s*=\s*''/i);
+  expect(publicSignInExecuteGrantees).toEqual(['anon', 'authenticated']);
+  expect(privateSchemaUsageGrantees).toEqual([]);
+  expect(privateUpsertExecuteGrantees).toEqual([]);
+}
+
 function effectiveTablePrivileges(sql: string, table: string): string[] {
   const privileges = new Set<string>();
   const pattern = new RegExp(
@@ -293,6 +342,84 @@ function effectiveTablePrivileges(sql: string, table: string): string[] {
   }
 
   return [...privileges].sort();
+}
+
+function latestFunctionDefinition(
+  sql: string,
+  schema: string,
+  functionName: string,
+): string | null {
+  const pattern = new RegExp(
+    `create\\s+or\\s+replace\\s+function\\s+${escapeRegExp(
+      schema,
+    )}\\.${escapeRegExp(functionName)}[\\s\\S]+?\\$\\$\\s*;`,
+    'gi',
+  );
+  const matches = [...sql.matchAll(pattern)];
+
+  return matches.at(-1)?.[0] ?? null;
+}
+
+function effectiveSchemaUsageGrantees(sql: string, schema: string): string[] {
+  const grantees = new Set<string>();
+  const pattern = new RegExp(
+    `\\b(grant|revoke)\\s+([a-z,\\s]+?)\\s+on\\s+schema\\s+${escapeRegExp(
+      schema,
+    )}\\s+(?:to|from)\\s+([^;]+);`,
+    'gi',
+  );
+
+  for (const match of sql.matchAll(pattern)) {
+    const action = match[1]!.toLowerCase();
+    const privileges = splitColumns(match[2]!);
+    if (!privileges.includes('usage') && !privileges.includes('all')) {
+      continue;
+    }
+    const roles = splitColumns(match[3]!);
+    for (const role of roles) {
+      if (role === 'public') {
+        continue;
+      }
+      if (action === 'grant') {
+        grantees.add(role);
+      } else {
+        grantees.delete(role);
+      }
+    }
+  }
+
+  return [...grantees].sort();
+}
+
+function effectiveFunctionExecuteGrantees(
+  sql: string,
+  schema: string,
+  functionName: string,
+): string[] {
+  const grantees = new Set<string>();
+  const pattern = new RegExp(
+    `\\b(grant|revoke)\\s+execute\\s+on\\s+function\\s+${escapeRegExp(
+      schema,
+    )}\\.${escapeRegExp(functionName)}\\([^)]*\\)\\s+(?:to|from)\\s+([^;]+);`,
+    'gi',
+  );
+
+  for (const match of sql.matchAll(pattern)) {
+    const action = match[1]!.toLowerCase();
+    const roles = splitColumns(match[2]!);
+    for (const role of roles) {
+      if (role === 'public') {
+        continue;
+      }
+      if (action === 'grant') {
+        grantees.add(role);
+      } else {
+        grantees.delete(role);
+      }
+    }
+  }
+
+  return [...grantees].sort();
 }
 
 function tablePrivileges(value: string): string[] {

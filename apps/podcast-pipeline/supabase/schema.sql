@@ -157,7 +157,7 @@ returns table (
   display_name text
 )
 language sql
-security invoker
+security definer
 set search_path = ''
 as $$
   select user_row.id, user_row.display_name
@@ -308,7 +308,7 @@ create policy "anon read completed language classrooms"
   );
 
 revoke all on schema from_fed_to_chain_private from public;
-grant usage on schema from_fed_to_chain_private to anon, authenticated;
+revoke all on schema from_fed_to_chain_private from anon, authenticated;
 grant usage on schema from_fed_to_chain to anon, authenticated, service_role;
 
 grant all on from_fed_to_chain.episodes to service_role;
@@ -373,9 +373,7 @@ grant select, insert, update
   on from_fed_to_chain.user_episode_state to anon, authenticated;
 
 revoke execute on function from_fed_to_chain_private.upsert_podcast_user(text, text)
-  from public;
-grant execute on function from_fed_to_chain_private.upsert_podcast_user(text, text)
-  to anon, authenticated;
+  from public, anon, authenticated;
 
 revoke execute on function from_fed_to_chain.sign_in_podcast_user(text, text)
   from public;
