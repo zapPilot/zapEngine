@@ -62,6 +62,9 @@ class PlaybackProvider extends ChangeNotifier {
   double get currentSectionSpeed => _speedForSection(_currentSection);
   AudioTrack? get currentAudioTrack => _currentAudioTrack;
   Stream<String> get completedEpisodeIds => _completionController.stream;
+  bool get hasPreviousEpisode => _queueIndex > 0 && _queueIndex < _queue.length;
+  bool get hasNextEpisode =>
+      _queueIndex >= 0 && _queueIndex < _queue.length - 1;
 
   bool isEpisodePlaying(String id) {
     return _currentEpisode?.id == id && _isPlaying;
@@ -162,6 +165,14 @@ class PlaybackProvider extends ChangeNotifier {
 
     await _setEpisode(start, startAt: _resumePositionFor(start));
     await _handler.play();
+  }
+
+  Future<Episode?> skipToPreviousEpisode() {
+    return _skipToQueueIndex(_queueIndex - 1);
+  }
+
+  Future<Episode?> skipToNextEpisode() {
+    return _skipToQueueIndex(_queueIndex + 1);
   }
 
   Future<void> pause() async {
@@ -377,6 +388,40 @@ class PlaybackProvider extends ChangeNotifier {
     final nextEpisode = _queue[_queueIndex];
     await _setEpisode(nextEpisode, startAt: _resumePositionFor(nextEpisode));
     await _handler.play();
+  }
+
+  Future<Episode?> _skipToQueueIndex(int targetIndex) async {
+    if (_queueIndex < 0 || targetIndex < 0 || targetIndex >= _queue.length) {
+      return null;
+    }
+
+    _rememberCurrentQueuePosition();
+    await _persistPosition(flush: true);
+
+    _queueIndex = targetIndex;
+    final episode = _queue[_queueIndex];
+    await _setEpisode(episode, startAt: _resumePositionFor(episode));
+    await _handler.play();
+    return episode;
+  }
+
+  void _rememberCurrentQueuePosition() {
+    if (_queueIndex < 0 || _queueIndex >= _queue.length) return;
+
+    final currentEpisode = _currentEpisode;
+    final queuedEpisode = _queue[_queueIndex];
+    if (currentEpisode == null ||
+        !queuedEpisode.isSameLocalizationAs(currentEpisode)) {
+      return;
+    }
+
+    final positionSeconds = _position.inSeconds;
+    _queue[_queueIndex] = queuedEpisode.copyWith(
+      lastPositionSeconds: positionSeconds,
+    );
+    _currentEpisode = currentEpisode.copyWith(
+      lastPositionSeconds: positionSeconds,
+    );
   }
 
   Future<void> _persistPosition({bool flush = false}) async {

@@ -71,6 +71,17 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     );
   }
 
+  void _displayEpisode(Episode episode) {
+    setState(() {
+      _episode = episode;
+      _showAppBarBackground = false;
+      _showBackToTop = false;
+    });
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
   Future<void> _selectLanguage(String languageCode) async {
     final localizedEpisode = await _episodeService.getEpisodeById(
       _episode.id,
@@ -115,6 +126,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                   EpisodeDetailPlaybackControls(
                     episode: _episode,
                     onLanguageSelected: _selectLanguage,
+                    onEpisodeChanged: _displayEpisode,
                   ),
                   const SizedBox(height: 14),
                   EpisodeDetailActionRow(episode: _episode),

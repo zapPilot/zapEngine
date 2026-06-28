@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android manifest declares audio_service background playback entries', () {
+  test('Android manifest declares audio_service background playback entries',
+      () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
@@ -49,7 +50,8 @@ void main() {
 
     expect(
       mainActivity,
-      contains('import com.ryanheise.audioservice.AudioServiceFragmentActivity'),
+      contains(
+          'import com.ryanheise.audioservice.AudioServiceFragmentActivity'),
       reason: 'The app uses FragmentActivity plugins such as local_auth.',
     );
     expect(

@@ -338,6 +338,102 @@ void main() {
     },
   );
 
+  test('manual queue skip exposes availability and returns skipped episode',
+      () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+    final first = _episode(
+      'episode-1',
+    ).copyWith(createdAt: DateTime(2026, 5));
+    final second = _episode('episode-2').copyWith(
+      createdAt: DateTime(2026, 5, 2),
+      lastPositionSeconds: 42,
+    );
+
+    await provider.playSmart([second, first]);
+
+    expect(provider.currentEpisode, first);
+    expect(provider.hasPreviousEpisode, isFalse);
+    expect(provider.hasNextEpisode, isTrue);
+
+    await provider.seek(const Duration(seconds: 18));
+    final nextEpisode = await provider.skipToNextEpisode();
+
+    expect(nextEpisode, second);
+    expect(provider.currentEpisode, second);
+    expect(provider.hasPreviousEpisode, isTrue);
+    expect(provider.hasNextEpisode, isFalse);
+    expect(provider.position, const Duration(seconds: 42));
+    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2']);
+    expect(handler.seekPositions, [
+      const Duration(seconds: 18),
+      const Duration(seconds: 42),
+    ]);
+    expect(service.positionWrites, [
+      const _PositionWrite('user-1', 'episode-1', 18),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('manual previous skip resumes the locally persisted queue position',
+      () async {
+    final handler = FakePodcastAudioHandler(emitPositionOnSeek: false);
+    final service = _FakeEpisodeService();
+    final provider = PlaybackProvider(handler, episodeService: service)
+      ..setUser('user-1');
+    final first = _episode(
+      'episode-1',
+    ).copyWith(createdAt: DateTime(2026, 5));
+    final second = _episode('episode-2').copyWith(
+      createdAt: DateTime(2026, 5, 2),
+      lastPositionSeconds: 42,
+    );
+
+    await provider.playSmart([second, first]);
+    await provider.seek(const Duration(seconds: 18));
+    await provider.skipToNextEpisode();
+
+    final previousEpisode = await provider.skipToPreviousEpisode();
+
+    expect(previousEpisode?.id, 'episode-1');
+    expect(provider.currentEpisode?.id, 'episode-1');
+    expect(provider.position, const Duration(seconds: 18));
+    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2', 'episode-1']);
+    expect(handler.seekPositions, [
+      const Duration(seconds: 18),
+      const Duration(seconds: 42),
+      const Duration(seconds: 18),
+    ]);
+    expect(service.positionWrites, [
+      const _PositionWrite('user-1', 'episode-1', 18),
+      const _PositionWrite('user-1', 'episode-2', 42),
+    ]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('manual queue skip is unavailable outside a queued playSmart session',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+
+    await provider.toggle(_episode('episode-1'));
+
+    expect(provider.hasPreviousEpisode, isFalse);
+    expect(provider.hasNextEpisode, isFalse);
+    expect(await provider.skipToPreviousEpisode(), isNull);
+    expect(await provider.skipToNextEpisode(), isNull);
+    expect(handler.loadedEpisodeIds, ['episode-1']);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   test('playSmart starts the oldest in-progress episode', () async {
     final handler = FakePodcastAudioHandler();
     final provider = PlaybackProvider(

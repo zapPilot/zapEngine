@@ -15,10 +15,12 @@ class EpisodeDetailPlaybackControls extends StatefulWidget {
     super.key,
     required this.episode,
     required this.onLanguageSelected,
+    required this.onEpisodeChanged,
   });
 
   final Episode episode;
   final ValueChanged<String> onLanguageSelected;
+  final ValueChanged<Episode> onEpisodeChanged;
 
   @override
   State<EpisodeDetailPlaybackControls> createState() =>
@@ -30,6 +32,14 @@ class _EpisodeDetailPlaybackControlsState
   double? _scrubValue;
   bool _pressed = false;
 
+  @override
+  void didUpdateWidget(covariant EpisodeDetailPlaybackControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.episode.isSameLocalizationAs(oldWidget.episode)) {
+      _scrubValue = null;
+    }
+  }
+
   Future<void> _togglePlayback() async {
     setState(() => _pressed = true);
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -40,6 +50,21 @@ class _EpisodeDetailPlaybackControlsState
     await context.read<PlaybackProvider>().toggle(widget.episode);
   }
 
+  Future<void> _skipToPreviousEpisode() async {
+    final episode =
+        await context.read<PlaybackProvider>().skipToPreviousEpisode();
+    if (!mounted || episode == null) return;
+    setState(() => _scrubValue = null);
+    widget.onEpisodeChanged(episode);
+  }
+
+  Future<void> _skipToNextEpisode() async {
+    final episode = await context.read<PlaybackProvider>().skipToNextEpisode();
+    if (!mounted || episode == null) return;
+    setState(() => _scrubValue = null);
+    widget.onEpisodeChanged(episode);
+  }
+
   @override
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackProvider>();
@@ -48,6 +73,8 @@ class _EpisodeDetailPlaybackControlsState
         currentEpisode.isSameLocalizationAs(widget.episode);
     final isPlaying = isCurrent && playback.isPlaying;
     final isLoading = playback.loadingEpisodeId == widget.episode.id;
+    final canSkipPrevious = isCurrent && playback.hasPreviousEpisode;
+    final canSkipNext = isCurrent && playback.hasNextEpisode;
     final position = isCurrent ? playback.position : Duration.zero;
     final duration = isCurrent ? playback.duration : Duration.zero;
     final durationMs = duration.inMilliseconds;
@@ -73,7 +100,17 @@ class _EpisodeDetailPlaybackControlsState
           SizedBox(
             height: 56,
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                IconButton(
+                  tooltip: 'Previous episode',
+                  icon: const Icon(Icons.skip_previous_rounded),
+                  iconSize: 30,
+                  color: AppColors.textPrimary,
+                  disabledColor: AppColors.textFaint,
+                  onPressed: canSkipPrevious ? _skipToPreviousEpisode : null,
+                ),
+                const SizedBox(width: 12),
                 AnimatedScale(
                   scale: _pressed ? 0.96 : 1,
                   duration: const Duration(milliseconds: 90),
@@ -88,53 +125,66 @@ class _EpisodeDetailPlaybackControlsState
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  formatDuration(displayedPosition),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: AppColors.accent,
-                      inactiveTrackColor: AppColors.divider,
-                      thumbColor: AppColors.accent,
-                      overlayColor: AppColors.accent.withValues(alpha: 0.16),
-                      trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
-                      ),
-                    ),
-                    child: Slider(
-                      value: sliderValue,
-                      min: 0,
-                      max: maxValue,
-                      onChangeStart: durationMs > 0 && isCurrent
-                          ? (value) => setState(() => _scrubValue = value)
-                          : null,
-                      onChanged: durationMs > 0 && isCurrent
-                          ? (value) => setState(() => _scrubValue = value)
-                          : null,
-                      onChangeEnd: durationMs > 0 && isCurrent
-                          ? (value) async {
-                              setState(() => _scrubValue = null);
-                              await context.read<PlaybackProvider>().seek(
-                                    Duration(milliseconds: value.round()),
-                                  );
-                            }
-                          : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  formatDuration(duration),
-                  style: Theme.of(context).textTheme.bodySmall,
+                IconButton(
+                  tooltip: 'Next episode',
+                  icon: const Icon(Icons.skip_next_rounded),
+                  iconSize: 30,
+                  color: AppColors.textPrimary,
+                  disabledColor: AppColors.textFaint,
+                  onPressed: canSkipNext ? _skipToNextEpisode : null,
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                formatDuration(displayedPosition),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: AppColors.accent,
+                    inactiveTrackColor: AppColors.divider,
+                    thumbColor: AppColors.accent,
+                    overlayColor: AppColors.accent.withValues(alpha: 0.16),
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                  ),
+                  child: Slider(
+                    value: sliderValue,
+                    min: 0,
+                    max: maxValue,
+                    onChangeStart: durationMs > 0 && isCurrent
+                        ? (value) => setState(() => _scrubValue = value)
+                        : null,
+                    onChanged: durationMs > 0 && isCurrent
+                        ? (value) => setState(() => _scrubValue = value)
+                        : null,
+                    onChangeEnd: durationMs > 0 && isCurrent
+                        ? (value) async {
+                            setState(() => _scrubValue = null);
+                            await context.read<PlaybackProvider>().seek(
+                                  Duration(milliseconds: value.round()),
+                                );
+                          }
+                        : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                formatDuration(duration),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Align(

@@ -145,6 +145,127 @@ void main() {
     await handler.dispose();
   });
 
+  testWidgets('Episode detail next skip updates displayed episode content', (
+    tester,
+  ) async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    final first = _episode(
+      title: 'Original macro cycle',
+      script: 'Original transcript body.',
+    ).copyWith(createdAt: DateTime(2026, 5));
+    final next = _episode(
+      title: 'Next liquidity regime',
+      script: 'Next transcript body.',
+    ).copyWith(
+      id: 'episode-2',
+      hlsUrl: 'https://cdn.example.com/episode-2.m3u8',
+      createdAt: DateTime(2026, 5, 2),
+    );
+
+    await provider.playSmart([next, first]);
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(episode: first),
+      playbackProvider: provider,
+    );
+
+    expect(find.text('Original macro cycle'), findsWidgets);
+    expect(find.text('Original transcript body.'), findsOneWidget);
+    expect(find.text('Next liquidity regime'), findsNothing);
+
+    await tester.tap(find.byTooltip('Next episode'));
+    await tester.pumpAndSettle();
+
+    expect(provider.currentEpisode?.id, 'episode-2');
+    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2']);
+    expect(find.text('Next liquidity regime'), findsWidgets);
+    expect(find.text('Next transcript body.'), findsOneWidget);
+    expect(find.text('Original transcript body.'), findsNothing);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  testWidgets('Episode detail disables skip buttons without a playback queue', (
+    tester,
+  ) async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(episode: _episode()),
+      playbackProvider: provider,
+    );
+
+    final previousButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.skip_previous_rounded),
+        matching: find.byType(IconButton),
+      ),
+    );
+    final nextButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.skip_next_rounded),
+        matching: find.byType(IconButton),
+      ),
+    );
+
+    expect(previousButton.onPressed, isNull);
+    expect(nextButton.onPressed, isNull);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  testWidgets(
+    'Episode detail keeps displayed episode when playback is a different episode',
+    (tester) async {
+      final handler = FakePodcastAudioHandler();
+      final provider = PlaybackProvider(handler);
+      final playing = _episode(
+        title: 'Mini-player episode',
+        script: 'Mini-player transcript.',
+      ).copyWith(id: 'episode-playing');
+      final viewed = _episode(
+        title: 'Viewed detail episode',
+        script: 'Viewed transcript.',
+      );
+
+      await provider.toggle(playing);
+      await _pumpHarness(
+        tester,
+        EpisodeDetailScreen(episode: viewed),
+        playbackProvider: provider,
+      );
+
+      expect(find.text('Viewed detail episode'), findsWidgets);
+      expect(find.text('Viewed transcript.'), findsOneWidget);
+      expect(find.text('Mini-player episode'), findsNothing);
+      expect(find.text('Mini-player transcript.'), findsNothing);
+
+      final previousButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.skip_previous_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+      final nextButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.skip_next_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+
+      expect(previousButton.onPressed, isNull);
+      expect(nextButton.onPressed, isNull);
+
+      provider.dispose();
+      await handler.dispose();
+    },
+  );
+
   testWidgets('Episode detail does not show manual listened action', (
     tester,
   ) async {
