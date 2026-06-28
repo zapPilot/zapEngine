@@ -27,7 +27,7 @@ COPY apps/alpha-etl apps/alpha-etl
 
 RUN pnpm --filter @zapengine/types build \
  && pnpm --filter @zapengine/alpha-etl build \
- && pnpm --filter @zapengine/alpha-etl deploy --legacy --prod --store-dir=/pnpm/store /out
+ && pnpm --filter @zapengine/alpha-etl deploy --legacy /out
 
 FROM node:24-alpine AS runner
 WORKDIR /app

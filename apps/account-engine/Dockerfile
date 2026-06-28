@@ -30,7 +30,7 @@ COPY apps/account-engine apps/account-engine
 RUN pnpm --filter @zapengine/types build \
  && pnpm --filter @zapengine/intent-engine build \
  && pnpm --filter @zapengine/account-engine build \
- && pnpm --filter @zapengine/account-engine deploy --legacy --prod --store-dir=/pnpm/store /out \
+ && pnpm --filter @zapengine/account-engine deploy --legacy /out \
  && test -f /out/dist/main.js
 
 FROM node:24-alpine AS runner

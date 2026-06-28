@@ -19,7 +19,7 @@ COPY packages/knip-config packages/knip-config
 COPY packages/tsconfig packages/tsconfig
 COPY apps/podcast-pipeline apps/podcast-pipeline
 RUN pnpm --filter @zapengine/podcast-pipeline build \
- && pnpm --filter @zapengine/podcast-pipeline deploy --legacy --prod --store-dir=/pnpm/store /out \
+ && pnpm --filter @zapengine/podcast-pipeline deploy --legacy /out \
  && cp -R apps/podcast-pipeline/prompts /out/prompts \
  && test -f /out/dist/index.js
 
