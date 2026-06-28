@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  CLASSROOM_TTS_CONFIG,
   getTtsConfig,
-  MAIN_TTS_CONFIG,
   type TtsUsage,
 } from './tts-config.js';
 
@@ -12,33 +10,18 @@ describe('TTS language config', () => {
     vi.unstubAllEnvs();
   });
 
-  it('declares main-body and classroom routing in named config maps', () => {
-    expect(MAIN_TTS_CONFIG['zh-Hant']).toEqual({
+  it('defaults to google when TTS_PROVIDER is unset', () => {
+    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
     });
-    expect(MAIN_TTS_CONFIG.ja).toEqual({
+    expect(getTtsConfig('main', 'ja')).toEqual({
       provider: 'google',
       languageCode: 'ja-JP',
       voiceName: 'ja-JP-Wavenet-A',
     });
-    expect(MAIN_TTS_CONFIG.en).toEqual({
-      provider: 'google',
-      languageCode: 'en-US',
-      voiceName: 'en-US-Wavenet-A',
-    });
-    expect(CLASSROOM_TTS_CONFIG['zh-Hant']).toEqual({
-      provider: 'google',
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
-    });
-    expect(CLASSROOM_TTS_CONFIG.ja).toEqual({
-      provider: 'google',
-      languageCode: 'ja-JP',
-      voiceName: 'ja-JP-Wavenet-A',
-    });
-    expect(CLASSROOM_TTS_CONFIG.en).toEqual({
+    expect(getTtsConfig('main', 'en')).toEqual({
       provider: 'google',
       languageCode: 'en-US',
       voiceName: 'en-US-Wavenet-A',
@@ -53,38 +36,79 @@ describe('TTS language config', () => {
     ['classroom', 'ja', 'google'],
     ['classroom', 'en', 'google'],
   ] as const)(
-    'routes %s %s audio to %s',
+    'defaults %s %s audio to %s',
     (usage: TtsUsage, languageCode, provider) => {
       expect(getTtsConfig(usage, languageCode).provider).toBe(provider);
     },
   );
 
-  it('ignores TTS env overrides because model config is code-owned', () => {
-    vi.stubEnv('TTS_ZH_HANT_MODEL_ID', 'custom-zh-model');
-    vi.stubEnv('TTS_ZH_HANT_ENGINE', 'speech-1.6');
-    vi.stubEnv('TTS_JA_VOICE_NAME', 'ja-JP-Neural2-B');
-    vi.stubEnv('TTS_EN_PROVIDER', 'fish-audio');
-    vi.stubEnv('TTS_JA_PROVIDER', 'elevenlabs');
+  it('switches to fish-audio when TTS_PROVIDER=fish-audio and FISH_AUDIO_MODEL_ID is set', () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'my-voice-model');
 
     expect(getTtsConfig('main', 'zh-Hant')).toEqual({
-      provider: 'google',
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
+      provider: 'fish-audio',
+      modelId: 'my-voice-model',
+      engine: 's2-pro',
     });
     expect(getTtsConfig('main', 'ja')).toEqual({
-      provider: 'google',
-      languageCode: 'ja-JP',
-      voiceName: 'ja-JP-Wavenet-A',
+      provider: 'fish-audio',
+      modelId: 'my-voice-model',
+      engine: 's2-pro',
     });
-    expect(getTtsConfig('classroom', 'zh-Hant')).toEqual({
-      provider: 'google',
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
+    expect(getTtsConfig('classroom', 'en')).toEqual({
+      provider: 'fish-audio',
+      modelId: 'my-voice-model',
+      engine: 's2-pro',
     });
-    expect(getTtsConfig('main', 'en')).toEqual({
-      provider: 'google',
-      languageCode: 'en-US',
-      voiceName: 'en-US-Wavenet-A',
+  });
+
+  it('falls back to google when TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is missing', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+
+    expect(getTtsConfig('main', 'zh-Hant').provider).toBe('google');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is not set; falling back to google',
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('falls back to google when TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is empty', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', '   ');
+
+    expect(getTtsConfig('main', 'en').provider).toBe('google');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is not set; falling back to google',
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('treats unknown TTS_PROVIDER values as google', () => {
+    vi.stubEnv('TTS_PROVIDER', 'elevenlabs');
+
+    expect(getTtsConfig('main', 'zh-Hant').provider).toBe('google');
+  });
+
+  it('is case-insensitive for TTS_PROVIDER', () => {
+    vi.stubEnv('TTS_PROVIDER', 'Fish-Audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'my-voice-model');
+
+    expect(getTtsConfig('main', 'zh-Hant').provider).toBe('fish-audio');
+  });
+
+  it('trims whitespace from TTS_PROVIDER and FISH_AUDIO_MODEL_ID', () => {
+    vi.stubEnv('TTS_PROVIDER', '  fish-audio  ');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', '  my-voice-model  ');
+
+    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+      provider: 'fish-audio',
+      modelId: 'my-voice-model',
+      engine: 's2-pro',
     });
   });
 });
