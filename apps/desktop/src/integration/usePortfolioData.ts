@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries';
 import { getDailyYieldReturns } from '@zapengine/app-core/services';
 
 import { DEMO, type MetricTone } from '@/data/demo';
 import {
   calculateWindowReturn,
-  latestAllocationRows,
   mapDailyValuesToSparkline,
   sumYieldReturns,
 } from '@/integration/portfolioMetrics';
@@ -36,7 +37,7 @@ export interface UsePortfolioDataResult {
 }
 
 const DEMO_PORTFOLIO = DEMO.portfolio;
-const YIELD_DAYS = 30;
+const YIELD_DAYS = 365;
 
 /** A small rotating palette so real allocation categories without a known
  * colour still render with a stable, distinct swatch. */
@@ -84,6 +85,17 @@ function pctMetric(label: string, pct: number | null): Metric {
   };
 }
 
+function positivePctMetric(label: string, pct: number | null): Metric {
+  if (typeof pct !== 'number') {
+    return unavailableMetric(label, 'accent');
+  }
+  return {
+    label,
+    value: `${Math.abs(pct).toFixed(1)}%`,
+    tone: 'accent',
+  };
+}
+
 /**
  * Container hook for the Portfolio screen. Calls the real app-core
  * `usePortfolioDashboard` and maps its (deeply optional) response into the
@@ -93,9 +105,10 @@ function pctMetric(label: string, pct: number | null): Metric {
 export function usePortfolioData(
   userId: string | null,
 ): UsePortfolioDataResult {
+  const landingQuery = useLandingPageData(userId, false, true);
   const { dashboard, isLoading, isError } = usePortfolioDashboard(
     userId ?? undefined,
-    { trend_days: 365, rolling_days: 30 },
+    { trend_days: 365, drawdown_days: 365, rolling_days: 365 },
   );
   const yieldQuery = useQuery({
     queryKey: ['desktop', 'portfolio', 'dailyYield', userId, YIELD_DAYS],
@@ -109,15 +122,18 @@ export function usePortfolioData(
     return { data: null, isLoading: true, isError: false };
   }
 
+  const landing = landingQuery.data;
   const dailyValues = dashboard?.trends?.daily_values ?? [];
   const firstDay = dailyValues[0];
   const lastDay = dailyValues[dailyValues.length - 1];
 
-  // Position value = latest total_value_usd; connected empty state stays null.
+  // Position value = authoritative landing BFF balance.
   const positionValue =
-    typeof lastDay?.total_value_usd === 'number'
-      ? lastDay.total_value_usd
-      : null;
+    typeof landing?.net_portfolio_value === 'number'
+      ? landing.net_portfolio_value
+      : typeof landing?.total_net_usd === 'number'
+        ? landing.total_net_usd
+        : null;
 
   // All-time change: first vs last total_value_usd.
   const firstValue = firstDay?.total_value_usd;
@@ -197,7 +213,10 @@ export function usePortfolioData(
 
   const metrics: PortfolioViewData['metrics'] = [
     totalReturnMetric,
-    unavailableMetric('Current APY', 'accent'),
+    positivePctMetric(
+      'Current APY',
+      landing?.portfolio_roi?.recommended_yearly_roi ?? null,
+    ),
     pctMetric('7D return', return7d),
     pctMetric('30D return', return30d),
     realizedYieldMetric,
@@ -208,21 +227,20 @@ export function usePortfolioData(
     unavailableMetric('Gas saved', 'positive'),
   ];
 
-  // --- Allocation: latest snapshot from the allocation time-series. ---
-  const allocationRows = dashboard?.allocation?.allocations ?? [];
-  const latestRows = latestAllocationRows(allocationRows);
-
   const allocation: PortfolioViewData['allocation'] =
-    latestRows.length > 0
-      ? latestRows.map((row, index) => {
-          const label = row?.category ?? 'Other';
-          return {
-            label,
-            pct: Math.round(row?.allocation_percentage ?? 0),
-            // API carries no colour, so use the stable DEMO palette by label.
-            color: allocationColor(label, index),
-          };
-        })
+    landing?.portfolio_allocation
+      ? [
+          ...calculateAllocation(landing).simplifiedCrypto.map((row) => ({
+            label: row.name,
+            pct: Math.round(row.value),
+            color: row.color,
+          })),
+          {
+            label: 'Stablecoins',
+            pct: Math.round(calculateAllocation(landing).stable),
+            color: allocationColor('Stables', 0),
+          },
+        ].filter((row) => row.pct > 0)
       : [];
 
   const data: PortfolioViewData = {
@@ -238,7 +256,7 @@ export function usePortfolioData(
 
   return {
     data,
-    isLoading: isLoading || yieldQuery.isLoading,
-    isError: isError || yieldQuery.isError,
+    isLoading: isLoading || landingQuery.isLoading || yieldQuery.isLoading,
+    isError: isError || landingQuery.isError || yieldQuery.isError,
   };
 }

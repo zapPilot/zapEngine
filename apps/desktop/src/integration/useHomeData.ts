@@ -2,12 +2,10 @@ import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePo
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
 import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
-import { DEMO, type DemoAsset } from '@/data/demo';
+import { DEMO } from '@/data/demo';
+import { useMoralisWalletAssets } from '@/integration/moralisWallet';
 import { mapDailyValuesToSparkline } from '@/integration/portfolioMetrics';
-import {
-  type InvestableBalanceRow,
-  useInvestableBalances,
-} from '@/integration/useInvestableBalances';
+import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
   type CompositionTarget,
   toCompositionTargetFromSuggestion,
@@ -44,8 +42,9 @@ export interface UseHomeDataResult {
  * - the contrarian quote + market-mode label from the progressive strategy
  *   section (Fear & Greed quote + current regime).
  *
- * Base investable balances and target pillars come from app-core sources.
- * Est. APY has no clean source here and renders unavailable when connected.
+ * Wallet holdings come from Moralis Asset Holdings for the connected EOA.
+ * Target pillars come from app-core/account-engine sources. Default strategy
+ * ROI/drawdown metrics come from the backtesting compare endpoint.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
  *   The portfolio hooks are user-scoped, so they only fetch once userId exists;
@@ -56,18 +55,6 @@ function trendDaysForRange(range: HomeRange): number {
   if (range === '1W') return 7;
   if (range === '1M') return 30;
   return 365;
-}
-
-function assetsFromBalances(rows: InvestableBalanceRow[]): DemoAsset[] {
-  return rows.map((row) => ({
-    symbol: row.token.symbol,
-    name: row.token.name,
-    usdValue: row.usdValue,
-    amountLabel: row.amountLabel,
-    chains: ['base'],
-    iconBg: row.token.iconBg,
-    glyph: row.token.glyph,
-  }));
 }
 
 function liveNumberOrDemo(
@@ -134,16 +121,36 @@ function pillarsFromTarget(
   return isDemo ? demoPillars : emptyPillars();
 }
 
+function unavailableBacktest(): StrategySlice['backtest'] {
+  return {
+    returnLabel: '—',
+    vsBtcLabel: 'Trades —',
+    vsEthLabel: 'Max DD —',
+    metrics: [
+      { label: 'ROI', value: '—', tone: 'positive' },
+      { label: 'Max drawdown', value: '—', tone: 'negative' },
+    ],
+    currentModeLabel: '—',
+    allocation: [],
+    sentiment: null,
+  };
+}
+
 export function useHomeData(
   userId: string | null,
+  address: string | null,
   range: HomeRange,
 ): UseHomeDataResult {
   // Hooks run unconditionally (React rules); they no-op until userId resolves.
   const progressive = usePortfolioDataProgressive(userId);
+  const trendDays = trendDaysForRange(range);
   const dashboard = usePortfolioDashboard(userId ?? undefined, {
-    trend_days: trendDaysForRange(range),
+    trend_days: trendDays,
+    drawdown_days: trendDays,
+    rolling_days: trendDays,
   });
-  const investableBalances = useInvestableBalances();
+  const walletAssets = useMoralisWalletAssets(address);
+  const defaultBacktest = useDefaultStrategyBacktest();
   const suggestion = useStrategySuggestion(userId);
 
   const demoHome = DEMO.home;
@@ -157,16 +164,16 @@ export function useHomeData(
     Boolean(balanceSection?.isLoading) ||
     Boolean(strategySection?.isLoading) ||
     dashboard.isLoading ||
-    (investableBalances.isConnected && investableBalances.isLoading) ||
+    (walletAssets.isConnected && walletAssets.isLoading) ||
     suggestion.isLoading;
   const isError =
     Boolean(balanceSection?.error) ||
     Boolean(strategySection?.error) ||
     dashboard.isError ||
-    investableBalances.isError ||
+    walletAssets.isError ||
     suggestion.isError;
 
-  const isDemo = userId === null;
+  const isDemo = address === null;
 
   // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo
@@ -198,9 +205,7 @@ export function useHomeData(
       isDemo,
     ),
     sparkline: homeSparkline,
-    assets: isDemo
-      ? demoHome.assets
-      : assetsFromBalances(investableBalances.rows),
+    assets: isDemo ? demoHome.assets : walletAssets.assets,
   };
 
   // --- Live: contrarian quote tied to current sentiment ---
@@ -225,12 +230,23 @@ export function useHomeData(
   const pillars = pillarsFromTarget(target, demoStrategy.pillars, isDemo);
 
   const strategy: StrategySlice = {
-    estApyLabel: isDemo ? demoStrategy.estApyLabel : '—',
+    estApyLabel:
+      defaultBacktest.data?.returnLabel ??
+      (isDemo ? demoStrategy.estApyLabel : '—'),
     quote,
     marketModeLabel,
     pillars,
-    // Backtest is unused by the Home card; pass the demo slice through untouched.
-    backtest: demoStrategy.backtest,
+    backtest: defaultBacktest.data
+      ? {
+          ...demoStrategy.backtest,
+          returnLabel: defaultBacktest.data.returnLabel,
+          vsBtcLabel: defaultBacktest.data.vsBtcLabel,
+          vsEthLabel: defaultBacktest.data.vsEthLabel,
+          metrics: defaultBacktest.data.metrics,
+        }
+      : isDemo
+        ? demoStrategy.backtest
+        : unavailableBacktest(),
   };
 
   return { data: { home, strategy }, isLoading, isError };

@@ -3,6 +3,7 @@ import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSe
 import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
 import { DEMO } from '@/data/demo';
+import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
   type CompositionTarget,
   toCompositionTargetFromSuggestion,
@@ -128,14 +129,14 @@ function allocationFromTarget(
 
 function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
   return [
-    { label: 'CAGR', value: '—', tone: 'positive' },
+    { label: 'ROI', value: '—', tone: 'positive' },
     { label: 'Max drawdown', value: '—', tone: 'negative' },
-    { label: 'Volatility', value: '—', tone: 'neutral' },
     { label: 'Sharpe', value: '—', tone: 'accent' },
-    { label: 'Sortino', value: '—', tone: 'accent' },
+    { label: 'Calmar', value: '—', tone: 'accent' },
+    { label: 'Volatility', value: '—', tone: 'neutral' },
     { label: 'Win rate', value: '—', tone: 'neutral' },
-    { label: 'Worst month', value: '—', tone: 'negative' },
-    { label: 'Best month', value: '—', tone: 'positive' },
+    { label: 'Trades', value: '—', tone: 'neutral' },
+    { label: 'Final value', value: '—', tone: 'positive' },
   ];
 }
 
@@ -150,21 +151,29 @@ function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
  *   Sentiment/regime are market-wide (not user-scoped), so the hooks run as soon
  *   as the screen mounts; userId only gates the "still resolving identity" state.
  */
-export function useStrategyData(userId: string | null): UseStrategyDataResult {
+export function useStrategyData(
+  userId: string | null,
+  isConnected: boolean,
+): UseStrategyDataResult {
   // Market-wide signals — no userId needed; run unconditionally (React rules).
   const sentiment = useSentimentData();
   const regime = useRegimeHistory();
   const suggestion = useStrategySuggestion(userId);
+  const defaultBacktest = useDefaultStrategyBacktest();
 
   const demoStrategy = DEMO.strategy;
   const demoBacktest = demoStrategy.backtest;
-  const isDemo = userId === null;
+  const isDemo = !isConnected;
 
   const isLoading =
-    isDemo || sentiment.isLoading || regime.isLoading || suggestion.isLoading;
+    isDemo ||
+    sentiment.isLoading ||
+    regime.isLoading ||
+    suggestion.isLoading ||
+    defaultBacktest.isLoading;
   // Regime degrades to DEFAULT_REGIME_HISTORY internally (never errors), so a
   // genuine failure here is sentiment-only.
-  const isError = sentiment.isError;
+  const isError = sentiment.isError || defaultBacktest.isError;
 
   // --- Live: Fear & Greed sentiment marker (0–100) ---
   const sentimentValue = liveNumberOrDemo(
@@ -204,27 +213,29 @@ export function useStrategyData(userId: string | null): UseStrategyDataResult {
     demoBacktest.allocation,
     isDemo,
   );
-  const backtestMetrics = isDemo
-    ? demoBacktest.metrics
-    : unavailableBacktestMetrics();
+  const backtestMetrics = defaultBacktest.data
+    ? defaultBacktest.data.metrics
+    : isDemo
+      ? demoBacktest.metrics
+      : unavailableBacktestMetrics();
 
   const data: StrategyData = {
-    estApyLabel: demoTextOrDash(demoStrategy.estApyLabel, isDemo),
+    estApyLabel:
+      defaultBacktest.data?.returnLabel ??
+      demoTextOrDash(demoStrategy.estApyLabel, isDemo),
     quote,
     marketModeLabel,
     pillars,
     backtest: {
-      returnLabel: demoTextOrDash(demoBacktest.returnLabel, isDemo),
-      vsBtcLabel: demoTextOrDash(
-        demoBacktest.vsBtcLabel,
-        isDemo,
-        'BTC comparison —',
-      ),
-      vsEthLabel: demoTextOrDash(
-        demoBacktest.vsEthLabel,
-        isDemo,
-        'ETH comparison —',
-      ),
+      returnLabel:
+        defaultBacktest.data?.returnLabel ??
+        demoTextOrDash(demoBacktest.returnLabel, isDemo),
+      vsBtcLabel:
+        defaultBacktest.data?.vsBtcLabel ??
+        demoTextOrDash(demoBacktest.vsBtcLabel, isDemo, 'Trades —'),
+      vsEthLabel:
+        defaultBacktest.data?.vsEthLabel ??
+        demoTextOrDash(demoBacktest.vsEthLabel, isDemo, 'Max DD —'),
       metrics: backtestMetrics,
       currentModeLabel,
       allocation,

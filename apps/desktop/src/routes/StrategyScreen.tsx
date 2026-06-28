@@ -25,8 +25,8 @@ const CHART_LEGEND = [
 export function StrategyScreen() {
   const navigate = useNavigate();
   const [range, setRange] = useState('1Y');
-  const { userId } = useAccount();
-  const { data, isLoading, isError } = useStrategyData(userId);
+  const { isConnected, userId } = useAccount();
+  const { data, isLoading, isError } = useStrategyData(userId, isConnected);
 
   // The container hook always returns a fully-shaped strategy slice (real where
   // available, demo elsewhere). While identity/data resolve we keep the exact
@@ -35,7 +35,7 @@ export function StrategyScreen() {
   const { backtest } = strategy;
   const pending = isLoading || isError || data === null;
   const returnLabel = pending ? '—' : backtest.returnLabel;
-  const isDemo = userId === null;
+  const isDemo = !isConnected;
   const sentimentMarker =
     typeof backtest.sentiment === 'number' ? backtest.sentiment : 50;
   const hasTargetAllocation = data?.hasTargetAllocation ?? isDemo;
@@ -71,7 +71,7 @@ export function StrategyScreen() {
         <div className="flex items-end justify-between">
           <div>
             <div className="font-mono text-[9px] tracking-[0.1em] text-[#9a8f78]">
-              {isDemo ? 'ZAP STRATEGY · 1Y RETURN' : 'BACKTEST · ON DEMAND'}
+              {isDemo ? 'ZAP STRATEGY · 1Y RETURN' : 'DEFAULT BACKTEST · ROI'}
             </div>
             <div className="mt-0.5 font-serif text-[30px] leading-[1.05] text-success">
               {returnLabel}
@@ -283,7 +283,7 @@ export function StrategyScreen() {
             <div className="text-center">
               <div className="font-mono text-[20px] text-ink-faint">—</div>
               <div className="mt-1 text-[11px] text-[#6f6a5f]">
-                Backtest metrics are unavailable until a run is started.
+                Default backtest metrics are shown below when available.
               </div>
             </div>
           </div>

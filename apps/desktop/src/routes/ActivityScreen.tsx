@@ -204,10 +204,10 @@ function EventRow({ event, first }: { event: ActivityEvent; first: boolean }) {
 
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
-  const { userId } = useAccount();
-  const { data, isLoading, isError } = useActivityData(userId);
+  const { address } = useAccount();
+  const { data, isLoading, isError } = useActivityData(address);
 
-  const pending = userId === null || isLoading;
+  const pending = address === null || isLoading;
   const source: ActivityGroup[] = data?.groups ?? [];
   const groups = source
     .map((group) => ({
@@ -271,20 +271,11 @@ export function ActivityScreen() {
           style={{ color: '#6f6a5f' }}
         >
           {pending
-            ? '—'
+            ? 'Connect a wallet to load activity history.'
             : isError
               ? 'Activity is unavailable right now.'
               : 'No activity yet.'}
         </div>
-      ) : null}
-
-      {userId === null ? (
-        <p
-          className="px-5 pb-2 pt-[18px] font-mono text-[9px] tracking-[.06em]"
-          style={{ color: '#52525b' }}
-        >
-          Sample entries are shown until account activity history is connected.
-        </p>
       ) : null}
     </div>
   );

@@ -98,7 +98,7 @@ export interface ActivityEvent {
   meta: string;
   time: string;
   steps?: ActivityStep[];
-  /** Marks disconnected sample rows not backed by a real tx-history API yet. */
+  /** Legacy flag kept so older activity rows can still be typed if reintroduced. */
   demoOnly?: boolean;
 }
 
@@ -207,88 +207,7 @@ export const DEMO: DemoData = {
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
   },
-  activity: [
-    {
-      label: 'Today',
-      events: [
-        {
-          id: 'evt-invest',
-          kind: 'invest',
-          title: 'Invested in Zap Strategy',
-          amountLabel: '$1,000.00',
-          amountTone: 'accent',
-          status: 'Completed',
-          meta: 'Base · Arbitrum',
-          time: '14:32',
-          steps: [
-            { label: 'Bridge USDC · Base → Arbitrum', done: true },
-            { label: 'Swap USDC → ETH · Arbitrum', done: true },
-            { label: 'Deposit to Zap Strategy', done: true },
-          ],
-        },
-        {
-          id: 'evt-rebalance',
-          kind: 'rebalance',
-          title: 'Rebalanced to defensive tilt',
-          status: 'Completed',
-          meta: 'Stables 30% → 35%',
-          time: '09:05',
-          demoOnly: true,
-        },
-      ],
-    },
-    {
-      label: 'This week',
-      events: [
-        {
-          id: 'evt-yield',
-          kind: 'yield',
-          title: 'Yield earned',
-          amountLabel: '+$24.10',
-          amountTone: 'positive',
-          status: 'Settled',
-          meta: 'DeFi yield pillar',
-          time: 'Mon',
-        },
-        {
-          id: 'evt-deposit',
-          kind: 'deposit',
-          title: 'Deposit from wallet',
-          amountLabel: '+$5,000.00',
-          amountTone: 'neutral',
-          status: 'Completed',
-          meta: 'USDC · Base',
-          time: 'Sun',
-          demoOnly: true,
-        },
-      ],
-    },
-    {
-      label: 'Earlier',
-      events: [
-        {
-          id: 'evt-withdraw',
-          kind: 'withdraw',
-          title: 'Withdrawal to wallet',
-          amountLabel: '−$500.00',
-          amountTone: 'neutral',
-          status: 'Completed',
-          meta: 'to USDC · Base',
-          time: 'Jun 12',
-          demoOnly: true,
-        },
-        {
-          id: 'evt-strategy-update',
-          kind: 'strategy-update',
-          title: 'Strategy update',
-          status: 'Applied',
-          meta: 'Defensive tilt v2',
-          time: 'Jun 10',
-          demoOnly: true,
-        },
-      ],
-    },
-  ],
+  activity: [],
 };
 
 export const ACTIVITY_FILTERS = [

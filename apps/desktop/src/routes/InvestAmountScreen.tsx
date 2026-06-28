@@ -10,6 +10,8 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { CHAINS } from '@/data/demo';
+import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestableBalances } from '@/integration/useInvestableBalances';
 import { formatUsd } from '@/lib/format';
@@ -47,14 +49,20 @@ export function InvestAmountScreen() {
     setSelectedToken,
     setSelectedTokenUsdPrice,
   } = useInvest();
-  const balances = useInvestableBalances();
+  const { address } = useAccount();
+  const balances = useInvestableBalances(address);
   const [amount, setAmount] = useState('1,000');
   const [unit, setUnit] = useState<'USD' | 'Token'>('USD');
   const selectedRow =
-    balances.rows.find((row) => row.token.symbol === selectedToken.symbol) ??
-    balances.rows[0];
+    balances.rows.find(
+      (row) => row.depositToken?.symbol === selectedToken.symbol,
+    ) ?? null;
+  const canReview = parseAmount(amount) > 0 && selectedRow !== null;
 
   const handleReview = () => {
+    if (!selectedRow) {
+      return;
+    }
     setAmountUsd(parseAmount(amount));
     setSelectedTokenUsdPrice(selectedRow?.usdPrice ?? null);
     void navigate('/invest/route');
@@ -95,7 +103,7 @@ export function InvestAmountScreen() {
           </span>
         </div>
         <div className="mt-3 font-mono text-[11.5px] text-ink-dim">
-          Base-only source · {selectedToken.symbol}
+          Ethereum · Base · Arbitrum holdings · {selectedToken.symbol}
         </div>
         <div
           className="mt-4 inline-flex rounded-full p-[3px]"
@@ -133,7 +141,7 @@ export function InvestAmountScreen() {
         <div className="px-4 py-[15px]">
           <div className="flex items-center justify-between">
             <span className="text-[12.5px] text-ink-dim">
-              Available on Base
+              Available across Ethereum · Base · Arbitrum
             </span>
             <span
               className="text-[13.5px] font-semibold"
@@ -152,18 +160,28 @@ export function InvestAmountScreen() {
           </div>
           <div className="mt-[13px] flex flex-col gap-[11px]">
             {balances.rows.map((row) => {
-              const active = row.token.symbol === selectedToken.symbol;
+              const active = row.depositToken?.symbol === selectedToken.symbol;
+              const disabled = !row.isDepositSupported || !row.depositToken;
               return (
                 <button
                   key={row.token.symbol}
                   type="button"
                   onClick={() => {
-                    setSelectedToken(row.token);
+                    if (!row.depositToken) {
+                      return;
+                    }
+                    setSelectedToken(row.depositToken);
                     setSelectedTokenUsdPrice(row.usdPrice);
                   }}
+                  disabled={disabled}
+                  aria-disabled={disabled}
                   className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
                   style={
-                    active ? { background: 'rgba(212,197,163,.09)' } : undefined
+                    active
+                      ? { background: 'rgba(212,197,163,.09)' }
+                      : disabled
+                        ? { opacity: 0.55 }
+                        : undefined
                   }
                 >
                   <TokenIcon
@@ -175,9 +193,15 @@ export function InvestAmountScreen() {
                     <span className="text-[13.5px] font-semibold">
                       {row.token.symbol}
                     </span>
+                    <div className="mt-[2px] font-mono text-[9px] text-ink-faint">
+                      {row.chains
+                        .map((chain) => CHAINS[chain].label)
+                        .join(' · ')}
+                      {disabled ? ' · view only' : ''}
+                    </div>
                   </div>
                   <span className="mr-2">
-                    <ChainIconStack chains={['base']} size={13} />
+                    <ChainIconStack chains={row.chains} size={13} />
                   </span>
                   <span
                     className="text-[13px] font-semibold text-ink-dim"
@@ -197,15 +221,13 @@ export function InvestAmountScreen() {
       <NumericKeypad onKey={handleKey} />
 
       <div className="px-5 pt-1.5">
-        <PrimaryButton
-          onClick={handleReview}
-          disabled={parseAmount(amount) <= 0}
-        >
+        <PrimaryButton onClick={handleReview} disabled={!canReview}>
           Review route
           <ArrowGlyph />
         </PrimaryButton>
         <div className="mt-[9px] text-center text-[11px] text-ink-faint">
-          Base-only source in this version; Zap Pilot prepares the route.
+          Holdings read Ethereum · Base · Arbitrum. Routing v1 uses Base
+          USDC/ETH.
         </div>
       </div>
 
