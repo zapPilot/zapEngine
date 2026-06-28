@@ -54,6 +54,33 @@ running pnpm with the root `packageManager` version or repair the install before
 re-running verification. Missing `.bin/tauri`, `.bin/tsc`, or `.bin/turbo` means
 the dependency/link layer is not usable yet; fix install state first.
 
+## Runtime bundling trap: Privy / viem manual chunks
+
+Do not force `@privy-io/*` into a dedicated Vite `manualChunks` vendor chunk in this app.
+
+We previously hit this runtime-only error in the packaged/desktop build:
+
+```txt
+ReferenceError: Cannot access 'wZ' before initialization
+```
+
+The root cause was a manual `vendor-privy` chunk interacting badly with `vendor-viem` and Privy's nested wallet imports, creating an ES module TDZ/circular-initialization issue. Build/type-check can still pass while the desktop app crashes at runtime.
+
+Safe rule:
+
+- Do not add `vendor-privy`.
+- Do not aggressively split wallet/provider packages unless comparing against `apps/frontend/vite.config.ts`.
+- If this error appears again, first inspect `apps/desktop/vite.config.ts` and `dist/assets` for `vendor-privy`.
+- Verify with:
+
+```bash
+pnpm --filter @zapengine/desktop build:web
+find apps/desktop/dist/assets -maxdepth 1 -type f -name 'vendor-*.js' -print | sort
+grep -R "vendor-privy" -n apps/desktop/dist apps/desktop/vite.config.ts || true
+```
+
+Expected: no `vendor-privy` output.
+
 ## Guardrails
 
 - Do not duplicate frontend business logic in Rust.

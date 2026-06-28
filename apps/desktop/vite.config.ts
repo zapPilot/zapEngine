@@ -36,9 +36,11 @@ function getManualChunk(id: string): string | undefined {
     return 'vendor-tanstack';
   }
 
-  if (id.includes(`${path.sep}node_modules${path.sep}@privy-io${path.sep}`)) {
-    return 'vendor-privy';
-  }
+  // Do not force @privy-io/* into a single vendor chunk. Privy imports viem and
+  // related wallet modules through several nested entrypoints; isolating all of
+  // Privy into one manual chunk can create an ES module TDZ cycle at runtime
+  // (for example: "Cannot access 'wZ' before initialization" from vendor-viem).
+  // Leave Privy to Rollup's natural chunk graph, matching apps/frontend.
 
   return undefined;
 }
