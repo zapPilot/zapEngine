@@ -100,4 +100,18 @@ describe('desktop Tauri shell configuration', () => {
       }),
     );
   });
+
+  it('uses hash routing so packaged Tauri reloads stay on index.html', async () => {
+    const mainSource = await readFile(
+      path.join(desktopRoot, 'src/main.tsx'),
+      'utf8',
+    );
+
+    expect(mainSource).toContain(
+      "import { HashRouter } from 'react-router-dom'",
+    );
+    expect(mainSource).toContain('<HashRouter>');
+    expect(mainSource).toContain('</HashRouter>');
+    expect(mainSource).not.toContain('BrowserRouter');
+  });
 });
