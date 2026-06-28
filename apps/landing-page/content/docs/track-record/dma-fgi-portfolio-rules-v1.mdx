@@ -16,11 +16,11 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 
 ## Assets
 
-| Pillar | Asset | Venue |
-|--------|-------|-------|
-| Equities | Ondo USDC (OUSG / USDY) | Ethereum |
-| Crypto | WBTC, WETH | Ethereum / Arbitrum |
-| Stablecoins | USDC, USDT | All supported chains |
+| Pillar      | Asset                   | Venue                |
+| ----------- | ----------------------- | -------------------- |
+| Equities    | Ondo USDC (OUSG / USDY) | Ethereum             |
+| Crypto      | WBTC, WETH              | Ethereum / Arbitrum  |
+| Stablecoins | USDC, USDT              | All supported chains |
 
 ## Rebalance Rules
 
@@ -32,13 +32,13 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 
 ### Allocation Matrix
 
-| Regime | Equities | BTC/ETH | Stablecoins |
-|--------|----------|---------|-------------|
-| Risk-On (DMA+ + FGI > 70) | 60% | 30% | 10% |
-| Risk-On (DMA+ OR FGI) | 40% | 35% | 25% |
-| Neutral | 30% | 20% | 50% |
-| Risk-Off (DMA- OR FGI < 30) | 20% | 15% | 65% |
-| Risk-Off (DMA- AND FGI < 30) | 10% | 10% | 80% |
+| Regime                       | Equities | BTC/ETH | Stablecoins |
+| ---------------------------- | -------- | ------- | ----------- |
+| Risk-On (DMA+ + FGI > 70)    | 60%      | 30%     | 10%         |
+| Risk-On (DMA+ OR FGI)        | 40%      | 35%     | 25%         |
+| Neutral                      | 30%      | 20%     | 50%         |
+| Risk-Off (DMA- OR FGI < 30)  | 20%      | 15%     | 65%         |
+| Risk-Off (DMA- AND FGI < 30) | 10%      | 10%     | 80%         |
 
 ### Rebalance Triggers
 
@@ -71,6 +71,6 @@ All costs below are deducted from NAV before performance calculation:
 
 ## Changelog
 
-| Version | Date | Change |
-|---------|------|--------|
-| v1 | 2024-12-02 | Initial live deployment |
+| Version | Date       | Change                  |
+| ------- | ---------- | ----------------------- |
+| v1      | 2024-12-02 | Initial live deployment |

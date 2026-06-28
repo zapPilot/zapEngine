@@ -1912,7 +1912,9 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   border-bottom: 2px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
   margin-bottom: -1px;
 }
 
@@ -2078,7 +2080,8 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 22px 22px 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent),
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent),
     rgba(10, 10, 10, 0.28);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -2325,7 +2328,8 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
     rgba(255, 255, 255, 0.018);
 }
 
@@ -2834,7 +2838,9 @@
   color: var(--bg);
   font-size: 14px;
   font-weight: 600;
-  transition: background-color 0.2s, transform 0.2s;
+  transition:
+    background-color 0.2s,
+    transform 0.2s;
 }
 
 .shell-root .live-track-btn:hover {
