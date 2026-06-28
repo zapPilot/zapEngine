@@ -2,13 +2,20 @@ import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRe
 import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
 import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
-import { MOCK } from '@/data/mock';
+import { DEMO } from '@/data/demo';
+import {
+  type CompositionTarget,
+  toCompositionTargetFromSuggestion,
+  useStrategySuggestion,
+} from '@/integration/useStrategySuggestion';
 
 /**
- * Shape consumed by StrategyScreen — mirrors MOCK.strategy 1:1 so the
- * presentational JSX is data-source agnostic.
+ * Shape consumed by StrategyScreen. Disconnected/demo mode can still use DEMO;
+ * connected unavailable fields are explicit dashes.
  */
-export type StrategyData = (typeof MOCK)['strategy'];
+export type StrategyData = (typeof DEMO)['strategy'] & {
+  hasTargetAllocation: boolean;
+};
 
 export interface UseStrategyDataResult {
   data: StrategyData | null;
@@ -16,13 +23,128 @@ export interface UseStrategyDataResult {
   isError: boolean;
 }
 
+function liveNumberOrDemo(
+  value: unknown,
+  demoValue: number | null,
+  isDemo: boolean,
+): number | null {
+  if (typeof value === 'number') {
+    return value;
+  }
+  return isDemo ? demoValue : null;
+}
+
+function liveTextOrDemo(
+  value: string | null | undefined,
+  demoValue: string,
+  isDemo: boolean,
+): string {
+  return value ?? (isDemo ? demoValue : '—');
+}
+
+function demoTextOrDash(
+  demoValue: string,
+  isDemo: boolean,
+  fallback = '—',
+): string {
+  return isDemo ? demoValue : fallback;
+}
+
+function marketModeLabelFor(
+  regimeLabel: string,
+  demoLabel: string,
+  isDemo: boolean,
+): string {
+  if (regimeLabel) {
+    return `Market mode · ${regimeLabel}`;
+  }
+  return isDemo ? demoLabel : 'Market mode · —';
+}
+
+function currentModeLabelFor(
+  regimeLabel: string,
+  demoLabel: string,
+  isDemo: boolean,
+): string {
+  if (regimeLabel) {
+    return regimeLabel;
+  }
+  return demoTextOrDash(demoLabel, isDemo);
+}
+
+function emptyPillars(): StrategyData['pillars'] {
+  return [
+    { label: 'Equities', weight: 0, color: 'var(--spy)' },
+    { label: 'Crypto', weight: 0, color: 'var(--btc)' },
+    { label: 'Stables', weight: 0, color: 'var(--usd)' },
+  ];
+}
+
+function pillarsFromTarget(
+  target: CompositionTarget | null,
+  demoPillars: StrategyData['pillars'],
+  isDemo: boolean,
+): StrategyData['pillars'] {
+  if (target) {
+    return [
+      { label: 'Equities', weight: target.equities, color: 'var(--spy)' },
+      { label: 'Crypto', weight: target.crypto, color: 'var(--btc)' },
+      { label: 'Stables', weight: target.stables, color: 'var(--usd)' },
+    ];
+  }
+  return isDemo ? demoPillars : emptyPillars();
+}
+
+function emptyAllocation(): StrategyData['backtest']['allocation'] {
+  return [
+    { label: 'Equities', pct: 0, color: 'var(--spy)' },
+    { label: 'Crypto', pct: 0, color: 'var(--btc)' },
+    { label: 'Stables', pct: 0, color: 'var(--usd)' },
+  ];
+}
+
+function allocationFromTarget(
+  target: CompositionTarget | null,
+  demoAllocation: StrategyData['backtest']['allocation'],
+  isDemo: boolean,
+): StrategyData['backtest']['allocation'] {
+  if (target) {
+    return [
+      {
+        label: 'Equities',
+        pct: Math.round(target.equities),
+        color: 'var(--spy)',
+      },
+      { label: 'Crypto', pct: Math.round(target.crypto), color: 'var(--btc)' },
+      {
+        label: 'Stables',
+        pct: Math.round(target.stables),
+        color: 'var(--usd)',
+      },
+    ];
+  }
+  return isDemo ? demoAllocation : emptyAllocation();
+}
+
+function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
+  return [
+    { label: 'CAGR', value: '—', tone: 'positive' },
+    { label: 'Max drawdown', value: '—', tone: 'negative' },
+    { label: 'Volatility', value: '—', tone: 'neutral' },
+    { label: 'Sharpe', value: '—', tone: 'accent' },
+    { label: 'Sortino', value: '—', tone: 'accent' },
+    { label: 'Win rate', value: '—', tone: 'neutral' },
+    { label: 'Worst month', value: '—', tone: 'negative' },
+    { label: 'Best month', value: '—', tone: 'positive' },
+  ];
+}
+
 /**
  * Container hook for the Strategy screen.
  *
  * Wires the cleanly-available live signals — Fear & Greed sentiment value +
- * quote, and the current market regime — into the MOCK.strategy shape. Backtest
- * performance metrics stay on MOCK: a live backtest needs a strategies config +
- * date range the screen does not own, and inventing one would fabricate numbers.
+ * quote, current market regime, and target allocation. Backtest performance
+ * metrics stay unavailable until a lazy run flow exists.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
  *   Sentiment/regime are market-wide (not user-scoped), so the hooks run as soon
@@ -32,52 +154,83 @@ export function useStrategyData(userId: string | null): UseStrategyDataResult {
   // Market-wide signals — no userId needed; run unconditionally (React rules).
   const sentiment = useSentimentData();
   const regime = useRegimeHistory();
+  const suggestion = useStrategySuggestion(userId);
 
-  const mockStrategy = MOCK.strategy;
-  const mockBacktest = mockStrategy.backtest;
+  const demoStrategy = DEMO.strategy;
+  const demoBacktest = demoStrategy.backtest;
+  const isDemo = userId === null;
 
-  const isLoading = userId === null || sentiment.isLoading || regime.isLoading;
+  const isLoading =
+    isDemo || sentiment.isLoading || regime.isLoading || suggestion.isLoading;
   // Regime degrades to DEFAULT_REGIME_HISTORY internally (never errors), so a
   // genuine failure here is sentiment-only.
   const isError = sentiment.isError;
 
   // --- Live: Fear & Greed sentiment marker (0–100) ---
-  const sentimentValue =
-    typeof sentiment.data?.value === 'number'
-      ? sentiment.data.value
-      : mockBacktest.sentiment; // NOTE(real-data): sentiment unavailable — fall back to mock marker
+  const sentimentValue = liveNumberOrDemo(
+    sentiment.data?.value,
+    demoBacktest.sentiment,
+    isDemo,
+  );
 
   // --- Live: contrarian discipline quote tied to current sentiment ---
-  const quote = sentiment.data?.quote?.quote ?? mockStrategy.quote;
+  const quote = liveTextOrDemo(
+    sentiment.data?.quote?.quote,
+    demoStrategy.quote,
+    isDemo,
+  );
 
   // --- Live: current market regime → human-readable mode label ---
   const currentRegime = regime.data?.currentRegime;
   const regimeLabel = currentRegime ? getRegimeLabel(currentRegime) : '';
-  const currentModeLabel = regimeLabel || mockBacktest.currentModeLabel;
-  const marketModeLabel = regimeLabel
-    ? `Market mode · ${regimeLabel}`
-    : mockStrategy.marketModeLabel;
+  const currentModeLabel = currentModeLabelFor(
+    regimeLabel,
+    demoBacktest.currentModeLabel,
+    isDemo,
+  );
+  const marketModeLabel = marketModeLabelFor(
+    regimeLabel,
+    demoStrategy.marketModeLabel,
+    isDemo,
+  );
+
+  const target = suggestion.data
+    ? toCompositionTargetFromSuggestion(suggestion.data)
+    : null;
+  const hasTargetAllocation = target !== null;
+  const pillars = pillarsFromTarget(target, demoStrategy.pillars, isDemo);
+  const allocation = allocationFromTarget(
+    target,
+    demoBacktest.allocation,
+    isDemo,
+  );
+  const backtestMetrics = isDemo
+    ? demoBacktest.metrics
+    : unavailableBacktestMetrics();
 
   const data: StrategyData = {
-    // NOTE(real-data): est. APY range has no live strategy-quote source here.
-    estApyLabel: mockStrategy.estApyLabel,
+    estApyLabel: demoTextOrDash(demoStrategy.estApyLabel, isDemo),
     quote,
     marketModeLabel,
-    // NOTE(real-data): home-card pillar weights are not exposed by sentiment/regime.
-    pillars: mockStrategy.pillars,
+    pillars,
     backtest: {
-      // NOTE(real-data): backtest return/vs-BTC/vs-ETH need a runBacktest request
-      // (strategies config + date range) the screen does not provide.
-      returnLabel: mockBacktest.returnLabel,
-      vsBtcLabel: mockBacktest.vsBtcLabel,
-      vsEthLabel: mockBacktest.vsEthLabel,
-      // NOTE(real-data): CAGR/drawdown/Sharpe/Sortino/win-rate come from runBacktest.
-      metrics: mockBacktest.metrics,
+      returnLabel: demoTextOrDash(demoBacktest.returnLabel, isDemo),
+      vsBtcLabel: demoTextOrDash(
+        demoBacktest.vsBtcLabel,
+        isDemo,
+        'BTC comparison —',
+      ),
+      vsEthLabel: demoTextOrDash(
+        demoBacktest.vsEthLabel,
+        isDemo,
+        'ETH comparison —',
+      ),
+      metrics: backtestMetrics,
       currentModeLabel,
-      // NOTE(real-data): regime-driven target allocation is not in the regime payload.
-      allocation: mockBacktest.allocation,
+      allocation,
       sentiment: sentimentValue,
     },
+    hasTargetAllocation,
   };
 
   return { data, isLoading, isError };

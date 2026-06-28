@@ -9,12 +9,18 @@ import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { ZapLogo } from '@/components/ui/ZapLogo';
+import {
+  formatPlanDuration,
+  formatPlanGas,
+} from '@/integration/planPreviewFormatters';
+import { useAccount } from '@/integration/useAccount';
+import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
 import { useInvest } from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
 
 const STEPS = [
   'You sign once in your wallet',
-  'Zap routes, bridges & deposits automatically',
+  'Zap executes the prepared deposit plan',
   'Track everything in My Portfolio',
 ] as const;
 
@@ -22,6 +28,14 @@ const STEPS = [
 export function InvestConfirmScreen() {
   const navigate = useNavigate();
   const { amountUsd, fromToken, fromAmount, sourceChainId } = useInvest();
+  const { address } = useAccount();
+  const { plan, isLoading: planLoading } = useDepositPlanPreview({
+    address,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+    amountUsd,
+  });
   const { run, pending, lastError, getErrorMessage } = useInvestStrategy();
 
   const handleConfirm = async () => {
@@ -88,27 +102,23 @@ export function InvestConfirmScreen() {
             </span>
             <span className="text-[14px] font-semibold">Zap Strategy</span>
           </div>
-          {/* NOTE(real-data): expected-position + APY stay on the design's
-              estimates; the deposit plan exposes no projected yield. */}
           <div
             className="mt-4 flex pt-[14px]"
             style={{ borderTop: '1px solid rgba(255,255,255,.07)' }}
           >
             <div className="flex-1">
-              <div className="text-[11px] text-ink-faint">
-                Expected position
-              </div>
+              <div className="text-[11px] text-ink-faint">Estimated gas</div>
               <div
                 className="mt-[3px] text-[15px] font-semibold"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                ≈ $998.50
+                {planLoading ? '—' : formatPlanGas(plan?.totalGasUsd)}
               </div>
             </div>
             <div className="flex-1">
-              <div className="text-[11px] text-ink-faint">Est. APY</div>
+              <div className="text-[11px] text-ink-faint">Route time</div>
               <div className="mt-[3px] text-[15px] font-semibold text-accent">
-                6–12%
+                {planLoading ? '—' : formatPlanDuration(plan?.legs)}
               </div>
             </div>
           </div>
@@ -144,7 +154,7 @@ export function InvestConfirmScreen() {
       <div className="px-5 pt-[18px]">
         <PrimaryButton
           className="py-4 text-[16px] font-bold"
-          disabled={pending}
+          disabled={pending || fromAmount === '0'}
           onClick={() => void handleConfirm()}
           style={pending ? { opacity: 0.7 } : undefined}
         >

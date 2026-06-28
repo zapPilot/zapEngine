@@ -1,7 +1,7 @@
 /**
- * Mock data for the desktop UI build-out. Numbers mirror the "Zap Pilot POC"
- * design so screens render 1:1 with the mockups. Replaced by real hooks/services
- * (via the integration seam) in a later phase — see the wiring task.
+ * Demo data for disconnected previews and UI fallback states. Connected data
+ * hooks should prefer live app-core/account-engine sources and render dashes
+ * when no clean source exists.
  */
 
 export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
@@ -18,10 +18,10 @@ export const CHAINS: Record<ChainKey, ChainMeta> = {
   base: { key: 'base', label: 'Base', color: '#2151f5' },
 };
 
-export interface MockAsset {
+export interface DemoAsset {
   symbol: string;
   name: string;
-  usdValue: number;
+  usdValue: number | null;
   amountLabel: string;
   chains: ChainKey[];
   /** Icon background + glyph used by TokenIcon. */
@@ -29,18 +29,18 @@ export interface MockAsset {
   glyph: string;
 }
 
-export interface MockData {
+export interface DemoData {
   account: {
     label: string;
     address: string;
     connected: boolean;
   };
   home: {
-    totalBalance: number;
-    changePct: number;
-    changeUsdToday: number;
+    totalBalance: number | null;
+    changePct: number | null;
+    changeUsdToday: number | null;
     sparkline: number[];
-    assets: MockAsset[];
+    assets: DemoAsset[];
   };
   strategy: {
     estApyLabel: string;
@@ -56,7 +56,7 @@ export interface MockData {
       currentModeLabel: string;
       allocation: { label: string; pct: number; color: string }[];
       /** Sentiment marker position 0–100 (fear → greed). */
-      sentiment: number;
+      sentiment: number | null;
     };
   };
   portfolio: {
@@ -98,8 +98,8 @@ export interface ActivityEvent {
   meta: string;
   time: string;
   steps?: ActivityStep[];
-  /** Marks data not yet backed by a real tx-history API. */
-  mocked?: boolean;
+  /** Marks disconnected sample rows not backed by a real tx-history API yet. */
+  demoOnly?: boolean;
 }
 
 export interface ActivityGroup {
@@ -111,7 +111,7 @@ const usdcIcon = { iconBg: '#2775ca', glyph: '$' };
 const ethIcon = { iconBg: '#2a2a30', glyph: 'Ξ' };
 const wbtcIcon = { iconBg: '#f7931a', glyph: '₿' };
 
-export const MOCK: MockData = {
+export const DEMO: DemoData = {
   account: {
     label: 'Main Wallet',
     address: '0xf8a6000000000000000000000000000000000f940',
@@ -233,7 +233,7 @@ export const MOCK: MockData = {
           status: 'Completed',
           meta: 'Stables 30% → 35%',
           time: '09:05',
-          mocked: true,
+          demoOnly: true,
         },
       ],
     },
@@ -259,7 +259,7 @@ export const MOCK: MockData = {
           status: 'Completed',
           meta: 'USDC · Base',
           time: 'Sun',
-          mocked: true,
+          demoOnly: true,
         },
       ],
     },
@@ -275,7 +275,7 @@ export const MOCK: MockData = {
           status: 'Completed',
           meta: 'to USDC · Base',
           time: 'Jun 12',
-          mocked: true,
+          demoOnly: true,
         },
         {
           id: 'evt-strategy-update',
@@ -284,7 +284,7 @@ export const MOCK: MockData = {
           status: 'Applied',
           meta: 'Defensive tilt v2',
           time: 'Jun 10',
-          mocked: true,
+          demoOnly: true,
         },
       ],
     },

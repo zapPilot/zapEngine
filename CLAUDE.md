@@ -43,8 +43,11 @@ The desktop app is a native Tauri wrapper around `@zapengine/frontend`. Keep des
 
 - Use the workspace `@tauri-apps/cli` binary; do not require a global `tauri` install.
 - Native package/build validation requires Rust/Cargo and Xcode Command Line Tools.
-- `pnpm --filter @zapengine/desktop package` builds the DMG and can be slow; run it only when validating the macOS artifact.
-- The core verification gates include desktop's TypeScript/config checks, but not a full DMG release/signing flow.
+- For desktop code/config changes, finish with the desktop gate from the root:
+  `pnpm turbo run type-check lint test --filter=@zapengine/desktop`.
+- `pnpm --filter @zapengine/desktop package` builds the DMG and can be slow; it is mandatory before handing off when the user asks about desktop packaging/build failures, or when changes touch `apps/desktop/src`, `apps/desktop/src-tauri`, desktop package scripts, Tauri config, or runtime imports that can affect the packaged app. In non-interactive hooks or agents, make sure a Corepack `pnpm` shim is first on `PATH` and run the same gate with `CI=true` so Corepack uses the root `packageManager`, Turbo child tasks inherit the same pnpm, and DMG creation skips Finder scripting.
+- If the package command fails, keep debugging and fix code/config failures before final. Only hand off when blocked by an external prerequisite (for example missing dependencies after install, pnpm version/cache problems, Rust/Cargo, or Xcode Command Line Tools), and report the exact command and blocker instead of treating the gate as passed.
+- The core verification gates include desktop's TypeScript/config checks, but not a full DMG release/signing flow unless the desktop package gate above applies.
 
 ## Mobile (Flutter) exclusion
 

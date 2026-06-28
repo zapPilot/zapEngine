@@ -22,15 +22,37 @@ The production opt-in lives in `src-tauri/src/lib.rs` and requires the Tauri `de
 
 ## Verification
 
-Use the app-local checks when changing desktop config or docs:
+Use the root Turbo gate when changing desktop code, config, or docs so workspace
+dependencies are built first:
 
 ```bash
-pnpm --filter @zapengine/desktop test
-pnpm --filter @zapengine/desktop type-check
+pnpm turbo run type-check lint test --filter=@zapengine/desktop
 pnpm --filter @zapengine/desktop format:check
 ```
 
-Run `pnpm --filter @zapengine/desktop package` only when you need to validate the native macOS artifact. It can be slow and depends on local Rust/Xcode setup.
+Run and pass `pnpm --filter @zapengine/desktop package` before final when:
+
+- The user reports or asks about a desktop package/build failure.
+- The change touches `apps/desktop/src`, `apps/desktop/src-tauri`, desktop
+  package scripts, Tauri config, runtime imports, or anything that can differ
+  between Vite dev and the packaged app.
+
+In non-interactive hooks or agents, make sure a Corepack `pnpm` shim is first on
+`PATH` and run the package gate with `CI=true` so Corepack uses the root
+`packageManager`, Turbo child tasks inherit the same pnpm, and DMG creation skips
+Finder scripting.
+
+Do not stop at a failed package command and hand the failure to the user if the
+failure is in code or config. Keep debugging until it passes. Only hand off when
+the blocker is outside the repo state, such as missing dependency install,
+pnpm/corepack cache or version mismatch, Rust/Cargo, or Xcode Command Line Tools.
+In that case, quote the exact command and failing prerequisite, and do not claim
+the package gate passed.
+
+If pnpm reports `Aborted removal of modules directory due to no TTY`, align the
+running pnpm with the root `packageManager` version or repair the install before
+re-running verification. Missing `.bin/tauri`, `.bin/tsc`, or `.bin/turbo` means
+the dependency/link layer is not usable yet; fix install state first.
 
 ## Guardrails
 

@@ -1,7 +1,15 @@
+import { useQuery } from '@tanstack/react-query';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
+import { getDailyYieldReturns } from '@zapengine/app-core/services';
 
-import { type MetricTone, MOCK } from '@/data/mock';
-import { formatSignedPct } from '@/lib/format';
+import { DEMO, type MetricTone } from '@/data/demo';
+import {
+  calculateWindowReturn,
+  latestAllocationRows,
+  mapDailyValuesToSparkline,
+  sumYieldReturns,
+} from '@/integration/portfolioMetrics';
+import { formatSignedPct, formatUsd } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -9,12 +17,13 @@ interface Metric {
   tone: MetricTone;
 }
 
-/** Shape the PortfolioScreen renders. Mirrors `MOCK.portfolio`. */
+/** Shape the PortfolioScreen renders. */
 export interface PortfolioViewData {
-  positionValue: number;
-  changePct: number;
-  changeUsdAllTime: number;
-  changePctToday: number;
+  positionValue: number | null;
+  changePct: number | null;
+  changeUsdAllTime: number | null;
+  changePctToday: number | null;
+  chartData: number[];
   metrics: Metric[];
   allocation: { label: string; pct: number; color: string }[];
   lastRebalancedLabel: string;
@@ -26,10 +35,11 @@ export interface UsePortfolioDataResult {
   isError: boolean;
 }
 
-const MOCK_PORTFOLIO = MOCK.portfolio;
+const DEMO_PORTFOLIO = DEMO.portfolio;
+const YIELD_DAYS = 30;
 
-/** A small rotating palette so any extra real allocation categories that have
- *  no MOCK colour still render with a stable, distinct swatch. */
+/** A small rotating palette so real allocation categories without a known
+ * colour still render with a stable, distinct swatch. */
 const ALLOCATION_PALETTE = [
   'var(--usd)',
   'var(--spy)',
@@ -37,11 +47,10 @@ const ALLOCATION_PALETTE = [
   'var(--accent)',
 ];
 
-/** Colour for a real allocation category: reuse the MOCK colour for a matching
- *  label, otherwise fall back to a stable palette slot (the API carries no
- *  colour — NOTE(real-data) below). */
+/** Colour for a real allocation category: reuse the DEMO colour for a matching
+ *  label, otherwise fall back to a stable palette slot. */
 function allocationColor(label: string, index: number): string {
-  const known = MOCK_PORTFOLIO.allocation.find(
+  const known = DEMO_PORTFOLIO.allocation.find(
     (a) => a.label.toLowerCase() === label.toLowerCase(),
   );
   return (
@@ -57,21 +66,29 @@ function toneForSignedPct(pct: number): MetricTone {
   return 'neutral';
 }
 
-/** The MOCK metric at `index` (under noUncheckedIndexedAccess it may be
- *  undefined), or a neutral placeholder carrying the given label/tone. */
-function mockMetric(
-  index: number,
+function unavailableMetric(
   label: string,
   tone: MetricTone = 'neutral',
 ): Metric {
-  return MOCK_PORTFOLIO.metrics[index] ?? { label, value: '—', tone };
+  return { label, value: '—', tone };
+}
+
+function pctMetric(label: string, pct: number | null): Metric {
+  if (typeof pct !== 'number') {
+    return unavailableMetric(label);
+  }
+  return {
+    label,
+    value: formatSignedPct(pct),
+    tone: toneForSignedPct(pct),
+  };
 }
 
 /**
  * Container hook for the Portfolio screen. Calls the real app-core
  * `usePortfolioDashboard` and maps its (deeply optional) response into the
- * exact shape `PortfolioScreen` already consumes, falling back to MOCK values
- * for any field with no clean real source.
+ * exact shape `PortfolioScreen` already consumes. Fields without a clean source
+ * are explicit dashes rather than demo values.
  */
 export function usePortfolioData(
   userId: string | null,
@@ -80,6 +97,12 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: 365, rolling_days: 30 },
   );
+  const yieldQuery = useQuery({
+    queryKey: ['desktop', 'portfolio', 'dailyYield', userId, YIELD_DAYS],
+    queryFn: () => getDailyYieldReturns(userId as string, YIELD_DAYS),
+    enabled: Boolean(userId),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // userId still resolving, or the query hasn't produced a dashboard yet.
   if (!userId || (isLoading && !dashboard)) {
@@ -90,9 +113,11 @@ export function usePortfolioData(
   const firstDay = dailyValues[0];
   const lastDay = dailyValues[dailyValues.length - 1];
 
-  // Position value = latest total_value_usd; fall back to MOCK while empty.
+  // Position value = latest total_value_usd; connected empty state stays null.
   const positionValue =
-    lastDay?.total_value_usd ?? MOCK_PORTFOLIO.positionValue;
+    typeof lastDay?.total_value_usd === 'number'
+      ? lastDay.total_value_usd
+      : null;
 
   // All-time change: first vs last total_value_usd.
   const firstValue = firstDay?.total_value_usd;
@@ -103,19 +128,18 @@ export function usePortfolioData(
     firstValue > 0
       ? { first: firstValue, last: lastValue }
       : null;
-  const haveTrendRange = trend !== null;
-  const changeUsdAllTime = trend
-    ? trend.last - trend.first
-    : MOCK_PORTFOLIO.changeUsdAllTime;
+  const changeUsdAllTime = trend ? trend.last - trend.first : null;
   const changePct = trend
     ? ((trend.last - trend.first) / trend.first) * 100
-    : MOCK_PORTFOLIO.changePct;
+    : null;
 
   // Today = latest daily change_percentage.
   const changePctToday =
-    lastDay?.change_percentage ?? MOCK_PORTFOLIO.changePctToday;
+    typeof lastDay?.change_percentage === 'number'
+      ? lastDay.change_percentage
+      : null;
 
-  // --- Metrics: real where analytics gives a clean source, MOCK otherwise. ---
+  // --- Metrics: real where analytics gives a clean source, unavailable otherwise. ---
   const sharpeSeries =
     dashboard?.rolling_analytics?.sharpe?.rolling_sharpe_data ?? [];
   const lastSharpe =
@@ -129,16 +153,7 @@ export function usePortfolioData(
   const maxDrawdownPct =
     dashboard?.drawdown_analysis?.enhanced?.summary?.max_drawdown_pct;
 
-  const haveTotalReturn =
-    haveTrendRange || lastDay?.change_percentage !== undefined;
-
-  const totalReturnMetric: Metric = haveTotalReturn
-    ? {
-        label: 'Total return',
-        value: formatSignedPct(changePct),
-        tone: toneForSignedPct(changePct),
-      }
-    : mockMetric(0, 'Total return');
+  const totalReturnMetric = pctMetric('Total return', changePct);
 
   const maxDrawdownMetric: Metric =
     typeof maxDrawdownPct === 'number'
@@ -148,7 +163,7 @@ export function usePortfolioData(
           value: formatSignedPct(maxDrawdownPct),
           tone: 'negative',
         }
-      : mockMetric(5, 'Max drawdown');
+      : unavailableMetric('Max drawdown', 'negative');
 
   const volatilityMetric: Metric =
     typeof lastVolatilityPct === 'number'
@@ -157,7 +172,7 @@ export function usePortfolioData(
           value: `${Math.abs(lastVolatilityPct).toFixed(1)}%`,
           tone: 'neutral',
         }
-      : { label: 'Volatility', value: '—', tone: 'neutral' };
+      : unavailableMetric('Volatility');
 
   const sharpeMetric: Metric =
     typeof lastSharpe === 'number'
@@ -166,63 +181,64 @@ export function usePortfolioData(
           value: lastSharpe.toFixed(2),
           tone: 'accent',
         }
-      : { label: 'Sharpe', value: '—', tone: 'accent' };
+      : unavailableMetric('Sharpe', 'accent');
+
+  const return7d = calculateWindowReturn(dailyValues, 7);
+  const return30d = calculateWindowReturn(dailyValues, 30);
+  const realizedYield = sumYieldReturns(yieldQuery.data?.daily_returns);
+  const realizedYieldMetric: Metric =
+    typeof realizedYield === 'number'
+      ? {
+          label: 'Realized yield',
+          value: formatUsd(realizedYield),
+          tone: realizedYield < 0 ? 'negative' : 'neutral',
+        }
+      : unavailableMetric('Realized yield');
 
   const metrics: PortfolioViewData['metrics'] = [
     totalReturnMetric,
-    // NOTE(real-data): Current APY — no clean per-position APY in the dashboard
-    // response; keep MOCK until a yield/APY series is wired.
-    mockMetric(1, 'Current APY', 'accent'),
-    // NOTE(real-data): 7D / 30D windowed returns — derivable from daily_values
-    // but not requested here; keep MOCK until a windowed-return helper exists.
-    mockMetric(2, '7D return', 'positive'),
-    mockMetric(3, '30D return', 'positive'),
-    // NOTE(real-data): Realized yield — no realized-yield field in dashboard.
-    mockMetric(4, 'Realized yield'),
+    unavailableMetric('Current APY', 'accent'),
+    pctMetric('7D return', return7d),
+    pctMetric('30D return', return30d),
+    realizedYieldMetric,
     maxDrawdownMetric,
     volatilityMetric,
     sharpeMetric,
-    // NOTE(real-data): Fees paid / Gas saved — no fee/gas accounting source.
+    unavailableMetric('Fees paid'),
+    unavailableMetric('Gas saved', 'positive'),
   ];
 
   // --- Allocation: latest snapshot from the allocation time-series. ---
   const allocationRows = dashboard?.allocation?.allocations ?? [];
-  // ISO date strings sort lexically = chronologically; .at(-1) is the latest
-  // (or undefined when there are no allocation rows).
-  const latestAllocationDate = allocationRows
-    .map((row) => row?.date)
-    .filter((date): date is string => Boolean(date))
-    .sort((a, b) => a.localeCompare(b))
-    .at(-1);
-  const latestAllocationRows = latestAllocationDate
-    ? allocationRows.filter((row) => row?.date === latestAllocationDate)
-    : [];
+  const latestRows = latestAllocationRows(allocationRows);
 
   const allocation: PortfolioViewData['allocation'] =
-    latestAllocationRows.length > 0
-      ? latestAllocationRows.map((row, index) => {
+    latestRows.length > 0
+      ? latestRows.map((row, index) => {
           const label = row?.category ?? 'Other';
           return {
             label,
             pct: Math.round(row?.allocation_percentage ?? 0),
-            // NOTE(real-data): allocation colour — API carries no colour, mapped
-            // from the MOCK palette by category label (see allocationColor).
+            // API carries no colour, so use the stable DEMO palette by label.
             color: allocationColor(label, index),
           };
         })
-      : MOCK_PORTFOLIO.allocation;
+      : [];
 
   const data: PortfolioViewData = {
     positionValue,
     changePct,
     changeUsdAllTime,
     changePctToday,
+    chartData: mapDailyValuesToSparkline(dailyValues),
     metrics,
     allocation,
-    // NOTE(real-data): lastRebalancedLabel — no rebalance-event/timeline source
-    // in the dashboard response; keep MOCK label.
-    lastRebalancedLabel: MOCK_PORTFOLIO.lastRebalancedLabel,
+    lastRebalancedLabel: 'Auto-managed by Zap Strategy',
   };
 
-  return { data, isLoading, isError };
+  return {
+    data,
+    isLoading: isLoading || yieldQuery.isLoading,
+    isError: isError || yieldQuery.isError,
+  };
 }

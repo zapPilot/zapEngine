@@ -28,7 +28,7 @@ export function useDepositPlanPreview({
   sourceChainId,
   amountUsd,
 }: DepositPlanPreviewInput): DepositPlanPreview {
-  const enabled = Boolean(address && amountUsd > 0);
+  const enabled = Boolean(address && amountUsd > 0 && fromAmount !== '0');
 
   const query = useQuery({
     queryKey: [

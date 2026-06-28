@@ -1,4 +1,3 @@
-import { BASE_CHAIN_ID, BASE_USDC_ADDRESS } from '@zapengine/types/api';
 import {
   createContext,
   type ReactNode,
@@ -7,25 +6,49 @@ import {
   useState,
 } from 'react';
 
-/** USDC has 6 decimals; the deposit source token is Base USDC. */
-const USDC_DECIMALS = 1_000_000;
+import {
+  DEFAULT_DEPOSIT_TOKEN,
+  type DesktopDepositToken,
+} from '@/integration/depositTokens';
 
-/** Convert a USD amount (number) to a base-unit decimal string for USDC. */
-function toFromAmount(amountUsd: number): string {
+/** Convert a decimal token amount to a base-unit integer string. */
+function toBaseUnits(value: number, decimals: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0';
+  }
+  const [whole = '0', fraction = ''] = value.toFixed(decimals).split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  const baseUnits = `${whole}${paddedFraction}`.replace(/^0+(?=\d)/, '');
+  return baseUnits || '0';
+}
+
+function toFromAmount(
+  amountUsd: number,
+  token: DesktopDepositToken,
+  usdPrice: number | null,
+): string {
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
     return '0';
   }
-  return BigInt(Math.round(amountUsd * USDC_DECIMALS)).toString();
+  const price = token.symbol === 'USDC' ? (usdPrice ?? 1) : usdPrice;
+  if (!price || price <= 0) {
+    return '0';
+  }
+  return toBaseUnits(amountUsd / price, token.decimals);
 }
 
 export interface InvestContextValue {
   /** USD amount the user is investing (entered in step 1). */
   amountUsd: number;
   setAmountUsd: (value: number) => void;
-  /** Source token for the deposit plan — Base USDC. */
-  fromToken: typeof BASE_USDC_ADDRESS;
-  sourceChainId: typeof BASE_CHAIN_ID;
-  /** `amountUsd` as a base-unit decimal string (USDC, 6 decimals). */
+  selectedToken: DesktopDepositToken;
+  setSelectedToken: (value: DesktopDepositToken) => void;
+  selectedTokenUsdPrice: number | null;
+  setSelectedTokenUsdPrice: (value: number | null) => void;
+  /** Source token for the deposit plan. */
+  fromToken: `0x${string}`;
+  sourceChainId: number;
+  /** `amountUsd` converted to the selected token's base-unit decimal string. */
   fromAmount: string;
 }
 
@@ -38,16 +61,26 @@ const InvestContext = createContext<InvestContextValue | null>(null);
  */
 export function InvestProvider({ children }: { children: ReactNode }) {
   const [amountUsd, setAmountUsd] = useState(0);
+  const [selectedToken, setSelectedToken] = useState<DesktopDepositToken>(
+    DEFAULT_DEPOSIT_TOKEN,
+  );
+  const [selectedTokenUsdPrice, setSelectedTokenUsdPrice] = useState<
+    number | null
+  >(1);
 
   const value = useMemo<InvestContextValue>(
     () => ({
       amountUsd,
       setAmountUsd,
-      fromToken: BASE_USDC_ADDRESS,
-      sourceChainId: BASE_CHAIN_ID,
-      fromAmount: toFromAmount(amountUsd),
+      selectedToken,
+      setSelectedToken,
+      selectedTokenUsdPrice,
+      setSelectedTokenUsdPrice,
+      fromToken: selectedToken.depositAddress,
+      sourceChainId: selectedToken.chainId,
+      fromAmount: toFromAmount(amountUsd, selectedToken, selectedTokenUsdPrice),
     }),
-    [amountUsd],
+    [amountUsd, selectedToken, selectedTokenUsdPrice],
   );
 
   return (

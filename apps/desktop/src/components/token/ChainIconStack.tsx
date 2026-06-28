@@ -1,4 +1,4 @@
-import { type ChainKey, CHAINS } from '@/data/mock';
+import { type ChainKey, CHAINS } from '@/data/demo';
 
 interface ChainIconStackProps {
   chains: ChainKey[];

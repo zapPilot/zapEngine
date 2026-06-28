@@ -14,9 +14,9 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { ZapLogo } from '@/components/ui/ZapLogo';
-import { CHAINS, MOCK } from '@/data/mock';
+import { CHAINS, DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
-import { useHomeData } from '@/integration/useHomeData';
+import { type HomeRange, useHomeData } from '@/integration/useHomeData';
 import {
   formatSignedPct,
   formatSignedUsd,
@@ -47,15 +47,16 @@ function CheckGlyph() {
 /** Home — total balance, assets (grouped by token), Zap Strategy card. */
 export function HomeScreen() {
   const navigate = useNavigate();
-  const [range, setRange] = useState<string>('1D');
+  const [range, setRange] = useState<HomeRange>('1D');
 
   const { userId } = useAccount();
-  const { data, isLoading, isError } = useHomeData(userId);
+  const { data, isLoading, isError } = useHomeData(userId, range);
 
-  // `data` carries MOCK fallbacks for every field, so the layout always renders
-  // with sane values; degrade to the MOCK slices only if the hook returns null.
-  const { home, strategy } = data ?? MOCK;
-  const { whole, fraction } = splitUsd(home.totalBalance);
+  // Disconnected/demo mode may still use DEMO; connected unavailable live fields
+  // render as dashes rather than borrowing design numbers.
+  const { home, strategy } = data ?? DEMO;
+  const hasTotalBalance = typeof home.totalBalance === 'number';
+  const { whole, fraction } = splitUsd(home.totalBalance ?? 0);
 
   // Calm states: while identity/data is resolving (or on error) we keep the
   // full layout but hold the volatile today-change line on a neutral dash so we
@@ -95,18 +96,29 @@ export function HomeScreen() {
               className="mt-1.5 font-serif leading-[1.02] tracking-[-.01em] text-ink"
               style={{ fontSize: 54 }}
             >
-              {whole}
-              <span style={{ color: '#6f6a5f', fontSize: 34 }}>{fraction}</span>
+              {hasTotalBalance ? (
+                <>
+                  {whole}
+                  <span style={{ color: '#6f6a5f', fontSize: 34 }}>
+                    {fraction}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: '#6f6a5f' }}>—</span>
+              )}
             </div>
             <div className="mt-2.5 flex items-center gap-2">
               <span
                 className="inline-flex items-center gap-1 rounded-full px-[9px] py-[3px] text-[12.5px] font-semibold text-success"
                 style={{ background: 'rgba(122,216,143,.12)' }}
               >
-                ▲ {isPending ? '—' : formatSignedPct(home.changePct)}
+                ▲{' '}
+                {isPending || typeof home.changePct !== 'number'
+                  ? '—'
+                  : formatSignedPct(home.changePct)}
               </span>
               <span className="text-[13px] text-ink-dim">
-                {isPending
+                {isPending || typeof home.changeUsdToday !== 'number'
                   ? '— today'
                   : `${formatSignedUsd(home.changeUsdToday)} today`}
               </span>
@@ -118,7 +130,7 @@ export function HomeScreen() {
               className="mt-2"
               options={RANGE_OPTIONS}
               value={range}
-              onChange={setRange}
+              onChange={(value) => setRange(value as HomeRange)}
             />
           </div>
         </Card>
@@ -152,12 +164,9 @@ export function HomeScreen() {
         <div className="flex items-center justify-between">
           <div className="text-[17px] font-semibold text-ink">Assets</div>
           <div className="flex items-center gap-1.5">
-            <ChainIconStack
-              chains={['ethereum', 'base', 'arbitrum']}
-              size={13}
-            />
+            <ChainIconStack chains={['base']} size={13} />
             <span className="font-mono text-[10px] tracking-[.02em] text-ink-faint">
-              Unified across chains
+              Available on Base
             </span>
           </div>
         </div>
@@ -193,7 +202,9 @@ export function HomeScreen() {
                 </div>
                 <div className="text-right">
                   <div className="text-[15.5px] font-semibold tabular-nums text-ink">
-                    {formatUsd(asset.usdValue)}
+                    {typeof asset.usdValue === 'number'
+                      ? formatUsd(asset.usdValue)
+                      : '—'}
                   </div>
                   <div className="mt-[5px] font-mono text-[10.5px] text-ink-faint">
                     {asset.amountLabel}
@@ -287,7 +298,9 @@ export function HomeScreen() {
                   className="mt-[5px] font-mono text-[9px] uppercase tracking-[.08em]"
                   style={{ color: '#6f6a5f' }}
                 >
-                  Est. APY · variable
+                  {strategy.estApyLabel === '—'
+                    ? 'Projected ROI unavailable'
+                    : 'Est. APY · variable'}
                 </div>
               </div>
               <div className="flex-1">
@@ -312,7 +325,7 @@ export function HomeScreen() {
               {[
                 'Managed automatically',
                 'Non-custodial',
-                'Routes from any network',
+                'Base deposits in v1',
               ].map((tag) => (
                 <Pill
                   key={tag}

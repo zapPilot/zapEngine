@@ -1,4 +1,4 @@
-/** Display formatters for the desktop UI (mock + live phases share these). */
+/** Display formatters for the desktop UI (demo + live phases share these). */
 
 export function formatUsd(value: number, decimals = 2): string {
   return value.toLocaleString('en-US', {

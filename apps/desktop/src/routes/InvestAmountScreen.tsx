@@ -10,8 +10,8 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { MOCK } from '@/data/mock';
 import { useInvest } from '@/integration/useInvest';
+import { useInvestableBalances } from '@/integration/useInvestableBalances';
 import { formatUsd } from '@/lib/format';
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
@@ -41,12 +41,22 @@ function groupAmount(raw: string): string {
 /** Invest step 1/3 — amount input, USD/Token toggle, source tokens, keypad. */
 export function InvestAmountScreen() {
   const navigate = useNavigate();
-  const { setAmountUsd } = useInvest();
+  const {
+    selectedToken,
+    setAmountUsd,
+    setSelectedToken,
+    setSelectedTokenUsdPrice,
+  } = useInvest();
+  const balances = useInvestableBalances();
   const [amount, setAmount] = useState('1,000');
   const [unit, setUnit] = useState<'USD' | 'Token'>('USD');
+  const selectedRow =
+    balances.rows.find((row) => row.token.symbol === selectedToken.symbol) ??
+    balances.rows[0];
 
   const handleReview = () => {
     setAmountUsd(parseAmount(amount));
+    setSelectedTokenUsdPrice(selectedRow?.usdPrice ?? null);
     void navigate('/invest/route');
   };
 
@@ -65,8 +75,6 @@ export function InvestAmountScreen() {
       return groupAmount(next);
     });
   };
-
-  const sources = MOCK.home.assets.slice(0, 2);
 
   return (
     <div className="font-sans text-ink">
@@ -87,7 +95,7 @@ export function InvestAmountScreen() {
           </span>
         </div>
         <div className="mt-3 font-mono text-[11.5px] text-ink-dim">
-          ≈ 0.276 ETH · sourced across 3 chains
+          Base-only source · {selectedToken.symbol}
         </div>
         <div
           className="mt-4 inline-flex rounded-full p-[3px]"
@@ -125,43 +133,63 @@ export function InvestAmountScreen() {
         <div className="px-4 py-[15px]">
           <div className="flex items-center justify-between">
             <span className="text-[12.5px] text-ink-dim">
-              Available across chains
+              Available on Base
             </span>
             <span
               className="text-[13.5px] font-semibold"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              {/* NOTE(real-data): useAccount exposes no balance source yet;
-                  show the design's portfolio total until a balances hook lands. */}
-              {formatUsd(MOCK.home.totalBalance)}
+              {typeof balances.totalUsdValue === 'number'
+                ? formatUsd(balances.totalUsdValue)
+                : '—'}
             </span>
           </div>
           <div className="mt-2 flex items-center gap-1.5">
             <Check size={12} strokeWidth={3} className="text-success" />
             <span className="font-mono text-[10px] tracking-[.02em] text-success">
-              Auto-selected for the cheapest route
+              Deposit v1 supports Base USDC and Base ETH
             </span>
           </div>
           <div className="mt-[13px] flex flex-col gap-[11px]">
-            {sources.map((asset) => (
-              <div key={asset.symbol} className="flex items-center gap-2.5">
-                <TokenIcon glyph={asset.glyph} bg={asset.iconBg} size={26} />
-                <div className="flex-1">
-                  <span className="text-[13.5px] font-semibold">
-                    {asset.symbol}
-                  </span>
-                </div>
-                <span className="mr-2">
-                  <ChainIconStack chains={asset.chains} size={13} />
-                </span>
-                <span
-                  className="text-[13px] font-semibold text-ink-dim"
-                  style={{ fontVariantNumeric: 'tabular-nums' }}
+            {balances.rows.map((row) => {
+              const active = row.token.symbol === selectedToken.symbol;
+              return (
+                <button
+                  key={row.token.symbol}
+                  type="button"
+                  onClick={() => {
+                    setSelectedToken(row.token);
+                    setSelectedTokenUsdPrice(row.usdPrice);
+                  }}
+                  className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
+                  style={
+                    active ? { background: 'rgba(212,197,163,.09)' } : undefined
+                  }
                 >
-                  {formatUsd(asset.usdValue)}
-                </span>
-              </div>
-            ))}
+                  <TokenIcon
+                    glyph={row.token.glyph}
+                    bg={row.token.iconBg}
+                    size={26}
+                  />
+                  <div className="flex-1">
+                    <span className="text-[13.5px] font-semibold">
+                      {row.token.symbol}
+                    </span>
+                  </div>
+                  <span className="mr-2">
+                    <ChainIconStack chains={['base']} size={13} />
+                  </span>
+                  <span
+                    className="text-[13px] font-semibold text-ink-dim"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {typeof row.usdValue === 'number'
+                      ? formatUsd(row.usdValue)
+                      : '—'}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </Card>
@@ -169,12 +197,15 @@ export function InvestAmountScreen() {
       <NumericKeypad onKey={handleKey} />
 
       <div className="px-5 pt-1.5">
-        <PrimaryButton onClick={handleReview}>
+        <PrimaryButton
+          onClick={handleReview}
+          disabled={parseAmount(amount) <= 0}
+        >
           Review route
           <ArrowGlyph />
         </PrimaryButton>
         <div className="mt-[9px] text-center text-[11px] text-ink-faint">
-          No manual bridging or chain switching — Zap Pilot handles it.
+          Base-only source in this version; Zap Pilot prepares the route.
         </div>
       </div>
 
