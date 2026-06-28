@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  getTtsConfig,
-  type TtsUsage,
-} from './tts-config.js';
+import { getTtsConfig, type TtsUsage } from './tts-config.js';
 
 describe('TTS language config', () => {
   afterEach(() => {
@@ -42,47 +39,83 @@ describe('TTS language config', () => {
     },
   );
 
-  it('switches to fish-audio when TTS_PROVIDER=fish-audio and FISH_AUDIO_MODEL_ID is set', () => {
+  it('switches to fish-audio when TTS_PROVIDER=fish-audio and FISH_AUDIO_REFERENCE_ID is set', () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'my-voice-model');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
 
     expect(getTtsConfig('main', 'zh-Hant')).toEqual({
       provider: 'fish-audio',
-      modelId: 'my-voice-model',
+      modelId: 'my-voice-reference',
       engine: 's2-pro',
     });
     expect(getTtsConfig('main', 'ja')).toEqual({
       provider: 'fish-audio',
-      modelId: 'my-voice-model',
+      modelId: 'my-voice-reference',
       engine: 's2-pro',
     });
     expect(getTtsConfig('classroom', 'en')).toEqual({
       provider: 'fish-audio',
-      modelId: 'my-voice-model',
+      modelId: 'my-voice-reference',
       engine: 's2-pro',
     });
   });
 
-  it('falls back to google when TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is missing', () => {
+  it('uses FISH_AUDIO_ENGINE for the Fish Audio request model header', () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
+    vi.stubEnv('FISH_AUDIO_ENGINE', 's2.1-pro-free');
+
+    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+      provider: 'fish-audio',
+      modelId: 'my-voice-reference',
+      engine: 's2.1-pro-free',
+    });
+  });
+
+  it('falls back to legacy FISH_AUDIO_MODEL_ID when FISH_AUDIO_REFERENCE_ID is missing', () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'legacy-voice-model');
+
+    expect(getTtsConfig('main', 'ja')).toEqual({
+      provider: 'fish-audio',
+      modelId: 'legacy-voice-model',
+      engine: 's2-pro',
+    });
+  });
+
+  it('prefers FISH_AUDIO_REFERENCE_ID over legacy FISH_AUDIO_MODEL_ID', () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'preferred-reference');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'legacy-model');
+
+    expect(getTtsConfig('classroom', 'en')).toEqual({
+      provider: 'fish-audio',
+      modelId: 'preferred-reference',
+      engine: 's2-pro',
+    });
+  });
+
+  it('falls back to google when TTS_PROVIDER=fish-audio but no Fish Audio reference id is set', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
 
     expect(getTtsConfig('main', 'zh-Hant').provider).toBe('google');
     expect(warnSpy).toHaveBeenCalledWith(
-      'TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is not set; falling back to google',
+      'TTS_PROVIDER=fish-audio but neither FISH_AUDIO_REFERENCE_ID nor FISH_AUDIO_MODEL_ID is set; falling back to google',
     );
 
     warnSpy.mockRestore();
   });
 
-  it('falls back to google when TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is empty', () => {
+  it('falls back to google when Fish Audio reference id env vars are empty', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '   ');
     vi.stubEnv('FISH_AUDIO_MODEL_ID', '   ');
 
     expect(getTtsConfig('main', 'en').provider).toBe('google');
     expect(warnSpy).toHaveBeenCalledWith(
-      'TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is not set; falling back to google',
+      'TTS_PROVIDER=fish-audio but neither FISH_AUDIO_REFERENCE_ID nor FISH_AUDIO_MODEL_ID is set; falling back to google',
     );
 
     warnSpy.mockRestore();
@@ -96,19 +129,20 @@ describe('TTS language config', () => {
 
   it('is case-insensitive for TTS_PROVIDER', () => {
     vi.stubEnv('TTS_PROVIDER', 'Fish-Audio');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'my-voice-model');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
 
     expect(getTtsConfig('main', 'zh-Hant').provider).toBe('fish-audio');
   });
 
-  it('trims whitespace from TTS_PROVIDER and FISH_AUDIO_MODEL_ID', () => {
+  it('trims whitespace from TTS_PROVIDER, FISH_AUDIO_REFERENCE_ID, and FISH_AUDIO_ENGINE', () => {
     vi.stubEnv('TTS_PROVIDER', '  fish-audio  ');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', '  my-voice-model  ');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '  my-voice-reference  ');
+    vi.stubEnv('FISH_AUDIO_ENGINE', '  s2.1-pro-free  ');
 
     expect(getTtsConfig('main', 'zh-Hant')).toEqual({
       provider: 'fish-audio',
-      modelId: 'my-voice-model',
-      engine: 's2-pro',
+      modelId: 'my-voice-reference',
+      engine: 's2.1-pro-free',
     });
   });
 });

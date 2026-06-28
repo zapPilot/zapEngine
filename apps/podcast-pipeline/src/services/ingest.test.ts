@@ -119,6 +119,8 @@ const performMultilingualIngest = (
 describe('performIngest failure paths', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env['TTS_PROVIDER'] = 'google';
+    delete process.env['FISH_AUDIO_MODEL_ID'];
     mockFindEpisodeBySourceUrl.mockResolvedValue(null);
     mockScrapeArticle.mockResolvedValue({
       title: '软件更新',
@@ -761,6 +763,63 @@ describe('performIngest failure paths', () => {
         (lesson) => lesson.targetLanguageCode,
       ),
     ).toEqual(['ja', 'en', 'ko']);
+  });
+
+  it('reuses completed audio even when stored TTS metadata differs from the current Fish Audio config', async () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'fish-model');
+    const existingLocalization = localizationRow({
+      status: 'completed',
+      script: 'Existing script',
+      hls_url: 'https://cdn.example.com/google-playlist.m3u8',
+      tts_language_code: 'cmn-TW',
+      tts_voice_name: 'cmn-TW-Wavenet-A',
+    });
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      existingLocalization,
+    );
+
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(200);
+    expect(mockScrapeArticle).not.toHaveBeenCalled();
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      existingLocalization.id,
+      'completed',
+      expect.anything(),
+    );
+  });
+
+  it('reuses completed audio when stored TTS metadata matches Fish Audio config', async () => {
+    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
+    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'fish-model');
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      localizationRow({
+        status: 'completed',
+        tts_language_code: 'zh-Hant',
+        tts_voice_name: 'fish-model',
+      }),
+    );
+
+    const result = await performIngest(
+      'https://example.com/article',
+      'zh-Hant',
+    );
+
+    expect(result.statusCode).toBe(200);
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.anything(),
+    );
   });
 
   it('retains only non-persisted existing classrooms when LLM generates subset', async () => {

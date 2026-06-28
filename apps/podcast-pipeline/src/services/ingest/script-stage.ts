@@ -19,7 +19,7 @@ import {
 import { generateScriptWithLLM } from '../llm.js';
 import { convertArticleToZhTW } from '../opencc.js';
 import { scrapeArticle } from '../scrape.js';
-import { step } from './step.js';
+import { logIngestSkip, step } from './step.js';
 
 export interface EpisodeLocalizationState {
   episode: EpisodeRow | null;
@@ -106,6 +106,7 @@ async function scrapeAndNormalize(
 ): Promise<ScrapedArticleState> {
   const needsScrape = !localization || localization.status === 'pending';
   if (!needsScrape) {
+    logIngestSkip('scrape already completed');
     return {
       article: {
         title: localization.title,
@@ -193,6 +194,8 @@ async function ensureLocalizationScript(input: {
           llmProvider: generated.provider,
         }),
     );
+  } else {
+    logIngestSkip('script already generated');
   }
 
   return localization;

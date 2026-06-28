@@ -27,7 +27,7 @@ import {
   findEpisodeAndLocalization,
   needsGeneratedScript,
 } from './ingest/script-stage.js';
-import { step } from './ingest/step.js';
+import { logIngestSkip, step, withStepLogContext } from './ingest/step.js';
 import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
@@ -80,6 +80,15 @@ export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
 ): Promise<IngestResult> {
+  return withStepLogContext({ languageCode }, () =>
+    performIngestWithContext(url, languageCode),
+  );
+}
+
+async function performIngestWithContext(
+  url: string,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<IngestResult> {
   if (isSecondaryLanguageCode(languageCode)) {
     return performSecondaryIngest(url, languageCode);
   }
@@ -92,6 +101,7 @@ export async function performIngest(
     existing.localization &&
     isAudioReady(existing.localization)
   ) {
+    logIngestSkip('localization audio already completed');
     const classrooms = await ensureLanguageClassroomsAndRecordCost(
       existing.localization,
       languageCode,
@@ -140,6 +150,7 @@ async function performSecondaryIngest(
   );
 
   if (localization && isAudioReady(localization)) {
+    logIngestSkip('secondary localization audio already completed');
     const classrooms = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,

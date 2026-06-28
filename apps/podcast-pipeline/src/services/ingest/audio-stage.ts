@@ -19,7 +19,7 @@ import { getTtsMetadata, textToSpeech } from '../tts.js';
 import { concatMp3Buffers } from '../tts/audio-concat.js';
 import { getClassroomTargetLanguageCodes } from './classroom-config.js';
 import { existingLanguageClassroomResult } from './result-builder.js';
-import { step } from './step.js';
+import { logIngestSkip, step } from './step.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
 export async function ensureLocalizationCompleted(
@@ -95,6 +95,7 @@ export async function ensureLocalizationCompleted(
   }
 
   if (!classroomRows) {
+    logIngestSkip('main audio already ready');
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
@@ -244,6 +245,7 @@ async function ensureLanguageClassrooms(
     ).filter((targetLanguageCode) => !existingTargets.has(targetLanguageCode));
 
     if (missingTargets.length === 0) {
+      logIngestSkip('language classrooms already ready');
       return existingLanguageClassroomResult(
         existing,
         sourceLanguageCode,

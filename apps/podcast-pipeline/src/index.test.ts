@@ -177,7 +177,16 @@ vi.mock('./services/translate.js', () => ({
   translateCanonicalScript: mockTranslateCanonicalScript,
 }));
 
+process.env['TTS_PROVIDER'] = 'google';
+
 const app = (await import('./index.js')).default;
+
+beforeEach(() => {
+  process.env['TTS_PROVIDER'] = 'google';
+  delete process.env['FISH_AUDIO_ENGINE'];
+  delete process.env['FISH_AUDIO_REFERENCE_ID'];
+  delete process.env['FISH_AUDIO_MODEL_ID'];
+});
 
 describe('health checks', () => {
   it.each(['/', '/health'])('returns ok for GET %s', async (path) => {
