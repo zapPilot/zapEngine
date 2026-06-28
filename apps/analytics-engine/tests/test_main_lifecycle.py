@@ -148,6 +148,25 @@ class TestApplicationLifecycle:
             or response.status_code in [200, 404]
         )
 
+    @pytest.mark.parametrize(
+        "origin",
+        ("http://localhost:49152", "http://127.0.0.1:49152"),
+    )
+    def test_cors_middleware_allows_any_loopback_port(self, origin: str):
+        """Local browser origins should work regardless of dev-server port."""
+        client = TestClient(app)
+
+        response = client.options(
+            "/",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        assert response.headers["access-control-allow-origin"] == origin
+
     def test_exception_handler_registration(self):
         """Test that exception handlers are properly registered"""
         # The app should have exception handlers registered

@@ -28,6 +28,7 @@ DEV_ALLOWED_ORIGINS = (
     "http://localhost:8000",
 )
 LOCAL_CORS_HOSTS = {"localhost", "0.0.0.0", "::1"}
+LOCAL_DEV_CORS_ORIGIN_REGEX = r"^https?://(?:localhost|127\.0\.0\.1)(?::[0-9]{1,5})?$"
 
 
 class Environment(str, Enum):
@@ -474,6 +475,13 @@ class Settings(BaseSettings):
     def is_staging(self) -> bool:
         """Check if running in staging environment."""
         return self.environment == Environment.STAGING
+
+    @property
+    def cors_allow_origin_regex(self) -> str | None:
+        """Allow any localhost/127.0.0.1 browser origin outside production."""
+        if self.is_production:
+            return None
+        return LOCAL_DEV_CORS_ORIGIN_REGEX
 
     # Database properties
     @property
