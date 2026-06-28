@@ -21,7 +21,7 @@ import {
   type ActivityKind,
   type ActivityStatus,
   type MetricTone,
-} from '@/data/mock';
+} from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import { useActivityData } from '@/integration/useActivityData';
 import { cn } from '@/lib/cn';
@@ -278,12 +278,14 @@ export function ActivityScreen() {
         </div>
       ) : null}
 
-      <p
-        className="px-5 pb-2 pt-[18px] font-mono text-[9px] tracking-[.06em]"
-        style={{ color: '#52525b' }}
-      >
-        Some entries are sample data until on-chain tx history is connected.
-      </p>
+      {userId === null ? (
+        <p
+          className="px-5 pb-2 pt-[18px] font-mono text-[9px] tracking-[.06em]"
+          style={{ color: '#52525b' }}
+        >
+          Sample entries are shown until account activity history is connected.
+        </p>
+      ) : null}
     </div>
   );
 }

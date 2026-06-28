@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
-# Pre-push hook: does NOT block by default.
+# Pre-push hook: does not run the full gate by default.
 # Heavy checks are handled by CI and by the local gate (scripts/verify-ci.sh,
 # scripts/verify-ci-parallel.sh).
+# Desktop packaging is the exception: when pushed commits touch the desktop app
+# or package inputs, run the DMG package gate unless explicitly skipped.
 #
 # Use manually before opening PR if needed:
 #   pnpm verify branch
@@ -9,11 +11,55 @@
 #
 # Opt into local blocking pre-push:
 #   ZAP_PRE_PUSH_VERIFY=1 git push
+# Skip desktop package gate only when the machine lacks native prerequisites and
+# the package failure is already understood:
+#   ZAP_SKIP_DESKTOP_PACKAGE=1 git push
 set -eu
+
+desktop_changed=0
+zero_sha=0000000000000000000000000000000000000000
+
+run_with_workspace_pnpm() {
+  corepack_bin_dir="${COREPACK_SHIM_DIR:-${TMPDIR:-/tmp}/zapengine-corepack-bin}"
+  mkdir -p "$corepack_bin_dir"
+  corepack enable --install-directory "$corepack_bin_dir" >/dev/null
+  PATH="$corepack_bin_dir:$PATH" "$@"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  [ "$local_sha" != "$zero_sha" ] || continue
+
+  if [ "$remote_sha" = "$zero_sha" ]; then
+    base_ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || printf '%s\n' refs/remotes/origin/main)
+    base_sha=$(git merge-base "$local_sha" "$base_ref" 2>/dev/null || git rev-list --max-parents=0 "$local_sha" | tail -n 1)
+    changed_files=$(git diff --name-only "$base_sha" "$local_sha")
+  else
+    changed_files=$(git diff --name-only "$remote_sha" "$local_sha")
+  fi
+
+  for path in $changed_files; do
+    case "$path" in
+      apps/desktop/*|packages/app-core/*|packages/types/*|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|turbo.json)
+        desktop_changed=1
+        ;;
+    esac
+  done
+done
+
+if [ "$desktop_changed" = "1" ]; then
+  if [ "${ZAP_SKIP_DESKTOP_PACKAGE:-0}" = "1" ]; then
+    echo "Skipping desktop package gate because ZAP_SKIP_DESKTOP_PACKAGE=1."
+  else
+    echo "Desktop-related changes detected; running desktop package gate..."
+    run_with_workspace_pnpm env CI=true pnpm --filter @zapengine/desktop package
+    printf '\nDesktop package gate passed\n'
+  fi
+fi
 
 if [ "${ZAP_PRE_PUSH_VERIFY:-0}" = "1" ]; then
   echo "Running opt-in pre-push verification..."
-  pnpm verify branch
+  run_with_workspace_pnpm pnpm verify branch
   printf '\n✅ Pre-push passed\n'
 else
   echo "Skipping pre-push verification by default. CI will run required checks."

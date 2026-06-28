@@ -1,9 +1,8 @@
 /**
- * Container hook for the Activity screen. Merges real analytics-derived events
- * (daily yield returns + borrowing positions) into the same `ActivityGroup[]`
- * shape the screen consumes, keeping the still-mock invest/rebalance/deposit/
- * withdraw/strategy-update events (no real tx-history API exists yet) so the
- * screen's existing `mocked` badge stays accurate.
+ * Container hook for the Activity screen. Connected users only see
+ * analytics-derived events (daily yield returns + borrowing positions). The
+ * lifecycle sample events remain a disconnected/demo fallback until a real
+ * portfolio-events API exists.
  */
 import { useQuery } from '@tanstack/react-query';
 import { useBorrowingPositions } from '@zapengine/app-core/hooks/queries/analytics/useBorrowingPositions';
@@ -13,7 +12,7 @@ import {
   getDailyYieldReturns,
 } from '@zapengine/app-core/services';
 
-import { type ActivityEvent, type ActivityGroup, MOCK } from '@/data/mock';
+import { type ActivityEvent, type ActivityGroup, DEMO } from '@/data/demo';
 
 export interface ActivityData {
   groups: ActivityGroup[];
@@ -176,11 +175,12 @@ function borrowingEventsFrom(
 }
 
 /**
- * Merge mock + real events into the screen's `ActivityGroup[]`, preserving the
+ * Merge demo + real events into the screen's `ActivityGroup[]`, preserving the
  * Today / This week / Earlier ordering. Real events are appended after the
- * mock events that already live in each bucket.
+ * demo events that already live in each bucket.
  */
 function buildGroups(
+  includeDemoEvents: boolean,
   yieldResp?: DailyYieldReturnsResponse,
   borrowing?: BorrowingPosition[],
 ): ActivityGroup[] {
@@ -190,11 +190,12 @@ function buildGroups(
     Earlier: [],
   };
 
-  // Seed with the existing mock groups (these carry mocked:true where relevant).
-  for (const group of MOCK.activity ?? []) {
-    const label = group?.label as GroupLabel | undefined;
-    if (label && label in buckets) {
-      buckets[label].push(...(group?.events ?? []));
+  if (includeDemoEvents) {
+    for (const group of DEMO.activity ?? []) {
+      const label = group?.label as GroupLabel | undefined;
+      if (label && label in buckets) {
+        buckets[label].push(...(group?.events ?? []));
+      }
     }
   }
 
@@ -232,10 +233,10 @@ export function useActivityData(userId: string | null): UseActivityDataResult {
     enabled && (yieldQuery.isLoading || borrowingQuery.isLoading);
   const isError = yieldQuery.isError || borrowingQuery.isError;
 
-  // While userId is unresolved, surface mock-only groups so the layout renders.
+  // While userId is unresolved, surface demo-only groups so the layout renders.
   if (!userId) {
     return {
-      data: { groups: buildGroups() },
+      data: { groups: buildGroups(true) },
       isLoading: false,
       isError: false,
     };
@@ -243,7 +244,11 @@ export function useActivityData(userId: string | null): UseActivityDataResult {
 
   return {
     data: {
-      groups: buildGroups(yieldQuery.data, borrowingQuery.data?.positions),
+      groups: buildGroups(
+        false,
+        yieldQuery.data,
+        borrowingQuery.data?.positions,
+      ),
     },
     isLoading,
     isError,

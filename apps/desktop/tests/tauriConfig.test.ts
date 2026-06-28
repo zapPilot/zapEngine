@@ -66,7 +66,10 @@ describe('desktop Tauri shell configuration', () => {
       'VITE_APP_RUNTIME=desktop',
     );
     expect(config.build.beforeBuildCommand).toContain(
-      '--filter @zapengine/desktop build:web',
+      'corepack pnpm turbo run',
+    );
+    expect(config.build.beforeBuildCommand).toContain(
+      'build:web --filter=@zapengine/desktop',
     );
   });
 

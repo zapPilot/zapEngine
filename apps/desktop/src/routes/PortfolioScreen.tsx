@@ -2,6 +2,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -22,7 +23,10 @@ export function PortfolioScreen() {
   // userId resolves or the dashboard query is in flight — never crash, never
   // break the phone frame. isError degrades the same way (portfolio is null).
   const loading = isLoading || portfolio === null;
+  const hasPositionValue = typeof portfolio?.positionValue === 'number';
   const { whole, fraction } = splitUsd(portfolio?.positionValue ?? 0);
+  const hasAllTimeChange = typeof portfolio?.changePct === 'number';
+  const hasTodayChange = typeof portfolio?.changePctToday === 'number';
 
   return (
     <div data-screen="portfolio">
@@ -51,11 +55,13 @@ export function PortfolioScreen() {
         <div className="mt-[5px] font-serif text-[50px] leading-[1.02] text-ink">
           {loading ? (
             <span style={{ color: '#6f6a5f' }}>—</span>
-          ) : (
+          ) : hasPositionValue ? (
             <>
               {whole}
               <span style={{ color: '#6f6a5f', fontSize: 32 }}>{fraction}</span>
             </>
+          ) : (
+            <span style={{ color: '#6f6a5f' }}>—</span>
           )}
         </div>
         <div className="mt-[9px] flex items-center gap-2">
@@ -64,12 +70,12 @@ export function PortfolioScreen() {
             style={{ background: 'rgba(122,216,143,.12)' }}
           >
             <span aria-hidden="true">▲</span>
-            {loading
+            {loading || !hasAllTimeChange
               ? '—'
               : formatSignedPct(portfolio?.changePct ?? 0).replace('+', '')}
           </span>
           <span className="text-[13px] text-ink-dim">
-            {loading
+            {loading || !hasAllTimeChange || !hasTodayChange
               ? 'all time · today'
               : `${formatSignedUsd(portfolio?.changeUsdAllTime ?? 0)} all time · ${formatSignedPct(portfolio?.changePctToday ?? 0)} today`}
           </span>
@@ -83,122 +89,22 @@ export function PortfolioScreen() {
         onChange={setRange}
       />
 
-      {/* Returns chart. Deposit (triangle) / rebalance (circle) markers are a
-          mock overlay pending a real portfolio-events API. */}
       <div className="mt-3 px-5">
-        <svg
-          width="100%"
-          height="170"
-          viewBox="0 0 340 170"
-          className="block"
+        <div
+          className="grid h-[170px] place-items-center"
           role="img"
-          aria-label="Portfolio value over the selected range against principal and benchmark"
+          aria-label="Portfolio value over the selected range"
         >
-          <defs>
-            <linearGradient id="pfArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="rgba(212,197,163,.26)" />
-              <stop offset="1" stopColor="rgba(212,197,163,0)" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M14,118 L46,113 L78,107 L110,109 L142,99 L174,86 L206,84 L238,80 L270,67 L302,57 L326,50 L326,140 L14,140 Z"
-            fill="url(#pfArea)"
-          />
-          <path
-            d="M14,126 L78,126 L78,114 L174,114 L174,100 L326,100"
-            fill="none"
-            stroke="#6f6a5f"
-            strokeWidth="1.4"
-            strokeDasharray="4 4"
-            opacity=".8"
-          />
-          <path
-            d="M14,121 L78,114 L142,106 L206,93 L270,78 L326,64"
-            fill="none"
-            stroke="rgba(212,197,163,.4)"
-            strokeWidth="1.3"
-            strokeDasharray="2 3"
-          />
-          <path
-            d="M14,118 L46,113 L78,107 L110,109 L142,99 L174,86 L206,84 L238,80 L270,67 L302,57 L326,50"
-            fill="none"
-            stroke="#d4c5a3"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14,112 L18,120 L10,120 Z"
-            fill="#d4c5a3"
-            stroke="#0a0a0a"
-            strokeWidth="1"
-          />
-          <path
-            d="M174,80 L178,88 L170,88 Z"
-            fill="#d4c5a3"
-            stroke="#0a0a0a"
-            strokeWidth="1"
-          />
-          <circle
-            cx="110"
-            cy="109"
-            r="3.4"
-            fill="#2775ca"
-            stroke="#0a0a0a"
-            strokeWidth="1.4"
-          />
-          <circle
-            cx="270"
-            cy="67"
-            r="3.4"
-            fill="#2775ca"
-            stroke="#0a0a0a"
-            strokeWidth="1.4"
-          />
-          <path
-            d="M238,75 L243,80 L238,85 L233,80 Z"
-            fill="#d7dde7"
-            stroke="#0a0a0a"
-            strokeWidth="1.2"
-          />
-          <circle cx="326" cy="50" r="3.2" fill="#d4c5a3" />
-          <text
-            x="14"
-            y="160"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Jan
-          </text>
-          <text
-            x="108"
-            y="160"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Mar
-          </text>
-          <text
-            x="206"
-            y="160"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            May
-          </text>
-          <text
-            x="308"
-            y="160"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Jul
-          </text>
-        </svg>
+          {portfolio?.chartData && portfolio.chartData.length >= 2 ? (
+            <Sparkline
+              data={portfolio.chartData}
+              height={158}
+              gradientId="portfolioValueSpark"
+            />
+          ) : (
+            <span className="font-mono text-[18px] text-ink-faint">—</span>
+          )}
+        </div>
         <div className="mt-1 flex flex-wrap gap-3">
           <span className="inline-flex items-center gap-[5px] font-mono text-[9px] text-[#cfcabb]">
             <span
@@ -207,42 +113,6 @@ export function PortfolioScreen() {
               aria-hidden="true"
             />
             Value
-          </span>
-          <span className="inline-flex items-center gap-[5px] font-mono text-[9px] text-[#8a857a]">
-            <span
-              className="h-0 w-[13px]"
-              style={{ borderTop: '1.5px dashed #6f6a5f' }}
-              aria-hidden="true"
-            />
-            Principal
-          </span>
-          <span className="inline-flex items-center gap-[5px] font-mono text-[9px] text-[#8a857a]">
-            <span
-              className="h-0 w-[13px]"
-              style={{ borderTop: '1.5px dashed rgba(212,197,163,.5)' }}
-              aria-hidden="true"
-            />
-            Benchmark
-          </span>
-          <span className="inline-flex items-center gap-1 font-mono text-[9px] text-[#8a857a]">
-            <span
-              className="h-0 w-0"
-              style={{
-                borderLeft: '4px solid transparent',
-                borderRight: '4px solid transparent',
-                borderBottom: '7px solid #d4c5a3',
-              }}
-              aria-hidden="true"
-            />
-            Deposit
-          </span>
-          <span className="inline-flex items-center gap-1 font-mono text-[9px] text-[#8a857a]">
-            <span
-              className="h-[7px] w-[7px] rounded-full"
-              style={{ background: '#2775ca' }}
-              aria-hidden="true"
-            />
-            Rebalance
           </span>
         </div>
       </div>

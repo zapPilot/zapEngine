@@ -1,4 +1,3 @@
-import type { DepositLeg } from '@zapengine/types/api';
 import { CheckCircle2, ChevronDown, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,33 +7,17 @@ import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
-import { CHAINS } from '@/data/mock';
+import {
+  chainDisplay,
+  formatPlanDuration,
+  formatPlanGas,
+  planLegsToRouteRows,
+  routeStepsLabel,
+} from '@/integration/planPreviewFormatters';
 import { useAccount } from '@/integration/useAccount';
 import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
 import { useInvest } from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
-
-/** Default connector label used until a plan resolves (matches the design). */
-const DEFAULT_ROUTE_STEPS = 'BRIDGE · SWAP · DEPOSIT';
-
-/**
- * Derive the connector label from the plan's leg kinds. A bridge leg implies a
- * cross-chain swap; a supply leg is the strategy deposit. Falls back to the
- * design's label when the plan is unavailable or carries no legs.
- */
-function routeStepsLabel(legs: DepositLeg[] | undefined): string {
-  if (!legs || legs.length === 0) {
-    return DEFAULT_ROUTE_STEPS;
-  }
-  const parts: string[] = [];
-  if (legs.some((leg) => leg.kind === 'bridge')) {
-    parts.push('BRIDGE', 'SWAP');
-  }
-  if (legs.some((leg) => leg.kind === 'supply')) {
-    parts.push('DEPOSIT');
-  }
-  return parts.length > 0 ? parts.join(' · ') : DEFAULT_ROUTE_STEPS;
-}
 
 const plainCardStyle = {
   background: 'rgba(255,255,255,.025)',
@@ -81,9 +64,10 @@ function SourceChip({ dotColor, label }: SourceChipProps) {
 /** Invest step 2/3 — route flow diagram, fees/time, simulation, steps. */
 export function InvestRouteScreen() {
   const navigate = useNavigate();
-  const { amountUsd, fromToken, fromAmount, sourceChainId } = useInvest();
+  const { amountUsd, selectedToken, fromToken, fromAmount, sourceChainId } =
+    useInvest();
   const { address } = useAccount();
-  const { plan, isLoading } = useDepositPlanPreview({
+  const { plan, isLoading, isError } = useDepositPlanPreview({
     address,
     fromToken,
     fromAmount,
@@ -95,6 +79,15 @@ export function InvestRouteScreen() {
   // never crash on an error (the design's static copy stays).
   const fromAmountLabel = isLoading ? '—' : formatUsd(amountUsd);
   const stepsLabel = routeStepsLabel(plan?.legs);
+  const sourceChain = chainDisplay(sourceChainId);
+  const routeRows = planLegsToRouteRows(plan?.legs);
+  const planStatus = isLoading
+    ? 'Generating plan'
+    : isError
+      ? 'Plan unavailable'
+      : plan
+        ? 'Plan generated'
+        : 'Awaiting plan';
 
   return (
     <div className="font-sans text-ink">
@@ -121,7 +114,7 @@ export function InvestRouteScreen() {
                   From your portfolio
                 </div>
                 <div className="mt-0.5 text-[11px] text-ink-faint">
-                  2 sources · auto-selected
+                  {sourceChain.label} source · {selectedToken.symbol}
                 </div>
               </div>
             </div>
@@ -133,10 +126,9 @@ export function InvestRouteScreen() {
             </span>
           </div>
           <div className="mt-[11px] flex gap-1.5">
-            <SourceChip dotColor={CHAINS.base.color} label="USDC · Base" />
             <SourceChip
-              dotColor={CHAINS.arbitrum.color}
-              label="ETH · Arbitrum"
+              dotColor={sourceChain.color}
+              label={`${selectedToken.symbol} · ${sourceChain.label}`}
             />
           </div>
         </div>
@@ -203,7 +195,7 @@ export function InvestRouteScreen() {
           <div className="flex-1">
             <div className="text-[14px] font-semibold">Zap routing</div>
             <div className="mt-0.5 text-[11px]" style={{ color: '#9a8f78' }}>
-              Cheapest path across chains, found for you
+              {plan ? 'Route ready from DepositPlan' : planStatus}
             </div>
           </div>
           <CheckCircle2 size={20} strokeWidth={2} className="text-accent" />
@@ -236,67 +228,96 @@ export function InvestRouteScreen() {
               </div>
             </div>
           </div>
-          {/* NOTE(real-data): DepositPlan carries no net-receive figure
-              (only per-leg gas + min-out); keep the design's estimate. */}
           <div className="text-right">
             <div
               className="text-[15px] font-semibold text-accent"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              ≈ $998.50
+              {plan ? 'Route prepared' : '—'}
             </div>
             <div className="mt-0.5 text-[10.5px] text-ink-faint">
-              you receive
+              fees estimated below
             </div>
           </div>
         </div>
       </div>
 
       {/* summary rows */}
-      {/* NOTE(real-data): fee/time/received use the design's estimates; the
-          plan's per-leg gasUsd/durationSec are not yet summed into the UI. */}
       <div className="mx-[22px] mt-[18px]">
-        <InfoRow divider={true} label="Estimated network fee" value="≈ $2.40" />
-        <InfoRow divider={true} label="Estimated time" value="~90 seconds" />
         <InfoRow
-          label="Expected received"
-          value={<span className="text-ink-dim">≈ $998.50 · 99.85%</span>}
+          divider={true}
+          label="Estimated network fee"
+          value={formatPlanGas(plan?.totalGasUsd)}
+        />
+        <InfoRow
+          divider={true}
+          label="Estimated time"
+          value={formatPlanDuration(plan?.legs)}
+        />
+        <InfoRow
+          label="Plan status"
+          value={<span className="text-ink-dim">{planStatus}</span>}
         />
       </div>
 
-      {/* simulation passed */}
       <div
         className="mx-5 mt-1.5 flex items-center gap-[11px] rounded-[14px] px-[14px] py-3"
         style={{
-          background: 'rgba(122,216,143,.07)',
-          border: '1px solid rgba(122,216,143,.2)',
+          background: 'rgba(212,197,163,.07)',
+          border: '1px solid rgba(212,197,163,.2)',
         }}
       >
-        <CheckCircle2 size={22} strokeWidth={2} className="text-success" />
+        <CheckCircle2 size={22} strokeWidth={2} className="text-accent" />
         <div>
-          <div className="text-[13px] font-semibold text-success">
-            Simulation passed
+          <div className="text-[13px] font-semibold text-accent">
+            {planStatus}
           </div>
           <div className="mt-0.5 text-[11px]" style={{ color: '#8a8a82' }}>
-            Route preview verified · quotes locked for 60s
+            {plan
+              ? 'Review the generated plan before signing.'
+              : 'No simulation result is available in route preview.'}
           </div>
         </div>
       </div>
 
-      {/* expandable routing steps */}
-      <button
-        type="button"
-        className="zp-tap mx-5 mt-[11px] flex w-[calc(100%-2.5rem)] items-center justify-between rounded-[14px] px-[15px] py-[13px]"
+      <div
+        className="mx-5 mt-[11px] rounded-[14px] px-[15px] py-[13px]"
         style={plainCardStyle}
       >
-        <span className="text-[12.5px] text-ink-dim">
-          View routing steps &amp; networks
-        </span>
-        <ChevronDown size={16} strokeWidth={2} className="text-ink-faint" />
-      </button>
+        <div className="flex items-center justify-between">
+          <span className="text-[12.5px] text-ink-dim">
+            Routing steps &amp; networks
+          </span>
+          <ChevronDown size={16} strokeWidth={2} className="text-ink-faint" />
+        </div>
+        <div className="mt-3 flex flex-col gap-2">
+          {routeRows.length > 0 ? (
+            routeRows.map((row) => (
+              <div key={row.id} className="flex items-center gap-2">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: row.dotColor }}
+                  aria-hidden="true"
+                />
+                <span className="flex-1 text-[12px] text-ink-dim">
+                  {row.label}
+                </span>
+                <span className="font-mono text-[9.5px] text-ink-faint">
+                  {row.meta}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-[12px] text-ink-faint">—</div>
+          )}
+        </div>
+      </div>
 
       <div className="px-5 pt-4">
-        <PrimaryButton onClick={() => navigate('/invest/confirm')}>
+        <PrimaryButton
+          onClick={() => navigate('/invest/confirm')}
+          disabled={!plan || isLoading || isError}
+        >
           Continue
           <ArrowGlyph />
         </PrimaryButton>

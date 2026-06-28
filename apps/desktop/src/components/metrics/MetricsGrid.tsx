@@ -1,4 +1,4 @@
-import type { MetricTone } from '@/data/mock';
+import type { MetricTone } from '@/data/demo';
 import { cn } from '@/lib/cn';
 
 export interface Metric {

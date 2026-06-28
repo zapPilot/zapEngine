@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
-import { MOCK } from '@/data/mock';
+import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
 
@@ -29,12 +29,16 @@ export function StrategyScreen() {
   const { data, isLoading, isError } = useStrategyData(userId);
 
   // The container hook always returns a fully-shaped strategy slice (real where
-  // available, mock elsewhere). While identity/data resolve we keep the exact
+  // available, demo elsewhere). While identity/data resolve we keep the exact
   // layout and only soften the headline return into a calm dash.
-  const strategy = data ?? MOCK.strategy;
+  const strategy = data ?? DEMO.strategy;
   const { backtest } = strategy;
   const pending = isLoading || isError || data === null;
   const returnLabel = pending ? '—' : backtest.returnLabel;
+  const isDemo = userId === null;
+  const sentimentMarker =
+    typeof backtest.sentiment === 'number' ? backtest.sentiment : 50;
+  const hasTargetAllocation = data?.hasTargetAllocation ?? isDemo;
 
   return (
     <div className="font-sans text-ink" data-screen="strategy">
@@ -67,7 +71,7 @@ export function StrategyScreen() {
         <div className="flex items-end justify-between">
           <div>
             <div className="font-mono text-[9px] tracking-[0.1em] text-[#9a8f78]">
-              ZAP STRATEGY · 1Y RETURN
+              {isDemo ? 'ZAP STRATEGY · 1Y RETURN' : 'BACKTEST · ON DEMAND'}
             </div>
             <div className="mt-0.5 font-serif text-[30px] leading-[1.05] text-success">
               {returnLabel}
@@ -81,196 +85,209 @@ export function StrategyScreen() {
         </div>
 
         {/* Legend */}
-        <div className="mt-[11px] flex flex-wrap gap-[11px]">
-          {CHART_LEGEND.map((item) => (
-            <span
-              key={item.label}
-              className={`inline-flex items-center gap-[5px] font-mono text-[9.5px] ${item.textClass}`}
-            >
+        {isDemo ? (
+          <div className="mt-[11px] flex flex-wrap gap-[11px]">
+            {CHART_LEGEND.map((item) => (
               <span
-                aria-hidden="true"
-                className="h-[3px] w-[13px] rounded-sm"
-                style={{ background: item.color }}
-              />
-              {item.label}
-            </span>
-          ))}
-        </div>
+                key={item.label}
+                className={`inline-flex items-center gap-[5px] font-mono text-[9.5px] ${item.textClass}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-[3px] w-[13px] rounded-sm"
+                  style={{ background: item.color }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         {/* Multi-line backtest chart (copied verbatim from design) */}
-        <svg
-          width="100%"
-          height="180"
-          viewBox="0 0 340 180"
-          className="mt-2 block"
-          role="img"
-          aria-label="Zap Strategy backtest performance versus BTC, ETH and stables over one year"
-        >
-          <defs>
-            <linearGradient id="btArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="rgba(212,197,163,.28)" />
-              <stop offset="1" stopColor="rgba(212,197,163,0)" />
-            </linearGradient>
-          </defs>
-          <line
-            x1="40"
-            y1="28"
-            x2="330"
-            y2="28"
-            stroke="rgba(255,255,255,.05)"
-          />
-          <line
-            x1="40"
-            y1="68"
-            x2="330"
-            y2="68"
-            stroke="rgba(255,255,255,.05)"
-          />
-          <line
-            x1="40"
-            y1="108"
-            x2="330"
-            y2="108"
-            stroke="rgba(255,255,255,.05)"
-          />
-          <line
-            x1="40"
-            y1="148"
-            x2="330"
-            y2="148"
-            stroke="rgba(255,255,255,.05)"
-          />
-          <text
-            x="6"
-            y="31"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
+        {isDemo ? (
+          <svg
+            width="100%"
+            height="180"
+            viewBox="0 0 340 180"
+            className="mt-2 block"
+            role="img"
+            aria-label="Zap Strategy backtest performance versus BTC, ETH and stables over one year"
           >
-            $32k
-          </text>
-          <text
-            x="6"
-            y="71"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            $24k
-          </text>
-          <text
-            x="6"
-            y="111"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            $16k
-          </text>
-          <text
-            x="6"
-            y="151"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            $10k
-          </text>
-          <path
-            d="M40,128 L64,124 L88,126 L112,116 L136,118 L160,104 L184,107 L208,90 L232,93 L256,74 L280,66 L304,52 L326,40 L326,156 L40,156 Z"
-            fill="url(#btArea)"
-          />
-          <path
-            d="M40,146 L64,145 L88,145 L112,144 L136,144 L160,143 L184,142 L208,142 L232,141 L256,140 L280,140 L304,138 L326,137"
-            fill="none"
-            stroke="#2775ca"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity=".8"
-          />
-          <path
-            d="M40,138 L64,136 L88,134 L112,130 L136,132 L160,122 L184,124 L208,114 L232,116 L256,104 L280,108 L304,96 L326,94"
-            fill="none"
-            stroke="#d7dde7"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity=".75"
-          />
-          <path
-            d="M40,134 L64,130 L88,140 L112,124 L136,144 L160,108 L184,126 L208,80 L232,102 L256,66 L280,86 L304,58 L326,62"
-            fill="none"
-            stroke="#f7931a"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity=".8"
-          />
-          <path
-            d="M40,128 L64,124 L88,126 L112,116 L136,118 L160,104 L184,107 L208,90 L232,93 L256,74 L280,66 L304,52 L326,40"
-            fill="none"
-            stroke="#d4c5a3"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="326" cy="40" r="3.2" fill="#d4c5a3" />
-          <text
-            x="40"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Jul
-          </text>
-          <text
-            x="98"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Sep
-          </text>
-          <text
-            x="156"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Nov
-          </text>
-          <text
-            x="214"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Jan
-          </text>
-          <text
-            x="268"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Mar
-          </text>
-          <text
-            x="312"
-            y="172"
-            fontFamily="JetBrains Mono,monospace"
-            fontSize="8"
-            fill="#52525b"
-          >
-            Jun
-          </text>
-        </svg>
+            <defs>
+              <linearGradient id="btArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="rgba(212,197,163,.28)" />
+                <stop offset="1" stopColor="rgba(212,197,163,0)" />
+              </linearGradient>
+            </defs>
+            <line
+              x1="40"
+              y1="28"
+              x2="330"
+              y2="28"
+              stroke="rgba(255,255,255,.05)"
+            />
+            <line
+              x1="40"
+              y1="68"
+              x2="330"
+              y2="68"
+              stroke="rgba(255,255,255,.05)"
+            />
+            <line
+              x1="40"
+              y1="108"
+              x2="330"
+              y2="108"
+              stroke="rgba(255,255,255,.05)"
+            />
+            <line
+              x1="40"
+              y1="148"
+              x2="330"
+              y2="148"
+              stroke="rgba(255,255,255,.05)"
+            />
+            <text
+              x="6"
+              y="31"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              $32k
+            </text>
+            <text
+              x="6"
+              y="71"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              $24k
+            </text>
+            <text
+              x="6"
+              y="111"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              $16k
+            </text>
+            <text
+              x="6"
+              y="151"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              $10k
+            </text>
+            <path
+              d="M40,128 L64,124 L88,126 L112,116 L136,118 L160,104 L184,107 L208,90 L232,93 L256,74 L280,66 L304,52 L326,40 L326,156 L40,156 Z"
+              fill="url(#btArea)"
+            />
+            <path
+              d="M40,146 L64,145 L88,145 L112,144 L136,144 L160,143 L184,142 L208,142 L232,141 L256,140 L280,140 L304,138 L326,137"
+              fill="none"
+              stroke="#2775ca"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity=".8"
+            />
+            <path
+              d="M40,138 L64,136 L88,134 L112,130 L136,132 L160,122 L184,124 L208,114 L232,116 L256,104 L280,108 L304,96 L326,94"
+              fill="none"
+              stroke="#d7dde7"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity=".75"
+            />
+            <path
+              d="M40,134 L64,130 L88,140 L112,124 L136,144 L160,108 L184,126 L208,80 L232,102 L256,66 L280,86 L304,58 L326,62"
+              fill="none"
+              stroke="#f7931a"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity=".8"
+            />
+            <path
+              d="M40,128 L64,124 L88,126 L112,116 L136,118 L160,104 L184,107 L208,90 L232,93 L256,74 L280,66 L304,52 L326,40"
+              fill="none"
+              stroke="#d4c5a3"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="326" cy="40" r="3.2" fill="#d4c5a3" />
+            <text
+              x="40"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Jul
+            </text>
+            <text
+              x="98"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Sep
+            </text>
+            <text
+              x="156"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Nov
+            </text>
+            <text
+              x="214"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Jan
+            </text>
+            <text
+              x="268"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Mar
+            </text>
+            <text
+              x="312"
+              y="172"
+              fontFamily="JetBrains Mono,monospace"
+              fontSize="8"
+              fill="#52525b"
+            >
+              Jun
+            </text>
+          </svg>
+        ) : (
+          <div className="grid h-[180px] place-items-center">
+            <div className="text-center">
+              <div className="font-mono text-[20px] text-ink-faint">—</div>
+              <div className="mt-1 text-[11px] text-[#6f6a5f]">
+                Backtest metrics are unavailable until a run is started.
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Metrics grid */}
@@ -297,7 +314,7 @@ export function StrategyScreen() {
             aria-hidden="true"
             className="absolute top-1/2 rounded-full"
             style={{
-              left: `${backtest.sentiment}%`,
+              left: `${sentimentMarker}%`,
               transform: 'translate(-50%,-50%)',
               width: 15,
               height: 15,
@@ -337,7 +354,7 @@ export function StrategyScreen() {
           <div className="mt-2 flex justify-between font-mono text-[9px] text-[#6f6a5f]">
             {backtest.allocation.map((a) => (
               <span key={a.label}>
-                {a.label} {a.pct}%
+                {a.label} {hasTargetAllocation ? `${a.pct}%` : '—'}
               </span>
             ))}
           </div>
@@ -356,8 +373,9 @@ export function StrategyScreen() {
           aria-hidden="true"
         />
         <p className="text-[11px] leading-[1.55] text-[#7d7868]">
-          Backtested on historical data. Past performance doesn&apos;t guarantee
-          future results — only invest what you&apos;re comfortable holding.
+          {isDemo
+            ? "Backtested on historical data. Past performance doesn't guarantee future results — only invest what you're comfortable holding."
+            : 'Backtest metrics are not run automatically. Target allocation uses the latest strategy suggestion when available.'}
         </p>
       </Card>
 
