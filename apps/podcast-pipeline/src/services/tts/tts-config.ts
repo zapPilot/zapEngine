@@ -37,7 +37,23 @@ const GOOGLE_EN_CONFIG = {
   voiceName: 'en-US-Wavenet-A',
 } satisfies GoogleTtsLanguageConfig;
 
-export const MAIN_TTS_CONFIG: Record<
+const FISH_AUDIO_ZH_HANT_CONFIG: FishAudioTtsLanguageConfig = {
+  provider: 'fish-audio',
+  modelId: '',
+  engine: 's2-pro',
+};
+const FISH_AUDIO_JA_CONFIG: FishAudioTtsLanguageConfig = {
+  provider: 'fish-audio',
+  modelId: '',
+  engine: 's2-pro',
+};
+const FISH_AUDIO_EN_CONFIG: FishAudioTtsLanguageConfig = {
+  provider: 'fish-audio',
+  modelId: '',
+  engine: 's2-pro',
+};
+
+const GOOGLE_MAIN_TTS_CONFIG: Record<
   LanguageClassroomLanguageCode,
   TtsLanguageConfig
 > = {
@@ -46,7 +62,7 @@ export const MAIN_TTS_CONFIG: Record<
   en: GOOGLE_EN_CONFIG,
 };
 
-export const CLASSROOM_TTS_CONFIG: Record<
+const GOOGLE_CLASSROOM_TTS_CONFIG: Record<
   LanguageClassroomLanguageCode,
   TtsLanguageConfig
 > = {
@@ -54,12 +70,70 @@ export const CLASSROOM_TTS_CONFIG: Record<
   ja: GOOGLE_JA_CONFIG,
   en: GOOGLE_EN_CONFIG,
 };
+
+const FISH_AUDIO_MAIN_TTS_CONFIG: Record<
+  LanguageClassroomLanguageCode,
+  TtsLanguageConfig
+> = {
+  'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
+  ja: FISH_AUDIO_JA_CONFIG,
+  en: FISH_AUDIO_EN_CONFIG,
+};
+
+const FISH_AUDIO_CLASSROOM_TTS_CONFIG: Record<
+  LanguageClassroomLanguageCode,
+  TtsLanguageConfig
+> = {
+  'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
+  ja: FISH_AUDIO_JA_CONFIG,
+  en: FISH_AUDIO_EN_CONFIG,
+};
+
+export const MAIN_TTS_CONFIG = GOOGLE_MAIN_TTS_CONFIG;
+export const CLASSROOM_TTS_CONFIG = GOOGLE_CLASSROOM_TTS_CONFIG;
+
+function resolveTtsProvider(): TtsProvider {
+  const envProvider = process.env['TTS_PROVIDER']?.trim().toLowerCase();
+  if (envProvider === 'fish-audio') {
+    const modelId = process.env['FISH_AUDIO_MODEL_ID']?.trim();
+    if (!modelId) {
+      console.warn(
+        'TTS_PROVIDER=fish-audio but FISH_AUDIO_MODEL_ID is not set; falling back to google',
+      );
+      return 'google';
+    }
+    return 'fish-audio';
+  }
+  return 'google';
+}
+
+function buildFishAudioConfig(
+  base: FishAudioTtsLanguageConfig,
+): FishAudioTtsLanguageConfig {
+  return {
+    ...base,
+    modelId: process.env['FISH_AUDIO_MODEL_ID']!.trim(),
+  };
+}
 
 export function getTtsConfig(
   usage: TtsUsage,
   languageCode: LanguageClassroomLanguageCode,
 ): TtsLanguageConfig {
-  return usage === 'main'
-    ? MAIN_TTS_CONFIG[languageCode]
-    : CLASSROOM_TTS_CONFIG[languageCode];
+  const provider = resolveTtsProvider();
+
+  if (provider === 'fish-audio') {
+    const baseMap =
+      usage === 'main'
+        ? FISH_AUDIO_MAIN_TTS_CONFIG
+        : FISH_AUDIO_CLASSROOM_TTS_CONFIG;
+    const base = baseMap[languageCode];
+    return buildFishAudioConfig(base as FishAudioTtsLanguageConfig);
+  }
+
+  const googleMap =
+    usage === 'main'
+      ? GOOGLE_MAIN_TTS_CONFIG
+      : GOOGLE_CLASSROOM_TTS_CONFIG;
+  return googleMap[languageCode];
 }
