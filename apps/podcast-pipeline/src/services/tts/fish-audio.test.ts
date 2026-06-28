@@ -332,6 +332,53 @@ describe('Fish Audio TTS provider', () => {
     });
   });
 
+  it('throws when response has no body stream', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      body: null,
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('no body test', {
+        languageCode: 'en',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-model-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).rejects.toThrow('Fish Audio TTS response has no body stream');
+  });
+
+  it('logs audio chunk received when receivedBytes crosses 65536', async () => {
+    const largeChunk = new Uint8Array(70_000);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const mockFetch = vi.fn().mockResolvedValue(streamResponse([largeChunk]));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await synthesize('large audio test', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-model-id',
+        engine: 's2-pro',
+      },
+    });
+
+    const chunkLogCalls = logSpy.mock.calls.filter(
+      ([msg]) => msg === '[/tts] Fish Audio TTS audio chunk received',
+    );
+    expect(chunkLogCalls.length).toBeGreaterThanOrEqual(1);
+    logSpy.mockRestore();
+  });
+
   it('throws when response.text() throws during error body reading', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -581,6 +628,136 @@ describe('Fish Audio TTS provider', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses retry-after header for retry delay when present', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Object.assign(errorResponse(429, '', 'rate limit'), {
+          headers: { get: (h: string) => (h === 'retry-after' ? '2' : null) },
+        }),
+      )
+      .mockResolvedValueOnce(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('retry after test', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-reference-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses env-based retry delay when retry-after header is missing', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(429, '', 'rate limit'))
+      .mockResolvedValueOnce(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('env retry delay test', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-reference-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses default retry delay when env var is invalid', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', 'not-a-number');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(429, '', 'rate limit'))
+      .mockResolvedValueOnce(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('invalid env retry delay', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-reference-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses default request timeout when env var is invalid', async () => {
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', 'invalid');
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', 'invalid');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', 'invalid');
+    vi.stubEnv('FISH_AUDIO_REQUEST_DELAY_MS', 'invalid');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('invalid env defaults', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-reference-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
+  });
+
+  it('uses default timeout when env var is negative', async () => {
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '-100');
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '-100');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '-100');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('negative env defaults', {
+      languageCode: 'en',
+      usage: 'main',
+      config: {
+        provider: 'fish-audio',
+        modelId: 'custom-reference-id',
+        engine: 's2-pro',
+      },
+    });
+
+    expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
   });
 
   it('splits on sentence boundaries when possible', async () => {

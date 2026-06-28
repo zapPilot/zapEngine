@@ -195,6 +195,121 @@ describe('textToSpeech', () => {
     await expect(textToSpeech('   ')).rejects.toThrow('No text to synthesize');
   });
 
+  it('uses default voice when no opts provided', async () => {
+    const result = await textToSpeech('Hello');
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(result.cost[0]?.model).toBe('cmn-TW-Wavenet-A');
+  });
+
+  it('includes $metadata in error details when present', async () => {
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), {
+        code: 13,
+        $metadata: { internalRepr: new Map([['key', 'val']]) },
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('includes $metadata string details when not a record', async () => {
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), {
+        code: 13,
+        $metadata: 'raw metadata string',
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('handles non-record errors in error details', async () => {
+    mockSynthesize.mockRejectedValue('string error');
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('handles errors with string code in diagnostics', async () => {
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), { code: '13' }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('handles errors with details but no metadata', async () => {
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), {
+        code: 13,
+        details: 'some details',
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('retries transient Google error with string code', async () => {
+    mockSynthesize
+      .mockRejectedValueOnce(
+        Object.assign(new Error('13 INTERNAL'), { code: '13' }),
+      )
+      .mockResolvedValueOnce([{ audioContent: new Uint8Array(512) }]);
+
+    const result = await textToSpeech('Test');
+    expect(result.audio).toBeInstanceOf(Buffer);
+    expect(mockSynthesize).toHaveBeenCalledTimes(2);
+  });
+
+  it('handles non-record errors in copyGoogleErrorMetadata', async () => {
+    mockSynthesize.mockRejectedValue('plain string error');
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('handles metadata with circular reference in formatGrpcMetadata', async () => {
+    const circular: Record<string, unknown> = {};
+    circular['self'] = circular;
+
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), {
+        code: 13,
+        metadata: circular,
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
+  it('handles $metadata with circular reference in formatGrpcMetadata', async () => {
+    const circular: Record<string, unknown> = {};
+    circular['self'] = circular;
+
+    mockSynthesize.mockRejectedValue(
+      Object.assign(new Error('gRPC error'), {
+        code: 13,
+        $metadata: circular,
+      }),
+    );
+
+    await expect(textToSpeech('Test')).rejects.toThrow(
+      'Google TTS chunk 1/1 failed',
+    );
+  });
+
   it('synthesizes single chunk directly', async () => {
     const result = await textToSpeech('短文字');
     expect(result.audio).toBeInstanceOf(Buffer);

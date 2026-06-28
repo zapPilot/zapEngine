@@ -4,8 +4,20 @@ import type { EpisodeListRow } from '../types.js';
 import { encodeCursor } from './db.js';
 import {
   createEpisodeSearchService,
+  invalidateEpisodeSearchCache,
   rankEpisodeSearchResults,
+  searchEpisodes,
 } from './episode-search.js';
+
+vi.mock('./db.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./db.js')>();
+  return {
+    ...actual,
+    listEpisodesPaged: vi
+      .fn()
+      .mockResolvedValue({ rows: [], nextCursor: null }),
+  };
+});
 
 describe('rankEpisodeSearchResults', () => {
   it('finds exact fragments in Traditional Chinese and Japanese', () => {
@@ -120,6 +132,22 @@ describe('rankEpisodeSearchResults', () => {
 
     expect(result).toEqual([]);
   });
+
+  it('uses ngram fallback when query spans across script segments', () => {
+    const rows = [
+      row({
+        id: 'ngram',
+        title: 'Weekly notes',
+        script:
+          'The Federal Reserve met today. Rates were unchanged. The committee discussed inflation.',
+      }),
+    ];
+
+    const result = rankEpisodeSearchResults(rows, 'today rates', 20);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.matchSource).toBe('script');
+    expect(result[0]?.snippet).toBeTruthy();
+  });
 });
 
 describe('EpisodeSearchService', () => {
@@ -198,6 +226,17 @@ describe('EpisodeSearchService', () => {
       t: '2026-01-01T00:00:00.000Z',
       i: '00000000-0000-4000-8000-000000000001',
     });
+  });
+});
+
+describe('module-level searchEpisodes', () => {
+  it('delegates to the default search service', async () => {
+    const result = await searchEpisodes('liquidity', 'en', 10);
+    expect(result).toEqual([]);
+  });
+
+  it('invalidateEpisodeSearchCache does not throw', () => {
+    expect(() => invalidateEpisodeSearchCache()).not.toThrow();
   });
 });
 
