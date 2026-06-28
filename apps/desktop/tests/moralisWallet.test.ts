@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { type DemoAsset } from '../src/data/demo';
 import {
   buildActivityGroupsFromMoralisHistory,
   buildDesktopWalletAssets,
@@ -87,7 +88,9 @@ describe('Moralis desktop wallet mapping', () => {
       amountLabel: '0.015 WBTC',
       chains: ['ethereum', 'arbitrum'],
     });
-    expect(assets.some((asset) => asset.symbol === 'LINK')).toBe(false);
+    expect(
+      (assets as DemoAsset[]).some((asset) => asset.symbol === 'LINK'),
+    ).toBe(false);
   });
 
   it('uses the same grouped assets for the invest balance rows', () => {
