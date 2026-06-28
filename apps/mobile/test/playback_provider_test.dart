@@ -354,25 +354,25 @@ void main() {
 
     await provider.playSmart([second, first]);
 
-    expect(provider.currentEpisode, first);
+    expect(provider.currentEpisode, second);
     expect(provider.hasPreviousEpisode, isFalse);
     expect(provider.hasNextEpisode, isTrue);
 
     await provider.seek(const Duration(seconds: 18));
     final nextEpisode = await provider.skipToNextEpisode();
 
-    expect(nextEpisode, second);
-    expect(provider.currentEpisode, second);
+    expect(nextEpisode, first);
+    expect(provider.currentEpisode, first);
     expect(provider.hasPreviousEpisode, isTrue);
     expect(provider.hasNextEpisode, isFalse);
-    expect(provider.position, const Duration(seconds: 42));
-    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2']);
+    expect(provider.position, const Duration(seconds: 0));
+    expect(handler.loadedEpisodeIds, ['episode-2', 'episode-1']);
     expect(handler.seekPositions, [
-      const Duration(seconds: 18),
       const Duration(seconds: 42),
+      const Duration(seconds: 18),
     ]);
     expect(service.positionWrites, [
-      const _PositionWrite('user-1', 'episode-1', 18),
+      const _PositionWrite('user-1', 'episode-2', 18),
     ]);
 
     provider.dispose();
@@ -399,18 +399,18 @@ void main() {
 
     final previousEpisode = await provider.skipToPreviousEpisode();
 
-    expect(previousEpisode?.id, 'episode-1');
-    expect(provider.currentEpisode?.id, 'episode-1');
+    expect(previousEpisode?.id, 'episode-2');
+    expect(provider.currentEpisode?.id, 'episode-2');
     expect(provider.position, const Duration(seconds: 18));
-    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2', 'episode-1']);
+    expect(handler.loadedEpisodeIds, ['episode-2', 'episode-1', 'episode-2']);
     expect(handler.seekPositions, [
-      const Duration(seconds: 18),
       const Duration(seconds: 42),
+      const Duration(seconds: 18),
       const Duration(seconds: 18),
     ]);
     expect(service.positionWrites, [
-      const _PositionWrite('user-1', 'episode-1', 18),
-      const _PositionWrite('user-1', 'episode-2', 42),
+      const _PositionWrite('user-1', 'episode-2', 18),
+      const _PositionWrite('user-1', 'episode-1', 0),
     ]);
 
     provider.dispose();

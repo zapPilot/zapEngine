@@ -173,6 +173,40 @@ class Episode {
     return id == other.id && localizationId == other.localizationId;
   }
 
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is Episode &&
+            other.id == id &&
+            other.localizationId == localizationId &&
+            other.title == title &&
+            other.languageCode == languageCode &&
+            other.hlsUrl == hlsUrl &&
+            other.createdAt == createdAt &&
+            other.listened == listened &&
+            other.likeCount == likeCount &&
+            other.script == script &&
+            other.lastPositionSeconds == lastPositionSeconds &&
+            _listEquals(other.audioTracks, audioTracks) &&
+            _listEquals(other.languageClassrooms, languageClassrooms);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        localizationId,
+        title,
+        languageCode,
+        hlsUrl,
+        createdAt,
+        listened,
+        likeCount,
+        script,
+        lastPositionSeconds,
+        Object.hashAll(audioTracks),
+        Object.hashAll(languageClassrooms),
+      );
+
   factory Episode.fromJson(Map<String, dynamic> json) {
     final id = json_utils.readRequiredString(json, 'id', 'id');
     final localizationId = json_utils.readOptionalString(

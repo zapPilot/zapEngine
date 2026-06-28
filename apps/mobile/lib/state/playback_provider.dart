@@ -395,14 +395,21 @@ class PlaybackProvider extends ChangeNotifier {
       return null;
     }
 
+    final targetEpisode = _queue[targetIndex];
+
     _rememberCurrentQueuePosition();
     await _persistPosition(flush: true);
 
     _queueIndex = targetIndex;
-    final episode = _queue[_queueIndex];
-    await _setEpisode(episode, startAt: _resumePositionFor(episode));
+    final currentEp = _currentEpisode;
+    final resumeEp =
+        (currentEp != null && targetEpisode.isSameLocalizationAs(currentEp))
+            ? currentEp
+            : targetEpisode;
+    final startAt = _resumePositionFor(resumeEp);
+    await _setEpisode(targetEpisode, startAt: startAt);
     await _handler.play();
-    return episode;
+    return targetEpisode;
   }
 
   void _rememberCurrentQueuePosition() {

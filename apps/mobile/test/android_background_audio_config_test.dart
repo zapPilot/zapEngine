@@ -45,7 +45,7 @@ void main() {
 
   test('MainActivity provides audio_service shared FlutterEngine', () {
     final mainActivity = File(
-      'android/app/src/main/kotlin/com/example/ai_podcast_mobile/MainActivity.kt',
+      'android/app/src/main/kotlin/com/fromfedtochain/app/MainActivity.kt',
     ).readAsStringSync();
 
     expect(
