@@ -13,7 +13,11 @@ import { RangeTabs } from '@/components/ui/RangeTabs';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { CHAINS, DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
-import { type HomeRange, useHomeData } from '@/integration/useHomeData';
+import {
+  DEFAULT_HOME_RANGE,
+  type HomeRange,
+  useHomeData,
+} from '@/integration/useHomeData';
 import {
   formatSignedPct,
   formatSignedUsd,
@@ -26,7 +30,7 @@ const RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 /** Home — total balance, assets (grouped by token), Zap Strategy card. */
 export function HomeScreen() {
   const navigate = useNavigate();
-  const [range, setRange] = useState<HomeRange>('1D');
+  const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
 
   const { address, userId, walletAddresses } = useAccount();
   const { data, isLoading, isError, walletAssets } = useHomeData(

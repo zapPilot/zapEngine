@@ -130,6 +130,33 @@ export {
   type MoralisWalletTransfer,
 } from './moralisWalletService';
 
+// Alchemy wallet token balances (desktop/web clients; proxy before production)
+export {
+  ALCHEMY_WALLET_CHAINS,
+  getAlchemyWalletTokenBalances,
+  type AlchemyChainBalances,
+  type AlchemySupportedWalletSymbol,
+  type AlchemyWalletChain,
+  type AlchemyWalletTokenBalance,
+  type AlchemyWalletTokenBalancesResponse,
+} from './alchemyWalletService';
+
+// Provider-neutral supported wallet token catalog
+export {
+  getSupportedWalletTokenDefinition,
+  getSupportedWalletTokenSymbol,
+  normalizeSupportedWalletTokenSymbol,
+  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN,
+  SUPPORTED_WALLET_TOKEN_DEFINITIONS,
+  supportedWalletTokenAddresses,
+  supportedWalletTokenSymbolForAddress,
+  WALLET_TOKEN_CHAINS,
+  type SupportedWalletErc20Symbol,
+  type SupportedWalletTokenSymbol,
+  type WalletTokenChain,
+  type WalletTokenDefinition,
+} from './walletTokenCatalog';
+
 // On-chain token balances (real wallet balance + LI.FI USD valuation)
 export {
   getOnChainTokenBalance,

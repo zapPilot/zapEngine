@@ -1,8 +1,8 @@
 import {
   type InvestableBalanceRow,
-  useMoralisWalletAssets,
+  useWalletAssets,
   type WalletAddressInput,
-} from '@/integration/moralisWallet';
+} from '@/integration/walletTokens';
 
 export type { InvestableBalanceRow };
 
@@ -17,7 +17,7 @@ export interface UseInvestableBalancesResult {
 export function useInvestableBalances(
   address: WalletAddressInput,
 ): UseInvestableBalancesResult {
-  const walletAssets = useMoralisWalletAssets(address);
+  const walletAssets = useWalletAssets(address);
 
   return {
     rows: walletAssets.rows,

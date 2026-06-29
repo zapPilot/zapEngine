@@ -3,7 +3,6 @@ import {
   getMoralisWalletHistory,
   getMoralisWalletTokenBalances,
   getSupportedMoralisWalletSymbol,
-  type MoralisChainBalances,
   type MoralisChainHistory,
   type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
@@ -123,6 +122,24 @@ export type WalletAddressInput =
   | undefined
   | readonly (string | null | undefined)[];
 
+export type WalletTokenBalanceLike = Pick<
+  MoralisWalletTokenBalance,
+  | 'balance_formatted'
+  | 'name'
+  | 'native_token'
+  | 'possible_spam'
+  | 'symbol'
+  | 'token_address'
+  | 'usd_value'
+>;
+
+export interface WalletChainBalancesLike {
+  chain: MoralisChainKey;
+  response: {
+    result: WalletTokenBalanceLike[];
+  };
+}
+
 export function normalizeWalletAddressList(
   input: WalletAddressInput,
 ): string[] {
@@ -198,7 +215,7 @@ function aggregateChainBalance(
     }
   >,
   chainConfig: (typeof MORALIS_WALLET_CHAINS)[number],
-  balance: MoralisWalletTokenBalance,
+  balance: WalletTokenBalanceLike,
 ): void {
   const symbol = getSupportedMoralisWalletSymbol(chainConfig.moralis, balance);
   if (!symbol) {
@@ -231,7 +248,7 @@ function aggregateChainBalance(
 }
 
 export function buildDesktopWalletAssets(
-  chainBalances: MoralisChainBalances[],
+  chainBalances: readonly WalletChainBalancesLike[],
 ): DesktopWalletAsset[] {
   const grouped = new Map<
     SupportedWalletSymbol,
