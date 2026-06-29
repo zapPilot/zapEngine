@@ -84,8 +84,10 @@ export function InvestAmountScreen() {
     setSelectedToken,
     setSelectedTokenUsdPrice,
   } = useInvest();
-  const { address } = useAccount();
-  const balances = useInvestableBalances(address);
+  const { address, walletAddresses } = useAccount();
+  const balances = useInvestableBalances(
+    walletAddresses.length > 0 ? walletAddresses : address,
+  );
   const [amount, setAmount] = useState('1,000');
   const [unit, setUnit] = useState<AmountUnit>('USD');
   const selectedRow =

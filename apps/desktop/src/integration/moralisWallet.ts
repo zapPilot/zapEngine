@@ -117,6 +117,28 @@ export interface ActivityHistoryOptions {
   timeZone?: string;
 }
 
+export type WalletAddressInput =
+  | string
+  | null
+  | undefined
+  | readonly (string | null | undefined)[];
+
+export function normalizeWalletAddressList(
+  input: WalletAddressInput,
+): string[] {
+  const candidates = Array.isArray(input) ? input : [input];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim().toLowerCase();
+    if (normalized) {
+      seen.add(normalized);
+    }
+  }
+
+  return Array.from(seen);
+}
+
 function numberFrom(value: string | number | null | undefined): number | null {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null;
@@ -525,16 +547,23 @@ export function buildActivityGroupsFromMoralisHistory(
 }
 
 export function useMoralisWalletAssets(
-  address: string | null,
+  addressInput: WalletAddressInput,
 ): UseMoralisWalletAssetsResult {
-  const enabled = Boolean(address);
+  const walletAddresses = normalizeWalletAddressList(addressInput);
+  const enabled = walletAddresses.length > 0;
   // jscpd:ignore-start
   const query = useQuery({
-    queryKey: ['desktop', 'moralis', 'wallet-assets', address],
+    queryKey: ['desktop', 'moralis', 'wallet-assets', walletAddresses],
     enabled,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const responses = await getMoralisWalletTokenBalances(address as string);
+      const responses = (
+        await Promise.all(
+          walletAddresses.map((address) =>
+            getMoralisWalletTokenBalances(address),
+          ),
+        )
+      ).flat();
       const assets = buildDesktopWalletAssets(responses);
       return {
         assets,
@@ -564,18 +593,25 @@ export function useMoralisWalletAssets(
 }
 
 export function useMoralisWalletHistory(
-  address: string | null,
+  addressInput: WalletAddressInput,
 ): UseMoralisWalletHistoryResult {
-  const enabled = Boolean(address);
+  const walletAddresses = normalizeWalletAddressList(addressInput);
+  const enabled = walletAddresses.length > 0;
   // jscpd:ignore-start
   const query = useQuery({
-    queryKey: ['desktop', 'moralis', 'wallet-history', address],
+    queryKey: ['desktop', 'moralis', 'wallet-history', walletAddresses],
     enabled,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const responses = await getMoralisWalletHistory(address as string, {
-        limit: WALLET_HISTORY_LIMIT,
-      });
+      const responses = (
+        await Promise.all(
+          walletAddresses.map((address) =>
+            getMoralisWalletHistory(address, {
+              limit: WALLET_HISTORY_LIMIT,
+            }),
+          ),
+        )
+      ).flat();
       return buildActivityGroupsFromMoralisHistory(responses, {
         limit: WALLET_HISTORY_LIMIT,
       });

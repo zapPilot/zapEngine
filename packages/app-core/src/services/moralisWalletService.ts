@@ -47,54 +47,44 @@ export const MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN = {
 
 const stringOrNumberSchema = z.union([z.string(), z.number()]).nullish();
 
-const walletTokenBalanceSchema = z
-  .object({
-    symbol: z.string().nullish(),
-    name: z.string().nullish(),
-    token_address: z.string().nullish(),
-    native_token: z.boolean().nullish(),
-    balance_formatted: stringOrNumberSchema,
-    usd_value: stringOrNumberSchema,
-    usd_price: stringOrNumberSchema,
-    possible_spam: z.boolean().nullish(),
-  })
-  .passthrough();
+const walletTokenBalanceSchema = z.looseObject({
+  symbol: z.string().nullish(),
+  name: z.string().nullish(),
+  token_address: z.string().nullish(),
+  native_token: z.boolean().nullish(),
+  balance_formatted: stringOrNumberSchema,
+  usd_value: stringOrNumberSchema,
+  usd_price: stringOrNumberSchema,
+  possible_spam: z.boolean().nullish(),
+});
 
-const walletTokenBalancesResponseSchema = z
-  .object({
-    result: z.array(walletTokenBalanceSchema).default([]),
-  })
-  .passthrough();
+const walletTokenBalancesResponseSchema = z.looseObject({
+  result: z.array(walletTokenBalanceSchema).default([]),
+});
 
-const walletTransferSchema = z
-  .object({
-    token_symbol: z.string().nullish(),
-    token_address: z.string().nullish(),
-    direction: z.string().nullish(),
-    value_formatted: stringOrNumberSchema,
-    value_usd: stringOrNumberSchema,
-    total_usd: stringOrNumberSchema,
-  })
-  .passthrough();
+const walletTransferSchema = z.looseObject({
+  token_symbol: z.string().nullish(),
+  token_address: z.string().nullish(),
+  direction: z.string().nullish(),
+  value_formatted: stringOrNumberSchema,
+  value_usd: stringOrNumberSchema,
+  total_usd: stringOrNumberSchema,
+});
 
-const walletHistoryEventSchema = z
-  .object({
-    hash: z.string().default(''),
-    block_timestamp: z.string().nullish(),
-    summary: z.string().nullish(),
-    category: z.string().nullish(),
-    receipt_status: z.union([z.string(), z.number(), z.boolean()]).nullish(),
-    erc20_transfers: z.array(walletTransferSchema).nullish(),
-    native_transfers: z.array(walletTransferSchema).nullish(),
-  })
-  .passthrough();
+const walletHistoryEventSchema = z.looseObject({
+  hash: z.string().default(''),
+  block_timestamp: z.string().nullish(),
+  summary: z.string().nullish(),
+  category: z.string().nullish(),
+  receipt_status: z.union([z.string(), z.number(), z.boolean()]).nullish(),
+  erc20_transfers: z.array(walletTransferSchema).nullish(),
+  native_transfers: z.array(walletTransferSchema).nullish(),
+});
 
-const walletHistoryResponseSchema = z
-  .object({
-    result: z.array(walletHistoryEventSchema).default([]),
-    cursor: z.string().nullable().optional(),
-  })
-  .passthrough();
+const walletHistoryResponseSchema = z.looseObject({
+  result: z.array(walletHistoryEventSchema).default([]),
+  cursor: z.string().nullable().optional(),
+});
 
 export type MoralisWalletTokenBalance = z.infer<
   typeof walletTokenBalanceSchema
@@ -212,8 +202,8 @@ async function fetchMoralisJson<T>(
     url.searchParams.set(key, value);
   }
 
-  // TODO: Proxy Moralis through an account-engine/backend endpoint before
-  // production so VITE_MORALIS_API_KEY is not exposed to desktop/web clients.
+  // Production note: proxy Moralis through account-engine/backend before exposing
+  // this outside the current POC so the API key stays off desktop/web clients.
   const response = await fetch(url, {
     headers: {
       accept: 'application/json',

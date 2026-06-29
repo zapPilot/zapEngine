@@ -28,11 +28,12 @@ export function HomeScreen() {
   const navigate = useNavigate();
   const [range, setRange] = useState<HomeRange>('1D');
 
-  const { address, userId } = useAccount();
+  const { address, userId, walletAddresses } = useAccount();
   const { data, isLoading, isError, walletAssets } = useHomeData(
     userId,
     address,
     range,
+    walletAddresses,
   );
 
   // Disconnected/demo mode may still use DEMO; connected unavailable live fields

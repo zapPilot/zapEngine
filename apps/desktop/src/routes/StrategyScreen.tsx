@@ -39,7 +39,7 @@ export function StrategyScreen() {
   const { isConnected, userId } = useAccount();
   const { data, isLoading, isError } = useStrategyData(
     userId,
-    isConnected,
+    isConnected || Boolean(userId),
     strategyBacktestDaysForRange(range),
   );
 

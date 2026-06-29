@@ -208,10 +208,15 @@ function EventRow({ event, first }: { event: ActivityEvent; first: boolean }) {
 
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
-  const { address } = useAccount();
-  const { data, isLoading, isError } = useActivityData(address);
+  const { address, walletAddresses } = useAccount();
+  const activityAddressInput =
+    walletAddresses.length > 0 ? walletAddresses : address;
+  const { data, isLoading, isError } = useActivityData(activityAddressInput);
 
-  const pending = address === null || isLoading;
+  const pending =
+    (Array.isArray(activityAddressInput)
+      ? activityAddressInput.length === 0
+      : activityAddressInput === null) || isLoading;
   const source: ActivityGroup[] = data?.groups ?? [];
   const groups = source
     .map((group) => ({

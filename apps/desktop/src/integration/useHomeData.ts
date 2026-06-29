@@ -110,6 +110,7 @@ export function useHomeData(
   userId: string | null,
   address: string | null,
   range: HomeRange,
+  walletAddresses: readonly string[] = [],
 ): UseHomeDataResult {
   // Hooks run unconditionally (React rules); analytics no-ops until we have
   // either an account-engine user id or a connected wallet address.
@@ -121,7 +122,9 @@ export function useHomeData(
     drawdown_days: trendDays,
     rolling_days: trendDays,
   });
-  const walletAssets = useMoralisWalletAssets(address);
+  const walletAssets = useMoralisWalletAssets(
+    walletAddresses.length > 0 ? walletAddresses : address,
+  );
   const defaultBacktest = useDefaultStrategyBacktest();
   const suggestion = useStrategySuggestion(userId);
 
@@ -142,7 +145,7 @@ export function useHomeData(
     dashboard.isError ||
     suggestion.isError;
 
-  const isDemo = address === null;
+  const isDemo = analyticsSubjectId === null;
 
   // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo
