@@ -12,6 +12,8 @@
     ".jscpd/**",
     "jscpd-report/**",
     "src/components/landing/heroCanvas/HeroCanvasMesh.ts",
+    "src/components/track-record/**",
+    "src/hooks/useTrackRecord.ts",
     "src/data/track-record-accessor.ts"
   ]
 }

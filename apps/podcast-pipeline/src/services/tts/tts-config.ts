@@ -91,9 +91,6 @@ const FISH_AUDIO_CLASSROOM_TTS_CONFIG: Record<
   en: FISH_AUDIO_EN_CONFIG,
 };
 
-export const MAIN_TTS_CONFIG = GOOGLE_MAIN_TTS_CONFIG;
-export const CLASSROOM_TTS_CONFIG = GOOGLE_CLASSROOM_TTS_CONFIG;
-
 function resolveTtsProvider(): TtsProvider {
   const envProvider = process.env['TTS_PROVIDER']?.trim().toLowerCase();
   if (envProvider === FISH_AUDIO_PROVIDER) {
