@@ -169,7 +169,9 @@ describe('track-record-accessor', () => {
       ]),
     ).toMatchObject({ reason: 'genesis_previous_cid_not_null' });
 
-    expect(verifyCidChain([{ cid: '', snapshot: snapshots[0]! }])).toMatchObject({
+    expect(
+      verifyCidChain([{ cid: '', snapshot: snapshots[0]! }]),
+    ).toMatchObject({
       reason: 'missing_cid',
     });
   });
@@ -209,7 +211,10 @@ describe('track-record-accessor', () => {
       reason: 'unsigned_optional',
     });
     await expect(
-      verifySignature(snapshots[0]!, '0x0000000000000000000000000000000000000001'),
+      verifySignature(
+        snapshots[0]!,
+        '0x0000000000000000000000000000000000000001',
+      ),
     ).resolves.toMatchObject({
       valid: false,
       signaturePresent: false,
