@@ -1,13 +1,17 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
-import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
 import { DEMO } from '@/data/demo';
 import { useMoralisWalletAssets } from '@/integration/moralisWallet';
 import { mapDailyValuesToSparkline } from '@/integration/portfolioMetrics';
+import {
+  liveNumberOrDemo,
+  liveTextOrDemo,
+  marketModeLabelFromRegime,
+  pillarsFromTarget,
+} from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
-  type CompositionTarget,
   toCompositionTargetFromSuggestion,
   useStrategySuggestion,
 } from '@/integration/useStrategySuggestion';
@@ -57,25 +61,6 @@ function trendDaysForRange(range: HomeRange): number {
   return 365;
 }
 
-function liveNumberOrDemo(
-  value: unknown,
-  demoValue: number | null,
-  isDemo: boolean,
-): number | null {
-  if (typeof value === 'number') {
-    return value;
-  }
-  return isDemo ? demoValue : null;
-}
-
-function liveTextOrDemo(
-  value: string | null | undefined,
-  demoValue: string,
-  isDemo: boolean,
-): string {
-  return value ?? (isDemo ? demoValue : '—');
-}
-
 function sparklineOrFallback(
   liveSparkline: number[],
   demoSparkline: number[],
@@ -85,40 +70,6 @@ function sparklineOrFallback(
     return liveSparkline;
   }
   return isDemo ? demoSparkline : [];
-}
-
-function marketModeLabelFor(
-  regimeLabel: string,
-  demoLabel: string,
-  isDemo: boolean,
-): string {
-  if (regimeLabel) {
-    return `Market mode · ${regimeLabel}`;
-  }
-  return isDemo ? demoLabel : 'Market mode · —';
-}
-
-function emptyPillars(): StrategySlice['pillars'] {
-  return [
-    { label: 'Equities', weight: 0, color: 'var(--spy)' },
-    { label: 'Crypto', weight: 0, color: 'var(--btc)' },
-    { label: 'Stables', weight: 0, color: 'var(--usd)' },
-  ];
-}
-
-function pillarsFromTarget(
-  target: CompositionTarget | null,
-  demoPillars: StrategySlice['pillars'],
-  isDemo: boolean,
-): StrategySlice['pillars'] {
-  if (target) {
-    return [
-      { label: 'Equities', weight: target.equities, color: 'var(--spy)' },
-      { label: 'Crypto', weight: target.crypto, color: 'var(--btc)' },
-      { label: 'Stables', weight: target.stables, color: 'var(--usd)' },
-    ];
-  }
-  return isDemo ? demoPillars : emptyPillars();
 }
 
 function unavailableBacktest(): StrategySlice['backtest'] {
@@ -216,10 +167,8 @@ export function useHomeData(
   );
 
   // --- Live: current market regime → human-readable mode label ---
-  const currentRegime = strategySection?.data?.currentRegime;
-  const regimeLabel = currentRegime ? getRegimeLabel(currentRegime) : '';
-  const marketModeLabel = marketModeLabelFor(
-    regimeLabel,
+  const marketModeLabel = marketModeLabelFromRegime(
+    strategySection?.data?.currentRegime ?? null,
     demoStrategy.marketModeLabel,
     isDemo,
   );

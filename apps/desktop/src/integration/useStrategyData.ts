@@ -1,11 +1,18 @@
 import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
 import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
-import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
 import { DEMO } from '@/data/demo';
+import {
+  allocationFromTarget,
+  currentModeLabelFor,
+  demoTextOrDash,
+  liveNumberOrDemo,
+  liveTextOrDemo,
+  pillarsFromTarget,
+  regimeDisplayFromRegime,
+} from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
-  type CompositionTarget,
   toCompositionTargetFromSuggestion,
   useStrategySuggestion,
 } from '@/integration/useStrategySuggestion';
@@ -22,109 +29,6 @@ export interface UseStrategyDataResult {
   data: StrategyData | null;
   isLoading: boolean;
   isError: boolean;
-}
-
-function liveNumberOrDemo(
-  value: unknown,
-  demoValue: number | null,
-  isDemo: boolean,
-): number | null {
-  if (typeof value === 'number') {
-    return value;
-  }
-  return isDemo ? demoValue : null;
-}
-
-function liveTextOrDemo(
-  value: string | null | undefined,
-  demoValue: string,
-  isDemo: boolean,
-): string {
-  return value ?? (isDemo ? demoValue : '—');
-}
-
-function demoTextOrDash(
-  demoValue: string,
-  isDemo: boolean,
-  fallback = '—',
-): string {
-  return isDemo ? demoValue : fallback;
-}
-
-function marketModeLabelFor(
-  regimeLabel: string,
-  demoLabel: string,
-  isDemo: boolean,
-): string {
-  if (regimeLabel) {
-    return `Market mode · ${regimeLabel}`;
-  }
-  return isDemo ? demoLabel : 'Market mode · —';
-}
-
-function currentModeLabelFor(
-  regimeLabel: string,
-  demoLabel: string,
-  isDemo: boolean,
-): string {
-  if (regimeLabel) {
-    return regimeLabel;
-  }
-  return demoTextOrDash(demoLabel, isDemo);
-}
-
-function emptyPillars(): StrategyData['pillars'] {
-  return [
-    { label: 'Equities', weight: 0, color: 'var(--spy)' },
-    { label: 'Crypto', weight: 0, color: 'var(--btc)' },
-    { label: 'Stables', weight: 0, color: 'var(--usd)' },
-  ];
-}
-
-function pillarsFromTarget(
-  target: CompositionTarget | null,
-  demoPillars: StrategyData['pillars'],
-  isDemo: boolean,
-): StrategyData['pillars'] {
-  if (target) {
-    return [
-      { label: 'Equities', weight: target.equities, color: 'var(--spy)' },
-      { label: 'Crypto', weight: target.crypto, color: 'var(--btc)' },
-      { label: 'Stables', weight: target.stables, color: 'var(--usd)' },
-    ];
-  }
-  return isDemo ? demoPillars : emptyPillars();
-}
-
-function emptyAllocation(): StrategyData['backtest']['allocation'] {
-  return [
-    { label: 'Equities', pct: 0, color: 'var(--spy)' },
-    { label: 'Crypto', pct: 0, color: 'var(--btc)' },
-    { label: 'Stables', pct: 0, color: 'var(--usd)' },
-  ];
-}
-
-function allocationFromTarget(
-  target: CompositionTarget | null,
-  demoAllocation: StrategyData['backtest']['allocation'],
-  isDemo: boolean,
-): StrategyData['backtest']['allocation'] {
-  if (target) {
-    return [
-      {
-        label: 'Equities',
-        pct: Math.round(target.equities),
-        color: 'var(--spy)',
-      },
-      { label: 'Crypto', pct: Math.round(target.crypto), color: 'var(--btc)' },
-      {
-        label: 'Stables',
-        pct: Math.round(target.stables),
-        color: 'var(--usd)',
-      },
-    ];
-  }
-  return isDemo ? demoAllocation : emptyAllocation();
 }
 
 function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
@@ -190,16 +94,14 @@ export function useStrategyData(
   );
 
   // --- Live: current market regime → human-readable mode label ---
-  const currentRegime = regime.data?.currentRegime;
-  const regimeLabel = currentRegime ? getRegimeLabel(currentRegime) : '';
+  const { regimeLabel, marketModeLabel } = regimeDisplayFromRegime(
+    regime.data?.currentRegime ?? null,
+    demoStrategy.marketModeLabel,
+    isDemo,
+  );
   const currentModeLabel = currentModeLabelFor(
     regimeLabel,
     demoBacktest.currentModeLabel,
-    isDemo,
-  );
-  const marketModeLabel = marketModeLabelFor(
-    regimeLabel,
-    demoStrategy.marketModeLabel,
     isDemo,
   );
 

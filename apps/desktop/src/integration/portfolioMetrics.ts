@@ -5,12 +5,6 @@ export interface DailyValuePoint {
   pnl_usd?: number;
 }
 
-export interface AllocationPoint {
-  date?: string;
-  category?: string;
-  allocation_percentage?: number;
-}
-
 export interface YieldReturnPoint {
   yield_return_usd?: number;
 }
@@ -86,20 +80,4 @@ export function sumYieldReturns(
     return null;
   }
   return values.reduce((total, value) => total + value, 0);
-}
-
-export function latestAllocationRows<T extends AllocationPoint>(
-  allocationRows: T[] | undefined,
-): T[] {
-  const latestDate = (allocationRows ?? [])
-    .map((row) => row.date)
-    .filter((date): date is string => Boolean(date))
-    .sort((a, b) => a.localeCompare(b))
-    .at(-1);
-
-  if (!latestDate) {
-    return [];
-  }
-
-  return (allocationRows ?? []).filter((row) => row.date === latestDate);
 }

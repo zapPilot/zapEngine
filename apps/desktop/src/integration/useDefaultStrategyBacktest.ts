@@ -109,7 +109,7 @@ function buildAdhocPortfolioRulesConfig(
   };
 }
 
-function buildDefaultBacktestRequest(
+export function buildDefaultBacktestRequest(
   configs: StrategyConfigsResponse,
 ): BacktestRequest {
   const defaults = configs.backtest_defaults ?? FALLBACK_DEFAULTS;
@@ -185,7 +185,7 @@ function metricsFromSummary(
   ];
 }
 
-function viewFromResponse(
+export function viewFromResponse(
   response: BacktestResponse,
 ): DefaultStrategyBacktestView | null {
   const summary = primaryStrategy(response);

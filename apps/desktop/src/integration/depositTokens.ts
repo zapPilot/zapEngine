@@ -1,4 +1,3 @@
-import type { TransactionToken } from '@zapengine/app-core/types/domain/transaction';
 import {
   BASE_CHAIN_ID,
   BASE_USDC_ADDRESS,
@@ -50,15 +49,3 @@ export const BASE_DEPOSIT_TOKENS = [
 ] as const satisfies readonly DesktopDepositToken[];
 
 export const DEFAULT_DEPOSIT_TOKEN = BASE_DEPOSIT_TOKENS[0];
-
-export function toBalanceToken(token: DesktopDepositToken): TransactionToken {
-  return {
-    symbol: token.symbol,
-    name: token.name,
-    address: token.balanceAddress,
-    chainId: token.chainId,
-    decimals: token.decimals,
-    category: token.category,
-    type: token.symbol === 'ETH' ? 'native' : 'erc20',
-  };
-}

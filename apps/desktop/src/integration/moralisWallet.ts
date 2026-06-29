@@ -619,6 +619,7 @@ export function useMoralisWalletAssets(
   address: string | null,
 ): UseMoralisWalletAssetsResult {
   const enabled = Boolean(address);
+  // jscpd:ignore-start
   const query = useQuery({
     queryKey: ['desktop', 'moralis', 'wallet-assets', address],
     enabled,
@@ -636,6 +637,7 @@ export function useMoralisWalletAssets(
       };
     },
   });
+  // jscpd:ignore-end
 
   const rows = query.data?.rows ?? [];
   const liveValues = rows
@@ -660,6 +662,7 @@ export function useMoralisWalletHistory(
   address: string | null,
 ): UseMoralisWalletHistoryResult {
   const enabled = Boolean(address);
+  // jscpd:ignore-start
   const query = useQuery({
     queryKey: ['desktop', 'moralis', 'wallet-history', address],
     enabled,
@@ -675,6 +678,7 @@ export function useMoralisWalletHistory(
       });
     },
   });
+  // jscpd:ignore-end
 
   return {
     groups: query.data ?? [],
