@@ -5,32 +5,45 @@ import {
   viewFromResponse,
 } from '../src/integration/useDefaultStrategyBacktest';
 
+type BacktestRequestInput = Parameters<typeof buildDefaultBacktestRequest>[0];
+type BacktestResponseInput = Parameters<typeof viewFromResponse>[0];
+
+function backtestConfigs(value: unknown): BacktestRequestInput {
+  return value as BacktestRequestInput;
+}
+
+function backtestResponse(value: unknown): BacktestResponseInput {
+  return value as BacktestResponseInput;
+}
+
 describe('default strategy backtest mapping', () => {
   it('builds a compare request from the default saved preset', () => {
-    const request = buildDefaultBacktestRequest({
-      backtest_defaults: { days: 365, total_capital: 5000 },
-      presets: [
-        {
-          config_id: 'other-preset',
-          display_name: 'Other',
-          description: null,
-          strategy_id: 'dma_fgi_portfolio_rules',
-          params: {},
-          is_default: false,
-          is_benchmark: false,
-        },
-        {
-          config_id: 'saved-default',
-          display_name: 'Default',
-          description: null,
-          strategy_id: 'dma_fgi_portfolio_rules',
-          params: { risk: 'balanced' },
-          is_default: true,
-          is_benchmark: false,
-        },
-      ],
-      strategies: [],
-    });
+    const request = buildDefaultBacktestRequest(
+      backtestConfigs({
+        backtest_defaults: { days: 365, total_capital: 5000 },
+        presets: [
+          {
+            config_id: 'other-preset',
+            display_name: 'Other',
+            description: null,
+            strategy_id: 'dma_fgi_portfolio_rules',
+            params: {},
+            is_default: false,
+            is_benchmark: false,
+          },
+          {
+            config_id: 'saved-default',
+            display_name: 'Default',
+            description: null,
+            strategy_id: 'dma_fgi_portfolio_rules',
+            params: { risk: 'balanced' },
+            is_default: true,
+            is_benchmark: false,
+          },
+        ],
+        strategies: [],
+      }),
+    );
 
     expect(request).toEqual({
       days: 365,
@@ -50,20 +63,22 @@ describe('default strategy backtest mapping', () => {
   });
 
   it('falls back to adhoc portfolio rules defaults without a saved preset', () => {
-    const request = buildDefaultBacktestRequest({
-      backtest_defaults: undefined,
-      presets: [],
-      strategies: [
-        {
-          strategy_id: 'dma_fgi_portfolio_rules',
-          display_name: 'Portfolio rules',
-          description: null,
-          param_schema: {},
-          default_params: { pacing: { k: 0.15 } },
-          supports_daily_suggestion: true,
-        },
-      ],
-    });
+    const request = buildDefaultBacktestRequest(
+      backtestConfigs({
+        backtest_defaults: undefined,
+        presets: [],
+        strategies: [
+          {
+            strategy_id: 'dma_fgi_portfolio_rules',
+            display_name: 'Portfolio rules',
+            description: null,
+            param_schema: {},
+            default_params: { pacing: { k: 0.15 } },
+            supports_daily_suggestion: true,
+          },
+        ],
+      }),
+    );
 
     expect(request).toEqual({
       days: 500,
@@ -84,22 +99,24 @@ describe('default strategy backtest mapping', () => {
   });
 
   it('formats the primary non-DCA strategy summary for the desktop card', () => {
-    const view = viewFromResponse({
-      strategies: {
-        dca_classic: {},
-        dma_fgi_portfolio_rules_default: {
-          display_name: 'Zap Strategy',
-          roi_percent: 12.345,
-          max_drawdown_percent: -8.9,
-          sharpe_ratio: 1.234,
-          calmar_ratio: null,
-          volatility: 18.75,
-          win_rate_percent: null,
-          trade_count: 42,
-          final_value: 12345.678,
+    const view = viewFromResponse(
+      backtestResponse({
+        strategies: {
+          dca_classic: {},
+          dma_fgi_portfolio_rules_default: {
+            display_name: 'Zap Strategy',
+            roi_percent: 12.345,
+            max_drawdown_percent: -8.9,
+            sharpe_ratio: 1.234,
+            calmar_ratio: null,
+            volatility: 18.75,
+            win_rate_percent: null,
+            trade_count: 42,
+            final_value: 12345.678,
+          },
         },
-      },
-    } as unknown as Parameters<typeof viewFromResponse>[0]);
+      }),
+    );
 
     expect(view).toMatchObject({
       returnLabel: '+12.3%',
@@ -121,9 +138,7 @@ describe('default strategy backtest mapping', () => {
 
   it('returns null when the response only contains the DCA baseline', () => {
     expect(
-      viewFromResponse({ strategies: { dca_classic: {} } } as unknown as Parameters<
-        typeof viewFromResponse
-      >[0]),
+      viewFromResponse(backtestResponse({ strategies: { dca_classic: {} } })),
     ).toBeNull();
   });
 });
