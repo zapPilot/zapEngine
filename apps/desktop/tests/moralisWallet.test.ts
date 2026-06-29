@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { type DemoAsset } from '../src/data/demo';
 import {
   buildActivityGroupsFromMoralisHistory,
   buildDesktopWalletAssets,
@@ -88,9 +87,7 @@ describe('Moralis desktop wallet mapping', () => {
       amountLabel: '0.015 WBTC',
       chains: ['ethereum', 'arbitrum'],
     });
-    expect(
-      (assets as DemoAsset[]).some((asset) => asset.symbol === 'LINK'),
-    ).toBe(false);
+    expect(assets.map((asset) => asset.symbol)).not.toContain('LINK');
   });
 
   it('uses the same grouped assets for the invest balance rows', () => {
@@ -99,12 +96,14 @@ describe('Moralis desktop wallet mapping', () => {
         {
           symbol: 'USDC',
           name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
           balance_formatted: '100',
           usd_value: 100,
         },
         {
           symbol: 'WETH',
           name: 'Wrapped Ether',
+          token_address: '0x4200000000000000000000000000000000000006',
           balance_formatted: '2',
           usd_value: 6000,
         },
@@ -129,6 +128,55 @@ describe('Moralis desktop wallet mapping', () => {
     ]);
   });
 
+  it('filters spoofed same-symbol token addresses and non-native ETH rows', () => {
+    const assets = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'Fake USD Coin',
+          token_address: '0x0000000000000000000000000000000000000001',
+          balance_formatted: '999999',
+          usd_value: 999999,
+        },
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '25',
+          usd_value: 25,
+        },
+        {
+          symbol: 'ETH',
+          name: 'Fake ETH',
+          token_address: '0x0000000000000000000000000000000000000002',
+          native_token: false,
+          balance_formatted: '10',
+          usd_value: 30000,
+        },
+        {
+          symbol: 'ETH',
+          name: 'Ethereum',
+          native_token: true,
+          balance_formatted: '1',
+          usd_value: 3000,
+        },
+      ]),
+    ]);
+
+    expect(assets).toEqual([
+      expect.objectContaining({
+        symbol: 'ETH',
+        rawAmount: 1,
+        usdValue: 3000,
+      }),
+      expect.objectContaining({
+        symbol: 'USDC',
+        rawAmount: 25,
+        usdValue: 25,
+      }),
+    ]);
+  });
+
   it('maps the first page of wallet history into top-ten activity groups', () => {
     const groups = buildActivityGroupsFromMoralisHistory(
       [
@@ -142,6 +190,7 @@ describe('Moralis desktop wallet mapping', () => {
             erc20_transfers: [
               {
                 token_symbol: 'USDC',
+                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 direction: 'receive',
                 value_formatted: '50',
                 value_usd: '50',
@@ -202,6 +251,55 @@ describe('Moralis desktop wallet mapping', () => {
           }),
         ],
       },
+    ]);
+  });
+
+  it('marks only explicit non-success receipt statuses as failed', () => {
+    const groups = buildActivityGroupsFromMoralisHistory(
+      [
+        history('base', [
+          {
+            hash: '0xfailed',
+            block_timestamp: '2026-06-28T02:00:00.000Z',
+            summary: 'Received 10 USDC',
+            category: 'token receive',
+            receipt_status: '0',
+            erc20_transfers: [
+              {
+                token_symbol: 'USDC',
+                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                direction: 'receive',
+                value_usd: '10',
+              },
+            ],
+          },
+          {
+            hash: '0xunknown',
+            block_timestamp: '2026-06-28T01:00:00.000Z',
+            summary: 'Received 5 USDC',
+            category: 'token receive',
+            receipt_status: null,
+            erc20_transfers: [
+              {
+                token_symbol: 'USDC',
+                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                direction: 'receive',
+                value_usd: '5',
+              },
+            ],
+          },
+        ]),
+      ],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+        timeZone: 'UTC',
+      },
+    );
+
+    expect(groups[0]?.events.map((event) => event.status)).toEqual([
+      'Failed',
+      'Completed',
     ]);
   });
 });

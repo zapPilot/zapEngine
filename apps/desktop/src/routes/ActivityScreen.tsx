@@ -30,6 +30,7 @@ import { cn } from '@/lib/cn';
 const FILTER_KINDS: Record<ActivityFilter, ActivityKind | null> = {
   All: null,
   Deposits: 'deposit',
+  Withdrawals: 'withdraw',
   Rebalances: 'rebalance',
   Yield: 'yield',
 };
@@ -88,13 +89,16 @@ function EventBadge({ kind }: { kind: ActivityKind }) {
 
 function StatusPill({ status }: { status: ActivityStatus }) {
   const isSuccess = status === 'Completed' || status === 'Settled';
+  const isFailed = status === 'Failed';
   return (
     <Pill
       className="gap-0 px-[7px] py-[2px] font-mono text-[9px]"
       style={
         isSuccess
           ? { color: '#7ad88f', background: 'rgba(122,216,143,.12)' }
-          : { color: '#a1a1aa', background: 'rgba(255,255,255,.06)' }
+          : isFailed
+            ? { color: '#ef6f6f', background: 'rgba(239,111,111,.12)' }
+            : { color: '#a1a1aa', background: 'rgba(255,255,255,.06)' }
       }
     >
       {status}
@@ -274,7 +278,7 @@ export function ActivityScreen() {
             ? 'Connect a wallet to load activity history.'
             : isError
               ? 'Activity is unavailable right now.'
-              : 'No activity yet.'}
+              : 'No supported token activity yet.'}
         </div>
       ) : null}
     </div>

@@ -36,8 +36,16 @@ export interface UsePortfolioDataResult {
   isError: boolean;
 }
 
+export type PortfolioRange = '1W' | '1M' | '3M' | '1Y' | 'ALL';
+
 const DEMO_PORTFOLIO = DEMO.portfolio;
-const YIELD_DAYS = 365;
+
+export function portfolioDaysForRange(range: PortfolioRange): number {
+  if (range === '1W') return 7;
+  if (range === '1M') return 30;
+  if (range === '3M') return 90;
+  return 365;
+}
 
 /** A small rotating palette so real allocation categories without a known
  * colour still render with a stable, distinct swatch. */
@@ -104,15 +112,17 @@ function positivePctMetric(label: string, pct: number | null): Metric {
  */
 export function usePortfolioData(
   userId: string | null,
+  range: PortfolioRange,
 ): UsePortfolioDataResult {
+  const days = portfolioDaysForRange(range);
   const landingQuery = useLandingPageData(userId, false, true);
   const { dashboard, isLoading, isError } = usePortfolioDashboard(
     userId ?? undefined,
-    { trend_days: 365, drawdown_days: 365, rolling_days: 365 },
+    { trend_days: days, drawdown_days: days, rolling_days: days },
   );
   const yieldQuery = useQuery({
-    queryKey: ['desktop', 'portfolio', 'dailyYield', userId, YIELD_DAYS],
-    queryFn: () => getDailyYieldReturns(userId as string, YIELD_DAYS),
+    queryKey: ['desktop', 'portfolio', 'dailyYield', userId, days],
+    queryFn: () => getDailyYieldReturns(userId as string, days),
     enabled: Boolean(userId),
     staleTime: 5 * 60 * 1000,
   });

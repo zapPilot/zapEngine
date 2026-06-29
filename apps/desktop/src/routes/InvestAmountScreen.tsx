@@ -11,15 +11,50 @@ import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { CHAINS } from '@/data/demo';
+import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestableBalances } from '@/integration/useInvestableBalances';
 import { formatUsd } from '@/lib/format';
 
+export type AmountUnit = 'USD' | 'Token';
+
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
 function parseAmount(grouped: string): number {
   const parsed = Number(grouped.replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) {
+    return items[0] ?? '';
+  }
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+export function depositSupportLabel(
+  tokens: readonly { symbol: string }[] = BASE_DEPOSIT_TOKENS,
+): string {
+  const supported = joinWithAnd(tokens.map((token) => `Base ${token.symbol}`));
+  return `Deposit v1 supports ${supported}`;
+}
+
+export function amountUsdFromInput(
+  groupedAmount: string,
+  unit: AmountUnit,
+  usdPrice: number | null,
+): number | null {
+  const value = parseAmount(groupedAmount);
+  if (value <= 0) {
+    return null;
+  }
+  if (unit === 'USD') {
+    return value;
+  }
+  if (typeof usdPrice === 'number' && usdPrice > 0) {
+    return value * usdPrice;
+  }
+  return null;
 }
 
 const cardStyle = {
@@ -52,18 +87,23 @@ export function InvestAmountScreen() {
   const { address } = useAccount();
   const balances = useInvestableBalances(address);
   const [amount, setAmount] = useState('1,000');
-  const [unit, setUnit] = useState<'USD' | 'Token'>('USD');
+  const [unit, setUnit] = useState<AmountUnit>('USD');
   const selectedRow =
     balances.rows.find(
       (row) => row.depositToken?.symbol === selectedToken.symbol,
     ) ?? null;
-  const canReview = parseAmount(amount) > 0 && selectedRow !== null;
+  const amountUsd = amountUsdFromInput(
+    amount,
+    unit,
+    selectedRow?.usdPrice ?? null,
+  );
+  const canReview = amountUsd !== null && selectedRow !== null;
 
   const handleReview = () => {
-    if (!selectedRow) {
+    if (!selectedRow || amountUsd === null) {
       return;
     }
-    setAmountUsd(parseAmount(amount));
+    setAmountUsd(amountUsd);
     setSelectedTokenUsdPrice(selectedRow?.usdPrice ?? null);
     void navigate('/invest/route');
   };
@@ -94,7 +134,13 @@ export function InvestAmountScreen() {
           className="font-serif leading-none"
           style={{ fontSize: 66, letterSpacing: '-.01em' }}
         >
-          ${amount}
+          {unit === 'USD' ? '$' : null}
+          {amount}
+          {unit === 'Token' ? (
+            <span className="ml-2 text-[30px] text-ink-dim">
+              {selectedToken.symbol}
+            </span>
+          ) : null}
           <span
             className="text-accent"
             style={{ fontWeight: 300, animation: 'zpPulse 1.1s infinite' }}
@@ -155,65 +201,84 @@ export function InvestAmountScreen() {
           <div className="mt-2 flex items-center gap-1.5">
             <Check size={12} strokeWidth={3} className="text-success" />
             <span className="font-mono text-[10px] tracking-[.02em] text-success">
-              Deposit v1 supports Base USDC and Base ETH
+              {depositSupportLabel()}
             </span>
           </div>
           <div className="mt-[13px] flex flex-col gap-[11px]">
-            {balances.rows.map((row) => {
-              const active = row.depositToken?.symbol === selectedToken.symbol;
-              const disabled = !row.isDepositSupported || !row.depositToken;
-              return (
-                <button
-                  key={row.token.symbol}
-                  type="button"
-                  onClick={() => {
-                    if (!row.depositToken) {
-                      return;
+            {!balances.isConnected ? (
+              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+                Connect wallet to load supported holdings.
+              </div>
+            ) : balances.isLoading ? (
+              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+                Loading wallet tokens...
+              </div>
+            ) : balances.isError ? (
+              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+                Wallet tokens unavailable.
+              </div>
+            ) : balances.rows.length === 0 ? (
+              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+                No supported token holdings yet.
+              </div>
+            ) : (
+              balances.rows.map((row) => {
+                const active =
+                  row.depositToken?.symbol === selectedToken.symbol;
+                const disabled = !row.isDepositSupported || !row.depositToken;
+                return (
+                  <button
+                    key={row.token.symbol}
+                    type="button"
+                    onClick={() => {
+                      if (!row.depositToken) {
+                        return;
+                      }
+                      setSelectedToken(row.depositToken);
+                      setSelectedTokenUsdPrice(row.usdPrice);
+                    }}
+                    disabled={disabled}
+                    aria-disabled={disabled}
+                    className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
+                    style={
+                      active
+                        ? { background: 'rgba(212,197,163,.09)' }
+                        : disabled
+                          ? { opacity: 0.55 }
+                          : undefined
                     }
-                    setSelectedToken(row.depositToken);
-                    setSelectedTokenUsdPrice(row.usdPrice);
-                  }}
-                  disabled={disabled}
-                  aria-disabled={disabled}
-                  className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
-                  style={
-                    active
-                      ? { background: 'rgba(212,197,163,.09)' }
-                      : disabled
-                        ? { opacity: 0.55 }
-                        : undefined
-                  }
-                >
-                  <TokenIcon
-                    glyph={row.token.glyph}
-                    bg={row.token.iconBg}
-                    size={26}
-                  />
-                  <div className="flex-1">
-                    <span className="text-[13.5px] font-semibold">
-                      {row.token.symbol}
-                    </span>
-                    <div className="mt-[2px] font-mono text-[9px] text-ink-faint">
-                      {row.chains
-                        .map((chain) => CHAINS[chain].label)
-                        .join(' · ')}
-                      {disabled ? ' · view only' : ''}
-                    </div>
-                  </div>
-                  <span className="mr-2">
-                    <ChainIconStack chains={row.chains} size={13} />
-                  </span>
-                  <span
-                    className="text-[13px] font-semibold text-ink-dim"
-                    style={{ fontVariantNumeric: 'tabular-nums' }}
                   >
-                    {typeof row.usdValue === 'number'
-                      ? formatUsd(row.usdValue)
-                      : '—'}
-                  </span>
-                </button>
-              );
-            })}
+                    <TokenIcon
+                      glyph={row.token.glyph}
+                      bg={row.token.iconBg}
+                      size={26}
+                    />
+                    <div className="flex-1">
+                      <span className="text-[13.5px] font-semibold">
+                        {row.token.symbol}
+                      </span>
+                      <div className="mt-[2px] font-mono text-[9px] text-ink-faint">
+                        {row.chains
+                          .map((chain) => CHAINS[chain].label)
+                          .join(' · ')}
+                        {disabled ? ' · view only' : ''}
+                      </div>
+                    </div>
+                    <span className="mr-2">
+                      <ChainIconStack chains={row.chains} size={13} />
+                    </span>
+                    <span
+                      className="text-[13px] font-semibold text-ink-dim"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {typeof row.usdValue === 'number'
+                        ? formatUsd(row.usdValue)
+                        : '—'}
+                    </span>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       </Card>
@@ -226,8 +291,8 @@ export function InvestAmountScreen() {
           <ArrowGlyph />
         </PrimaryButton>
         <div className="mt-[9px] text-center text-[11px] text-ink-faint">
-          Holdings read Ethereum · Base · Arbitrum. Routing v1 uses Base
-          USDC/ETH.
+          Holdings read Ethereum · Base · Arbitrum. Routing v1 uses Base{' '}
+          {BASE_DEPOSIT_TOKENS.map((token) => token.symbol).join('/')}.
         </div>
       </div>
 

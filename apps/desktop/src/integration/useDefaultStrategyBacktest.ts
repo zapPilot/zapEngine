@@ -40,12 +40,17 @@ export interface DefaultStrategyBacktestView {
   vsEthLabel: string;
   metrics: StrategyBacktestMetric[];
   displayName: string;
+  chartData: number[];
 }
 
 export interface UseDefaultStrategyBacktestResult {
   data: DefaultStrategyBacktestView | null;
   isLoading: boolean;
   isError: boolean;
+}
+
+export interface BuildDefaultBacktestRequestOptions {
+  days?: number;
 }
 
 function signedPct(value: number | undefined | null): string {
@@ -111,6 +116,7 @@ function buildAdhocPortfolioRulesConfig(
 
 export function buildDefaultBacktestRequest(
   configs: StrategyConfigsResponse,
+  options: BuildDefaultBacktestRequestOptions = {},
 ): BacktestRequest {
   const defaults = configs.backtest_defaults ?? FALLBACK_DEFAULTS;
   const preferredPreset = getPreferredPresetForStrategyId(
@@ -122,20 +128,22 @@ export function buildDefaultBacktestRequest(
     : buildAdhocPortfolioRulesConfig(configs.strategies ?? []);
 
   return {
-    days: defaults.days,
+    days: options.days ?? defaults.days,
     total_capital: defaults.total_capital,
     configs: [buildDcaBaselineConfig(), strategyConfig],
   };
 }
 
+function primaryStrategyId(response: BacktestResponse): string | undefined {
+  const strategies = response.strategies ?? {};
+  return Object.keys(strategies).find((id) => id !== DCA_CLASSIC_STRATEGY_ID);
+}
+
 function primaryStrategy(
   response: BacktestResponse,
 ): BacktestStrategySummary | undefined {
-  const strategies = response.strategies ?? {};
-  const primaryId = Object.keys(strategies).find(
-    (id) => id !== DCA_CLASSIC_STRATEGY_ID,
-  );
-  return primaryId ? strategies[primaryId] : undefined;
+  const id = primaryStrategyId(response);
+  return id ? response.strategies?.[id] : undefined;
 }
 
 function metricsFromSummary(
@@ -185,9 +193,23 @@ function metricsFromSummary(
   ];
 }
 
+function chartDataFromTimeline(
+  response: BacktestResponse,
+  strategyId: string | undefined,
+): number[] {
+  if (!strategyId) {
+    return [];
+  }
+
+  return (response.timeline ?? [])
+    .map((point) => point.strategies?.[strategyId]?.portfolio.total_value)
+    .filter((value): value is number => typeof value === 'number');
+}
+
 export function viewFromResponse(
   response: BacktestResponse,
 ): DefaultStrategyBacktestView | null {
+  const strategyId = primaryStrategyId(response);
   const summary = primaryStrategy(response);
   if (!summary) {
     return null;
@@ -199,16 +221,22 @@ export function viewFromResponse(
     vsEthLabel: `Max DD ${unsignedPct(summary.max_drawdown_percent)}`,
     metrics: metricsFromSummary(summary),
     displayName: summary.display_name,
+    chartData: chartDataFromTimeline(response, strategyId),
   };
 }
 
-export function useDefaultStrategyBacktest(): UseDefaultStrategyBacktestResult {
+export function useDefaultStrategyBacktest(
+  days?: number,
+): UseDefaultStrategyBacktestResult {
   const query = useQuery({
-    queryKey: ['desktop', 'strategy', 'default-backtest'],
+    queryKey: ['desktop', 'strategy', 'default-backtest', days ?? 'default'],
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const configs = await getStrategyConfigs();
-      const response = await runBacktest(buildDefaultBacktestRequest(configs));
+      const options = typeof days === 'number' ? { days } : {};
+      const response = await runBacktest(
+        buildDefaultBacktestRequest(configs, options),
+      );
       return viewFromResponse(response);
     },
   });

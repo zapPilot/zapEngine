@@ -92,7 +92,7 @@ Before uploading a new Google Play build, bump the Flutter version with both the
 marketing version and Android `versionCode`:
 
 ```yaml
-version: 2.0.4+15
+version: 2.0.4+204
 ```
 
 The repo-root `.env` must contain the production runtime config:
@@ -113,7 +113,15 @@ keyAlias=upload
 keyPassword=<key-password>
 ```
 
-Build the signed release AAB from the mobile app directory:
+Build the signed release AAB from the repo root:
+
+```bash
+pnpm --filter @zapengine/mobile android:appbundle
+```
+
+That command reads the repo-root `.env` and passes the required compile-time
+`--dart-define` values to Flutter. The equivalent direct Flutter command from
+the mobile app directory is:
 
 ```bash
 cd /Users/chouyasushi/htdocs/zapEngine/apps/mobile

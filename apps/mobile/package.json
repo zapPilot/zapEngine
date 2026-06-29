@@ -9,6 +9,7 @@
     "build": "pnpm --dir ../../packages/design-tokens codegen:flutter && flutter pub get",
     "dev": "bash tool/flutter_run_with_env.sh",
     "icons:ios": "swift tool/flatten_ios_app_icons.swift",
+    "android:appbundle": "bash tool/build_android_appbundle.sh",
     "ios:debug:prepare": "bash tool/prepare_ios_debug_env.sh",
     "ios:release:prepare": "bash tool/prepare_ios_release.sh",
     "test": "flutter test",

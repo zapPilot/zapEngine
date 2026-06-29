@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
@@ -13,6 +14,16 @@ import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
 
 const RANGE_OPTIONS = ['3M', '6M', '1Y', 'ALL'] as const;
+export type StrategyRange = (typeof RANGE_OPTIONS)[number];
+
+export function strategyBacktestDaysForRange(
+  range: StrategyRange,
+): number | undefined {
+  if (range === '3M') return 90;
+  if (range === '6M') return 180;
+  if (range === '1Y') return 365;
+  return undefined;
+}
 
 const CHART_LEGEND = [
   { label: 'Zap', color: '#d4c5a3', textClass: 'text-[#cfcabb]' },
@@ -24,9 +35,13 @@ const CHART_LEGEND = [
 /** Strategy — backtest chart, metrics grid, fear/greed adaptation. */
 export function StrategyScreen() {
   const navigate = useNavigate();
-  const [range, setRange] = useState('1Y');
+  const [range, setRange] = useState<StrategyRange>('1Y');
   const { isConnected, userId } = useAccount();
-  const { data, isLoading, isError } = useStrategyData(userId, isConnected);
+  const { data, isLoading, isError } = useStrategyData(
+    userId,
+    isConnected,
+    strategyBacktestDaysForRange(range),
+  );
 
   // The container hook always returns a fully-shaped strategy slice (real where
   // available, demo elsewhere). While identity/data resolve we keep the exact
@@ -39,6 +54,7 @@ export function StrategyScreen() {
   const sentimentMarker =
     typeof backtest.sentiment === 'number' ? backtest.sentiment : 50;
   const hasTargetAllocation = data?.hasTargetAllocation ?? isDemo;
+  const liveChartData = data?.backtest.chartData ?? [];
 
   return (
     <div className="font-sans text-ink" data-screen="strategy">
@@ -63,7 +79,11 @@ export function StrategyScreen() {
       {/* Backtest + range tabs */}
       <div className="mx-5 mt-5 flex items-center justify-between">
         <span className="text-[14px] font-semibold">Backtest</span>
-        <RangeTabs options={RANGE_OPTIONS} value={range} onChange={setRange} />
+        <RangeTabs
+          options={RANGE_OPTIONS}
+          value={range}
+          onChange={(value) => setRange(value as StrategyRange)}
+        />
       </div>
 
       {/* Chart card */}
@@ -103,7 +123,6 @@ export function StrategyScreen() {
           </div>
         ) : null}
 
-        {/* Multi-line backtest chart (copied verbatim from design) */}
         {isDemo ? (
           <svg
             width="100%"
@@ -278,6 +297,18 @@ export function StrategyScreen() {
               Jun
             </text>
           </svg>
+        ) : liveChartData.length >= 2 ? (
+          <div
+            className="mt-2 h-[180px]"
+            role="img"
+            aria-label="Default strategy backtest value over the selected range"
+          >
+            <Sparkline
+              data={liveChartData}
+              height={176}
+              gradientId="strategyBacktestSpark"
+            />
+          </div>
         ) : (
           <div className="grid h-[180px] place-items-center">
             <div className="text-center">
@@ -375,7 +406,7 @@ export function StrategyScreen() {
         <p className="text-[11px] leading-[1.55] text-[#7d7868]">
           {isDemo
             ? "Backtested on historical data. Past performance doesn't guarantee future results — only invest what you're comfortable holding."
-            : 'Backtest metrics are not run automatically. Target allocation uses the latest strategy suggestion when available.'}
+            : 'Default backtest metrics come from analytics when available. Target allocation uses the latest strategy suggestion.'}
         </p>
       </Card>
 

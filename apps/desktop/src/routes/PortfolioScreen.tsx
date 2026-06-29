@@ -8,21 +8,28 @@ import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { useAccount } from '@/integration/useAccount';
-import { usePortfolioData } from '@/integration/usePortfolioData';
+import {
+  type PortfolioRange,
+  usePortfolioData,
+} from '@/integration/usePortfolioData';
 import { formatSignedPct, formatSignedUsd, splitUsd } from '@/lib/format';
 
 const RANGE_OPTIONS = ['1W', '1M', '3M', '1Y', 'ALL'] as const;
 
 /** My Portfolio — position value, returns chart, metrics, allocation. */
 export function PortfolioScreen() {
-  const [range, setRange] = useState<string>('1Y');
+  const [range, setRange] = useState<PortfolioRange>('1Y');
   const { userId } = useAccount();
-  const { data: portfolio, isLoading } = usePortfolioData(userId);
+  const {
+    data: portfolio,
+    isLoading,
+    isError,
+  } = usePortfolioData(userId, range);
 
   // Calm loading state: render the layout with neutral placeholders while
   // userId resolves or the dashboard query is in flight — never crash, never
   // break the phone frame. isError degrades the same way (portfolio is null).
-  const loading = isLoading || portfolio === null;
+  const loading = isLoading || isError || portfolio === null;
   const hasPositionValue = typeof portfolio?.positionValue === 'number';
   const { whole, fraction } = splitUsd(portfolio?.positionValue ?? 0);
   const hasAllTimeChange = typeof portfolio?.changePct === 'number';
@@ -86,7 +93,7 @@ export function PortfolioScreen() {
         className="px-5 pt-[14px]"
         options={RANGE_OPTIONS}
         value={range}
-        onChange={setRange}
+        onChange={(value) => setRange(value as PortfolioRange)}
       />
 
       <div className="mt-3 px-5">

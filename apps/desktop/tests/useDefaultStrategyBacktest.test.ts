@@ -60,6 +60,17 @@ describe('default strategy backtest mapping', () => {
         },
       ],
     });
+
+    expect(
+      buildDefaultBacktestRequest(
+        backtestConfigs({
+          backtest_defaults: { days: 365, total_capital: 5000 },
+          presets: [],
+          strategies: [],
+        }),
+        { days: 90 },
+      ).days,
+    ).toBe(90);
   });
 
   it('falls back to adhoc portfolio rules defaults without a saved preset', () => {
@@ -115,6 +126,22 @@ describe('default strategy backtest mapping', () => {
             final_value: 12345.678,
           },
         },
+        timeline: [
+          {
+            strategies: {
+              dma_fgi_portfolio_rules_default: {
+                portfolio: { total_value: 10000 },
+              },
+            },
+          },
+          {
+            strategies: {
+              dma_fgi_portfolio_rules_default: {
+                portfolio: { total_value: 12345.678 },
+              },
+            },
+          },
+        ],
       }),
     );
 
@@ -123,6 +150,7 @@ describe('default strategy backtest mapping', () => {
       vsBtcLabel: '42 trades',
       vsEthLabel: 'Max DD 8.9%',
       displayName: 'Zap Strategy',
+      chartData: [10000, 12345.678],
     });
     expect(view?.metrics).toEqual([
       { label: 'ROI', value: '+12.3%', tone: 'positive' },

@@ -33,6 +33,11 @@ export interface UseHomeDataResult {
   data: HomeData | null;
   isLoading: boolean;
   isError: boolean;
+  walletAssets: {
+    isConnected: boolean;
+    isLoading: boolean;
+    isError: boolean;
+  };
 }
 
 /**
@@ -51,14 +56,28 @@ export interface UseHomeDataResult {
  * ROI/drawdown metrics come from the backtesting compare endpoint.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
- *   The portfolio hooks are user-scoped, so they only fetch once userId exists;
- *   while it is null the screen renders the layout in a calm loading state.
+ *   Analytics endpoints accept the account-engine id or a connected wallet
+ *   address, so Home can still request `/landing` and `/dashboard` while the
+ *   backend user record is settling.
  */
 function trendDaysForRange(range: HomeRange): number {
   if (range === '1D') return 2;
   if (range === '1W') return 7;
   if (range === '1M') return 30;
   return 365;
+}
+
+export function resolveHomeAnalyticsSubjectId(
+  userId: string | null,
+  address: string | null,
+): string | null {
+  const resolvedUserId = userId?.trim();
+  if (resolvedUserId) {
+    return resolvedUserId;
+  }
+
+  const resolvedAddress = address?.trim();
+  return resolvedAddress || null;
 }
 
 function sparklineOrFallback(
@@ -92,10 +111,12 @@ export function useHomeData(
   address: string | null,
   range: HomeRange,
 ): UseHomeDataResult {
-  // Hooks run unconditionally (React rules); they no-op until userId resolves.
-  const progressive = usePortfolioDataProgressive(userId);
+  // Hooks run unconditionally (React rules); analytics no-ops until we have
+  // either an account-engine user id or a connected wallet address.
+  const analyticsSubjectId = resolveHomeAnalyticsSubjectId(userId, address);
+  const progressive = usePortfolioDataProgressive(analyticsSubjectId);
   const trendDays = trendDaysForRange(range);
-  const dashboard = usePortfolioDashboard(userId ?? undefined, {
+  const dashboard = usePortfolioDashboard(analyticsSubjectId ?? undefined, {
     trend_days: trendDays,
     drawdown_days: trendDays,
     rolling_days: trendDays,
@@ -111,17 +132,14 @@ export function useHomeData(
   const strategySection = progressive.sections?.strategy;
 
   const isLoading =
-    userId === null ||
     Boolean(balanceSection?.isLoading) ||
     Boolean(strategySection?.isLoading) ||
     dashboard.isLoading ||
-    (walletAssets.isConnected && walletAssets.isLoading) ||
     suggestion.isLoading;
   const isError =
     Boolean(balanceSection?.error) ||
     Boolean(strategySection?.error) ||
     dashboard.isError ||
-    walletAssets.isError ||
     suggestion.isError;
 
   const isDemo = address === null;
@@ -198,5 +216,14 @@ export function useHomeData(
         : unavailableBacktest(),
   };
 
-  return { data: { home, strategy }, isLoading, isError };
+  return {
+    data: { home, strategy },
+    isLoading,
+    isError,
+    walletAssets: {
+      isConnected: walletAssets.isConnected,
+      isLoading: walletAssets.isLoading,
+      isError: walletAssets.isError,
+    },
+  };
 }

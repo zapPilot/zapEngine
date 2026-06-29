@@ -112,6 +112,24 @@ export {
   getWithdrawPlan,
 } from './planOrchestrationService';
 
+// Moralis wallet POC (desktop/web clients; proxy before production)
+export {
+  getMoralisWalletHistory,
+  getMoralisWalletTokenBalances,
+  getSupportedMoralisWalletSymbol,
+  MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN,
+  MORALIS_WALLET_CHAINS,
+  type MoralisChainBalances,
+  type MoralisChainHistory,
+  type MoralisSupportedWalletSymbol,
+  type MoralisWalletChain,
+  type MoralisWalletHistoryEvent,
+  type MoralisWalletHistoryResponse,
+  type MoralisWalletTokenBalance,
+  type MoralisWalletTokenBalancesResponse,
+  type MoralisWalletTransfer,
+} from './moralisWalletService';
+
 // On-chain token balances (real wallet balance + LI.FI USD valuation)
 export {
   getOnChainTokenBalance,

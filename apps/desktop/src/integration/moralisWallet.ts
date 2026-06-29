@@ -1,4 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
+import {
+  getMoralisWalletHistory,
+  getMoralisWalletTokenBalances,
+  getSupportedMoralisWalletSymbol,
+  type MoralisChainBalances,
+  type MoralisChainHistory,
+  type MoralisSupportedWalletSymbol,
+  type MoralisWalletChain,
+  type MoralisWalletHistoryEvent,
+  type MoralisWalletTokenBalance,
+  type MoralisWalletTransfer,
+} from '@zapengine/app-core/services';
 
 import {
   type ActivityEvent,
@@ -12,15 +24,14 @@ import {
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
 
-export type MoralisChainKey = 'eth' | 'base' | 'arbitrum';
+export type MoralisChainKey = MoralisWalletChain;
 
-type SupportedWalletSymbol =
-  | 'USDC'
-  | 'USDT'
-  | 'ETH'
-  | 'WETH'
-  | 'WBTC'
-  | 'CBBTC';
+export type {
+  MoralisWalletHistoryResponse,
+  MoralisWalletTokenBalancesResponse,
+} from '@zapengine/app-core/services';
+
+type SupportedWalletSymbol = MoralisSupportedWalletSymbol;
 
 type DesktopChainKey = DemoAsset['chains'][number];
 
@@ -30,7 +41,6 @@ interface ChainConfig {
   label: string;
 }
 
-const MORALIS_BASE_URL = 'https://deep-index.moralis.io/api/v2.2';
 const WALLET_HISTORY_LIMIT = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -39,15 +49,6 @@ export const MORALIS_WALLET_CHAINS = [
   { moralis: 'base', desktop: 'base', label: 'Base' },
   { moralis: 'arbitrum', desktop: 'arbitrum', label: 'Arbitrum' },
 ] as const satisfies readonly ChainConfig[];
-
-const SUPPORTED_SYMBOLS = new Set<SupportedWalletSymbol>([
-  'USDC',
-  'USDT',
-  'ETH',
-  'WETH',
-  'WBTC',
-  'CBBTC',
-]);
 
 const TOKEN_META: Record<
   SupportedWalletSymbol,
@@ -68,58 +69,10 @@ const CHAIN_ORDER = new Map(
   MORALIS_WALLET_CHAINS.map((chain, index) => [chain.desktop, index]),
 );
 
-export interface MoralisWalletTokenBalance {
-  symbol?: string;
-  name?: string;
-  token_address?: string;
-  native_token?: boolean;
-  balance_formatted?: string | number;
-  usd_value?: string | number;
-  usd_price?: string | number;
-  possible_spam?: boolean;
-}
-
-export interface MoralisWalletTokenBalancesResponse {
-  result: MoralisWalletTokenBalance[];
-}
-
-export interface MoralisWalletTransfer {
-  token_symbol?: string;
-  direction?: string;
-  value_formatted?: string | number;
-  value_usd?: string | number;
-  total_usd?: string | number;
-}
-
-export interface MoralisWalletHistoryEvent {
-  hash: string;
-  block_timestamp?: string;
-  summary?: string;
-  category?: string;
-  receipt_status?: string | number | boolean;
-  erc20_transfers?: MoralisWalletTransfer[];
-  native_transfers?: MoralisWalletTransfer[];
-}
-
-export interface MoralisWalletHistoryResponse {
-  result: MoralisWalletHistoryEvent[];
-  cursor?: string | null;
-}
-
 export interface DesktopWalletAsset extends DemoAsset {
   symbol: SupportedWalletSymbol;
   rawAmount: number;
   usdPrice: number | null;
-}
-
-export interface MoralisChainBalances {
-  chain: MoralisChainKey;
-  response: MoralisWalletTokenBalancesResponse;
-}
-
-export interface MoralisChainHistory {
-  chain: MoralisChainKey;
-  response: MoralisWalletHistoryResponse;
 }
 
 export interface InvestableBalanceRow {
@@ -164,23 +117,7 @@ export interface ActivityHistoryOptions {
   timeZone?: string;
 }
 
-function normalizeSymbol(
-  symbol: string | undefined,
-): SupportedWalletSymbol | null {
-  const normalized = symbol
-    ?.trim()
-    .replace(/^cbbtc$/i, 'CBBTC')
-    .toUpperCase();
-  if (
-    !normalized ||
-    !SUPPORTED_SYMBOLS.has(normalized as SupportedWalletSymbol)
-  ) {
-    return null;
-  }
-  return normalized as SupportedWalletSymbol;
-}
-
-function numberFrom(value: string | number | undefined): number | null {
+function numberFrom(value: string | number | null | undefined): number | null {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null;
   }
@@ -241,7 +178,7 @@ function aggregateChainBalance(
   chainConfig: (typeof MORALIS_WALLET_CHAINS)[number],
   balance: MoralisWalletTokenBalance,
 ): void {
-  const symbol = normalizeSymbol(balance.native_token ? 'ETH' : balance.symbol);
+  const symbol = getSupportedMoralisWalletSymbol(chainConfig.moralis, balance);
   if (!symbol) {
     return;
   }
@@ -263,7 +200,10 @@ function aggregateChainBalance(
       amount,
       usdValue,
       chains: new Set([chainConfig.desktop]),
-      name: balance.name?.trim() || meta.name,
+      name:
+        typeof balance.name === 'string' && balance.name.trim()
+          ? balance.name.trim()
+          : meta.name,
     });
   }
 }
@@ -352,7 +292,7 @@ export function buildInvestableBalanceRows(
 }
 
 function bucketForDate(
-  dateStr: string | undefined,
+  dateStr: string | null | undefined,
   nowMs: number,
 ): ActivityGroup['label'] {
   if (!dateStr) {
@@ -380,7 +320,7 @@ function dateFormatOptions(
 }
 
 function timeLabel(
-  dateStr: string | undefined,
+  dateStr: string | null | undefined,
   nowMs: number,
   timeZone: string | undefined,
 ): string {
@@ -445,23 +385,41 @@ function eventKindFrom(
 function successfulStatus(
   status: MoralisWalletHistoryEvent['receipt_status'],
 ): boolean {
-  return (
-    status === undefined || status === true || status === '1' || status === 1
-  );
+  return status == null || status === true || status === '1' || status === 1;
+}
+
+interface SupportedActivityTransfer {
+  transfer: MoralisWalletTransfer;
+  symbol: SupportedWalletSymbol;
 }
 
 function firstSupportedTransfer(
+  chain: MoralisChainKey,
   event: MoralisWalletHistoryEvent,
-): MoralisWalletTransfer | null {
-  const transfers = [
-    ...(event.erc20_transfers ?? []),
-    ...(event.native_transfers ?? []),
-  ];
-  return (
-    transfers.find((transfer) =>
-      Boolean(normalizeSymbol(transfer.token_symbol)),
-    ) ?? null
-  );
+): SupportedActivityTransfer | null {
+  for (const transfer of event.erc20_transfers ?? []) {
+    const symbol = getSupportedMoralisWalletSymbol(chain, {
+      symbol: transfer.token_symbol,
+      token_address: transfer.token_address,
+      native_token: false,
+    });
+    if (symbol) {
+      return { transfer, symbol };
+    }
+  }
+
+  for (const transfer of event.native_transfers ?? []) {
+    const symbol = getSupportedMoralisWalletSymbol(chain, {
+      symbol: transfer.token_symbol ?? 'ETH',
+      token_address: transfer.token_address,
+      native_token: true,
+    });
+    if (symbol) {
+      return { transfer, symbol };
+    }
+  }
+
+  return null;
 }
 
 function fallbackTitle(kind: ActivityKind, symbol: string | undefined): string {
@@ -486,8 +444,12 @@ function activityEventFromMoralis(
     return null;
   }
 
-  const transfer = firstSupportedTransfer(event);
-  const symbol = normalizeSymbol(transfer?.token_symbol);
+  const supported = firstSupportedTransfer(chain, event);
+  if (!supported) {
+    return null;
+  }
+
+  const { transfer, symbol } = supported;
   const kind = eventKindFrom(event, transfer);
   const usdValue =
     numberFrom(transfer?.value_usd) ?? numberFrom(transfer?.total_usd);
@@ -509,7 +471,7 @@ function activityEventFromMoralis(
     kind,
     title,
     ...(amountLabel ? { amountLabel, amountTone } : {}),
-    status: successfulStatus(event.receipt_status) ? 'Completed' : 'Applied',
+    status: successfulStatus(event.receipt_status) ? 'Completed' : 'Failed',
     meta,
     time: '',
   };
@@ -562,59 +524,6 @@ export function buildActivityGroupsFromMoralisHistory(
     .filter((group) => group.events.length > 0);
 }
 
-function moralisApiKey(): string {
-  const key = import.meta.env.VITE_MORALIS_API_KEY?.trim();
-  if (!key) {
-    throw new Error('Missing VITE_MORALIS_API_KEY for Moralis wallet data.');
-  }
-  return key;
-}
-
-async function fetchMoralisJson<T>(
-  path: string,
-  params: Record<string, string>,
-): Promise<T> {
-  const url = new URL(`${MORALIS_BASE_URL}${path}`);
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      'X-API-Key': moralisApiKey(),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Moralis request failed with HTTP ${response.status}.`);
-  }
-
-  return (await response.json()) as T;
-}
-
-async function fetchWalletTokenBalances(
-  address: string,
-  chain: MoralisChainKey,
-): Promise<MoralisChainBalances> {
-  const response = await fetchMoralisJson<MoralisWalletTokenBalancesResponse>(
-    `/wallets/${address}/tokens`,
-    { chain, exclude_spam: 'true' },
-  );
-  return { chain, response };
-}
-
-async function fetchWalletHistory(
-  address: string,
-  chain: MoralisChainKey,
-): Promise<MoralisChainHistory> {
-  const response = await fetchMoralisJson<MoralisWalletHistoryResponse>(
-    `/wallets/${address}/history`,
-    { chain, limit: String(WALLET_HISTORY_LIMIT), order: 'DESC' },
-  );
-  return { chain, response };
-}
-
 export function useMoralisWalletAssets(
   address: string | null,
 ): UseMoralisWalletAssetsResult {
@@ -625,11 +534,7 @@ export function useMoralisWalletAssets(
     enabled,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const responses = await Promise.all(
-        MORALIS_WALLET_CHAINS.map((chain) =>
-          fetchWalletTokenBalances(address as string, chain.moralis),
-        ),
-      );
+      const responses = await getMoralisWalletTokenBalances(address as string);
       const assets = buildDesktopWalletAssets(responses);
       return {
         assets,
@@ -668,11 +573,9 @@ export function useMoralisWalletHistory(
     enabled,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      const responses = await Promise.all(
-        MORALIS_WALLET_CHAINS.map((chain) =>
-          fetchWalletHistory(address as string, chain.moralis),
-        ),
-      );
+      const responses = await getMoralisWalletHistory(address as string, {
+        limit: WALLET_HISTORY_LIMIT,
+      });
       return buildActivityGroupsFromMoralisHistory(responses, {
         limit: WALLET_HISTORY_LIMIT,
       });

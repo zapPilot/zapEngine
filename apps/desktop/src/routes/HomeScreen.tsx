@@ -29,7 +29,11 @@ export function HomeScreen() {
   const [range, setRange] = useState<HomeRange>('1D');
 
   const { address, userId } = useAccount();
-  const { data, isLoading, isError } = useHomeData(userId, address, range);
+  const { data, isLoading, isError, walletAssets } = useHomeData(
+    userId,
+    address,
+    range,
+  );
 
   // Disconnected/demo mode may still use DEMO; connected unavailable live fields
   // render as dashes rather than borrowing design numbers.
@@ -153,48 +157,65 @@ export function HomeScreen() {
           </div>
         </div>
         <div className="mt-2.5 flex flex-col">
-          {home.assets.map((asset, index) => {
-            const isLast = index === home.assets.length - 1;
-            return (
-              <div
-                key={asset.symbol}
-                className="zp-tap flex items-center gap-[13px] px-1 py-[11px]"
-                style={
-                  isLast
-                    ? undefined
-                    : { borderBottom: '1px solid rgba(255,255,255,.05)' }
-                }
-              >
-                <TokenIcon glyph={asset.glyph} bg={asset.iconBg} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-[7px]">
-                    <span className="text-[15.5px] font-semibold text-ink">
-                      {asset.symbol}
-                    </span>
-                    <span className="text-[12px]" style={{ color: '#6f6a5f' }}>
-                      {asset.name}
-                    </span>
+          {walletAssets.isConnected && walletAssets.isLoading ? (
+            <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+              Loading wallet tokens…
+            </div>
+          ) : walletAssets.isConnected && walletAssets.isError ? (
+            <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+              Wallet tokens unavailable.
+            </div>
+          ) : home.assets.length === 0 ? (
+            <div className="px-1 py-[11px] text-[12px] text-ink-faint">
+              No supported token holdings yet.
+            </div>
+          ) : (
+            home.assets.map((asset, index) => {
+              const isLast = index === home.assets.length - 1;
+              return (
+                <div
+                  key={asset.symbol}
+                  className="zp-tap flex items-center gap-[13px] px-1 py-[11px]"
+                  style={
+                    isLast
+                      ? undefined
+                      : { borderBottom: '1px solid rgba(255,255,255,.05)' }
+                  }
+                >
+                  <TokenIcon glyph={asset.glyph} bg={asset.iconBg} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-[7px]">
+                      <span className="text-[15.5px] font-semibold text-ink">
+                        {asset.symbol}
+                      </span>
+                      <span
+                        className="text-[12px]"
+                        style={{ color: '#6f6a5f' }}
+                      >
+                        {asset.name}
+                      </span>
+                    </div>
+                    <div className="mt-[5px] flex items-center gap-1.5">
+                      <ChainIconStack chains={asset.chains} size={14} />
+                      <span className="font-mono text-[10.5px] text-ink-faint">
+                        {asset.chains.map((c) => CHAINS[c].label).join(' · ')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-[5px] flex items-center gap-1.5">
-                    <ChainIconStack chains={asset.chains} size={14} />
-                    <span className="font-mono text-[10.5px] text-ink-faint">
-                      {asset.chains.map((c) => CHAINS[c].label).join(' · ')}
-                    </span>
+                  <div className="text-right">
+                    <div className="text-[15.5px] font-semibold tabular-nums text-ink">
+                      {typeof asset.usdValue === 'number'
+                        ? formatUsd(asset.usdValue)
+                        : '—'}
+                    </div>
+                    <div className="mt-[5px] font-mono text-[10.5px] text-ink-faint">
+                      {asset.amountLabel}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[15.5px] font-semibold tabular-nums text-ink">
-                    {typeof asset.usdValue === 'number'
-                      ? formatUsd(asset.usdValue)
-                      : '—'}
-                  </div>
-                  <div className="mt-[5px] font-mono text-[10.5px] text-ink-faint">
-                    {asset.amountLabel}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
