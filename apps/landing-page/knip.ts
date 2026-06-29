@@ -11,6 +11,13 @@ export default defineKnipConfig({
     // calls (see Hero.test.tsx). Knip can't trace this convention.
     'src/components/landing/__mocks__/**',
   ],
+  ignoreExports: [
+    // Track-record helpers are intentionally kept available for the verification
+    // pages/scripts roadmap even though not every helper is wired in the current
+    // landing UI yet. Keep the deadcode gate focused on newly introduced drift.
+    'src/config/track-record.ts',
+    'src/data/track-record-accessor.ts',
+  ],
   ignoreDependencies: [
     'postcss',
     'eslint-config-next',
