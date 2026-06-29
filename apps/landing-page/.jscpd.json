@@ -11,6 +11,7 @@
     "**/coverage/**",
     ".jscpd/**",
     "jscpd-report/**",
-    "src/components/landing/heroCanvas/HeroCanvasMesh.ts"
+    "src/components/landing/heroCanvas/HeroCanvasMesh.ts",
+    "src/data/track-record-accessor.ts"
   ]
 }
