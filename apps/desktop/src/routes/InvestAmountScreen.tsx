@@ -10,6 +10,7 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { CHAINS } from '@/data/demo';
 import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import { useAccount } from '@/integration/useAccount';
@@ -62,6 +63,31 @@ const cardStyle = {
   border: '1px solid rgba(255,255,255,.08)',
 } as const;
 
+function HoldingRowSkeleton() {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl px-1 py-1">
+      <SkeletonBlock className="h-[26px] w-[26px] rounded-full" />
+      <div className="flex-1">
+        <SkeletonBlock className="h-4 w-12" />
+        <SkeletonBlock className="mt-[6px] h-3 w-24" />
+      </div>
+      <SkeletonBlock className="mr-2 h-4 w-12 rounded-full" />
+      <SkeletonBlock className="h-4 w-16" />
+    </div>
+  );
+}
+
+function HoldingListSkeleton() {
+  return (
+    <div aria-label="Loading supported holdings" role="status">
+      {[0, 1, 2].map((item) => (
+        <HoldingRowSkeleton key={item} />
+      ))}
+      <span className="sr-only">Loading supported holdings…</span>
+    </div>
+  );
+}
+
 /** Re-applies en-US thousands grouping while preserving a trailing `.` / decimals. */
 function groupAmount(raw: string): string {
   if (raw === '') {
@@ -94,6 +120,7 @@ export function InvestAmountScreen() {
     balances.rows.find(
       (row) => row.depositToken?.symbol === selectedToken.symbol,
     ) ?? null;
+  const showBalancesSkeleton = balances.isConnected && balances.isLoading;
   const amountUsd = amountUsdFromInput(
     amount,
     unit,
@@ -195,9 +222,13 @@ export function InvestAmountScreen() {
               className="text-[13.5px] font-semibold"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              {typeof balances.totalUsdValue === 'number'
-                ? formatUsd(balances.totalUsdValue)
-                : '—'}
+              {showBalancesSkeleton ? (
+                <SkeletonBlock className="h-4 w-16" />
+              ) : typeof balances.totalUsdValue === 'number' ? (
+                formatUsd(balances.totalUsdValue)
+              ) : (
+                '—'
+              )}
             </span>
           </div>
           <div className="mt-2 flex items-center gap-1.5">
@@ -212,9 +243,7 @@ export function InvestAmountScreen() {
                 Connect wallet to load supported holdings.
               </div>
             ) : balances.isLoading ? (
-              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
-                Loading wallet tokens...
-              </div>
+              <HoldingListSkeleton />
             ) : balances.isError ? (
               <div className="px-1 py-[11px] text-[12px] text-ink-faint">
                 Wallet tokens unavailable.

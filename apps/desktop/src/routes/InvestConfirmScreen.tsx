@@ -8,6 +8,7 @@ import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionLabel } from '@/components/ui/SectionLabel';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import {
   formatPlanDuration,
@@ -112,13 +113,21 @@ export function InvestConfirmScreen() {
                 className="mt-[3px] text-[15px] font-semibold"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                {planLoading ? '—' : formatPlanGas(plan?.totalGasUsd)}
+                {planLoading ? (
+                  <SkeletonBlock className="h-5 w-14" />
+                ) : (
+                  formatPlanGas(plan?.totalGasUsd)
+                )}
               </div>
             </div>
             <div className="flex-1">
               <div className="text-[11px] text-ink-faint">Route time</div>
               <div className="mt-[3px] text-[15px] font-semibold text-accent">
-                {planLoading ? '—' : formatPlanDuration(plan?.legs)}
+                {planLoading ? (
+                  <SkeletonBlock className="h-5 w-16" />
+                ) : (
+                  formatPlanDuration(plan?.legs)
+                )}
               </div>
             </div>
           </div>

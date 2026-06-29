@@ -12,6 +12,7 @@ import { type ReactElement, useState } from 'react';
 
 import { Pill } from '@/components/ui/Pill';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import {
   ACTIVITY_FILTERS,
@@ -206,6 +207,48 @@ function EventRow({ event, first }: { event: ActivityEvent; first: boolean }) {
   );
 }
 
+function EventRowSkeleton({ first }: { first: boolean }) {
+  return (
+    <div
+      className={cn('flex gap-3 py-[13px]', !first && 'border-t border-line')}
+    >
+      <SkeletonBlock className="h-10 w-10 rounded-xl" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <SkeletonBlock className="h-4 w-36" />
+          <SkeletonBlock className="h-4 w-12" />
+        </div>
+        <div className="mt-[9px] flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5">
+            <SkeletonBlock className="h-[18px] w-16 rounded-full" />
+            <SkeletonBlock className="h-3 w-24" />
+          </span>
+          <SkeletonBlock className="h-3 w-9" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityListSkeleton() {
+  return (
+    <section aria-label="Loading activity history" role="status">
+      <div
+        className="px-5 pt-[18px] font-mono text-[9.5px] tracking-[.12em]"
+        style={{ color: '#6f6a5f' }}
+      >
+        RECENT
+      </div>
+      <div className="px-5">
+        {[0, 1, 2, 3].map((item) => (
+          <EventRowSkeleton key={item} first={item === 0} />
+        ))}
+      </div>
+      <span className="sr-only">Loading activity history…</span>
+    </section>
+  );
+}
+
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
   const { address, walletAddresses } = useAccount();
@@ -213,10 +256,11 @@ export function ActivityScreen() {
     walletAddresses.length > 0 ? walletAddresses : address;
   const { data, isLoading, isError } = useActivityData(activityAddressInput);
 
-  const pending =
-    (Array.isArray(activityAddressInput)
-      ? activityAddressInput.length === 0
-      : activityAddressInput === null) || isLoading;
+  const hasActivityAddress = Array.isArray(activityAddressInput)
+    ? activityAddressInput.length > 0
+    : activityAddressInput !== null;
+  const showActivitySkeleton = hasActivityAddress && isLoading;
+  const pending = !hasActivityAddress || isLoading;
   const source: ActivityGroup[] = data?.groups ?? [];
   const groups = source
     .map((group) => ({
@@ -258,23 +302,27 @@ export function ActivityScreen() {
         })}
       </div>
 
-      {groups.map((group) => (
-        <section key={group.label}>
-          <div
-            className="px-5 pt-[18px] font-mono text-[9.5px] tracking-[.12em]"
-            style={{ color: '#6f6a5f' }}
-          >
-            {group.label.toUpperCase()}
-          </div>
-          <div className="px-5">
-            {group.events.map((event, index) => (
-              <EventRow key={event.id} event={event} first={index === 0} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {showActivitySkeleton ? (
+        <ActivityListSkeleton />
+      ) : (
+        groups.map((group) => (
+          <section key={group.label}>
+            <div
+              className="px-5 pt-[18px] font-mono text-[9.5px] tracking-[.12em]"
+              style={{ color: '#6f6a5f' }}
+            >
+              {group.label.toUpperCase()}
+            </div>
+            <div className="px-5">
+              {group.events.map((event, index) => (
+                <EventRow key={event.id} event={event} first={index === 0} />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
 
-      {groups.length === 0 ? (
+      {!showActivitySkeleton && groups.length === 0 ? (
         <div
           className="px-5 pt-[18px] text-[12px]"
           style={{ color: '#6f6a5f' }}

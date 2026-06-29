@@ -14,6 +14,7 @@ import { DesktopWalletMenuPanel } from '@/components/account/DesktopWalletMenuPa
 import { Card } from '@/components/ui/Card';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { useAccount } from '@/integration/useAccount';
 import { truncateAddress } from '@/lib/format';
 
@@ -79,6 +80,7 @@ export function AccountScreen() {
 
   const label = email ?? 'Main Wallet';
   const avatarLetter = (email?.[0] ?? 'Z').toUpperCase();
+  const showAccountSkeleton = isConnecting && !isConnected;
 
   const handleCopy = () => {
     if (address) {
@@ -103,31 +105,47 @@ export function AccountScreen() {
       <div className="mt-[18px] px-5">
         <Card className="rounded-[20px]">
           <div className="flex items-center gap-[14px] p-4">
-            <span
-              className="grid place-items-center"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 999,
-                background: 'linear-gradient(140deg,#3a3526,#161616)',
-                border: '1px solid rgba(212,197,163,.35)',
-                fontSize: 18,
-                fontWeight: 600,
-                color: '#d4c5a3',
-              }}
-            >
-              {avatarLetter}
-            </span>
+            {showAccountSkeleton ? (
+              <SkeletonBlock className="h-12 w-12 rounded-full" />
+            ) : (
+              <span
+                className="grid place-items-center"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 999,
+                  background: 'linear-gradient(140deg,#3a3526,#161616)',
+                  border: '1px solid rgba(212,197,163,.35)',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: '#d4c5a3',
+                }}
+              >
+                {avatarLetter}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
-              <div className="text-[16px] font-semibold text-ink">{label}</div>
+              <div className="text-[16px] font-semibold text-ink">
+                {showAccountSkeleton ? (
+                  <SkeletonBlock className="h-5 w-28" />
+                ) : (
+                  label
+                )}
+              </div>
               <div className="mt-1 flex items-center gap-[7px]">
                 <span
                   className="font-mono text-[11.5px]"
                   style={{ color: '#a1a1aa' }}
                 >
-                  {address ? truncateAddress(address) : 'Not connected'}
+                  {showAccountSkeleton ? (
+                    <SkeletonBlock className="h-4 w-24" />
+                  ) : address ? (
+                    truncateAddress(address)
+                  ) : (
+                    'Not connected'
+                  )}
                 </span>
-                {address ? (
+                {address && !showAccountSkeleton ? (
                   <button
                     type="button"
                     aria-label="Copy address"

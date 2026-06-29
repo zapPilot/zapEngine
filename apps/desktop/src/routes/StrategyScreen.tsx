@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
+import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
@@ -32,6 +34,27 @@ const CHART_LEGEND = [
   { label: 'Stables', color: '#2775ca', textClass: 'text-[#8a857a]' },
 ] as const;
 
+function StrategyBacktestSkeleton() {
+  return (
+    <div className="mt-2 h-[180px] rounded-2xl p-3">
+      <SkeletonBlock className="h-full w-full rounded-2xl" />
+    </div>
+  );
+}
+
+function StrategyAllocationSkeleton() {
+  return (
+    <>
+      <SkeletonBlock className="mt-3 h-[9px] w-full rounded-full" />
+      <div className="mt-2 flex justify-between">
+        {[0, 1, 2].map((item) => (
+          <SkeletonBlock key={item} className="h-3 w-16" />
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** Strategy — backtest chart, metrics grid, fear/greed adaptation. */
 export function StrategyScreen() {
   const navigate = useNavigate();
@@ -51,6 +74,7 @@ export function StrategyScreen() {
   const pending = isLoading || isError || data === null;
   const returnLabel = pending ? '—' : backtest.returnLabel;
   const isDemo = !isConnected;
+  const showLiveSkeleton = !isDemo && isLoading;
   const sentimentMarker =
     typeof backtest.sentiment === 'number' ? backtest.sentiment : 50;
   const hasTargetAllocation = data?.hasTargetAllocation ?? isDemo;
@@ -94,13 +118,26 @@ export function StrategyScreen() {
               {isDemo ? 'ZAP STRATEGY · 1Y RETURN' : 'DEFAULT BACKTEST · ROI'}
             </div>
             <div className="mt-0.5 font-serif text-[30px] leading-[1.05] text-success">
-              {returnLabel}
+              {showLiveSkeleton ? (
+                <SkeletonBlock className="h-8 w-24 rounded-lg" />
+              ) : (
+                returnLabel
+              )}
             </div>
           </div>
           <div className="text-right font-mono text-[9px] leading-[1.6] text-[#6f6a5f]">
-            {backtest.vsBtcLabel}
-            <br />
-            {backtest.vsEthLabel}
+            {showLiveSkeleton ? (
+              <div className="flex flex-col items-end gap-1">
+                <SkeletonBlock className="h-3 w-16" />
+                <SkeletonBlock className="h-3 w-14" />
+              </div>
+            ) : (
+              <>
+                {backtest.vsBtcLabel}
+                <br />
+                {backtest.vsEthLabel}
+              </>
+            )}
           </div>
         </div>
 
@@ -123,7 +160,9 @@ export function StrategyScreen() {
           </div>
         ) : null}
 
-        {isDemo ? (
+        {showLiveSkeleton && liveChartData.length < 2 ? (
+          <StrategyBacktestSkeleton />
+        ) : isDemo ? (
           <svg
             width="100%"
             height="180"
@@ -322,7 +361,11 @@ export function StrategyScreen() {
       </Card>
 
       {/* Metrics grid */}
-      <MetricsGrid className="mx-5 mt-[18px]" metrics={backtest.metrics} />
+      {showLiveSkeleton ? (
+        <MetricsGridSkeleton className="mx-5 mt-[18px]" count={8} />
+      ) : (
+        <MetricsGrid className="mx-5 mt-[18px]" metrics={backtest.metrics} />
+      )}
 
       {/* How it adapts */}
       <div className="mx-5 mt-6">
@@ -374,21 +417,27 @@ export function StrategyScreen() {
               {backtest.currentModeLabel}
             </Pill>
           </div>
-          <AllocationBar
-            className="mt-3"
-            height={9}
-            segments={backtest.allocation.map((a) => ({
-              color: a.color,
-              value: a.pct,
-            }))}
-          />
-          <div className="mt-2 flex justify-between font-mono text-[9px] text-[#6f6a5f]">
-            {backtest.allocation.map((a) => (
-              <span key={a.label}>
-                {a.label} {hasTargetAllocation ? `${a.pct}%` : '—'}
-              </span>
-            ))}
-          </div>
+          {showLiveSkeleton && backtest.allocation.length === 0 ? (
+            <StrategyAllocationSkeleton />
+          ) : (
+            <>
+              <AllocationBar
+                className="mt-3"
+                height={9}
+                segments={backtest.allocation.map((a) => ({
+                  color: a.color,
+                  value: a.pct,
+                }))}
+              />
+              <div className="mt-2 flex justify-between font-mono text-[9px] text-[#6f6a5f]">
+                {backtest.allocation.map((a) => (
+                  <span key={a.label}>
+                    {a.label} {hasTargetAllocation ? `${a.pct}%` : '—'}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
