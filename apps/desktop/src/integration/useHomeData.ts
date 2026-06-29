@@ -1,6 +1,5 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
-import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
 import { DEMO } from '@/data/demo';
 import { useMoralisWalletAssets } from '@/integration/moralisWallet';
@@ -8,7 +7,7 @@ import { mapDailyValuesToSparkline } from '@/integration/portfolioMetrics';
 import {
   liveNumberOrDemo,
   liveTextOrDemo,
-  marketModeLabelFor,
+  marketModeLabelFromRegime,
   pillarsFromTarget,
 } from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
@@ -168,10 +167,8 @@ export function useHomeData(
   );
 
   // --- Live: current market regime → human-readable mode label ---
-  const currentRegime = strategySection?.data?.currentRegime;
-  const regimeLabel = currentRegime ? getRegimeLabel(currentRegime) : '';
-  const marketModeLabel = marketModeLabelFor(
-    regimeLabel,
+  const marketModeLabel = marketModeLabelFromRegime(
+    strategySection?.data?.currentRegime ?? null,
     demoStrategy.marketModeLabel,
     isDemo,
   );

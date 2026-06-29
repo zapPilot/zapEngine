@@ -1,6 +1,5 @@
 import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
 import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
-import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
 
 import { DEMO } from '@/data/demo';
 import {
@@ -9,8 +8,8 @@ import {
   demoTextOrDash,
   liveNumberOrDemo,
   liveTextOrDemo,
-  marketModeLabelFor,
   pillarsFromTarget,
+  regimeDisplayFromRegime,
 } from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
 import {
@@ -95,16 +94,14 @@ export function useStrategyData(
   );
 
   // --- Live: current market regime → human-readable mode label ---
-  const currentRegime = regime.data?.currentRegime;
-  const regimeLabel = currentRegime ? getRegimeLabel(currentRegime) : '';
+  const { regimeLabel, marketModeLabel } = regimeDisplayFromRegime(
+    regime.data?.currentRegime ?? null,
+    demoStrategy.marketModeLabel,
+    isDemo,
+  );
   const currentModeLabel = currentModeLabelFor(
     regimeLabel,
     demoBacktest.currentModeLabel,
-    isDemo,
-  );
-  const marketModeLabel = marketModeLabelFor(
-    regimeLabel,
-    demoStrategy.marketModeLabel,
     isDemo,
   );
 

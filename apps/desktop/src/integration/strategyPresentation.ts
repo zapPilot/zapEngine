@@ -1,3 +1,5 @@
+import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
+
 import type { CompositionTarget } from '@/integration/useStrategySuggestion';
 
 interface WeightedPillar {
@@ -59,6 +61,31 @@ export function currentModeLabelFor(
     return regimeLabel;
   }
   return demoTextOrDash(demoLabel, isDemo);
+}
+
+export function marketModeLabelFromRegime(
+  regimeId: string | null | undefined,
+  demoMarketModeLabel: string,
+  isDemo: boolean,
+): string {
+  const regimeLabel = regimeId ? getRegimeLabel(regimeId) : '';
+  return marketModeLabelFor(regimeLabel, demoMarketModeLabel, isDemo);
+}
+
+export function regimeDisplayFromRegime(
+  regimeId: string | null | undefined,
+  demoMarketModeLabel: string,
+  isDemo: boolean,
+): { regimeLabel: string; marketModeLabel: string } {
+  const regimeLabel = regimeId ? getRegimeLabel(regimeId) : '';
+  return {
+    regimeLabel,
+    marketModeLabel: marketModeLabelFor(
+      regimeLabel,
+      demoMarketModeLabel,
+      isDemo,
+    ),
+  };
 }
 
 function emptyPillars(): WeightedPillar[] {
