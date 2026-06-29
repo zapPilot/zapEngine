@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  useMoralisWalletAssets,
+  useMoralisWalletHistory,
+} from '../src/integration/moralisWallet';
 
 const useQueryMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: useQueryMock,
 }));
-
-import {
-  useMoralisWalletAssets,
-  useMoralisWalletHistory,
-} from '../src/integration/moralisWallet';
 
 beforeEach(() => {
   useQueryMock.mockReset();
