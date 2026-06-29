@@ -92,6 +92,55 @@ export interface InvestableBalanceRow {
   isError: boolean;
 }
 
+export interface WalletAssetsQueryData {
+  assets: DesktopWalletAsset[];
+  rows: InvestableBalanceRow[];
+}
+
+function buildHookStatus(
+  query: {
+    isLoading: boolean;
+    isError: boolean;
+    error: Error | null | undefined;
+  },
+  enabled: boolean,
+): Pick<
+  UseMoralisWalletAssetsResult,
+  'isConnected' | 'isLoading' | 'isError' | 'error'
+> {
+  return {
+    isConnected: enabled,
+    isLoading: enabled && query.isLoading,
+    isError: query.isError,
+    error: query.error ?? null,
+  };
+}
+
+export function buildWalletAssetsResult(
+  query: {
+    data?: WalletAssetsQueryData | null | undefined;
+    isLoading: boolean;
+    isError: boolean;
+    error: Error | null | undefined;
+  },
+  enabled: boolean,
+): UseMoralisWalletAssetsResult {
+  const rows = query.data?.rows ?? [];
+  const liveValues = rows
+    .map((row) => row.usdValue)
+    .filter((value): value is number => typeof value === 'number');
+
+  return {
+    assets: query.data?.assets ?? [],
+    rows,
+    totalUsdValue:
+      liveValues.length > 0
+        ? liveValues.reduce((total, value) => total + value, 0)
+        : null,
+    ...buildHookStatus(query, enabled),
+  };
+}
+
 export interface UseMoralisWalletAssetsResult {
   assets: DesktopWalletAsset[];
   rows: InvestableBalanceRow[];
@@ -590,23 +639,7 @@ export function useMoralisWalletAssets(
   });
   // jscpd:ignore-end
 
-  const rows = query.data?.rows ?? [];
-  const liveValues = rows
-    .map((row) => row.usdValue)
-    .filter((value): value is number => typeof value === 'number');
-
-  return {
-    assets: query.data?.assets ?? [],
-    rows,
-    totalUsdValue:
-      liveValues.length > 0
-        ? liveValues.reduce((total, value) => total + value, 0)
-        : null,
-    isConnected: enabled,
-    isLoading: enabled && query.isLoading,
-    isError: query.isError,
-    error: query.error,
-  };
+  return buildWalletAssetsResult(query, enabled);
 }
 
 export function useMoralisWalletHistory(
@@ -638,9 +671,6 @@ export function useMoralisWalletHistory(
 
   return {
     groups: query.data ?? [],
-    isConnected: enabled,
-    isLoading: enabled && query.isLoading,
-    isError: query.isError,
-    error: query.error,
+    ...buildHookStatus(query, enabled),
   };
 }

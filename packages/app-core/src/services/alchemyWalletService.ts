@@ -163,6 +163,35 @@ function priceFromPrices(prices: TokenPrice[] | undefined): number | null {
   return numberFrom(selected?.value ?? selected?.price);
 }
 
+interface PriceRow {
+  data?: readonly { prices?: TokenPrice[] }[];
+}
+
+function buildPriceMap<T extends PriceRow>(
+  payload: T | null,
+  extract: (row: NonNullable<T['data']>[number]) => [string, number] | null,
+): Map<string, number> {
+  const prices = new Map<string, number>();
+  for (const row of payload?.data ?? []) {
+    const entry = extract(row);
+    if (entry) {
+      prices.set(entry[0], entry[1]);
+    }
+  }
+  return prices;
+}
+
+async function fetchAlchemyJson<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T | null> {
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    return null;
+  }
+  return (await response.json()) as T;
+}
+
 async function fetchPriceByAddress(
   apiKey: string,
   requests: { address: string; network: string }[],
@@ -171,7 +200,9 @@ async function fetchPriceByAddress(
     return new Map();
   }
 
-  const response = await fetch(`${ALCHEMY_PRICE_BASE_URL}/tokens/by-address`, {
+  const payload = await fetchAlchemyJson<{
+    data?: TokenPriceByAddressResult[];
+  }>(`${ALCHEMY_PRICE_BASE_URL}/tokens/by-address`, {
     method: 'POST',
     headers: {
       accept: 'application/json',
@@ -181,21 +212,13 @@ async function fetchPriceByAddress(
     body: JSON.stringify({ addresses: requests }),
   });
 
-  if (!response.ok) {
-    return new Map();
-  }
-
-  const payload = (await response.json()) as {
-    data?: TokenPriceByAddressResult[];
-  };
-  const prices = new Map<string, number>();
-  for (const row of payload.data ?? []) {
+  return buildPriceMap(payload, (row) => {
     const price = priceFromPrices(row.prices);
     if (row.address && row.network && price !== null) {
-      prices.set(`${row.network}:${row.address.toLowerCase()}`, price);
+      return [`${row.network}:${row.address.toLowerCase()}`, price];
     }
-  }
-  return prices;
+    return null;
+  });
 }
 
 async function fetchPriceBySymbol(
@@ -211,32 +234,23 @@ async function fetchPriceBySymbol(
     query.append('symbols', symbol);
   }
 
-  const response = await fetch(
-    `${ALCHEMY_PRICE_BASE_URL}/tokens/by-symbol?${query}`,
-    {
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    return new Map();
-  }
-
-  const payload = (await response.json()) as {
+  const payload = await fetchAlchemyJson<{
     data?: TokenPriceBySymbolResult[];
-  };
-  const prices = new Map<string, number>();
-  for (const row of payload.data ?? []) {
+  }>(`${ALCHEMY_PRICE_BASE_URL}/tokens/by-symbol?${query}`, {
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  return buildPriceMap(payload, (row) => {
     const price = priceFromPrices(row.prices) ?? numberFrom(row.price);
     const symbol = row.symbol?.toUpperCase();
     if (symbol && price !== null) {
-      prices.set(symbol, price);
+      return [symbol, price];
     }
-  }
-  return prices;
+    return null;
+  });
 }
 
 function buildTokenBalance(

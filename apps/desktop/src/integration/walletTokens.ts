@@ -8,6 +8,7 @@ import {
 import {
   buildDesktopWalletAssets,
   buildInvestableBalanceRows,
+  buildWalletAssetsResult,
   type DesktopWalletAsset,
   type InvestableBalanceRow,
   normalizeWalletAddressList,
@@ -47,10 +48,6 @@ export function resolveWalletTokenProvider(): WalletTokenProviderId {
   return provider === 'moralis' ? 'moralis' : 'alchemy';
 }
 
-export function useWalletTokenProvider(): WalletTokenProviderId {
-  return resolveWalletTokenProvider();
-}
-
 function getWalletTokenProvider(): WalletTokenProvider {
   return resolveWalletTokenProvider() === 'moralis'
     ? MORALIS_WALLET_TOKEN_PROVIDER
@@ -81,21 +78,5 @@ export function useWalletAssets(
     },
   });
 
-  const rows = query.data?.rows ?? [];
-  const liveValues = rows
-    .map((row) => row.usdValue)
-    .filter((value): value is number => typeof value === 'number');
-
-  return {
-    assets: query.data?.assets ?? [],
-    rows,
-    totalUsdValue:
-      liveValues.length > 0
-        ? liveValues.reduce((total, value) => total + value, 0)
-        : null,
-    isConnected: enabled,
-    isLoading: enabled && query.isLoading,
-    isError: query.isError,
-    error: query.error,
-  };
+  return buildWalletAssetsResult(query, enabled);
 }
