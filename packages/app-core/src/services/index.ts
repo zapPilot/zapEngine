@@ -133,12 +133,12 @@ export {
 // Alchemy wallet token balances (desktop/web clients; proxy before production)
 export {
   ALCHEMY_WALLET_CHAINS,
-  getAlchemyWalletTokenBalances,
   type AlchemyChainBalances,
   type AlchemySupportedWalletSymbol,
   type AlchemyWalletChain,
   type AlchemyWalletTokenBalance,
   type AlchemyWalletTokenBalancesResponse,
+  getAlchemyWalletTokenBalances,
 } from './alchemyWalletService';
 
 // Provider-neutral supported wallet token catalog
@@ -148,11 +148,11 @@ export {
   normalizeSupportedWalletTokenSymbol,
   SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN,
   SUPPORTED_WALLET_TOKEN_DEFINITIONS,
+  type SupportedWalletErc20Symbol,
   supportedWalletTokenAddresses,
+  type SupportedWalletTokenSymbol,
   supportedWalletTokenSymbolForAddress,
   WALLET_TOKEN_CHAINS,
-  type SupportedWalletErc20Symbol,
-  type SupportedWalletTokenSymbol,
   type WalletTokenChain,
   type WalletTokenDefinition,
 } from './walletTokenCatalog';
