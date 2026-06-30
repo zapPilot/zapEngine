@@ -68,6 +68,13 @@ const TOKEN_META: Record<
   CBBTC: { name: 'Coinbase Wrapped BTC', iconBg: '#0052ff', glyph: '₿' },
 };
 
+function tokenIconSrcFor(symbol: SupportedWalletSymbol): string {
+  if (symbol === 'CBBTC') {
+    return '/tokens/wbtc.svg';
+  }
+  return `/tokens/${symbol.toLowerCase()}.svg`;
+}
+
 const CHAIN_BY_MORALIS = new Map(
   MORALIS_WALLET_CHAINS.map((chain) => [chain.moralis, chain]),
 );
@@ -79,6 +86,7 @@ export interface DesktopWalletAsset extends DemoAsset {
   symbol: SupportedWalletSymbol;
   rawAmount: number;
   usdPrice: number | null;
+  iconSrc?: string;
   holdings: DesktopWalletAssetHolding[];
 }
 
@@ -380,6 +388,7 @@ export function buildDesktopWalletAssets(
           ),
         iconBg: meta.iconBg,
         glyph: meta.glyph,
+        iconSrc: tokenIconSrcFor(symbol),
         rawAmount: entry.amount,
         usdPrice: usdPriceFor(entry.amount, usdValue),
       };
