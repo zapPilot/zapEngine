@@ -4,6 +4,7 @@ import {
   buildActivityGroupsFromMoralisHistory,
   buildDesktopWalletAssets,
   buildInvestableBalanceRows,
+  normalizeWalletAddressList,
   type MoralisChainKey,
   type MoralisWalletHistoryResponse,
   type MoralisWalletTokenBalancesResponse,
@@ -24,6 +25,25 @@ function history(
 }
 
 describe('Moralis desktop wallet mapping', () => {
+  it('normalizes wallet address inputs before query fan-out', () => {
+    expect(
+      normalizeWalletAddressList([
+        ' 0xABCDEF0000000000000000000000000000000001 ',
+        '0xabcdef0000000000000000000000000000000001',
+        '',
+        null,
+        undefined,
+        '0x2222222222222222222222222222222222222222',
+      ]),
+    ).toEqual([
+      '0xabcdef0000000000000000000000000000000001',
+      '0x2222222222222222222222222222222222222222',
+    ]);
+
+    expect(normalizeWalletAddressList(' 0xABC ')).toEqual(['0xabc']);
+    expect(normalizeWalletAddressList([null, undefined, '   '])).toEqual([]);
+  });
+
   it('groups supported holdings across Ethereum, Base, and Arbitrum only', () => {
     const assets = buildDesktopWalletAssets([
       balances('eth', [
