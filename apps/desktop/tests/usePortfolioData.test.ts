@@ -82,6 +82,24 @@ describe('usePortfolioData', () => {
     );
   });
 
+  it('passes the selected range window to dashboard and yield queries', () => {
+    const result = usePortfolioData('user-123', '1W');
+
+    expect(result).toMatchObject({ isLoading: false, isError: false });
+    expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
+      trend_days: 7,
+      drawdown_days: 7,
+      rolling_days: 7,
+    });
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        queryKey: ['desktop', 'portfolio', 'dailyYield', 'user-123', 7],
+        staleTime: 5 * 60 * 1000,
+      }),
+    );
+  });
+
   it('surfaces connected live misses as unavailable values instead of demo-like data', () => {
     const result = usePortfolioData('user-123', '1Y');
 
