@@ -25,6 +25,35 @@ describe('desktop legacy bundle POC identity', () => {
     expect(resolveDesktopUserId('privy-user-id', null)).toBe('privy-user-id');
   });
 
+  it('uses deterministic URL source precedence for legacy bundle overrides', () => {
+    expect(
+      getDesktopUserIdOverrideFromUrl(
+        '?userId=document-user',
+        '?userId=router-user',
+        '#/home?userId=hash-user',
+      ),
+    ).toBe('document-user');
+
+    expect(
+      getDesktopUserIdOverrideFromUrl(
+        '?userId=   ',
+        '?userId=router-user',
+        '#/home?userId=hash-user',
+      ),
+    ).toBe('router-user');
+
+    expect(
+      getDesktopUserIdOverrideFromUrl('', '?userId=   ', '#/home?userId=hash-user'),
+    ).toBe('hash-user');
+  });
+
+  it('falls back safely when both legacy and account ids are blank', () => {
+    expect(resolveDesktopUserId(' account-user ', null)).toBe('account-user');
+    expect(resolveDesktopUserId('   ', '  legacy-user  ')).toBe('legacy-user');
+    expect(resolveDesktopUserId('   ', '   ')).toBeNull();
+    expect(getDesktopUserIdOverrideFromUrl('', '', '#/home')).toBeNull();
+  });
+
   it('normalizes bundle wallet addresses before Moralis aggregation', () => {
     expect(
       normalizeWalletAddressList([
