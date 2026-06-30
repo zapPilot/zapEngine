@@ -338,4 +338,31 @@ describe('desktop screen live-data states', () => {
     expect(markup).not.toContain('animate-pulse');
     expect(markup).not.toContain('Loading metrics');
   });
+
+  it('keeps Portfolio live values but hides the chart when only one trend point is available', () => {
+    setLivePortfolioData();
+    mocked.dashboard = {
+      ...mocked.dashboard,
+      dashboard: {
+        ...mocked.dashboard.dashboard,
+        trends: {
+          daily_values: [
+            {
+              change_percentage: 1.7,
+              date: '2026-06-29T00:00:00Z',
+              total_value_usd: 9_900,
+            },
+          ],
+        },
+      },
+    };
+
+    const markup = renderScreen(PortfolioScreen);
+
+    expect(markup).toContain('$9,876');
+    expect(markup).toContain('8.5%');
+    expect(markup).toContain('BTC');
+    expect(markup).not.toContain('portfolioValueSpark');
+    expect(markup).not.toContain('animate-pulse');
+  });
 });
