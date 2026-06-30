@@ -121,7 +121,19 @@ function renderScreen(component: typeof HomeScreen | typeof PortfolioScreen) {
   return renderToStaticMarkup(createElement(component));
 }
 
-function setLiveHomeData() {
+function setLiveHomeData(
+  assets: typeof DEMO.home.assets = [
+    {
+      amountLabel: '1,234.56',
+      chains: ['base'],
+      glyph: '$',
+      iconBg: '#2775ca',
+      name: 'USD Coin',
+      symbol: 'USDC',
+      usdValue: 1_234.56,
+    },
+  ],
+) {
   mocked.progressive = {
     sections: {
       balance: {
@@ -162,17 +174,7 @@ function setLiveHomeData() {
     isLoading: false,
   };
   mocked.walletAssets = {
-    assets: [
-      {
-        amountLabel: '1,234.56',
-        chains: ['base'],
-        glyph: '$',
-        iconBg: '#2775ca',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        usdValue: 1_234.56,
-      },
-    ],
+    assets,
     isConnected: true,
     isError: false,
     isLoading: false,
@@ -289,7 +291,7 @@ describe('desktop screen skeleton states', () => {
 });
 
 describe('desktop screen live-data states', () => {
-  it('renders Home live balance, change, sparkline, and wallet assets without skeletons', () => {
+  it('renders Home live balance, change, sparkline, and portfolio allocation without skeletons', () => {
     setLiveHomeData();
 
     const markup = renderScreen(HomeScreen);
@@ -298,10 +300,93 @@ describe('desktop screen live-data states', () => {
     expect(markup).toContain('.67');
     expect(markup).toContain('+2.3%');
     expect(markup).toContain('+$345.67 today');
-    expect(markup).toContain('USDC');
+    expect(markup).toContain('Portfolio allocation');
+    expect(markup).toContain('Stables');
+    expect(markup).toContain('100.0%');
     expect(markup).toContain('$1,234.56');
     expect(markup).not.toContain('animate-pulse');
     expect(markup).not.toContain('Loading wallet tokens');
+  });
+
+  it('groups Home assets by portfolio exposure before showing raw tokens', () => {
+    setLiveHomeData([
+      {
+        amountLabel: '0.12 WETH',
+        chains: ['ethereum'],
+        glyph: 'Ξ',
+        iconBg: '#627eea',
+        name: 'Wrapped Ether',
+        symbol: 'WETH',
+        usdValue: 400,
+      },
+      {
+        amountLabel: '0.003 CBBTC',
+        chains: ['base'],
+        glyph: '₿',
+        iconBg: '#0052ff',
+        name: 'Coinbase Wrapped BTC',
+        symbol: 'CBBTC',
+        usdValue: 300,
+      },
+      {
+        amountLabel: '200.00 USDC',
+        chains: ['base'],
+        glyph: '$',
+        iconBg: '#2775ca',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        usdValue: 200,
+      },
+      {
+        amountLabel: '1.00 SPY',
+        chains: ['ethereum'],
+        glyph: 'S',
+        iconBg: '#4b5563',
+        name: 'S&P 500 ETF',
+        symbol: 'SPY',
+        usdValue: 50,
+      },
+      {
+        amountLabel: '25.00 ARB',
+        chains: ['arbitrum'],
+        glyph: 'A',
+        iconBg: '#28a0f0',
+        name: 'Arbitrum',
+        symbol: 'ARB',
+        usdValue: 50,
+      },
+    ]);
+
+    const markup = renderScreen(HomeScreen);
+    const exposureIds = [
+      'home-exposure-eth',
+      'home-exposure-btc',
+      'home-exposure-stables',
+      'home-exposure-sp500',
+      'home-exposure-other',
+    ];
+
+    expect(markup).toContain('Portfolio allocation');
+    expect(markup).toContain('ETH');
+    expect(markup).toContain('BTC');
+    expect(markup).toContain('Stables');
+    expect(markup).toContain('S&amp;P 500');
+    expect(markup).toContain('Other');
+    expect(markup).toContain('40.0%');
+    expect(markup).toContain('30.0%');
+    expect(markup).toContain('20.0%');
+    expect(markup.match(/5.0%/g)?.length).toBe(2);
+    const exposurePositions = exposureIds.map((id) =>
+      markup.indexOf(`data-testid="${id}"`),
+    );
+    expect(exposurePositions.every((position) => position >= 0)).toBe(true);
+    expect(exposurePositions).toEqual(
+      [...exposurePositions].toSorted((a, b) => a - b),
+    );
+    expect(markup).not.toContain('data-testid="home-asset-WETH"');
+    expect(markup).not.toContain('Wrapped Ether');
+    expect(markup).not.toContain('data-testid="home-asset-USDC"');
+    expect(markup).not.toContain('USD Coin');
   });
 
   it('renders Portfolio live position, metrics, chart, and allocation without skeletons', () => {
