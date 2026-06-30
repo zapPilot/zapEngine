@@ -43,7 +43,11 @@ describe('desktop legacy bundle POC identity', () => {
     ).toBe('router-user');
 
     expect(
-      getDesktopUserIdOverrideFromUrl('', '?userId=   ', '#/home?userId=hash-user'),
+      getDesktopUserIdOverrideFromUrl(
+        '',
+        '?userId=   ',
+        '#/home?userId=hash-user',
+      ),
     ).toBe('hash-user');
   });
 
