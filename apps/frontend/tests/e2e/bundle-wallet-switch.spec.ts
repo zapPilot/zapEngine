@@ -46,6 +46,29 @@ test.describe('Bundle Wallet Switching - E2E', () => {
   });
 
   test('should show wallet connection option', async ({ page }) => {
+    await page.route(`**/users/${BUNDLE_USER_ID}`, (route) => {
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: BUNDLE_USER_ID,
+            email: null,
+            is_subscribed_to_reports: false,
+            created_at: new Date().toISOString(),
+          },
+          wallets: [
+            {
+              id: '1',
+              user_id: BUNDLE_USER_ID,
+              wallet: BUNDLE_USER_ID,
+              label: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+        }),
+      });
+    });
     await page.goto(`/bundle?userId=${BUNDLE_USER_ID}`);
 
     await expect(page.locator('body')).toContainText(
