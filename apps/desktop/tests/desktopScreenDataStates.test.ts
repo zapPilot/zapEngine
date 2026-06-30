@@ -121,7 +121,19 @@ function renderScreen(component: typeof HomeScreen | typeof PortfolioScreen) {
   return renderToStaticMarkup(createElement(component));
 }
 
-function setLiveHomeData() {
+function setLiveHomeData(
+  assets: typeof DEMO.home.assets = [
+    {
+      amountLabel: '1,234.56',
+      chains: ['base'],
+      glyph: '$',
+      iconBg: '#2775ca',
+      name: 'USD Coin',
+      symbol: 'USDC',
+      usdValue: 1_234.56,
+    },
+  ],
+) {
   mocked.progressive = {
     sections: {
       balance: {
@@ -162,17 +174,7 @@ function setLiveHomeData() {
     isLoading: false,
   };
   mocked.walletAssets = {
-    assets: [
-      {
-        amountLabel: '1,234.56',
-        chains: ['base'],
-        glyph: '$',
-        iconBg: '#2775ca',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        usdValue: 1_234.56,
-      },
-    ],
+    assets,
     isConnected: true,
     isError: false,
     isLoading: false,
@@ -308,7 +310,7 @@ describe('desktop screen error states', () => {
 });
 
 describe('desktop screen live-data states', () => {
-  it('renders Home live balance, change, sparkline, and wallet assets without skeletons', () => {
+  it('renders Home live balance, change, sparkline, and portfolio allocation without skeletons', () => {
     setLiveHomeData();
 
     const markup = renderScreen(HomeScreen);
@@ -317,10 +319,133 @@ describe('desktop screen live-data states', () => {
     expect(markup).toContain('.67');
     expect(markup).toContain('+2.3%');
     expect(markup).toContain('+$345.67 today');
-    expect(markup).toContain('USDC');
+    expect(markup).toContain('Portfolio allocation');
+    expect(markup).toContain('Five portfolio buckets, shown even when empty.');
+    expect(markup).toContain('Stables Group');
+    expect(markup).toContain('S&amp;P 500 Group');
+    expect(markup).toContain('Other Group');
+    expect(markup).toContain('100.0%');
     expect(markup).toContain('$1,234.56');
     expect(markup).not.toContain('animate-pulse');
     expect(markup).not.toContain('Loading wallet tokens');
+  });
+
+  it('groups Home assets by portfolio exposure before showing raw tokens', () => {
+    setLiveHomeData([
+      {
+        amountLabel: '0.12 WETH',
+        chains: ['ethereum'],
+        glyph: 'Ξ',
+        iconBg: '#627eea',
+        name: 'Wrapped Ether',
+        symbol: 'WETH',
+        usdValue: 400,
+      },
+      {
+        amountLabel: '0.003 CBBTC',
+        chains: ['base'],
+        glyph: '₿',
+        iconBg: '#0052ff',
+        name: 'Coinbase Wrapped BTC',
+        symbol: 'CBBTC',
+        usdValue: 300,
+      },
+      {
+        amountLabel: '200.00 USDC',
+        chains: ['base'],
+        glyph: '$',
+        iconBg: '#2775ca',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        usdValue: 200,
+      },
+      {
+        amountLabel: '1.00 SPY',
+        chains: ['ethereum'],
+        glyph: 'S',
+        iconBg: '#4b5563',
+        name: 'S&P 500 ETF',
+        symbol: 'SPY',
+        usdValue: 50,
+      },
+      {
+        amountLabel: '25.00 ARB',
+        chains: ['arbitrum'],
+        glyph: 'A',
+        iconBg: '#28a0f0',
+        name: 'Arbitrum',
+        symbol: 'ARB',
+        usdValue: 50,
+      },
+    ]);
+
+    const markup = renderScreen(HomeScreen);
+    const exposureIds = [
+      'home-exposure-eth',
+      'home-exposure-btc',
+      'home-exposure-stables',
+      'home-exposure-sp500',
+      'home-exposure-other',
+    ];
+
+    expect(markup).toContain('Portfolio allocation');
+    expect(markup).toContain('ETH Group');
+    expect(markup).toContain('BTC Group');
+    expect(markup).toContain('Stables Group');
+    expect(markup).toContain('S&amp;P 500 Group');
+    expect(markup).toContain('Other Group');
+    expect(markup).not.toContain('Native, wrapped, and liquid-staked ETH');
+    expect(markup).not.toContain('Bitcoin exposure across wrapped assets');
+    expect(markup).not.toContain('Dollar-denominated liquidity');
+    expect(markup).not.toContain('Tokenized US equity index exposure');
+    expect(markup).not.toContain('Assets outside the core allocation buckets');
+    expect(markup).toContain('#8b5cf6');
+    expect(markup).toContain('/tokens/weth.png');
+    expect(markup).toContain('aria-label="ETH Group grouped token icons"');
+    expect(markup).toContain('aria-label="BTC Group grouped token icons"');
+    expect(markup).toContain('aria-label="Stables Group grouped token icons"');
+    expect(markup).toContain(
+      'aria-label="S&amp;P 500 Group grouped token icons"',
+    );
+    expect(markup).toContain('aria-label="Other Group grouped token icons"');
+    expect(markup).toContain('40.0%');
+    expect(markup).toContain('30.0%');
+    expect(markup).toContain('20.0%');
+    expect(markup.match(/5.0%/g)?.length).toBe(2);
+    const exposurePositions = exposureIds.map((id) =>
+      markup.indexOf(`data-testid="${id}"`),
+    );
+    expect(exposurePositions.every((position) => position >= 0)).toBe(true);
+    expect(exposurePositions).toEqual(
+      [...exposurePositions].toSorted((a, b) => a - b),
+    );
+    expect(markup).not.toContain('data-testid="home-asset-WETH"');
+    expect(markup).not.toContain('Wrapped Ether');
+    expect(markup).not.toContain('data-testid="home-asset-USDC"');
+    expect(markup).not.toContain('USD Coin');
+  });
+
+  it('keeps all five Home portfolio buckets visible when holdings are empty', () => {
+    setLiveHomeData([]);
+
+    const markup = renderScreen(HomeScreen);
+    const exposureIds = [
+      'home-exposure-eth',
+      'home-exposure-btc',
+      'home-exposure-stables',
+      'home-exposure-sp500',
+      'home-exposure-other',
+    ];
+
+    for (const id of exposureIds) {
+      expect(markup).toContain(`data-testid="${id}"`);
+    }
+    expect(
+      markup.match(/aria-label="[^"]+ Group grouped token icons"/g)?.length,
+    ).toBe(5);
+    expect(markup.match(/0 tokens/g)?.length).toBe(5);
+    expect(markup.match(/0.0%/g)?.length).toBe(5);
+    expect(markup.match(/\$0\.00/g)?.length).toBe(5);
   });
 
   it('renders Portfolio live position, metrics, chart, and allocation without skeletons', () => {

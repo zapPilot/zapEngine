@@ -106,6 +106,24 @@ describe('Moralis desktop wallet mapping', () => {
       usdValue: 1500,
       amountLabel: '0.015 WBTC',
       chains: ['ethereum', 'arbitrum'],
+      holdings: [
+        {
+          chain: 'ethereum',
+          chainId: 1,
+          decimals: 8,
+          rawAmount: 0.01,
+          tokenAddress: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
+          usdValue: 1000,
+        },
+        {
+          chain: 'arbitrum',
+          chainId: 42161,
+          decimals: 8,
+          rawAmount: 0.005,
+          tokenAddress: '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f',
+          usdValue: 500,
+        },
+      ],
     });
     expect(assets.map((asset) => asset.symbol)).not.toContain('LINK');
   });

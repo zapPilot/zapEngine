@@ -122,8 +122,6 @@ describe('usePortfolioData', () => {
       '—',
       '—',
       '—',
-      '—',
-      '—',
     ]);
     expect(result.data?.metrics.map((metric) => metric.label)).toEqual([
       'Total return',
@@ -134,8 +132,6 @@ describe('usePortfolioData', () => {
       'Max drawdown',
       'Volatility',
       'Sharpe',
-      'Fees paid',
-      'Gas saved',
     ]);
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
       trend_days: 365,
@@ -266,8 +262,12 @@ describe('usePortfolioData', () => {
       { label: 'Max drawdown', value: '−8.3%', tone: 'negative' },
       { label: 'Volatility', value: '13.5%', tone: 'neutral' },
       { label: 'Sharpe', value: '1.23', tone: 'accent' },
-      { label: 'Fees paid', value: '—', tone: 'neutral' },
-      { label: 'Gas saved', value: '—', tone: 'positive' },
     ]);
+    expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
+      'Fees paid',
+    );
+    expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
+      'Gas saved',
+    );
   });
 });

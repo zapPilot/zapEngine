@@ -9,6 +9,7 @@ import { InvestAmountScreen } from '@/routes/InvestAmountScreen';
 import { InvestConfirmScreen } from '@/routes/InvestConfirmScreen';
 import { InvestRouteScreen } from '@/routes/InvestRouteScreen';
 import { PortfolioScreen } from '@/routes/PortfolioScreen';
+import { SendScreen } from '@/routes/SendScreen';
 import { StrategyScreen } from '@/routes/StrategyScreen';
 
 /**
@@ -21,6 +22,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route path="/home" element={<HomeScreen />} />
         <Route path="/portfolio" element={<PortfolioScreen />} />
+        <Route path="/send" element={<SendScreen />} />
         <Route path="/strategy" element={<StrategyScreen />} />
         <Route path="/activity" element={<ActivityScreen />} />
         <Route path="/account" element={<AccountScreen />} />

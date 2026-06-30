@@ -10,6 +10,7 @@ import {
   buildInvestableBalanceRows,
   buildWalletAssetsResult,
   type DesktopWalletAsset,
+  type DesktopWalletAssetHolding,
   type InvestableBalanceRow,
   normalizeWalletAddressList,
   type UseMoralisWalletAssetsResult,
@@ -21,6 +22,7 @@ export type WalletTokenProviderId = 'alchemy' | 'moralis';
 
 export type {
   DesktopWalletAsset,
+  DesktopWalletAssetHolding,
   InvestableBalanceRow,
   UseMoralisWalletAssetsResult as UseWalletAssetsResult,
   WalletAddressInput,

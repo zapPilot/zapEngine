@@ -195,8 +195,6 @@ export const DEMO: DemoData = {
       { label: '30D return', value: '+4.2%', tone: 'positive' },
       { label: 'Realized yield', value: '$642.10', tone: 'neutral' },
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
-      { label: 'Fees paid', value: '$28.40', tone: 'neutral' },
-      { label: 'Gas saved', value: '$54.00', tone: 'positive' },
     ],
     allocation: [
       { label: 'Stables', pct: 35, color: 'var(--usd)' },
