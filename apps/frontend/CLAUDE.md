@@ -18,3 +18,8 @@ See @README.md for project overview and @package.json for available scripts.
 - Dev/build may OOM on large machines: use `cross-env NODE_OPTIONS=--max-old-space-size=1024`
 - Analytics API field is `daily_values`, not `daily_totals`
 - All client-side env vars must have `VITE_` prefix
+- Vite dev 504s like `Outdated Optimize Dep` are stale optimized-dependency
+  cache/browser-module-graph issues, not unit-test failures. Do not paper over
+  them with `optimizeDeps` or alias changes. Restart Vite with `--force`, then
+  run `pnpm --filter @zapengine/frontend run dev:health -- <local-url>` to
+  verify the browser sees no stale `/node_modules/.vite/deps/` chunks.

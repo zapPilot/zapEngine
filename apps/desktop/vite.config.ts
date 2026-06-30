@@ -73,6 +73,12 @@ export default defineConfig({
     port: 3005,
     strictPort: true,
     host: '127.0.0.1',
+    headers: {
+      // Optimized dependency chunks are immutable by default. In the in-app
+      // browser that can preserve stale chunk references after Vite re-optimizes
+      // deps without changing the dependency browser hash.
+      'Cache-Control': 'no-cache',
+    },
   },
   build: {
     outDir: 'dist',

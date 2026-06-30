@@ -61,6 +61,14 @@ export default defineConfig(({ mode }) => ({
   ssr: {
     noExternal: [/jayson/, /uuid/],
   },
+  server: {
+    headers: {
+      // Vite serves optimized deps as immutable by default. During local dev,
+      // stale browser-cached deps can keep pointing at removed chunks and surface
+      // as 504 "Outdated Optimize Dep" from /node_modules/.vite/deps/.
+      "Cache-Control": "no-cache",
+    },
+  },
   plugins: [
     react(),
     ...(mode === "analyze"

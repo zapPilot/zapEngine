@@ -157,6 +157,7 @@ test.describe('Basic Functionality Validation', () => {
 
   test('application loads without critical errors', async ({ page }) => {
     const errors: string[] = [];
+    const viteAssetFailures: string[] = [];
 
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -164,7 +165,27 @@ test.describe('Basic Functionality Validation', () => {
       }
     });
 
+    page.on('response', (response) => {
+      const url = response.url();
+      if (
+        response.status() >= 400 &&
+        url.includes('/node_modules/.vite/deps/')
+      ) {
+        viteAssetFailures.push(`${response.status()} ${url}`);
+      }
+    });
+
     await gotoAppReady(page);
+
+    const viteLoadErrors = errors.filter(
+      (error) =>
+        /Outdated Optimize Dep/i.test(error) ||
+        /\/node_modules\/\.vite\/deps\//i.test(error) ||
+        /Failed to fetch dynamically imported module/i.test(error) ||
+        /Loading chunk .* failed/i.test(error),
+    );
+
+    expect([...viteAssetFailures, ...viteLoadErrors]).toEqual([]);
 
     // Filter out common non-critical errors
     const criticalErrors = errors.filter(
@@ -173,8 +194,7 @@ test.describe('Basic Functionality Validation', () => {
         !error.includes('manifest') &&
         !error.includes('404') &&
         !error.includes('net::ERR') &&
-        !error.includes('Failed to load resource') &&
-        !error.includes('chunk'), // stale asset/chunk loading issues
+        !error.includes('Failed to load resource'),
     );
 
     // For now, just log errors but don't fail the test

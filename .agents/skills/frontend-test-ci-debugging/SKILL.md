@@ -7,10 +7,17 @@ description: >-
   dep (jayson, uuid, @solana/web3.js, @lifi/sdk), a "[coverage] Batch N/… could
   not be split further" hard-fail, or "Found multiple elements" batch failures —
   and tweaking vite.config resolve.alias / server.deps.inline / ssr.noExternal /
-  pool does not fix it.
+  pool does not fix it. Do not use for local Vite dev-server/browser-cache
+  failures such as 504 "Outdated Optimize Dep" from /node_modules/.vite/deps/.
 ---
 
 # Frontend test:ci / coverage debugging
+
+This skill is only for frontend Vitest / coverage / `test:ci` failures. For
+local Vite dev-server failures such as
+`/node_modules/.vite/deps/... 504 (Outdated Optimize Dep)`, inspect the running
+dev server and browser cache state instead; do not apply this skill's Vitest
+externalization guidance.
 
 ## Where the error already is
 

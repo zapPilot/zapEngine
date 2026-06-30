@@ -8,6 +8,7 @@
     "postinstall": "playwright install chromium",
     "dev": "cross-env VITE_ENABLE_RQ_DEVTOOLS=0 VITE_ENABLE_LOG_VIEWER=0 vite",
     "dev:debug": "cross-env VITE_ENABLE_RQ_DEVTOOLS=1 VITE_ENABLE_LOG_VIEWER=1 vite",
+    "dev:health": "node scripts/check-vite-dev-health.js",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
     "preview": "vite preview --host 0.0.0.0 --port 4173",

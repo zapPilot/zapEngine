@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "dev": "bash scripts/dev.sh",
+    "dev:health": "pnpm --filter @zapengine/frontend run dev:health",
     "build": "bash scripts/build.sh",
     "type-check": "turbo run type-check",
     "test": "bash scripts/test.sh",
