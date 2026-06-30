@@ -4,10 +4,10 @@ import {
   buildActivityGroupsFromMoralisHistory,
   buildDesktopWalletAssets,
   buildInvestableBalanceRows,
-  normalizeWalletAddressList,
   type MoralisChainKey,
   type MoralisWalletHistoryResponse,
   type MoralisWalletTokenBalancesResponse,
+  normalizeWalletAddressList,
 } from '../src/integration/moralisWallet';
 
 function balances(
